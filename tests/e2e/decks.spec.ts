@@ -7,7 +7,7 @@ import type { MediaAsset } from "../../src/shared/types/media";
 import { SLIDES_CONVERTER_VERSION } from "../../src/shared/constants";
 import { fixture } from "./support/paths";
 import { buildPdf } from "./support/pdf";
-import { audioStates, expect, relaunch, test, videoStates, type WorshipApp } from "./support/app";
+import { audioStates, engineCanvas, expect, moving, relaunch, test, videoStates, type WorshipApp } from "./support/app";
 
 /** A rasterized slide in the centre grid, once the deck is converted. */
 const slideTile = (app: WorshipApp, n: number) =>
@@ -172,22 +172,90 @@ test("the EN VIVO that opens the projector still gives slide 1 its whole time", 
   expect(shown[2]! - shown[1]!).toBeGreaterThan(1700);
 });
 
-test("a WMV embedded in a .pptx slide is converted and plays on its slide", async ({ app }) => {
+test("a WMV embedded in a .pptx slide plays through the media engine on its slide", async ({ app }) => {
   test.skip(!fs.existsSync(fixture("clipdeck.pptx")), "LibreOffice is not installed, so there is no .pptx fixture");
   await app.addMedia("ppt", "clipdeck.pptx");
   await app.previewFile("Presentaciones", "clipdeck");
   await expect(slideTile(app, 1)).toBeVisible({ timeout: 90_000 });
 
-  // Main converts the clip inside the deck's own cache and announces it
-  // (`deck-updated`), so the renderer re-reads a deck that now has a video.
-  await expect.poll(() => app.log.some((line) => line.includes("[convert] slide clip")), { timeout: 60_000 }).toBe(true);
+  // Main hands the clip to the engine and announces it (`deck-updated`), so
+  // the renderer re-reads a deck that now has a video. Nothing is converted.
+  await expect.poll(() => app.log.some((line) => line.includes("[engine] slide clip")), { timeout: 60_000 }).toBe(true);
   await app.control.waitForTimeout(1000);
 
   await app.goLive();
   const projector = await app.projector();
-  await expect
-    .poll(async () => (await videoStates(projector)).find((v) => v.src.includes("/deck-video/"))?.videoWidth ?? 0)
-    .toBe(640);
+  await expect.poll(async () => (await engineCanvas(projector, "slideVideo:"))?.width ?? 0).toBe(640);
+  await expect.poll(() => moving(projector, "slideVideo:")).toBe(true);
+  // The LIVE monitor draws the projector's own frames, and no <video> is left.
+  await expect.poll(() => moving(app.control, "slideVideo:")).toBe(true);
+  expect(await videoStates(projector)).toEqual([]);
+
+  // NEGRO holds it where it is: covered for longer than the whole 4 s clip,
+  // it still has the rest to play once uncovered.
+  await app.control.locator("body").press("b");
+  await expect.poll(() => moving(projector, "slideVideo:")).toBe(false);
+  await app.control.waitForTimeout(4500);
+  await app.control.locator("body").press("b");
+  await expect.poll(() => moving(projector, "slideVideo:")).toBe(true);
+
+  // Once it ends it stays on its last frame, and uncovering does not play it again.
+  await expect.poll(() => moving(projector, "slideVideo:"), { timeout: 10_000 }).toBe(false);
+  await app.control.locator("body").press("b");
+  await app.control.waitForTimeout(500);
+  await app.control.locator("body").press("b");
+  await app.control.waitForTimeout(500);
+  expect(await moving(projector, "slideVideo:")).toBe(false);
+  expect(app.log.some((line) => line.includes("[convert] slide clip"))).toBe(false);
+});
+
+test("after a restart, a deck prepared before still plays its WMV through the engine", async ({ app }) => {
+  test.skip(!fs.existsSync(fixture("clipdeck.pptx")), "LibreOffice is not installed, so there is no .pptx fixture");
+  await app.addMedia("ppt", "clipdeck.pptx");
+  await app.previewFile("Presentaciones", "clipdeck");
+  await expect.poll(() => app.log.some((line) => line.includes("[engine] slide clip")), { timeout: 60_000 }).toBe(true);
+  await app.quit();
+
+  // Which clips the engine plays is known only in memory: the cached deck,
+  // opened with a bare peek, has to be looked at again in this launch.
+  const again = await relaunch(app);
+  await again.previewFile("Presentaciones", "clipdeck");
+  await expect.poll(() => again.log.some((line) => line.includes("[engine] slide clip")), { timeout: 30_000 }).toBe(true);
+  await again.control.waitForTimeout(1000);
+  await again.goLive();
+  const projector = await again.projector();
+  await expect.poll(() => moving(projector, "slideVideo:")).toBe(true);
+});
+
+test("a deck whose music is a WMA follows the media engine's clock, and NEGRO freezes both", async ({ app }) => {
+  test.skip(!fs.existsSync(fixture("hymn-wma.pptx")), "LibreOffice is not installed, so there is no .pptx fixture");
+  await app.addMedia("ppt", "hymn-wma.pptx");
+  await app.previewFile("Presentaciones", "hymn-wma");
+  await expect(slideTile(app, 3)).toBeVisible({ timeout: 90_000 });
+  await expect.poll(() => app.log.some((line) => line.includes("[engine] slide clip")), { timeout: 60_000 }).toBe(true);
+  await app.control.waitForTimeout(1000);
+
+  await app.goLive();
+  const projector = await app.projector();
+  const live = app.liveColumn();
+  // The music sounds from the engine, with no <audio>, and its row reads the engine's clock.
+  const music = live.getByRole("slider", { name: "Posición de hymn-wma (música)" });
+  await expect.poll(async () => Number(await music.getAttribute("aria-valuenow"))).toBeGreaterThan(0);
+  expect(await audioStates(projector)).toEqual([]);
+  // Two seconds a slide, from the music's clock.
+  await expect.poll(() => projectedSlide(projector), { timeout: 5_000 }).toBe(2);
+
+  await app.control.locator("body").press("b");
+  await app.control.waitForTimeout(500);
+  const coveredAt = await music.getAttribute("aria-valuenow");
+  // Covered for longer than a slide: neither the music nor the deck moves.
+  await app.control.waitForTimeout(3000);
+  await expect(live.getByText("2/3", { exact: true })).toBeVisible();
+  expect(await music.getAttribute("aria-valuenow")).toBe(coveredAt);
+
+  await app.control.locator("body").press("b");
+  await expect.poll(() => projectedSlide(projector), { timeout: 5_000 }).toBe(3);
+  expect(app.log.some((line) => line.includes("[convert] slide clip"))).toBe(false);
 });
 
 test("a slide clicked in the LIVE grid goes up at once; one clicked in PREVIEW does not", async ({ app }) => {

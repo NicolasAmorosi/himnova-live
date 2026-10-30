@@ -99,6 +99,9 @@ export default function globalSetup(): void {
       }
     };
     toDeck("hymn", hymnFodp(3, 2));
+    // The same hymn with a WMA as its music: the deck's soundtrack, which only
+    // the media engine plays, and whose clock the slides follow («synced»).
+    embedDeckMusic(out("hymn.pptx"), out("song.wma"), out("hymn-wma.pptx"));
     toDeck("converted", hymnFodp(3, 2), "odp");
     toDeck("queued", hymnFodp(4, 2), "odp");
 
@@ -136,6 +139,29 @@ function embedExternalVideo(pptxPath: string, videoPath: string): void {
     );
   }
   fs.writeFileSync(pptxPath, zipSync(files));
+}
+
+/** `pptxPath` with `musicPath` on its first slide as a sound that plays across
+ *  every slide (`numSld`), which is how PowerPoint stores a deck's music. */
+function embedDeckMusic(pptxPath: string, musicPath: string, outPath: string): void {
+  const files = unzipSync(fs.readFileSync(pptxPath));
+  files["ppt/media/music1.wma"] = fs.readFileSync(musicPath);
+  const pic =
+    '<p:pic><p:nvPicPr><p:cNvPr id="99" name="Music"/><p:cNvPicPr/><p:nvPr><a:audioFile r:link="rIdMusic"/></p:nvPr></p:nvPicPr><p:blipFill/><p:spPr/></p:pic>';
+  const timing =
+    '<p:timing><p:tnLst><p:par><p:cTn id="1"><p:childTnLst><p:audio><p:cMediaNode numSld="999"><p:cTn id="2"/><p:tgtEl><p:spTgt spid="99"/></p:tgtEl></p:cMediaNode></p:audio></p:childTnLst></p:cTn></p:par></p:tnLst></p:timing>';
+  const slide = strFromU8(files["ppt/slides/slide1.xml"]!);
+  files["ppt/slides/slide1.xml"] = strToU8(slide.replace("</p:spTree>", `${pic}</p:spTree>`).replace("</p:sld>", `${timing}</p:sld>`));
+  const rels = strFromU8(files["ppt/slides/_rels/slide1.xml.rels"]!);
+  files["ppt/slides/_rels/slide1.xml.rels"] = strToU8(
+    rels.replace(
+      "</Relationships>",
+      '<Relationship Id="rIdMusic" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/audio" Target="../media/music1.wma"/></Relationships>',
+    ),
+  );
+  const types = strFromU8(files["[Content_Types].xml"]!);
+  files["[Content_Types].xml"] = strToU8(types.replace("<Default ", '<Default Extension="wma" ContentType="audio/x-ms-wma"/><Default '));
+  fs.writeFileSync(outPath, zipSync(files));
 }
 
 /** One slide holding a video frame that points at `videoPath`. */

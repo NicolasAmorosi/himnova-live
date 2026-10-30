@@ -1,14 +1,15 @@
-import type { WebContents } from "electron";
-import { engineAssetIdOfUrl, liveEngineFrameKey, previewEngineFrameKey } from "@shared/urls";
+import type { BrowserWindow, WebContents } from "electron";
+import { engineAssetIdOfUrl, engineClipOfUrl, liveEngineFrameKey, previewEngineFrameKey } from "@shared/urls";
 import type { MediaCommand, MediaTarget, PreviewEngineVideo } from "@shared/types/projection";
-import { getMediaRepo } from "../services/repos";
+import { getMediaRepo, getSlidesRepo } from "../services/repos";
 import { broadcast, controlWindows } from "../services/broadcast";
 import { projectionState } from "../services/projection-state";
 import { takeEngine, type EngineEvents, type MediaEngine } from "./media-engine";
-import { liveEngineAudio, liveEngineState } from "./live-engine-state";
+import { liveEngineAudio, liveEngineSlideVideo, liveEngineState, type LiveEngineState } from "./live-engine-state";
 
 /**
- * The media engine's sessions: the live video, each live audio track, and the PREVIEW monitor's video.
+ * The media engine's sessions: the live video, the live slide's clip, each live audio track, and the
+ * PREVIEW monitor's video.
  * Plan `2026-10-25-reproduccion-instantanea`, §6 «Contrato del motor para el paso 1».
  *
  * The live ones follow the last `ProjectionOutput` and `AudioTrackPush[]`, the very values
@@ -25,9 +26,11 @@ import { liveEngineAudio, liveEngineState } from "./live-engine-state";
 
 type Session = { engine: MediaEngine | null; url: string; epoch: number; paused: boolean; volume: number; loop: boolean };
 
-const VIDEO = { kind: "video" } as const;
+type VideoTarget = "video" | "slideVideo";
 
-let live: Session | null = null;
+/** The full-screen video and the live slide's clip: never both live, but two elements, as they are
+ *  in the projector (`OutputView`). */
+const videos: Record<VideoTarget, Session | null> = { video: null, slideVideo: null };
 /** By `trackId`. Audio has no picture, so no window is shown its frames. */
 const audio = new Map<string, Session>();
 let preview: Session | null = null;
@@ -41,7 +44,15 @@ function start(
   events: EngineEvents,
 ): void {
   const assetId = engineAssetIdOfUrl(session.url);
-  const file = assetId === null ? null : getMediaRepo().getPathById(assetId);
+  const clip = engineClipOfUrl(session.url);
+  const file =
+    assetId !== null
+      ? getMediaRepo().getPathById(assetId)
+      : clip?.kind === "audio"
+        ? getSlidesRepo().getAudioPath(clip.id)
+        : clip?.kind === "video"
+          ? getSlidesRepo().getVideoPath(clip.id)
+          : null;
   if (!file) {
     events.error?.({ code: "engine-open", detail: `no file for ${session.url}` });
     return;
@@ -105,33 +116,41 @@ function syncAudio(projectorOpen: boolean): void {
   }
 }
 
-/** Called whenever the output, the audio tracks or the projector window change. */
-export function syncLiveEngine(): void {
-  const projector = projectionState.getWindow();
-  syncAudio(projector !== null);
-  const want = liveEngineState(projectionState.getSnapshot().output, projector !== null);
-  if (live && (!want || want.epoch !== live.epoch || want.url !== live.url)) {
-    live.engine?.quit();
-    live = null;
+function syncVideo(target: VideoTarget, want: LiveEngineState | null, windows: (BrowserWindow | null)[]): void {
+  let session = videos[target];
+  if (session && (!want || want.epoch !== session.epoch || want.url !== session.url)) {
+    session.engine?.quit();
+    session = videos[target] = null;
   }
   if (!want) return;
 
-  if (!live) {
-    const session: Session = { engine: null, url: want.url, epoch: want.epoch, paused: want.paused, volume: want.volume, loop: false };
-    live = session;
-    start(session, { startAtSeconds: want.startAtSeconds, audio: true }, liveEngineFrameKey(want.epoch), liveEvents(session, VIDEO, () => live === session));
+  if (!session) {
+    const fresh: Session = { engine: null, url: want.url, epoch: want.epoch, paused: want.paused, volume: want.volume, loop: want.loop };
+    session = videos[target] = fresh;
+    const events = liveEvents(fresh, { kind: target }, () => videos[target] === fresh);
+    start(fresh, { startAtSeconds: want.startAtSeconds, audio: true }, liveEngineFrameKey(target, want.epoch), events);
   } else {
-    apply(live, want);
+    apply(session, want);
   }
   // The projector, and the control window's LIVE monitor: one decode, the same frame on both.
-  for (const win of [projector, ...controlWindows()]) if (win) live.engine?.show(win.webContents);
+  for (const win of windows) if (win) session.engine?.show(win.webContents);
+}
+
+/** Called whenever the output, the audio tracks or the projector window change. */
+export function syncLiveEngine(): void {
+  const projector = projectionState.getWindow();
+  const { output } = projectionState.getSnapshot();
+  const windows = [projector, ...controlWindows()];
+  syncAudio(projector !== null);
+  syncVideo("video", liveEngineState(output, projector !== null), windows);
+  syncVideo("slideVideo", liveEngineSlideVideo(output, projector !== null), windows);
 }
 
 /** A seek from the media panel, when its target is one of the engine's. `restart` is a seek to 0 as
  *  well: whether it plays is the declarative `paused`, never a command's (`restartDeck` sets both). */
 export function commandLiveEngine(command: MediaCommand): boolean {
   const { target } = command;
-  const session = target.kind === "video" ? live : target.kind === "audio" ? audio.get(target.trackId) : undefined;
+  const session = target.kind === "audio" ? audio.get(target.trackId) : videos[target.kind];
   if (!session) return false;
   session.engine?.seek(command.action === "seek" ? command.timeSeconds : 0);
   return true;
@@ -175,6 +194,9 @@ export function seekPreviewVideo(seconds: number): void {
 
 /** `projection:wantVideoFrame`: a canvas for these frames just mounted. */
 export function redrawEngineFrame(key: string): void {
-  if (live && key === liveEngineFrameKey(live.epoch)) live.engine?.redraw();
-  else if (preview && key === previewEngineFrameKey(preview.url)) preview.engine?.redraw();
+  for (const target of ["video", "slideVideo"] as const) {
+    const session = videos[target];
+    if (session && key === liveEngineFrameKey(target, session.epoch)) session.engine?.redraw();
+  }
+  if (preview && key === previewEngineFrameKey(preview.url)) preview.engine?.redraw();
 }

@@ -4,7 +4,7 @@ import { onIpc } from "@renderer/lib/ipc";
 import { OutputView } from "@renderer/components/shared/output-view";
 import { useMediaStatusReporter } from "./use-media-status-reporter";
 import { INSTANT_TRANSITION } from "@shared/types/projection";
-import { engineAssetIdOfUrl } from "@shared/urls";
+import { isEngineUrl } from "@shared/urls";
 import type {
   AudioTrackPush,
   MediaCommand,
@@ -232,7 +232,7 @@ export function ProjectionApp() {
           fresh GO LIVE on the same asset bumps the epoch), never merely
           because BLACK/LOGO or a pause toggled. A track the media engine
           plays has no element at all: main plays it, sound included. */}
-      {tracks.filter((track) => engineAssetIdOfUrl(track.url) === null).map((track) => (
+      {tracks.filter((track) => !isEngineUrl(track.url)).map((track) => (
         <AudioTrackElement
           key={`${track.trackId}:${track.epoch}`}
           registry={audioRefs.current}

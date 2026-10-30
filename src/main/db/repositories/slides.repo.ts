@@ -4,7 +4,7 @@ import { and, asc, eq, inArray, lt, notInArray, sql } from "drizzle-orm";
 import type Database from "better-sqlite3";
 import type { Db } from "../client";
 import { deckAudio, deckSlides, deckVideos, mediaAssets, slideDecks } from "../schema";
-import { slideModelUrl, slideThumbUrl, slideUrl, deckAudioUrl, deckVideoUrl, linkedAudioUrl } from "@shared/urls";
+import { slideModelUrl, slideThumbUrl, slideUrl, deckAudioUrl, deckVideoUrl, engineClipUrl, linkedAudioUrl } from "@shared/urls";
 import { SLIDES_CONVERTER_VERSION, SLIDES_NATIVE_VERSION, SLIDES_MODEL_VERSION } from "@shared/constants";
 import type { DeckDTO, DeckSlide, DeckSlideVideo, DeckSound, DeckStatus, SlideRect } from "@shared/types/deck";
 import { isSlideTransitionStyle, type SlideTransition } from "@shared/types/transition";
@@ -427,18 +427,21 @@ export class SlidesRepo {
 
   /** A clip `media/deck-clips.ts` made playable in place: the same row, now
    *  pointing at the converted file (or at the same one, found playable after
-   *  all), so its id — and the `worship://deck-video/<id>` url — never change. */
-  updateClip(kind: "video" | "audio", id: number, file: string, ext: string, bytes: number): void {
+   *  all), so its id — and the `worship://deck-video/<id>` url — never change.
+   *  Or pointed back at the original an earlier build converted, which only the
+   *  media engine plays (`playable` false). */
+  updateClip(kind: "video" | "audio", id: number, file: string, ext: string, bytes: number, playable = true): void {
+    const flag = playable ? 1 : 0;
     if (kind === "video") {
       this.db
         .update(deckVideos)
-        .set({ videoFile: file, ext, bytes, playable: 1 })
+        .set({ videoFile: file, ext, bytes, playable: flag })
         .where(eq(deckVideos.id, id))
         .run();
     } else {
       this.db
         .update(deckAudio)
-        .set({ audioFile: file, ext, bytes, playable: 1 })
+        .set({ audioFile: file, ext, bytes, playable: flag })
         .where(eq(deckAudio.id, id))
         .run();
     }
@@ -948,16 +951,25 @@ export class SlidesRepo {
 
   /** `linkedAudioPath` is resolved by the caller (`deck-service.ts`, via
    *  `MediaRepo`) — this repo only knows about `slide_decks`/`deck_audio`,
-   *  never about `media_assets`. */
-  toDTO(deckRow: DeckRow, assetId: number, linkedAudioPath: string | null = null): DeckDTO {
+   *  never about `media_assets`. So is `engineClip`: whether the media engine
+   *  plays a clip Chromium cannot (`media/deck-clips.ts`), which is decided
+   *  every launch and never stored. */
+  toDTO(
+    deckRow: DeckRow,
+    assetId: number,
+    linkedAudioPath: string | null = null,
+    engineClip: (kind: "audio" | "video", id: number) => boolean = () => false,
+  ): DeckDTO {
     const slideRows = this.listSlides(deckRow.id);
     const audioRows = this.listAudio(deckRow.id);
+    const audioUrl = (row: AudioRow) =>
+      engineClip("audio", row.id) ? engineClipUrl("audio", row.id) : deckAudioUrl(row.id, row.audioFile);
 
     // The deck's music is the sound in the file that plays from the first
     // slide to the end, else a linked external file (an old hymnal's .mp3).
     // Every other playable sound plays on its own slides — a row written
     // before those were read (`scope` slide, no stop) on its own slide only.
-    const playableRows = audioRows.filter((row) => row.playable === 1);
+    const playableRows = audioRows.filter((row) => row.playable === 1 || engineClip("audio", row.id));
     const embeddedTrack =
       playableRows.find((row) => row.scope === "deck" && (row.startSlideIndex ?? 1) === 1) ?? null;
     const sounds: DeckSound[] = playableRows
@@ -966,7 +978,7 @@ export class SlidesRepo {
         const start = row.startSlideIndex ?? 1;
         return {
           id: row.id,
-          url: deckAudioUrl(row.id, row.audioFile),
+          url: audioUrl(row),
           startSlideIndex: start,
           stopSlideIndex: row.stopSlideIndex ?? (row.scope === "slide" ? start : null),
           loop: row.loop === 1,
@@ -975,7 +987,7 @@ export class SlidesRepo {
 
     const soundtrack: DeckDTO["soundtrack"] = embeddedTrack
       ? {
-          url: deckAudioUrl(embeddedTrack.id, embeddedTrack.audioFile),
+          url: audioUrl(embeddedTrack),
           durationMs: null,
           origin: embeddedTrack.origin,
           name: embeddedTrack.audioFile,
@@ -996,7 +1008,8 @@ export class SlidesRepo {
     const videos: DeckSlideVideo[] = [];
     const slidesWithVideo = new Set<number>();
     for (const row of this.listVideos(deckRow.id)) {
-      if (row.playable !== 1 || slidesWithVideo.has(row.slideIndex)) continue;
+      const engine = engineClip("video", row.id);
+      if ((row.playable !== 1 && !engine) || slidesWithVideo.has(row.slideIndex)) continue;
       // A video whose slide no longer exists, or whose page has no size on
       // record, has no box to be positioned inside. Dropped rather than given
       // a default: the poster frame in the rasterized slide is already right.
@@ -1005,7 +1018,7 @@ export class SlidesRepo {
       slidesWithVideo.add(row.slideIndex);
       videos.push({
         slideIndex: row.slideIndex,
-        url: deckVideoUrl(row.id, row.videoFile),
+        url: engine ? engineClipUrl("video", row.id) : deckVideoUrl(row.id, row.videoFile),
         rect: { x: row.rectX, y: row.rectY, width: row.rectWidth, height: row.rectHeight },
         aspectRatio: page.widthPx / page.heightPx,
         loop: row.loop === 1,

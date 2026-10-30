@@ -1,13 +1,14 @@
-import { engineAssetIdOfUrl } from "@shared/urls";
+import { isEngineUrl } from "@shared/urls";
 import type { AudioTrackPush, ProjectionOutput } from "@shared/types/projection";
 
-/** What the live engine session has to be right now (`engine-sessions.ts`). */
+/** What a live engine video session has to be right now (`engine-sessions.ts`). */
 export type LiveEngineState = {
   url: string;
   epoch: number;
   startAtSeconds: number;
   paused: boolean;
   volume: number;
+  loop: boolean;
 };
 
 /**
@@ -21,13 +22,33 @@ export type LiveEngineState = {
  */
 export function liveEngineState(output: ProjectionOutput | null, projectorOpen: boolean): LiveEngineState | null {
   const video = output?.videoUnderlay;
-  if (!output || !video || engineAssetIdOfUrl(video.url) === null) return null;
+  if (!output || !video || !isEngineUrl(video.url)) return null;
   return {
     url: video.url,
     epoch: video.epoch,
     startAtSeconds: video.startAtSeconds,
     paused: video.paused || output.kind !== "video" || !projectorOpen,
     volume: video.volume,
+    loop: false,
+  };
+}
+
+/**
+ * The live slide's own clip, by the same rule as `liveEngineState`: `SlideVideoLayer` plays it while
+ * the slide is the output and the operator has not paused it, and it loops when the file says so.
+ * An ended clip stays on its slide, and the engine (mpv's `keep-open`) holds its last frame — so
+ * uncovering it does not play it again, as uncovering an ended `<video>` did not.
+ */
+export function liveEngineSlideVideo(output: ProjectionOutput | null, projectorOpen: boolean): LiveEngineState | null {
+  const video = output?.slideVideo;
+  if (!output || !video || !isEngineUrl(video.url)) return null;
+  return {
+    url: video.url,
+    epoch: video.epoch,
+    startAtSeconds: video.startAtSeconds,
+    paused: video.paused || output.kind !== "slide" || !projectorOpen,
+    volume: video.volume,
+    loop: video.loop,
   };
 }
 
@@ -40,6 +61,6 @@ export function liveEngineState(output: ProjectionOutput | null, projectorOpen: 
  */
 export function liveEngineAudio(tracks: AudioTrackPush[], projectorOpen: boolean): AudioTrackPush[] {
   return tracks
-    .filter((track) => engineAssetIdOfUrl(track.url) !== null)
+    .filter((track) => isEngineUrl(track.url))
     .map((track) => ({ ...track, paused: track.paused || !projectorOpen }));
 }

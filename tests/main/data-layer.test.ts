@@ -1310,7 +1310,7 @@ describe("Installed bibles keep the order the operator gave them", () => {
 describe("a deck's sounds", () => {
   const sound = (file: string, scope: "deck" | "slide", start: number, stop: number | null, loop = false) => ({
     audioFile: file,
-    ext: "mp3",
+    ext: path.extname(file).slice(1),
     bytes: 10,
     origin: "embedded" as const,
     scope,
@@ -1318,10 +1318,14 @@ describe("a deck's sounds", () => {
     stopSlideIndex: stop,
     loop,
     volume: null,
-    playable: true,
+    playable: !file.endsWith(".wma"),
   });
 
-  function deckWith(name: string, audio: ReturnType<typeof sound>[]) {
+  function deckWith(
+    name: string,
+    audio: ReturnType<typeof sound>[],
+    engineClip?: (kind: "audio" | "video", id: number) => boolean,
+  ) {
     const source = path.join(mediaDir, `${name}.pptx`);
     fs.writeFileSync(source, name);
     const asset = mediaRepo.upsertFromPath(source, "ppt", true);
@@ -1344,7 +1348,7 @@ describe("a deck's sounds", () => {
       [],
       audio,
     );
-    return slidesRepo.toDTO(slidesRepo.getDeckById(id)!, asset.id);
+    return slidesRepo.toDTO(slidesRepo.getDeckById(id)!, asset.id, null, engineClip);
   }
 
   test("the music from the first slide to the end is the soundtrack; every other sound plays on its slides", () => {
@@ -1367,5 +1371,14 @@ describe("a deck's sounds", () => {
       [5, 5],
       [39, null],
     ]);
+  });
+
+  test("a WMA is left out until the media engine takes it, and then it plays from the engine", () => {
+    const audio = [sound("1.wma", "deck", 1, null), sound("2.wma", "slide", 2, 2)];
+    const before = deckWith("wma-before", audio);
+    expect([before.soundtrack, before.sounds]).toEqual([null, []]);
+    const dto = deckWith("wma-engine", audio, (kind) => kind === "audio");
+    expect(dto.soundtrack?.url).toMatch(/^worship:\/\/engine\/deck-audio\/\d+$/);
+    expect(dto.sounds[0]?.url).toMatch(/^worship:\/\/engine\/deck-audio\/\d+$/);
   });
 });

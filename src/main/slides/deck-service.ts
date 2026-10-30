@@ -45,7 +45,7 @@ import { encodeSlideLayers } from "./native-deck";
 import { readPptx, type PptxRead } from "./pptx-deck";
 import { rasterizePdf, shutdownRasterizer } from "./rasterizer";
 import { hashFile } from "../media/content-hash";
-import { healDeckClips } from "../media/deck-clips";
+import { healDeckClips, isEngineClip } from "../media/deck-clips";
 import { removeQuietly, renameWithRetry } from "../fs-retry";
 import { mt } from "../i18n";
 
@@ -679,13 +679,15 @@ function emptyMeta(): PresentationMeta {
  *  currently know"; `deck:ensure`'s is authoritative. */
 function toDeckDTO(row: DeckRow, assetId: number, opts?: { resolve?: boolean }): DeckDTO {
   const mediaRepo = getMediaRepo();
-  if (opts?.resolve !== false) {
-    mediaRepo.ensureLinkedAudio(assetId);
-    // A `.wmv` on a slide or a WMA soundtrack: made playable in the background,
-    // and announced with `deck-updated` once it is.
-    healDeckClips(row.id);
-  }
-  return getSlidesRepo().toDTO(row, assetId, mediaRepo.linkedAudioPathById(assetId));
+  if (opts?.resolve !== false) mediaRepo.ensureLinkedAudio(assetId);
+  // A `.wmv` on a slide or a WMA soundtrack: handed to the media engine (or,
+  // with no engine, converted) in the background, and announced with
+  // `deck-updated` once it is. On `getDeck` too: which clips the engine plays
+  // is only known in memory, so a deck cached by an earlier launch and opened
+  // with a bare peek would otherwise lose them until something ensured it.
+  // Cheap after the first time per launch (`checked`).
+  healDeckClips(row.id);
+  return getSlidesRepo().toDTO(row, assetId, mediaRepo.linkedAudioPathById(assetId), isEngineClip);
 }
 
 /** LibreOffice rounds an advance time to whole seconds on its way through

@@ -122,7 +122,7 @@ src/
 │   ├── media/                     # media-compat.ts (what Chromium plays: PURE, tested), ffmpeg.ts
 │   │                              #   (processes), conversion-service.ts (queue + cache of playable copies),
 │   │                              #   deck-clips.ts (video/audio embedded in a .pptx), thumbnail-service.ts,
-│   │                              #   media-engine.ts (one libmpv process per file) + engine-sessions.ts (live video and audio, PREVIEW)
+│   │                              #   media-engine.ts (one libmpv process per file) + engine-sessions.ts (live video, slide clip and audio, PREVIEW)
 │   ├── windows/projector-screen.ts # the projector bound to its screen: anti-sleep and reconnection
 │   ├── updates/                   # updater.ts (owns UpdateStatus, wraps electron-updater), mac-dmg.ts
 │   │                              #   (macOS without Squirrel), update-status.ts (PURE, tested)
@@ -600,7 +600,11 @@ npm run package:win|mac|linux  # build + electron-builder for that platform
   PREVIEW has a muted engine of its own (`preview:setVideo`). **A library AUDIO too** (step 1.2, same
   day): one engine per live track, driven from the `AudioTrackPush[]` main already keeps; the projector
   mounts no `<audio>` for it, and closing the projector pauses it as it silenced an `<audio>` (owner).
-  A deck's clips and sounds and a build with no engine are still converted. Diagnoses in
+  **A deck's clips and sounds too** (step 1.3, same day): `deck-clips.ts` marks such a clip for the
+  engine in memory (re-decided every launch, like the library's) and the DTO names it
+  `worship://engine/deck-{audio,video}/<id>`; the slide's clip is a `slideVideo` engine session drawn
+  in a canvas inside its rect, and a clip an earlier build converted goes back to its original. Only a
+  build with no engine still converts. Diagnoses in
   [`.claude/knowledge/chromium-plays-sound-over-black-for-a-codec-it-cannot-decode.md`](.claude/knowledge/chromium-plays-sound-over-black-for-a-codec-it-cannot-decode.md)
   and
   [`.claude/knowledge/chromium-reuses-a-media-urls-data-across-elements-so-changed-bytes-need-a-changed-url.md`](.claude/knowledge/chromium-reuses-a-media-urls-data-across-elements-so-changed-bytes-need-a-changed-url.md).

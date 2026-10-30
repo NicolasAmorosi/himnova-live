@@ -7,6 +7,7 @@ import { broadcast } from "../services/broadcast";
 import { currentDecoderSupport } from "./conversion-service";
 import { encoderThreads, ffmpegAvailable, probeMedia, runFfmpeg } from "./ffmpeg";
 import { conversionArgs, encodeEverything, parseProbe, planPlayback } from "./media-compat";
+import { engineAvailable } from "./media-engine";
 
 /**
  * A video or soundtrack embedded in a `.pptx` that Chromium cannot play — a
@@ -24,6 +25,12 @@ import { conversionArgs, encodeEverything, parseProbe, planPlayback } from "./me
  *
  * MIDI is left alone: it is a score, not a recording, and ffmpeg has no
  * synthesizer to turn it into sound.
+ *
+ * Since step 1.3 of the engine plan (2026-10-30) such a clip is not converted
+ * when the build has the media engine: it is marked for the engine instead, in
+ * memory, as `conversion-service` marks a library file — the decision depends
+ * on this machine and is made again every launch. Only a build with no engine
+ * still converts.
  */
 
 /** An extension the extractor did not recognize is saved as `.bin` and is
@@ -32,6 +39,8 @@ const UNCONVERTIBLE_EXT = new Set(["mid", "midi"]);
 
 /** Clip rows already looked at this launch — a deck is opened many times. */
 const checked = new Set<string>();
+/** The clips the media engine plays (`engineClipUrl`), by `<kind>:<id>`. */
+const engineClips = new Set<string>();
 let chain: Promise<void> = Promise.resolve();
 /** Aborted on quit (`stopDeckClips`). Without it, `killAllFfmpeg` made the
  *  remux fail and the fallback below started a fresh encode AFTER the kill,
@@ -40,9 +49,21 @@ const shutdown = new AbortController();
 
 type Clip = { kind: "video" | "audio"; id: number; dir: string; file: string; ext: string; playable: boolean };
 
-async function healClip(clip: Clip): Promise<boolean> {
+/** The file an earlier build's playable copy (`<n>.playable.mp4`) was made
+ *  from: the one next to it with the same `<n>`, as `pptx-metadata` named it. */
+function originalOf(clip: Clip): string | null {
+  const copy = /^(.+)\.playable\.(?:mp4|m4a)$/.exec(clip.file);
+  if (!copy) return null;
+  return fs.readdirSync(clip.dir).find((file) => file.startsWith(`${copy[1]}.`) && !file.includes(".playable.")) ?? null;
+}
+
+async function healClip(found: Clip): Promise<boolean> {
   const decoders = currentDecoderSupport();
   if (!decoders) return false;
+  // A clip an earlier build converted goes back to its original, which the engine plays: one path
+  // (owner, 2026-10-30). The copy stays on disk until the conversion goes (plan step 1.4).
+  const original = engineAvailable() ? originalOf(found) : null;
+  const clip = original ? { ...found, file: original, ext: path.extname(original).slice(1), playable: false } : found;
   const input = path.join(clip.dir, clip.file);
   const probe = parseProbe(await probeMedia(input));
   if (!probe) return false;
@@ -51,6 +72,12 @@ async function healClip(clip: Clip): Promise<boolean> {
     if (clip.playable) return false;
     // Flagged unplayable by its extension (an `.mkv`), playable by content.
     getSlidesRepo().updateClip(clip.kind, clip.id, clip.file, clip.ext, fs.statSync(input).size);
+    return true;
+  }
+  if (engineAvailable()) {
+    if (original) getSlidesRepo().updateClip(clip.kind, clip.id, clip.file, clip.ext, fs.statSync(input).size, false);
+    engineClips.add(`${clip.kind}:${clip.id}`);
+    console.info(`[engine] slide clip ${clip.file}`);
     return true;
   }
 
@@ -113,6 +140,11 @@ async function healDeck(deckId: number): Promise<void> {
     if (await healClip(clip)) changed = true;
   }
   if (changed) broadcast("deck-updated", { deckId });
+}
+
+/** Whether the media engine plays this clip, for the deck's DTO. */
+export function isEngineClip(kind: "audio" | "video", id: number): boolean {
+  return engineClips.has(`${kind}:${id}`);
 }
 
 /** Called whenever a deck's authoritative DTO is built. Cheap when there is

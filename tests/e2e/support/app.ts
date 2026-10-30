@@ -293,6 +293,19 @@ export function engineStates(page: Page) {
   );
 }
 
+/** The engine canvas whose frames come under a key starting with `prefix`. */
+export async function engineCanvas(page: Page, prefix: string) {
+  return (await engineStates(page)).find((state) => state.key.startsWith(prefix)) ?? null;
+}
+
+/** Whether that canvas's picture changes over 400 ms: the video is playing. */
+export async function moving(page: Page, prefix: string): Promise<boolean> {
+  const before = await engineCanvas(page, prefix);
+  await page.waitForTimeout(400);
+  const after = await engineCanvas(page, prefix);
+  return before !== null && after !== null && before.width > 0 && before.sample !== after.sample;
+}
+
 export function audioStates(page: Page) {
   return page.evaluate(() =>
     [...document.querySelectorAll("audio")].map((audio) => ({

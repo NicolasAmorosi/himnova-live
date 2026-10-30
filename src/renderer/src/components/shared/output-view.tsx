@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type Ref } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode, type Ref } from "react";
 import { Icon } from "@renderer/components/ui";
 import { cn } from "@renderer/lib/utils";
 import { frameCaptureSize } from "@renderer/lib/frame-capture";
@@ -14,7 +14,7 @@ import {
 } from "@renderer/lib/transition";
 import { loadSlideModel } from "@renderer/lib/slide-models";
 import { api } from "@renderer/lib/api";
-import { engineAssetIdOfUrl, liveEngineFrameKey, previewEngineFrameKey } from "@shared/urls";
+import { isEngineUrl, liveEngineFrameKey, previewEngineFrameKey } from "@shared/urls";
 import { ModelSlide } from "./slide-view/ModelSlide";
 import { BibleScene } from "./bible-scene";
 import { TimerScene } from "./timer-scene";
@@ -298,19 +298,20 @@ function LiveVideo({
   );
 }
 
-type EngineVideoProps = Pick<
-  LiveVideoProps,
-  "covered" | "epoch" | "held" | "incomingCovers" | "onFirstFrame" | "role" | "transition"
-> & {
+type EngineVideoProps = {
+  className: string;
   /** What main sends this video's frames under (`liveEngineFrameKey`, `previewEngineFrameKey`). */
   frameKey: string;
+  onFirstFrame?: (() => void) | undefined;
   onFreezeFrame?: ((canvas: HTMLCanvasElement) => void) | undefined;
+  style?: CSSProperties | undefined;
 };
 
 /**
- * `LiveVideo` for a video the media engine plays (`engineAssetUrl`): a canvas
- * its frames are drawn into, the very same frame in the projector and in every
- * monitor (`main/media/engine-sessions.ts`). Main plays, pauses, seeks and
+ * The `<video>` of `LiveVideo` or `SlideVideoLayer` for a video the media
+ * engine plays (`isEngineUrl`): a canvas its frames are drawn into, the very
+ * same frame in the projector and in every monitor
+ * (`main/media/engine-sessions.ts`). Main plays, pauses, seeks and
  * sounds it from the same output this view gets, so there is nothing here to
  * drive, and no second copy to keep in step in a monitor.
  *
@@ -318,17 +319,7 @@ type EngineVideoProps = Pick<
  * the engine reuses its texture. The canvas starts at no size, so one that
  * never drew has no pixels for `captureFrame` to freeze on the way out.
  */
-function EngineVideo({
-  covered,
-  epoch,
-  frameKey,
-  held,
-  incomingCovers,
-  onFirstFrame,
-  onFreezeFrame,
-  role,
-  transition,
-}: EngineVideoProps) {
+function EngineVideo({ className, frameKey, onFirstFrame, onFreezeFrame, style }: EngineVideoProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const firstFrameRef = useRef(onFirstFrame);
   firstFrameRef.current = onFirstFrame;
@@ -348,7 +339,7 @@ function EngineVideo({
       context.drawImage(frame, 0, 0);
       if (first) {
         first = false;
-        firstFrameRef.current?.(epoch);
+        firstFrameRef.current?.();
       }
     });
     // A paused engine sends nothing: a projector rebuilt onto another screen
@@ -370,14 +361,7 @@ function EngineVideo({
   }, []);
 
   return (
-    <canvas
-      className="absolute inset-0 size-full bg-black object-contain"
-      data-frame-key={frameKey}
-      height={0}
-      ref={canvasRef}
-      style={transitionStyle(role, transition, covered ? 0 : 1, held, incomingCovers)}
-      width={0}
-    />
+    <canvas className={className} data-frame-key={frameKey} height={0} ref={canvasRef} style={style} width={0} />
   );
 }
 
@@ -442,6 +426,12 @@ function SlideVideoLayer({
   const elementRef = useRef<HTMLVideoElement | null>(null);
   const shouldPlay = !covered && !slideVideo.paused;
   const { rect } = slideVideo;
+  const rectStyle = {
+    left: `${rect.x * 100}%`,
+    top: `${rect.y * 100}%`,
+    width: `${rect.width * 100}%`,
+    height: `${rect.height * 100}%`,
+  };
 
   function attach(element: HTMLVideoElement | null) {
     elementRef.current = element;
@@ -515,22 +505,27 @@ function SlideVideoLayer({
           width: `min(100cqw, ${slideVideo.aspectRatio} * 100cqh)`,
         }}
       >
-        <video
-          autoPlay={shouldPlay}
-          className="absolute object-contain"
-          loop={slideVideo.loop}
-          muted={mode !== "live"}
-          onError={(event) => onError(event.currentTarget.error?.code ?? null)}
-          preload="metadata"
-          ref={attach}
-          src={slideVideo.url}
-          style={{
-            left: `${rect.x * 100}%`,
-            top: `${rect.y * 100}%`,
-            width: `${rect.width * 100}%`,
-            height: `${rect.height * 100}%`,
-          }}
-        />
+        {/* Main plays, pauses, loops and sounds an engine clip: every hook
+            above finds no element and does nothing. */}
+        {isEngineUrl(slideVideo.url) ? (
+          <EngineVideo
+            className="absolute object-contain"
+            frameKey={liveEngineFrameKey("slideVideo", slideVideo.epoch)}
+            style={rectStyle}
+          />
+        ) : (
+          <video
+            autoPlay={shouldPlay}
+            className="absolute object-contain"
+            loop={slideVideo.loop}
+            muted={mode !== "live"}
+            onError={(event) => onError(event.currentTarget.error?.code ?? null)}
+            preload="metadata"
+            ref={attach}
+            src={slideVideo.url}
+            style={rectStyle}
+          />
+        )}
       </div>
     </div>
   );
@@ -1405,7 +1400,7 @@ export function OutputView({
   const engineFrameKey = output.videoUnderlay
     ? mode === "preview"
       ? previewEngineFrameKey(output.videoUnderlay.url)
-      : liveEngineFrameKey(output.videoUnderlay.epoch)
+      : liveEngineFrameKey("video", output.videoUnderlay.epoch)
     : "";
 
   const incoming = layers[1];
@@ -1441,18 +1436,14 @@ export function OutputView({
       {/* Always the last sibling: painted after every scene layer, and its
           own z-index (via `videoRole`) settles who's on top whenever it's
           actually competing with a layer for the same pixels. */}
-      {output.videoUnderlay && videoMounted && engineAssetIdOfUrl(output.videoUnderlay.url) !== null ? (
+      {output.videoUnderlay && videoMounted && isEngineUrl(output.videoUnderlay.url) ? (
         <EngineVideo
-          covered={output.kind !== "video"}
-          epoch={output.videoUnderlay.epoch}
+          className="absolute inset-0 size-full bg-black object-contain"
           frameKey={engineFrameKey}
-          held={held}
-          incomingCovers={incomingCovers}
           key={engineFrameKey}
-          onFirstFrame={handleVideoFirstFrame}
+          onFirstFrame={() => handleVideoFirstFrame(output.videoUnderlay?.epoch ?? 0)}
           onFreezeFrame={shouldAnimate ? freezeFrame : undefined}
-          role={videoRole}
-          transition={transition}
+          style={transitionStyle(videoRole, transition, output.kind !== "video" ? 0 : 1, held, incomingCovers)}
         />
       ) : output.videoUnderlay && videoMounted ? (
         <LiveVideo

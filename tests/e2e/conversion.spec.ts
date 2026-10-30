@@ -3,8 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import type { MediaAsset, MediaConversionUpdate } from "../../src/shared/types/media";
 import { fixture } from "./support/paths";
-import type { Page } from "@playwright/test";
-import { audioStates, engineStates, expect, relaunch, test, videoStates, type WorshipApp } from "./support/app";
+import { audioStates, engineCanvas, expect, moving, relaunch, test, videoStates, type WorshipApp } from "./support/app";
 
 /**
  * "Tiene que poder reproducir todo lo que le tires" (2026-10-18). Each file
@@ -22,19 +21,6 @@ async function waitEngine(app: WorshipApp, asset: MediaAsset) {
   await expect
     .poll(async () => (await conversions(app)).find((c) => c.assetId === asset.id)?.engine ?? false, { timeout: 30_000 })
     .toBe(true);
-}
-
-/** The engine canvas whose frames come under a key starting with `prefix`. */
-async function engineCanvas(page: Page, prefix: string) {
-  return (await engineStates(page)).find((state) => state.key.startsWith(prefix)) ?? null;
-}
-
-/** Whether that canvas's picture changes over 400 ms: the video is playing. */
-async function moving(page: Page, prefix: string): Promise<boolean> {
-  const before = await engineCanvas(page, prefix);
-  await page.waitForTimeout(400);
-  const after = await engineCanvas(page, prefix);
-  return before !== null && after !== null && before.width > 0 && before.sample !== after.sample;
 }
 
 const noCopies = (app: WorshipApp) => {

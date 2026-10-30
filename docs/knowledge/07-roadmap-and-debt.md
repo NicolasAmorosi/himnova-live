@@ -43,8 +43,9 @@ songs/lyrics with projectable sections.
   What does remain open: a video whose `p:pic` doesn't carry its own `a:xfrm` (it inherits the
   geometry of a layout placeholder, which the parser doesn't resolve) is discarded instead of
   guessed; the slide still looks right: the poster frame is already rasterized in its place. A
-  `.wmv`/`.avi` is extracted marked `playable: false`, but since 2026-10-18 `media/deck-clips.ts`
-  converts it in place with the bundled FFmpeg the first time the deck is opened.
+  `.wmv`/`.avi` is extracted marked `playable: false`; since 2026-10-30 `media/deck-clips.ts` hands
+  it to the media engine the first time the deck is opened each launch (a build with no engine still
+  converts it in place with the bundled FFmpeg, as it did since 2026-10-18).
 - ~~**Configurable projection settings** for bible/text~~: **implemented on 2026-09-20**.
   The verse's style lives in the `bible.style` key of `SettingsMap` —a global style, not a row
   per preset— with `BibleStyle` (`shared/types/bible-style.ts`), its validators/normalizers and

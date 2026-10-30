@@ -25,10 +25,28 @@ export function engineAssetIdOfUrl(url: string): number | null {
   return match ? Number(match[1]) : null;
 }
 
-/** The key main sends the live video's frames under: by epoch, so a frame of
- *  the previous video still in flight never lands on the next one's canvas. */
-export function liveEngineFrameKey(epoch: number): string {
-  return `video:${epoch}`;
+/** A clip embedded in a deck (`deck_audio`/`deck_video` row) that the media
+ *  engine plays instead of a converted copy (`media/deck-clips.ts`). */
+export function engineClipUrl(kind: "audio" | "video", clipId: number): string {
+  return `worship://engine/deck-${kind}/${clipId}`;
+}
+
+/** The clip an `engineClipUrl` names, or null for any other url. */
+export function engineClipOfUrl(url: string): { kind: "audio" | "video"; id: number } | null {
+  const match = /^worship:\/\/engine\/deck-(audio|video)\/(\d+)$/.exec(url);
+  return match ? { kind: match[1] as "audio" | "video", id: Number(match[2]) } : null;
+}
+
+/** Whether only the media engine plays this url — a library file or a deck clip. */
+export function isEngineUrl(url: string): boolean {
+  return url.startsWith("worship://engine/");
+}
+
+/** The key main sends a live video's frames under — the full-screen one or the
+ *  live slide's: by epoch, so a frame of the previous video still in flight
+ *  never lands on the next one's canvas. */
+export function liveEngineFrameKey(target: "video" | "slideVideo", epoch: number): string {
+  return `${target}:${epoch}`;
 }
 
 /** The PREVIEW monitor's: by url, for the same reason — its epoch never moves. */

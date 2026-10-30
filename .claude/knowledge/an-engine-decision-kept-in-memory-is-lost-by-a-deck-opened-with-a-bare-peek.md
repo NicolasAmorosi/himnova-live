@@ -1,0 +1,10 @@
+## A media-engine decision kept in memory is lost by a deck opened with a bare peek, and a fresh-profile suite never sees it
+**Area:** slides
+**Trigger:** a deck's clip or sound missing (or back on a `<video>`/`<audio>`) only after restarting the app; touching `toDeckDTO`/`getDeck` in `src/main/slides/deck-service.ts`, `media/deck-clips.ts`, or anything that marks media for the engine in memory
+
+- Believed: `healDeckClips` runs whenever a deck's DTO is built, so a WMV/WMA clip is always handed to the engine. True only for `deck:ensure`: `getDeck` (`deck:get`, the renderer's `peek`) built the DTO with `resolve: false`, which skipped the heal along with `ensureLinkedAudio`. And the center panel opens a deck that is already prepared with `peek` alone (`use-deck.ts`: `ensure` only when nothing is cached).
+- Harmless while a clip was CONVERTED: the copy was written into the row, so any later launch found it. Since step 1.3 (2026-10-30) which clips the engine plays lives only in memory (`engineClips` in `deck-clips.ts`, like `conversion-service`'s `engineAssets`), so after a restart a prepared deck lost every engine clip — a WMA soundtrack or a WMV on a slide simply gone — until something ensured it again.
+- The full E2E suite passed 136/136 with the bug in: every test starts from a fresh profile, so its first open is always a conversion → `ensure`. Found only by a test that relaunched over the same profile. Covered now by `decks.spec.ts` «after a restart, a deck prepared before still plays its WMV through the engine».
+- Rule: anything decided in memory per launch has to be re-decided on EVERY path that hands its result out, the cache-only one included; and a feature whose state is rebuilt per launch needs one E2E that relaunches (`relaunch(app)` after `app.quit()` — a relaunch without the quit exits at once on the single-instance lock). The heal now runs on every DTO build; it is cheap after the first time per launch (`checked`). `resolve: false` still skips `ensureLinkedAudio`, which is the cost it exists to avoid.
+
+**Last updated:** 2026-10-30
