@@ -124,7 +124,7 @@ live slide is one of its slides â€” reached in order, by a jump, or by GO LIVE â
 is past its last, and keeps playing when the operator goes back before its first. A new scene (a
 GO LIVE, even of the same deck) and the transport's restart start them all over. It reads the
 sounds from the deck store, not from `liveDeck`: `liveDeck` is the deck as it went live, and a WMA
-whose playable copy finishes afterwards only reaches the deck store (`deck-updated`).
+the media engine takes afterwards only reaches the deck store (`deck-updated`).
 
 `src/renderer/src/effects/end-of-playback.ts` takes off the air, on its own, a video or an
 auto-advancing deck that finished playing by itself, leaving the logo scene

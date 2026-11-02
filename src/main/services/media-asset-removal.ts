@@ -1,6 +1,6 @@
 import { cancel as cancelDeckJob } from "../slides/deck-service";
 import { getDbHandle, getMediaRepo, getProgramsRepo } from "./repos";
-import { forgetConversion } from "../media/conversion-service";
+import { forgetEngineAsset } from "../media/engine-assets";
 
 /**
  * Deleting a media asset crosses two repositories — `program_items` (the FK
@@ -18,7 +18,7 @@ export function removeMediaAsset(id: number, force: boolean): void {
     // cancelling first would kill a conversion for an asset that survives.
     getMediaRepo().remove(id);
     cancelDeckJob(id);
-    forgetConversion(id);
+    forgetEngineAsset(id);
     return;
   }
 
@@ -31,5 +31,5 @@ export function removeMediaAsset(id: number, force: boolean): void {
     getMediaRepo().remove(id);
   });
   run();
-  forgetConversion(id);
+  forgetEngineAsset(id);
 }

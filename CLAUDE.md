@@ -83,7 +83,7 @@ answer, and ask about what does. Nothing is delivered half-done in silence.
 | DB | `better-sqlite3` (Node-API, no native rebuild) + Drizzle ORM + FTS5 for the Bible |
 | Packaging | `electron-builder` (nsis / ad-hoc signed dmg / AppImage + deb) |
 | Updates | `electron-updater` 6.8.9, from the GitHub release marked Latest; on macOS the app downloads and opens the `.dmg` itself |
-| Media conversion | FFmpeg 9.0.2 (`ffmpeg` + `ffprobe`) **bundled**, pinned by sha256 and downloaded by `scripts/fetch-ffmpeg.ts` (GPLv3, see `resources/ffmpeg-NOTICE.txt`) |
+| Media probe + thumbnails | FFmpeg 9.0.2 (`ffmpeg` + `ffprobe`) **bundled**, pinned by sha256 and downloaded by `scripts/fetch-ffmpeg.ts` (GPLv3, see `resources/ffmpeg-NOTICE.txt`) |
 | E2E | Playwright 1.63 (`_electron`) against the built app or the installed one — `tests/e2e/` |
 
 ## Folder structure
@@ -120,7 +120,7 @@ src/
 │   │                              # pptx/ + pptx-deck.ts (a .pptx read into a SlideModel per slide,
 │   │                              #   on the pptx-worker.ts thread)
 │   ├── media/                     # media-compat.ts (what Chromium plays: PURE, tested), ffmpeg.ts
-│   │                              #   (processes), conversion-service.ts (queue + cache of playable copies),
+│   │                              #   (probes, frames), engine-assets.ts (which library files the engine plays),
 │   │                              #   deck-clips.ts (video/audio embedded in a .pptx), thumbnail-service.ts,
 │   │                              #   media-engine.ts (one libmpv process per file) + engine-sessions.ts (live video, slide clip and audio, PREVIEW)
 │   ├── windows/projector-screen.ts # the projector bound to its screen: anti-sleep and reconnection
@@ -580,31 +580,28 @@ npm run package:win|mac|linux  # build + electron-builder for that platform
   projected.** It's an exhaustive `switch` over `BaseContent` — adding a new content type
   without handling it there is a compile error, not a runtime bug like the legacy
   `restorePrevious()`.
-- **If Chromium can't play a video or an audio file, it's converted; it's never decided by the
-  extension or by waiting for `error`.** Measured: ProRes, MPEG-4 part 2 or MJPEG inside a
+- **If Chromium can't play a video or an audio file, the media engine plays it; it's never decided by
+  the extension alone or by waiting for `error`.** Measured: ProRes, MPEG-4 part 2 or MJPEG inside a
   `.mp4`/`.mov` play sound over black without any `error`, and AC3/DTS/ALAC give a picture WITH NO
-  SOUND. `media-compat.ts` decides from ffprobe's streams (and HEVC depending on the GPU, which the control window reports), and
-  `conversion-service.ts` converts in the background, on import or when watching a linked folder, to
-  H.264/AAC capped at 1080p, without touching the original. `worship://asset/<id>?v=<copy>` serves the
-  copy and the URL without `v` ALWAYS serves the original. **The video/audio URL comes from
-  `playableAssetUrl`**, for two reasons: Chromium reuses a URL's data across elements (when the bytes
-  change the string has to change), and an element that started with the original can't receive the
-  copy's bytes in the middle of a song. That's why the video URL travels resolved in `BaseContent`. A
-  `.pptx`'s clips carry their file (`?f=`) for the same reason.
-  GO LIVE on something that's still being converted is refused with a warning. **Since 2026-10-30 a
-  library VIDEO is not converted: the media engine plays it** (libmpv in its own process,
-  `native/engine/`). `conversion-service` marks it `engine`, `playableAssetUrl` gives
-  `worship://engine/<id>`, and `OutputView` draws the engine's frames in a canvas instead of a
-  `<video>` — the same frame in the projector and the monitors. Main drives the live session from the
-  `ProjectionOutput` it already forwards (`media/engine-sessions.ts`), never from a record of its own;
-  PREVIEW has a muted engine of its own (`preview:setVideo`). **A library AUDIO too** (step 1.2, same
-  day): one engine per live track, driven from the `AudioTrackPush[]` main already keeps; the projector
-  mounts no `<audio>` for it, and closing the projector pauses it as it silenced an `<audio>` (owner).
-  **A deck's clips and sounds too** (step 1.3, same day): `deck-clips.ts` marks such a clip for the
-  engine in memory (re-decided every launch, like the library's) and the DTO names it
-  `worship://engine/deck-{audio,video}/<id>`; the slide's clip is a `slideVideo` engine session drawn
-  in a canvas inside its rect, and a clip an earlier build converted goes back to its original. Only a
-  build with no engine still converts. Diagnoses in
+  SOUND. `media-compat.ts` decides from ffprobe's streams (and HEVC depending on the GPU, which the
+  control window reports); until the probe answers, an extension Chromium never opens (AVI, WMV…)
+  already goes to the engine. The engine is libmpv in its own process (`native/engine/`).
+  `engine-assets.ts` keeps in memory which library files it plays (re-decided every launch), and
+  **the video/audio URL comes from `playableAssetUrl`**: `worship://engine/<id>` for those,
+  `worship://asset/<id>` (always the original) for the rest. `OutputView` draws the engine's frames
+  in a canvas instead of a `<video>` — the same frame in the projector and the monitors. Main drives
+  the live session from the `ProjectionOutput` it already forwards (`media/engine-sessions.ts`), never
+  from a record of its own; PREVIEW has a muted engine of its own (`preview:setVideo`). A library
+  AUDIO: one engine per live track, driven from the `AudioTrackPush[]` main already keeps; the
+  projector mounts no `<audio>` for it, and closing the projector pauses it as it silenced an
+  `<audio>` (owner). A deck's clips and sounds: `deck-clips.ts` marks such a clip for the engine in
+  memory and the DTO names it `worship://engine/deck-{audio,video}/<id>`; the slide's clip is a
+  `slideVideo` engine session drawn in a canvas inside its rect. The URL travels resolved in
+  `BaseContent`, and a `.pptx`'s clips carry their file (`?f=`): Chromium reuses a URL's data across
+  elements, so changed bytes need a changed string. **Nothing is converted since step 1.4
+  (2026-11-02):** a build with no engine plays those files like a damaged one (owner), and the copies
+  older builds made (`converted-media/`, `<n>.playable.mp4` in a deck's folder) are deleted at
+  startup, each deck clip row pointed back at its original first. Diagnoses in
   [`.claude/knowledge/chromium-plays-sound-over-black-for-a-codec-it-cannot-decode.md`](.claude/knowledge/chromium-plays-sound-over-black-for-a-codec-it-cannot-decode.md)
   and
   [`.claude/knowledge/chromium-reuses-a-media-urls-data-across-elements-so-changed-bytes-need-a-changed-url.md`](.claude/knowledge/chromium-reuses-a-media-urls-data-across-elements-so-changed-bytes-need-a-changed-url.md).

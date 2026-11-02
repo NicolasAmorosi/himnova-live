@@ -6,7 +6,7 @@ import { pathToFileURL } from "node:url";
 import type { CDPSession, Page } from "@playwright/test";
 import { DEFAULT_BIBLE_STYLE } from "../../src/shared/types/bible-style";
 import type { MediaAsset } from "../../src/shared/types/media";
-import { expect, relaunch, test, type WorshipApp } from "./support/app";
+import { engineCanvas, expect, relaunch, test, type WorshipApp } from "./support/app";
 import { ROOT, ffmpegBinary, findSoffice } from "./support/paths";
 
 /**
@@ -200,14 +200,13 @@ test("screenshots", async ({ app: first }) => {
   await expect(app.liveColumn().getByText("09:5", { exact: false }).first()).toBeVisible();
   await shoot(app, screen, "functions", { x: 533, y: 0, width: 1067, height: 600 });
 
-  // The library: a background on air, and a video converting on its own.
+  // The library: a background on air, and an AVI in PREVIEW, played by the media engine.
   await app.openResources("Media", "Videos");
   const videos = control.getByRole("tabpanel", { name: "Videos" });
   await videos.getByRole("button", { name: "Amanecer" }).dblclick();
   await app.invoke("library:add", { kind: "video", paths: [media("Testimonio.avi")] });
-  await expect(videos.getByRole("progressbar")).toBeVisible({ timeout: 30_000 });
   await videos.getByRole("button", { name: "Testimonio" }).click();
-  await expect(app.previewColumn().getByText(/Convirtiendo… \d+ %/)).toBeVisible();
+  await expect.poll(async () => (await engineCanvas(control, "preview:"))?.width ?? 0, { timeout: 30_000 }).toBeGreaterThan(0);
   await shoot(app, screen, "media", { x: 533, y: 0, width: 1067, height: 600 });
 });
 

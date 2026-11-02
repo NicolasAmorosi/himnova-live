@@ -425,11 +425,10 @@ export class SlidesRepo {
 
   // -- writes ---------------------------------------------------------------
 
-  /** A clip `media/deck-clips.ts` made playable in place: the same row, now
-   *  pointing at the converted file (or at the same one, found playable after
-   *  all), so its id — and the `worship://deck-video/<id>` url — never change.
-   *  Or pointed back at the original an earlier build converted, which only the
-   *  media engine plays (`playable` false). */
+  /** A clip `media/deck-clips.ts` looked at again: the same row, found playable
+   *  after all, or pointed back at the original an earlier build converted
+   *  (`playable` false: only the media engine plays it). Its id — and its url —
+   *  never change. */
   updateClip(kind: "video" | "audio", id: number, file: string, ext: string, bytes: number, playable = true): void {
     const flag = playable ? 1 : 0;
     if (kind === "video") {
@@ -445,6 +444,22 @@ export class SlidesRepo {
         .where(eq(deckAudio.id, id))
         .run();
     }
+  }
+
+  /** Clips still on the playable copy a build before step 1.4 of the engine plan made
+   *  (`<n>.playable.mp4`/`.m4a`, next to the original in the deck's folder). */
+  clipsOnPlayableCopies(): { kind: "video" | "audio"; id: number; cacheDir: string; file: string }[] {
+    return this.sqlite
+      .prepare(
+        `SELECT 'video' AS kind, v.id, d.cache_dir AS cacheDir, v.video_file AS file
+           FROM deck_videos v JOIN slide_decks d ON d.id = v.deck_id
+          WHERE v.video_file LIKE '%.playable.%'
+         UNION ALL
+         SELECT 'audio', a.id, d.cache_dir, a.audio_file
+           FROM deck_audio a JOIN slide_decks d ON d.id = a.deck_id
+          WHERE a.audio_file LIKE '%.playable.%'`,
+      )
+      .all() as { kind: "video" | "audio"; id: number; cacheDir: string; file: string }[];
   }
 
   /** Single transaction: a half-inserted deck must never be observable. */

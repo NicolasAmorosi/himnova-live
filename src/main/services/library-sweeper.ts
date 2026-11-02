@@ -1,7 +1,7 @@
 import { app, BrowserWindow } from "electron";
 import { getMediaRepo } from "./repos";
 import { broadcast } from "./broadcast";
-import { notifyMediaChanged } from "../media/conversion-service";
+import { notifyMediaChanged } from "../media/engine-assets";
 
 /** How often a focused window is allowed to re-trigger a sweep — covers "I
  *  unplugged the drive and plugged it back in" without re-`stat`ing the whole

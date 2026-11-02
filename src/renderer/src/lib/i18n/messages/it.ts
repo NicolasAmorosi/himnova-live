@@ -500,26 +500,6 @@ const it: Messages = {
     mute: "Disattiva audio",
     unmute: "Riattiva audio",
   },
-  conversion: {
-    queued: "In coda per la conversione",
-    starting: "Conversione…",
-    converting: "Conversione… {percent}%",
-    hint:
-      "Questo formato non si può riprodurre così com'è. Si converte una sola volta, in background, e il file originale non viene toccato.",
-    failed: "Impossibile convertire",
-    retry: "Riprova",
-    retryError: "Impossibile ritentare la conversione",
-    badge: "In conversione",
-    badgeProgress: "In conversione {percent}%",
-    badgeFailed: "Non convertito",
-    notReady: "«{name}» è ancora in conversione. Potrai proiettarlo appena finisce.",
-    failedLive: "Impossibile convertire «{name}», quindi non si può proiettare.",
-    errors: {
-      CONVERSION_FAILED: "Il file potrebbe essere danneggiato, o il disco pieno.",
-      SOURCE_MISSING: "Il file non è più dove si trovava.",
-      FFMPEG_MISSING: "Manca il convertitore dell'applicazione. Reinstalla Lumina Live.",
-    },
-  },
   live: {
     title: "In onda",
     disconnected: "Nessuno schermo",

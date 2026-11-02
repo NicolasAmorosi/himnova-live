@@ -65,10 +65,9 @@ export const sofficeProfileDir = path.join(userDataDir, "soffice-profile");
  *  costs nothing but a regeneration. */
 export const thumbCacheDir = path.join(userDataDir, "thumb-cache");
 
-/** Playable copies of videos and audios Chromium cannot decode, one file per
- *  asset (`main/media/conversion-service.ts`). Unlike the thumbnails, NOT cheap
- *  to lose: each one is minutes of encoding. Files no row points at are swept
- *  at startup. */
+/** Where builds before step 1.4 of the engine plan kept the playable copies of
+ *  the videos and audios Chromium cannot decode. Deleted at startup
+ *  (`main/media/engine-assets.ts`): the media engine plays those files now. */
 export const convertedMediaDir = path.join(userDataDir, "converted-media");
 
 export function thumbCachePath(key: string): string {

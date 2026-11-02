@@ -13,8 +13,9 @@ Windows, macOS and Linux · English, Spanish, Italian and Portuguese
 
 - **Presentations** in `.ppt`, `.pptx`, `.pps`, `.ppsx`, `.odp` and `.pdf`, including `.pps` hymnals
   with auto-advance and music: each slide's timing and the embedded audio are kept.
-- **Any video or audio.** Whatever the player can't decode (AVI, WMV, ProRes, AC3…) is converted in
-  the background with FFmpeg, which comes bundled. The original file is never touched.
+- **Any video or audio.** Whatever the player can't decode (AVI, WMV, ProRes, AC3…) plays at once
+  through Lumina's own media engine, built on libmpv. Nothing is converted and the original file is
+  never touched.
 - **Bible** with full-text search (accent-insensitive). Ships with the Reina-Valera 1909; import other
   versions in JSON, Zefania, USFX, OSIS or MyBible/MySword modules.
 - **Timers** (countdown, clock, stopwatch) and **overlays** on top of what is projected (a lower third

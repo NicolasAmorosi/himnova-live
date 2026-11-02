@@ -493,27 +493,6 @@ const es = {
     mute: "Silenciar",
     unmute: "Activar sonido",
   },
-  /** A video or audio Chromium cannot decode as it is, being turned into one it
-   *  can (`main/media/conversion-service.ts`). */
-  conversion: {
-    queued: "En cola para convertir",
-    starting: "Convirtiendo…",
-    converting: "Convirtiendo… {percent} %",
-    hint: "Este formato no se reproduce tal cual. Se convierte una sola vez, en segundo plano, y el archivo original no se toca.",
-    failed: "No se pudo convertir",
-    retry: "Reintentar",
-    retryError: "No se pudo volver a intentar la conversión",
-    badge: "Convirtiendo",
-    badgeProgress: "Convirtiendo {percent} %",
-    badgeFailed: "Sin convertir",
-    notReady: "«{name}» todavía se está convirtiendo. Se va a poder proyectar en cuanto termine.",
-    failedLive: "«{name}» no se pudo convertir, así que no se puede proyectar.",
-    errors: {
-      CONVERSION_FAILED: "El archivo puede estar dañado, o el disco lleno.",
-      SOURCE_MISSING: "El archivo ya no está donde estaba.",
-      FFMPEG_MISSING: "Falta el conversor de la aplicación. Volvé a instalar Lumina Live.",
-    },
-  },
   live: {
     title: "En Vivo",
     disconnected: "Sin pantalla",

@@ -2,10 +2,10 @@ import type { AssetKind } from "../constants";
 import type { DisplayInfo } from "../types/display";
 import type {
   DecoderSupport,
+  EngineAssetUpdate,
   ImportProgress,
   MediaAsset,
   MediaAssetUsage,
-  MediaConversionUpdate,
 } from "../types/media";
 import type {
   BibleBookDTO,
@@ -208,19 +208,15 @@ export type IpcContract = {
    *  changed), which the panel must not show as an empty folder. */
   "library:listFolder": { req: { kind: AssetKind; path: string }; res: MediaAsset[] };
 
-  /** Every video/audio asset that cannot play yet — queued, converting or
-   *  failed — to seed `conversion.store`; `conversion-changed` keeps it current
-   *  from then on. An asset that is not listed plays. */
-  "conversion:list": { req: void; res: MediaConversionUpdate[] };
+  /** The library videos and audios the media engine plays, to seed `engine-assets.store`;
+   *  `engine-asset-changed` keeps it current from then on. Any other one plays in Chromium. */
+  "engine:assets": { req: void; res: number[] };
   /** Whether this machine's Chromium decodes HEVC, which only a renderer can
-   *  ask. Nothing is converted before the first report. */
-  "conversion:reportDecoders": { req: DecoderSupport; res: void };
-  /** The operator is looking at it: it converts next. */
-  "conversion:prioritize": { req: { id: number }; res: void };
-  "conversion:retry": { req: { id: number }; res: void };
+   *  ask. Nothing is decided before the first report. */
+  "engine:reportDecoders": { req: DecoderSupport; res: void };
   /** A file's length as ffprobe read it, for an audio the media engine plays: no `<audio>` in the
    *  control window can open it to ask (`useMediaDuration`). `null` while it has not been probed. */
-  "conversion:duration": { req: { id: number }; res: number | null };
+  "engine:duration": { req: { id: number }; res: number | null };
 
   "programs:list": { req: void; res: ProgramSummary[] };
   /** ADOPTS the program: main starts attributing `projection_history` to it and
@@ -378,12 +374,11 @@ export type IpcEvents = {
    *  must re-ask for statuses without re-listing files. */
   "deck-statuses-changed": { kind: AssetKind };
   "library-changed": { kind: AssetKind };
-  /** One asset's conversion moved: queued, progress (≤4/s), done (`state:
-   *  null`) or failed. */
-  "conversion-changed": MediaConversionUpdate;
-  /** A converted deck's embedded clip was made playable in place
-   *  (`media/deck-clips.ts`): the deck's DTO now lists a video or soundtrack it
-   *  did not before, so a renderer holding it must read it again. */
+  /** A library asset started or stopped being played by the media engine. */
+  "engine-asset-changed": EngineAssetUpdate;
+  /** A deck's embedded clip turned out playable, by Chromium or by the media
+   *  engine (`media/deck-clips.ts`): the deck's DTO now lists a video or
+   *  soundtrack it did not before, so a renderer holding it must read it again. */
   "deck-updated": { deckId: number };
   /** Only fired for a batch large enough to need a progress bar
    *  (`library-import.ts`'s `PROGRESS_THRESHOLD`), throttled to a few per

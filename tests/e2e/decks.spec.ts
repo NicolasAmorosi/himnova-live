@@ -206,7 +206,6 @@ test("a WMV embedded in a .pptx slide plays through the media engine on its slid
   await app.control.locator("body").press("b");
   await app.control.waitForTimeout(500);
   expect(await moving(projector, "slideVideo:")).toBe(false);
-  expect(app.log.some((line) => line.includes("[convert] slide clip"))).toBe(false);
 });
 
 test("after a restart, a deck prepared before still plays its WMV through the engine", async ({ app }) => {
@@ -219,6 +218,47 @@ test("after a restart, a deck prepared before still plays its WMV through the en
   // Which clips the engine plays is known only in memory: the cached deck,
   // opened with a bare peek, has to be looked at again in this launch.
   const again = await relaunch(app);
+  await again.previewFile("Presentaciones", "clipdeck");
+  await expect.poll(() => again.log.some((line) => line.includes("[engine] slide clip")), { timeout: 30_000 }).toBe(true);
+  await again.control.waitForTimeout(1000);
+  await again.goLive();
+  const projector = await again.projector();
+  await expect.poll(() => moving(projector, "slideVideo:")).toBe(true);
+});
+
+test("a clip an older build converted goes back to its original, and every old copy is deleted", async ({ app }) => {
+  test.skip(!fs.existsSync(fixture("clipdeck.pptx")), "LibreOffice is not installed, so there is no .pptx fixture");
+  await app.addMedia("ppt", "clipdeck.pptx");
+  await app.previewFile("Presentaciones", "clipdeck");
+  await expect.poll(() => app.log.some((line) => line.includes("[engine] slide clip")), { timeout: 60_000 }).toBe(true);
+  await app.quit();
+
+  // What a build before step 1.4 of the engine plan left: the clip's row on a playable copy made
+  // next to its original, and a library file's copy in `converted-media/`.
+  const dbPath = path.join(app.profile, "worship.db");
+  const db = new Database(dbPath);
+  const clip = db
+    .prepare("SELECT v.id, v.video_file AS file, d.cache_dir AS dir FROM deck_videos v JOIN slide_decks d ON d.id = v.deck_id")
+    .get() as { id: number; file: string; dir: string };
+  const copy = path.join(clip.dir, "video", `${path.parse(clip.file).name}.playable.mp4`);
+  fs.copyFileSync(fixture("clip.mp4"), copy);
+  db.prepare("UPDATE deck_videos SET video_file = ?, ext = 'mp4', playable = 1 WHERE id = ?").run(path.basename(copy), clip.id);
+  db.close();
+  const converted = path.join(app.profile, "converted-media");
+  fs.mkdirSync(converted);
+  fs.copyFileSync(fixture("clip.mp4"), path.join(converted, "1-1000-2000.mp4"));
+
+  const again = await relaunch(app);
+  await expect.poll(() => fs.existsSync(converted)).toBe(false);
+  expect(fs.existsSync(copy)).toBe(false);
+  const ro = new Database(dbPath, { readonly: true });
+  expect(ro.prepare("SELECT video_file AS file, playable FROM deck_videos WHERE id = ?").get(clip.id)).toEqual({
+    file: clip.file,
+    playable: 0,
+  });
+  ro.close();
+
+  // And the original plays through the engine, as on any other deck.
   await again.previewFile("Presentaciones", "clipdeck");
   await expect.poll(() => again.log.some((line) => line.includes("[engine] slide clip")), { timeout: 30_000 }).toBe(true);
   await again.control.waitForTimeout(1000);
@@ -255,7 +295,6 @@ test("a deck whose music is a WMA follows the media engine's clock, and NEGRO fr
 
   await app.control.locator("body").press("b");
   await expect.poll(() => projectedSlide(projector), { timeout: 5_000 }).toBe(3);
-  expect(app.log.some((line) => line.includes("[convert] slide clip"))).toBe(false);
 });
 
 test("a slide clicked in the LIVE grid goes up at once; one clicked in PREVIEW does not", async ({ app }) => {

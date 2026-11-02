@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import type { MediaAsset, MediaConversionUpdate } from "../../src/shared/types/media";
+import type { MediaAsset } from "../../src/shared/types/media";
 import { fixture } from "./support/paths";
 import { engineStates, expect, relaunch, test, videoStates, type WorshipApp } from "./support/app";
 
@@ -174,9 +174,7 @@ test("a linked folder shows what is on disk, plays what Chromium cannot, and unl
   await expect.poll(() => tileNames(app, "Videos")).toEqual(expect.arrayContaining(["clip", "clip-xvid"]));
   expect(await tileNames(app, "Videos")).toHaveLength(2);
   // An AVI seen in a linked folder is checked on its own, and the media engine plays it.
-  await expect
-    .poll(async () => (await app.invoke<MediaConversionUpdate[]>("conversion:list")).some((c) => c.engine), { timeout: 30_000 })
-    .toBe(true);
+  await expect.poll(async () => (await app.invoke<number[]>("engine:assets")).length > 0, { timeout: 30_000 }).toBe(true);
 
   await panel(app, "Videos").getByRole("button", { name: "clip-xvid" }).dblclick();
   const projector = await app.projector();

@@ -494,7 +494,7 @@ export class MediaRepo {
       //
       // `stat`, not `access`: the same one syscall, and it is the only place
       // that notices a file EDITED in place. Every stamp in the app — a deck's
-      // content hash, a video's probe and converted copy, a thumbnail — is
+      // content hash, a video's probe, a thumbnail — is
       // checked against the row's `(size, mtime)`, so a row nobody refreshed
       // kept last week's announcements "current" forever.
       const stats = await Promise.all(slice.map((row) => fs.promises.stat(row.path).catch(() => null)));

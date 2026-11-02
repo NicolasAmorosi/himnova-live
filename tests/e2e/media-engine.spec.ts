@@ -1,7 +1,7 @@
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
-import type { MediaAsset, MediaConversionUpdate } from "../../src/shared/types/media";
+import type { MediaAsset } from "../../src/shared/types/media";
 import { fixture } from "./support/paths";
 import { audioStates, engineCanvas, expect, moving, relaunch, test, videoStates, type WorshipApp } from "./support/app";
 
@@ -12,24 +12,17 @@ import { audioStates, engineCanvas, expect, moving, relaunch, test, videoStates,
  * projector anyway, without the operator doing anything but importing it.
  *
  * A file like that is played by the media engine (`media/engine-sessions.ts`:
- * video since 2026-10-30, audio since the same day's step 1.2), with no copy made.
+ * video since 2026-10-30, audio since the same day's step 1.2). Nothing is
+ * converted since step 1.4 (2026-11-02).
  */
 
-const conversions = (app: WorshipApp) => app.invoke<MediaConversionUpdate[]>("conversion:list");
+const engineAssets = (app: WorshipApp) => app.invoke<number[]>("engine:assets");
 
 async function waitEngine(app: WorshipApp, asset: MediaAsset) {
-  await expect
-    .poll(async () => (await conversions(app)).find((c) => c.assetId === asset.id)?.engine ?? false, { timeout: 30_000 })
-    .toBe(true);
+  await expect.poll(async () => (await engineAssets(app)).includes(asset.id), { timeout: 30_000 }).toBe(true);
 }
 
-const noCopies = (app: WorshipApp) => {
-  expect(app.log.filter((line) => line.includes("[convert]") && line.includes("→"))).toEqual([]);
-  const dir = path.join(app.profile, "converted-media");
-  expect(fs.existsSync(dir) ? fs.readdirSync(dir) : []).toEqual([]);
-};
-
-test("an AVI plays through the media engine at once, with no copy made", async ({ app }) => {
+test("an AVI plays through the media engine at once", async ({ app }) => {
   const [avi] = await app.addMedia("video", "long-xvid.avi");
   if (!avi) throw new Error("import failed");
   await waitEngine(app, avi);
@@ -48,7 +41,6 @@ test("an AVI plays through the media engine at once, with no copy made", async (
   // The transport reads the engine's clock.
   const position = app.liveColumn().getByRole("slider", { name: "Posición de long-xvid" });
   await expect.poll(async () => Number(await position.getAttribute("aria-valuenow"))).toBeGreaterThan(0);
-  noCopies(app);
 });
 
 test("NEGRO pauses an engine video where it is, and uncovering resumes it", async ({ app }) => {
@@ -150,7 +142,6 @@ test("a WMA plays through the media engine: background music NEGRO leaves alone,
   const at = async () => Number(await position.getAttribute("aria-valuenow"));
   await expect.poll(at).toBeGreaterThan(0);
   expect(await audioStates(projector)).toEqual([]);
-  noCopies(app);
 
   // A standalone audio is background music, not projector content: NEGRO does not pause it.
   await app.control.locator("body").press("b");
@@ -170,16 +161,12 @@ test("a WMA plays through the media engine: background music NEGRO leaves alone,
   await expect.poll(at).toBeGreaterThan(closedAt + 1);
 });
 
-test("a file that already plays is never converted", async ({ app }) => {
+test("a file that already plays stays off the engine", async ({ app }) => {
   await app.addMedia("video", "clip.mp4");
   await app.addMedia("audio", "song.mp3");
   // Give the background check time to probe both.
   await app.control.waitForTimeout(3000);
-  // Not pending, and no copy either: these play as they are.
-  expect(await conversions(app)).toEqual([]);
-  expect(app.log.filter((line) => line.includes("[convert]") && line.includes("→"))).toEqual([]);
-  const dir = path.join(app.profile, "converted-media");
-  expect(fs.existsSync(dir) ? fs.readdirSync(dir) : []).toEqual([]);
+  expect(await engineAssets(app)).toEqual([]);
 });
 
 test("a video replaced in place is probed again, and plays as it now is", async ({ app }) => {
@@ -195,9 +182,8 @@ test("a video replaced in place is probed again, and plays as it now is", async 
   // …and this week's, saved over the same file, plays as it is and is longer.
   fs.copyFileSync(fixture("clip.mp4"), file);
   const again = await relaunch(app);
-  // The launch sweep notices the edit and re-probes: this file needs neither
-  // the engine nor a copy.
-  await expect.poll(async () => (await conversions(again)).some((c) => c.assetId === asset.id), { timeout: 20_000 }).toBe(false);
+  // The launch sweep notices the edit and re-probes: this file does not need the engine.
+  await expect.poll(async () => (await engineAssets(again)).includes(asset.id), { timeout: 20_000 }).toBe(false);
   await again.previewFile("Videos", "anuncios");
   await again.goLive();
   const projector = await again.projector();

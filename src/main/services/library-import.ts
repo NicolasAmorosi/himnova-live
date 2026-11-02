@@ -5,7 +5,7 @@ import type { MediaAsset } from "@shared/types/media";
 import { getMediaRepo } from "./repos";
 import { broadcast } from "./broadcast";
 import { prewarmExplicit } from "../slides/deck-service";
-import { notifyMediaChanged } from "../media/conversion-service";
+import { notifyMediaChanged } from "../media/engine-assets";
 
 const CHUNK_SIZE = 100;
 /** Below this, an import resolves fast enough (a handful of `statSync` calls

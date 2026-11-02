@@ -44,7 +44,7 @@ import { startLibrarySweepScheduler } from "./services/library-sweeper";
 import { pruneThumbCache } from "./media/thumbnail-service";
 import { backfillContentHashes } from "./media/content-hash";
 import { backfillDeckTimings } from "./slides/backfill-timings";
-import { initConversions, shutdownConversions } from "./media/conversion-service";
+import { initEngineAssets, shutdownEngineAssets } from "./media/engine-assets";
 import { engineAvailable, killAllEngines, prewarmEngine } from "./media/media-engine";
 import { stopDeckClips } from "./media/deck-clips";
 import { appendLogLine, installMainLog } from "./logging";
@@ -227,9 +227,9 @@ if (gotSingleInstanceLock) {
       console.warn("[slides] init failed", error);
     });
     startLibrarySweepScheduler();
-    // Sweeps leftovers only. Converting waits for the control window to report
-    // what this machine decodes (`conversion:reportDecoders`).
-    initConversions();
+    // Deletes the old converted copies only. Deciding what the engine plays waits for the control
+    // window to report what this machine decodes (`engine:reportDecoders`).
+    initEngineAssets();
     // A media engine started ahead of time, so the first video it plays does not pay for the
     // process (150–650 ms).
     if (engineAvailable()) prewarmEngine();
@@ -307,7 +307,7 @@ app.on("before-quit", (event) => {
   cancelAllPrewarmBatches();
   shutdownSlides();
   stopDeckClips();
-  shutdownConversions();
+  shutdownEngineAssets();
   killAllEngines();
 });
 

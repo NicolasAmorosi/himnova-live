@@ -67,21 +67,20 @@ export const mediaAssets = sqliteTable(
 );
 
 /**
- * What ffprobe said about a video or audio asset, and the playable copy made
- * of it when Chromium cannot decode the original
- * (`main/media/conversion-service.ts`).
+ * What ffprobe said about a video or audio asset (`main/media/engine-assets.ts`).
  *
- * Only facts and results are stored. Whether a file NEEDS converting is
- * re-derived from `probe_json` on every launch, because one input to that
- * decision — can this GPU decode HEVC? — belongs to the machine and not to the
- * file. A library copied to another PC must not keep the old PC's answer.
- * A failed conversion is not stored either: it is retried next launch.
+ * Only facts are stored. Whether the media engine plays a file is re-derived
+ * from `probe_json` on every launch, because one input to that decision — can
+ * this GPU decode HEVC? — belongs to the machine and not to the file. A library
+ * copied to another PC must not keep the old PC's answer.
  *
  * Valid only while `source_size`/`source_mtime_ms` still match the asset's,
- * the same stamp rule `content_hash` follows. `output_file` is a bare file
- * name inside `convertedMediaDir`, never an absolute path: an absolute one
- * would point at the old profile after a copy or a move
- * (`.claude/knowledge/a-deck-cache-hit-checks-existence-but-the-protocol-checks-containment.md`).
+ * the same stamp rule `content_hash` follows.
+ *
+ * Until step 1.4 of the engine plan (2026-11-02) a file Chromium could not
+ * decode was converted, and `output_file` named its playable copy. Nothing
+ * reads or writes it since; the table keeps its name and the column so a
+ * profile still opens in an older build, which converts again what it needs.
  */
 export const mediaConversions = sqliteTable("media_conversions", {
   mediaAssetId: integer("media_asset_id")
@@ -93,6 +92,7 @@ export const mediaConversions = sqliteTable("media_conversions", {
   probeVersion: integer("probe_version").notNull(),
   /** A `MediaProbe`, or null when ffprobe could not read the file at all. */
   probeJson: text("probe_json"),
+  /** Unused since step 1.4 (see above). */
   outputFile: text("output_file"),
   updatedAt: integer("updated_at").notNull(),
 });

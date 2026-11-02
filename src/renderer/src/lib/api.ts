@@ -76,12 +76,10 @@ export const api = {
     usages: (id: number) => invoke("bible:usages", { id }),
     reorder: (ids: number[]) => invoke("bible:reorder", { ids }),
   },
-  conversion: {
-    list: () => invoke("conversion:list", undefined),
-    reportDecoders: (support: DecoderSupport) => invoke("conversion:reportDecoders", support),
-    prioritize: (id: number) => invoke("conversion:prioritize", { id }),
-    retry: (id: number) => invoke("conversion:retry", { id }),
-    duration: (id: number) => invoke("conversion:duration", { id }),
+  engine: {
+    assets: () => invoke("engine:assets", undefined),
+    reportDecoders: (support: DecoderSupport) => invoke("engine:reportDecoders", support),
+    duration: (id: number) => invoke("engine:duration", { id }),
   },
   library: {
     list: (kind: AssetKind) => invoke("library:list", { kind }),

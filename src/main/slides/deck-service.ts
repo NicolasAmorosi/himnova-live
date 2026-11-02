@@ -45,7 +45,7 @@ import { encodeSlideLayers } from "./native-deck";
 import { readPptx, type PptxRead } from "./pptx-deck";
 import { rasterizePdf, shutdownRasterizer } from "./rasterizer";
 import { hashFile } from "../media/content-hash";
-import { healDeckClips, isEngineClip } from "../media/deck-clips";
+import { healDeckClips, isEngineClip, revertPlayableCopies } from "../media/deck-clips";
 import { removeQuietly, renameWithRetry } from "../fs-retry";
 import { mt } from "../i18n";
 
@@ -1911,6 +1911,9 @@ export function sweepCache(): void {
   } catch {
     /* best-effort */
   }
+
+  // After the adoption above: it reads each deck's folder.
+  revertPlayableCopies();
 }
 
 export async function initSlidesSubsystem(): Promise<void> {

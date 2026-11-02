@@ -88,10 +88,10 @@ each item with its reason:
 The full review on that date (main, slides, renderer, UI and Windows) closed all of its critical,
 high and medium findings. This was left open, each item with its reason:
 
-- **A linked music track in WMA/AIFF isn't converted**, it's rejected (`LINKABLE_AUDIO_EXTENSIONS`
-  in `ipc/handlers/library.ts`). `worship://linked-audio/<id>` serves the file as-is, and the 1229
-  linked audio files of the real hymnal are MP3. If it were ever needed, it goes through
-  `conversion-service.ts`.
+- **A linked music track in WMA/AIFF is rejected** (`LINKABLE_AUDIO_EXTENSIONS` in
+  `ipc/handlers/library.ts`). `worship://linked-audio/<id>` serves the file as-is, and the 1229
+  linked audio files of the real hymnal are MP3. If it were ever needed, it gets an engine url
+  (`engine-assets.ts`).
 - **The clickable `ListRow` rows can't be reached with the keyboard** (Scenes, Plates, Timers,
   Overlays). Making them focusable clashes with Enter = GO LIVE: it's an interaction decision,
   not a fix.

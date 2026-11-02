@@ -11,7 +11,6 @@ import { decodeEmbeddedFont } from "../slides/pptx/embedded-font";
 import { metafileToSvg } from "../slides/pptx/metafile";
 import { readZipEntries } from "../slides/zip-reader";
 import { ensureThumbnail } from "../media/thumbnail-service";
-import { convertedPathFor } from "../media/conversion-service";
 
 /** Must run before app.whenReady(). `standard: true` gives worship:// URLs a
  *  hostname + pathname like http, which is what the parsing below relies on. */
@@ -240,8 +239,8 @@ async function serveFile(
 }
 
 /** The file a deck clip url names (`?f=`, see `deckVideoUrl`), next to the row's
- *  current one: the original the url was built for, even after
- *  `media/deck-clips.ts` pointed the row at a converted copy. A name that is not
+ *  current one: the file the url was built for, even after the row was pointed
+ *  at another one (`media/deck-clips.ts`). A name that is not
  *  bare, or not there, falls back to the row's — and `withinCache` still has
  *  the last word on what leaves the process. */
 function clipFile(current: string | null, url: URL): string | null {
@@ -306,12 +305,7 @@ export function registerWorshipProtocolHandler(mediaRepo: MediaRepo): void {
             });
           }
 
-          // The playable copy when Chromium cannot decode the original
-          // (`conversion-service.ts`).
-          // `?v=` is the copy's version: without one the original is served,
-          // so an element that started on it is never switched mid-play.
-          const converted = convertedPathFor(id, url.searchParams.get("v"));
-          return serveFile(request, converted ?? mediaRepo.getPathById(id));
+          return serveFile(request, mediaRepo.getPathById(id));
         }
         case "logo": {
           return serveFile(request, getSettingsRepo().get("logo.path"));

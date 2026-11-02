@@ -15,9 +15,9 @@ export type AssetKind = (typeof ASSET_KINDS)[number];
  *  dialog's filter, drag & drop, folder import, the content-addressed cache
  *  and "Prepare folder" without a single branch. */
 export const ASSET_EXTENSIONS: Record<AssetKind, readonly string[]> = {
-  // Everything past the first six is converted to a playable copy on its way
-  // in (`main/media/conversion-service.ts`) — and so can the first six be,
-  // when what is inside them is a codec Chromium cannot decode.
+  // Everything past the first six is played by the media engine
+  // (`main/media/engine-assets.ts`) — and so can the first six be, when what
+  // is inside them is a codec Chromium cannot decode.
   video: [
     ...["mp4", "m4v", "mov", "mkv", "webm", "3gp"],
     ...["avi", "wmv", "asf", "flv", "f4v", "mpg", "mpeg", "m2v", "vob", "ts", "mts", "m2ts"],

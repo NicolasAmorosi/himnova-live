@@ -346,9 +346,9 @@ export type BaseContent =
   | { kind: "deck"; assetId: number; slideIndex: number }
   /** `url` rides along, resolved when it went live, for the reason
    *  `versionLabel` does below: what the projector loads depends on whether
-   *  main has converted the file (`playableAssetUrl`), and `selectOutput`
-   *  cannot ask the conversion store. Resolving it once also means a copy
-   *  finishing while the original is on air never swaps the file under the
+   *  the media engine plays the file (`playableAssetUrl`), and `selectOutput`
+   *  cannot ask the engine-assets store. Resolving it once also means a probe
+   *  finishing while the file is on air never swaps its player under the
    *  congregation — the next GO LIVE picks it up. */
   | { kind: "video"; assetId: number; url: string; epoch: number; startAtSeconds: number }
   | { kind: "image"; assetId: number }

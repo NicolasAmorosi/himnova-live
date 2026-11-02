@@ -3,7 +3,7 @@ import { useDeckStore } from "@renderer/stores/deck.store";
 import { usePreviewStore } from "@renderer/stores/preview.store";
 import { useProgramStore } from "@renderer/stores/program.store";
 import { selectOutputMemo, useProjectionStore } from "@renderer/stores/projection.store";
-import { usePlayableAssetUrl } from "@renderer/stores/conversion.store";
+import { usePlayableAssetUrl } from "@renderer/stores/engine-assets.store";
 import { useMediaAsset } from "@renderer/lib/hooks/use-media-asset";
 import { clockForScene, findScene, useUtilityStore } from "@renderer/stores/utility.store";
 import { bibleOutputFor } from "@renderer/lib/bible-output";

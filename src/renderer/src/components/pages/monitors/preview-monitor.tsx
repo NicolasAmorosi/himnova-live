@@ -3,8 +3,6 @@ import { useT } from "@renderer/lib/i18n/i18n-provider";
 import { LoadingState, Monitor } from "@renderer/components/ui";
 import { OutputView } from "@renderer/components/shared/output-view";
 import { DeckConversionStatus } from "@renderer/components/shared/deck-conversion-status";
-import { MediaConversionStatus } from "@renderer/components/shared/media-conversion-status";
-import { useConversion } from "@renderer/stores/conversion.store";
 import { sofficeBlocks, useDeckStore } from "@renderer/stores/deck.store";
 import { usePreviewContent, usePreviewOutput } from "@renderer/lib/hooks/use-preview";
 import { usePreviewMediaStatus } from "@renderer/lib/hooks/use-preview-media-status";
@@ -53,16 +51,10 @@ export function PreviewMonitor() {
   const convertingEntry = useDeckStore((s) => (convertingAssetId === null ? undefined : s.byAssetId[convertingAssetId]));
   const sofficeMissing =
     convertingAssetId !== null && content?.kind === "deck" && sofficeBlocks(environment, content.ext, convertingEntry);
-  // A video or audio being converted: its original would play black, or not
-  // at all, so the stage says so instead of mounting a player for it.
-  const mediaAsset = !missing && content?.kind === "media" ? content.asset : null;
-  const conversion = useConversion(mediaAsset?.id ?? null);
 
   return (
     <Monitor empty={empty}>
-      {mediaAsset && conversion ? (
-        <MediaConversionStatus assetId={mediaAsset.id} kind={mediaAsset.kind} state={conversion} surface="stage" />
-      ) : output ? (
+      {output ? (
         // The preview's own elements ARE the ones being checked here, which is
         // the point — a file the operator queues up is exercised in this window
         // before it ever reaches the projector. A video the engine plays has no

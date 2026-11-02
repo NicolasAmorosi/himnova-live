@@ -28,7 +28,7 @@ import { useUiStore } from "@renderer/stores/ui.store";
 import { startProjectionEffects } from "@renderer/effects/projection-sync";
 import { startLibrarySyncEffects } from "@renderer/effects/library-sync";
 import { startDraftAutosave } from "@renderer/effects/draft-autosave";
-import { startConversionSync } from "@renderer/effects/conversion-sync";
+import { startEngineAssetsSync } from "@renderer/effects/engine-assets-sync";
 import { startUpdateAnnouncement } from "@renderer/effects/update-announcement";
 import { useGlobalShortcuts } from "@renderer/lib/hooks/use-global-shortcuts";
 
@@ -142,8 +142,8 @@ export function App() {
     })();
     const stopProjectionEffects = startProjectionEffects();
     const stopLibrarySync = startLibrarySyncEffects();
-    // Also what lets main start converting at all — see `conversion-sync.ts`.
-    const stopConversionSync = startConversionSync();
+    // Also what lets main decide what the media engine plays — see `engine-assets-sync.ts`.
+    const stopEngineAssetsSync = startEngineAssetsSync();
     // Started BEFORE the restore above can finish: its first write is
     // debounced, and the restore itself only ever rewrites the same draft.
     const stopDraftAutosave = startDraftAutosave();
@@ -153,7 +153,7 @@ export function App() {
     return () => {
       stopProjectionEffects();
       stopLibrarySync();
-      stopConversionSync();
+      stopEngineAssetsSync();
       stopDraftAutosave();
       stopUpdateAnnouncement();
     };

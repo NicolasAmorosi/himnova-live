@@ -1,6 +1,5 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import fs from "node:fs";
-import os from "node:os";
 import { ffmpegPath, ffprobePath } from "../paths";
 
 /**
@@ -8,42 +7,21 @@ import { ffmpegPath, ffprobePath } from "../paths";
  * child processes with an argv array — never a shell, so an accented or spaced
  * Windows path reaches them intact.
  *
- * Everything here runs NEXT to a live service. Encodes are started below
- * normal priority, so the projector's decoder always wins the CPU, and every
- * child is tracked so `killAllFfmpeg()` can end them synchronously on quit:
+ * Only probes and thumbnail frames since the media engine replaced the
+ * conversion (step 1.4, 2026-11-02). Every child is tracked so
+ * `killAllFfmpeg()` can end them synchronously on quit:
  * nothing asynchronous survives `before-quit`
  * (`.claude/knowledge/nothing-asynchronous-survives-before-quit.md`).
  */
-
-export class FfmpegError extends Error {
-  constructor(
-    readonly code: "CANCELED" | "STALLED" | "FAILED",
-    message: string,
-  ) {
-    super(message);
-    this.name = "FfmpegError";
-  }
-}
 
 const running = new Set<ChildProcess>();
 
 /** ffprobe answers in milliseconds for a local file. Thirty seconds is a file
  *  on a sleeping network drive, not a slow probe. */
 const PROBE_TIMEOUT_MS = 30_000;
-/** `-progress` writes a block twice a second while encoding. A minute without
- *  one is a wedged process, not a slow encode. */
-const STALL_MS = 60_000;
-/** Kept from stderr for the log when ffmpeg fails — its last lines say why. */
-const STDERR_TAIL_BYTES = 4096;
 
 export function ffmpegAvailable(): boolean {
   return fs.existsSync(ffmpegPath) && fs.existsSync(ffprobePath);
-}
-
-/** Half the cores, at least one: an encode never takes the whole machine from
- *  a projector that may be decoding a 4K video on the CPU. */
-export function encoderThreads(): number {
-  return Math.max(1, Math.floor(os.availableParallelism() / 2));
 }
 
 function track(child: ChildProcess): void {
@@ -76,70 +54,6 @@ export function probeMedia(filePath: string): Promise<unknown> {
       } catch {
         resolve(null);
       }
-    });
-  });
-}
-
-/**
- * Runs one ffmpeg command to completion. Rejects with `CANCELED` on abort,
- * `STALLED` when `-progress` goes quiet, and `FAILED` (carrying the tail of
- * stderr) on a non-zero exit.
- */
-export function runFfmpeg(
-  args: string[],
-  opts: { signal: AbortSignal; onProgressChunk?: (chunk: string) => void },
-): Promise<void> {
-  return new Promise((resolve, reject) => {
-    if (opts.signal.aborted) return reject(new FfmpegError("CANCELED", "canceled before start"));
-
-    const child = spawn(ffmpegPath, args, { windowsHide: true, stdio: ["ignore", "pipe", "pipe"] });
-    track(child);
-    if (child.pid !== undefined) {
-      try {
-        os.setPriority(child.pid, os.constants.priority.PRIORITY_BELOW_NORMAL);
-      } catch {
-        // Not permitted on this system: the thread cap still applies.
-      }
-    }
-
-    let stderrTail = "";
-    let settled = false;
-    let stall: NodeJS.Timeout | null = null;
-    const finish = (error: FfmpegError | null) => {
-      if (settled) return;
-      settled = true;
-      if (stall) clearTimeout(stall);
-      opts.signal.removeEventListener("abort", onAbort);
-      if (error) reject(error);
-      else resolve();
-    };
-    const armStall = () => {
-      if (stall) clearTimeout(stall);
-      stall = setTimeout(() => {
-        child.kill("SIGKILL");
-        finish(new FfmpegError("STALLED", `no progress for ${STALL_MS / 1000} s`));
-      }, STALL_MS);
-    };
-    const onAbort = () => {
-      child.kill("SIGKILL");
-      finish(new FfmpegError("CANCELED", "canceled"));
-    };
-
-    opts.signal.addEventListener("abort", onAbort, { once: true });
-    armStall();
-    child.stdout?.setEncoding("utf8");
-    child.stdout?.on("data", (chunk: string) => {
-      armStall();
-      opts.onProgressChunk?.(chunk);
-    });
-    child.stderr?.setEncoding("utf8");
-    child.stderr?.on("data", (chunk: string) => {
-      stderrTail = (stderrTail + chunk).slice(-STDERR_TAIL_BYTES);
-    });
-    child.once("error", (error) => finish(new FfmpegError("FAILED", error.message)));
-    child.once("close", (code) => {
-      if (code === 0) finish(null);
-      else finish(new FfmpegError("FAILED", `ffmpeg exited with ${code}: ${stderrTail.trim()}`));
     });
   });
 }

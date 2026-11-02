@@ -60,38 +60,9 @@ export const MEDIA_SORT_ORDERS = [
 ] as const;
 export type MediaSortOrder = (typeof MEDIA_SORT_ORDERS)[number];
 
-/**
- * A video or audio asset that cannot be played YET — main is converting it to
- * a format Chromium decodes (`main/media/conversion-service.ts`). An asset with
- * no state plays as it is: natively, or through a copy that is already done.
- * `worship://asset/<id>` serves whichever of the two is playable, so nothing
- * in the renderer ever picks between them.
- */
-export type MediaConversionState =
-  | { status: "queued" }
-  /** `progress` is 0..1, or null while ffmpeg has not reported any yet. */
-  | { status: "converting"; progress: number | null }
-  | { status: "failed"; errorCode: MediaConversionError };
-
-export type MediaConversionError =
-  /** ffmpeg could not read or write it: a damaged file, or a full disk. */
-  | "CONVERSION_FAILED"
-  | "SOURCE_MISSING"
-  /** The bundled FFmpeg is missing — a broken install, never a user error. */
-  | "FFMPEG_MISSING";
-
-/** `state: null` means "playable now": the conversion finished, or the asset
- *  turned out not to need one. `version` names the playable copy when there is
- *  one — the token a url must carry to be served it (`playableAssetUrl`);
- *  `null` means the original plays as it is. `engine` means neither: Chromium
- *  cannot decode it and the media engine plays it (`engineAssetUrl`), with no
- *  copy at all. */
-export type MediaConversionUpdate = {
-  assetId: number;
-  state: MediaConversionState | null;
-  version: string | null;
-  engine: boolean;
-};
+/** A library video or audio the media engine started (`engine: true`) or stopped playing
+ *  (`main/media/engine-assets.ts`). One it does not play is played by Chromium. */
+export type EngineAssetUpdate = { assetId: number; engine: boolean };
 
 /** What only Chromium itself can say about this machine, reported by the
  *  control window at startup: HEVC decoding depends on the GPU. */

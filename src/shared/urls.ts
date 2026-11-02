@@ -26,7 +26,7 @@ export function engineAssetIdOfUrl(url: string): number | null {
 }
 
 /** A clip embedded in a deck (`deck_audio`/`deck_video` row) that the media
- *  engine plays instead of a converted copy (`media/deck-clips.ts`). */
+ *  engine plays, because Chromium cannot (`media/deck-clips.ts`). */
 export function engineClipUrl(kind: "audio" | "video", clipId: number): string {
   return `worship://engine/deck-${kind}/${clipId}`;
 }

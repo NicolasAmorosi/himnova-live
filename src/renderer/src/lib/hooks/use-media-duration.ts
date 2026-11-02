@@ -21,7 +21,7 @@ export function useMediaDuration(url: string | null, kind: "video" | "audio"): n
     const engineAssetId = engineAssetIdOfUrl(url);
     if (engineAssetId !== null) {
       let live = true;
-      api.conversion
+      api.engine
         .duration(engineAssetId)
         .then((seconds) => {
           if (live) setDuration(seconds);

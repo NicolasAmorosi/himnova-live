@@ -5,7 +5,7 @@ import { usePreviewStore } from "@renderer/stores/preview.store";
 import { useMediaDuration } from "@renderer/lib/hooks/use-media-duration";
 import { clearPreview } from "@renderer/lib/actions/preview";
 import { seekPreview, togglePreviewPlayback } from "@renderer/lib/actions/preview-playback";
-import { useConversion, usePlayableAssetUrl } from "@renderer/stores/conversion.store";
+import { usePlayableAssetUrl } from "@renderer/stores/engine-assets.store";
 import type { MediaAsset } from "@shared/types/media";
 
 type PreviewMediaBarProps = { asset: MediaAsset };
@@ -32,12 +32,9 @@ export function PreviewMediaBar({ asset }: PreviewMediaBarProps) {
   const playing = usePreviewStore((s) => s.playing);
   const isVideo = asset.kind === "video";
   // Audio still has no live element in the control window, so its duration
-  // keeps coming from the silent, detached probe.
-  // Not while it is being converted: the url would read the original, which
-  // cannot even be opened, and nothing would ask again once the copy exists.
-  const converting = useConversion(asset.id) !== undefined;
+  // keeps coming from the silent, detached probe (or main's, for the engine).
   const url = usePlayableAssetUrl(asset.id);
-  const probedDuration = useMediaDuration(isVideo || converting ? null : url, "audio");
+  const probedDuration = useMediaDuration(isVideo ? null : url, "audio");
   const duration = isVideo ? previewDuration : (probedDuration ?? 0);
 
   return (
