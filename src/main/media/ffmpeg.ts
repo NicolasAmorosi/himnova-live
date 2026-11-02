@@ -3,7 +3,7 @@ import fs from "node:fs";
 import { ffmpegPath, ffprobePath } from "../paths";
 
 /**
- * The two FFmpeg executables the app ships (`scripts/fetch-ffmpeg.ts`), run as
+ * The two FFmpeg executables the app ships (`scripts/fetch-binaries.ts`), run as
  * child processes with an argv array — never a shell, so an accented or spaced
  * Windows path reaches them intact.
  *

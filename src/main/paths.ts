@@ -24,7 +24,7 @@ export const ooxmlDir = app.isPackaged
   ? path.join(resourcesRoot, "ooxml")
   : path.join(app.getAppPath(), "resources/ooxml");
 
-/** FFmpeg + ffprobe, fetched per platform by `scripts/fetch-ffmpeg.ts` into
+/** FFmpeg + ffprobe, fetched per platform by `scripts/fetch-binaries.ts` into
  *  `resources/ffmpeg/<platform>-<arch>/` and shipped as `resources/ffmpeg/`. */
 const ffmpegDir = app.isPackaged
   ? path.join(resourcesRoot, "ffmpeg")
@@ -33,8 +33,9 @@ const exe = process.platform === "win32" ? ".exe" : "";
 export const ffmpegPath = path.join(ffmpegDir, `ffmpeg${exe}`);
 export const ffprobePath = path.join(ffmpegDir, `ffprobe${exe}`);
 
-/** The media engine (`native/`): built by `native/build.sh` into `resources/engine/<platform>-<arch>/`
- *  and shipped as `resources/engine/`, next to its libmpv where the app carries one. */
+/** The media engine (`native/`): fetched per platform by `scripts/fetch-binaries.ts` (or built by
+ *  `native/build.sh`) into `resources/engine/<platform>-<arch>/` and shipped as `resources/engine/`,
+ *  next to its libmpv where the app carries one. */
 export const engineDir = app.isPackaged
   ? path.join(resourcesRoot, "engine")
   : path.join(app.getAppPath(), "resources/engine", `${process.platform}-${process.arch}`);

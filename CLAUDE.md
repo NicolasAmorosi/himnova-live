@@ -83,7 +83,8 @@ answer, and ask about what does. Nothing is delivered half-done in silence.
 | DB | `better-sqlite3` (Node-API, no native rebuild) + Drizzle ORM + FTS5 for the Bible |
 | Packaging | `electron-builder` (nsis / ad-hoc signed dmg / AppImage + deb) |
 | Updates | `electron-updater` 6.8.9, from the GitHub release marked Latest; on macOS the app downloads and opens the `.dmg` itself |
-| Media probe + thumbnails | FFmpeg 9.0.2 (`ffmpeg` + `ffprobe`) **bundled**, pinned by sha256 and downloaded by `scripts/fetch-ffmpeg.ts` (GPLv3, see `resources/ffmpeg-NOTICE.txt`) |
+| Media probe + thumbnails | FFmpeg 9.0.2 (`ffmpeg` + `ffprobe`) **bundled**, pinned by sha256 and downloaded by `scripts/fetch-binaries.ts` (GPLv3, see `resources/ffmpeg-NOTICE.txt`) |
+| Media engine | Our own process on libmpv (`native/`), **prebuilt** per platform in this repo's GitHub Release `engine-<n>`, pinned by sha256 and downloaded by `scripts/fetch-binaries.ts` (see `resources/engine-NOTICE.txt`). `native/build.sh <target>` builds it locally (kept by the fetch: a `.local` marker) and `native/build.sh pack` zips a new release |
 | E2E | Playwright 1.63 (`_electron`) against the built app or the installed one — `tests/e2e/` |
 
 ## Folder structure
@@ -318,7 +319,8 @@ npm install              # installs deps — better-sqlite3 ships prebuilt binar
                           #   package NO longer does it by itself, and without it `npm run dev` dies with
                           #   `Error: Electron uninstall` while build/typecheck/lint still pass.
                           #   It also downloads this platform's FFmpeg (`resources/ffmpeg/`, ~130 MB
-                          #   on macOS, ~210 MB on Windows), verified by sha256
+                          #   on macOS, ~210 MB on Windows) and media engine (`resources/engine/`,
+                          #   10–47 MB zipped), verified by sha256
 npm run dev               # electron-vite dev (HMR in the renderer, main restarts on watch)
 npm run typecheck          # tsc --noEmit over node (main+preload+shared) and web (renderer+shared)
 npm run lint                # eslint .
@@ -353,7 +355,7 @@ npm run test:e2e              # build + Playwright: 132 walkthroughs of the real
                               #   it also runs the real hymnal (`hymnal.spec.ts`). The suite runs the app in
                               #   Spanish on purpose (`--lang=es`, `tests/e2e/support/app.ts`): its locators are
                               #   the `es.ts` strings, so they stay in Spanish
-npm run fetch:ffmpeg          # FFmpeg for this machine (the postinstall and every package:* also do it)
+npm run fetch:binaries        # FFmpeg + media engine for this machine (the postinstall and every package:* also do it)
 npm run db:generate            # drizzle-kit generate — new migration after editing db/schema.ts
 npm run slides:smoke -- x.pptx # conversion + OOXML parsing (timings/audio) WITHOUT Electron
 npm run build                 # electron-vite build

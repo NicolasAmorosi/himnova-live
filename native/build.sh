@@ -9,11 +9,25 @@
 #   ./native/build.sh win32-x64      Docker (mingw-w64). libmpv: the pinned build below, which has the
 #                                    D3D11 render API (mpv master, not in any release yet).
 #   ./native/build.sh linux-x64      Docker (Debian 12, glibc 2.36). The target uses the system's libmpv.
+#   ./native/build.sh pack           Zips every target built here into native/.build/release/, the files of a
+#                                    Release `engine-<n>` (see scripts/fetch-binaries.ts), and prints their sha256.
+# A build leaves a `.local` marker: scripts/fetch-binaries.ts keeps it instead of the published engine.
 set -euo pipefail
 cd "$(dirname "$0")/.."
-TARGET=${1:?usage: native/build.sh darwin-arm64|win32-x64|linux-x64}
-OUT=resources/engine/$TARGET
 WORK=native/.build
+if [[ ${1:-} == pack ]]; then
+  mkdir -p "$WORK/release"
+  for dir in resources/engine/*/; do
+    zip=$PWD/$WORK/release/media-engine-$(basename "$dir").zip
+    rm -f "$zip"
+    # Regular files only: the stamps, and macOS's libmpv.dylib symlink, stay out.
+    (cd "$dir" && find . -maxdepth 1 -type f ! -name '.*' ! -name NOTICE.txt | sed 's|^\./||' | sort | zip -X -q "$zip" -@)
+    shasum -a 256 "$zip"
+  done
+  exit
+fi
+TARGET=${1:?usage: native/build.sh darwin-arm64|win32-x64|linux-x64|pack}
+OUT=resources/engine/$TARGET
 NODE_INC=$(dirname "$(dirname "$(node -p process.execPath)")")/include/node
 FLAGS=(-O2 -std=c++17 -Wall -Wno-missing-field-initializers)
 rm -rf "$OUT" && mkdir -p "$OUT" "$WORK"
@@ -72,4 +86,5 @@ linux-x64)
   exit 1
   ;;
 esac
+touch "$OUT/.local"
 ls -la "$OUT"

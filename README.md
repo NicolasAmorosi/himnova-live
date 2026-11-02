@@ -73,7 +73,7 @@ from Releases once, and from then on it can.
 Requires Node.js 22 or later.
 
 ```bash
-npm install          # also downloads Electron and the FFmpeg for your platform
+npm install          # also downloads Electron, FFmpeg and the media engine for your platform
 npm run dev          # the app with hot reload
 npm run typecheck && npm run lint && npm run test   # the minimum before a PR
 npm run test:e2e     # end-to-end runs of the real app with Playwright
@@ -92,5 +92,6 @@ Stack: Electron, TypeScript, React, Vite, Tailwind, Zustand and SQLite (`better-
 version, it has to stay free under the same license.
 
 FFmpeg ships alongside the app as a separate program, under its own GPL-3.0 license (see
-[`resources/ffmpeg-NOTICE.txt`](resources/ffmpeg-NOTICE.txt)). The text of the Reina-Valera 1909 is
-in the public domain.
+[`resources/ffmpeg-NOTICE.txt`](resources/ffmpeg-NOTICE.txt)), and so does the media engine with its
+libmpv (see [`resources/engine-NOTICE.txt`](resources/engine-NOTICE.txt); the engine's source is in
+[`native/`](native/)). The text of the Reina-Valera 1909 is in the public domain.

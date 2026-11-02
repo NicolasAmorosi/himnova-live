@@ -165,7 +165,7 @@ export function initEngineAssets(): void {
   void fsp
     .rm(convertedMediaDir, { recursive: true, force: true })
     .catch((error: unknown) => console.warn("[engine] could not delete the old converted copies", error));
-  if (!ffmpegAvailable()) console.warn("[engine] bundled FFmpeg not found — run scripts/fetch-ffmpeg.ts");
+  if (!ffmpegAvailable()) console.warn("[engine] bundled FFmpeg not found — run scripts/fetch-binaries.ts");
 }
 
 /** From the control window at startup. The first report starts everything; a

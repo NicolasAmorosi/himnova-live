@@ -32,7 +32,7 @@ export default function globalSetup(): void {
   fs.rmSync(FIXTURES_DIR, { recursive: true, force: true });
   fs.mkdirSync(FIXTURES_DIR, { recursive: true });
   const ffmpeg = ffmpegBinary();
-  if (!fs.existsSync(ffmpeg)) throw new Error(`No bundled FFmpeg at ${ffmpeg} — run \`npm run fetch:ffmpeg\``);
+  if (!fs.existsSync(ffmpeg)) throw new Error(`No bundled FFmpeg at ${ffmpeg} — run \`npm run fetch:binaries\``);
 
   const out = (name: string) => path.join(FIXTURES_DIR, name);
   const run = (...args: string[]) => execFileSync(ffmpeg, ["-hide_banner", "-loglevel", "error", "-y", ...args]);

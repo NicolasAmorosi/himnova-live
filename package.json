@@ -15,7 +15,7 @@
   },
   "type": "module",
   "scripts": {
-    "postinstall": "install-electron && tsx scripts/fetch-ffmpeg.ts",
+    "postinstall": "install-electron && tsx scripts/fetch-binaries.ts",
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json && tsc --noEmit -p tsconfig.e2e.json",
@@ -26,12 +26,12 @@
     "screenshots": "npm run build && playwright test -c playwright.screenshots.config.ts",
     "db:generate": "drizzle-kit generate",
     "slides:smoke": "TSX_TSCONFIG_PATH=tsconfig.node.json tsx scripts/convert-smoke.ts",
-    "fetch:ffmpeg": "tsx scripts/fetch-ffmpeg.ts",
-    "package": "npm run build && tsx scripts/fetch-ffmpeg.ts && electron-builder",
-    "package:win": "npm run build && tsx scripts/fetch-ffmpeg.ts win32-x64 && electron-builder --win",
-    "package:mac": "npm run build && tsx scripts/fetch-ffmpeg.ts darwin-arm64 && electron-builder --mac",
-    "package:linux": "npm run build && tsx scripts/fetch-ffmpeg.ts linux-x64 && electron-builder --linux -c.productName=lumina-live",
-    "package:dir": "npm run build && tsx scripts/fetch-ffmpeg.ts && electron-builder --dir"
+    "fetch:binaries": "tsx scripts/fetch-binaries.ts",
+    "package": "npm run build && tsx scripts/fetch-binaries.ts && electron-builder",
+    "package:win": "npm run build && tsx scripts/fetch-binaries.ts win32-x64 && electron-builder --win",
+    "package:mac": "npm run build && tsx scripts/fetch-binaries.ts darwin-arm64 && electron-builder --mac",
+    "package:linux": "npm run build && tsx scripts/fetch-binaries.ts linux-x64 && electron-builder --linux -c.productName=lumina-live",
+    "package:dir": "npm run build && tsx scripts/fetch-binaries.ts && electron-builder --dir"
   },
   "dependencies": {
     "@fontsource-variable/noto-sans": "^5.3.0",
@@ -126,7 +126,12 @@
         },
         {
           "from": "resources/engine/win32-${arch}",
-          "to": "engine"
+          "to": "engine",
+          "filter": [
+            "**/*",
+            "!.stamp",
+            "!.local"
+          ]
         }
       ]
     },
@@ -145,7 +150,12 @@
         },
         {
           "from": "resources/engine/darwin-${arch}",
-          "to": "engine"
+          "to": "engine",
+          "filter": [
+            "**/*",
+            "!.stamp",
+            "!.local"
+          ]
         }
       ]
     },
@@ -182,7 +192,12 @@
         },
         {
           "from": "resources/engine/linux-${arch}",
-          "to": "engine"
+          "to": "engine",
+          "filter": [
+            "**/*",
+            "!.stamp",
+            "!.local"
+          ]
         }
       ]
     },
