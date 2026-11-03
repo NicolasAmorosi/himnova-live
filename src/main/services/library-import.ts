@@ -4,7 +4,7 @@ import { ASSET_EXTENSIONS, PREWARM_EXPLICIT_MAX, type AssetKind } from "@shared/
 import type { MediaAsset } from "@shared/types/media";
 import { getMediaRepo } from "./repos";
 import { broadcast } from "./broadcast";
-import { prewarmExplicit } from "../slides/deck-service";
+import { prewarm } from "../slides/deck-service";
 import { notifyMediaChanged } from "../media/engine-assets";
 
 const CHUNK_SIZE = 100;
@@ -159,11 +159,11 @@ export async function importPaths(
     // prewarm already covers for whatever the operator actually scrolls to.
     //
     // Capped: an import is one gesture, and dragging in a whole folder must
-    // not turn it into hundreds of unrequested conversions (see
+    // not turn it into hundreds of unrequested reads (see
     // `PREWARM_EXPLICIT_MAX`). The rest are reachable from "Prepare
     // folder", which asks first and can be stopped.
     if (kind === "ppt" && inLibrary) {
-      prewarmExplicit(results.slice(0, PREWARM_EXPLICIT_MAX).map((asset) => asset.id));
+      prewarm(results.slice(0, PREWARM_EXPLICIT_MAX).map((asset) => asset.id));
     }
 
     return results;

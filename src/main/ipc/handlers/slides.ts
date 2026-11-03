@@ -1,20 +1,11 @@
 import type { Handlers } from "../register";
-import {
-  cacheStats,
-  cancel,
-  clearCache,
-  getDeck,
-  prepareDeck,
-  prewarmExplicit,
-  setVisiblePrewarm,
-} from "../../slides/deck-service";
+import { cacheStats, clearCache, getDeck, prepareDeck, prewarm } from "../../slides/deck-service";
 import { cancelPrewarmBatch, deckStatuses, startPrewarmBatch } from "../../services/prewarm-service";
 
 export const slidesHandlers: Pick<
   Handlers,
   | "deck:get"
   | "deck:ensure"
-  | "deck:cancel"
   | "deck:prewarm"
   | "deck:prewarmBatch"
   | "deck:cancelPrewarmBatch"
@@ -27,13 +18,8 @@ export const slidesHandlers: Pick<
   "deck:ensure": ({ assetId, force }) =>
     prepareDeck(assetId, { force: force ?? false, priority: "interactive" }),
 
-  "deck:cancel": ({ assetId }) => {
-    cancel(assetId);
-  },
-
-  "deck:prewarm": ({ assetIds, scope }) => {
-    if (scope === "visible") setVisiblePrewarm(assetIds);
-    else prewarmExplicit(assetIds, scope);
+  "deck:prewarm": ({ assetIds }) => {
+    prewarm(assetIds);
   },
 
   "deck:prewarmBatch": ({ assetIds, label }) => startPrewarmBatch(assetIds, label),

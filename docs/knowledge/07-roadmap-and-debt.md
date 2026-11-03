@@ -5,7 +5,7 @@
 Completed: `electron-vite` scaffolding + strict TS, the design system (`components/ui`+
 `shared`), the complete data layer (SQLite + Drizzle + FTS5, with a verified smoke test), the
 end-to-end typed IPC contract, the `worship://` protocol, the slide pipeline — every deck read
-by the app itself, a PDF rasterized (cross-platform, see `03-slides.md`) —, the
+by the app itself, a PDF's pages drawn on request (cross-platform, see `03-slides.md`) —, the
 declarative projection window, and a working control UI for the 6 audited areas
 (playlist, library, bible, PPT, black/logo, display) plus the new
 saved-services module.

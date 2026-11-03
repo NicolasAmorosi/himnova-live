@@ -578,9 +578,6 @@ const pt: Messages = {
       webp: "WebP (recomendado)",
       png: "PNG",
     },
-    slidesQualityWarnTitle: "Mudar qualquer um destes dois obriga a converter os PDF de novo",
-    slidesQualityWarnBody:
-      "Cada PDF fica no cache pelo conteúdo MAIS a largura e o formato. Ao mudar qualquer um dos dois, nenhum dos já convertidos é encontrado de novo: eles são convertidos outra vez, um a um, na primeira vez que você abrir cada um. Não mexa nisso no dia do culto.",
     sections: {
       projection: "Projeção",
       slides: "Slides",

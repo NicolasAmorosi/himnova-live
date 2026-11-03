@@ -51,9 +51,7 @@ export const api = {
     get: (assetId: number) => invoke("deck:get", { assetId }),
     ensure: (assetId: number, force?: boolean) =>
       invoke("deck:ensure", { assetId, ...(force !== undefined ? { force } : {}) }),
-    cancel: (assetId: number) => invoke("deck:cancel", { assetId }),
-    prewarm: (assetIds: number[], scope: "program" | "explicit" | "visible") =>
-      invoke("deck:prewarm", { assetIds, scope }),
+    prewarm: (assetIds: number[]) => invoke("deck:prewarm", { assetIds }),
     prewarmBatch: (assetIds: number[], label: string) => invoke("deck:prewarmBatch", { assetIds, label }),
     cancelPrewarmBatch: (jobId: string) => invoke("deck:cancelPrewarmBatch", { jobId }),
     statuses: (assetIds: number[]) => invoke("deck:statuses", { assetIds }),

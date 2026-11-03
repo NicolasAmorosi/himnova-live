@@ -1,10 +1,11 @@
-# 03 — Slide pipeline (decks read by the app, PDFs rasterized)
+# 03 — Slide pipeline (every deck read by the app, nothing converted)
 
 Every deck is read by the app itself — nothing is converted by another program, nothing has to be
 installed (owner, 2026-11-03: «usar solo nuestro motor de compatibilidad… todo puro en nuestro
 programa»). A presentation is read into a model per slide and drawn in the renderer; a legacy deck
-made of pictures — the hymnal — is served picture by picture straight from its file; a PDF, which
-already is pictures, is rasterized once. There is nothing Windows-only either: the app runs and is
+made of pictures — the hymnal — is served picture by picture straight from its file; a PDF's pages
+are drawn by pdf.js when a window asks for one, and kept only in memory. Nothing is written to disk
+but the sound and video a `.pptx` carries. There is nothing Windows-only either: the app runs and is
 validated the same way on macOS, Windows and Linux.
 
 ## The model change
@@ -23,14 +24,14 @@ source ──containerKind (magic bytes, never the extension)──┐
   binary (OLE2) ── readBinaryDeck: only pictures? ── yes ──► native deck   image_format 'native'
        │ no                                                                 (ppt-binary.ts, on main, ~1 ms)
   ooxml │ binary │ odf ── pptx-worker.ts thread ──► SlideModel per slide ──► model deck   'model'
-  pdf ── pdf.js in a hidden window ──► WebP per page ──► raster deck   'webp'|'png', userData/slides-cache
+  pdf ── pdf.js in a hidden window: page sizes ──► PDF deck   'webp'|'png' with cache_dir '' (pages drawn on request)
   no reader opens it ── sniffUnreadableDeck ──► fails: DECK_PASSWORD | DECK_OLD_FORMAT | NOT_A_PRESENTATION
 ```
 
-`prepareDeck` (`deck-service.ts`) asks in that order, before the cache and before the queue:
-`nativeDeck` → `modelDeck` (together `sourceDeck`). Only a PDF reaches the cache lookup
-(`tryCacheHit`) and the one-at-a-time queue (`runConversion`), which therefore only ever rasterizes
-PDFs — a job queued for a file that is no longer a PDF is read from its source instead.
+`prepareDeck` (`deck-service.ts`) asks in that order: `nativeDeck` → `modelDeck` → `pdfDeck`
+(together `sourceDeck`). There is no queue and nothing to cancel: until 2026-11-03 a PDF was
+rasterized whole into the slide cache, one at a time behind a two-lane queue with preemption; that
+queue, `deck:cancel` and the `slides.preemptBackground` escape hatch are gone.
 
 ## Model decks: a deck is drawn, not converted (2026-10-26)
 
@@ -269,30 +270,39 @@ fast 0.5 s. Decided by the owner: they play **only when the deck moves forward**
 and entering the deck keeps the scene transition from Settings. A PDF has none. On the projector it
 is `ProjectionOutput.enter` (see `04-renderer-state.md`).
 
-## A PDF: the one deck that is rasterized
+## A PDF: drawn page by page, when asked for (2026-11-03)
 
 A `.pdf` is just another deck (`ASSET_EXTENSIONS.ppt`, `kind = "ppt"`, `ProgramItemKind` `"ppt"`) —
 not an `AssetKind` of its own. Throughout the renderer `kind === "ppt"` already means "this is a
 deck", so the extension is enough to inherit the dialog filter, drag & drop, folder import, the
 content-addressed cache, prewarm, "Prepare folder", thumbs and badges without a single new branch.
 
-Its pages already are pictures, so it is the only deck that goes through the queue: `runConversion`
-hashes it, rasterizes it with pdf.js (`rasterizer.ts`) into a temp dir under
-`slides-cache/.tmp`, and renames that into the cache folder once every page is written. A PDF has
-no presentation metadata: no transitions (⇒ `timings_source = "none"`, no auto-advance) and no
-media parts (⇒ no embedded soundtrack). The sibling *linked* `.mp3` is still resolved, as for any
-other deck. `worship://raster/<job>` serves the rasterizer only a file the library holds.
+Opening one (`pdfDeck`) hashes it and asks the hidden pdf.js window for its page sizes — ~25 ms,
+measured on real slide PDFs — and records a row with `cache_dir = ''` and one `deck_slides` row per
+page with no file. `worship://deck/<id>/<n>[/thumb]` then draws that page when a window asks
+(`pdfPageImage` in `rasterizer.ts`): the slide at the deck's width in the `now` lane, a thumbnail at
+`SLIDES_THUMB_WIDTH` in the `later` lane, one task at a time in the window, which keeps the last
+three documents open. Encoded pages stay in memory (128 MB, least recently used out, keyed by the
+file's stamp, never by deck id), so the projector gets at once what PREVIEW drew, and its
+`preload` of the next slides is what draws them ahead. Measured on an M3 (2026-11-03): a page at
+1920 px draws in 5–110 ms; encoding it as PNG takes 6–21 ms, as WebP 70–165 ms; a thumbnail 4–23 ms.
 
-Rasterizing scales to fit a `targetWidth` square, not just by width: a PDF page can be portrait.
-`slides.maxRenderWidth` and `slides.imageFormat` are part of a raster deck's identity, so changing
-either makes every PDF rasterize again on its next open (Settings warns); they touch no other deck.
+A PDF has no presentation metadata: no transitions (⇒ `timings_source = "none"`, no auto-advance)
+and no media parts (⇒ no embedded soundtrack). The sibling *linked* `.mp3` is still resolved, as for
+any other deck. `worship://raster/<task>` serves the window only a file the library holds, and only
+while that task runs.
+
+A page is fitted into a `targetWidth` square, not just by width: a PDF page can be portrait.
+`slides.maxRenderWidth` and `slides.imageFormat` (the owner kept the choice, 2026-11-03) are part of
+a PDF deck's identity, so changing either opens the PDF again under new urls on its next open
+(~25 ms); they touch no other deck.
 Diagnosis and measurements — including non-embedded fonts (pdf.js runs with system fonts) and the
 `PDF_PASSWORD` error — in
 [`.claude/knowledge/a-pdf-source-breaks-two-assumptions-the-pipeline-made-about-its-own-output.md`](../../.claude/knowledge/a-pdf-source-breaks-two-assumptions-the-pipeline-made-about-its-own-output.md).
 
-## Why rasterizing runs in a hidden `BrowserWindow`
+## Why PDF pages are drawn in a hidden `BrowserWindow`
 
-Rasterizing needs a real Canvas2D. The alternative (`@napi-rs/canvas` in a `utilityProcess`)
+Drawing needs a real Canvas2D. The alternative (`@napi-rs/canvas` in a `utilityProcess`)
 publishes its native binary as a **per-platform** `optionalDependency`: unlike `better-sqlite3`
 (8 binaries in one tarball), `npm install` on macOS never downloads the Windows one, so
 cross-compiling the Windows installer from a Mac — something this project does — would ship a
@@ -304,14 +314,14 @@ built-ins that Electron 36's Chromium didn't have yet and failed with
 `n.toHex is not a function` (Electron 44's Chromium 152 does have `Uint8Array.prototype.toHex`;
 the legacy build is still the one imported).
 
-**That window is reused across decks** (a single one, with an idle shutdown at 60 s — which never
-comes during a batch). Consequence for any change in `slides/rasterizer.ts`: everything registered
-*per job* on its `webContents` must be unregistered when the job ends. A
-`once("render-process-gone")` is not enough: `once` only removes itself if the event fires, so it
-piled up one listener per rasterized deck — with its closure and that job's `pages`/`request`
-hanging off it — until Node warned
-`MaxListenersExceededWarning: 11 render-process-gone listeners added to [WebContents]` halfway
-through preparing a folder. The job's `finish()` is the only correct place for that cleanup.
+**That window is reused across decks and pages** (a single one, closed after 5 minutes idle, which
+also drops the documents it keeps open). Consequence for any change in `slides/rasterizer.ts`:
+listen on its `webContents` once per window, never per task. A `once("render-process-gone")` per
+task is not enough: `once` only removes itself if the event fires, so the old per-deck job piled up
+one listener per rasterized deck until Node warned
+`MaxListenersExceededWarning: 11 render-process-gone listeners added to [WebContents]`. A crash
+fails the page being drawn; a page that hangs for `SLIDES_RASTER_PAGE_TIMEOUT_MS` closes the window;
+the next task starts a fresh one either way.
 
 ## Identity by content hash
 
@@ -412,18 +422,20 @@ round-trip through LibreOffice silently lost the auto-advance of 222 of 1226 hym
 
 ## What older builds left behind
 
-Until 2026-11-03 a deck no reader could open was converted by LibreOffice (→ PDF → WebP). At
-startup `sweepCache` deletes every such deck — a raster row (`webp`/`png`) whose source is not a
-`.pdf`, with its `slides-cache` folder (`SlidesRepo.deleteConvertedDecks`) — and LibreOffice's own
-`userData/soffice-profile`; those decks are read from their source on their next open. A PDF's
-rasters stay. The settings rows those builds wrote (`slides.sofficePath`, `slides.warnMissingSoffice`…)
-stay in the table and are ignored: `SettingsRepo` only reads keys `DEFAULT_SETTINGS` still has.
+Until 2026-11-03 a deck no reader could open was converted by LibreOffice (→ PDF → WebP), and a
+PDF was rasterized whole to WebP/PNG. At startup `sweepCache` deletes every such deck — a raster row
+(`webp`/`png`) with a folder, with that `slides-cache` folder (`SlidesRepo.deleteRasterizedDecks`;
+a PDF deck of this build has `cache_dir = ''`) — and LibreOffice's own `userData/soffice-profile`,
+and the unknown-folder sweep takes the old `slides-cache/.tmp`; those decks are read from their
+source on their next open. The settings rows those builds wrote (`slides.sofficePath`,
+`slides.warnMissingSoffice`, `slides.preemptBackground`…) stay in the table and are ignored:
+`SettingsRepo` only reads keys `DEFAULT_SETTINGS` still has.
 
-## Progress: per page only for interactive work
+## Progress: state transitions only
 
-`deck-progress` is emitted **per rasterized page only for `interactive` jobs**
-(`emitPageProgress`). For background work only the state transitions go out; the batch's aggregate
-progress travels over `prewarm-progress`. Emitting the per-page progress in the background too
+`deck-progress` carries a deck's state transitions (ready, failed, stale) and nothing per page: no
+deck is drawn page by page ahead of time any more. A «Prepare folder» batch reports its aggregate
+over `prewarm-progress`. When PDFs were rasterized, emitting per-page progress for background work
 turned a 600-deck folder into ~18,000 IPC messages, each one cloning in the renderer a `Record`
 that grows with every deck — see
 [`.claude/knowledge/an-aggregate-progress-channel-only-helps-if-the-per-item-one-goes-quiet.md`](../../.claude/knowledge/an-aggregate-progress-channel-only-helps-if-the-per-item-one-goes-quiet.md).
@@ -458,5 +470,5 @@ The readers are pure and tested without Electron (`tests/main/`: `pptx-reader`, 
 `container-kind`, `pptx-transition`, `pptx-audio`, `pptx-video`…). The E2E suite builds every deck
 it projects in code — `.pptx` part by part (`tests/e2e/support/pptx.ts`, with timings, a WMA
 soundtrack and a WMV on a slide), PDFs (`support/pdf.ts`), legacy binaries
-(`tests/fixtures/legacy-ppt.ts`) and an `.odp` — so it needs nothing installed. Rasterizing and
-drawing need Chromium, so they are only checked inside the app.
+(`tests/fixtures/legacy-ppt.ts`) and an `.odp` — so it needs nothing installed. Drawing a PDF's
+pages and a model need Chromium, so they are only checked inside the app.

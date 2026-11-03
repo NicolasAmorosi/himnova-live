@@ -30,7 +30,8 @@ migration `0004_rename_programs.sql` with `ALTER TABLE ... RENAME` — a table r
 lost the `CHECK`, which Drizzle doesn't materialize in the snapshot), `bible_versions`+`bible_books`+`bible_verses`+
 `bible_verses_fts` (FTS5 external-content), `bible_favorites`, `projection_history`,
 `slide_decks`+`deck_slides`+`deck_audio`+`deck_videos` (persistent record of every deck read,
-addressed by content hash — see `03-slides.md`: a PDF's rasterized pages; since `0018` also the
+addressed by content hash — see `03-slides.md`: a PDF's page sizes, its pages drawn on request
+(until 2026-11-03 its rasterized pages, in a folder); since `0018` also the
 decks read natively, `image_format = 'native'`, which own no folder and whose `deck_slides.layers`
 say which pictures of the source make up each slide; and the decks drawn from their model,
 `image_format = 'model'`, whose `layers` is each slide's `SlideModel`), `program_draft`,
@@ -99,7 +100,7 @@ panel shows its empty state and offers to create one.
 the same identity `slide_decks` is indexed by — together with `content_hash_size` and
 `content_hash_mtime_ms`, which are the **stamp** that validates it: the hash is only used while
 those two still match the row's `size_bytes`/`mtime_ms`. It's the same invalidation rule
-`tryCacheHit` already applied to a deck row, and it's what avoids having to re-read the file to
+every deck reader applies to its own row, and it's what avoids having to re-read the file to
 know whether the digest still describes it.
 
 It exists because `slide_decks.media_asset_id` is **exclusive** and `relinkDeck` moves it: asking
@@ -110,8 +111,9 @@ backfill hasn't stamped yet.
 
 The hash is written in two places, never anywhere else:
 
-- `runConversion` (`deck-service.ts`) stores it as soon as it computes it — it already needed it,
-  so it's free, and it leaves a freshly imported deck correct right away;
+- every deck reader (`recordNativeDeck`, `recordModelDeck`, `recordPdfDeck` in `deck-service.ts`)
+  stores it as soon as it computes it — it already needed it, so it's free, and it leaves a freshly
+  imported deck correct right away;
 - `backfillContentHashes()` (`src/main/media/content-hash.ts`) sweeps in the background, 2 s after
   startup, every `ppt` without a valid stamp, in chunks of 25 with a yield between chunks, and
   emits `deck-statuses-changed` so the grid repaints. It's idempotent: the second startup costs one

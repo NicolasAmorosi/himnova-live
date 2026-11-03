@@ -47,14 +47,11 @@ export const dbBackupDir = path.join(userDataDir, "backups");
 export const legacySettingsPath = path.join(userDataDir, "settings.json");
 export const legacyMediaLibraryPath = path.join(userDataDir, "media_library.json");
 
-/** Persistent, content-addressed cache of converted PowerPoint/Impress decks
- *  (rasterized slide images + extracted audio) — see src/main/slides/. Never
- *  os.tmpdir(): that's what the COM-era exporter used and why its cache was
- *  lost on every restart. */
+/** Persistent, content-addressed cache of what a deck carries that is played
+ *  from a file: the sound and video extracted from a `.pptx` — see
+ *  src/main/slides/. Never os.tmpdir(): that's what the COM-era exporter used
+ *  and why its cache was lost on every restart. */
 export const slidesCacheDir = path.join(userDataDir, "slides-cache");
-/** PDFs being rasterized land here first; only fs.renameSync'd into their
- *  final deckCacheDir() once every file is written. Swept clean on startup. */
-export const slidesTempDir = path.join(slidesCacheDir, ".tmp");
 
 /** Generated library thumbnails (images and video first frames). Sharded one
  *  level by the first two characters of the key, because a church's media

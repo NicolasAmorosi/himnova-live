@@ -55,7 +55,7 @@ export type SettingsMap = {
    *  full-screen one and a slide's). Off, it shows the video's thumbnail and
    *  the control window decodes nothing — the projector is never affected. */
   "monitors.liveVideoMotion": boolean;
-  /** The format a PDF's pages are rasterized to. */
+  /** The format a PDF's pages are drawn to, when a window asks for one. */
   "slides.imageFormat": SlideImageFormat;
   /** The face a `.pptx` drawn from its model falls back to when it names one
    *  this machine lacks (after its metric twins); `null` is the operating
@@ -64,11 +64,6 @@ export type SettingsMap = {
   "slides.fallbackFont": SlideFallbackFont | null;
   "slides.cacheMaxMb": number;
   "slides.maxRenderWidth": number;
-  /** Internal escape hatch (no UI control): lets a background job rasterizing
-   *  a PDF be soft-interrupted when the operator opens something
-   *  interactively — set to `false` to degrade to plain priority ordering (no
-   *  preemption) without a release. */
-  "slides.preemptBackground": boolean;
   /** Folders the operator has linked per asset kind, so a resource tab can
    *  offer "this folder's files" as an alternative to the added-to-library
    *  list. Files inside are registered like any other asset (so preview/
@@ -135,7 +130,6 @@ export const DEFAULT_SETTINGS: SettingsMap = {
   "slides.fallbackFont": null,
   "slides.cacheMaxMb": SLIDES_DEFAULT_CACHE_MB,
   "slides.maxRenderWidth": SLIDES_DEFAULT_RENDER_WIDTH,
-  "slides.preemptBackground": true,
   "monitors.liveVideoMotion": true,
   "library.linkedFolders": { video: [], image: [], audio: [], ppt: [] },
   "library.activeView": { video: "recent", image: "recent", audio: "recent", ppt: "recent" },
@@ -215,7 +209,6 @@ export const SETTINGS_VALIDATORS: Record<keyof SettingsMap, (value: unknown) => 
   "slides.fallbackFont": isNullOr(isOneOf(SLIDE_FALLBACK_FONTS)),
   "slides.cacheMaxMb": isNumberIn(1, 1_000_000),
   "slides.maxRenderWidth": isNumberIn(320, 16_384),
-  "slides.preemptBackground": isBoolean,
   "monitors.liveVideoMotion": isBoolean,
   "library.linkedFolders": isRecordOfKinds(isStringArray),
   "library.activeView": isRecordOfKinds(isString),

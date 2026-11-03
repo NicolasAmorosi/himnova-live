@@ -131,11 +131,10 @@ export default function globalSetup(): void {
   );
   for (const name of ["slide-clip.wmv", "slide-clip.png"]) fs.rmSync(out(name), { force: true });
 
-  // Two PDFs long enough to be watched rasterizing — the one thing that still
-  // waits in a queue — so cancelling one, running or still in line, is real.
+  // A PDF long enough that converting it, as builds before 2026-11-03 did,
+  // took seconds: it has to open at once, its pages drawn when asked for.
   const pages = (count: number) => Array.from({ length: count }, (_, i) => `#${((i * 2_654_435) % 0xffffff).toString(16).padStart(6, "0")}`);
   fs.writeFileSync(out("long.pdf"), buildPdf(pages(160)));
-  fs.writeFileSync(out("queued.pdf"), buildPdf(pages(120)));
 
   // The same hymn as a legacy binary with text — which the picture reader
   // refuses, so `ppt/model-reader.ts` draws it — and as an `.odp` (`odp/`).

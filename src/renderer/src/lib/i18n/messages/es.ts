@@ -578,9 +578,6 @@ const es = {
       webp: "WebP (recomendado)",
       png: "PNG",
     },
-    slidesQualityWarnTitle: "Cambiar estos dos obliga a reconvertir los PDF",
-    slidesQualityWarnBody:
-      "Cada PDF se guarda en caché bajo su contenido MÁS el ancho y el formato. Al cambiar cualquiera de los dos, ninguno de los ya convertidos se vuelve a encontrar: se reconvierten de a uno, la primera vez que abrís cada uno. No lo toques el mismo día del culto.",
     sections: {
       projection: "Proyección",
       slides: "Diapositivas",

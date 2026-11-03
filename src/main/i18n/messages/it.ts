@@ -48,11 +48,7 @@ const it: MainMessages = {
     sqliteModules: "Moduli SQLite (MyBible, MySword)",
   },
   slides: {
-    diskFull: "Spazio su disco insufficiente per convertire la presentazione.",
     shuttingDown: "L'applicazione si sta chiudendo.",
-    noLongerVisible: "Non è più visibile.",
-    prewarmCanceled: "Preparazione annullata.",
-    canceled: "Conversione annullata.",
     notInLibrary: "File non trovato nella libreria.",
     sourceGone: "Il file non è più disponibile: {path}",
     noSlides: "La presentazione non ha prodotto nessuna diapositiva.",

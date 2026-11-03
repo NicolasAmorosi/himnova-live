@@ -577,9 +577,6 @@ const en: Messages = {
       webp: "WebP (recommended)",
       png: "PNG",
     },
-    slidesQualityWarnTitle: "Changing either of these means reconverting every PDF",
-    slidesQualityWarnBody:
-      "Each PDF is cached by its content PLUS the width and the format. Change either one and none of the converted PDFs will be found again: they're reconverted one by one, the first time you open each. Don't touch this on the day of a service.",
     sections: {
       projection: "Projection",
       slides: "Slides",

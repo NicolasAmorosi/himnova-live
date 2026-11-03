@@ -107,24 +107,17 @@ export type IpcContract = {
    *  operator has to be able to tell whether that is where his files are. */
   "files:systemFolders": { req: void; res: Record<AssetKind, string> };
 
-  /** Cache lookup only — never reads or rasterizes anything, so it is safe to
+  /** Cache lookup only — never reads or draws anything, so it is safe to
    *  call while merely rendering a list or selecting an item. */
   "deck:get": { req: { assetId: number }; res: DeckDTO | null };
-  /** Reads (or, for a PDF, rasterizes) if needed. Idempotent per assetId: a
-   *  second call while one is in flight joins it instead of queuing another. */
+  /** Reads the deck from its source if needed (a PDF: its page sizes; its
+   *  pages are drawn when asked for). Idempotent per assetId: a second call
+   *  while one is in flight joins it. */
   "deck:ensure": { req: { assetId: number; force?: boolean }; res: DeckDTO };
-  "deck:cancel": { req: { assetId: number }; res: void };
 
-  /** Fire-and-forget background conversion for decks not already converted.
-   *  The scope is also the priority: main drains `program` before `explicit`
-   *  before `visible` before a "Prepare folder" batch, and a deck asked for
-   *  again under a higher scope is moved up, even if it was already queued.
-   *
-   *  `"program"` (in the order of service) and `"explicit"` (added via
-   *  `+`/drag&drop) never get cancelled by another call; `"visible"` REPLACES
-   *  the previous visible set — assets that scrolled out are dropped from the
-   *  queue (not-yet-running ones only), assets that scrolled in are added. */
-  "deck:prewarm": { req: { assetIds: number[]; scope: "program" | "explicit" | "visible" }; res: void };
+  /** Fire-and-forget: reads in the background the decks not read yet — the
+   *  order of service, the library tiles on screen. */
+  "deck:prewarm": { req: { assetIds: number[] }; res: void };
   /** Starts one tracked, cancelable batch — the "Prepare folder/view"
    *  button. `assetIds` is whatever the caller already has on screen (the
    *  library tab or linked-folder view's current list); already-converted
@@ -142,9 +135,9 @@ export type IpcContract = {
 
   /** How much disk the slide cache is using against its budget. Read-only and
    *  cheap (one aggregate query plus a setting), so Settings can poll it on
-   *  open without coordinating with the conversion queue. */
+   *  open. */
   "deck:cacheStats": { req: void; res: DeckCacheStats };
-  /** Deletes EVERY cached deck — rows and rasterized files alike — and answers
+  /** Deletes EVERY cached deck — rows and extracted files alike — and answers
    *  with the usage that is left. Nothing is spared, including a deck that is
    *  on the projector right now: main deliberately has no way to know what is
    *  live (see `.claude/knowledge/main-cannot-know-what-is-live-under-an-overlay.md`),

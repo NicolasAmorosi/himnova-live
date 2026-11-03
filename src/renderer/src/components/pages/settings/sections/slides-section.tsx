@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useI18n } from "@renderer/lib/i18n/i18n-provider";
-import { Button, Callout, FieldGroup, FieldRow, ProgressBar, Select } from "@renderer/components/ui";
+import { Button, FieldGroup, FieldRow, ProgressBar, Select } from "@renderer/components/ui";
 import { ConfirmModal } from "@renderer/components/shared/modal";
 import { useSettingsStore } from "@renderer/stores/settings.store";
 import { useProjectionStore } from "@renderer/stores/projection.store";
@@ -20,16 +20,11 @@ const CACHE_MB_OPTIONS = [1024, 2048, 4096, 8192, 16_384] as const;
 const RENDER_WIDTH_OPTIONS = [1280, 1600, 1920, 2560, 3840] as const;
 
 /**
- * The slide cache: what it costs, and the three knobs that shape it.
- *
- * Two of the three are destructive in a way that is not obvious from the
- * control. A rasterized PDF is addressed by `contentHash + renderWidth +
- * imageFormat` (`main/paths.ts`), so changing the width or the format does not
- * *redraw* anything — it changes the address, and every PDF the operator
- * already prepared stops being found and is rasterized again, one at a time,
- * the next time each is opened. Hence the callout: the cost is real, it is
- * silent, and it is paid later. (Every other deck is read from its source and
- * owns no images: these two knobs never touch it.)
+ * The slide cache — what it costs, and its cap — and what a PDF's pages are
+ * drawn at. Changing the width or the format opens a PDF again the next time
+ * it is opened (~25 ms) and draws its pages anew; nothing is ever converted.
+ * (Every other deck is read from its source and owns no images: these two
+ * knobs never touch it.)
  */
 export function SlidesSection({ active }: { active: boolean }) {
   const { t, locale } = useI18n();
@@ -163,11 +158,6 @@ export function SlidesSection({ active }: { active: boolean }) {
           />
         </FieldRow>
       </FieldGroup>
-
-      <Callout tone="warning">
-        <p className="font-medium">{t("settings.slidesQualityWarnTitle")}</p>
-        <p className="mt-1 text-xs text-muted-foreground">{t("settings.slidesQualityWarnBody")}</p>
-      </Callout>
 
       <ConfirmModal
         confirmLabel={t("settings.slidesCacheClear")}

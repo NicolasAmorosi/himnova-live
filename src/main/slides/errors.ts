@@ -16,7 +16,6 @@ export type SlideErrorCode =
   | "DECK_PASSWORD"
   /** PowerPoint 95 or older. */
   | "DECK_OLD_FORMAT"
-  | "DISK_FULL"
   | "CANCELED";
 
 export class SlideError extends IpcError {

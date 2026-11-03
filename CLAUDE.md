@@ -116,11 +116,11 @@ src/
 │   │   ├── index.ts               # assembles every *.ts in handlers/
 │   │   └── handlers/              # one file per domain, same grouping as the contract
 │   ├── protocol/worship-protocol.ts   # worship:// — serves files by id, never by path
-│   ├── slides/                    # deck-service.ts (which reader, cache, the PDF queue), pptx-metadata.ts
+│   ├── slides/                    # deck-service.ts (which reader, cache), pptx-metadata.ts
 │   │                              # (OOXML timings/media), ppt-binary.ts + native-deck.ts (legacy decks of
 │   │                              # pictures; the unreadable-deck sniff), pptx/ (OOXML), ppt/model-reader.ts
 │   │                              # (legacy with text), odp/ (OpenDocument) — each into a SlideModel per
-│   │                              # slide on the pptx-worker.ts thread —, rasterizer.ts (a PDF: hidden window+pdfjs)
+│   │                              # slide on the pptx-worker.ts thread —, rasterizer.ts (a PDF's pages, drawn on request: hidden window+pdfjs)
 │   ├── media/                     # media-compat.ts (what Chromium plays: PURE, tested), ffmpeg.ts
 │   │                              #   (probes, frames), engine-assets.ts (which library files the engine plays),
 │   │                              #   deck-clips.ts (video/audio embedded in a .pptx), thumbnail-service.ts,
@@ -501,10 +501,10 @@ npm run package:win|mac|linux  # build + electron-builder for that platform
   round-trip through LibreOffice silently lost the timing of every slide without a transition
   effect (222 of 1226 files of the real hymnal) — diagnosis in
   [`.claude/knowledge/libreoffice-pptx-export-drops-advtm-without-a-transition-effect.md`](.claude/knowledge/libreoffice-pptx-export-drops-advtm-without-a-transition-effect.md).
-- **A PDF is a deck, and the only one that is rasterized.** Its pages already are pictures, so
-  `runConversion` — the one queue — only ever rasterizes PDFs (pdf.js in a hidden window, WebP per
-  page in `userData/slides-cache`, by content hash); every other deck is read from its source before
-  the queue. It lives in the `ppt` `AssetKind` on purpose, because throughout the renderer
+- **A PDF is a deck, and its pages are drawn when asked for** (owner, 2026-11-03: nothing
+  converted, nothing cached on disk). Opening one reads its page sizes (~25 ms); each page is drawn
+  by pdf.js in a hidden window when a window requests `worship://deck/<id>/<n>`, and kept only in
+  memory (`rasterizer.ts`). There is no conversion queue. It lives in the `ppt` `AssetKind` on purpose, because throughout the renderer
   `kind === "ppt"` already means "this is a deck". Diagnosis in
   [`.claude/knowledge/a-pdf-source-breaks-two-assumptions-the-pipeline-made-about-its-own-output.md`](.claude/knowledge/a-pdf-source-breaks-two-assumptions-the-pipeline-made-about-its-own-output.md).
 - **Never read a whole `.pptx` to get its XML parts out.** A zip is random access: everything
@@ -622,7 +622,7 @@ npm run package:win|mac|linux  # build + electron-builder for that platform
   picture straight from the file (`ppt-binary.ts`, `image_format = 'native'`, no cache folder);
   any other presentation — OOXML, a legacy deck with text, an `.odp` — is read on the
   `pptx-worker.ts` thread into a `SlideModel` per slide that `SlideView` draws
-  (`image_format = 'model'`); a PDF is rasterized. A legacy deck the picture reader can't draw
+  (`image_format = 'model'`); a PDF's pages are drawn by pdf.js on request. A legacy deck the picture reader can't draw
   exactly is refused **whole** and goes to the model reader — never half a deck each way. What the
   model can't draw exactly is **approximated, never refused** (owner, 2026-10-26); a slide part
   that won't parse is drawn without it and marked `damaged`, said only in the control window. A

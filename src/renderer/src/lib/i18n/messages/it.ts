@@ -584,9 +584,6 @@ const it: Messages = {
       webp: "WebP (consigliato)",
       png: "PNG",
     },
-    slidesQualityWarnTitle: "Se cambi una di queste due opzioni, vanno riconvertiti i PDF",
-    slidesQualityWarnBody:
-      "Ogni PDF viene salvato nella cache in base al suo contenuto PIÙ la larghezza e il formato. Se cambi uno dei due, nessuno di quelli già convertiti viene più trovato: si riconvertono uno alla volta, la prima volta che apri ciascuno. Non modificarli il giorno del culto.",
     sections: {
       projection: "Proiezione",
       slides: "Diapositive",

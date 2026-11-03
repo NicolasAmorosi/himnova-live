@@ -166,18 +166,17 @@ export function MediaBrowser({ active, kind }: { active: boolean; kind: AssetKin
     );
   }, []);
 
-  // Pre-warms decks in the background for what the operator can actually see
-  // right now — the grid reports its mounted range by row, this debounces the
-  // scroll, and main replaces its whole `visible` set on each call. Three
-  // independent throttles, because a fast scroll through 600 tiles must not
-  // enqueue 600 conversions nobody will look at.
+  // Reads decks in the background for what the operator can actually see
+  // right now — the grid reports its mounted range by row and this debounces
+  // the scroll, because a fast scroll through 600 tiles must not read 600
+  // decks nobody will look at.
   const setVisiblePrewarm = useDebouncedCallback((assetIds: number[]) => {
-    void api.deck.prewarm(assetIds, "visible");
+    void api.deck.prewarm(assetIds);
   }, 300);
 
   // `PREWARM_VISIBLE_MAX` stays as a backstop even now that the range is real:
-  // a very tall window at a very small tile size could still mount more than a
-  // background queue should be fed at once.
+  // a very tall window at a very small tile size could still mount more than
+  // is worth reading at once.
   const visibleIdsKey = useMemo(
     () =>
       assets
@@ -191,30 +190,12 @@ export function MediaBrowser({ active, kind }: { active: boolean; kind: AssetKin
 
   useEffect(() => {
     // A hidden tab stays mounted (see `ResourcePanel`) and its range is still
-    // perfectly valid — it is just not what anyone is looking at, so it has no
-    // claim on the conversion queue.
+    // perfectly valid — it is just not what anyone is looking at.
     if (kind !== "ppt" || !active) return;
     const ids = visibleIdsKey === "" ? [] : visibleIdsKey.split(",").map(Number);
     setVisiblePrewarm(ids);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `setVisiblePrewarm` is stable per render by design (see useDebouncedCallback); `visibleIdsKey` is the real, identity-stable dependency
   }, [active, kind, visibleIdsKey]);
-
-  // "Nothing of mine is visible any more" — on unmount, and when this tab
-  // stops being the active one.
-  //
-  // Sent undebounced, and from its own effect, on purpose. Routing it through
-  // `setVisiblePrewarm` inside the effect above meant it was armed by a
-  // cleanup that runs AFTER the debounce hook's own unmount cleanup has
-  // already cleared the timer — so on unmount the message was never delivered
-  // and a stray 300 ms timeout was left holding a closure over a component
-  // that no longer existed. Its own effect also keeps it from firing on every
-  // scroll, which a cleanup in the effect above did.
-  useEffect(() => {
-    if (kind !== "ppt") return;
-    return () => {
-      void api.deck.prewarm([], "visible");
-    };
-  }, [active, kind]);
 
   // One round-trip for the whole view: which decks are ready (drives the
   // "Prepare folder/view" button and its count) and where each ready deck's

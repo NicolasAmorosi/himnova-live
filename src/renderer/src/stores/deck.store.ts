@@ -44,7 +44,7 @@ type DeckStoreState = {
   /** Cancels a deck that's converting or waiting in main's background queue
    *  right now — main's own `deck-progress` push (a `stale` status) is what
    *  actually updates `byAssetId`; this just relays the request. */
-  cancelConversion: (assetId: number) => Promise<void>;
+  cancelConversion: (assetId: number) => void;
   /** Starts one tracked batch over `assetIds` (whatever the caller already
    *  has on screen — a library tab or a linked folder's current list). */
   startBatchPrewarm: (assetIds: number[], label: string) => Promise<void>;
@@ -150,11 +150,9 @@ export const useDeckStore = create<DeckStoreState>((set, get) => ({
       .catch((error: unknown) => {
         if (!isCurrent(assetId, gen)) return null;
         const message = error instanceof Error ? error.message : String(error);
-        // A cancellation is not a failure — it is what the operator asked for.
-        // It only became reachable at all once main started settling a job it
-        // pulls out of the queue (before that, cancelling a queued deck left
-        // this promise pending forever), so surfacing it as "couldn't
-        // convert" would be a new, wrong error message rather than an old one.
+        // A cancellation is not a failure: main only cancels a read because
+        // the app is quitting, so surfacing it as "couldn't convert" would be
+        // a wrong error message.
         const canceled = error instanceof IpcError && error.code === "CANCELED";
         set((s) => ({
           byAssetId: {
@@ -249,24 +247,20 @@ export const useDeckStore = create<DeckStoreState>((set, get) => ({
       return { byAssetId: { ...s.byAssetId, [assetId]: { ...current, status: "stale" } } };
     }),
 
-  cancelConversion: async (assetId) => {
-    // Retires the in-flight request as well as forgetting it: main's own
-    // `deck-progress` push (a `stale` status) is what updates `byAssetId` from
-    // here, and a late resolution writing over that is exactly what this
-    // generation counter exists to stop.
+  cancelConversion: (assetId) => {
+    // Main has nothing to stop — a deck is read from its source, and the read
+    // finishes on its own — so this only stops waiting for it: the in-flight
+    // request is retired (a late resolution must not write over the
+    // cancellation) and the deck marked cancelled. `useDeck` leaves a
+    // cancelled deck alone until «Retry».
     supersede(assetId);
     pending.delete(assetId);
-    // Marked here as well: a cancel pressed before the request reached main
-    // finds nothing there to cancel and gets no push back, so the click was
-    // lost and the conversion started anyway. `useDeck` leaves a cancelled
-    // deck alone until «Retry».
     set((s) => ({
       byAssetId: {
         ...s.byAssetId,
         [assetId]: { status: "stale", progress: { done: 0, total: 0 }, deck: s.byAssetId[assetId]?.deck ?? null, error: null },
       },
     }));
-    await api.deck.cancel(assetId);
   },
 
   startBatchPrewarm: async (assetIds, label) => {

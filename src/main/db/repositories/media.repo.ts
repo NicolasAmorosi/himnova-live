@@ -282,12 +282,10 @@ export class MediaRepo {
    * Whether this exact file is a row in the library.
    *
    * The reverse of `getPathById`, and it exists for one caller: the
-   * `worship://raster/<jobId>` guard. A deck is normally rasterized from a PDF
-   * *we* just produced under `slidesTempDir`, but a PDF source is rasterized
-   * from where the operator keeps it — so "under our temp dir" stopped being
-   * the whole answer to "is main allowed to serve this". This is the positive
-   * assertion that replaces the missing half: the file is one the operator
-   * added, which is the same property `worship://asset/<id>` already rests on.
+   * `worship://raster/<taskId>` guard. A PDF is drawn from where the operator
+   * keeps it, so this is the positive assertion main serves it on: the file is
+   * one the operator added, which is the same property `worship://asset/<id>`
+   * already rests on.
    * Matched on `pathKey` (NFC + lowercased on Windows), never the raw string.
    */
   hasPath(filePath: string): boolean {

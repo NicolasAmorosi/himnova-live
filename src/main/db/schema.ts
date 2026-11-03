@@ -46,7 +46,7 @@ export const mediaAssets = sqliteTable(
     contentHash: text("content_hash"),
     /** The `(size, mtime)` the hash was computed over. `contentHash` is only
      *  trustworthy while these still match `sizeBytes`/`mtimeMs` — the same
-     *  invalidation rule `tryCacheHit` already applies to a deck row, and the
+     *  invalidation rule every deck reader applies to its own row, and the
      *  reason the hash never has to be recomputed just to be used. */
     contentHashSize: integer("content_hash_size"),
     contentHashMtimeMs: integer("content_hash_mtime_ms"),

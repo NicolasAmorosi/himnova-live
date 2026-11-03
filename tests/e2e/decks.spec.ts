@@ -11,7 +11,7 @@ import { CM, buildPptx } from "./support/pptx";
 import { compoundFile } from "../fixtures/legacy-ppt";
 import { audioStates, engineCanvas, expect, moving, relaunch, test, videoStates, type WorshipApp } from "./support/app";
 
-/** A rasterized slide in the centre grid, once the deck is converted. */
+/** A slide in the centre grid, once the deck is read. */
 const slideTile = (app: WorshipApp, n: number) =>
   app.previewColumn().getByRole("list", { name: "Presentación" }).getByRole("button", { name: String(n), exact: true });
 
@@ -39,10 +39,10 @@ function projectedSlide(projector: Page): Promise<number | null> {
   );
 }
 
-test("a PDF is a deck: rasterized, projected, stepped", async ({ app }) => {
+test("a PDF is a deck: drawn page by page, projected, stepped", async ({ app }) => {
   await app.addMedia("ppt", "deck.pdf");
   await app.previewFile("Presentaciones", "deck");
-  // Its three pages, rasterized, in the centre grid.
+  // Its three pages in the centre grid.
   await expect(slideTile(app, 3)).toBeVisible({ timeout: 60_000 });
 
   await app.goLive();
@@ -593,42 +593,40 @@ test("a deck edited while the app was closed is not projected from the old cache
   await expect(liveSlideTile(again, 3)).toHaveCount(0);
 });
 
-test("a deck finished in the background after the operator cancelled it shows its slides, not «Preparando…»", async ({ app }) => {
-  // A PDF long enough to still be rasterizing when «Cancelar» is pressed.
+test("a long PDF opens without converting anything, and writes nothing to disk", async ({ app }) => {
+  // Every status main announces for a deck: a PDF used to say «converting»
+  // page by page, then write every page to the slide cache.
+  type Bridge = { worship: { on: (channel: string, cb: (payload: { status: string }) => void) => void } };
+  await app.control.evaluate(() => {
+    const seen: string[] = [];
+    (window as unknown as { deckStatuses: string[] }).deckStatuses = seen;
+    (window as unknown as Bridge).worship.on("deck-progress", (p) => seen.push(p.status));
+  });
   const [deck] = await app.addMedia("ppt", "long.pdf");
   if (!deck) throw new Error("import failed");
   await app.previewFile("Presentaciones", "long");
-  const preview = app.previewColumn();
-  // Main's own word that the job stopped: until the rasterizer lets go, a new
-  // request for the same deck joins the dying job instead of starting one.
-  type Bridge = { worship: { on: (channel: string, cb: (payload: { status: string }) => void) => void } };
-  const stopped = app.control.evaluate(
-    () =>
-      new Promise<void>((resolve) =>
-        (window as unknown as Bridge).worship.on("deck-progress", (p) => {
-          if (p.status === "stale") resolve();
-        }),
-      ),
-  );
-  await preview.getByRole("button", { name: "Cancelar" }).first().click();
-  await expect(preview.getByText("Conversión cancelada").first()).toBeVisible();
-  await stopped;
+  await expect(slideTile(app, 1)).toBeVisible({ timeout: 30_000 });
+  const read = await app.invoke<{ slideCount: number }>("deck:ensure", { assetId: deck.id });
+  expect(read.slideCount).toBe(160);
 
-  // Later the background prewarm (the library's visible decks, the
-  // schedule's) converts it after all — with nobody in the control window
-  // awaiting that job.
-  await app.invoke("deck:prewarm", { assetIds: [deck.id], scope: "explicit" });
-  await expect(slideTile(app, 3)).toBeVisible({ timeout: 90_000 });
-  await expect(preview.getByText("Preparando la conversión…")).toHaveCount(0);
-});
+  // Pages the projector has not been sent yet are drawn when it asks.
+  await app.goLive();
+  const projector = await app.projector();
+  await expect.poll(() => projectedSlide(projector)).toBe(1);
+  for (let n = 2; n <= 4; n += 1) {
+    await app.control.keyboard.press("ArrowRight");
+    await expect.poll(() => projectedSlide(projector)).toBe(n);
+  }
+  await expect
+    .poll(() =>
+      projector.evaluate(() => {
+        const image = [...document.querySelectorAll<HTMLImageElement>('img[src^="worship://deck/"]')].at(-1);
+        return image?.complete ? image.naturalWidth : 0;
+      }),
+    )
+    .toBeGreaterThan(0);
 
-test("cancelling a deck that is still waiting in line says so", async ({ app }) => {
-  await app.addMedia("ppt", "long.pdf", "queued.pdf");
-  // The first is rasterized; the second waits behind it.
-  await app.previewFile("Presentaciones", "long");
-  await app.previewFile("Presentaciones", "queued");
-  const preview = app.previewColumn();
-  await preview.getByRole("button", { name: "Cancelar" }).first().click();
-  await expect(preview.getByText("Conversión cancelada").first()).toBeVisible();
-  await expect(preview.getByText("Preparando la conversión…")).toHaveCount(0);
+  const statuses = await app.control.evaluate(() => (window as unknown as { deckStatuses: string[] }).deckStatuses);
+  expect(statuses).not.toContain("converting");
+  expect(fs.readdirSync(path.join(app.profile, "slides-cache"))).toEqual([]);
 });

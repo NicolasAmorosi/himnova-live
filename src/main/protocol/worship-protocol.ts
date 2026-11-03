@@ -5,7 +5,7 @@ import { Readable } from "node:stream";
 import type { MediaRepo } from "../db/repositories/media.repo";
 import { getSettingsRepo, getSlidesRepo, isDatabaseOpen } from "../services/repos";
 import { slidesCacheDir } from "../paths";
-import { resolveRasterPdf } from "../slides/rasterizer";
+import { pdfPageImage, resolveRasterPdf } from "../slides/rasterizer";
 import { renderNativeSlide } from "../slides/native-deck";
 import { decodeEmbeddedFont } from "../slides/pptx/embedded-font";
 import { metafileToSvg } from "../slides/pptx/metafile";
@@ -341,18 +341,22 @@ export function registerWorshipProtocolHandler(mediaRepo: MediaRepo): void {
           // different deck id. Without this header Chromium re-reads every
           // image on each <img> swap — during a live service.
           const immutable = { "Cache-Control": "public, max-age=31536000, immutable" };
-          if (image?.kind !== "native") {
-            return serveFile(request, withinCache(image?.path ?? null), immutable);
-          }
+          if (!image) return new Response("Not found", { status: 404 });
           // Built from the source itself, so it has to still BE the file the
-          // layers were read from: a deck edited in place would hand out bytes
-          // from the wrong offsets. Gone, not a guess — the deck is read again
-          // the next time it is opened.
-          const stat = await fs.promises.stat(image.sourcePath).catch(() => null);
-          if (!stat || stat.size !== image.sourceSizeBytes || Math.trunc(stat.mtimeMs) !== image.sourceMtimeMs) {
-            return new Response("Gone", { status: 410 });
+          // deck was read from: a deck edited in place would hand out bytes
+          // from the wrong offsets, or another page. Gone, not a guess — the
+          // deck is read again the next time it is opened.
+          if (!(await sourceUnchanged(image))) return new Response("Gone", { status: 410 });
+          let slide: { body: Buffer; contentType: string } | null;
+          if (image.kind === "pdf") {
+            const body = await pdfPageImage(image, image.page, image.variant).catch((error: unknown) => {
+              console.warn(`[slides] couldn't draw page ${image.page} of ${image.sourcePath}`, error);
+              return null;
+            });
+            slide = body ? { body, contentType: `image/${image.imageFormat}` } : null;
+          } else {
+            slide = renderNativeSlide(image.sourcePath, image.layers, image.variant);
           }
-          const slide = renderNativeSlide(image.sourcePath, image.layers, image.variant);
           if (!slide) return new Response("Gone", { status: 410 });
           return new Response(request.method === "HEAD" ? null : new Uint8Array(slide.body), {
             status: 200,

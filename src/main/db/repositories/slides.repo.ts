@@ -35,10 +35,10 @@ export function isCurrentDeck(row: Pick<DeckRow, "imageFormat" | "converterVersi
   return row.converterVersion === current;
 }
 
-/** What `worship://deck/<id>/<n>` serves: a file in the deck's cache folder,
- *  or a native slide built from its source (`native-deck.ts`). */
+/** What `worship://deck/<id>/<n>` serves, built from the deck's source every
+ *  time: a native slide's pictures (`native-deck.ts`), or a PDF's page drawn
+ *  by pdf.js (`rasterizer.ts`). */
 export type SlideImage =
-  | { kind: "file"; path: string }
   | {
       kind: "native";
       variant: "full" | "thumb";
@@ -46,6 +46,16 @@ export type SlideImage =
       sourceSizeBytes: number;
       sourceMtimeMs: number;
       layers: string;
+    }
+  | {
+      kind: "pdf";
+      variant: "full" | "thumb";
+      page: number;
+      sourcePath: string;
+      sourceSizeBytes: number;
+      sourceMtimeMs: number;
+      renderWidth: number;
+      imageFormat: "webp" | "png";
     };
 
 export type NewDeck = {
@@ -129,8 +139,8 @@ export class SlidesRepo {
 
   private slideImageStmt(): Database.Statement {
     this.slideImageStatement ??= this.sqlite.prepare(
-      `SELECT d.cache_dir AS cacheDir, s.image_file AS imageFile, s.thumb_file AS thumbFile,
-              s.layers AS layers, d.image_format AS imageFormat, d.source_path AS sourcePath,
+      `SELECT d.cache_dir AS cacheDir, s.layers AS layers, d.image_format AS imageFormat,
+              d.render_width AS renderWidth, d.source_path AS sourcePath,
               d.source_size_bytes AS sourceSizeBytes, d.source_mtime_ms AS sourceMtimeMs
          FROM deck_slides s JOIN slide_decks d ON d.id = s.deck_id
         WHERE s.deck_id = ? AND s.slide_index = ?`,
@@ -223,10 +233,9 @@ export class SlidesRepo {
    * One query per chunk for a whole grid's worth of assets, instead of
    * `findDeckByAsset` + `fs.existsSync` per asset (what `deckStatuses` used to
    * do). Deliberately skips the filesystem: a cache dir that vanished out from
-   * under a `ready` row is caught by the real conversion/cache-hit path
-   * (`runConversion`), not by a status badge that exists to answer "does this
-   * still need converting?" for hundreds of tiles at once without touching
-   * disk hundreds of times.
+   * under a `ready` row is caught when the deck is read (`prepareDeck`), not
+   * by a status badge that exists to answer "does this still need reading?"
+   * for hundreds of tiles at once without touching disk hundreds of times.
    *
    * **Asked by CONTENT, then by ownership** — this is the fix for `N3`
    * (media-chain audit §5.2). It used to ask only "which deck row does this
@@ -349,7 +358,7 @@ export class SlidesRepo {
 
   /** The deck matching an asset's stamped content hash at the current render
    *  settings — the exact identity `insertDeck` enforces, so at most one row.
-   *  Lets `tryCacheHit` resolve a duplicate file without re-reading it just to
+   *  Lets a reader (`nativeDeck`, `modelDeck`, `pdfDeck`) resolve a duplicate file without re-reading it just to
    *  recompute a digest the asset already carries. */
   findDeckByAssetContent(mediaAssetId: number, renderWidth: number, imageFormat: DeckRow["imageFormat"]): DeckRow | null {
     const row = this.db
@@ -568,7 +577,7 @@ export class SlidesRepo {
    *
    *  The source stamp moves with it. The row describes whichever file it is
    *  pointed at, and leaving the previous copy's `(size, mtime)` behind meant
-   *  `tryCacheHit`'s first tier — the one that costs a single `statSync` —
+   *  a reader's first lookup — the one that costs a single `statSync` —
    *  could never match again for the new owner: a file merely `touch`ed, or a
    *  duplicate saved at a different moment, fell through to the slower lookup
    *  on every single open, forever. */
@@ -772,18 +781,15 @@ export class SlidesRepo {
   }
 
   /**
-   * Deletes every deck LibreOffice drew — a raster (`webp`/`png`) whose source
-   * is not a PDF — with its folder: the builds before 2026-11-03 converted the
-   * decks they couldn't read, and now every such deck is read from its source
-   * on its next open. Run at startup, when nothing is on the projector. A
-   * PDF's own rasters stay. Returns how many went.
+   * Deletes every deck a build before 2026-11-03 drew to disk — a raster
+   * (`webp`/`png`) with a folder: a PDF's pages, or a deck LibreOffice
+   * converted — with that folder. Every such deck is read from its source on
+   * its next open; a PDF's pages are drawn when asked for (cache dir `''`).
+   * Run at startup, when nothing is on the projector. Returns how many went.
    */
-  deleteConvertedDecks(): number {
+  deleteRasterizedDecks(): number {
     const rows = this.sqlite
-      .prepare(
-        `SELECT id FROM slide_decks
-          WHERE image_format NOT IN ('native', 'model') AND lower(source_path) NOT LIKE '%.pdf'`,
-      )
+      .prepare(`SELECT id FROM slide_decks WHERE image_format IN ('webp', 'png') AND cache_dir <> ''`)
       .all() as { id: number }[];
     for (const row of rows) this.deleteDeck(row.id);
     return rows.length;
@@ -805,10 +811,9 @@ export class SlidesRepo {
     const row = this.slideImageStmt().get(deckId, slideIndex) as
       | {
           cacheDir: string;
-          imageFile: string;
-          thumbFile: string;
           layers: string | null;
           imageFormat: string;
+          renderWidth: number;
           sourcePath: string;
           sourceSizeBytes: number;
           sourceMtimeMs: number;
@@ -829,7 +834,22 @@ export class SlidesRepo {
         layers: row.layers,
       };
     }
-    return { kind: "file", path: path.join(row.cacheDir, variant === "full" ? row.imageFile : row.thumbFile) };
+    // A PDF's page, drawn when asked for. A raster with a folder is what a
+    // build before 2026-11-03 drew to disk, deleted at the next startup
+    // (`deleteRasterizedDecks`): never served.
+    if ((row.imageFormat === "webp" || row.imageFormat === "png") && row.cacheDir === "") {
+      return {
+        kind: "pdf",
+        variant,
+        page: slideIndex,
+        sourcePath: row.sourcePath,
+        sourceSizeBytes: row.sourceSizeBytes,
+        sourceMtimeMs: row.sourceMtimeMs,
+        renderWidth: row.renderWidth,
+        imageFormat: row.imageFormat,
+      };
+    }
+    return null;
   }
 
   /** A model deck's slide as `SlideModel` JSON, with the source it was read

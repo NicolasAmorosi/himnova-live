@@ -50,11 +50,7 @@ const es = {
     sqliteModules: "Módulos SQLite (MyBible, MySword)",
   },
   slides: {
-    diskFull: "No hay suficiente espacio en disco para convertir la presentación.",
     shuttingDown: "La aplicación se está cerrando.",
-    noLongerVisible: "Ya no está visible.",
-    prewarmCanceled: "Preparación cancelada.",
-    canceled: "Conversión cancelada.",
     notInLibrary: "No se encontró el archivo en la biblioteca.",
     sourceGone: "El archivo ya no está disponible: {path}",
     noSlides: "La presentación no produjo ninguna diapositiva.",

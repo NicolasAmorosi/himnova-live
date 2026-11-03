@@ -45,9 +45,10 @@ export const ASSET_EXTENSIONS: Record<AssetKind, readonly string[]> = {
 export const PROGRAM_ITEM_KINDS = ["media", "ppt", "bible", "utility", "plate"] as const;
 export type ProgramItemKind = (typeof PROGRAM_ITEM_KINDS)[number];
 
-/** Bump to invalidate every rasterized PDF at once when the rasterizer itself
- *  changes (different settings, a fixed page fit, …). */
-export const SLIDES_CONVERTER_VERSION = 3;
+/** Bump to read every PDF deck again (its page sizes) when the way its pages
+ *  are fitted changes. 4: pages drawn when asked for, nothing rasterized to
+ *  disk (2026-11-03). Reading one costs ~25 ms, so a bump is free. */
+export const SLIDES_CONVERTER_VERSION = 4;
 
 /** The same role for a deck read straight from its source (`image_format =
  *  'native'`, `ppt-binary.ts`): bump when the rules for which pictures make up

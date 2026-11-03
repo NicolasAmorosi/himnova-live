@@ -3,7 +3,7 @@ import type { DeckStatusSummary, PrewarmProgress } from "@shared/types/deck";
 import { slideModelUrl, slideThumbUrl } from "@shared/urls";
 import { broadcast } from "./broadcast";
 import { getSlidesRepo } from "./repos";
-import { cacheUsage, cancelBackgroundJobs, prepareDeck } from "../slides/deck-service";
+import { cacheUsage, prepareDeck } from "../slides/deck-service";
 
 /** How full the cache is allowed to get from prewarming alone before a batch
  *  stops enqueueing more — converting 600 decks just to immediately evict
@@ -92,7 +92,7 @@ async function runBatch(state: BatchState, assetIds: number[], progress: Prewarm
     progress.currentAssetId = assetId;
     broadcast("prewarm-progress", { ...progress });
     try {
-      await prepareDeck(assetId, { priority: "background", scope: "batch", prewarmJobId: state.jobId });
+      await prepareDeck(assetId, { priority: "background" });
       progress.done += 1;
     } catch {
       // A canceled or genuinely failed conversion either way just doesn't
@@ -113,11 +113,8 @@ export function cancelAllPrewarmBatches(): void {
   for (const state of activeBatches.values()) state.canceled = true;
 }
 
-/** Stops enqueueing further assets in the batch and aborts whichever one of
- *  its jobs is currently in flight (queued-but-not-started ones tagged with
- *  this `jobId` are also dropped, via `cancelBackgroundJobs`). */
+/** Stops the batch before its next asset; the one being read finishes. */
 export function cancelPrewarmBatch(jobId: string): void {
   const state = activeBatches.get(jobId);
   if (state) state.canceled = true;
-  cancelBackgroundJobs(jobId);
 }

@@ -617,7 +617,7 @@ describe("A deck read natively owns no folder, and what LibreOffice drew goes at
     expect(slidesRepo.getDeckById(nativeId)?.cacheDir).toBe("");
   });
 
-  test("every deck LibreOffice drew goes with its folder at startup; a PDF's rasters stay", () => {
+  test("every deck drawn to disk goes with its folder at startup; a PDF drawn page by page stays", () => {
     // `adoptCacheRoot` above forgot the converted row (its folder is not under
     // that root); put it back the way the builds before 2026-11-03 left it.
     if (!slidesRepo.getDeckById(convertedId)) {
@@ -662,14 +662,35 @@ describe("A deck read natively owns no folder, and what LibreOffice drew goes at
       [],
     );
 
-    expect(slidesRepo.deleteConvertedDecks()).toBe(1);
+    // A PDF as this build reads it: no folder, its pages drawn when asked for.
+    const onDemandId = slidesRepo.insertDeck(
+      {
+        contentHash: "8".repeat(64),
+        renderWidth: 1920,
+        imageFormat: "png",
+        converterVersion: SLIDES_CONVERTER_VERSION,
+        mediaAssetId: null,
+        sourcePath: path.join(mediaDir, "Anuncios.PDF"),
+        sourceSizeBytes: 1,
+        sourceMtimeMs: 1,
+        cacheDir: "",
+        aspectRatio: null,
+        timingsSource: "none",
+        bytesOnDisk: 0,
+      },
+      [slide(null)],
+      [],
+    );
+
+    expect(slidesRepo.deleteRasterizedDecks()).toBe(2);
     expect(slidesRepo.getDeckById(convertedId)).toBeNull();
     expect(fs.existsSync(convertedDir)).toBe(false);
+    expect(slidesRepo.getDeckById(pdfId)).toBeNull();
+    expect(fs.existsSync(pdfDir)).toBe(false);
     expect(slidesRepo.getDeckById(nativeId)).not.toBeNull();
-    expect(slidesRepo.getDeckById(pdfId)).not.toBeNull();
-    expect(fs.existsSync(pdfDir)).toBe(true);
-    expect(slidesRepo.deleteConvertedDecks()).toBe(0);
-    slidesRepo.deleteDeck(pdfId);
+    expect(slidesRepo.getSlideImage(onDemandId, 1, "thumb")).toMatchObject({ kind: "pdf", page: 1, renderWidth: 1920, imageFormat: "png" });
+    expect(slidesRepo.deleteRasterizedDecks()).toBe(0);
+    slidesRepo.deleteDeck(onDemandId);
   });
 
   test("deleting it removes no folder, whatever its row names", () => {
