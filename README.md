@@ -32,7 +32,9 @@ Windows, macOS and Linux · English, Spanish, Italian and Portuguese
 Installers are on [Releases](https://github.com/NicolasAmorosi/lumina-live/releases/latest): Windows
 (installer), macOS on Apple Silicon (`.dmg`) and Linux: a `.deb` for Ubuntu, Debian and Linux Mint,
 and an `AppImage` for other distributions. On Ubuntu 24.04 or later use the `.deb`: AppArmor won't
-let the AppImage start without `--no-sandbox`, which turns off a security protection.
+let the AppImage start without `--no-sandbox`, which turns off a security protection. On Linux the
+files Lumina's media engine plays (AVI, WMV, WMA…) need the distribution's libmpv: the `.deb` installs
+it, and with the AppImage install `libmpv2` (`libmpv1` on Ubuntu 22.04) and `libopengl0`.
 
 **On Linux, Lumina Live is still experimental.** In automated testing the projection and control
 windows closed by themselves while a presentation was on screen, which doesn't happen on Windows or

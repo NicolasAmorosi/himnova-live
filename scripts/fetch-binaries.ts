@@ -84,13 +84,15 @@ function riedl(dir: string, sums: { ffmpeg: string; ffprobe: string }): Archive[
   }));
 }
 
-const ENGINE_RELEASE = "https://github.com/NicolasAmorosi/lumina-live/releases/download/engine-1";
+const ENGINE_RELEASE = "https://github.com/NicolasAmorosi/lumina-live/releases/download/engine-2";
 
-/** Release `engine-1`: `native/` as of 4b1b457. Linux ships no libmpv: the system's is used. */
+/** Release `engine-2`: `native/` as of the commit its tag points at. Its macOS and Windows zips are
+ *  engine-1's byte for byte (their sources did not change); Linux's is built on Ubuntu 22.04 and ships
+ *  no libmpv: it loads the system's, .so.2 or .so.1. */
 const ENGINE: Record<string, Archive[]> = {
   "darwin-arm64": engine("darwin-arm64", "bb02353e409c5284330ce25b0f849d7ea7f22124f8a5fa2aa46ceb646a4d3c3c", ["media-engine", "handles.node", "libmpv.2.dylib"]),
   "win32-x64": engine("win32-x64", "4067cb14ea560619efcc8cb39045faca3970f8678b05ff73b528f93cfeab087a", ["media-engine.exe", "libmpv-2.dll"]),
-  "linux-x64": engine("linux-x64", "2affb94b664c5073aa86aa05fe722964ca25d22149c74ab4412cf8adaf42a668", ["media-engine", "handles.node"]),
+  "linux-x64": engine("linux-x64", "01de9a7dfbcb2871f3d4b5b93554fa37066ce52be8c8416f0e14a827ad1881b4", ["media-engine", "handles.node"]),
 };
 
 function engine(target: string, sha256: string, files: string[]): Archive[] {

@@ -8,7 +8,9 @@
 #                                    runs on.
 #   ./native/build.sh win32-x64      Docker (mingw-w64). libmpv: the pinned build below, which has the
 #                                    D3D11 render API (mpv master, not in any release yet).
-#   ./native/build.sh linux-x64      Docker (Debian 12, glibc 2.36). The target uses the system's libmpv.
+#   ./native/build.sh linux-x64      Docker (Ubuntu 22.04: its glibc 2.35 is the oldest the engine runs on; Debian 12's
+#                                    2.36 left arc4random@GLIBC_2.36 in the static libstdc++). The target uses the
+#                                    system's libmpv, .so.2 or .so.1, loaded at run time (native/engine/mpv-linux.cpp).
 #   ./native/build.sh pack           Zips every target built here into native/.build/release/, the files of a
 #                                    Release `engine-<n>` (see scripts/fetch-binaries.ts), and prints their sha256.
 # A build leaves a `.local` marker: scripts/fetch-binaries.ts keeps it instead of the published engine.
@@ -73,12 +75,12 @@ win32-x64)
   ;;
 linux-x64)
   mkdir -p "$WORK/node-include" && cp "$NODE_INC"/{node_api.h,node_api_types.h,js_native_api.h,js_native_api_types.h} "$WORK/node-include/"
-  docker image inspect lumina-linux-mpv-build >/dev/null 2>&1 ||
-    printf 'FROM debian:bookworm-slim\nRUN apt-get update && apt-get install -y --no-install-recommends g++ libmpv-dev libegl-dev libgbm-dev libdrm-dev libgl-dev libopengl-dev && rm -rf /var/lib/apt/lists/*\n' |
-    docker build --platform linux/amd64 -q -t lumina-linux-mpv-build -
-  docker run --rm --platform linux/amd64 -v "$PWD:/w" -w /w lumina-linux-mpv-build sh -c "
-    g++ ${FLAGS[*]} -static-libstdc++ -static-libgcc native/engine/engine.cpp native/engine/gpu-linux.cpp -I /usr/include/libdrm \
-      -lmpv -lEGL -lOpenGL -lgbm -o $OUT/media-engine &&
+  docker image inspect lumina-linux-engine-build >/dev/null 2>&1 ||
+    printf 'FROM ubuntu:22.04\nRUN apt-get update && apt-get install -y --no-install-recommends g++ libmpv-dev libegl-dev libgbm-dev libdrm-dev libgl-dev libopengl-dev && rm -rf /var/lib/apt/lists/*\n' |
+    docker build --platform linux/amd64 -q -t lumina-linux-engine-build -
+  docker run --rm --platform linux/amd64 -v "$PWD:/w" -w /w lumina-linux-engine-build sh -c "
+    g++ ${FLAGS[*]} -static-libstdc++ -static-libgcc native/engine/engine.cpp native/engine/gpu-linux.cpp native/engine/mpv-linux.cpp \
+      -I /usr/include/libdrm -ldl -lEGL -lOpenGL -lgbm -o $OUT/media-engine &&
     g++ ${FLAGS[*]} -shared -fPIC -static-libstdc++ -static-libgcc native/handles/handles.cpp -I $WORK/node-include -o $OUT/handles.node"
   ;;
 *)

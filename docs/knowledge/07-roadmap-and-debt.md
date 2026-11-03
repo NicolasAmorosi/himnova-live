@@ -165,6 +165,14 @@ Playwright adds `--no-sandbox` on Linux — see
 `.claude/knowledge/a-space-in-the-linux-install-path-breaks-the-suid-sandbox-and-playwright-never-tests-it.md`.
 Not yet tested on a real desktop Ubuntu (Docker has no AppArmor).
 
+**The media engine on Linux uses the system's libmpv** (2026-11-03, `engine-2`): it is built on
+Ubuntu 22.04, whose glibc 2.35 is the oldest it runs on (built on Debian 12 it needed 2.36, for
+the `arc4random` of the static libstdc++), and it loads `libmpv.so.2` or `libmpv.so.1` at run time
+(`native/engine/mpv-linux.cpp`) instead of linking one soname. The `.deb` depends on
+`libmpv2 | libmpv1` and on `libopengl0`, which libmpv does not pull in and the engine links.
+Installed with `apt` in clean Ubuntu 22.04, Debian 12 and Ubuntu 24.04 containers, it loads mpv
+0.34, 0.35 and 0.37; playing needs a GPU, so that part is only tested on a real PC.
+
 **Linux is experimental in 2.2.0-beta.4** (owner's decision, 2026-10-23; the README and the
 landing say so). On native x86_64 under Xvfb, the projector and control renderers crash with a
 deck on air (`service.spec`, `settings.spec:60`, sometimes `decks.spec:93`): `render-process-gone`
