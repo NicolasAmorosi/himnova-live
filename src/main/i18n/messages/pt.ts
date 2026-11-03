@@ -37,7 +37,6 @@ const pt: MainMessages = {
     dbErrorBackup: "Uma cópia de segurança verificada foi mantida em\n{path}",
     dbErrorNoBackup: "Não há uma cópia de segurança anterior a esta migração.",
     crashTitle: "Erro inesperado",
-    chooseSoffice: "Selecione o executável do LibreOffice (soffice)",
   },
   filters: {
     all: "Arquivos compatíveis",
@@ -56,21 +55,17 @@ const pt: MainMessages = {
     canceled: "Conversão cancelada.",
     notInLibrary: "O arquivo não foi encontrado na biblioteca.",
     sourceGone: "O arquivo não está mais disponível: {path}",
-    invalidSource: "Caminho de origem inválido: {path}",
     noSlides: "A apresentação não gerou nenhum slide.",
-    deckUnreadable: "Não foi possível ler a apresentação recém-convertida.",
+    deckUnreadable: "Não foi possível ler a apresentação recém-preparada.",
     rasterCrashed: "O processo de rasterização foi fechado inesperadamente.",
     rasterHung: "A rasterização de uma página travou.",
     pdfPassword: "O PDF é protegido por senha e não pode ser convertido.",
-    pptUpgradeFailed: "Não foi possível converter o .ppt em .pptx.",
-    sofficeSandboxed:
-      "A versão do LibreOffice instalada (flatpak/snap) fica isolada do sistema de arquivos e não consegue converter apresentações. Instale o pacote nativo (.deb/.rpm).",
-    sofficeNoVersion: "O LibreOffice foi encontrado em {path}, mas não respondeu a --version.",
-    sofficeNotExecutable: "O caminho configurado para o LibreOffice não é executável: {path}",
-    sofficeNotFound: "O LibreOffice não foi encontrado neste sistema.",
-    sofficeTimeout: "O LibreOffice não respondeu em {seconds}s. Se ele estiver aberto, feche-o e tente de novo.",
-    sofficeExit: "O LibreOffice terminou com o código {code}. {detail}",
-    sofficeNoPdf: "O LibreOffice terminou sem gerar um PDF. O arquivo pode estar corrompido ou protegido.",
+    deckPassword:
+      "A apresentação tem senha para abrir. Abra-a no PowerPoint, remova a senha (Arquivo ▸ Informações ▸ Proteger Apresentação) e salve de novo.",
+    deckOldFormat:
+      "A apresentação é do PowerPoint 95 ou anterior, um formato que o Lumina Live não lê. Abra-a em um PowerPoint mais novo e salve como .pptx.",
+    notAPresentation:
+      "Não foi possível abrir o arquivo como apresentação: ele pode estar corrompido ou não ser uma apresentação. Tente abri-lo no PowerPoint e salvá-lo de novo como .pptx.",
   },
   bible: {
     unknownFormat:

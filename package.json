@@ -25,7 +25,6 @@
     "test:e2e": "npm run build && playwright test",
     "screenshots": "npm run build && playwright test -c playwright.screenshots.config.ts",
     "db:generate": "drizzle-kit generate",
-    "slides:smoke": "TSX_TSCONFIG_PATH=tsconfig.node.json tsx scripts/convert-smoke.ts",
     "fetch:binaries": "tsx scripts/fetch-binaries.ts",
     "package": "npm run build && tsx scripts/fetch-binaries.ts && electron-builder",
     "package:win": "npm run build && tsx scripts/fetch-binaries.ts win32-x64 && electron-builder --win",

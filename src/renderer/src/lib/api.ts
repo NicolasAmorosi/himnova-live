@@ -52,9 +52,6 @@ export const api = {
     ensure: (assetId: number, force?: boolean) =>
       invoke("deck:ensure", { assetId, ...(force !== undefined ? { force } : {}) }),
     cancel: (assetId: number) => invoke("deck:cancel", { assetId }),
-    environment: (force = false) => invoke("deck:environment", { force }),
-    locateSoffice: () => invoke("deck:locateSoffice", undefined),
-    openSofficeDownload: () => invoke("deck:openSofficeDownload", undefined),
     prewarm: (assetIds: number[], scope: "program" | "explicit" | "visible") =>
       invoke("deck:prewarm", { assetIds, scope }),
     prewarmBatch: (assetIds: number[], label: string) => invoke("deck:prewarmBatch", { assetIds, label }),

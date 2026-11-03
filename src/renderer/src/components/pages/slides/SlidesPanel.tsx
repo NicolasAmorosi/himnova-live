@@ -15,6 +15,8 @@ import { UtilityTrackRow } from "@renderer/components/shared/utility-track-row";
 import { PlateTrackRow } from "@renderer/components/shared/plate-track-row";
 import { PanelBody, PanelHeader } from "@renderer/components/shared/panel";
 import { PreviewMissingState } from "@renderer/components/shared/preview-missing-state";
+import { DamagedSlideBadge } from "@renderer/components/shared/damaged-slide";
+import { useDeckStore } from "@renderer/stores/deck.store";
 import { PreviewMonitor } from "@renderer/components/pages/monitors/preview-monitor";
 import { useBibleStore } from "@renderer/stores/bible.store";
 import { usePreviewStore } from "@renderer/stores/preview.store";
@@ -40,6 +42,14 @@ export function SlidesPanel() {
   const liveVerseIndex = useBibleStore((s) => s.currentVerseIndex);
   const target = usePreviewStore((s) => s.target);
   const base = useProjectionStore((s) => s.base);
+  // The slide the PREVIEW monitor draws — the same pick `usePreviewOutput`
+  // makes.
+  const previewSlideIndex = usePreviewStore((s) => s.slideIndex);
+  const previewModelUrl = useDeckStore((s) => {
+    if (content?.kind !== "deck") return null;
+    const slides = s.byAssetId[content.assetId]?.deck?.slides ?? [];
+    return slides[Math.min(previewSlideIndex, slides.length) - 1]?.modelUrl ?? null;
+  });
 
   function body() {
     if (!content) {
@@ -47,7 +57,7 @@ export function SlidesPanel() {
     }
 
     if (content.kind === "deck") {
-      return <DeckSlides assetId={content.assetId} ext={content.ext} missingSince={content.missingSince} />;
+      return <DeckSlides assetId={content.assetId} missingSince={content.missingSince} />;
     }
 
     // A verse being previewed brings its whole chapter along, so the operator
@@ -171,11 +181,14 @@ export function SlidesPanel() {
     <>
       <PanelHeader
         actions={
-          heading ? (
-            <Badge className="min-w-0 flex-1" variant="blue">
-              <span className="truncate">{heading}</span>
-            </Badge>
-          ) : null
+          <>
+            {heading ? (
+              <Badge className="min-w-0 flex-1" variant="blue">
+                <span className="truncate">{heading}</span>
+              </Badge>
+            ) : null}
+            <DamagedSlideBadge url={previewModelUrl} />
+          </>
         }
         title={t("slides.title")}
       />

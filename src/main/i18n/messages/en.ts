@@ -37,7 +37,6 @@ const en: MainMessages = {
     dbErrorBackup: "A verified backup was kept at\n{path}",
     dbErrorNoBackup: "There's no backup from before this migration.",
     crashTitle: "Unexpected error",
-    chooseSoffice: "Select the LibreOffice program (soffice)",
   },
   filters: {
     all: "Supported files",
@@ -56,21 +55,17 @@ const en: MainMessages = {
     canceled: "Conversion canceled.",
     notInLibrary: "The file wasn't found in the library.",
     sourceGone: "The file is no longer available: {path}",
-    invalidSource: "Invalid source path: {path}",
     noSlides: "The presentation didn't produce any slides.",
-    deckUnreadable: "Couldn't read the presentation that was just converted.",
+    deckUnreadable: "Couldn't read the presentation that was just prepared.",
     rasterCrashed: "The slide rendering process quit unexpectedly.",
     rasterHung: "Rendering one of the pages got stuck.",
     pdfPassword: "The PDF is password-protected and can't be converted.",
-    pptUpgradeFailed: "Couldn't convert the .ppt to .pptx.",
-    sofficeSandboxed:
-      "The installed LibreOffice (Flatpak/Snap) is isolated from the file system and can't convert presentations. Install the native package (.deb/.rpm).",
-    sofficeNoVersion: "LibreOffice was found at {path}, but it didn't respond to --version.",
-    sofficeNotExecutable: "The path set for LibreOffice isn't executable: {path}",
-    sofficeNotFound: "LibreOffice wasn't found on this computer.",
-    sofficeTimeout: "LibreOffice didn't respond within {seconds}s. If it's open, close it and try again.",
-    sofficeExit: "LibreOffice exited with code {code}. {detail}",
-    sofficeNoPdf: "LibreOffice finished without producing a PDF. The file may be damaged or protected.",
+    deckPassword:
+      "The presentation has a password to open it. Open it in PowerPoint, remove the password (File ▸ Info ▸ Protect Presentation) and save it again.",
+    deckOldFormat:
+      "This presentation is from PowerPoint 95 or earlier, a format Lumina Live doesn't read. Open it in a newer PowerPoint and save it as .pptx.",
+    notAPresentation:
+      "The file couldn't be opened as a presentation: it may be damaged, or not be a presentation. Try opening it in PowerPoint and saving it again as .pptx.",
   },
   bible: {
     unknownFormat:

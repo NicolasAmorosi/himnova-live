@@ -34,8 +34,8 @@ export function appendLogLine(file: string, label: string, text: string): void {
  * Copies main's `console.info`/`warn`/`error` into `file` as well.
  *
  * A packaged Windows app has no console, so before this every warning main
- * writes — a file the projector could not read, a conversion that failed, a
- * deck LibreOffice choked on — vanished on the church PC, and `crash.log` only
+ * writes — a file the projector could not read, a deck that would not open —
+ * vanished on the church PC, and `crash.log` only
  * ever held the crashes. «Open logs folder» in Settings › System is
  * how an operator hands this over.
  */

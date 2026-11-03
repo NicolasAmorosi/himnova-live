@@ -1,12 +1,10 @@
 import { useEffect } from "react";
 import { reconvertDeck } from "@renderer/lib/actions/deck";
-import { sofficeBlocks, useDeckStore, type DeckEntry } from "@renderer/stores/deck.store";
-import type { DeckEnvironment } from "@shared/types/deck";
+import { useDeckStore, type DeckEntry } from "@renderer/stores/deck.store";
 
 export type DeckState = {
   entry: DeckEntry | undefined;
-  environment: DeckEnvironment | null;
-  /** Force a re-conversion (retry / stale file). Refused, with a toast, while
+  /** Read the deck again (retry / stale file). Refused, with a toast, while
    *  that very deck is on the projector — see `reconvertDeck`. */
   reconvert: () => void;
   markStale: () => void;
@@ -16,24 +14,15 @@ export type DeckState = {
 };
 
 /**
- * Loads the deck for `assetId`, converting it on selection so it is warm
- * before anyone hits GO LIVE. The cache-only `peek` first keeps an
- * already-converted deck from re-entering the queue on every click.
+ * Loads the deck for `assetId`, reading it on selection so it is warm before
+ * anyone hits GO LIVE. The cache-only `peek` first keeps an already-read deck
+ * from re-entering main's work on every click.
  *
  * Extracted from the old DeckPreview so the slide grid and the preview monitor
  * share one loader instead of racing two.
  */
-/**
- * `ext` is what lets the hook ask whether opening THIS deck is blocked by a
- * missing LibreOffice (`sofficeBlocks`), not a global flag: a PDF is
- * rasterized straight from its source and a legacy `.pps` is read straight
- * from it, so a machine with no LibreOffice still projects both — gating every
- * deck on one environment flag refused them for a dependency they never had.
- * Without one, the conservative behaviour this hook always had.
- */
-export function useDeck(assetId: number | null, ext: string | null = null): DeckState {
+export function useDeck(assetId: number | null): DeckState {
   const entry = useDeckStore((s) => (assetId === null ? undefined : s.byAssetId[assetId]));
-  const environment = useDeckStore((s) => s.environment);
   const ensure = useDeckStore((s) => s.ensure);
   const peek = useDeckStore((s) => s.peek);
   const markStale = useDeckStore((s) => s.markStale);
@@ -51,21 +40,18 @@ export function useDeck(assetId: number | null, ext: string | null = null): Deck
       const cached = await peek(assetId);
       if (cancelled || cached) return;
       // Cancelled by the operator (`stale` with nothing rendered — the same
-      // test `DeckConversionStatus` uses): converting it again is theirs to ask.
+      // test `DeckConversionStatus` uses): starting it again is theirs to ask.
       const current = useDeckStore.getState().byAssetId[assetId];
       if (current?.status === "stale" && current.deck === null) return;
-      const blocked = ext === null ? environment?.available === false : sofficeBlocks(environment, ext, current);
-      if (blocked) return;
       await ensure(assetId);
     })();
     return () => {
       cancelled = true;
     };
-  }, [assetId, ensure, peek, environment, ext, missing]);
+  }, [assetId, ensure, peek, missing]);
 
   return {
     entry,
-    environment,
     reconvert: () => {
       if (assetId !== null) reconvertDeck(assetId);
     },

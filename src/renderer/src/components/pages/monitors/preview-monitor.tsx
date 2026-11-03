@@ -1,9 +1,8 @@
 import { useCallback, useState } from "react";
 import { useT } from "@renderer/lib/i18n/i18n-provider";
-import { LoadingState, Monitor } from "@renderer/components/ui";
+import { Monitor } from "@renderer/components/ui";
 import { OutputView } from "@renderer/components/shared/output-view";
 import { DeckConversionStatus } from "@renderer/components/shared/deck-conversion-status";
-import { sofficeBlocks, useDeckStore } from "@renderer/stores/deck.store";
 import { usePreviewContent, usePreviewOutput } from "@renderer/lib/hooks/use-preview";
 import { usePreviewMediaStatus } from "@renderer/lib/hooks/use-preview-media-status";
 import { usePreviewEngineVideo } from "@renderer/lib/hooks/use-preview-engine-video";
@@ -41,16 +40,10 @@ export function PreviewMonitor() {
       ? content.asset.name
       : t("preview.placeholder");
 
-  // A deck still converting (or queued behind other work) has no `output`
-  // yet — without this, the stage would just fall back to the generic empty
-  // placeholder with no sign anything is happening.
+  // A deck still being read (or queued behind other work), or one that won't
+  // open, has no `output` — without this, the stage would just fall back to
+  // the generic empty placeholder with no sign of what is happening.
   const convertingAssetId = !missing && !output && content?.kind === "deck" ? content.assetId : null;
-  // …unless nothing is: with LibreOffice missing, an unconverted deck is
-  // never queued, and this stage said «Getting ready to convert…» forever.
-  const environment = useDeckStore((s) => s.environment);
-  const convertingEntry = useDeckStore((s) => (convertingAssetId === null ? undefined : s.byAssetId[convertingAssetId]));
-  const sofficeMissing =
-    convertingAssetId !== null && content?.kind === "deck" && sofficeBlocks(environment, content.ext, convertingEntry);
 
   return (
     <Monitor empty={empty}>
@@ -65,14 +58,6 @@ export function PreviewMonitor() {
           output={output}
           reportedErrorUrls={engineFailedUrl ? [engineFailedUrl] : []}
           videoRef={handleVideoRef}
-        />
-      ) : sofficeMissing ? (
-        <LoadingState
-          hint={t("deck.noLibreOffice.stageHint")}
-          icon="alert"
-          surface="stage"
-          title={t("deck.noLibreOffice.title")}
-          tone="failed"
         />
       ) : convertingAssetId !== null ? (
         <DeckConversionStatus assetId={convertingAssetId} surface="stage" />

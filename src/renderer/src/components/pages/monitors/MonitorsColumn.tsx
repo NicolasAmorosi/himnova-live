@@ -1,6 +1,7 @@
 import { useT } from "@renderer/lib/i18n/i18n-provider";
 import { Badge } from "@renderer/components/ui";
 import { PanelBody, PanelHeader } from "@renderer/components/shared/panel";
+import { DamagedSlideBadge } from "@renderer/components/shared/damaged-slide";
 import { selectOutputMemo, useProjectionStore } from "@renderer/stores/projection.store";
 import { useLiveHeading } from "@renderer/lib/hooks/use-live";
 import { cn } from "@renderer/lib/utils";
@@ -53,6 +54,11 @@ export function MonitorsColumn() {
   const base = useProjectionStore((s) => s.base);
   const heading = useLiveHeading();
   const status = useLiveStatus();
+  // The slide the LIVE monitor draws — none under BLACK/LOGO, like the stage.
+  const liveModelUrl = useProjectionStore((s) => {
+    const output = selectOutputMemo(s);
+    return output.kind === "slide" ? output.modelUrl : null;
+  });
 
   const broadcasting = presentationOpen && overlay === "none" && base !== null;
 
@@ -66,6 +72,7 @@ export function MonitorsColumn() {
                 <span className="truncate">{heading}</span>
               </Badge>
             ) : null}
+            <DamagedSlideBadge url={liveModelUrl} />
             {status ? (
               <Badge variant="neutral">
                 {status}

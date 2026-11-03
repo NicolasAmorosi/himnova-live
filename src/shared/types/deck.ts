@@ -68,15 +68,14 @@ export type SlideRect = { x: number; y: number; width: number; height: number };
  * A video embedded in one slide of a `.pptx`/`.ppsx`, pulled out of the OOXML
  * into the deck cache and positioned by the rect the file itself declares.
  *
- * Only `.pptx`-family sources produce these: a legacy `.ppt`/`.pps` either
- * never carried the bytes (PowerPoint 97-2003 linked video by absolute path)
- * or loses them through LibreOffice's own exporter — see
- * `.claude/knowledge/an-embedded-deck-video-survives-to-the-pdf-but-never-survives-a-ppt.md`.
+ * Only `.pptx`-family sources produce these today: PowerPoint 97-2003 almost
+ * never embedded a video (it linked it by absolute path), and an `.odp`'s
+ * clips are not extracted yet.
  *
- * The rasterized slide underneath is NOT a hole to patch: LibreOffice draws
- * the video's poster frame into exactly this rect, so a deck whose video
- * cannot be extracted or decoded still looks right — it just does not move.
- * That is why an unplayable video is simply absent here rather than reported.
+ * The slide underneath is NOT a hole to patch: its model draws the video's
+ * poster frame into exactly this rect, so a deck whose video cannot be
+ * extracted or decoded still looks right — it just does not move. That is why
+ * an unplayable video is simply absent here rather than reported.
  */
 export type DeckSlideVideo = {
   /** 1-based, and the SAME index space as `DeckSlide.index`: page order, with
@@ -125,11 +124,11 @@ export type DeckDTO = {
   /** True iff any slide carries an advanceAfterMs — drives whether autoplay
    *  starts automatically when the deck is presented. */
   autoAdvance: boolean;
-  /** "none" means the .pptx/.ppt's own timings couldn't be read or didn't
-   *  line up with the rendered pages — auto-advance was disabled on purpose,
-   *  not lost by accident. Drives whether the UI shows that as a fact instead
-   *  of silence. */
-  timingsSource: "ooxml" | "ooxml-converted" | "binary" | "none";
+  /** Which reading of the file the timings came from. "none" means the
+   *  deck's own timings couldn't be read or didn't line up with the slides
+   *  drawn — auto-advance was disabled on purpose, not lost by accident — or
+   *  that it has none (a PDF). */
+  timingsSource: "ooxml" | "binary" | "odf" | "none";
   sourceMtimeMs: number;
   convertedAt: number;
   error: string | null;
@@ -150,16 +149,6 @@ export type DeckStatusSummary = {
   /** The first slide's model, for a deck drawn from its model: the tile draws
    *  it with `SlideView` instead of an image. */
   modelUrl: string | null;
-};
-
-export type DeckEnvironment = {
-  available: boolean;
-  sofficePath: string | null;
-  version: string | null;
-  /** Why it is not available, in the operator's language — «not found» is not
-   *  the only answer: a sandboxed flatpak, or a path picked by hand that is not
-   *  LibreOffice, are installed and still unusable. `null` when available. */
-  message: string | null;
 };
 
 export type DeckProgress = {

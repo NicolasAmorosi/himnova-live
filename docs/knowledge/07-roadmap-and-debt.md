@@ -4,8 +4,8 @@
 
 Completed: `electron-vite` scaffolding + strict TS, the design system (`components/ui`+
 `shared`), the complete data layer (SQLite + Drizzle + FTS5, with a verified smoke test), the
-end-to-end typed IPC contract, the `worship://` protocol, the slide pipeline with headless
-LibreOffice (cross-platform, see `03-slides-libreoffice.md`), the
+end-to-end typed IPC contract, the `worship://` protocol, the slide pipeline — every deck read
+by the app itself, a PDF rasterized (cross-platform, see `03-slides.md`) —, the
 declarative projection window, and a working control UI for the 6 audited areas
 (playlist, library, bible, PPT, black/logo, display) plus the new
 saved-services module.
@@ -22,7 +22,7 @@ songs/lyrics with projectable sections.
 
 - **A `.pptx` drawn from its model (2026-10-26) — what was knowingly left.** The switch is total
   and what the model can't draw exactly is approximated (see «Model decks» in
-  `03-slides-libreoffice.md`); what is still approximate or missing, measured against PowerPoint:
+  `03-slides.md`); what is still approximate or missing, measured against PowerPoint:
   text autofit (a `normAutofit` box can overflow), a SmartArt with no saved drawing, 3D text and
   shapes, artistic effects, connector arrowheads, WordArt warps, chart numbers not localised to the
   system's region, Office faces with no metric twin on macOS/Linux, a few Office fonts Chromium
@@ -58,11 +58,7 @@ songs/lyrics with projectable sections.
   precisely so that delete-and-reimport isn't destructive.
 - **Settings screen**: six categories (Projection, Slides, Verses, Bible, System, About) with theme,
   language, `media.volume`, the per-type folders (`files.defaultFolders`) and the `slides.*` keys
-  already exposed. Since 2026-10-22, Slides opens with a **LibreOffice** group (status, version and
-  path, «Download LibreOffice», «Check again», «Locate soffice…» and the
-  `slides.warnMissingSoffice` switch). What still has no UI is **clearing** the override
-  (`slides.sofficePath`): a manually chosen path wins over automatic detection, so if it points to
-  something that isn't LibreOffice the only way out is to pick another one with «Locate soffice…».
+  already exposed.
 
 ## In-app updates — left out on purpose
 
@@ -111,7 +107,7 @@ high and medium findings. This was left open, each item with its reason:
 - **To check by hand on the church's PC**: Win+P on «Extend»; different scaling per monitor;
   turning the projector off and on mid-service (the window hides, the sound keeps going, and it
   comes back to full screen on its own); turning on the projector with the app already open;
-  power plan; 64-bit LibreOffice on a cold first start; «Test video» with iPhone HEVC; audio
+  power plan; «Test video» with iPhone HEVC; audio
   output over HDMI; and the E2E suite against the installed `.exe` (`WORSHIP_E2E_EXECUTABLE`),
   with `WORSHIP_E2E_HYMNAL` pointing to that PC's hymnal folder so that `hymnal.spec.ts` runs too.
   And, since the rebrand to **Lumina Live** (2026-10-22), that the new installer REPLACES the
@@ -143,16 +139,13 @@ high and medium findings. This was left open, each item with its reason:
 
 ## Cross-platform — solved
 
-Nothing is Windows-only anymore. COM/PowerShell was removed completely and presentations are
-converted with headless LibreOffice, which runs the same on macOS, Windows and Linux. LibreOffice
-**isn't bundled**: the app detects it on the system (with a manual override in
-`slides.sofficePath`) and, if it's missing, warns and blocks only PowerPoint conversion; PDFs,
-already-converted decks and everything else keep working — see «Without LibreOffice» in
-`03-slides-libreoffice.md`.
+Nothing is Windows-only anymore. COM/PowerShell was removed completely, and since 2026-11-03 so
+was LibreOffice: every presentation is read by the app itself, the same on macOS, Windows and
+Linux, with nothing to install — see `03-slides.md`.
 
 **Linux was packaged and tested for the first time on 2026-10-22**, in Docker (emulated Ubuntu
-24.04 x86_64): it starts, converts with the system's LibreOffice and passes `startup.spec` and
-`decks.spec`; the rest of the suite wasn't run there.
+24.04 x86_64): it started, converted with the system's LibreOffice (as builds did then) and passed
+`startup.spec` and `decks.spec`; the rest of the suite wasn't run there.
 
 **Linux ships as a `.deb` and as an AppImage** (owner's decision, 2026-10-23). The `.deb` is the
 one for Ubuntu, Debian and Mint: its postinst leaves `chrome-sandbox` setuid root if user

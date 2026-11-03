@@ -9,11 +9,12 @@ import { useAudioStore, nextAssetTrack } from "@renderer/stores/audio.store";
 import { findScene, useUtilityStore } from "@renderer/stores/utility.store";
 import { notifyManualNavigation } from "@renderer/effects/deck-autoplay";
 import { projectVerse } from "@renderer/lib/actions/bible";
-import { explainSofficeRefusal } from "@renderer/lib/actions/soffice";
 import { stopPreviewPlayback } from "@renderer/lib/actions/preview-playback";
 import { previewedScheduleItem } from "@renderer/lib/actions/preview";
 import { defaultMediaVolume } from "@renderer/stores/settings.store";
 import { api } from "@renderer/lib/api";
+import { t } from "@renderer/lib/i18n/i18n-provider";
+import { toast } from "@renderer/lib/toast";
 import type { MediaAsset } from "@shared/types/media";
 import type { DeckDTO } from "@shared/types/deck";
 import type { LiveDeck } from "@renderer/stores/projection.store";
@@ -82,6 +83,20 @@ function toLiveDeck(deck: DeckDTO): LiveDeck {
  * conversion means the commit lands at a moment the operator has had time to
  * act on. See `liveIntent`.
  */
+/**
+ * Says why a GO LIVE on a deck changed nothing, with main's reason — a file
+ * that won't open says what the operator can do about it. The panel that
+ * explains it may not be the one the operator is looking at, and a press that
+ * does nothing in silence reads as a frozen app. Nothing changes on the
+ * projector either way.
+ */
+async function explainDeckFailure(assetId: number): Promise<void> {
+  const entry = useDeckStore.getState().byAssetId[assetId];
+  if (entry?.status !== "failed") return;
+  const asset = await api.library.get(assetId);
+  toast.warning(t("deck.liveFailed", { name: asset?.name ?? "", reason: entry.error ?? t("deck.failed") }));
+}
+
 async function goLiveWithDeck(assetId: number, startSlideIndex: number, intent: number): Promise<boolean> {
   const deckStore = useDeckStore.getState();
   const cached = deckStore.byAssetId[assetId];
@@ -100,7 +115,7 @@ async function goLiveWithDeck(assetId: number, startSlideIndex: number, intent: 
     deck = await deckStore.ensure(assetId);
   }
   if (!deck || deck.status !== "ready" || deck.slides.length === 0) {
-    if (useDeckStore.getState().byAssetId[assetId]?.status === "failed") void explainSofficeRefusal(assetId);
+    void explainDeckFailure(assetId);
     return false;
   }
   // The conversion above may have taken seconds. Anything the operator did to

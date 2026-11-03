@@ -52,12 +52,9 @@ export const legacyMediaLibraryPath = path.join(userDataDir, "media_library.json
  *  os.tmpdir(): that's what the COM-era exporter used and why its cache was
  *  lost on every restart. */
 export const slidesCacheDir = path.join(userDataDir, "slides-cache");
-/** Conversions in progress land here first; only fs.renameSync'd into their
+/** PDFs being rasterized land here first; only fs.renameSync'd into their
  *  final deckCacheDir() once every file is written. Swept clean on startup. */
 export const slidesTempDir = path.join(slidesCacheDir, ".tmp");
-/** Dedicated LibreOffice UserInstallation — isolates our headless soffice
- *  from any copy the user runs as a normal GUI app. */
-export const sofficeProfileDir = path.join(userDataDir, "soffice-profile");
 
 /** Generated library thumbnails (images and video first frames). Sharded one
  *  level by the first two characters of the key, because a church's media

@@ -5,8 +5,8 @@
 WorshipApp is an Electron 44 app with **TypeScript + React 19 + Vite**, bundled with
 `electron-vite` (not vite+tsc wired by hand — see "Why electron-vite" below). Three processes:
 
-- **Main** (`src/main/`) — windows, SQLite DB, IPC, slide conversion with LibreOffice, in-app
-  updates.
+- **Main** (`src/main/`) — windows, SQLite DB, IPC, reading decks (and rasterizing PDFs), the
+  media engine, in-app updates.
 - **Preload** (`src/preload/index.ts`) — generic `contextBridge` bridge (`invoke`/`on` by
   channel string), ~35 lines that never change when features are added.
 - **Control renderer** (`src/renderer/index.html` + `src/renderer/src/`) — the whole UI of the

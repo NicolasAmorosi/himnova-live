@@ -4,6 +4,7 @@ import { XMLParser } from "fast-xml-parser";
 import { SLIDES_MIN_ADVANCE_MS } from "@shared/constants";
 import type { SlideRect } from "@shared/types/deck";
 import { SLIDE_TRANSITION_SPEED_MS, type SlideTransition } from "@shared/types/transition";
+import { readBinaryPart } from "./ppt/parts";
 import { readZipEntries } from "./zip-reader";
 
 export type ContainerKind = "ooxml" | "binary" | "odf" | "pdf" | "unknown";
@@ -102,12 +103,11 @@ const VIDEO_EXT = new Set([
   ...["mpg", "mpeg", "m2v", "vob", "asf", "flv", "3gp", "ogv", "ts"],
 ]);
 /** What Chromium will probably decode. The rest are extracted and marked
- *  unplayable rather than mounted as a `<video>` that shows nothing: the
- *  rasterized slide underneath already carries the poster frame LibreOffice
- *  drew, so a deck with a `.wmv` in it still looks right while
- *  `media/deck-clips.ts` converts it — which it does by reading the streams,
- *  so this flag is only the starting guess. Same treatment
- *  `UNPLAYABLE_AUDIO_EXT` gives a `.wma`. */
+ *  unplayable rather than mounted as a `<video>` that shows nothing: the slide
+ *  underneath already draws the clip's poster frame, so a deck with a `.wmv`
+ *  in it still looks right while `media/deck-clips.ts` hands it to the media
+ *  engine — which it decides by reading the streams, so this flag is only the
+ *  starting guess. Same treatment `UNPLAYABLE_AUDIO_EXT` gives a `.wma`. */
 const PLAYABLE_VIDEO_EXT = new Set(["mp4", "m4v", "mov", "webm"]);
 
 /** Repeated elements that must stay arrays even when a deck happens to have
@@ -156,10 +156,10 @@ export function containerKind(filePath: string): ContainerKind {
     if (head[0] === 0xd0 && head[1] === 0xcf && head[2] === 0x11 && head[3] === 0xe0) {
       return "binary";
     }
-    // "%PDF" — already the intermediate format the whole pipeline converts to,
-    // so it skips LibreOffice entirely. Sniffed rather than taken from the
-    // extension for the same reason the two above are: the extension is what
-    // the library filters on, the magic is what the converter trusts.
+    // "%PDF" — the one deck that is rasterized rather than read into a model.
+    // Sniffed rather than taken from the extension for the same reason the
+    // others are: the extension is what the library filters on, the magic is
+    // what the readers trust.
     if (head[0] === 0x25 && head[1] === 0x50 && head[2] === 0x44 && head[3] === 0x46) {
       return "pdf";
     }
@@ -182,6 +182,18 @@ export function containerKind(filePath: string): ContainerKind {
  *  thread that serves the projection window. */
 function readEntries(filePath: string, wanted: (name: string) => boolean): Record<string, Uint8Array> {
   return readZipEntries(filePath, wanted);
+}
+
+/** A deck's media parts by name: zip entries of a `.pptx` or `.odp`, or the
+ *  ranges of a legacy binary's streams its reader names (`ppt/parts.ts`). */
+function readParts(filePath: string, names: Set<string>): Record<string, Uint8Array> {
+  if (containerKind(filePath) !== "binary") return readEntries(filePath, (name) => names.has(name));
+  const out: Record<string, Uint8Array> = {};
+  for (const name of names) {
+    const bytes = readBinaryPart(filePath, name);
+    if (bytes) out[name] = bytes;
+  }
+  return out;
 }
 
 function decode(entry: Uint8Array | undefined): string | null {
@@ -471,8 +483,9 @@ export function readPresentationMeta(filePath: string): PresentationMeta {
     const relsName = path.posix.join(slideDir, "_rels", `${path.posix.basename(partName)}.rels`);
     const slideRels = parseRels(decode(entries[relsName]), slideDir);
 
-    // @show absent or "1" = visible. LibreOffice still exports hidden slides to
-    // the PDF, so the flag has to be recorded or indices drift.
+    // @show absent or "1" = visible. Recorded, not dropped: the timings are
+    // aligned with the slides drawn, which leave hidden ones out, and indices
+    // drift if they are not counted.
     const showAttr = attr(sld, "@show");
     const hidden = showAttr === "0" || showAttr === "false";
 
@@ -618,8 +631,7 @@ export function extractAudioParts(
 ): ExtractedAudio[] {
   if (refs.length === 0) return [];
 
-  const wanted = new Set(refs.map((ref) => ref.partName));
-  const entries = readEntries(filePath, (name) => wanted.has(name));
+  const entries = readParts(filePath, new Set(refs.map((ref) => ref.partName)));
 
   fs.mkdirSync(destDir, { recursive: true });
 
@@ -678,8 +690,7 @@ export function extractVideoParts(
 ): ExtractedVideo[] {
   if (refs.length === 0) return [];
 
-  const wanted = new Set(refs.map((ref) => ref.partName));
-  const entries = readEntries(filePath, (name) => wanted.has(name));
+  const entries = readParts(filePath, new Set(refs.map((ref) => ref.partName)));
 
   fs.mkdirSync(destDir, { recursive: true });
 

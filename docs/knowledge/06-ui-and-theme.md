@@ -298,8 +298,8 @@ with `Tabs variant="sidebar"` on the left (`components/ui/tabs.tsx`, the same pr
 (in `components/ui/`, promoted there when the scene editor became the second user) group related
 rows into a card with dividers; each row follows the usual rule: label (+ optional description)
 on the left, control(s) on the right, no wrap. Today's categories: **Projection** (screen,
-open/close the window, logo, clear live content, transition, starting volume), **Slides** (cache
-and conversion quality), **Verses** (how a verse is DRESSED, with its 16:9 preview on top),
+open/close the window, logo, clear live content, transition, starting volume), **Slides** (the slides'
+text fallback face, the cache and PDF rasterizing quality), **Verses** (how a verse is DRESSED, with its 16:9 preview on top),
 **Bible** (which versions are installed: import, rename, default, delete), **System** (theme,
 language, folders, performance) and **About** (logo, version and logs folder). A new setting goes
 into an existing group or creates one inside its section — a category isn't added without need.

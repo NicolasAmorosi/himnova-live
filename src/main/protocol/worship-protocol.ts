@@ -4,11 +4,13 @@ import path from "node:path";
 import { Readable } from "node:stream";
 import type { MediaRepo } from "../db/repositories/media.repo";
 import { getSettingsRepo, getSlidesRepo, isDatabaseOpen } from "../services/repos";
-import { slidesCacheDir, slidesTempDir } from "../paths";
+import { slidesCacheDir } from "../paths";
 import { resolveRasterPdf } from "../slides/rasterizer";
 import { renderNativeSlide } from "../slides/native-deck";
 import { decodeEmbeddedFont } from "../slides/pptx/embedded-font";
 import { metafileToSvg } from "../slides/pptx/metafile";
+import { readBinaryPart } from "../slides/ppt/parts";
+import { containerKind } from "../slides/pptx-metadata";
 import { readZipEntries } from "../slides/zip-reader";
 import { ensureThumbnail } from "../media/thumbnail-service";
 
@@ -395,16 +397,11 @@ export function registerWorshipProtocolHandler(mediaRepo: MediaRepo): void {
           const pdfPath = jobId ? resolveRasterPdf(jobId) : null;
           if (!pdfPath) return new Response("Not found", { status: 404 });
           const resolved = path.resolve(pdfPath);
-          // Two legitimate origins, and the second one is easy to forget: a
-          // PDF we just produced lives under `slidesTempDir`, but a deck whose
-          // SOURCE is already a PDF is rasterized straight from wherever the
-          // operator keeps it (see `deckRequiresSoffice`) — the temp-dir prefix
-          // alone answered 403 for every one of those. A library row is the
-          // positive assertion that replaces it: the same "the operator added
-          // this file" property `worship://asset/<id>` rests on.
-          const allowed =
-            resolved.startsWith(slidesTempDir + path.sep) || mediaRepo.hasPath(resolved);
-          if (!allowed) return new Response("Forbidden", { status: 403 });
+          // The only PDF rasterized is a deck's own source, straight from
+          // wherever the operator keeps it: a library row is the positive
+          // assertion — the same "the operator added this file" property
+          // `worship://asset/<id>` rests on.
+          if (!mediaRepo.hasPath(resolved)) return new Response("Forbidden", { status: 403 });
           return serveFile(request, resolved);
         }
         default:
@@ -445,7 +442,12 @@ const PART_TYPES: Record<string, string> = {
 async function serveDeckPart(request: Request, deckId: number, kind: "part" | "font", part: string): Promise<Response> {
   const source = Number.isFinite(deckId) ? getSlidesRepo().getDeckSource(deckId) : null;
   if (!source || !(await sourceUnchanged(source))) return new Response("Gone", { status: 410 });
-  const raw = readZipEntries(source.sourcePath, (name) => name === part)[part];
+  // A legacy binary's parts are ranges of its OLE streams (`ppt/parts.ts`);
+  // a `.pptx`'s and an `.odp`'s, zip entries.
+  const raw =
+    containerKind(source.sourcePath) === "binary"
+      ? (readBinaryPart(source.sourcePath, part) ?? undefined)
+      : readZipEntries(source.sourcePath, (name) => name === part)[part];
   if (!raw) return new Response("Not found", { status: 404 });
   const ext = part.slice(part.lastIndexOf(".") + 1).toLowerCase();
   let body: Uint8Array | string | null = raw;

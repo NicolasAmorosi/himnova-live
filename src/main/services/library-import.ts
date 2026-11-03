@@ -41,7 +41,7 @@ function yieldToEventLoop(): Promise<void> {
  *   file it copies onto a FAT/exFAT stick, and PowerPoint keeps a `~$Himno.pptx`
  *   lock file beside an open deck. Both carry the extension, neither is a
  *   presentation: a hymnal copied from a Mac showed every tile twice, and the
- *   copies were counted, pre-warmed and fed to `soffice` to fail.
+ *   copies were counted, pre-warmed and fed to the readers to fail.
  * - **The extension decides, not the caller.** `kind` comes from the renderer
  *   (a picker's filter is a hint that can be typed past), and an `.mp3` filed
  *   as a video only fails later, on the projector.

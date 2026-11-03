@@ -11,8 +11,9 @@ Windows, macOS and Linux · English, Spanish, Italian and Portuguese
 
 ## Features
 
-- **Presentations** in `.ppt`, `.pptx`, `.pps`, `.ppsx`, `.odp` and `.pdf`, including `.pps` hymnals
-  with auto-advance and music: each slide's timing and the embedded audio are kept.
+- **Presentations** in `.ppt`, `.pptx`, `.pps`, `.ppsx`, `.odp` and `.pdf`, read and drawn by Lumina
+  itself — nothing else to install —, including `.pps` hymnals with auto-advance and music: each
+  slide's timing and the embedded audio are kept.
 - **Any video or audio.** Whatever the player can't decode (AVI, WMV, ProRes, AC3…) plays at once
   through Lumina's own media engine, built on libmpv. Nothing is converted and the original file is
   never touched.
@@ -40,9 +41,6 @@ it, and with the AppImage install `libmpv2` (`libmpv1` on Ubuntu 22.04) and `lib
 windows closed by themselves while a presentation was on screen, which doesn't happen on Windows or
 macOS. Test it thoroughly before relying on it in a service.
 
-- **LibreOffice** is needed for PowerPoint presentations, except PDFs and old `.ppt`/`.pps` decks made
-  only of pictures — like most hymnals — which open instantly without it. If it isn't installed, the
-  app detects it and explains how to install it.
 - The installers **aren't signed yet**. On Windows: «More info» → «Run anyway». On macOS: System
   Settings → Privacy & Security → «Open Anyway».
 
@@ -96,4 +94,6 @@ version, it has to stay free under the same license.
 FFmpeg ships alongside the app as a separate program, under its own GPL-3.0 license (see
 [`resources/ffmpeg-NOTICE.txt`](resources/ffmpeg-NOTICE.txt)), and so does the media engine with its
 libmpv (see [`resources/engine-NOTICE.txt`](resources/engine-NOTICE.txt); the engine's source is in
-[`native/`](native/)). The text of the Reina-Valera 1909 is in the public domain.
+[`native/`](native/)). The shapes of legacy `.ppt` files are drawn from LibreOffice's
+table of Office's shapes, under the MPL-2.0 (see
+[`resources/ooxml/mso-shapes-NOTICE.txt`](resources/ooxml/mso-shapes-NOTICE.txt)). The text of the Reina-Valera 1909 is in the public domain.

@@ -2,7 +2,6 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, typ
 import { useT } from "@renderer/lib/i18n/i18n-provider";
 import {
   Button,
-  Callout,
   EmptyState,
   Icon,
   IconButton,
@@ -16,12 +15,11 @@ import { ConfirmModal } from "@renderer/components/shared/modal";
 import { folderAssetsKey, useLibraryStore } from "@renderer/stores/library.store";
 import { useProgramStore } from "@renderer/stores/program.store";
 import { useSettingsStore } from "@renderer/stores/settings.store";
-import { sofficeBlocks, useDeckStore } from "@renderer/stores/deck.store";
+import { useDeckStore } from "@renderer/stores/deck.store";
 import { api } from "@renderer/lib/api";
 import { readOsFilesDrag, setMediaAssetDrag } from "@renderer/lib/dnd";
 import { previewAsset } from "@renderer/lib/actions/preview";
 import { goLive } from "@renderer/lib/actions/playback";
-import { silenceSofficeWarning } from "@renderer/lib/actions/soffice";
 import { removeAsset } from "@renderer/lib/actions/remove-asset";
 import {
   addLinkedFolder,
@@ -85,7 +83,6 @@ export function MediaBrowser({ active, kind }: { active: boolean; kind: AssetKin
   const folders = useSettingsStore((s) => s.settings["library.linkedFolders"][kind]);
   const folderAssets = useLibraryStore((s) => s.folderAssets[folderAssetsKey(kind, activeView)]);
   const sortOrder = useSettingsStore((s) => s.settings["library.sort"][kind]);
-  const warnMissingSoffice = useSettingsStore((s) => s.settings["slides.warnMissingSoffice"]);
   /** Session-only, and one per tab because each `MediaBrowser` stays mounted
    *  once visited (see `ResourcePanel`). Deliberately not persisted, unlike
    *  the order: a filter restored at launch is a tab that looks empty for no
@@ -134,7 +131,6 @@ export function MediaBrowser({ active, kind }: { active: boolean; kind: AssetKin
   const status = useLibraryStore((s) => s.viewStatus[viewKey]);
 
   const imports = useLibraryStore((s) => s.imports);
-  const deckEnvironment = useDeckStore((s) => s.environment);
   const prewarmBatch = useDeckStore((s) => s.prewarmBatch);
   const startBatchPrewarm = useDeckStore((s) => s.startBatchPrewarm);
   const cancelBatchPrewarm = useDeckStore((s) => s.cancelBatchPrewarm);
@@ -304,23 +300,12 @@ export function MediaBrowser({ active, kind }: { active: boolean; kind: AssetKin
   // and the modal quotes a count back, so with a filter up it has to prepare
   // the matches the operator can see rather than the thousand decks behind
   // them.
-  //
-  // Without LibreOffice, only what converts without it: the PDFs. The button
-  // used to be disabled outright for a view holding a single PowerPoint,
-  // refusing the PDFs beside it for a dependency they never had.
   const pendingDeckAssetIds = useMemo(
     () =>
       kind !== "ppt" || deckStatuses === null
         ? []
-        : assets
-            .filter(
-              (a) =>
-                a.missingSince === null &&
-                deckStatuses[a.id]?.status !== "ready" &&
-                !sofficeBlocks(deckEnvironment, a.ext),
-            )
-            .map((a) => a.id),
-    [assets, deckEnvironment, deckStatuses, kind],
+        : assets.filter((a) => a.missingSince === null && deckStatuses[a.id]?.status !== "ready").map((a) => a.id),
+    [assets, deckStatuses, kind],
   );
   const pendingDeckCount = pendingDeckAssetIds.length;
 
@@ -357,25 +342,6 @@ export function MediaBrowser({ active, kind }: { active: boolean; kind: AssetKin
         query={query}
         sort={sortOrder}
       />
-      {/* Kept to a few lines: this panel is short, and the grid under it is
-          what the operator came for. The full set of fixes is one click away,
-          in front of any deck that needs it and in Settings. */}
-      {kind === "ppt" && deckEnvironment?.available === false && warnMissingSoffice ? (
-        <div className="px-1.5 pt-1.5">
-          <Callout tone="warning">
-            <p className="font-medium">{t("deck.noLibreOffice.title")}</p>
-            <p className="mt-0.5 text-xs text-muted-foreground">{t("deck.noLibreOffice.strip")}</p>
-            <div className="mt-1 flex flex-wrap gap-x-3">
-              <Button onClick={() => void api.deck.openSofficeDownload()} size="xs" variant="link">
-                {t("deck.noLibreOffice.download")}
-              </Button>
-              <Button onClick={() => void silenceSofficeWarning()} size="xs" variant="link">
-                {t("deck.noLibreOffice.dontWarn")}
-              </Button>
-            </div>
-          </Callout>
-        </div>
-      ) : null}
       <PanelBody
         className="p-1.5"
         onDragOver={(e) => e.preventDefault()}

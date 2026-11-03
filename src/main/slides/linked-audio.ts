@@ -7,10 +7,8 @@ import { readBinaryExternalPaths } from "./ppt-binary";
 /**
  * Old church hymnal decks (`.pps`/`.ppt`) rarely embed their soundtrack —
  * they point at an external `.mp3` that lived next to the file on whoever's
- * Windows machine made it. That link never survives a LibreOffice round-trip
- * (verified: converting one of these to `.pptx` drops it entirely, along with
- * `showPr`), so it has to be resolved straight from the original file, once,
- * against whatever now sits beside it.
+ * Windows machine made it. So it is resolved straight from the original file,
+ * once, against whatever now sits beside it.
  *
  * Four rules, in order of confidence:
  *  1. The file's own hint — the external link it recorded, matched by

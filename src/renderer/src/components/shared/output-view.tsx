@@ -409,7 +409,7 @@ type SlideVideoLayerProps = {
  * and rebuilt on every BLACK is the documented road to
  * `PIPELINE_ERROR_DECODE`. And it captures no frozen frame on the way out:
  * the still slide underneath already shows this video's poster frame, drawn
- * there by LibreOffice, so there is nothing to preserve.
+ * there from its model, so there is nothing to preserve.
  */
 function SlideVideoLayer({
   covered,

@@ -65,11 +65,10 @@ async function run(message: StartMessage): Promise<void> {
 
   const loadingTask = pdfjs.getDocument({
     data,
-    // Was `false`, on the reasoning that LibreOffice embeds/subsets every font
-    // so pdf.js never needs one. That held for as long as every PDF reaching
-    // here was one we had just produced. A PDF the operator imported directly
-    // is not, and a non-embedded standard font (Helvetica, Times, Courier —
-    // the base 14) then renders NOTHING: pdf.js reports
+    // Was `false`, on the reasoning that every PDF reaching here embedded its
+    // fonts. A PDF the operator imported does not have to, and a non-embedded
+    // standard font (Helvetica, Times, Courier — the base 14) then renders
+    // NOTHING: pdf.js reports
     // `UnknownErrorException: Ensure that the standardFontDataUrl API
     // parameter is provided` and drops the glyphs. Measured against a
     // hand-built PDF with non-embedded Helvetica: `false` warns and loses the

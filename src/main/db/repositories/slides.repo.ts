@@ -59,7 +59,7 @@ export type NewDeck = {
   sourceMtimeMs: number;
   cacheDir: string;
   aspectRatio: string | null;
-  timingsSource: "ooxml" | "ooxml-converted" | "binary" | "none";
+  timingsSource: "ooxml" | "binary" | "odf" | "none";
   bytesOnDisk: number;
   /** Defaults to the moment of insertion. A background prewarm backdates
    *  this on purpose — see the call site in `deck-service.ts`. */
@@ -772,118 +772,21 @@ export class SlidesRepo {
   }
 
   /**
-   * Deletes the rasterized decks a deck read from its source (native, model)
-   * replaces — same content, drawn by LibreOffice before this build could read
-   * it — except the ids in `keep`: one on the projector right now keeps its
-   * images until the next launch, when nothing is. `contentHash` narrows it to
-   * one deck; without it, every superseded deck goes (the startup sweep).
-   * Returns how many went.
+   * Deletes every deck LibreOffice drew — a raster (`webp`/`png`) whose source
+   * is not a PDF — with its folder: the builds before 2026-11-03 converted the
+   * decks they couldn't read, and now every such deck is read from its source
+   * on its next open. Run at startup, when nothing is on the projector. A
+   * PDF's own rasters stay. Returns how many went.
    */
-  deleteSupersededBySource(keep: readonly number[], contentHash?: string): number {
+  deleteConvertedDecks(): number {
     const rows = this.sqlite
       .prepare(
-        `SELECT d.id AS id FROM slide_decks d
-          WHERE d.image_format NOT IN ('native', 'model')
-            AND (? IS NULL OR d.content_hash = ?)
-            AND EXISTS (SELECT 1 FROM slide_decks n
-                         WHERE n.image_format IN ('native', 'model') AND n.content_hash = d.content_hash)`,
+        `SELECT id FROM slide_decks
+          WHERE image_format NOT IN ('native', 'model') AND lower(source_path) NOT LIKE '%.pdf'`,
       )
-      .all(contentHash ?? null, contentHash ?? null) as { id: number }[];
-    const kept = new Set(keep);
-    let deleted = 0;
-    for (const row of rows) {
-      if (kept.has(row.id)) continue;
-      this.deleteDeck(row.id);
-      deleted += 1;
-    }
-    return deleted;
-  }
-
-  /** Writes the transitions read from a deck's source onto its slides, in
-   *  slide order, and marks the deck as having them — see
-   *  `slide_decks.transitions_read`. */
-  setSlideTransitions(deckId: number, transitions: readonly (SlideTransition | null)[] | null): void {
-    const statement = this.sqlite.prepare(
-      `UPDATE deck_slides SET transition = ?, transition_ms = ? WHERE deck_id = ? AND slide_index = ?`,
-    );
-    this.sqlite.transaction(() => {
-      transitions?.forEach((transition, i) =>
-        statement.run(transition?.style ?? null, transition?.durationMs ?? null, deckId, i + 1),
-      );
-      this.db.update(slideDecks).set({ transitionsRead: 1 }).where(eq(slideDecks.id, deckId)).run();
-    })();
-  }
-
-  // -- timings backfill -----------------------------------------------------
-
-  /**
-   * Ready decks converted from a legacy binary that still have at least one
-   * slide without an advance time — the population `backfillDeckTimings`
-   * re-reads from the source file.
-   *
-   * `timings_source = 'ooxml-converted'` is the filter that makes the row
-   * indexes trustworthy: it is written only when the slide count and the page
-   * count lined up, which is exactly the condition under which `deck_slides`
-   * row *i* is presentation slide *i*. A `'none'` deck is one where they did
-   * NOT line up, and no amount of re-reading fixes an alignment we already
-   * know is wrong.
-   */
-  decksNeedingTimings(): {
-    id: number;
-    sourcePath: string;
-    slideCount: number;
-    sourceSizeBytes: number;
-    sourceMtimeMs: number;
-  }[] {
-    return this.sqlite
-      .prepare(
-        `SELECT d.id AS id, d.source_path AS sourcePath, d.slide_count AS slideCount,
-                d.source_size_bytes AS sourceSizeBytes, d.source_mtime_ms AS sourceMtimeMs
-           FROM slide_decks d
-          WHERE d.status = 'ready'
-            AND d.timings_source = 'ooxml-converted'
-            AND EXISTS (SELECT 1 FROM deck_slides s
-                         WHERE s.deck_id = d.id AND s.advance_ms IS NULL)`,
-      )
-      .all() as {
-      id: number;
-      sourcePath: string;
-      slideCount: number;
-      sourceSizeBytes: number;
-      sourceMtimeMs: number;
-    }[];
-  }
-
-  /** `(slideIndex, advanceMs)` for one deck, in presentation order. */
-  slideAdvanceTimes(deckId: number): { slideIndex: number; advanceMs: number | null }[] {
-    return this.sqlite
-      .prepare(
-        `SELECT slide_index AS slideIndex, advance_ms AS advanceMs
-           FROM deck_slides WHERE deck_id = ? ORDER BY slide_index`,
-      )
-      .all(deckId) as { slideIndex: number; advanceMs: number | null }[];
-  }
-
-  /** Writes advance times for slides that had none. One transaction, and
-   *  `advance_ms IS NULL` in the WHERE so it can never overwrite a value the
-   *  conversion already established. */
-  fillSlideAdvanceTimes(
-    deckId: number,
-    updates: readonly { slideIndex: number; advanceMs: number }[],
-  ): number {
-    if (updates.length === 0) return 0;
-    const statement = this.sqlite.prepare(
-      `UPDATE deck_slides SET advance_ms = ?
-        WHERE deck_id = ? AND slide_index = ? AND advance_ms IS NULL`,
-    );
-    const run = this.sqlite.transaction(() => {
-      let changed = 0;
-      for (const update of updates) {
-        changed += statement.run(update.advanceMs, deckId, update.slideIndex).changes;
-      }
-      return changed;
-    });
-    return run();
+      .all() as { id: number }[];
+    for (const row of rows) this.deleteDeck(row.id);
+    return rows.length;
   }
 
   // -- path resolution (worship:// protocol) --------------------------------

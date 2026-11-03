@@ -427,7 +427,7 @@ const it: Messages = {
     convertingHint: "Si fa una sola volta per file",
     preparing: "Preparazione della conversione…",
     cancel: "Annulla",
-    failed: "Impossibile convertire la presentazione",
+    failed: "Impossibile aprire la presentazione",
     retry: "Riprova",
     canceled: "Conversione annullata",
     canceledHint: "La presentazione non è stata convertita. Puoi riprovare quando vuoi.",
@@ -436,24 +436,9 @@ const it: Messages = {
     reconvertBlockedLive:
       "Non puoi riconvertire la presentazione che è IN ONDA. Prima toglila dal proiettore.",
     noSlides: "La presentazione non ha diapositive",
-    noLibreOffice: {
-      title: "LibreOffice non è disponibile",
-      body:
-        "Lumina Live usa LibreOffice per convertire le presentazioni PowerPoint in immagini. Installalo, oppure indica dove si trova l'eseguibile soffice.",
-      locate: "Individua soffice…",
-      download: "Scarica LibreOffice",
-      recheck: "Controlla di nuovo",
-      checking: "Ricerca di LibreOffice…",
-      found: "LibreOffice {version} è pronto",
-      strip:
-        "Alcuni PowerPoint non si possono aprire senza convertirli. Quelli fatti solo di immagini, i PDF e quelli già convertiti funzionano normalmente.",
-      startup:
-        "LibreOffice non è disponibile: alcune presentazioni PowerPoint non si potranno convertire. Quelle fatte solo di immagini e tutto il resto funzionano normalmente.",
-      dontWarn: "Non mostrare più",
-      liveRefused: "«{name}» non si può proiettare: serve LibreOffice per convertirla.",
-      stageHint: "Serve LibreOffice per convertire questa presentazione",
-      reconvertHint: "Per convertirla di nuovo serve LibreOffice.",
-    },
+    damagedSlide: "Diapositiva danneggiata",
+    damagedSlideHint: "Una parte di questa diapositiva è danneggiata nel file: viene mostrato ciò che è stato possibile leggere. Apri la presentazione in PowerPoint e salvala di nuovo per recuperarla.",
+    liveFailed: "«{name}» non può essere proiettata. {reason}",
     audio: {
       none: "Nessun audio",
       // Not «Assegna audio»: beside «Nessun audio» it left no room for that
@@ -588,7 +573,7 @@ const it: Messages = {
     slidesCacheMaxDesc:
       "Quanto spazio su disco può occupare prima di iniziare a eliminare le presentazioni meno recenti",
     slidesRenderWidth: "Larghezza di rendering",
-    slidesRenderWidthDesc: "Risoluzione orizzontale a cui viene rasterizzata ogni diapositiva",
+    slidesRenderWidthDesc: "Risoluzione orizzontale a cui viene rasterizzata ogni pagina di un PDF",
     slidesFallbackFont: "Font sostitutivo",
     slidesFallbackFontDesc:
       "Per un PowerPoint che usa un font che questo computer non ha. Prima si prova un font con le stesse misure (Calibri → Carlito, Arial → Liberation Sans); se non c'è, si usa questo.",
@@ -599,15 +584,9 @@ const it: Messages = {
       webp: "WebP (consigliato)",
       png: "PNG",
     },
-    slidesQualityWarnTitle: "Se cambi una di queste due opzioni, va riconvertito tutto",
+    slidesQualityWarnTitle: "Se cambi una di queste due opzioni, vanno riconvertiti i PDF",
     slidesQualityWarnBody:
-      "Ogni presentazione viene salvata nella cache in base al suo contenuto PIÙ la larghezza e il formato. Se cambi uno dei due, nessuna di quelle già convertite viene più trovata: si riconvertono una alla volta, la prima volta che apri ciascuna. Non modificarli il giorno del culto.",
-    sofficeFound: "Versione {version}",
-    sofficeMissing: "Non disponibile",
-    sofficeChecking: "Ricerca…",
-    sofficeWarn: "Avvisa se manca",
-    sofficeWarnDesc:
-      "All'apertura dell'app e sopra la scheda delle presentazioni. Disattivato, una presentazione che non si può convertire lo dice comunque.",
+      "Ogni PDF viene salvato nella cache in base al suo contenuto PIÙ la larghezza e il formato. Se cambi uno dei due, nessuno di quelli già convertiti viene più trovato: si riconvertono uno alla volta, la prima volta che apri ciascuno. Non modificarli il giorno del culto.",
     sections: {
       projection: "Proiezione",
       slides: "Diapositive",
@@ -626,7 +605,6 @@ const it: Messages = {
       versionsInstalled: "Versioni installate",
       slidesCache: "Cache delle diapositive",
       slidesQuality: "Qualità di conversione",
-      libreoffice: "LibreOffice",
       slidesText: "Testo",
       appearance: "Aspetto",
       language: "Lingua",

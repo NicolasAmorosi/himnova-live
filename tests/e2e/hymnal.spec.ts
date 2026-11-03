@@ -8,7 +8,7 @@ import { audioStates, expect, test } from "./support/app";
 /**
  * The decks the app exists for: the church's hymnal, legacy OLE2 `.pps` files
  * whose song is a separate `.mp3` beside them. Since 2026-10-26 they are read
- * straight from the file, with no LibreOffice (`ppt-binary.ts`). No generated
+ * straight from the file, with no conversion (`ppt-binary.ts`). No generated
  * fixture reproduces a real hymn whole, so this runs against the real folder
  * when the machine has it — `WORSHIP_E2E_HYMNAL=<folder with 522.pps>` on the
  * church PC — and skips otherwise. The files are only read, never changed.

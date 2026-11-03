@@ -29,10 +29,11 @@ share the same "the user moved the file" problem), `programs`+`program_items`
 migration `0004_rename_programs.sql` with `ALTER TABLE ... RENAME` — a table recreate would have
 lost the `CHECK`, which Drizzle doesn't materialize in the snapshot), `bible_versions`+`bible_books`+`bible_verses`+
 `bible_verses_fts` (FTS5 external-content), `bible_favorites`, `projection_history`,
-`slide_decks`+`deck_slides`+`deck_audio`+`deck_videos` (persistent cache of converted presentations,
-addressed by content hash — see `03-slides-libreoffice.md`; since `0018` also the decks read
-natively, `image_format = 'native'`, which own no folder and whose `deck_slides.layers` say which
-pictures of the source make up each slide), `program_draft`,
+`slide_decks`+`deck_slides`+`deck_audio`+`deck_videos` (persistent record of every deck read,
+addressed by content hash — see `03-slides.md`: a PDF's rasterized pages; since `0018` also the
+decks read natively, `image_format = 'native'`, which own no folder and whose `deck_slides.layers`
+say which pictures of the source make up each slide; and the decks drawn from their model,
+`image_format = 'model'`, whose `layers` is each slide's `SlideModel`), `program_draft`,
 `utility_scenes` (the saved timer scenes from Functions ▸ Timers), `overlay_plates` (the saved
 plates from Functions ▸ Overlays, `0014`) and `media_conversions` (ffprobe's verdict per video/audio
 asset, `0016`).

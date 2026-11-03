@@ -99,8 +99,6 @@ function seedsFor(kind: AssetKind): Seed[] {
 }
 
 async function seedKind(app: WorshipApp, kind: AssetKind): Promise<void> {
-  // Two of the decks are .pptx, which the global setup only builds with LibreOffice.
-  test.skip(kind === "ppt" && !fs.existsSync(fixture("clipdeck.pptx")), "needs LibreOffice for its .pptx fixtures");
   for (const seed of seedsFor(kind)) {
     await app.invoke<MediaAsset[]>("library:add", { kind, paths: [writeSeed(app, kind, seed)] });
   }

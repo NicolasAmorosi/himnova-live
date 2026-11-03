@@ -26,7 +26,6 @@ import type {
 import type {
   DeckCacheStats,
   DeckDTO,
-  DeckEnvironment,
   DeckProgress,
   DeckStatusSummary,
   PrewarmProgress,
@@ -108,21 +107,13 @@ export type IpcContract = {
    *  operator has to be able to tell whether that is where his files are. */
   "files:systemFolders": { req: void; res: Record<AssetKind, string> };
 
-  /** Cache lookup only — never triggers a conversion, so it is safe to call
-   *  while merely rendering a list or selecting an item. */
+  /** Cache lookup only — never reads or rasterizes anything, so it is safe to
+   *  call while merely rendering a list or selecting an item. */
   "deck:get": { req: { assetId: number }; res: DeckDTO | null };
-  /** Converts if needed. Idempotent per assetId: a second call while a
-   *  conversion is in flight joins the same job instead of queuing another. */
+  /** Reads (or, for a PDF, rasterizes) if needed. Idempotent per assetId: a
+   *  second call while one is in flight joins it instead of queuing another. */
   "deck:ensure": { req: { assetId: number; force?: boolean }; res: DeckDTO };
   "deck:cancel": { req: { assetId: number }; res: void };
-  /** The last sweep's answer, or — with `force` — a new sweep: «Check
-   *  again», for a LibreOffice installed while the app was open. */
-  "deck:environment": { req: { force: boolean }; res: DeckEnvironment };
-  /** Opens a native file picker so the user can point at soffice by hand. */
-  "deck:locateSoffice": { req: void; res: DeckEnvironment };
-  /** Opens LibreOffice's download page in the system browser. The URL is
-   *  main's, never the renderer's to choose. */
-  "deck:openSofficeDownload": { req: void; res: void };
 
   /** Fire-and-forget background conversion for decks not already converted.
    *  The scope is also the priority: main drains `program` before `explicit`

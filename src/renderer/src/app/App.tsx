@@ -15,7 +15,6 @@ import { installGlobalErrorHandlers } from "@renderer/lib/global-error-handlers"
 import { api } from "@renderer/lib/api";
 import { toast } from "@renderer/lib/toast";
 import { restoreDraft } from "@renderer/lib/actions/programs";
-import { announceMissingSoffice } from "@renderer/lib/actions/soffice";
 import { loadScenes } from "@renderer/lib/actions/utility";
 import { loadPlates } from "@renderer/lib/actions/overlays";
 import { useProjectionStore } from "@renderer/stores/projection.store";
@@ -96,7 +95,6 @@ export function App() {
   useEffect(() => {
     void (async () => {
       await loadSettings();
-      void announceMissingSoffice();
       const { settings } = useSettingsStore.getState();
       useLibraryStore
         .getState()

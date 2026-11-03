@@ -1,8 +1,7 @@
 import { create } from "zustand";
 import { api } from "@renderer/lib/api";
 import { IpcError } from "@shared/ipc/result";
-import { deckMayBeReadNatively, deckRequiresSoffice } from "@shared/constants";
-import type { DeckDTO, DeckEnvironment, DeckProgress, DeckStatus, PrewarmProgress } from "@shared/types/deck";
+import type { DeckDTO, DeckProgress, DeckStatus, PrewarmProgress } from "@shared/types/deck";
 
 export type DeckEntry = {
   status: DeckStatus;
@@ -19,7 +18,6 @@ export type PrewarmBatchState = PrewarmProgress;
 
 type DeckStoreState = {
   byAssetId: Record<number, DeckEntry>;
-  environment: DeckEnvironment | null;
   prewarmBatch: PrewarmBatchState | null;
   /** Bumped every time any deck reaches `ready`. A counter, deliberately, and
    *  not something derived from `byAssetId`: the library grid needs to know
@@ -29,9 +27,6 @@ type DeckStoreState = {
    *  entries. */
   readyEpoch: number;
 
-  /** `force` sweeps the disk again instead of reading main's last answer. */
-  loadEnvironment: (force?: boolean) => Promise<void>;
-  locateSoffice: () => Promise<void>;
   /** Cache-only peek — never starts a conversion, so listing a playlist can't
    *  kick off work by accident. */
   peek: (assetId: number) => Promise<DeckDTO | null>;
@@ -85,23 +80,6 @@ function isCurrent(assetId: number, gen: number): boolean {
   return (generation.get(assetId) ?? 0) === gen;
 }
 
-/**
- * Whether a deck with this extension cannot be converted right now: LibreOffice
- * is known to be missing and the deck is not a PDF (`deckRequiresSoffice`).
- * Says nothing about a deck that is already converted — that one projects
- * without LibreOffice, so every gate built on this also asks whether there are
- * slides to show. An environment not asked for yet is not "missing".
- *
- * A legacy `.ppt`/`.pps` is blocked only once main has tried it and failed
- * (`entry`): it is normally read with no LibreOffice at all
- * (`deckMayBeReadNatively`), and refusing it up front left the hymnal behind
- * a gate it never had.
- */
-export function sofficeBlocks(environment: DeckEnvironment | null, ext: string, entry?: DeckEntry): boolean {
-  if (environment?.available !== false || !deckRequiresSoffice(ext)) return false;
-  return !deckMayBeReadNatively(ext) || entry?.status === "failed";
-}
-
 function entryFor(deck: DeckDTO): DeckEntry {
   return {
     status: deck.status,
@@ -113,17 +91,8 @@ function entryFor(deck: DeckDTO): DeckEntry {
 
 export const useDeckStore = create<DeckStoreState>((set, get) => ({
   byAssetId: {},
-  environment: null,
   prewarmBatch: null,
   readyEpoch: 0,
-
-  loadEnvironment: async (force = false) => {
-    set({ environment: await api.deck.environment(force) });
-  },
-
-  locateSoffice: async () => {
-    set({ environment: await api.deck.locateSoffice() });
-  },
 
   refreshDeck: (deckId) => {
     for (const [assetId, entry] of Object.entries(get().byAssetId)) {
@@ -174,17 +143,11 @@ export const useDeckStore = create<DeckStoreState>((set, get) => ({
     const request: Promise<DeckDTO | null> = api.deck
       .ensure(assetId, force)
       .then((deck) => {
-        // A conversion asks main for LibreOffice again (`requireSoffice`), so
-        // one that worked may have found it installed since the app opened —
-        // re-read, or every other deck would stay behind the gate.
-        if (get().environment?.available === false) void get().loadEnvironment();
         if (!isCurrent(assetId, gen)) return null;
         set((s) => ({ byAssetId: { ...s.byAssetId, [assetId]: entryFor(deck) } }));
         return deck;
       })
       .catch((error: unknown) => {
-        // And the reverse: one that failed may have found it gone.
-        if (get().environment?.available) void get().loadEnvironment();
         if (!isCurrent(assetId, gen)) return null;
         const message = error instanceof Error ? error.message : String(error);
         // A cancellation is not a failure — it is what the operator asked for.

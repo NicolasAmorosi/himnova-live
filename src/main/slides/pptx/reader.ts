@@ -138,16 +138,19 @@ type DeckScope = {
   fonts: EmbeddedFontRef[];
 };
 
-/** One of the three parts a slide is drawn from. */
-type Level = { part: string; root: XmlElement | null; placeholders: Placeholder[] };
+/** One of the three parts a slide is drawn from. `damaged`: it is in the
+ *  package but won't parse, so the slide is drawn without it. */
+type Level = { part: string; root: XmlElement | null; placeholders: Placeholder[]; damaged: boolean };
 type Placeholder = { type: string; idx: string | null; el: XmlElement };
 
 function level(pkg: PptxPackage, part: string | null): Level {
   const root = part ? pkg.xml(part) : null;
-  // A slide, layout or master that is there but won't parse would be drawn
-  // as an empty slide, in silence: the deck goes to LibreOffice instead. Only
-  // these three: a broken `.vml` or chart part is common and costs one shape.
-  if (part && !root && pkg.has(part)) throw new Error(`unparseable part: ${part}`);
+  // A slide, layout or master that is there but won't parse is drawn without
+  // it — what the other two give, or the bare background — and the slide is
+  // marked so the operator is told (owner, 2026-11-03): never an empty slide
+  // in silence. Only these three: a broken `.vml` or chart part is common and
+  // costs one shape.
+  const damaged = part !== null && !root && pkg.has(part);
   const placeholders: Placeholder[] = [];
   const collect = (tree: XmlElement | null): void => {
     for (const c of tree?.children ?? []) {
@@ -157,7 +160,7 @@ function level(pkg: PptxPackage, part: string | null): Level {
     }
   };
   collect(path(root, "p:cSld", "p:spTree"));
-  return { part: part ?? "", root, placeholders };
+  return { part: part ?? "", root, placeholders, damaged };
 }
 
 function phOf(el: XmlElement): { type: string; idx: string | null } | null {
@@ -236,7 +239,9 @@ function readSlide(pkg: PptxPackage, slidePart: string, deck: DeckScope): SlideM
   if (layout.root && showMaster(slide)) elements.push(...readTree(path(layout.root, "p:cSld", "p:spTree"), 1, scope));
   elements.push(...readTree(path(slide.root, "p:cSld", "p:spTree"), 0, scope));
 
-  return { width: deck.width, height: deck.height, background: readBackground(scope), elements, fonts: deck.fonts };
+  const model: SlideModel = { width: deck.width, height: deck.height, background: readBackground(scope), elements, fonts: deck.fonts };
+  if (levels.some((lvl) => lvl.damaged)) model.damaged = true;
+  return model;
 }
 
 function styleCtx(scope: SlideScope, part: string, groupFill?: Fill | null): TextContext {
@@ -561,7 +566,7 @@ function readDiagram(data: XmlElement, frame: Frame, levelIndex: number, scope: 
   const asSlide = renameDsp(tree);
   const drawingScope: SlideScope = {
     ...scope,
-    levels: [{ part: drawingPart, root: null, placeholders: [] }, scope.levels[1], scope.levels[2]],
+    levels: [{ part: drawingPart, root: null, placeholders: [], damaged: false }, scope.levels[1], scope.levels[2]],
   };
   return {
     kind: "group",

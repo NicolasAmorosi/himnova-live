@@ -158,8 +158,9 @@ EasyWorship's two-stage flow:
 - `playback.ts` — `goLive()` is the **only** path from preview to projector, shared by the
   GO LIVE button, Enter, and double-clicking a row, a tile or a verse, so the four cannot
   diverge. Also `clearLive()` (CLEAR), `advanceSlide`/`gotoSlide` and `toggleOverlay`. It orders
-  things so that a deck is **ready before** `base` changes: hitting GO LIVE on an unconverted
-  `.pptx` leaves the projector as it is instead of cutting to black during the conversion.
+  things so that a deck is **ready before** `base` changes: hitting GO LIVE on a deck not read yet
+  leaves the projector as it is instead of cutting to black while it is read; one that won't open
+  changes nothing there and says why in a toast (`explainDeckFailure`).
 - `bible.ts` — `projectVerse`/`advanceVerse` (live), `previewSearchHit` and
   `addVerseToSchedule`.
 

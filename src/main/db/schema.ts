@@ -286,13 +286,14 @@ export const slideDecks = sqliteTable(
     status: text("status", { enum: ["pending", "converting", "ready", "error"] }).notNull(),
     errorCode: text("error_code"),
     errorMessage: text("error_message"),
-    timingsSource: text("timings_source", { enum: ["ooxml", "ooxml-converted", "binary", "none"] })
+    timingsSource: text("timings_source", { enum: ["ooxml", "binary", "odf", "none"] })
       .notNull()
       .default("none"),
     bytesOnDisk: integer("bytes_on_disk").notNull().default(0),
-    /** 1 once `deck_slides.transition` was read from the source. A deck
-     *  converted before slide transitions existed has 0, and reads them on its
-     *  next use (`deck-service.ts`) instead of being reconverted. */
+    /** 1 once `deck_slides.transition` was read from the source. Every deck
+     *  written today is 1 (a PDF has none to read); 0 was a deck LibreOffice
+     *  converted before transitions existed, all of them deleted at startup
+     *  since 2026-11-03 (`deleteConvertedDecks`). */
     transitionsRead: integer("transitions_read").notNull().default(0),
     createdAt: integer("created_at").notNull(),
     updatedAt: integer("updated_at").notNull(),
