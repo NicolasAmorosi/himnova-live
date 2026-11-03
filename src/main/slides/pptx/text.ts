@@ -259,7 +259,7 @@ function resolveFace(typeface: string | null, ctx: TextContext): string | null {
  * metric-compatible faces that keep the file's line breaks when they are
  * missing. Listed after the file's own face, so an installed original wins.
  */
-const METRIC_TWINS: Record<string, string[]> = {
+export const METRIC_TWINS: Record<string, string[]> = {
   calibri: ["Carlito"],
   "calibri light": ["Carlito"],
   cambria: ["Caladea"],
@@ -273,17 +273,22 @@ const METRIC_TWINS: Record<string, string[]> = {
   cousine: ["Liberation Mono"],
 };
 
-function fontList(face: string, ea: string | null): string {
+export function fontList(face: string, ea: string | null): string {
   const faces = [face, ...(METRIC_TWINS[face.toLowerCase()] ?? []), ...(ea && ea !== face ? [ea] : [])];
   return [...faces.map((f) => `"${f.replace(/"/g, "")}"`), "sans-serif"].join(", ");
 }
 
-/** Bullets drawn with a symbol font map to the Unicode character they show:
- *  Wingdings and Symbol are not on a Mac or a Linux box. */
-const SYMBOL_BULLETS: Record<string, string> = {
+const SYMBOL_BYTE_BULLETS: Record<string, string> = {
   "§": "▪", "Ø": "➢", "ü": "✓", "q": "❑", "v": "❖", "n": "■", "l": "●", "o": "○", "Ü": "➢", "à": "➔",
-  "è": "➔", "Ÿ": "•", "": "▪", "": "➢", "": "✓", "": "❑", "": "❖", "": "■", "": "●",
-  "": "•", "·": "•",
+  "è": "➔", "Ÿ": "•", "·": "•",
+};
+
+/** Bullets drawn with a symbol font map to the Unicode character they show:
+ *  Wingdings and Symbol are not on a Mac or a Linux box. A file stores the
+ *  font's byte either as is or in the private-use page U+F0xx. */
+export const SYMBOL_BULLETS: Record<string, string> = {
+  ...SYMBOL_BYTE_BULLETS,
+  ...Object.fromEntries(Object.entries(SYMBOL_BYTE_BULLETS).map(([k, v]) => [String.fromCharCode(0xf000 + k.charCodeAt(0)), v])),
 };
 
 function readBullet(chain: XmlElement[], runs: TextRun[], ctx: TextContext, counters: Map<string, number>, level: number): Bullet | null {

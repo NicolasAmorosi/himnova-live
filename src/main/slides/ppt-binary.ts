@@ -7,33 +7,23 @@ import {
 
 /**
  * Reads a legacy binary `.ppt`/`.pps` (OLE2 + the PowerPoint 97 record
- * stream) WITHOUT LibreOffice: per-slide timings and transitions for every
- * deck, and — for a deck made only of pictures, which is every deck of the
- * hymnal this app exists for — the slides themselves.
- *
- * ## Why the timings are read here at all
- *
- * A legacy binary carries no OOXML, so a deck that still goes through
- * LibreOffice gets its timings by converting to `.pptx` and parsing that.
- * LibreOffice *imports* the timings correctly, but its PPTX export only writes
- * a `<p:transition>` element when the slide has a visual transition EFFECT,
- * and `advTm` is an attribute of that element: a slide set to "no transition,
- * advance after 27 s" loses the 27 s. Measured on the user's hymnal: 222 of
- * 1226 decks lose it. See `readBinarySlideTimings`.
+ * stream): per-slide timings and transitions for every deck
+ * (`readBinarySlideTimings`), and — for a deck made only of pictures, which is
+ * every deck of the hymnal this app exists for — the slides themselves.
  *
  * ## Why the slides are read here (2026-10-26)
  *
  * Every slide of the hymnal is an 800×600 JPEG with the lyrics already drawn
  * into it, plus at most a small white logo and a speaker icon PowerPoint is
- * told to hide. Reading that takes ~2 ms; LibreOffice took 0.8 s per deck and
- * a WebP copy of every slide on disk. `readBinaryDeck` says which pictures
- * make up each slide and where they sit in the file, and `worship://` serves
- * them straight from it (`readBinaryPictures`) — no conversion, no copy.
+ * told to hide. Reading that takes ~2 ms, with no copy of any slide on disk.
+ * `readBinaryDeck` says which pictures make up each slide and where they sit
+ * in the file, and `worship://` serves them straight from it
+ * (`readBinaryPictures`).
  *
  * It is deliberately narrow and says no to anything it does not draw exactly:
  * a deck with text, shapes, a slide not covered by a picture, a recolored or
- * cropped picture or an embedded sound goes to LibreOffice whole, as before.
- * Never a slide drawn wrong in silence.
+ * cropped picture or an embedded sound goes whole to the model reader
+ * (`ppt/model-reader.ts`), which draws everything. Never half a deck each way.
  *
  * ## What it reads
  *
@@ -91,8 +81,7 @@ const SLIDE_FLAG_MASTER_OBJECTS = 0x0001;
 
 /** `AnimationInfoAtom.flags` bit 12: «hide while not playing» — what
  *  PowerPoint writes for a sound whose icon must not show during the show. All
- *  1030 visible speaker icons of the hymnal carry it; LibreOffice ignores it,
- *  which is why its PDF drew the icon on the projector. */
+ *  1030 visible speaker icons of the hymnal carry it. */
 const ANIMATION_FLAG_HIDE = 0x1000;
 
 /** `TransitionTypeEnum` (MS-PPT 2.13.45) values with a drawing of their own.
@@ -101,7 +90,7 @@ const ANIMATION_FLAG_HIDE = 0x1000;
 const TT_CUT = 0;
 const TT_FADE = 6; // «Fade Through Black»
 const TT_RANDOM_BAR = 8;
-const TT_SMOOTH_FADE = 23; // «Fade Smoothly»; LibreOffice exports it as `<p:fade/>`
+const TT_SMOOTH_FADE = 23; // «Fade Smoothly», OOXML's `<p:fade/>`
 
 /** A record header is `recVer/recInstance` (u16), `recType` (u16), `recLen`
  *  (u32). A container is marked by `recVer == 0xF`. */
@@ -117,7 +106,7 @@ const MAX_DEPTH = 16;
 
 /** The records stream of even a 400-slide deck is a few hundred KB. Anything
  *  past this is not a presentation we should be loading into memory on the
- *  main thread — bail and let the LibreOffice path answer. */
+ *  main thread — bail and let the model reader, on its worker thread, answer. */
 const MAX_RECORD_STREAM_BYTES = 32 * 1024 * 1024;
 
 const STREAM_POWERPOINT = "PowerPoint Document";
@@ -164,7 +153,7 @@ const BLIP_TWO_UIDS = new Set([0x46b, 0x6e1, 0x6e3]);
 // Shape properties (`OfficeArtFOPT` opids) a picture this reader draws may
 // carry. Anything else on the shape — a recolor, brightness, shadow, 3D, a
 // custom geometry — is something we would draw wrong, so its presence sends
-// the deck to LibreOffice.
+// the deck to the model reader.
 const OPT_ROTATION = 0x0004;
 const OPT_CROP_FIRST = 0x0100;
 const OPT_CROP_LAST = 0x0103;
@@ -220,14 +209,16 @@ const DUAL_STORAGE_NAME = "PP97_DUALSTORAGE";
 /** A chain longer than this is a loop in a corrupt file, not a real stream. */
 const MAX_CHAIN_SECTORS = 1 << 20;
 
-type OleFile = {
+export type OleFile = {
+  /** Whether the root (or the 97-format storage) holds an entry of that name. */
+  has: (name: string) => boolean;
   readStreamByName: (name: string) => Buffer | null;
   /** Random access into a stream without loading it: the `Pictures` stream of
    *  a hymn is most of the file, and a slide needs one picture out of it. */
   readStreamRange: (name: string, offset: number, length: number) => Buffer | null;
 };
 
-function openOle(fd: number, fileSize: number): OleFile | null {
+export function openOle(fd: number, fileSize: number): OleFile | null {
   const header = Buffer.alloc(512);
   if (fs.readSync(fd, header, 0, 512, 0) < 512) return null;
   if (!header.subarray(0, 8).equals(OLE_SIGNATURE)) return null;
@@ -439,7 +430,9 @@ function openOle(fd: number, fileSize: number): OleFile | null {
     return out;
   };
 
-  return { readStreamByName, readStreamRange };
+  const has = (name: string): boolean => streamHome.has(name) || rootChildren.has(name);
+
+  return { has, readStreamByName, readStreamRange };
 }
 
 // -- record walking ----------------------------------------------------------
@@ -449,7 +442,7 @@ type RecordVisit = (recType: number, recInstance: number, body: number, len: num
 /** Walks the records between `start` and `end`, descending into containers.
  *  `cb` sees atoms AND containers, so a caller can stop at a container it
  *  recognizes. */
-function walkRecords(buf: Buffer, start: number, end: number, depth: number, cb: RecordVisit): void {
+export function walkRecords(buf: Buffer, start: number, end: number, depth: number, cb: RecordVisit): void {
   if (depth > MAX_DEPTH) return;
   let pointer = start;
   while (pointer + HEADER_SIZE <= end) {
@@ -468,7 +461,7 @@ function walkRecords(buf: Buffer, start: number, end: number, depth: number, cb:
 }
 
 /** Reads one record header at an absolute offset, validating it fits. */
-function recordAt(
+export function recordAt(
   buf: Buffer,
   offset: number,
 ): { recType: number; recInstance: number; body: number; len: number } | null {
@@ -481,10 +474,10 @@ function recordAt(
   return { recType, recInstance, body, len };
 }
 
-type Rec = { recType: number; recInstance: number; body: number; len: number; container: boolean };
+export type Rec = { recType: number; recInstance: number; body: number; len: number; container: boolean };
 
 /** The direct children of a container — no descent. */
-function childrenOf(buf: Buffer, parent: { body: number; len: number }): Rec[] {
+export function childrenOf(buf: Buffer, parent: { body: number; len: number }): Rec[] {
   const out: Rec[] = [];
   let pointer = parent.body;
   const end = parent.body + parent.len;
@@ -506,7 +499,7 @@ function childrenOf(buf: Buffer, parent: { body: number; len: number }): Rec[] {
 }
 
 /** The first record of a type anywhere under `parent`, depth-bounded. */
-function findDeep(buf: Buffer, parent: { body: number; len: number }, recType: number): Rec | null {
+export function findDeep(buf: Buffer, parent: { body: number; len: number }, recType: number): Rec | null {
   let found: Rec | null = null;
   walkRecords(buf, parent.body, parent.body + parent.len, 0, (type, instance, body, len) => {
     if (!found && type === recType) found = { recType: type, recInstance: instance, body, len, container: false };
@@ -516,7 +509,7 @@ function findDeep(buf: Buffer, parent: { body: number; len: number }, recType: n
 
 // -- the document --------------------------------------------------------------
 
-type PptDocument = {
+export type PptDocument = {
   ole: OleFile;
   doc: Buffer;
   persistOffsets: Map<number, number>;
@@ -587,9 +580,9 @@ function openDocument(fd: number): PptDocument | null {
 }
 
 /** Opens the file, hands the parsed document to `read`, and closes the file
- *  whatever happens. Every failure means "the LibreOffice answer is the only
- *  one we have", so it is `null`, never a throw. */
-function withDocument<T>(filePath: string, read: (document: PptDocument) => T | null): T | null {
+ *  whatever happens. Every failure means "another reader answers", so it is
+ *  `null`, never a throw. */
+export function withDocument<T>(filePath: string, read: (document: PptDocument) => T | null): T | null {
   let fd: number | null = null;
   try {
     fd = fs.openSync(filePath, "r");
@@ -630,14 +623,14 @@ function readPersistDirectory(doc: Buffer, offset: number, into: Map<number, num
   }
 }
 
-type SlideInfo = {
+export type SlideInfo = {
   autoAdvanceMs: number | null;
   hidden: boolean;
   advanceOnClick: boolean;
   transition: SlideTransition | null;
 };
 
-function readSlideInfo(doc: Buffer, slide: { body: number; len: number }): SlideInfo | null {
+export function readSlideInfo(doc: Buffer, slide: { body: number; len: number }): SlideInfo | null {
   const atom = childrenOf(doc, slide).find(
     (child) => child.recType === RT_SS_SLIDE_INFO_ATOM && child.len >= SS_SLIDE_INFO_MIN_LEN,
   );
@@ -682,8 +675,7 @@ export type BinarySlideTiming = {
   /** 1-based, in presentation order. */
   slideIndex: number;
   /** Milliseconds to wait before advancing, or null when the slide does not
-   *  auto-advance at all. Unrounded, as PowerPoint stored it — LibreOffice
-   *  rounds to whole seconds on the way through `.pptx`. */
+   *  auto-advance at all. Unrounded, as PowerPoint stored it. */
   autoAdvanceMs: number | null;
   hidden: boolean;
   /** Whether a click also advances. Recorded for completeness; the app does
@@ -697,8 +689,8 @@ export type BinarySlideTiming = {
  * or `null` when the file is not a parseable OLE2 PowerPoint deck.
  *
  * Never throws: every failure mode here (a truncated file, a format we do not
- * recognize, a persist id with no offset) means "the LibreOffice answer is the
- * only one we have", never "the conversion fails".
+ * recognize, a persist id with no offset) means "no timings", never "the deck
+ * fails".
  */
 export function readBinarySlideTimings(filePath: string): BinarySlideTiming[] | null {
   return withDocument(filePath, ({ doc, persistOffsets, slidePersistIds }) =>
@@ -725,8 +717,8 @@ export function readBinarySlideTimings(filePath: string): BinarySlideTiming[] | 
  *
  * What `linked-audio.ts` matches beside the deck. It used to find it by
  * running a regex over the whole file in two encodings: 0.4–1.7 s on the main
- * thread per hymn, the first time each was opened — invisible behind a
- * LibreOffice conversion, and the whole wait once the deck itself takes 2 ms.
+ * thread per hymn, the first time each was opened — the whole wait once the
+ * deck itself takes 2 ms.
  */
 export function readBinaryExternalPaths(filePath: string): string[] | null {
   return withDocument(filePath, ({ doc, documentContainer }) => {
@@ -763,12 +755,12 @@ export type BinaryDeck = {
   width: number;
   height: number;
   /** The VISIBLE slides, in presentation order — hidden ones are left out, as
-   *  PowerPoint's show and LibreOffice's PDF both leave them out. */
+   *  PowerPoint's show leaves them out. */
   slides: BinaryDeckSlide[];
 };
 
 /** A deck we can read but not draw exactly, and why — for the log, so a deck
- *  that falls back to LibreOffice says what stopped it. */
+ *  that goes to the model reader says what stopped it here. */
 export type BinaryDeckRefusal = { unsupported: string };
 
 class Unsupported extends Error {}
@@ -809,8 +801,8 @@ function buildDeck({
   const height = doc.readInt32LE(documentAtom.body + 4);
   if (width <= 0 || height <= 0) throw new Unsupported("no slide size");
 
-  // An embedded sound lives in the document, not in a sibling file: only the
-  // LibreOffice path extracts it today, so a deck with one stays there.
+  // An embedded sound lives in the document, not in a sibling file: this
+  // reader serves pictures only, so a deck with one goes to the model reader.
   const sounds = children.find((child) => child.recType === RT_SOUND_COLLECTION);
   if (sounds && childrenOf(doc, sounds).some((child) => child.container)) {
     throw new Unsupported("embedded sound");
@@ -883,7 +875,7 @@ function buildDeck({
 /** `foDelay` of every BLIP in the document's store, by `pib - 1`. A BLIP kept
  *  inside the store itself rather than in the `Pictures` stream reads as
  *  `undefined` and refuses whatever uses it. */
-function readBlipStore(doc: Buffer, documentChildren: Rec[]): (number | undefined)[] {
+export function readBlipStore(doc: Buffer, documentChildren: Rec[]): (number | undefined)[] {
   const group = documentChildren.find((child) => child.recType === RT_DRAWING_GROUP);
   if (!group) return [];
   const store = findDeep(doc, group, OA_BSTORE);
@@ -1003,7 +995,7 @@ function drawingShapes(doc: Buffer, container: { body: number; len: number }): S
 
 /** `OfficeArtFOPT`: `recInstance` simple properties of 6 bytes each. Complex
  *  data (names) follows them and is not needed. */
-function readProps(doc: Buffer, fopt: Rec): Map<number, number> {
+export function readProps(doc: Buffer, fopt: Rec): Map<number, number> {
   const props = new Map<number, number>();
   for (let i = 0; i < fopt.recInstance && (i + 1) * 6 <= fopt.len; i++) {
     const at = fopt.body + i * 6;
@@ -1103,7 +1095,7 @@ function slideLayers(
 
 /** Every property set ends in one of these: 16 flags, each meaningful only
  *  where its `fUse` twin in the high half is set (MS-ODRAW 2.3). */
-function isBooleanProperty(opid: number): boolean {
+export function isBooleanProperty(opid: number): boolean {
   return (opid & 0x3f) === 0x3f;
 }
 
@@ -1111,7 +1103,7 @@ function isBooleanProperty(opid: number): boolean {
  *  does not `fUse` is the master's. Measured on the hymnal: 166 covers say
  *  nothing about their line, and the master's body placeholder they inherit
  *  from says «no line». */
-function mergeBooleans(own: number, inherited: number): number {
+export function mergeBooleans(own: number, inherited: number): number {
   const ownUse = (own >>> 16) & 0xffff;
   const values = (own & ownUse) | (inherited & ~ownUse & 0xffff);
   return (((own | inherited) & 0xffff0000) | values) >>> 0;
@@ -1165,5 +1157,48 @@ export function readBinaryPictures(filePath: string, refs: readonly BinaryPictur
         /* already gone */
       }
     }
+  }
+}
+
+// -- public: why a deck won't open ---------------------------------------------
+
+/** Why no reader could open a deck, from its bytes — see `sniffUnreadableDeck`. */
+export type UnreadableDeckReason = "DECK_PASSWORD" | "DECK_OLD_FORMAT" | "NOT_A_PRESENTATION";
+
+/** `CurrentUserAtom.headerToken` of a deck whose records are encrypted
+ *  (MS-PPT 2.3.2); an open one says `0xE391C05F`. */
+const HEADER_TOKEN_ENCRYPTED = 0xf3d1c4df;
+/** The shortest PowerPoint 97 `CurrentUserAtom` stream: PowerPoint 95 wrote a
+ *  15-byte one beside a `PowerPoint Document` of its own, older format. */
+const CURRENT_USER_97_MIN_LEN = 28;
+
+/**
+ * A look at a deck every reader declined, so the operator is told what they
+ * can do about it rather than only that it failed. Names only, plus one atom:
+ *
+ * - **A password.** An encrypted `.pptx` is not a zip but an OLE file holding
+ *   `EncryptionInfo` + `EncryptedPackage` (MS-OFFCRYPTO); an encrypted
+ *   PowerPoint 97 deck keeps an `EncryptedSummary` stream and flags its
+ *   `CurrentUserAtom`.
+ * - **PowerPoint 95 or older.** A `PP40` stream and no `PowerPoint Document`
+ *   (PowerPoint 4), or a `PowerPoint Document` whose `Current User` is too
+ *   short to be the 97 atom (PowerPoint 95) — what Apache POI tells apart too.
+ * - **Anything else** is not a presentation we know.
+ */
+export function sniffUnreadableDeck(filePath: string): UnreadableDeckReason {
+  let fd: number | null = null;
+  try {
+    fd = fs.openSync(filePath, "r");
+    const ole = openOle(fd, fs.fstatSync(fd).size);
+    if (!ole) return "NOT_A_PRESENTATION";
+    if (ole.has("EncryptionInfo") || ole.has("EncryptedPackage") || ole.has("EncryptedSummary")) return "DECK_PASSWORD";
+    if (!ole.has(STREAM_POWERPOINT)) return ole.has("PP40") ? "DECK_OLD_FORMAT" : "NOT_A_PRESENTATION";
+    const currentUser = ole.readStreamByName(STREAM_CURRENT_USER);
+    if (!currentUser || currentUser.length < CURRENT_USER_97_MIN_LEN) return "DECK_OLD_FORMAT";
+    return currentUser.readUInt32LE(12) === HEADER_TOKEN_ENCRYPTED ? "DECK_PASSWORD" : "NOT_A_PRESENTATION";
+  } catch {
+    return "NOT_A_PRESENTATION";
+  } finally {
+    if (fd !== null) fs.closeSync(fd);
   }
 }

@@ -31,6 +31,10 @@ export type LegacyShape = {
   /** A sound or movie object, and whether it hides while not playing. */
   media?: { hideWhileNotPlaying: boolean };
   text?: string;
+  /** Raw records inside the shape's client textbox (a text with its runs). */
+  textRecords?: Buffer[];
+  /** Raw records inside the shape's client data (a placeholder atom). */
+  clientData?: Buffer[];
   /** OfficeArtFSP flags on top of fHaveAnchor | fHaveSpt. */
   flags?: number;
 };
@@ -47,6 +51,12 @@ export type LegacySlide = {
    *  fMasterBackground 0x4. */
   slideFlags?: number;
   shapes?: LegacyShape[];
+  /** Raw records appended to the slide container (a colour scheme). */
+  records?: Buffer[];
+  /** Placeholder texts kept in the slide list after the slide's persist atom. */
+  listTexts?: Buffer[];
+  /** A slide container that is not one, for a damaged deck. */
+  garbage?: boolean;
 };
 
 export type LegacyDeck = {
@@ -58,6 +68,14 @@ export type LegacyDeck = {
   masterShapes?: { spid: number; props: Record<number, number> }[];
   /** Paths recorded by the deck's external objects — a linked sound's file. */
   externalPaths?: string[];
+  /** The master's shapes as whole shapes (types, anchors, text), drawn on slides. */
+  masterDrawing?: LegacyShape[];
+  /** Raw records appended to the master (text styles, colour scheme). */
+  masterRecords?: Buffer[];
+  /** Raw records in the document's environment (fonts, default text style). */
+  environment?: Buffer[];
+  /** Raw records appended to the document container (headers and footers). */
+  documentRecords?: Buffer[];
 };
 
 const SECTOR = 512;
@@ -68,7 +86,7 @@ const FATSECT = 0xfffffffd;
 const NOSTREAM = 0xffffffff;
 const MASTER_SLIDE_ID = 0x80000000;
 
-function rec(recVer: number, recInstance: number, recType: number, body: Buffer | Buffer[]): Buffer {
+export function rec(recVer: number, recInstance: number, recType: number, body: Buffer | Buffer[]): Buffer {
   const content = Array.isArray(body) ? Buffer.concat(body) : body;
   const head = Buffer.alloc(8);
   head.writeUInt16LE((recInstance << 4) | recVer, 0);
@@ -77,13 +95,13 @@ function rec(recVer: number, recInstance: number, recType: number, body: Buffer 
   return Buffer.concat([head, content]);
 }
 
-function u32s(...values: number[]): Buffer {
+export function u32s(...values: number[]): Buffer {
   const buf = Buffer.alloc(values.length * 4);
   values.forEach((value, i) => buf.writeUInt32LE(value >>> 0, i * 4));
   return buf;
 }
 
-function fopt(props: Record<number, number>): Buffer {
+export function fopt(props: Record<number, number>): Buffer {
   const entries = Object.entries(props);
   const body = Buffer.alloc(entries.length * 6);
   entries.forEach(([opid, value], i) => {
@@ -125,10 +143,13 @@ function slideShape(shape: LegacyShape, spid: number): Buffer {
   if (shape.text !== undefined) {
     children.push(rec(0xf, 0, 0xf00d, rec(0x0, 0, 0x0fa0, Buffer.from(shape.text, "utf16le"))));
   }
+  if (shape.textRecords) children.push(rec(0xf, 0, 0xf00d, shape.textRecords));
+  if (shape.clientData) children.push(rec(0xf, 0, 0xf011, shape.clientData));
   return spContainer(spid, type, 0x0a00 | (shape.flags ?? 0), children);
 }
 
 function slideContainer(slide: LegacySlide, index: number): Buffer {
+  if (slide.garbage) return Buffer.from("not a slide container at all");
   const atom = Buffer.alloc(24);
   atom.writeUInt32LE(MASTER_SLIDE_ID, 12); // masterIdRef: the master's slideId
   atom.writeUInt16LE(slide.slideFlags ?? 0, 20);
@@ -142,6 +163,7 @@ function slideContainer(slide: LegacySlide, index: number): Buffer {
   if (slide.shapes) {
     children.push(drawing(slide.shapes.map((shape, i) => slideShape(shape, 0x800 * (index + 1) + i + 1))));
   }
+  children.push(...(slide.records ?? []));
   return rec(0xf, 0, 0x03ee, children);
 }
 
@@ -153,7 +175,7 @@ function slidePersistAtom(persistId: number, slideId: number): Buffer {
 }
 
 /** One OLE2 compound file holding these streams, in order. */
-function compoundFile(streams: { name: string; data: Buffer }[]): Buffer {
+export function compoundFile(streams: { name: string; data: Buffer }[]): Buffer {
   const padded = streams.map(({ name, data }) => {
     const size = Math.max(MIN_STREAM_BYTES, Math.ceil(data.length / SECTOR) * SECTOR);
     const buf = Buffer.alloc(size);
@@ -245,6 +267,8 @@ export function buildLegacyPpt(deck: LegacyDeck = {}): Buffer {
   const slidePersistId = (index: number): number => 3 + index;
 
   const documentChildren = [rec(0x1, 0, 0x03e9, documentAtom)];
+  if (deck.environment) documentChildren.push(rec(0xf, 0, 0x03f2, deck.environment));
+  documentChildren.push(...(deck.documentRecords ?? []));
   if (deck.externalPaths?.length) {
     documentChildren.push(
       rec(0xf, 0, 0x0409, [
@@ -259,10 +283,14 @@ export function buildLegacyPpt(deck: LegacyDeck = {}): Buffer {
     documentChildren.push(rec(0xf, 0, 0x040b, rec(0xf, 0, 0xf000, rec(0xf, fbses.length, 0xf001, fbses))));
   }
   documentChildren.push(rec(0xf, 1, 0x0ff0, slidePersistAtom(masterPersistId, MASTER_SLIDE_ID)));
-  documentChildren.push(rec(0xf, 0, 0x0ff0, slides.map((_, i) => slidePersistAtom(slidePersistId(i), 256 + i))));
+  documentChildren.push(rec(0xf, 0, 0x0ff0, slides.flatMap((s, i) => [slidePersistAtom(slidePersistId(i), 256 + i), ...(s.listTexts ?? [])])));
   const documentContainer = rec(0xf, 0, 0x03e8, documentChildren);
 
-  const master = rec(0xf, 0, 0x03f8, drawing((deck.masterShapes ?? []).map(({ spid, props }) => spContainer(spid, 1, 0x0a00, [fopt(props)]))));
+  const masterShapes = [
+    ...(deck.masterShapes ?? []).map(({ spid, props }) => spContainer(spid, 1, 0x0a00, [fopt(props)])),
+    ...(deck.masterDrawing ?? []).map((shape, i) => slideShape(shape, 0x500 + i)),
+  ];
+  const master = rec(0xf, 0, 0x03f8, [drawing(masterShapes), ...(deck.masterRecords ?? [])]);
   const slideContainers = slides.map(slideContainer);
 
   const offsets: number[] = [];
@@ -284,11 +312,16 @@ export function buildLegacyPpt(deck: LegacyDeck = {}): Buffer {
   editBody.writeUInt32LE(offsets.length + 1, 20); // persistIdSeed
   const userEdit = rec(0x0, 0, 0x0ff5, editBody);
 
-  const currentUser = Buffer.alloc(20);
-  rec(0x0, 0, 0x0ff6, Buffer.alloc(0x14)).copy(currentUser, 0, 0, 8); // CurrentUserAtom header
+  // A whole PowerPoint 97 `CurrentUserAtom` with an empty user name: what the
+  // sniff for an old or encrypted deck tells apart (`sniffUnreadableDeck`).
+  const currentUser = Buffer.alloc(32);
+  rec(0x0, 0, 0x0ff6, Buffer.alloc(24)).copy(currentUser, 0, 0, 8); // CurrentUserAtom header
   currentUser.writeUInt32LE(0x14, 8); // size
-  currentUser.writeUInt32LE(0xf3d1c4df, 12); // headerToken (unencrypted)
+  currentUser.writeUInt32LE(0xe391c05f, 12); // headerToken (unencrypted)
   currentUser.writeUInt32LE(editOffset, 16); // offsetToCurrentEdit
+  currentUser.writeUInt16LE(0x03f4, 22); // docFileVersion
+  currentUser.writeUInt8(3, 24); // majorVersion
+  currentUser.writeUInt32LE(8, 28); // relVersion
 
   return compoundFile([
     { name: "PowerPoint Document", data: Buffer.concat([documentContainer, master, ...slideContainers, persistDirectory, userEdit]) },
