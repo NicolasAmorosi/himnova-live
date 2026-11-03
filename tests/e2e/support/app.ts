@@ -329,7 +329,10 @@ export const test = base.extend<Fixtures>({
   profileDir: async ({}, use) => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "worship-e2e-profile-"));
     await use(dir);
-    fs.rmSync(dir, { recursive: true, force: true, maxRetries: 5 });
+    // Up to ~11 s: on a loaded 4-CPU Linux box a child of the app still being
+    // torn down after `app.exit(0)` was seen writing in the profile while it
+    // was removed (`ENOTEMPTY` after 5 retries, the test itself had passed).
+    fs.rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
   },
 
   app: async ({ profileDir, launchCheck }, use, testInfo) => {
