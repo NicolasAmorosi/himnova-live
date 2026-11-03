@@ -27,8 +27,8 @@ let announced = false;
 /** The launch warning while it may still be on screen. */
 let startupToastId: string | null = null;
 
-/** It carries an action, so it never leaves on its own: it stayed up saying
- *  «isn't available» beside «is ready», and after «Don't show again»
+/** Retired by hand when it stops applying, before its 10 s are up: it stayed
+ *  up saying «isn't available» beside «is ready», and after «Don't show again»
  *  was pressed on the PPT tab's strip. */
 function retireStartupToast(): void {
   if (startupToastId) toast.dismiss(startupToastId);
@@ -43,8 +43,12 @@ export async function announceMissingSoffice(): Promise<void> {
   if (announced || useDeckStore.getState().environment?.available !== false) return;
   announced = true;
   if (!useSettingsStore.getState().settings["slides.warnMissingSoffice"]) return;
+  // Timed although it carries an action: it sits over PREVIEW, and kept up
+  // it hid «Relocate…» until someone closed it. The PPT tab's strip and the
+  // deck gates keep saying it, «Don't show again» included.
   startupToastId = toast.warning(t("deck.noLibreOffice.startup"), {
     action: { label: t("deck.noLibreOffice.dontWarn"), onClick: () => void silenceSofficeWarning() },
+    durationMs: 10_000,
   });
 }
 
