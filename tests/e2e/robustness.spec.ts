@@ -69,7 +69,7 @@ test("an order of service survives the app being killed", async ({ app }) => {
   await expect(scheduleRows(app)).toHaveText([/clip/, /photo/]);
   // Past the autosave's debounce, then gone with no chance to clean up.
   await app.control.waitForTimeout(1500);
-  app.electron.process().kill("SIGKILL");
+  process.kill(app.mainPid, "SIGKILL");
   await app.exited;
 
   const again = await relaunch(app);

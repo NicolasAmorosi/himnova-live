@@ -262,8 +262,9 @@ test.describe("the launch check, with nothing answering", () => {
     // Ten seconds after the window (`LAUNCH_CHECK_DELAY_MS`).
     await expect.poll(() => mainLog(app), { timeout: 30_000 }).toMatch(/\[error\] Error: .*ERR_CONNECTION_REFUSED/);
     expect((await status(app)).kind).toBe("idle");
-    // A church without internet opens the app every week.
-    await expect(toasts(app)).toHaveCount(0);
+    // A church without internet opens the app every week. (A machine with no
+    // LibreOffice says so at launch: that one is not the updater's.)
+    await expect(toasts(app).filter({ hasNotText: "LibreOffice" })).toHaveCount(0);
     const row = updatesRow(await openAbout(app));
     await expect(row).toContainText("Compara esta versión con la última publicada en GitHub.");
   });

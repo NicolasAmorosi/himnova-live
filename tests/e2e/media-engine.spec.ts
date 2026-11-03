@@ -101,8 +101,7 @@ test("an engine that dies is reported and left to the operator", async ({ app })
   if (process.platform === "win32") {
     execFileSync("taskkill", ["/F", "/IM", "media-engine.exe"]);
   } else {
-    const pid = app.electron.process().pid;
-    for (const engine of execFileSync("pgrep", ["-P", String(pid), "-f", "media-engine"], { encoding: "utf8" }).split("\n")) {
+    for (const engine of execFileSync("pgrep", ["-P", String(app.mainPid), "-f", "media-engine"], { encoding: "utf8" }).split("\n")) {
       if (engine.trim()) process.kill(Number(engine), "SIGKILL");
     }
   }

@@ -50,6 +50,9 @@ export class WorshipApp {
     readonly control: Page,
     readonly profile: string,
     readonly log: string[],
+    /** Electron main's own pid. Not `electron.process().pid`: on Windows Playwright
+     *  starts the app through `cmd.exe`, and killing that left the app alive. */
+    readonly mainPid: number,
   ) {
     this.exited = new Promise((resolve) =>
       electron.process().once("exit", () => {
@@ -84,7 +87,7 @@ export class WorshipApp {
 
     const control = await app.firstWindow();
     await expect(control.getByRole("button", { name: "EN VIVO", exact: true })).toBeVisible();
-    return new WorshipApp(app, control, profile, log);
+    return new WorshipApp(app, control, profile, log, await app.evaluate(() => process.pid));
   }
 
   /** An IPC call through the same bridge the UI uses. For SETUP only — what a
@@ -229,11 +232,8 @@ export class WorshipApp {
       Promise.race([promise.then(() => true), new Promise<false>((resolve) => setTimeout(() => resolve(false), ms))]);
     const answered = await within(this.electron.evaluate(({ app }) => app.exit(0)).catch(() => undefined), 5_000);
     if (await within(this.exited, 10_000)) return;
-    const pid = this.electron.process().pid;
-    if (pid !== undefined) {
-      this.log.push(`[e2e] the app did not exit (app.exit ${answered ? "answered" : "never answered"})`, sampleOf(pid));
-      process.kill(pid, "SIGKILL");
-    }
+    this.log.push(`[e2e] the app did not exit (app.exit ${answered ? "answered" : "never answered"})`, sampleOf(this.mainPid));
+    process.kill(this.mainPid, "SIGKILL");
     await this.exited;
     throw new Error("the app did not exit within 15 s of app.exit(0) — its sample is at the end of app.log");
   }

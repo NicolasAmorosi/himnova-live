@@ -5,7 +5,7 @@ import Database from "better-sqlite3";
 import { strToU8, zipSync } from "fflate";
 import type { MediaAsset } from "../../src/shared/types/media";
 import { SLIDES_CONVERTER_VERSION } from "../../src/shared/constants";
-import { fixture } from "./support/paths";
+import { findSoffice, fixture } from "./support/paths";
 import { buildPdf } from "./support/pdf";
 import { audioStates, engineCanvas, expect, moving, relaunch, test, videoStates, type WorshipApp } from "./support/app";
 
@@ -520,7 +520,7 @@ test("without LibreOffice: warned at launch, a PowerPoint is gated, a PDF still 
 
   // Installed while the app is open (here: the bad override goes away), found
   // by «Comprobar de nuevo» without a restart. Only where there is one to find.
-  if (!hasHymn()) return;
+  if (!findSoffice()) return;
   await third.invoke("settings:set", { "slides.sofficePath": null });
   await third.control.getByRole("button", { name: "Configuración" }).click();
   const settings = third.control.getByRole("dialog", { name: "Configuración" });
@@ -571,7 +571,8 @@ test("a deck edited while the app was closed is not projected from the old cache
 });
 
 test("a deck finished in the background after the operator cancelled it shows its slides, not «Preparando…»", async ({ app }) => {
-  test.skip(!hasHymn(), "LibreOffice is not installed, so there is no .odp fixture");
+  // LibreOffice itself, not its fixtures: a fixtures folder copied from another machine has those.
+  test.skip(!findSoffice(), "LibreOffice is not installed");
   const [hymn] = await app.addMedia("ppt", "converted.odp");
   if (!hymn) throw new Error("import failed");
   await app.previewFile("Presentaciones", "converted");
@@ -600,7 +601,8 @@ test("a deck finished in the background after the operator cancelled it shows it
 });
 
 test("cancelling a deck that is still waiting in line says so", async ({ app }) => {
-  test.skip(!hasHymn(), "LibreOffice is not installed, so there is no .odp fixture");
+  // LibreOffice itself, not its fixtures: a fixtures folder copied from another machine has those.
+  test.skip(!findSoffice(), "LibreOffice is not installed");
   await app.addMedia("ppt", "converted.odp", "queued.odp");
   // The first converts; the second deck waits behind it.
   await app.previewFile("Presentaciones", "converted");
