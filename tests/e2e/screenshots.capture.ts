@@ -55,7 +55,7 @@ test.beforeAll(() => {
   still("Fondo azul.png", ["0x0b1a33", "0x1f5a8a", "0x0e2340"]);
   still("Fondo cálido.png", ["0x2a1446", "0xe07a3f", "0xf4c06a"]);
   run("-f", "lavfi", "-i", "sine=frequency=330:duration=20", "-c:a", "libmp3lame", media("Música de ofrenda.mp3"));
-  // Plays only once converted: long enough at 1080p to be caught converting.
+  // MPEG-4 part 2 in an AVI: Chromium cannot play it, the media engine does.
   run(...gradient(["0x0b1a33", "0x1d6f86", "0x7fb6d9"], "1920x1080", 90), "-c:v", "mpeg4", "-q:v", "4", media("Testimonio.avi"));
 
   // A soft major chord to sing over, faded in and out. Named after nothing:
@@ -153,9 +153,11 @@ test("screenshots", async ({ app: first }) => {
   });
   await app.openResources("Media", "Presentaciones");
   const decks = control.getByRole("tabpanel", { name: "Presentaciones" });
+  // Opened once each, so their tiles draw the first slide: a PDF's as an image, a .pptx from its model.
+  const firstSlide = app.previewColumn().getByRole("list", { name: "Presentación" }).getByRole("button", { name: "1", exact: true });
   for (const name of ["Bosquejo del sermón", "Anuncios de la semana", "Castillo fuerte"]) {
     await decks.getByRole("button", { name }).click();
-    await expect(decks.getByRole("img", { name })).toBeVisible({ timeout: 120_000 });
+    await expect(firstSlide).toBeVisible({ timeout: 120_000 });
   }
   const preview = app.previewColumn();
   await app.answerOpenDialog(media("Pista instrumental.mp3"));
