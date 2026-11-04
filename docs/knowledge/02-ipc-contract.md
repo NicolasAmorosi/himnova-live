@@ -4,7 +4,7 @@
 
 The whole contract lives in **`src/shared/ipc/contract.ts`**: an `IpcContract` type with one entry
 per channel (`{ req, res }`), grouped by domain prefix (`displays:`, `projection:`,
-`files:`, `deck:`, `bible:`, `library:`, `conversion:`, `programs:`, `program:`, `window:`,
+`files:`, `deck:`, `bible:`, `library:`, `engine:`, `programs:`, `program:`, `window:`,
 `utility:`, `overlay:`, `settings:`, `system:`). Push events (main → renderer without invoke)
 are kept separately, in `IpcEvents`.
 
@@ -47,7 +47,7 @@ transport side, and catches business errors with a normal try/catch.
 `display-content`, `media-command` and `audio-tracks` go from main to the projection window;
 `projection-closed`, `displays-changed`, `projector-screen`, `media-status`, `media-error`,
 `deck-progress`, `prewarm-progress`, `deck-statuses-changed`, `library-changed`,
-`conversion-changed`, `deck-updated`, `library-import-progress`, `close-requested` and
+`engine-asset-changed`, `deck-updated`, `library-import-progress`, `close-requested` and
 `update-status` go to the control window. `window.worship.on(channel, cb)` returns a cleanup function — unlike the legacy
 preload, which had no way to unsubscribe. `onIpc` (`renderer/src/lib/ipc.ts`) is its typed
 wrapper; the control window subscribes in `renderer/src/effects/` (`*-sync.ts`).

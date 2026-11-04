@@ -30,6 +30,7 @@ import {
   type VersionDisplay,
 } from "@shared/types/bible-style";
 import type { MediaAsset } from "@shared/types/media";
+import type { SceneBackground } from "@shared/types/scene-style";
 import { VersePreview } from "./verse-preview";
 
 const ALIGN_LABEL: Record<TextAlign, MessageKey> = {
@@ -109,6 +110,9 @@ export function VerseSection() {
   const [imageAssets, setImageAssets] = useState<readonly MediaAsset[]>([]);
   const [addingImages, setAddingImages] = useState(false);
   const [confirmingReset, setConfirmingReset] = useState(false);
+  // «Image» picked before an image: shown here, never saved — a save is
+  // immediate, and an image background with no image is one main refuses.
+  const [pendingImage, setPendingImage] = useState<Extract<SceneBackground, { kind: "image" }> | null>(null);
 
   // The image library, for an image background's picker. Read on mount rather
   // than kept in a store: it is one query, only this form wants it, and it
@@ -138,7 +142,10 @@ export function VerseSection() {
       // picked a file in order to use it, not in order to then find it in a
       // dropdown.
       const first = added[0];
-      if (first) patch({ background: { kind: "image", assetId: first.id, fit: "cover" } });
+      if (first) {
+        setPendingImage(null);
+        patch({ background: { kind: "image", assetId: first.id, fit: pendingImage?.fit ?? "cover" } });
+      }
     } catch (error) {
       console.warn("[bible] could not add images", error);
       toast.danger(t("style.addImageError"));
@@ -188,8 +195,12 @@ export function VerseSection() {
             addingImages={addingImages}
             imageAssets={imageAssets}
             onAddImages={() => void handleAddImages()}
-            onChange={(background) => patch({ background })}
-            value={style.background}
+            onChange={(background) => {
+              const noImageYet = background.kind === "image" && background.assetId === 0;
+              setPendingImage(noImageYet ? background : null);
+              if (!noImageYet) patch({ background });
+            }}
+            value={pendingImage ?? style.background}
           />
         </FieldGroup>
 
@@ -344,6 +355,7 @@ export function VerseSection() {
       <ConfirmModal
         description={t("settings.verse.resetBody")}
         onConfirm={async () => {
+          setPendingImage(null);
           await update({ "bible.style": DEFAULT_BIBLE_STYLE });
           toast.success(t("settings.verse.resetDone"));
         }}

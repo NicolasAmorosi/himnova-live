@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
+import { isPointerFocused } from "@renderer/lib/focus-modality";
 import { cn, formatClock } from "@renderer/lib/utils";
 
 type MediaScrubberTone = "accent" | "audio";
@@ -170,7 +171,10 @@ export function MediaScrubber({
   }
 
   function handleKeyDown(event: KeyboardEvent<HTMLDivElement>) {
-    if (!seekable) return;
+    // Clicked or dragged, the bar keeps no key: → is the slide on the projector
+    // (a deck's soundtrack has this bar next to it). Reached with Tab, the
+    // arrows seek. See `use-global-shortcuts.ts`.
+    if (!seekable || isPointerFocused(event.currentTarget)) return;
     switch (event.key) {
       case "ArrowLeft":
       case "ArrowDown":

@@ -29,13 +29,15 @@ share the same "the user moved the file" problem), `programs`+`program_items`
 migration `0004_rename_programs.sql` with `ALTER TABLE ... RENAME` — a table recreate would have
 lost the `CHECK`, which Drizzle doesn't materialize in the snapshot), `bible_versions`+`bible_books`+`bible_verses`+
 `bible_verses_fts` (FTS5 external-content), `bible_favorites`, `projection_history`,
-`slide_decks`+`deck_slides`+`deck_audio`+`deck_videos` (persistent cache of converted presentations,
-addressed by content hash — see `03-slides-libreoffice.md`; since `0018` also the decks read
-natively, `image_format = 'native'`, which own no folder and whose `deck_slides.layers` say which
-pictures of the source make up each slide), `program_draft`,
+`slide_decks`+`deck_slides`+`deck_audio`+`deck_videos` (persistent record of every deck read,
+addressed by content hash — see `03-slides.md`: a PDF's page sizes, its pages drawn on request
+(until 2026-11-03 its rasterized pages, in a folder); since `0018` also the
+decks read natively, `image_format = 'native'`, which own no folder and whose `deck_slides.layers`
+say which pictures of the source make up each slide; and the decks drawn from their model,
+`image_format = 'model'`, whose `layers` is each slide's `SlideModel`), `program_draft`,
 `utility_scenes` (the saved timer scenes from Functions ▸ Timers), `overlay_plates` (the saved
-plates from Functions ▸ Overlays, `0014`) and `media_conversions` (ffprobe's verdict and the
-playable copy per video/audio asset, `0016`).
+plates from Functions ▸ Overlays, `0014`) and `media_conversions` (ffprobe's verdict per video/audio
+asset, `0016`).
 
 `program_draft` is **a single row** (`id = 1`), rewritten whole, holding the schedule the operator
 is building and hasn't saved yet. It was the only user data without a backup: it lived only in the
@@ -98,7 +100,7 @@ panel shows its empty state and offers to create one.
 the same identity `slide_decks` is indexed by — together with `content_hash_size` and
 `content_hash_mtime_ms`, which are the **stamp** that validates it: the hash is only used while
 those two still match the row's `size_bytes`/`mtime_ms`. It's the same invalidation rule
-`tryCacheHit` already applied to a deck row, and it's what avoids having to re-read the file to
+every deck reader applies to its own row, and it's what avoids having to re-read the file to
 know whether the digest still describes it.
 
 It exists because `slide_decks.media_asset_id` is **exclusive** and `relinkDeck` moves it: asking
@@ -109,8 +111,9 @@ backfill hasn't stamped yet.
 
 The hash is written in two places, never anywhere else:
 
-- `runConversion` (`deck-service.ts`) stores it as soon as it computes it — it already needed it,
-  so it's free, and it leaves a freshly imported deck correct right away;
+- every deck reader (`recordNativeDeck`, `recordModelDeck`, `recordPdfDeck` in `deck-service.ts`)
+  stores it as soon as it computes it — it already needed it, so it's free, and it leaves a freshly
+  imported deck correct right away;
 - `backfillContentHashes()` (`src/main/media/content-hash.ts`) sweeps in the background, 2 s after
   startup, every `ppt` without a valid stamp, in chunks of 25 with a yield between chunks, and
   emits `deck-statuses-changed` so the grid repaints. It's idempotent: the second startup costs one
@@ -149,40 +152,28 @@ text) and is kept in sync with `AFTER INSERT/UPDATE/DELETE` triggers. The seed u
 letting the triggers run 31,102 times — the full load measures ~550ms on this machine
 (`npm run test`, `main` project).
 
-## `media_conversions` — facts and results, never the decision
+## `media_conversions` — facts, never the decision
 
 One row per video or audio already checked with ffprobe (migration `0016_media_conversions`,
-`cascade` with its asset). It stores two things: what ffprobe said (`probe_json`, a `MediaProbe`
-versioned by `MEDIA_PROBE_VERSION`) and the converted file (`output_file`). The name is
-**relative** to `userData/converted-media/`, for the same reason the decks' absolute `cache_dir`
-did damage: a copied or moved profile would point at the old profile. Both are valid while
-`source_size` and `source_mtime_ms` are still the asset's.
+`cascade` with its asset): what ffprobe said (`probe_json`, a `MediaProbe` versioned by
+`MEDIA_PROBE_VERSION`), valid while `source_size` and `source_mtime_ms` are still the asset's.
 
-**Whether a conversion is needed is not stored.** It's recomputed on every startup (`planPlayback`),
-because one of its inputs belongs to the MACHINE: whether the GPU decodes HEVC. A library taken to
-another PC doesn't keep the previous one's answer, and a copy the new machine no longer needs is
-deleted. **A failure isn't stored either**: it's retried on the next startup or with «Retry».
+**Whether the media engine plays a file is not stored.** It's recomputed on every startup
+(`media/engine-assets.ts`, `playsNatively`), because one of its inputs belongs to the MACHINE:
+whether the GPU decodes HEVC. A library taken to another PC doesn't keep the previous one's answer.
+Clips embedded in a `.pptx` don't use this table: `media/deck-clips.ts` probes them when the deck
+is opened, and keeps its answer in memory too.
 
-`worship://asset/<id>` serves the copy when it exists and the stamp matches
-(`ConversionsRepo.outputFor`). An interrupted `.part` and the copies no row references are swept at
-startup. Clips embedded in a `.pptx` don't use this table: they are converted inside the deck's
-cache and update their own `deck_videos`/`deck_audio` row (`media/deck-clips.ts`).
-
-## Missing files — rows are never deleted
-
-`media_assets.missing_since` is set in a sweep (`MediaRepo.sweep()`, scheduled by
-`library-sweeper.ts`) over the `in_library=1` rows **and the linked-folder rows that a saved program
-uses**; without the latter, an item from a linked folder never showed «Locate…». A missing file
-**never deletes the row** — it may be an unplugged USB stick. The UI shows a badge and offers
-`library:relocate`, which rewrites `path`/`pathKey` without touching the id — any `program_item`
-that references it by `mediaAssetId` keeps working on its own. If the chosen file IS ALREADY a row
-(the usual case when a USB stick came back with a different drive letter and its folder was linked
-again), the two rows are MERGED into the one the program references: programs, plates, decks and
-history move to that id and the duplicate is deleted, all in one transaction.
+Until step 1.4 of the engine plan (2026-11-02) a file Chromium couldn't decode was converted, and
+`output_file` named its copy in `userData/converted-media/`. Nothing reads or writes the column
+since; the table keeps its name and the column so a profile still opens in an older build. At
+startup `converted-media/` is deleted, and every `deck_videos`/`deck_audio` row still on a
+`<n>.playable.mp4/.m4a` copy is pointed back at its original before the copy is deleted
+(`revertPlayableCopies`, from `sweepCache`).
 
 The same sweep does `stat` (not `access`) and **refreshes `size_bytes`/`mtime_ms`** of a file
 edited in place. That's not a detail: every stamp in the app — a deck's content hash, a video's
-probe and converted copy, the thumbnail's cache-buster — is validated against those two fields of
+probe, the thumbnail's cache-buster — is validated against those two fields of
 the ROW, and until 2026-10-18 nothing updated them for a library file: a deck or a video replaced
 in place kept being previewed and projected with the old content. Any new cache that depends on a
 source file is validated against a `stat` of the file, or against a row that something keeps up to

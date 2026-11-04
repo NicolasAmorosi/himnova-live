@@ -11,10 +11,12 @@ Windows, macOS and Linux · English, Spanish, Italian and Portuguese
 
 ## Features
 
-- **Presentations** in `.ppt`, `.pptx`, `.pps`, `.ppsx`, `.odp` and `.pdf`, including `.pps` hymnals
-  with auto-advance and music: each slide's timing and the embedded audio are kept.
-- **Any video or audio.** Whatever the player can't decode (AVI, WMV, ProRes, AC3…) is converted in
-  the background with FFmpeg, which comes bundled. The original file is never touched.
+- **Presentations** in `.ppt`, `.pptx`, `.pps`, `.ppsx`, `.odp` and `.pdf`, read and drawn by Lumina
+  itself — nothing else to install —, including `.pps` hymnals with auto-advance and music: each
+  slide's timing and the embedded audio are kept.
+- **Any video or audio.** Whatever the player can't decode (AVI, WMV, ProRes, AC3…) plays at once
+  through Lumina's own media engine, built on libmpv. Nothing is converted and the original file is
+  never touched.
 - **Bible** with full-text search (accent-insensitive). Ships with the Reina-Valera 1909; import other
   versions in JSON, Zefania, USFX, OSIS or MyBible/MySword modules.
 - **Timers** (countdown, clock, stopwatch) and **overlays** on top of what is projected (a lower third
@@ -31,15 +33,10 @@ Windows, macOS and Linux · English, Spanish, Italian and Portuguese
 Installers are on [Releases](https://github.com/NicolasAmorosi/lumina-live/releases/latest): Windows
 (installer), macOS on Apple Silicon (`.dmg`) and Linux: a `.deb` for Ubuntu, Debian and Linux Mint,
 and an `AppImage` for other distributions. On Ubuntu 24.04 or later use the `.deb`: AppArmor won't
-let the AppImage start without `--no-sandbox`, which turns off a security protection.
+let the AppImage start without `--no-sandbox`, which turns off a security protection. On Linux the
+files Lumina's media engine plays (AVI, WMV, WMA…) need the distribution's libmpv: the `.deb` installs
+it, and with the AppImage install `libmpv2` (`libmpv1` on Ubuntu 22.04) and `libopengl0`.
 
-**On Linux, Lumina Live is still experimental.** In automated testing the projection and control
-windows closed by themselves while a presentation was on screen, which doesn't happen on Windows or
-macOS. Test it thoroughly before relying on it in a service.
-
-- **LibreOffice** is needed for PowerPoint presentations, except PDFs and old `.ppt`/`.pps` decks made
-  only of pictures — like most hymnals — which open instantly without it. If it isn't installed, the
-  app detects it and explains how to install it.
 - The installers **aren't signed yet**. On Windows: «More info» → «Run anyway». On macOS: System
   Settings → Privacy & Security → «Open Anyway».
 
@@ -64,7 +61,7 @@ from Releases once, and from then on it can.
 - **macOS:** without a paid Apple signature, macOS doesn't let an app replace itself. Lumina Live
   downloads and checks the `.dmg` and opens it: drag Lumina Live to Applications and choose
   «Replace». Your programs, library and settings stay as they are.
-- **Linux** (experimental): the AppImage replaces itself; the `.deb` asks for your password to
+- **Linux:** the AppImage replaces itself; the `.deb` asks for your password to
   install.
 
 ## Development
@@ -72,7 +69,7 @@ from Releases once, and from then on it can.
 Requires Node.js 22 or later.
 
 ```bash
-npm install          # also downloads Electron and the FFmpeg for your platform
+npm install          # also downloads Electron, FFmpeg and the media engine for your platform
 npm run dev          # the app with hot reload
 npm run typecheck && npm run lint && npm run test   # the minimum before a PR
 npm run test:e2e     # end-to-end runs of the real app with Playwright
@@ -91,5 +88,8 @@ Stack: Electron, TypeScript, React, Vite, Tailwind, Zustand and SQLite (`better-
 version, it has to stay free under the same license.
 
 FFmpeg ships alongside the app as a separate program, under its own GPL-3.0 license (see
-[`resources/ffmpeg-NOTICE.txt`](resources/ffmpeg-NOTICE.txt)). The text of the Reina-Valera 1909 is
-in the public domain.
+[`resources/ffmpeg-NOTICE.txt`](resources/ffmpeg-NOTICE.txt)), and so does the media engine with its
+libmpv (see [`resources/engine-NOTICE.txt`](resources/engine-NOTICE.txt); the engine's source is in
+[`native/`](native/)). The shapes of legacy `.ppt` files are drawn from LibreOffice's
+table of Office's shapes, under the MPL-2.0 (see
+[`resources/ooxml/mso-shapes-NOTICE.txt`](resources/ooxml/mso-shapes-NOTICE.txt)). The text of the Reina-Valera 1909 is in the public domain.

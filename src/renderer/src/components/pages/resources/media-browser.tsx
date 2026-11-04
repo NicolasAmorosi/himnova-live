@@ -2,7 +2,6 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, typ
 import { useT } from "@renderer/lib/i18n/i18n-provider";
 import {
   Button,
-  Callout,
   EmptyState,
   Icon,
   IconButton,
@@ -16,12 +15,11 @@ import { ConfirmModal } from "@renderer/components/shared/modal";
 import { folderAssetsKey, useLibraryStore } from "@renderer/stores/library.store";
 import { useProgramStore } from "@renderer/stores/program.store";
 import { useSettingsStore } from "@renderer/stores/settings.store";
-import { sofficeBlocks, useDeckStore } from "@renderer/stores/deck.store";
+import { useDeckStore } from "@renderer/stores/deck.store";
 import { api } from "@renderer/lib/api";
 import { readOsFilesDrag, setMediaAssetDrag } from "@renderer/lib/dnd";
 import { previewAsset } from "@renderer/lib/actions/preview";
 import { goLive } from "@renderer/lib/actions/playback";
-import { silenceSofficeWarning } from "@renderer/lib/actions/soffice";
 import { removeAsset } from "@renderer/lib/actions/remove-asset";
 import {
   addLinkedFolder,
@@ -40,10 +38,10 @@ import { PREWARM_VISIBLE_MAX, type AssetKind } from "@shared/constants";
 import type { DeckStatusSummary } from "@shared/types/deck";
 import type { MediaAsset } from "@shared/types/media";
 
-/** Rough estimate for the "this can take about N minutes" warning — no
- *  history of past conversion times is tracked yet, so a flat, slightly
- *  conservative per-deck figure stands in for one. */
-const PREWARM_FALLBACK_SECONDS_PER_DECK = 8;
+/** Rough estimate for the "this can take about N minutes" warning: a flat,
+ *  slightly conservative per-deck figure. Reading a real deck took 0.2–0.5 s on
+ *  the three systems (2026-11-03); the 8 s this was before was the old conversion's. */
+const PREWARM_FALLBACK_SECONDS_PER_DECK = 1;
 
 /** Grid geometry, in px, handed to `VirtualGrid` — it has to compute the
  *  column count itself, so these can't stay as Tailwind classes. They are the
@@ -85,7 +83,6 @@ export function MediaBrowser({ active, kind }: { active: boolean; kind: AssetKin
   const folders = useSettingsStore((s) => s.settings["library.linkedFolders"][kind]);
   const folderAssets = useLibraryStore((s) => s.folderAssets[folderAssetsKey(kind, activeView)]);
   const sortOrder = useSettingsStore((s) => s.settings["library.sort"][kind]);
-  const warnMissingSoffice = useSettingsStore((s) => s.settings["slides.warnMissingSoffice"]);
   /** Session-only, and one per tab because each `MediaBrowser` stays mounted
    *  once visited (see `ResourcePanel`). Deliberately not persisted, unlike
    *  the order: a filter restored at launch is a tab that looks empty for no
@@ -134,7 +131,6 @@ export function MediaBrowser({ active, kind }: { active: boolean; kind: AssetKin
   const status = useLibraryStore((s) => s.viewStatus[viewKey]);
 
   const imports = useLibraryStore((s) => s.imports);
-  const deckEnvironment = useDeckStore((s) => s.environment);
   const prewarmBatch = useDeckStore((s) => s.prewarmBatch);
   const startBatchPrewarm = useDeckStore((s) => s.startBatchPrewarm);
   const cancelBatchPrewarm = useDeckStore((s) => s.cancelBatchPrewarm);
@@ -170,18 +166,17 @@ export function MediaBrowser({ active, kind }: { active: boolean; kind: AssetKin
     );
   }, []);
 
-  // Pre-warms decks in the background for what the operator can actually see
-  // right now — the grid reports its mounted range by row, this debounces the
-  // scroll, and main replaces its whole `visible` set on each call. Three
-  // independent throttles, because a fast scroll through 600 tiles must not
-  // enqueue 600 conversions nobody will look at.
+  // Reads decks in the background for what the operator can actually see
+  // right now — the grid reports its mounted range by row and this debounces
+  // the scroll, because a fast scroll through 600 tiles must not read 600
+  // decks nobody will look at.
   const setVisiblePrewarm = useDebouncedCallback((assetIds: number[]) => {
-    void api.deck.prewarm(assetIds, "visible");
+    void api.deck.prewarm(assetIds);
   }, 300);
 
   // `PREWARM_VISIBLE_MAX` stays as a backstop even now that the range is real:
-  // a very tall window at a very small tile size could still mount more than a
-  // background queue should be fed at once.
+  // a very tall window at a very small tile size could still mount more than
+  // is worth reading at once.
   const visibleIdsKey = useMemo(
     () =>
       assets
@@ -195,30 +190,12 @@ export function MediaBrowser({ active, kind }: { active: boolean; kind: AssetKin
 
   useEffect(() => {
     // A hidden tab stays mounted (see `ResourcePanel`) and its range is still
-    // perfectly valid — it is just not what anyone is looking at, so it has no
-    // claim on the conversion queue.
+    // perfectly valid — it is just not what anyone is looking at.
     if (kind !== "ppt" || !active) return;
     const ids = visibleIdsKey === "" ? [] : visibleIdsKey.split(",").map(Number);
     setVisiblePrewarm(ids);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `setVisiblePrewarm` is stable per render by design (see useDebouncedCallback); `visibleIdsKey` is the real, identity-stable dependency
   }, [active, kind, visibleIdsKey]);
-
-  // "Nothing of mine is visible any more" — on unmount, and when this tab
-  // stops being the active one.
-  //
-  // Sent undebounced, and from its own effect, on purpose. Routing it through
-  // `setVisiblePrewarm` inside the effect above meant it was armed by a
-  // cleanup that runs AFTER the debounce hook's own unmount cleanup has
-  // already cleared the timer — so on unmount the message was never delivered
-  // and a stray 300 ms timeout was left holding a closure over a component
-  // that no longer existed. Its own effect also keeps it from firing on every
-  // scroll, which a cleanup in the effect above did.
-  useEffect(() => {
-    if (kind !== "ppt") return;
-    return () => {
-      void api.deck.prewarm([], "visible");
-    };
-  }, [active, kind]);
 
   // One round-trip for the whole view: which decks are ready (drives the
   // "Prepare folder/view" button and its count) and where each ready deck's
@@ -304,23 +281,12 @@ export function MediaBrowser({ active, kind }: { active: boolean; kind: AssetKin
   // and the modal quotes a count back, so with a filter up it has to prepare
   // the matches the operator can see rather than the thousand decks behind
   // them.
-  //
-  // Without LibreOffice, only what converts without it: the PDFs. The button
-  // used to be disabled outright for a view holding a single PowerPoint,
-  // refusing the PDFs beside it for a dependency they never had.
   const pendingDeckAssetIds = useMemo(
     () =>
       kind !== "ppt" || deckStatuses === null
         ? []
-        : assets
-            .filter(
-              (a) =>
-                a.missingSince === null &&
-                deckStatuses[a.id]?.status !== "ready" &&
-                !sofficeBlocks(deckEnvironment, a.ext),
-            )
-            .map((a) => a.id),
-    [assets, deckEnvironment, deckStatuses, kind],
+        : assets.filter((a) => a.missingSince === null && deckStatuses[a.id]?.status !== "ready").map((a) => a.id),
+    [assets, deckStatuses, kind],
   );
   const pendingDeckCount = pendingDeckAssetIds.length;
 
@@ -357,25 +323,6 @@ export function MediaBrowser({ active, kind }: { active: boolean; kind: AssetKin
         query={query}
         sort={sortOrder}
       />
-      {/* Kept to a few lines: this panel is short, and the grid under it is
-          what the operator came for. The full set of fixes is one click away,
-          in front of any deck that needs it and in Settings. */}
-      {kind === "ppt" && deckEnvironment?.available === false && warnMissingSoffice ? (
-        <div className="px-1.5 pt-1.5">
-          <Callout tone="warning">
-            <p className="font-medium">{t("deck.noLibreOffice.title")}</p>
-            <p className="mt-0.5 text-xs text-muted-foreground">{t("deck.noLibreOffice.strip")}</p>
-            <div className="mt-1 flex flex-wrap gap-x-3">
-              <Button onClick={() => void api.deck.openSofficeDownload()} size="xs" variant="link">
-                {t("deck.noLibreOffice.download")}
-              </Button>
-              <Button onClick={() => void silenceSofficeWarning()} size="xs" variant="link">
-                {t("deck.noLibreOffice.dontWarn")}
-              </Button>
-            </div>
-          </Callout>
-        </div>
-      ) : null}
       <PanelBody
         className="p-1.5"
         onDragOver={(e) => e.preventDefault()}

@@ -1,8 +1,8 @@
 import type { ChartModel } from "./slide-chart";
 
 /**
- * A slide of a `.pptx` as we draw it ourselves (`SlideView`), with no
- * LibreOffice and no picture of it anywhere: main reads the OOXML and resolves
+ * A slide of a deck as we draw it ourselves (`SlideView`), with no picture of
+ * it anywhere: main reads the file (OOXML, a legacy binary, ODF) and resolves
  * everything a painter would otherwise have to look up — placeholder and
  * master inheritance, theme colours and fonts, preset geometry — so the
  * renderer only paints.
@@ -22,6 +22,11 @@ export type SlideModel = {
   /** The deck's embedded fonts (the same on every slide), registered by
    *  whoever draws the slide before its text is laid out. */
   fonts: EmbeddedFontRef[];
+  /** Part of what this slide is drawn from (its own part, its layout or its
+   *  master) is in the file but won't parse, so it is drawn without that part.
+   *  Only the control window says so (a warning on its tile and over the
+   *  monitors' label) — never the projector. Absent on a whole slide. */
+  damaged?: true;
 };
 
 /** A font embedded in the deck: the face its text names, and the part that
@@ -187,6 +192,10 @@ export type TextBody = {
   rotation: number;
   /** `bodyPr@upright`: text stays level when the shape rotates. */
   upright: boolean;
+  /** WordArt's letters stretched to fill the text box, both ways (a legacy
+   *  deck's plain-text WordArt): the painter measures the laid-out text and
+   *  scales it to the box. */
+  stretch?: true;
   paragraphs: Paragraph[];
 };
 

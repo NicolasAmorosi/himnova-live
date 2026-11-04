@@ -5,7 +5,7 @@ import reactRefresh from "eslint-plugin-react-refresh";
 import jsxA11y from "eslint-plugin-jsx-a11y";
 
 export default tseslint.config(
-  { ignores: ["out/**", "dist/**", "release/**", "drizzle/**", ".scratch/**"] },
+  { ignores: ["out/**", "dist/**", "release/**", "drizzle/**", ".scratch/**", "native/.build/**", "native/libmpv-mac/out/**"] },
   js.configs.recommended,
   ...tseslint.configs.recommendedTypeChecked,
   {

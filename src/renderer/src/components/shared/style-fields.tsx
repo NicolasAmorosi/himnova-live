@@ -102,7 +102,8 @@ function backgroundOfKind(kind: SceneBackground["kind"], current: SceneBackgroun
     case "image":
       // `0` is not a valid asset id and never matches a row, which is exactly
       // right: nothing has an image yet, and the `<Select>` shows its
-      // placeholder until one is chosen. The save button is what refuses it.
+      // placeholder until one is chosen. A form with a save button refuses it
+      // there; the verse style, saved on every change, holds it unsaved.
       return { kind: "image", assetId: 0, fit: "cover" };
   }
 }

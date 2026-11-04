@@ -124,7 +124,7 @@ live slide is one of its slides — reached in order, by a jump, or by GO LIVE �
 is past its last, and keeps playing when the operator goes back before its first. A new scene (a
 GO LIVE, even of the same deck) and the transport's restart start them all over. It reads the
 sounds from the deck store, not from `liveDeck`: `liveDeck` is the deck as it went live, and a WMA
-whose playable copy finishes afterwards only reaches the deck store (`deck-updated`).
+the media engine takes afterwards only reaches the deck store (`deck-updated`).
 
 `src/renderer/src/effects/end-of-playback.ts` takes off the air, on its own, a video or an
 auto-advancing deck that finished playing by itself, leaving the logo scene
@@ -158,8 +158,9 @@ EasyWorship's two-stage flow:
 - `playback.ts` — `goLive()` is the **only** path from preview to projector, shared by the
   GO LIVE button, Enter, and double-clicking a row, a tile or a verse, so the four cannot
   diverge. Also `clearLive()` (CLEAR), `advanceSlide`/`gotoSlide` and `toggleOverlay`. It orders
-  things so that a deck is **ready before** `base` changes: hitting GO LIVE on an unconverted
-  `.pptx` leaves the projector as it is instead of cutting to black during the conversion.
+  things so that a deck is **ready before** `base` changes: hitting GO LIVE on a deck not read yet
+  leaves the projector as it is instead of cutting to black while it is read; one that won't open
+  changes nothing there and says why in a toast (`explainDeckFailure`).
 - `bible.ts` — `projectVerse`/`advanceVerse` (live), `previewSearchHit` and
   `addVerseToSchedule`.
 
@@ -169,9 +170,25 @@ EasyWorship's two-stage flow:
 
 | Key | What it moves |
 |---|---|
-| ←/→ | **what is live** — the slide or verse on screen, derived from `base` and not from the focused panel |
+| ←/→, PageUp/PageDown | **what is live** — the slide or verse on screen, derived from `base` and not from the focused panel. PageUp/PageDown are what a presentation remote sends for back/next |
 | ↑/↓ | **the preview cursor** — nothing reaches the projector |
 | Enter | sends the preview to the projector (`goLive()`) |
 | Space | pauses/resumes an auto-advancing deck — the shortcut you need to stop dead a PPT that advances by itself |
-| B / L | BLACK / LOGO |
+| B (or «.») / L | BLACK / LOGO. «.» is a remote's blank-screen button |
 | Delete/Backspace | removes the selected item (library before program) |
+| Escape | in a text field, leaves it: the keys are the operator's again |
+
+On the work screen they always work (owner, 2026-11-03), and that takes three things:
+
+- **A control the mouse focused keeps no key**, whatever its role — a clicked tab, volume slider,
+  seek bar, list trigger or thumbnail gives the arrows back (`isPointerFocused`, checked by
+  `suppressesKey` and by each widget that handles arrows itself: `Tabs`, `MediaScrubber`, `Select`,
+  `Menu`, `VirtualGrid`). Reached with Tab, a control keeps its own keys. A list closed by a mouse
+  pick does not put focus back on its trigger: focus put there by code reads as the keyboard's.
+- **The projector window forwards its keys.** macOS focuses it when it opens and a click on its
+  screen does it on any system; main's `before-input-event` on it sends every key without
+  Ctrl/⌘/Alt to the control window (`projector-key`), which runs the same `runShortcut`.
+- **In a text field only the remote's keys work** (PageUp/PageDown); everything else types.
+
+Held down, only stepping repeats: B, L, Enter, Space and Delete act once per press. A modal open
+suspends all of them. A remote's slideshow button (F5/Esc, alternating) does nothing on purpose.

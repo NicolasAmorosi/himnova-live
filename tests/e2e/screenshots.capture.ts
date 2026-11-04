@@ -2,12 +2,13 @@ import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { pathToFileURL } from "node:url";
 import type { CDPSession, Page } from "@playwright/test";
 import { DEFAULT_BIBLE_STYLE } from "../../src/shared/types/bible-style";
 import type { MediaAsset } from "../../src/shared/types/media";
-import { expect, relaunch, test, type WorshipApp } from "./support/app";
-import { ROOT, ffmpegBinary, findSoffice } from "./support/paths";
+import { engineCanvas, expect, relaunch, test, type WorshipApp } from "./support/app";
+import { ROOT, ffmpegBinary } from "./support/paths";
+import { buildPdf } from "./support/pdf";
+import { CM, buildPptx, type PptxSlideSpec } from "./support/pptx";
 
 /**
  * `npm run screenshots`: the README's and the landing's pictures, taken off
@@ -27,8 +28,6 @@ const VERSE = "Ciertamente el bien y la misericordia me seguirán";
 const media = (name: string) => path.join(MEDIA, name);
 
 test.beforeAll(() => {
-  const soffice = findSoffice();
-  if (!soffice) throw new Error("The hymn deck needs LibreOffice");
   fs.rmSync(MEDIA, { recursive: true, force: true });
   fs.mkdirSync(MEDIA, { recursive: true });
   // Rewritten whole, so a renamed or dropped shot never lingers.
@@ -56,7 +55,7 @@ test.beforeAll(() => {
   still("Fondo azul.png", ["0x0b1a33", "0x1f5a8a", "0x0e2340"]);
   still("Fondo cálido.png", ["0x2a1446", "0xe07a3f", "0xf4c06a"]);
   run("-f", "lavfi", "-i", "sine=frequency=330:duration=20", "-c:a", "libmp3lame", media("Música de ofrenda.mp3"));
-  // Plays only once converted: long enough at 1080p to be caught converting.
+  // MPEG-4 part 2 in an AVI: Chromium cannot play it, the media engine does.
   run(...gradient(["0x0b1a33", "0x1d6f86", "0x7fb6d9"], "1920x1080", 90), "-c:v", "mpeg4", "-q:v", "4", media("Testimonio.avi"));
 
   // A soft major chord to sing over, faded in and out. Named after nothing:
@@ -68,20 +67,8 @@ test.beforeAll(() => {
     media("Pista instrumental.mp3"),
   );
 
-  const convert = (name: string, format: "pptx" | "pdf", fodpXml: string) => {
-    const fodp = media(`${name}.fodp`);
-    fs.writeFileSync(fodp, fodpXml);
-    const profile = fs.mkdtempSync(path.join(os.tmpdir(), "lumina-screenshots-soffice-"));
-    try {
-      execFileSync(soffice, [
-        `-env:UserInstallation=${pathToFileURL(profile).href}`,
-        ...["--headless", "--convert-to", format, "--outdir", MEDIA, fodp],
-      ]);
-    } finally {
-      fs.rmSync(profile, { recursive: true, force: true });
-      fs.rmSync(fodp, { force: true });
-    }
-  };
+  const convert = (name: string, format: "pptx" | "pdf", deck: Uint8Array | Buffer) =>
+    fs.writeFileSync(media(`${name}.${format}`), deck);
   const navy = { background: "#14213d", color: "#ffffff", accent: "#9fc9cc" };
   convert("Santo, santo, santo", "pptx", presentation(navy, [
     { title: "Santo, santo, santo", credit: "Reginald Heber · trad. Juan B. Cabrera" },
@@ -103,7 +90,7 @@ test.beforeAll(() => {
     { title: "Reunión de jóvenes", credit: "Sábado · 18:00 · Salón principal" },
     { title: "Cena de camaradería", credit: "Domingo · 20:30 · Traé algo para compartir" },
   ]));
-  convert("Bosquejo del sermón", "pdf", presentation({ background: "#f6f1e7", color: "#14213d", accent: "#8a5a2b" }, [
+  convert("Bosquejo del sermón", "pdf", presentationPdf({ background: "#f6f1e7", color: "#14213d", accent: "#8a5a2b" }, [
     { title: "El Señor es mi pastor", credit: "Salmo 23" },
     { title: "1. Él me guía", credit: "«Junto á aguas de reposo me pastoreará» (v. 2)" },
     { title: "2. Él me acompaña", credit: "«Porque tú estarás conmigo» (v. 4)" },
@@ -166,9 +153,11 @@ test("screenshots", async ({ app: first }) => {
   });
   await app.openResources("Media", "Presentaciones");
   const decks = control.getByRole("tabpanel", { name: "Presentaciones" });
+  // Opened once each, so their tiles draw the first slide: a PDF's as an image, a .pptx from its model.
+  const firstSlide = app.previewColumn().getByRole("list", { name: "Presentación" }).getByRole("button", { name: "1", exact: true });
   for (const name of ["Bosquejo del sermón", "Anuncios de la semana", "Castillo fuerte"]) {
     await decks.getByRole("button", { name }).click();
-    await expect(decks.getByRole("img", { name })).toBeVisible({ timeout: 120_000 });
+    await expect(firstSlide).toBeVisible({ timeout: 120_000 });
   }
   const preview = app.previewColumn();
   await app.answerOpenDialog(media("Pista instrumental.mp3"));
@@ -200,14 +189,13 @@ test("screenshots", async ({ app: first }) => {
   await expect(app.liveColumn().getByText("09:5", { exact: false }).first()).toBeVisible();
   await shoot(app, screen, "functions", { x: 533, y: 0, width: 1067, height: 600 });
 
-  // The library: a background on air, and a video converting on its own.
+  // The library: a background on air, and an AVI in PREVIEW, played by the media engine.
   await app.openResources("Media", "Videos");
   const videos = control.getByRole("tabpanel", { name: "Videos" });
   await videos.getByRole("button", { name: "Amanecer" }).dblclick();
   await app.invoke("library:add", { kind: "video", paths: [media("Testimonio.avi")] });
-  await expect(videos.getByRole("progressbar")).toBeVisible({ timeout: 30_000 });
   await videos.getByRole("button", { name: "Testimonio" }).click();
-  await expect(app.previewColumn().getByText(/Convirtiendo… \d+ %/)).toBeVisible();
+  await expect.poll(async () => (await engineCanvas(control, "preview:"))?.width ?? 0, { timeout: 30_000 }).toBeGreaterThan(0);
   await shoot(app, screen, "media", { x: 533, y: 0, width: 1067, height: 600 });
 });
 
@@ -264,37 +252,37 @@ async function shoot(app: WorshipApp, screen: CDPSession, name: string, detail?:
 }
 
 type Slide = { title: string; credit: string } | { lines: string[] };
+type Look = { background: string; color: string; accent: string };
 
-/** A flat ODF presentation, one centred text box a slide, `color` on
- *  `background`. With `advance`, every slide moves on after that many seconds,
- *  with a fade: LibreOffice only exports a slide's timing when it has one. */
-function presentation(look: { background: string; color: string; accent: string }, slides: Slide[], advance?: number): string {
-  const pages = slides.map((slide, i) => {
-    const body =
-      "lines" in slide
-        ? `<text:p text:style-name="Verse">${slide.lines.join("<text:line-break/>")}</text:p>`
-        : `<text:p text:style-name="Title">${slide.title}</text:p><text:p text:style-name="Credit">${slide.credit}</text:p>`;
-    return `
-   <draw:page draw:name="page${i + 1}" draw:style-name="dp1" draw:master-page-name="Default">
-    <draw:frame draw:style-name="gr1" svg:x="1.5cm" svg:y="1.5cm" svg:width="25cm" svg:height="12.75cm"><draw:text-box>${body}</draw:text-box></draw:frame>
-   </draw:page>`;
-  });
-  const timing = advance
-    ? ` presentation:transition-type="automatic" presentation:duration="PT00H00M${String(advance).padStart(2, "0")}S" presentation:transition-speed="slow" smil:type="fade" smil:subtype="crossfade"`
-    : "";
-  return `<?xml version="1.0" encoding="UTF-8"?>
-<office:document xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0" xmlns:draw="urn:oasis:names:tc:opendocument:xmlns:drawing:1.0" xmlns:presentation="urn:oasis:names:tc:opendocument:xmlns:presentation:1.0" xmlns:svg="urn:oasis:names:tc:opendocument:xmlns:svg-compatible:1.0" xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0" xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0" xmlns:smil="urn:oasis:names:tc:opendocument:xmlns:smil-compatible:1.0" office:version="1.3" office:mimetype="application/vnd.oasis.opendocument.presentation">
- <office:styles/>
- <office:automatic-styles>
-  <style:page-layout style:name="PM1"><style:page-layout-properties fo:page-width="28cm" fo:page-height="15.75cm" style:print-orientation="landscape"/></style:page-layout>
-  <style:style style:name="dp1" style:family="drawing-page"><style:drawing-page-properties draw:background-size="full" draw:fill="solid" draw:fill-color="${look.background}"${timing}/></style:style>
-  <style:style style:name="gr1" style:family="graphic"><style:graphic-properties draw:stroke="none" draw:fill="none" draw:textarea-vertical-align="middle" draw:auto-grow-height="false"/></style:style>
-  <style:style style:name="Title" style:family="paragraph"><style:paragraph-properties fo:text-align="center"/><style:text-properties fo:font-family="Georgia" fo:font-size="60pt" fo:color="${look.color}"/></style:style>
-  <style:style style:name="Credit" style:family="paragraph"><style:paragraph-properties fo:text-align="center" fo:margin-top="0.6cm"/><style:text-properties fo:font-family="Georgia" fo:font-style="italic" fo:font-size="22pt" fo:color="${look.accent}"/></style:style>
-  <style:style style:name="Verse" style:family="paragraph"><style:paragraph-properties fo:text-align="center" fo:line-height="135%"/><style:text-properties fo:font-family="Georgia" fo:font-size="34pt" fo:color="${look.color}"/></style:style>
- </office:automatic-styles>
- <office:master-styles><style:master-page style:name="Default" style:page-layout-name="PM1"/></office:master-styles>
- <office:body><office:presentation>${pages.join("")}
- </office:presentation></office:body>
-</office:document>`;
+/** One centred text box a slide, `color` on `background`. With `advance`,
+ *  every slide moves on after that many seconds, with a fade. */
+function presentation(look: Look, slides: Slide[], advance?: number): Uint8Array {
+  const specs = slides.map(
+    (slide): PptxSlideSpec => ({
+      background: look.background,
+      text: {
+        box: [1.5 * CM, 1.5 * CM, 25 * CM, 12.75 * CM],
+        paragraphs:
+          "lines" in slide
+            ? [{ text: slide.lines.join("\n"), size: 34, color: look.color, font: "Georgia", lineSpacing: 135 }]
+            : [
+                { text: slide.title, size: 60, color: look.color, font: "Georgia" },
+                { text: slide.credit, size: 22, color: look.accent, font: "Georgia", italic: true, spaceBefore: 17 },
+              ],
+      },
+      ...(advance ? { advanceMs: advance * 1000 } : {}),
+    }),
+  );
+  return buildPptx(specs);
+}
+
+/** The same title-and-credit slides as a PDF's pages. */
+function presentationPdf(look: Look, slides: { title: string; credit: string }[]): Buffer {
+  return buildPdf(
+    slides.map(() => look.background),
+    slides.map((slide) => [
+      { text: slide.title, size: 64, y: 290, color: look.color },
+      { text: slide.credit, size: 26, y: 220, color: look.accent, italic: true },
+    ]),
+  );
 }

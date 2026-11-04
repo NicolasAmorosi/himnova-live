@@ -4,6 +4,8 @@ import { createProjectionWindow } from "../../windows/projection-window";
 import { getHistoryRepo, getSlidesRepo } from "../../services/repos";
 import { broadcast } from "../../services/broadcast";
 import { pinDecks } from "../../slides/deck-service";
+import { commandLiveEngine, redrawEngineFrame, syncLiveEngine } from "../../media/engine-sessions";
+import { IpcError } from "@shared/ipc/result";
 
 let currentProgramId: number | null = null;
 
@@ -31,12 +33,15 @@ export const projectionHandlers: Pick<
   | "projection:reportMediaStatus"
   | "projection:reportMediaError"
   | "projection:getSnapshot"
+  | "projection:wantVideoFrame"
 > = {
   "projection:open": ({ displayId }) => {
     const existing = projectionState.getWindow();
     if (existing) existing.close();
     const win = createProjectionWindow(displayId);
     projectionState.setWindow(win);
+    // An engine video paused by the closed projector plays again, now into this window.
+    syncLiveEngine();
     // Identity-checked (see `clearWindowIf`), and this is load-bearing:
     // `close()` above is asynchronous, so the OLD window's `closed` fires
     // AFTER this line has already registered the new one. Clearing
@@ -53,7 +58,10 @@ export const projectionHandlers: Pick<
       // screen. A close the control window asked for (`projection:close`) has
       // already nulled the reference too, so it stays silent as well — the
       // control window does not need to be told what it just did.
-      if (projectionState.clearWindowIf(win)) broadcast("projection-closed", undefined);
+      if (projectionState.clearWindowIf(win)) {
+        broadcast("projection-closed", undefined);
+        syncLiveEngine();
+      }
     });
     // Answered once the page has mounted (its own `projection:getSnapshot`),
     // not once the window exists. The control commits GO LIVE when this
@@ -81,10 +89,12 @@ export const projectionHandlers: Pick<
     const win = projectionState.getWindow();
     win?.close();
     projectionState.setWindow(null);
+    syncLiveEngine();
   },
 
   "projection:show": (output) => {
     projectionState.send(output);
+    syncLiveEngine();
     getHistoryRepo().record(output, currentProgramId);
 
     // The deck currently on the projector must never be evicted mid-service —
@@ -111,12 +121,19 @@ export const projectionHandlers: Pick<
   },
 
   "projection:mediaCommand": (command) => {
+    if (commandLiveEngine(command)) return;
     const win = projectionState.getWindow();
     win?.webContents.send("media-command", command);
   },
 
   "projection:setAudioTracks": (tracks) => {
     projectionState.setAudioTracks(tracks);
+    syncLiveEngine();
+  },
+
+  "projection:wantVideoFrame": (req) => {
+    if (typeof req?.key !== "string") throw new IpcError({ code: "INVALID_ARGUMENT", message: "Invalid frame key." });
+    redrawEngineFrame(req.key);
   },
 
   /** The projection window describing its own media element; forwarded to the

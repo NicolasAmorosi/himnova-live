@@ -17,9 +17,9 @@ import {
 import { PreviewMissingState } from "@renderer/components/shared/preview-missing-state";
 import { ModelSlide } from "@renderer/components/shared/slide-view/ModelSlide";
 import { DeckConversionStatus } from "@renderer/components/shared/deck-conversion-status";
-import { SofficeActions } from "@renderer/components/shared/soffice-missing";
+import { DamagedSlideMark } from "@renderer/components/shared/damaged-slide";
 import { useDeck } from "@renderer/lib/hooks/use-deck";
-import { sofficeBlocks, useDeckStore } from "@renderer/stores/deck.store";
+import { useDeckStore } from "@renderer/stores/deck.store";
 import { useProjectionStore } from "@renderer/stores/projection.store";
 import { usePreviewStore } from "@renderer/stores/preview.store";
 import { clearPreview, setPreviewSlide } from "@renderer/lib/actions/preview";
@@ -28,10 +28,11 @@ import { api } from "@renderer/lib/api";
 import type { DeckDTO } from "@shared/types/deck";
 
 /**
- * Every state a deck can be in, in the centre column: missing LibreOffice,
- * converting, failed, stale, and the slide grid itself. This is the only place
- * that triggers a conversion (via useDeck), so browsing the schedule can't
- * queue work twice.
+ * Every state a deck can be in, in the centre column: being read (or a PDF
+ * rasterized), failed — with main's reason, a file that won't open saying
+ * what the operator can do —, stale, and the slide grid itself. This is the
+ * only place that starts that work (via useDeck), so browsing the schedule
+ * can't queue it twice.
  */
 function DeckAudioStrip({ assetId, deck }: { assetId: number; deck: DeckDTO }) {
   const t = useT();
@@ -102,21 +103,12 @@ export function DeckPreviewBar({ assetId, missingSince }: { assetId: number; mis
   return <DeckAudioStrip assetId={assetId} deck={deck} />;
 }
 
-export function DeckSlides({
-  assetId,
-  ext,
-  missingSince,
-}: {
-  assetId: number;
-  ext: string;
-  missingSince: number | null;
-}) {
+export function DeckSlides({ assetId, missingSince }: { assetId: number; missingSince: number | null }) {
   const t = useT();
-  // A missing source file has nothing to convert — skip `useDeck`'s
-  // ensure/conversion trigger entirely instead of surfacing its
-  // "conversion failed" error for a file that was never going to exist.
-  const { entry, environment, markStale, reconvert } = useDeck(missingSince !== null ? null : assetId, ext);
-  const blocked = sofficeBlocks(environment, ext, entry);
+  // A missing source file has nothing to read — skip `useDeck`'s ensure
+  // trigger entirely instead of surfacing its "couldn't open" error for a
+  // file that was never going to exist.
+  const { entry, markStale, reconvert } = useDeck(missingSince !== null ? null : assetId);
   const base = useProjectionStore((s) => s.base);
   const previewIndex = usePreviewStore((s) => s.slideIndex);
 
@@ -129,33 +121,12 @@ export function DeckSlides({
 
   const slides = entry?.deck?.slides ?? [];
 
-  // Only in front of a deck with nothing to show: one already converted
-  // projects without LibreOffice, and this gate used to hide its slides too.
-  //
-  // Main's own reason rides along: «not installed» is not the only one — a
-  // sandboxed flatpak is installed and still unusable, and its fix is a
-  // different package.
-  if (blocked && slides.length === 0) {
-    return (
-      <Callout tone="warning">
-        <p className="font-medium">{t("deck.noLibreOffice.title")}</p>
-        <p className="mt-1 text-xs text-muted-foreground">{t("deck.noLibreOffice.body")}</p>
-        {environment?.message ? <p className="mt-1 text-xs text-subtle">{environment.message}</p> : null}
-        <SofficeActions className="mt-2" />
-      </Callout>
-    );
-  }
-
-  /** «Convert again»/«Retry» over slides that are still there —
-   *  replaced by the reason when it cannot work, rather than offered to fail. */
-  const reconvertAction = (label: string) =>
-    blocked ? (
-      <p className="mt-1 text-xs text-muted-foreground">{t("deck.noLibreOffice.reconvertHint")}</p>
-    ) : (
-      <Button className="mt-2" onClick={reconvert} size="sm">
-        {label}
-      </Button>
-    );
+  /** «Read again»/«Retry» over slides that are still there. */
+  const reconvertAction = (label: string) => (
+    <Button className="mt-2" onClick={reconvert} size="sm">
+      {label}
+    </Button>
+  );
 
   // Only fall back to the loading/failed placeholder when there is nothing
   // else to show. A deck that already has a rendered grid (from a previous
@@ -227,6 +198,7 @@ export function DeckSlides({
             }}
             selected={previewIndex === slide.index}
             media={slide.modelUrl ? <ModelSlide onError={markStale} url={slide.modelUrl} /> : undefined}
+            overlay={<DamagedSlideMark url={slide.modelUrl} />}
             src={slide.modelUrl ? null : slide.thumbUrl}
             tabIndex={tabIndex}
             title={t("deck.slideAlt", { index: slide.index })}

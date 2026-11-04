@@ -36,7 +36,7 @@ export function deckSoundChanges(
 }
 
 /** The live deck's sounds — from the deck store while it holds this same
- *  deck: a WMA whose playable copy finishes after GO LIVE arrives there
+ *  deck: a WMA the media engine takes after GO LIVE arrives there
  *  (`deck-updated` → `refreshDeck`), never in the snapshot `liveDeck` is. */
 function liveSounds(deck: LiveDeck): readonly DeckSound[] {
   const fresh = useDeckStore.getState().byAssetId[deck.assetId]?.deck;

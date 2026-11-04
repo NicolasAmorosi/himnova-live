@@ -2,8 +2,6 @@ import type { DragEvent } from "react";
 import { Badge, Icon, ListRow } from "@renderer/components/ui";
 import { useItemIconAndBadge, useItemLabel } from "@renderer/lib/hooks/use-program-item-display";
 import { useAudioStore } from "@renderer/stores/audio.store";
-import { useConversion } from "@renderer/stores/conversion.store";
-import { useT } from "@renderer/lib/i18n/i18n-provider";
 import { PlateAirStatus } from "@renderer/components/shared/plate-air-status";
 import type { ProgramItemDTO } from "@shared/types/program";
 
@@ -31,11 +29,7 @@ export function ScheduleRow({
   onDragStart,
   selected,
 }: ScheduleRowProps) {
-  const t = useT();
   const label = useItemLabel(item);
-  // Planned into the service but not playable yet: said on the row itself, so
-  // the operator finds out while preparing, not when pressing GO LIVE.
-  const conversion = useConversion(item.kind === "media" ? item.mediaAssetId : null);
   const { icon, badge } = useItemIconAndBadge(item);
   // Audio never claims the on-air rail (`active`) — that means "this is what
   // the projector shows", and audio never is. Its own indicator here is what
@@ -65,14 +59,6 @@ export function ScheduleRow({
       trailing={
         sounding ? (
           <Icon className="size-3.5 text-badge-audio-ink motion-safe:animate-pulse" name="audio" />
-        ) : conversion ? (
-          <Badge variant={conversion.status === "failed" ? "danger" : "neutral"}>
-            {conversion.status === "failed"
-              ? t("conversion.badgeFailed")
-              : conversion.status === "converting" && conversion.progress !== null
-                ? t("conversion.badgeProgress", { percent: Math.round(conversion.progress * 100) })
-                : t("conversion.badge")}
-          </Badge>
         ) : item.kind === "plate" ? (
           // A plate never claims the on-air rail either — the content row
           // under it keeps that — so being up is said here instead.

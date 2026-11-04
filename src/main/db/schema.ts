@@ -46,7 +46,7 @@ export const mediaAssets = sqliteTable(
     contentHash: text("content_hash"),
     /** The `(size, mtime)` the hash was computed over. `contentHash` is only
      *  trustworthy while these still match `sizeBytes`/`mtimeMs` — the same
-     *  invalidation rule `tryCacheHit` already applies to a deck row, and the
+     *  invalidation rule every deck reader applies to its own row, and the
      *  reason the hash never has to be recomputed just to be used. */
     contentHashSize: integer("content_hash_size"),
     contentHashMtimeMs: integer("content_hash_mtime_ms"),
@@ -67,21 +67,20 @@ export const mediaAssets = sqliteTable(
 );
 
 /**
- * What ffprobe said about a video or audio asset, and the playable copy made
- * of it when Chromium cannot decode the original
- * (`main/media/conversion-service.ts`).
+ * What ffprobe said about a video or audio asset (`main/media/engine-assets.ts`).
  *
- * Only facts and results are stored. Whether a file NEEDS converting is
- * re-derived from `probe_json` on every launch, because one input to that
- * decision — can this GPU decode HEVC? — belongs to the machine and not to the
- * file. A library copied to another PC must not keep the old PC's answer.
- * A failed conversion is not stored either: it is retried next launch.
+ * Only facts are stored. Whether the media engine plays a file is re-derived
+ * from `probe_json` on every launch, because one input to that decision — can
+ * this GPU decode HEVC? — belongs to the machine and not to the file. A library
+ * copied to another PC must not keep the old PC's answer.
  *
  * Valid only while `source_size`/`source_mtime_ms` still match the asset's,
- * the same stamp rule `content_hash` follows. `output_file` is a bare file
- * name inside `convertedMediaDir`, never an absolute path: an absolute one
- * would point at the old profile after a copy or a move
- * (`.claude/knowledge/a-deck-cache-hit-checks-existence-but-the-protocol-checks-containment.md`).
+ * the same stamp rule `content_hash` follows.
+ *
+ * Until step 1.4 of the engine plan (2026-11-02) a file Chromium could not
+ * decode was converted, and `output_file` named its playable copy. Nothing
+ * reads or writes it since; the table keeps its name and the column so a
+ * profile still opens in an older build, which converts again what it needs.
  */
 export const mediaConversions = sqliteTable("media_conversions", {
   mediaAssetId: integer("media_asset_id")
@@ -93,6 +92,7 @@ export const mediaConversions = sqliteTable("media_conversions", {
   probeVersion: integer("probe_version").notNull(),
   /** A `MediaProbe`, or null when ffprobe could not read the file at all. */
   probeJson: text("probe_json"),
+  /** Unused since step 1.4 (see above). */
   outputFile: text("output_file"),
   updatedAt: integer("updated_at").notNull(),
 });
@@ -286,13 +286,14 @@ export const slideDecks = sqliteTable(
     status: text("status", { enum: ["pending", "converting", "ready", "error"] }).notNull(),
     errorCode: text("error_code"),
     errorMessage: text("error_message"),
-    timingsSource: text("timings_source", { enum: ["ooxml", "ooxml-converted", "binary", "none"] })
+    timingsSource: text("timings_source", { enum: ["ooxml", "binary", "odf", "none"] })
       .notNull()
       .default("none"),
     bytesOnDisk: integer("bytes_on_disk").notNull().default(0),
-    /** 1 once `deck_slides.transition` was read from the source. A deck
-     *  converted before slide transitions existed has 0, and reads them on its
-     *  next use (`deck-service.ts`) instead of being reconverted. */
+    /** 1 once `deck_slides.transition` was read from the source. Every deck
+     *  written today is 1 (a PDF has none to read); 0 was a deck LibreOffice
+     *  converted before transitions existed, all of them deleted at startup
+     *  since 2026-11-03 (`deleteConvertedDecks`). */
     transitionsRead: integer("transitions_read").notNull().default(0),
     createdAt: integer("created_at").notNull(),
     updatedAt: integer("updated_at").notNull(),

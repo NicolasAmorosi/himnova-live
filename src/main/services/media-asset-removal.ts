@@ -1,6 +1,5 @@
-import { cancel as cancelDeckJob } from "../slides/deck-service";
 import { getDbHandle, getMediaRepo, getProgramsRepo } from "./repos";
-import { forgetConversion } from "../media/conversion-service";
+import { forgetEngineAsset } from "../media/engine-assets";
 
 /**
  * Deleting a media asset crosses two repositories — `program_items` (the FK
@@ -14,22 +13,17 @@ import { forgetConversion } from "../media/conversion-service";
 export function removeMediaAsset(id: number, force: boolean): void {
   if (!force) {
     // `remove()` throws MEDIA_ASSET_IN_USE when a saved program references the
-    // asset, so the job is cancelled only once the row is actually gone —
-    // cancelling first would kill a conversion for an asset that survives.
+    // asset, so the engine forgets it only once the row is actually gone.
     getMediaRepo().remove(id);
-    cancelDeckJob(id);
-    forgetConversion(id);
+    forgetEngineAsset(id);
     return;
   }
 
-  // Before the transaction, not after: a conversion that finished mid-delete
-  // would insert a slides row for an asset that no longer exists.
-  cancelDeckJob(id);
   const { sqlite } = getDbHandle();
   const run = sqlite.transaction(() => {
     getProgramsRepo().deleteItemsByMediaAsset(id);
     getMediaRepo().remove(id);
   });
   run();
-  forgetConversion(id);
+  forgetEngineAsset(id);
 }

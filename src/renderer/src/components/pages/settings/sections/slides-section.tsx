@@ -1,10 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { useI18n } from "@renderer/lib/i18n/i18n-provider";
-import { Button, Callout, FieldGroup, FieldRow, ProgressBar, Select, Switch } from "@renderer/components/ui";
+import { Button, FieldGroup, FieldRow, ProgressBar, Select } from "@renderer/components/ui";
 import { ConfirmModal } from "@renderer/components/shared/modal";
-import { SofficeActions } from "@renderer/components/shared/soffice-missing";
 import { useSettingsStore } from "@renderer/stores/settings.store";
-import { useDeckStore } from "@renderer/stores/deck.store";
 import { useProjectionStore } from "@renderer/stores/projection.store";
 import { api } from "@renderer/lib/api";
 import { toast } from "@renderer/lib/toast";
@@ -22,25 +20,19 @@ const CACHE_MB_OPTIONS = [1024, 2048, 4096, 8192, 16_384] as const;
 const RENDER_WIDTH_OPTIONS = [1280, 1600, 1920, 2560, 3840] as const;
 
 /**
- * The slide cache: what it costs, and the three knobs that shape it.
- *
- * Two of the three are destructive in a way that is not obvious from the
- * control. A cached deck is addressed by `contentHash + renderWidth +
- * imageFormat` (`main/paths.ts`), so changing the width or the format does not
- * *convert* anything — it changes the address, and every deck the operator
- * already prepared stops being found. With 1 500 assets that is the whole
- * hymnal converting again, one deck at a time, the next time each is opened.
- * Hence the callout: the cost is real, it is silent, and it is paid later.
+ * The slide cache — what it costs, and its cap — and what a PDF's pages are
+ * drawn at. Changing the width or the format opens a PDF again the next time
+ * it is opened (~25 ms) and draws its pages anew; nothing is ever converted.
+ * (Every other deck is read from its source and owns no images: these two
+ * knobs never touch it.)
  */
 export function SlidesSection({ active }: { active: boolean }) {
   const { t, locale } = useI18n();
   const cacheMaxMb = useSettingsStore((s) => s.settings["slides.cacheMaxMb"]);
   const renderWidth = useSettingsStore((s) => s.settings["slides.maxRenderWidth"]);
   const imageFormat = useSettingsStore((s) => s.settings["slides.imageFormat"]);
-  const warnMissingSoffice = useSettingsStore((s) => s.settings["slides.warnMissingSoffice"]);
   const fallbackFont = useSettingsStore((s) => s.settings["slides.fallbackFont"]);
   const updateSettings = useSettingsStore((s) => s.update);
-  const environment = useDeckStore((s) => s.environment);
   const liveDeckAssetId = useProjectionStore((s) => (s.base?.kind === "deck" ? s.base.assetId : null));
 
   const [stats, setStats] = useState<DeckCacheStats | null>(null);
@@ -79,30 +71,6 @@ export function SlidesSection({ active }: { active: boolean }) {
 
   return (
     <div className="flex flex-col gap-6">
-      {/* Where the operator can always see whether presentations can be
-          converted, and fix it — the toast and the PPT-tab strip can be
-          silenced, this cannot. */}
-      <FieldGroup title={t("settings.groups.libreoffice")}>
-        <FieldRow
-          description={environment?.available ? environment.sofficePath : environment?.message}
-          label={
-            environment === null
-              ? t("settings.sofficeChecking")
-              : environment.available
-                ? t("settings.sofficeFound", { version: environment.version ?? "" })
-                : t("settings.sofficeMissing")
-          }
-        >
-          {environment?.available === false ? <SofficeActions /> : null}
-        </FieldRow>
-        <FieldRow description={t("settings.sofficeWarnDesc")} label={t("settings.sofficeWarn")}>
-          <Switch
-            checked={warnMissingSoffice}
-            onChange={(e) => void updateSettings({ "slides.warnMissingSoffice": e.target.checked })}
-          />
-        </FieldRow>
-      </FieldGroup>
-
       {/* Reaches what is live at once and with no transition (`App` mirrors it
           into every slide output), like the verse's style. */}
       <FieldGroup title={t("settings.groups.slidesText")}>
@@ -190,11 +158,6 @@ export function SlidesSection({ active }: { active: boolean }) {
           />
         </FieldRow>
       </FieldGroup>
-
-      <Callout tone="warning">
-        <p className="font-medium">{t("settings.slidesQualityWarnTitle")}</p>
-        <p className="mt-1 text-xs text-muted-foreground">{t("settings.slidesQualityWarnBody")}</p>
-      </Callout>
 
       <ConfirmModal
         confirmLabel={t("settings.slidesCacheClear")}

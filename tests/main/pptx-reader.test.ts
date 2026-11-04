@@ -1,8 +1,8 @@
 /**
  * What the `.pptx` reader leaves out of a slide on purpose — a sound or video
- * set to «Hide during show» —, the slide it refuses to draw at all: one whose
- * XML won't parse goes to LibreOffice instead of coming out blank — and what
- * it carries for the painter: tab stops, a fill overlay.
+ * set to «Hide during show» —, what it does with a part that won't parse — the
+ * slide is drawn without it and marked `damaged`, never blank in silence —
+ * and what it carries for the painter: tab stops, a fill overlay.
  */
 import fs from "node:fs";
 import os from "node:os";
@@ -12,6 +12,7 @@ import { strToU8, zipSync } from "fflate";
 import { parsePresetDefinitions } from "../../src/main/slides/pptx/geometry";
 import { readPptxDeck, type PptxResources } from "../../src/main/slides/pptx/reader";
 import { parseTableStyles } from "../../src/main/slides/pptx/table-style";
+import { SYMBOL_BULLETS } from "../../src/main/slides/pptx/text";
 
 const NS =
   'xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" ' +
@@ -43,7 +44,9 @@ const timing = (showWhenStopped: string) =>
   `<p:timing><p:tnLst><p:par><p:cTn id="1"><p:childTnLst><p:audio><p:cMediaNode vol="80000"${showWhenStopped}>
   <p:cTn id="2"/><p:tgtEl><p:spTgt spid="4"/></p:tgtEl></p:cMediaNode></p:audio></p:childTnLst></p:cTn></p:par></p:tnLst></p:timing>`;
 
-function writeDeck(name: string, slideXml: string): string {
+/** A one-slide deck; `parts` adds or replaces package parts (a layout, a
+ *  master, the slide's relationships). */
+function writeDeck(name: string, slideXml: string, parts: Record<string, string> = {}): string {
   const file = path.join(dir, name);
   fs.writeFileSync(
     file,
@@ -59,6 +62,7 @@ function writeDeck(name: string, slideXml: string): string {
         `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId2" Type="${REL}/image" Target="../media/image1.png"/></Relationships>`,
       ),
       "ppt/media/image1.png": new Uint8Array([0x89, 0x50, 0x4e, 0x47]),
+      ...Object.fromEntries(Object.entries(parts).map(([part, xml]) => [part, strToU8(xml)])),
     }),
   );
   return file;
@@ -116,9 +120,61 @@ test("a fill overlay is read with its blend, and an unknown blend paints over", 
   }
 });
 
-test("a slide whose XML won't parse refuses the deck instead of drawing it blank", () => {
-  // A part cut short mid-tag, as a damaged download leaves it. (The parser
-  // shrugs off most other garbage: crossed or missing closing tags parse.)
-  const file = writeDeck("broken.pptx", `<p:sld ${NS}><p:cSld><p:spTree>${speaker.slice(0, 60)}`);
-  expect(() => readPptxDeck(file, resources)).toThrow(/unparseable part: ppt\/slides\/slide1\.xml/);
+/** A part cut short mid-tag, as a damaged download leaves it. (The parser
+ *  shrugs off most other garbage: crossed or missing closing tags parse.) */
+const truncated = (xml: string) => xml.slice(0, xml.lastIndexOf("<p:") + 4);
+
+const RELS = "http://schemas.openxmlformats.org/package/2006/relationships";
+/** A slide on a layout on a master: the layout paints the background, the
+ *  master a rectangle (id 7) every slide shows. */
+const inherited = (overrides: Record<string, string>) => ({
+  "ppt/slides/_rels/slide1.xml.rels": `<Relationships xmlns="${RELS}"><Relationship Id="rId2" Type="${REL}/image" Target="../media/image1.png"/><Relationship Id="rId9" Type="${REL}/slideLayout" Target="../slideLayouts/slideLayout1.xml"/></Relationships>`,
+  "ppt/slideLayouts/slideLayout1.xml": `<p:sldLayout ${NS}><p:cSld><p:bg><p:bgPr><a:solidFill><a:srgbClr val="112233"/></a:solidFill></p:bgPr></p:bg><p:spTree/></p:cSld></p:sldLayout>`,
+  "ppt/slideLayouts/_rels/slideLayout1.xml.rels": `<Relationships xmlns="${RELS}"><Relationship Id="rId1" Type="${REL}/slideMaster" Target="../slideMasters/slideMaster1.xml"/></Relationships>`,
+  "ppt/slideMasters/slideMaster1.xml": `<p:sldMaster ${NS}><p:cSld><p:bg><p:bgPr><a:solidFill><a:srgbClr val="445566"/></a:solidFill></p:bgPr></p:bg><p:spTree><p:sp><p:nvSpPr><p:cNvPr id="7" name="Band"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr><p:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="9144000" cy="500000"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom><a:solidFill><a:srgbClr val="FF0000"/></a:solidFill></p:spPr></p:sp></p:spTree></p:cSld></p:sldMaster>`,
+  ...overrides,
+});
+
+test("a slide whose own part won't parse is drawn from its layout and master, and marked damaged", () => {
+  const file = writeDeck("broken-slide.pptx", truncated(slide("")), inherited({}));
+  const { model } = readPptxDeck(file, resources).slides[0]!;
+  expect(model.damaged).toBe(true);
+  expect(model.background).toEqual({ kind: "solid", color: "rgb(17,34,51)" });
+  // The master's band, and nothing of the slide's own.
+  expect(model.elements.map((e) => e.kind)).toEqual(["shape"]);
+});
+
+test("a layout or a master that won't parse is left out, the slide still drawn, and marked damaged", () => {
+  const layoutPart = "ppt/slideLayouts/slideLayout1.xml";
+  const brokenLayout = readPptxDeck(
+    writeDeck("broken-layout.pptx", slide(""), inherited({ [layoutPart]: truncated(inherited({})[layoutPart]) })),
+    resources,
+  ).slides[0]!.model;
+  expect(brokenLayout.damaged).toBe(true);
+  // The master still reached through the layout's relationships: its
+  // background and its band, then the slide's own picture.
+  expect(brokenLayout.background).toEqual({ kind: "solid", color: "rgb(68,85,102)" });
+  expect(brokenLayout.elements.map((e) => e.kind)).toEqual(["shape", "picture"]);
+
+  const masterPart = "ppt/slideMasters/slideMaster1.xml";
+  const brokenMaster = readPptxDeck(
+    writeDeck("broken-master.pptx", slide(""), inherited({ [masterPart]: truncated(inherited({})[masterPart]) })),
+    resources,
+  ).slides[0]!.model;
+  expect(brokenMaster.damaged).toBe(true);
+  expect(brokenMaster.background).toEqual({ kind: "solid", color: "rgb(17,34,51)" });
+  expect(brokenMaster.elements.map((e) => e.kind)).toEqual(["picture"]);
+});
+
+test("a whole slide carries no damaged mark at all", () => {
+  const { model } = readPptxDeck(writeDeck("whole.pptx", slide(""), inherited({})), resources).slides[0]!;
+  expect(model).not.toHaveProperty("damaged");
+  expect(model.elements.map((e) => e.kind)).toEqual(["shape", "picture"]);
+});
+
+test("a Wingdings bullet maps the same from its byte and from the private-use page", () => {
+  expect(SYMBOL_BULLETS["§"]).toBe("▪");
+  expect(SYMBOL_BULLETS["\uf0a7"]).toBe("▪");
+  expect(SYMBOL_BULLETS["\uf0d8"]).toBe("➢");
+  expect(SYMBOL_BULLETS[""]).toBeUndefined();
 });

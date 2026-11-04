@@ -9,20 +9,19 @@ import { useAudioStore, nextAssetTrack } from "@renderer/stores/audio.store";
 import { findScene, useUtilityStore } from "@renderer/stores/utility.store";
 import { notifyManualNavigation } from "@renderer/effects/deck-autoplay";
 import { projectVerse } from "@renderer/lib/actions/bible";
-import { explainSofficeRefusal } from "@renderer/lib/actions/soffice";
 import { stopPreviewPlayback } from "@renderer/lib/actions/preview-playback";
 import { previewedScheduleItem } from "@renderer/lib/actions/preview";
 import { defaultMediaVolume } from "@renderer/stores/settings.store";
 import { api } from "@renderer/lib/api";
+import { t } from "@renderer/lib/i18n/i18n-provider";
+import { toast } from "@renderer/lib/toast";
 import type { MediaAsset } from "@shared/types/media";
 import type { DeckDTO } from "@shared/types/deck";
 import type { LiveDeck } from "@renderer/stores/projection.store";
 import type { OverlayState } from "@shared/types/projection";
 import { claimLiveIntent, currentLiveIntent, isCurrentLiveIntent } from "@renderer/lib/actions/live-intent";
-import { playableAssetUrl, useConversionStore } from "@renderer/stores/conversion.store";
+import { playableAssetUrl } from "@renderer/stores/engine-assets.store";
 import { getCachedMediaAsset } from "@renderer/lib/hooks/use-media-asset";
-import { t } from "@renderer/lib/i18n/i18n-provider";
-import { toast } from "@renderer/lib/toast";
 import type { AssetKind } from "@shared/constants";
 
 let videoEpoch = 0;
@@ -84,6 +83,20 @@ function toLiveDeck(deck: DeckDTO): LiveDeck {
  * conversion means the commit lands at a moment the operator has had time to
  * act on. See `liveIntent`.
  */
+/**
+ * Says why a GO LIVE on a deck changed nothing, with main's reason — a file
+ * that won't open says what the operator can do about it. The panel that
+ * explains it may not be the one the operator is looking at, and a press that
+ * does nothing in silence reads as a frozen app. Nothing changes on the
+ * projector either way.
+ */
+async function explainDeckFailure(assetId: number): Promise<void> {
+  const entry = useDeckStore.getState().byAssetId[assetId];
+  if (entry?.status !== "failed") return;
+  const asset = await api.library.get(assetId);
+  toast.warning(t("deck.liveFailed", { name: asset?.name ?? "", reason: entry.error ?? t("deck.failed") }));
+}
+
 async function goLiveWithDeck(assetId: number, startSlideIndex: number, intent: number): Promise<boolean> {
   const deckStore = useDeckStore.getState();
   const cached = deckStore.byAssetId[assetId];
@@ -102,7 +115,7 @@ async function goLiveWithDeck(assetId: number, startSlideIndex: number, intent: 
     deck = await deckStore.ensure(assetId);
   }
   if (!deck || deck.status !== "ready" || deck.slides.length === 0) {
-    if (useDeckStore.getState().byAssetId[assetId]?.status === "failed") void explainSofficeRefusal(assetId);
+    void explainDeckFailure(assetId);
     return false;
   }
   // The conversion above may have taken seconds. Anything the operator did to
@@ -367,36 +380,6 @@ function isAudioTarget(target: PreviewTarget): boolean {
   return item?.kind === "media" && getCachedMediaAsset(item.mediaAssetId)?.kind === "audio";
 }
 
-/** The library asset a preview target would send, when it is a video or an
- *  audio — the only kinds main ever has to convert. */
-function previewedMediaAssetId(target: PreviewTarget): number | null {
-  if (target.kind === "asset") {
-    return target.assetKind === "video" || target.assetKind === "audio" ? target.assetId : null;
-  }
-  if (target.kind !== "scheduleItem") return null;
-  const item = previewedScheduleItem();
-  return item?.kind === "media" ? item.mediaAssetId : null;
-}
-
-/**
- * True, with a toast saying why, when the target is a video or audio main is
- * still converting (or could not convert). Its original would project black,
- * or sound nothing — the very failures the conversion exists to prevent.
- *
- * Checked before the live intent is claimed, like a plate: a refused GO LIVE
- * changes nothing at all. No fade starts, no BLACK is lifted, no projector is
- * opened onto an empty stage, and whatever was already live stays live.
- */
-function refusesUnconverted(target: PreviewTarget): boolean {
-  const assetId = previewedMediaAssetId(target);
-  const state = assetId === null ? undefined : useConversionStore.getState().byAssetId[assetId];
-  if (assetId === null || !state) return false;
-  const name = getCachedMediaAsset(assetId)?.name ?? "";
-  if (state.status === "failed") toast.danger(t("conversion.failedLive", { name }));
-  else toast.warning(t("conversion.notReady", { name }));
-  return true;
-}
-
 /**
  * Stage two: send whatever is in the preview pane to the projector. The single
  * implementation behind the GO LIVE button, the Enter shortcut and
@@ -412,7 +395,6 @@ export async function goLive(): Promise<void> {
     return;
   }
 
-  if (refusesUnconverted(target)) return;
   // A verse that is not in the loaded chapter any more has nothing to send.
   // Checked before any side effect: past this point the verse branch clears
   // the rail, cuts the deck's music and lifts BLACK/LOGO — and then

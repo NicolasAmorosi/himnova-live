@@ -3,7 +3,7 @@ import { useDeckStore } from "@renderer/stores/deck.store";
 import { usePreviewStore } from "@renderer/stores/preview.store";
 import { useProgramStore } from "@renderer/stores/program.store";
 import { selectOutputMemo, useProjectionStore } from "@renderer/stores/projection.store";
-import { usePlayableAssetUrl } from "@renderer/stores/conversion.store";
+import { usePlayableAssetUrl } from "@renderer/stores/engine-assets.store";
 import { useMediaAsset } from "@renderer/lib/hooks/use-media-asset";
 import { clockForScene, findScene, useUtilityStore } from "@renderer/stores/utility.store";
 import { bibleOutputFor } from "@renderer/lib/bible-output";
@@ -24,10 +24,7 @@ import type { ProjectionOutput } from "@shared/types/projection";
  * "what am I looking at" from three stores.
  */
 export type PreviewContent =
-  /** `ext` rides along so the panel can tell a deck that needs LibreOffice
-   *  from a PDF, which is rasterized straight from its source and must not sit
-   *  behind the "install LibreOffice" gate (`deckRequiresSoffice`). */
-  | { kind: "deck"; assetId: number; ext: string; title: string; missingSince: number | null }
+  | { kind: "deck"; assetId: number; title: string; missingSince: number | null }
   | { kind: "media"; asset: MediaAsset }
   | { kind: "bible"; reference: string; text: string; versionLabel: string | null; verseIndex: number | null }
   | { kind: "utility"; scene: UtilityScene }
@@ -83,7 +80,6 @@ export function usePreviewContent(): PreviewContent | null {
       ? {
           kind: "deck",
           assetId: directAsset.id,
-          ext: directAsset.ext,
           title: directAsset.name,
           missingSince: directAsset.missingSince,
         }
@@ -97,7 +93,6 @@ export function usePreviewContent(): PreviewContent | null {
         ? {
             kind: "deck",
             assetId: scheduleAsset.id,
-            ext: scheduleAsset.ext,
             title: scheduleItem.title ?? scheduleAsset.name,
             missingSince: scheduleAsset.missingSince,
           }
@@ -186,8 +181,8 @@ function usePreviewOutputWithoutPlates(content: PreviewContent | null): Projecti
         text: slideText,
         videoUnderlay: null,
         // Never plays here, even on a slide that carries one. Stage one of the
-        // two-stage flow shows what the slide LOOKS like, and the rasterized
-        // image already carries the video's poster frame — starting a clip
+        // two-stage flow shows what the slide LOOKS like, and the slide
+        // already draws the video's poster frame — starting a clip
         // because the operator arrowed past it is exactly the "selecting
         // projects" behaviour this flow exists to prevent.
         slideVideo: null,

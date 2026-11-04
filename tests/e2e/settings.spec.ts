@@ -57,15 +57,17 @@ test("with the LIVE monitor's video turned off, the projector still plays it", a
   await expect(app.liveColumn().locator("video")).toHaveCount(0);
 });
 
-test("emptying the slide cache warns about a deck on air, and a deck reconverts when opened again", async ({ app }) => {
-  await app.addMedia("ppt", "deck.pdf");
-  await app.previewFile("Presentaciones", "deck");
-  const tile3 = app.previewColumn().getByRole("list", { name: "Presentación" }).getByRole("button", { name: "3", exact: true });
-  await expect(tile3).toBeVisible({ timeout: 60_000 });
+test("emptying the slide cache warns about a deck on air, and a deck is read again when opened", async ({ app }) => {
+  // What the cache holds: the clip a `.pptx` carries, extracted to disk. A PDF
+  // keeps nothing there — its pages are drawn when asked for.
+  await app.addMedia("ppt", "clipdeck.pptx");
+  await app.previewFile("Presentaciones", "clipdeck");
+  const tile1 = app.previewColumn().getByRole("list", { name: "Presentación" }).getByRole("button", { name: "1", exact: true });
+  await expect(tile1).toBeVisible({ timeout: 60_000 });
   await app.goLive();
 
   let settings = await openSettings(app, "Diapositivas");
-  await expect(settings.getByText("1 presentación convertida y guardada en disco")).toBeVisible();
+  await expect(settings.getByText("1 presentación con audio o video guardado en disco")).toBeVisible();
   await settings.getByRole("button", { name: "Vaciar caché" }).click();
   const confirm = app.control.getByRole("dialog", { name: "¿Vaciar la caché de diapositivas?" });
   await expect(confirm).toContainText("Hay una presentación EN VIVO");
@@ -79,17 +81,16 @@ test("emptying the slide cache warns about a deck on air, and a deck reconverts 
   await expect(confirm).not.toContainText("EN VIVO");
   await confirm.getByRole("button", { name: "Vaciar caché" }).click();
   await expect(app.control.getByRole("status").filter({ hasText: "Se vació la caché de diapositivas" })).toBeVisible();
-  await expect(settings.getByText("0 presentaciones convertidas y guardadas en disco")).toBeVisible();
+  await expect(settings.getByText("0 presentaciones con audio o video guardado en disco")).toBeVisible();
   await closeSettings(settings);
 
-  // The deck the control window still remembers is converted again, and what
-  // goes up is a real picture — not a slide pointing at a deleted file.
-  await app.previewFile("Presentaciones", "deck");
-  await expect(tile3).toBeVisible({ timeout: 60_000 });
+  // The deck the control window still remembers is read again, and what goes
+  // up is a real slide — not one pointing at a deleted row.
+  await app.previewFile("Presentaciones", "clipdeck");
+  await expect(tile1).toBeVisible({ timeout: 60_000 });
   await app.goLive();
   const projector = await app.projector();
-  const slide = projector.locator('img[src^="worship://deck/"]').last();
-  await expect.poll(() => slide.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth)).toBeGreaterThan(0);
+  await expect(projector.locator('[data-slide-model^="worship://deck/"]').last()).toBeVisible();
 });
 
 test("«Probar video» plays a library video and gives a verdict", async ({ app }) => {

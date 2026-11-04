@@ -4,6 +4,7 @@ import type { InternalsPage } from "@shared/types/system";
 import type {
   AudioTrackPush,
   MediaCommand,
+  PreviewEngineVideo,
   ProjectionMediaError,
   ProjectionOutput,
 } from "@shared/types/projection";
@@ -34,6 +35,11 @@ export const api = {
     setAudioTracks: (tracks: AudioTrackPush[]) => invoke("projection:setAudioTracks", tracks),
     getSnapshot: () => invoke("projection:getSnapshot", undefined),
     reportMediaError: (error: ProjectionMediaError) => invoke("projection:reportMediaError", error),
+    wantVideoFrame: (key: string) => invoke("projection:wantVideoFrame", { key }),
+  },
+  preview: {
+    setVideo: (video: PreviewEngineVideo | null) => invoke("preview:setVideo", video),
+    seekVideo: (seconds: number) => invoke("preview:seekVideo", { seconds }),
   },
   files: {
     pick: (kind: AssetKind | "all", multiple: boolean) => invoke("files:pick", { kind, multiple }),
@@ -45,12 +51,7 @@ export const api = {
     get: (assetId: number) => invoke("deck:get", { assetId }),
     ensure: (assetId: number, force?: boolean) =>
       invoke("deck:ensure", { assetId, ...(force !== undefined ? { force } : {}) }),
-    cancel: (assetId: number) => invoke("deck:cancel", { assetId }),
-    environment: (force = false) => invoke("deck:environment", { force }),
-    locateSoffice: () => invoke("deck:locateSoffice", undefined),
-    openSofficeDownload: () => invoke("deck:openSofficeDownload", undefined),
-    prewarm: (assetIds: number[], scope: "program" | "explicit" | "visible") =>
-      invoke("deck:prewarm", { assetIds, scope }),
+    prewarm: (assetIds: number[]) => invoke("deck:prewarm", { assetIds }),
     prewarmBatch: (assetIds: number[], label: string) => invoke("deck:prewarmBatch", { assetIds, label }),
     cancelPrewarmBatch: (jobId: string) => invoke("deck:cancelPrewarmBatch", { jobId }),
     statuses: (assetIds: number[]) => invoke("deck:statuses", { assetIds }),
@@ -70,11 +71,10 @@ export const api = {
     usages: (id: number) => invoke("bible:usages", { id }),
     reorder: (ids: number[]) => invoke("bible:reorder", { ids }),
   },
-  conversion: {
-    list: () => invoke("conversion:list", undefined),
-    reportDecoders: (support: DecoderSupport) => invoke("conversion:reportDecoders", support),
-    prioritize: (id: number) => invoke("conversion:prioritize", { id }),
-    retry: (id: number) => invoke("conversion:retry", { id }),
+  engine: {
+    assets: () => invoke("engine:assets", undefined),
+    reportDecoders: (support: DecoderSupport) => invoke("engine:reportDecoders", support),
+    duration: (id: number) => invoke("engine:duration", { id }),
   },
   library: {
     list: (kind: AssetKind) => invoke("library:list", { kind }),

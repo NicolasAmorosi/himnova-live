@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type Ref } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode, type Ref } from "react";
 import { Icon } from "@renderer/components/ui";
 import { cn } from "@renderer/lib/utils";
 import { frameCaptureSize } from "@renderer/lib/frame-capture";
@@ -13,6 +13,8 @@ import {
   type LayerTransition,
 } from "@renderer/lib/transition";
 import { loadSlideModel } from "@renderer/lib/slide-models";
+import { api } from "@renderer/lib/api";
+import { isEngineUrl, liveEngineFrameKey, previewEngineFrameKey } from "@shared/urls";
 import { ModelSlide } from "./slide-view/ModelSlide";
 import { BibleScene } from "./bible-scene";
 import { TimerScene } from "./timer-scene";
@@ -296,6 +298,73 @@ function LiveVideo({
   );
 }
 
+type EngineVideoProps = {
+  className: string;
+  /** What main sends this video's frames under (`liveEngineFrameKey`, `previewEngineFrameKey`). */
+  frameKey: string;
+  onFirstFrame?: (() => void) | undefined;
+  onFreezeFrame?: ((canvas: HTMLCanvasElement) => void) | undefined;
+  style?: CSSProperties | undefined;
+};
+
+/**
+ * The `<video>` of `LiveVideo` or `SlideVideoLayer` for a video the media
+ * engine plays (`isEngineUrl`): a canvas its frames are drawn into, the very
+ * same frame in the projector and in every monitor
+ * (`main/media/engine-sessions.ts`). Main plays, pauses, seeks and
+ * sounds it from the same output this view gets, so there is nothing here to
+ * drive, and no second copy to keep in step in a monitor.
+ *
+ * Each frame is drawn as it lands and handed back at once (`onVideoFrame`):
+ * the engine reuses its texture. The canvas starts at no size, so one that
+ * never drew has no pixels for `captureFrame` to freeze on the way out.
+ */
+function EngineVideo({ className, frameKey, onFirstFrame, onFreezeFrame, style }: EngineVideoProps) {
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const firstFrameRef = useRef(onFirstFrame);
+  firstFrameRef.current = onFirstFrame;
+  const freezeRef = useRef(onFreezeFrame);
+  freezeRef.current = onFreezeFrame;
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const context = canvas?.getContext("2d");
+    if (!canvas || !context) return;
+    let first = true;
+    const off = window.worship.onVideoFrame(frameKey, (frame) => {
+      if (canvas.width !== frame.displayWidth || canvas.height !== frame.displayHeight) {
+        canvas.width = frame.displayWidth;
+        canvas.height = frame.displayHeight;
+      }
+      context.drawImage(frame, 0, 0);
+      if (first) {
+        first = false;
+        firstFrameRef.current?.();
+      }
+    });
+    // A paused engine sends nothing: a projector rebuilt onto another screen
+    // would stay black until play.
+    void api.projection.wantVideoFrame(frameKey);
+    return off;
+    // Keyed by `frameKey` at the call site: one canvas, one stream of frames.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // `LiveVideo`'s frozen frame, from the canvas: a LAYOUT effect for the same
+  // reason, and the node captured on mount because React detaches the ref
+  // before this cleanup runs.
+  useLayoutEffect(() => {
+    const canvas = canvasRef.current;
+    return () => {
+      if (canvas) freezeRef.current?.(canvas);
+    };
+  }, []);
+
+  return (
+    <canvas className={className} data-frame-key={frameKey} height={0} ref={canvasRef} style={style} width={0} />
+  );
+}
+
 type SlideVideoLayerProps = {
   /** BLACK/LOGO is over the slide right now, or something else entirely went
    *  live. Hides and pauses; never unmounts. */
@@ -340,7 +409,7 @@ type SlideVideoLayerProps = {
  * and rebuilt on every BLACK is the documented road to
  * `PIPELINE_ERROR_DECODE`. And it captures no frozen frame on the way out:
  * the still slide underneath already shows this video's poster frame, drawn
- * there by LibreOffice, so there is nothing to preserve.
+ * there from its model, so there is nothing to preserve.
  */
 function SlideVideoLayer({
   covered,
@@ -357,6 +426,12 @@ function SlideVideoLayer({
   const elementRef = useRef<HTMLVideoElement | null>(null);
   const shouldPlay = !covered && !slideVideo.paused;
   const { rect } = slideVideo;
+  const rectStyle = {
+    left: `${rect.x * 100}%`,
+    top: `${rect.y * 100}%`,
+    width: `${rect.width * 100}%`,
+    height: `${rect.height * 100}%`,
+  };
 
   function attach(element: HTMLVideoElement | null) {
     elementRef.current = element;
@@ -430,22 +505,27 @@ function SlideVideoLayer({
           width: `min(100cqw, ${slideVideo.aspectRatio} * 100cqh)`,
         }}
       >
-        <video
-          autoPlay={shouldPlay}
-          className="absolute object-contain"
-          loop={slideVideo.loop}
-          muted={mode !== "live"}
-          onError={(event) => onError(event.currentTarget.error?.code ?? null)}
-          preload="metadata"
-          ref={attach}
-          src={slideVideo.url}
-          style={{
-            left: `${rect.x * 100}%`,
-            top: `${rect.y * 100}%`,
-            width: `${rect.width * 100}%`,
-            height: `${rect.height * 100}%`,
-          }}
-        />
+        {/* Main plays, pauses, loops and sounds an engine clip: every hook
+            above finds no element and does nothing. */}
+        {isEngineUrl(slideVideo.url) ? (
+          <EngineVideo
+            className="absolute object-contain"
+            frameKey={liveEngineFrameKey("slideVideo", slideVideo.epoch)}
+            style={rectStyle}
+          />
+        ) : (
+          <video
+            autoPlay={shouldPlay}
+            className="absolute object-contain"
+            loop={slideVideo.loop}
+            muted={mode !== "live"}
+            onError={(event) => onError(event.currentTarget.error?.code ?? null)}
+            preload="metadata"
+            ref={attach}
+            src={slideVideo.url}
+            style={rectStyle}
+          />
+        )}
       </div>
     </div>
   );
@@ -809,19 +889,26 @@ type Layer = {
  * repaint the frame the previous one is still fading out.
  *
  * `null` when there is nothing to copy — a video that never reached
- * `HAVE_CURRENT_DATA` has no pixels, and a blank canvas would fade out as a
- * black rectangle, which is worse than the cut it replaces.
+ * `HAVE_CURRENT_DATA` (or an engine canvas that never drew) has no pixels, and
+ * a blank canvas would fade out as a black rectangle, which is worse than the
+ * cut it replaces.
  */
-function captureFrame(video: HTMLVideoElement): HTMLCanvasElement | null {
-  if (video.readyState < 2 || video.videoWidth === 0 || video.videoHeight === 0) return null;
+function captureFrame(video: HTMLVideoElement | HTMLCanvasElement): HTMLCanvasElement | null {
+  const [width, height] =
+    video instanceof HTMLVideoElement
+      ? video.readyState < 2
+        ? [0, 0]
+        : [video.videoWidth, video.videoHeight]
+      : [video.width, video.height];
+  if (width === 0 || height === 0) return null;
   // Sized to the stage it is shown on, not to the source: a 4K frame copied
   // for a 240px monitor is 33 MB drawn synchronously in the very commit that
   // starts the transition. The still takes the video's place in this same
   // stage, so the video's parent is the box that matters.
   const box = video.parentElement;
   const size = frameCaptureSize(
-    video.videoWidth,
-    video.videoHeight,
+    width,
+    height,
     (box?.clientWidth ?? 0) * window.devicePixelRatio,
     (box?.clientHeight ?? 0) * window.devicePixelRatio,
   );
@@ -1201,7 +1288,7 @@ export function OutputView({
    * of the last frame costs one decoder, not two, and over 300ms nobody can
    * tell it from the moving picture it replaces.
    */
-  function freezeFrame(video: HTMLVideoElement) {
+  function freezeFrame(video: HTMLVideoElement | HTMLCanvasElement) {
     pendingFrozenFrameRef.current = captureFrame(video);
   }
 
@@ -1309,6 +1396,13 @@ export function OutputView({
    *  layer is opaque but a video one, whose pixels are the `<video>` (opaque
    *  too, see its `bg-black`) or, with no video mounted, a poster that may not
    *  exist. */
+  /** Only read when the video is the engine's. */
+  const engineFrameKey = output.videoUnderlay
+    ? mode === "preview"
+      ? previewEngineFrameKey(output.videoUnderlay.url)
+      : liveEngineFrameKey("video", output.videoUnderlay.epoch)
+    : "";
+
   const incoming = layers[1];
   const incomingCovers =
     incoming !== undefined && (incoming.output.kind !== "video" || videoMounted || posterFor(incoming) !== null);
@@ -1342,7 +1436,16 @@ export function OutputView({
       {/* Always the last sibling: painted after every scene layer, and its
           own z-index (via `videoRole`) settles who's on top whenever it's
           actually competing with a layer for the same pixels. */}
-      {output.videoUnderlay && videoMounted ? (
+      {output.videoUnderlay && videoMounted && isEngineUrl(output.videoUnderlay.url) ? (
+        <EngineVideo
+          className="absolute inset-0 size-full bg-black object-contain"
+          frameKey={engineFrameKey}
+          key={engineFrameKey}
+          onFirstFrame={() => handleVideoFirstFrame(output.videoUnderlay?.epoch ?? 0)}
+          onFreezeFrame={shouldAnimate ? freezeFrame : undefined}
+          style={transitionStyle(videoRole, transition, output.kind !== "video" ? 0 : 1, held, incomingCovers)}
+        />
+      ) : output.videoUnderlay && videoMounted ? (
         <LiveVideo
           covered={output.kind !== "video"}
           epoch={output.videoUnderlay.epoch}

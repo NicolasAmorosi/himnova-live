@@ -37,7 +37,6 @@ const it: MainMessages = {
     dbErrorBackup: "È stata conservata una copia di backup verificata in\n{path}",
     dbErrorNoBackup: "Non esiste una copia di backup precedente a questa migrazione.",
     crashTitle: "Errore imprevisto",
-    chooseSoffice: "Seleziona l'eseguibile di LibreOffice (soffice)",
   },
   filters: {
     all: "File compatibili",
@@ -49,28 +48,20 @@ const it: MainMessages = {
     sqliteModules: "Moduli SQLite (MyBible, MySword)",
   },
   slides: {
-    diskFull: "Spazio su disco insufficiente per convertire la presentazione.",
     shuttingDown: "L'applicazione si sta chiudendo.",
-    noLongerVisible: "Non è più visibile.",
-    prewarmCanceled: "Preparazione annullata.",
-    canceled: "Conversione annullata.",
     notInLibrary: "File non trovato nella libreria.",
     sourceGone: "Il file non è più disponibile: {path}",
-    invalidSource: "Percorso di origine non valido: {path}",
     noSlides: "La presentazione non ha prodotto nessuna diapositiva.",
-    deckUnreadable: "Impossibile leggere la presentazione appena convertita.",
+    deckUnreadable: "Impossibile leggere la presentazione appena preparata.",
     rasterCrashed: "Il processo di rasterizzazione si è chiuso inaspettatamente.",
     rasterHung: "La rasterizzazione di una pagina si è bloccata.",
-    pdfPassword: "Il PDF è protetto da password e non può essere convertito.",
-    pptUpgradeFailed: "Impossibile convertire il .ppt in .pptx.",
-    sofficeSandboxed:
-      "La versione di LibreOffice installata (flatpak/snap) è isolata dal file system e non può convertire le presentazioni. Installa il pacchetto nativo (.deb/.rpm).",
-    sofficeNoVersion: "LibreOffice è stato trovato in {path} ma non ha risposto a --version.",
-    sofficeNotExecutable: "Il percorso configurato per LibreOffice non è eseguibile: {path}",
-    sofficeNotFound: "LibreOffice non è stato trovato su questo sistema.",
-    sofficeTimeout: "LibreOffice non ha risposto entro {seconds}s. Se è aperto, chiudilo e riprova.",
-    sofficeExit: "LibreOffice è terminato con codice {code}. {detail}",
-    sofficeNoPdf: "LibreOffice è terminato senza generare un PDF. Il file potrebbe essere danneggiato o protetto.",
+    pdfPassword: "Il PDF è protetto da password e non può essere aperto.",
+    deckPassword:
+      "La presentazione ha una password di apertura. Aprila in PowerPoint, rimuovi la password (File ▸ Informazioni ▸ Proteggi presentazione) e salvala di nuovo.",
+    deckOldFormat:
+      "La presentazione è di PowerPoint 95 o precedente, un formato che Lumina Live non legge. Aprila in un PowerPoint più recente e salvala come .pptx.",
+    notAPresentation:
+      "Impossibile aprire il file come presentazione: potrebbe essere danneggiato o non essere una presentazione. Prova ad aprirlo in PowerPoint e a salvarlo di nuovo come .pptx.",
   },
   bible: {
     unknownFormat:

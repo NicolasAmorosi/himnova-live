@@ -97,7 +97,8 @@ async function firstRow(column: Locator) {
 async function rowOffset(app: WorshipApp) {
   const [preview, live] = await Promise.all([firstRow(app.previewColumn()), firstRow(app.liveColumn())]);
   if (!preview || !live) return null;
-  const round = (n: number) => Math.round(n * 10) / 10;
+  // `+ 0` folds -0 into 0: Windows measured -0.04, and `toEqual` tells them apart.
+  const round = (n: number) => Math.round(n * 10) / 10 + 0;
   return {
     dx: round(live.x - preview.x),
     dy: round(live.y - preview.y),

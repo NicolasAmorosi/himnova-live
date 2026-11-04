@@ -1,6 +1,7 @@
 import type { KeyboardEvent as ReactKeyboardEvent } from "react";
 import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { isPointerFocused } from "@renderer/lib/focus-modality";
 import { cn } from "@renderer/lib/utils";
 import { computeMenuPosition, useFollowTrigger, type MenuPosition } from "./floating-menu";
 import { Icon, type IconName } from "./icon";
@@ -109,7 +110,9 @@ export function Menu<T extends string>({
   }
 
   function handleTriggerKeyDown(e: ReactKeyboardEvent<HTMLButtonElement>) {
-    if (open || (e.key !== "ArrowDown" && e.key !== "ArrowUp")) return;
+    // Clicked, the trigger's arrows are the operator's shortcuts, as on any
+    // clicked control (see `use-global-shortcuts.ts`).
+    if (open || (e.key !== "ArrowDown" && e.key !== "ArrowUp") || isPointerFocused(e.currentTarget)) return;
     e.preventDefault();
     openMenu();
   }
@@ -185,9 +188,12 @@ export function Menu<T extends string>({
                 <button
                   aria-checked={option.value === value}
                   className="flex w-full cursor-pointer items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-left text-sm text-foreground hover:bg-hover focus-visible:bg-hover focus-visible:outline-none"
-                  onClick={() => {
+                  onClick={(e) => {
                     onSelect(option.value);
-                    close(true);
+                    // Back to the trigger only after a keyboard pick (`detail`
+                    // 0): put there by code after a MOUSE pick, it would read
+                    // as the keyboard's and keep the arrows (see `Select`).
+                    close(e.detail === 0);
                   }}
                   onKeyDown={(e) => handleItemKeyDown(e, index)}
                   ref={(el) => {

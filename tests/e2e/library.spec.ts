@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import type { MediaAsset } from "../../src/shared/types/media";
 import { fixture } from "./support/paths";
-import { expect, relaunch, test, videoStates, type WorshipApp } from "./support/app";
+import { engineStates, expect, relaunch, test, videoStates, type WorshipApp } from "./support/app";
 
 /**
  * The library as the operator meets it: files picked with the native dialog,
@@ -161,7 +161,7 @@ test("a file the projector cannot play is reported in the control window, never 
   await expect(projector.locator("body")).not.toContainText("No se pudo");
 });
 
-test("a linked folder shows what is on disk, converts what needs it, and unlinks without touching files", async ({ app }) => {
+test("a linked folder shows what is on disk, plays what Chromium cannot, and unlinks without touching files", async ({ app }) => {
   const folder = path.dirname(copyFixture(app, "clip.mp4"));
   copyFixture(app, "clip-xvid.avi");
   copyFixture(app, "photo.png");
@@ -173,14 +173,12 @@ test("a linked folder shows what is on disk, converts what needs it, and unlinks
   // Only the videos of the folder, in this tab.
   await expect.poll(() => tileNames(app, "Videos")).toEqual(expect.arrayContaining(["clip", "clip-xvid"]));
   expect(await tileNames(app, "Videos")).toHaveLength(2);
-  // An AVI seen in a linked folder converts on its own.
-  await expect
-    .poll(() => app.log.some((line) => line.includes("[convert]") && line.includes("clip-xvid.avi →")), { timeout: 60_000 })
-    .toBe(true);
+  // An AVI seen in a linked folder is checked on its own, and the media engine plays it.
+  await expect.poll(async () => (await app.invoke<number[]>("engine:assets")).length > 0, { timeout: 30_000 }).toBe(true);
 
   await panel(app, "Videos").getByRole("button", { name: "clip-xvid" }).dblclick();
   const projector = await app.projector();
-  await expect.poll(async () => (await videoStates(projector))[0]?.videoWidth ?? 0).toBe(640);
+  await expect.poll(async () => (await engineStates(projector))[0]?.width ?? 0).toBe(640);
 
   // Focus, not hover: on macOS the fullscreen projector is the key window and a
   // synthetic hover over the control window does not always apply `:hover`.

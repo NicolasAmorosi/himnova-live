@@ -37,7 +37,14 @@ const FLAGS = [
 /** What the renderer's global handlers log before showing the "error
  *  inesperado" toast (`lib/global-error-handlers.ts`), plus main's crash path.
  *  Any of these in a run is a bug, whatever the test was checking. */
-const UNEXPECTED = [/\[renderer\] unhandled rejection/, /\[renderer\] uncaught error/, /\[uncaughtException\]/];
+// A stalled engine nudged back (`watchStall`) is flagged too: whether the test passed or not, the
+// engine stopped where it should have played, or the watch fired where it should not have.
+const UNEXPECTED = [
+  /\[renderer\] unhandled rejection/,
+  /\[renderer\] uncaught error/,
+  /\[uncaughtException\]/,
+  /\[engine\] live \w+ should play but stays/,
+];
 
 export class WorshipApp {
   /** Resolves when the process is gone. Tracked here because Playwright
@@ -50,6 +57,9 @@ export class WorshipApp {
     readonly control: Page,
     readonly profile: string,
     readonly log: string[],
+    /** Electron main's own pid. Not `electron.process().pid`: on Windows Playwright
+     *  starts the app through `cmd.exe`, and killing that left the app alive. */
+    readonly mainPid: number,
   ) {
     this.exited = new Promise((resolve) =>
       electron.process().once("exit", () => {
@@ -84,7 +94,7 @@ export class WorshipApp {
 
     const control = await app.firstWindow();
     await expect(control.getByRole("button", { name: "EN VIVO", exact: true })).toBeVisible();
-    return new WorshipApp(app, control, profile, log);
+    return new WorshipApp(app, control, profile, log, await app.evaluate(() => process.pid));
   }
 
   /** An IPC call through the same bridge the UI uses. For SETUP only — what a
@@ -229,11 +239,8 @@ export class WorshipApp {
       Promise.race([promise.then(() => true), new Promise<false>((resolve) => setTimeout(() => resolve(false), ms))]);
     const answered = await within(this.electron.evaluate(({ app }) => app.exit(0)).catch(() => undefined), 5_000);
     if (await within(this.exited, 10_000)) return;
-    const pid = this.electron.process().pid;
-    if (pid !== undefined) {
-      this.log.push(`[e2e] the app did not exit (app.exit ${answered ? "answered" : "never answered"})`, sampleOf(pid));
-      process.kill(pid, "SIGKILL");
-    }
+    this.log.push(`[e2e] the app did not exit (app.exit ${answered ? "answered" : "never answered"})`, sampleOf(this.mainPid));
+    process.kill(this.mainPid, "SIGKILL");
     await this.exited;
     throw new Error("the app did not exit within 15 s of app.exit(0) — its sample is at the end of app.log");
   }
@@ -272,6 +279,40 @@ export function videoStates(page: Page) {
   );
 }
 
+/** The media engine's canvases of a window (`EngineVideo`), by the key their
+ *  frames come under: the size the last frame gave them, and a sample of their
+ *  pixels, which moves while the video plays and stands still while it does not. */
+export function engineStates(page: Page) {
+  return page.evaluate(() =>
+    [...document.querySelectorAll<HTMLCanvasElement>("canvas[data-frame-key]")].map((canvas) => {
+      let sample = 0;
+      if (canvas.width > 0) {
+        const pixels = canvas.getContext("2d")?.getImageData(0, 0, canvas.width, canvas.height).data ?? [];
+        for (let i = 0; i < pixels.length; i += 4099) sample += pixels[i] ?? 0;
+      }
+      return {
+        key: canvas.dataset.frameKey ?? "",
+        width: canvas.width,
+        sample,
+        opacity: Number(getComputedStyle(canvas).opacity),
+      };
+    }),
+  );
+}
+
+/** The engine canvas whose frames come under a key starting with `prefix`. */
+export async function engineCanvas(page: Page, prefix: string) {
+  return (await engineStates(page)).find((state) => state.key.startsWith(prefix)) ?? null;
+}
+
+/** Whether that canvas's picture changes over 400 ms: the video is playing. */
+export async function moving(page: Page, prefix: string): Promise<boolean> {
+  const before = await engineCanvas(page, prefix);
+  await page.waitForTimeout(400);
+  const after = await engineCanvas(page, prefix);
+  return before !== null && after !== null && before.width > 0 && before.sample !== after.sample;
+}
+
 export function audioStates(page: Page) {
   return page.evaluate(() =>
     [...document.querySelectorAll("audio")].map((audio) => ({
@@ -295,7 +336,10 @@ export const test = base.extend<Fixtures>({
   profileDir: async ({}, use) => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "worship-e2e-profile-"));
     await use(dir);
-    fs.rmSync(dir, { recursive: true, force: true, maxRetries: 5 });
+    // Up to ~11 s: on a loaded 4-CPU Linux box a child of the app still being
+    // torn down after `app.exit(0)` was seen writing in the profile while it
+    // was removed (`ENOTEMPTY` after 5 retries, the test itself had passed).
+    fs.rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
   },
 
   app: async ({ profileDir, launchCheck }, use, testInfo) => {

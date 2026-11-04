@@ -304,6 +304,16 @@ export type MediaStatus = {
   ended: boolean;
 };
 
+/** What the PREVIEW monitor shows through the media engine (`preview:setVideo`),
+ *  muted: a library video only the engine plays. `paused` is declarative, like
+ *  `VideoUnderlay.paused`; `startAtSeconds` only applies to a new `url`. */
+export type PreviewEngineVideo = { url: string; paused: boolean; startAtSeconds: number };
+
+/** The PREVIEW engine's `MediaStatus`. Its own event and not a `MediaTarget`,
+ *  for the reason `use-preview-media-status.ts` gives: the preview's clock must
+ *  never land in the live media status. */
+export type PreviewVideoStatus = Omit<MediaStatus, "target" | "epoch"> & { url: string };
+
 /**
  * One audio element the projection window should keep mounted, independent of
  * `ProjectionOutput` — a deck's soundtrack and any number of standalone audio
@@ -336,9 +346,9 @@ export type BaseContent =
   | { kind: "deck"; assetId: number; slideIndex: number }
   /** `url` rides along, resolved when it went live, for the reason
    *  `versionLabel` does below: what the projector loads depends on whether
-   *  main has converted the file (`playableAssetUrl`), and `selectOutput`
-   *  cannot ask the conversion store. Resolving it once also means a copy
-   *  finishing while the original is on air never swaps the file under the
+   *  the media engine plays the file (`playableAssetUrl`), and `selectOutput`
+   *  cannot ask the engine-assets store. Resolving it once also means a probe
+   *  finishing while the file is on air never swaps its player under the
    *  congregation — the next GO LIVE picks it up. */
   | { kind: "video"; assetId: number; url: string; epoch: number; startAtSeconds: number }
   | { kind: "image"; assetId: number }

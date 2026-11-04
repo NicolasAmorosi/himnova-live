@@ -1,66 +1,69 @@
 import { app, BrowserWindow, ipcMain } from "electron";
-import fs from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { SLIDES_RASTER_PAGE_TIMEOUT_MS, SLIDES_THUMB_WIDTH } from "@shared/constants";
 import { SlideError } from "./errors";
+import { takeNewestBurst } from "./raster-order";
 import { trustWindow } from "../ipc/trusted-senders";
 import { mt } from "../i18n";
 
 const PRELOAD = path.join(__dirname, "../preload/index.js");
-const IDLE_SHUTDOWN_MS = 60_000;
+/** The window keeps the PDFs it opened: long enough that a deck on the
+ *  projector between two hymns still has its document open when the operator
+ *  comes back to it. */
+const IDLE_SHUTDOWN_MS = 5 * 60_000;
+/** Encoded pages kept in memory, so the projector and the monitors get at once
+ *  what PREVIEW already drew. A full slide is 0.1–1.3 MB, a thumbnail ~10 KB. */
+const PAGE_CACHE_BYTES = 128 * 1024 * 1024;
 
-export type RasterPage = {
-  index: number;
-  file: string;
-  thumbFile: string;
-  widthPx: number;
-  heightPx: number;
-  /** The full-size image's bytes as written. */
-  bytes: number;
-  /** The thumbnail's, so the caller can total a deck's on-disk size without
-   *  walking the directory back — see `dirSize`'s removal in `deck-service`. */
-  thumbBytes: number;
-};
-
-export type RasterRequest = {
-  pdfPath: string;
-  outDir: string;
-  targetWidth: number;
-  format: "webp" | "png";
-  quality: number;
-  signal?: AbortSignal;
-  onPage?: (page: RasterPage, total: number) => void;
-};
+/** A PDF as the deck row describes it: the file, at the stamp it was read at. */
+export type PdfSource = { sourcePath: string; sourceSizeBytes: number; sourceMtimeMs: number };
+export type PdfPageSize = { widthPx: number; heightPx: number };
+/** `now`: what the operator is looking at (a slide, opening a deck).
+ *  `later`: thumbnails and decks opened in the background. */
+export type RasterLane = "now" | "later";
+export type PdfFormat = "webp" | "png";
 
 /**
- * In-flight PDFs, exposed to the sandboxed rasterizer window as
- * `worship://raster/<jobId>`. The window has no filesystem access (sandbox:
+ * A PDF is drawn page by page, when a window asks for the page (owner,
+ * 2026-11-03: nothing converted, nothing cached on disk). pdf.js runs in a
+ * hidden BrowserWindow rather than a Node worker: it needs a real Canvas2D and
+ * Chromium already ships one. The alternative (@napi-rs/canvas in a
+ * utilityProcess) publishes its prebuilt binary as a PER-PLATFORM
+ * optionalDependency, so `npm install` on macOS never fetches the Windows one
+ * and cross-building the Windows installer from a Mac — which this project
+ * does — would silently ship a broken app. A hidden window is already its own
+ * OS process, so crash isolation is equivalent.
+ *
+ * One task runs in it at a time, `now` before `later`: rendering a page takes
+ * 5–110 ms on an M3, so a slide waits at most for one thumbnail. Inside `now`,
+ * the newest ask goes first (`takeNewestBurst`).
+ */
+let window: BrowserWindow | null = null;
+let idleTimer: NodeJS.Timeout | null = null;
+let stopped = false;
+
+/**
+ * The PDF of the running task, exposed to the sandboxed window as
+ * `worship://raster/<taskId>`. The window has no filesystem access (sandbox:
  * true, contextIsolation: true), and this keeps that intact: it receives a
  * capability token, never a path.
  */
 const pendingPdfs = new Map<string, string>();
 
-export function resolveRasterPdf(jobId: string): string | null {
-  return pendingPdfs.get(jobId) ?? null;
+export function resolveRasterPdf(taskId: string): string | null {
+  return pendingPdfs.get(taskId) ?? null;
 }
 
-/**
- * Rasterization runs in a hidden BrowserWindow rather than a Node worker: it
- * needs a real Canvas2D implementation and Chromium already ships one. The
- * alternative (@napi-rs/canvas in a utilityProcess) publishes its prebuilt
- * binary as a PER-PLATFORM optionalDependency, so `npm install` on macOS never
- * fetches the Windows one and cross-building the Windows installer from a Mac
- * — which this project does — would silently ship a broken app. A hidden
- * window is already its own OS process, so crash isolation is equivalent.
- */
-let window: BrowserWindow | null = null;
-let idleTimer: NodeJS.Timeout | null = null;
-
-function scheduleIdleShutdown(): void {
-  if (idleTimer) clearTimeout(idleTimer);
-  idleTimer = setTimeout(shutdownRasterizer, IDLE_SHUTDOWN_MS);
-  idleTimer.unref();
+/** Whether `win` is the offscreen rasterizer.
+ *
+ *  Needed because it is a real `BrowserWindow` and therefore shows up in
+ *  `BrowserWindow.getAllWindows()` — which is what decides whether macOS
+ *  reopens the control window on a dock click and whether
+ *  `window-all-closed` fires at all. Counting an invisible worker as "the app
+ *  still has a window" is wrong in both directions. */
+export function isRasterizerWindow(win: BrowserWindow): boolean {
+  return window === win;
 }
 
 async function ensureWindow(): Promise<BrowserWindow> {
@@ -82,9 +85,17 @@ async function ensureWindow(): Promise<BrowserWindow> {
   });
 
   trustWindow(win);
-
   win.on("closed", () => {
     if (window === win) window = null;
+  });
+  // Once per window, never per task: a listener registered per task piled up
+  // one per page on the reused window (`MaxListenersExceededWarning`). A
+  // renderer crash (OOM on a huge PDF) fails the page it was drawing; the
+  // next task starts a fresh window.
+  win.webContents.on("render-process-gone", () => {
+    if (window === win) window = null;
+    if (!win.isDestroyed()) win.destroy();
+    if (running && !retryOnce(running)) settle(running, new SlideError("RASTER_FAILED", mt("slides.rasterCrashed")));
   });
 
   // Subscribed and awaited INSIDE a try: a rejected load (dev server not up
@@ -108,18 +119,7 @@ async function ensureWindow(): Promise<BrowserWindow> {
   return win;
 }
 
-/** Whether `win` is the offscreen rasterizer.
- *
- *  Needed because it is a real `BrowserWindow` and therefore shows up in
- *  `BrowserWindow.getAllWindows()` — which is what decides whether macOS
- *  reopens the control window on a dock click and whether
- *  `window-all-closed` fires at all. Counting an invisible worker as "the app
- *  still has a window" is wrong in both directions. */
-export function isRasterizerWindow(win: BrowserWindow): boolean {
-  return window === win;
-}
-
-export function shutdownRasterizer(): void {
+function dropWindow(): void {
   if (idleTimer) {
     clearTimeout(idleTimer);
     idleTimer = null;
@@ -128,201 +128,210 @@ export function shutdownRasterizer(): void {
   window = null;
 }
 
-function pad(n: number): string {
-  return String(n).padStart(4, "0");
+/** On quit: nothing more is drawn, and whatever was waiting is told so. */
+export function shutdownRasterizer(): void {
+  stopped = true;
+  dropWindow();
+  const canceled = new SlideError("CANCELED", mt("slides.shuttingDown"));
+  if (running) settle(running, canceled);
+  for (const lane of [lanes.now, lanes.later]) {
+    for (const task of lane.splice(0)) task.reject(canceled);
+  }
 }
 
-type PagePayload = {
-  jobId: string;
-  index: number;
-  total: number;
-  widthPx: number;
-  heightPx: number;
-  data: Uint8Array;
-  thumbData: Uint8Array;
+// ---------------------------------------------------------------------------
+// Tasks
+// ---------------------------------------------------------------------------
+
+type TaskPayload =
+  | { op: "open"; targetWidth: number }
+  | { op: "render"; page: number; width: number; thumb: boolean; format: PdfFormat; quality: number };
+
+type Task = {
+  id: string;
+  pdf: PdfSource;
+  payload: TaskPayload;
+  /** When it was last asked for (`Date.now()`): what `takeNewestBurst` orders by. */
+  at: number;
+  /** Already drawn again once after its window crashed. */
+  retried?: boolean;
+  resolve: (result: unknown) => void;
+  reject: (error: unknown) => void;
 };
 
-type DonePayload = { jobId: string; total: number };
-/** `kind` is the rasterizer window's own coarse classification of the failure
- *  — it does not know `SlideErrorCode`, and nothing here trusts it beyond
- *  picking between two fixed messages. */
-type ErrorPayload = { jobId: string; kind?: "password" | "unknown"; message: string };
+/** `kind` is the window's own coarse classification of a failure — it does not
+ *  know `SlideErrorCode`, and nothing here trusts it beyond picking between
+ *  two fixed messages. */
+type Reply = { id: string; result?: unknown; error?: { kind: "password" | "unknown"; message: string } };
 
-type JobHandlers = {
-  onPage: (payload: PagePayload) => void;
-  onDone: (payload: DonePayload) => void;
-  onError: (payload: ErrorPayload) => void;
-};
+const lanes: Record<RasterLane, Task[]> = { now: [], later: [] };
+let running: Task | null = null;
+let taskTimer: NodeJS.Timeout | null = null;
+let channelRegistered = false;
 
-const jobs = new Map<string, JobHandlers>();
-let channelsRegistered = false;
-
-/** One set of handlers for every job; the jobId in the payload routes it. */
-function registerChannels(): void {
-  if (channelsRegistered) return;
-  channelsRegistered = true;
-  ipcMain.handle("raster:page", (_event, payload: PagePayload) => {
-    jobs.get(payload.jobId)?.onPage(payload);
-  });
-  ipcMain.handle("raster:done", (_event, payload: DonePayload) => {
-    jobs.get(payload.jobId)?.onDone(payload);
-  });
-  ipcMain.handle("raster:error", (_event, payload: ErrorPayload) => {
-    jobs.get(payload.jobId)?.onError(payload);
+function registerChannel(): void {
+  if (channelRegistered) return;
+  channelRegistered = true;
+  ipcMain.handle("raster:reply", (_event, reply: Reply) => {
+    const task = running;
+    if (!task || task.id !== reply.id) return;
+    if (reply.error) {
+      settle(
+        task,
+        reply.error.kind === "password"
+          ? new SlideError("PDF_PASSWORD", mt("slides.pdfPassword"))
+          : new SlideError("RASTER_FAILED", reply.error.message),
+      );
+    } else {
+      settle(task, undefined, reply.result);
+    }
   });
 }
+
+function enqueue(lane: RasterLane, pdf: PdfSource, payload: TaskPayload): { task: Task | null; done: Promise<unknown> } {
+  if (stopped) return { task: null, done: Promise.reject(new SlideError("CANCELED", mt("slides.shuttingDown"))) };
+  registerChannel();
+  let task: Task | null = null;
+  const done = new Promise<unknown>((resolve, reject) => {
+    task = { id: randomUUID(), pdf, payload, at: Date.now(), resolve, reject };
+    lanes[lane].push(task);
+  });
+  void pump();
+  return { task, done };
+}
+
+/** A page still waiting in `now` that a window asks for again joins the newest
+ *  ask: the slide on screen was often queued as a warm-up a press earlier. */
+function bump(task: Task): void {
+  const at = lanes.now.indexOf(task);
+  if (at < 0) return; // running, settled, or a thumbnail
+  lanes.now.splice(at, 1);
+  task.at = Date.now();
+  lanes.now.push(task);
+}
+
+async function pump(): Promise<void> {
+  if (running || stopped) return;
+  const task = takeNewestBurst(lanes.now) ?? lanes.later.shift();
+  if (idleTimer) clearTimeout(idleTimer);
+  if (!task) {
+    idleTimer = setTimeout(dropWindow, IDLE_SHUTDOWN_MS);
+    idleTimer.unref();
+    return;
+  }
+  running = task;
+  try {
+    const win = await ensureWindow();
+    if (running !== task) return; // the window crashed or the app quit while it loaded
+    pendingPdfs.set(task.id, task.pdf.sourcePath);
+    // A page that hangs holds the window: it goes, and the next task starts a
+    // fresh one. Dropped before settling, so that task never gets this window.
+    taskTimer = setTimeout(() => {
+      dropWindow();
+      settle(task, new SlideError("RASTER_FAILED", mt("slides.rasterHung")));
+    }, SLIDES_RASTER_PAGE_TIMEOUT_MS);
+    win.webContents.send("raster:task", {
+      id: task.id,
+      // Which document the window keeps open: the same file, at the same stamp.
+      docKey: `${task.pdf.sourcePath}\n${task.pdf.sourceSizeBytes}\n${task.pdf.sourceMtimeMs}`,
+      url: `worship://raster/${task.id}`,
+      ...task.payload,
+    });
+  } catch (error) {
+    settle(task, error);
+  }
+}
+
+/** The window crashed under `task`: it goes first into a fresh window, once —
+ *  a crash used to leave that page blank on the projector. A page that crashes
+ *  the window again fails. */
+function retryOnce(task: Task): boolean {
+  if (task.retried || running !== task) return false;
+  running = null;
+  if (taskTimer) clearTimeout(taskTimer);
+  taskTimer = null;
+  pendingPdfs.delete(task.id);
+  // A new task, not the same one again: a `pump` still awaiting the dead
+  // window compares `running` against the task it started.
+  lanes.now.push({ ...task, id: randomUUID(), at: Date.now(), retried: true });
+  void pump();
+  return true;
+}
+
+function settle(task: Task, error: unknown, result?: unknown): void {
+  if (running !== task) return;
+  running = null;
+  if (taskTimer) clearTimeout(taskTimer);
+  taskTimer = null;
+  pendingPdfs.delete(task.id);
+  if (error === undefined) task.resolve(result);
+  else task.reject(error);
+  void pump();
+}
+
+// ---------------------------------------------------------------------------
+// What the deck service and the protocol ask for
+// ---------------------------------------------------------------------------
+
+/** Every page's size at `targetWidth` — what opening a PDF costs (~25 ms). */
+export async function readPdfPages(pdf: PdfSource, targetWidth: number, lane: RasterLane): Promise<PdfPageSize[]> {
+  const result = (await enqueue(lane, pdf, { op: "open", targetWidth }).done) as { pages?: unknown };
+  const pages = Array.isArray(result?.pages) ? (result.pages as PdfPageSize[]) : [];
+  return pages.filter((page) => Number.isFinite(page?.widthPx) && Number.isFinite(page?.heightPx));
+}
+
+/** `task`: the draw while it may still be queued, so asking again can `bump` it. */
+type CachedPage = { image: Promise<Buffer>; bytes: number; task: Task | null };
+/** Insertion-ordered: a hit moves to the end, the oldest settled page goes first. */
+const pageCache = new Map<string, CachedPage>();
+let cachedBytes = 0;
 
 /**
- * Renders every page of `pdfPath` into `outDir` as `s0001.<ext>` plus a
- * `t0001.<ext>` thumbnail. Pages stream back one at a time and are written to
- * disk here, so memory stays flat even on a 400-slide deck.
+ * Page `page` (1-based) of a PDF deck, encoded as its deck says — drawn now,
+ * or from memory. Keyed by the file's stamp, never by deck id: a deleted
+ * deck's id can come back for another file.
  */
-export async function rasterizePdf(request: RasterRequest): Promise<RasterPage[]> {
-  registerChannels();
-
-  const jobId = randomUUID();
-  pendingPdfs.set(jobId, request.pdfPath);
-  fs.mkdirSync(request.outDir, { recursive: true });
-
-  let win: BrowserWindow;
-  try {
-    win = await ensureWindow();
-  } catch (error) {
-    // The capability token is only cleared by `finish()`, which this job never
-    // reaches if the window can't even be created.
-    pendingPdfs.delete(jobId);
-    throw error;
+export function pdfPageImage(
+  deck: PdfSource & { renderWidth: number; imageFormat: PdfFormat },
+  page: number,
+  variant: "full" | "thumb",
+): Promise<Buffer> {
+  const thumb = variant === "thumb";
+  const width = thumb ? SLIDES_THUMB_WIDTH : deck.renderWidth;
+  const key = [deck.sourcePath, deck.sourceSizeBytes, deck.sourceMtimeMs, page, width, deck.imageFormat].join("\n");
+  const hit = pageCache.get(key);
+  if (hit) {
+    pageCache.delete(key);
+    pageCache.set(key, hit);
+    if (hit.task) bump(hit.task);
+    return hit.image;
   }
-  // Captured once: after a crash, reading `win.webContents` can throw on a
-  // destroyed window, and the cleanup below still needs the object it
-  // subscribed to.
-  const contents = win.webContents;
-  if (idleTimer) clearTimeout(idleTimer);
 
-  const pages: RasterPage[] = [];
-  const ext = request.format;
-
-  return new Promise<RasterPage[]>((resolve, reject) => {
-    let settled = false;
-    let pageTimer: NodeJS.Timeout | null = null;
-
-    // A renderer crash (OOM on a huge PDF) must reject rather than hang.
-    // Declared before `finish` so that one can unsubscribe it; it only calls
-    // `finish` when the event actually fires, long after setup.
-    const onRenderProcessGone = () => {
-      window = null;
-      // Destroyed, not just dereferenced: a window whose renderer died stays
-      // a live BrowserWindow (it counts in `getAllWindows()`, it holds its OS
-      // resources), and the next conversion creates another one. Repeated
-      // crashes — an OOM on a big PDF is the realistic case — would pile them
-      // up with nothing ever reclaiming them.
-      if (!win.isDestroyed()) win.destroy();
-      finish(() =>
-        reject(
-          new SlideError("RASTER_FAILED", mt("slides.rasterCrashed")),
-        ),
-      );
-    };
-
-    const finish = (fn: () => void) => {
-      if (settled) return;
-      settled = true;
-      if (pageTimer) clearTimeout(pageTimer);
-      jobs.delete(jobId);
-      pendingPdfs.delete(jobId);
-      request.signal?.removeEventListener("abort", onAbort);
-      // The rasterizer window outlives a single job (it is reused until 60s
-      // idle, which during a batch never happens), so a listener left behind
-      // here accumulates one per converted deck: `once` only removes itself
-      // when the event fires. That surfaced as
-      // `MaxListenersExceededWarning: 11 render-process-gone listeners added
-      // to [WebContents]` partway through a folder batch, with every stale
-      // closure still holding its job's `pages`/`request`.
-      if (!contents.isDestroyed()) contents.off("render-process-gone", onRenderProcessGone);
-      scheduleIdleShutdown();
-      fn();
-    };
-
-    /** Abandoning a job in main does not stop the page: the hidden window
-     *  kept rendering every remaining slide, alongside the next job, so a
-     *  «Cancel» or a preemption never freed the CPU it was meant to free —
-     *  and a page that truly hung kept its window, reused by the next deck.
-     *  So the window goes too, unless another job still needs it; the next
-     *  conversion starts a fresh one. */
-    const abandon = (error: SlideError) => {
-      finish(() => reject(error));
-      if (jobs.size === 0) shutdownRasterizer();
-    };
-
-    const armPageTimer = () => {
-      if (pageTimer) clearTimeout(pageTimer);
-      pageTimer = setTimeout(
-        () => abandon(new SlideError("RASTER_FAILED", mt("slides.rasterHung"))),
-        SLIDES_RASTER_PAGE_TIMEOUT_MS,
-      );
-    };
-
-    const onAbort = () => abandon(new SlideError("CANCELED", mt("slides.canceled")));
-
-    jobs.set(jobId, {
-      onPage: (payload) => {
-        armPageTimer();
-        // The index reaches us over IPC and is interpolated into a file name.
-        // `pad` is `String(n).padStart(4,"0")`, which happily passes
-        // `"../../x"` straight through to `path.join` — so this is the one
-        // place in main where a renderer's value could steer where bytes get
-        // written. Validated rather than trusted, even though the only sender
-        // today is our own sandboxed rasterizer page.
-        if (!Number.isSafeInteger(payload.index) || payload.index < 1) return;
-        const file = `s${pad(payload.index)}.${ext}`;
-        const thumbFile = `t${pad(payload.index)}.${ext}`;
-        const buf = Buffer.from(payload.data);
-        const thumbBuf = Buffer.from(payload.thumbData);
-        fs.writeFileSync(path.join(request.outDir, file), buf);
-        fs.writeFileSync(path.join(request.outDir, thumbFile), thumbBuf);
-
-        const page: RasterPage = {
-          index: payload.index,
-          file,
-          thumbFile,
-          widthPx: payload.widthPx,
-          heightPx: payload.heightPx,
-          bytes: buf.byteLength,
-          thumbBytes: thumbBuf.byteLength,
-        };
-        pages.push(page);
-        request.onPage?.(page, payload.total);
-      },
-      onDone: () => finish(() => resolve(pages.sort((a, b) => a.index - b.index))),
-      onError: (payload) =>
-        finish(() =>
-          reject(
-            payload.kind === "password"
-              ? new SlideError(
-                  "PDF_PASSWORD",
-                  mt("slides.pdfPassword"),
-                )
-              : new SlideError("RASTER_FAILED", payload.message),
-          ),
-        ),
-    });
-
-    request.signal?.addEventListener("abort", onAbort, { once: true });
-    if (request.signal?.aborted) {
-      onAbort();
-      return;
-    }
-
-    contents.once("render-process-gone", onRenderProcessGone);
-
-    armPageTimer();
-    contents.send("raster:start", {
-      jobId,
-      url: `worship://raster/${jobId}`,
-      targetWidth: request.targetWidth,
-      thumbWidth: SLIDES_THUMB_WIDTH,
-      format: request.format,
-      quality: request.quality,
-    });
+  const quality = thumb ? 0.7 : deck.imageFormat === "webp" ? 0.92 : 1;
+  const { task, done } = enqueue(thumb ? "later" : "now", deck, { op: "render", page, width, thumb, format: deck.imageFormat, quality });
+  const image = done.then((data) => {
+    if (!(data instanceof Uint8Array) || data.byteLength === 0) throw new SlideError("RASTER_FAILED", mt("slides.noSlides"));
+    return Buffer.from(data.buffer, data.byteOffset, data.byteLength);
   });
+  const entry: CachedPage = { image, bytes: 0, task };
+  pageCache.set(key, entry);
+  image.then(
+    (buffer) => {
+      entry.task = null;
+      if (pageCache.get(key) !== entry) return;
+      entry.bytes = buffer.byteLength;
+      cachedBytes += entry.bytes;
+      for (const [oldKey, old] of pageCache) {
+        if (cachedBytes <= PAGE_CACHE_BYTES) break;
+        if (old.bytes === 0) continue; // still drawing
+        pageCache.delete(oldKey);
+        cachedBytes -= old.bytes;
+      }
+    },
+    // A failure is not remembered: the next ask draws it again.
+    () => {
+      if (pageCache.get(key) === entry) pageCache.delete(key);
+    },
+  );
+  return image;
 }

@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import { api } from "@renderer/lib/api";
+import { engineAssetIdOfUrl } from "@shared/urls";
 
 /**
  * Reads a video/audio file's duration without playing it — a detached element
@@ -6,7 +8,8 @@ import { useEffect, useState } from "react";
  * only. Used by the preview media bar, which must stay silent: the operator
  * hasn't gone live yet.
  *
- * Returns `null` while unknown (no url, or metadata not loaded yet).
+ * Returns `null` while unknown (no url, or metadata not loaded yet). A file the
+ * media engine plays cannot be opened here at all, so main answers from its probe.
  */
 export function useMediaDuration(url: string | null, kind: "video" | "audio"): number | null {
   const [duration, setDuration] = useState<number | null>(null);
@@ -14,6 +17,20 @@ export function useMediaDuration(url: string | null, kind: "video" | "audio"): n
   useEffect(() => {
     setDuration(null);
     if (!url) return;
+
+    const engineAssetId = engineAssetIdOfUrl(url);
+    if (engineAssetId !== null) {
+      let live = true;
+      api.engine
+        .duration(engineAssetId)
+        .then((seconds) => {
+          if (live) setDuration(seconds);
+        })
+        .catch(() => undefined);
+      return () => {
+        live = false;
+      };
+    }
 
     const element = document.createElement(kind);
     element.preload = "metadata";

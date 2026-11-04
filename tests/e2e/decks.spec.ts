@@ -1,15 +1,17 @@
 import fs from "node:fs";
 import path from "node:path";
-import type { Page } from "@playwright/test";
+import type { Locator, Page } from "@playwright/test";
 import Database from "better-sqlite3";
-import { strToU8, zipSync } from "fflate";
+import { strFromU8, strToU8, unzipSync, zipSync } from "fflate";
 import type { MediaAsset } from "../../src/shared/types/media";
 import { SLIDES_CONVERTER_VERSION } from "../../src/shared/constants";
 import { fixture } from "./support/paths";
 import { buildPdf } from "./support/pdf";
-import { audioStates, expect, relaunch, test, videoStates, type WorshipApp } from "./support/app";
+import { CM, buildPptx } from "./support/pptx";
+import { compoundFile } from "../fixtures/legacy-ppt";
+import { audioStates, engineCanvas, expect, moving, relaunch, test, videoStates, type WorshipApp } from "./support/app";
 
-/** A rasterized slide in the centre grid, once the deck is converted. */
+/** A slide in the centre grid, once the deck is read. */
 const slideTile = (app: WorshipApp, n: number) =>
   app.previewColumn().getByRole("list", { name: "Presentación" }).getByRole("button", { name: String(n), exact: true });
 
@@ -17,8 +19,6 @@ const slideTile = (app: WorshipApp, n: number) =>
  *  is on the projector. */
 const liveSlideTile = (app: WorshipApp, n: number) =>
   app.liveColumn().getByRole("list", { name: "Presentación" }).getByRole("button", { name: String(n), exact: true });
-
-const hasHymn = () => fs.existsSync(fixture("hymn.pptx"));
 
 /** What paints a deck's slide on the projector: its image, or its model once
  *  drawn (`data-slide-model`, a `.pptx`). Both urls end in the slide number,
@@ -39,10 +39,10 @@ function projectedSlide(projector: Page): Promise<number | null> {
   );
 }
 
-test("a PDF is a deck: converted without LibreOffice, projected, stepped", async ({ app }) => {
+test("a PDF is a deck: drawn page by page, projected, stepped", async ({ app }) => {
   await app.addMedia("ppt", "deck.pdf");
   await app.previewFile("Presentaciones", "deck");
-  // Its three pages, rasterized, in the centre grid.
+  // Its three pages in the centre grid.
   await expect(slideTile(app, 3)).toBeVisible({ timeout: 60_000 });
 
   await app.goLive();
@@ -120,7 +120,6 @@ test("NEGRO over a deck, and the slide is still there underneath", async ({ app 
 });
 
 test("a .pptx with timings advances by itself", async ({ app }) => {
-  test.skip(!hasHymn(), "LibreOffice is not installed, so there is no .pptx fixture");
   await app.addMedia("ppt", "hymn.pptx");
   await app.previewFile("Presentaciones", "hymn");
   await expect(slideTile(app, 3)).toBeVisible({ timeout: 90_000 });
@@ -134,7 +133,6 @@ test("a .pptx with timings advances by itself", async ({ app }) => {
 });
 
 test("the EN VIVO that opens the projector still gives slide 1 its whole time", async ({ app }) => {
-  test.skip(!hasHymn(), "LibreOffice is not installed, so there is no .pptx fixture");
   await app.addMedia("ppt", "hymn.pptx");
   await app.previewFile("Presentaciones", "hymn");
   await expect(slideTile(app, 3)).toBeVisible({ timeout: 90_000 });
@@ -172,22 +170,125 @@ test("the EN VIVO that opens the projector still gives slide 1 its whole time", 
   expect(shown[2]! - shown[1]!).toBeGreaterThan(1700);
 });
 
-test("a WMV embedded in a .pptx slide is converted and plays on its slide", async ({ app }) => {
-  test.skip(!fs.existsSync(fixture("clipdeck.pptx")), "LibreOffice is not installed, so there is no .pptx fixture");
+test("a WMV embedded in a .pptx slide plays through the media engine on its slide", async ({ app }) => {
   await app.addMedia("ppt", "clipdeck.pptx");
   await app.previewFile("Presentaciones", "clipdeck");
   await expect(slideTile(app, 1)).toBeVisible({ timeout: 90_000 });
 
-  // Main converts the clip inside the deck's own cache and announces it
-  // (`deck-updated`), so the renderer re-reads a deck that now has a video.
-  await expect.poll(() => app.log.some((line) => line.includes("[convert] slide clip")), { timeout: 60_000 }).toBe(true);
+  // Main hands the clip to the engine and announces it (`deck-updated`), so
+  // the renderer re-reads a deck that now has a video. Nothing is converted.
+  await expect.poll(() => app.log.some((line) => line.includes("[engine] slide clip")), { timeout: 60_000 }).toBe(true);
   await app.control.waitForTimeout(1000);
 
   await app.goLive();
   const projector = await app.projector();
-  await expect
-    .poll(async () => (await videoStates(projector)).find((v) => v.src.includes("/deck-video/"))?.videoWidth ?? 0)
-    .toBe(640);
+  await expect.poll(async () => (await engineCanvas(projector, "slideVideo:"))?.width ?? 0).toBe(640);
+  await expect.poll(() => moving(projector, "slideVideo:")).toBe(true);
+  // The LIVE monitor draws the projector's own frames, and no <video> is left.
+  await expect.poll(() => moving(app.control, "slideVideo:")).toBe(true);
+  expect(await videoStates(projector)).toEqual([]);
+
+  // NEGRO holds it where it is: covered for longer than the whole 4 s clip,
+  // it still has the rest to play once uncovered.
+  await app.control.locator("body").press("b");
+  await expect.poll(() => moving(projector, "slideVideo:")).toBe(false);
+  await app.control.waitForTimeout(4500);
+  await app.control.locator("body").press("b");
+  await expect.poll(() => moving(projector, "slideVideo:")).toBe(true);
+
+  // Once it ends it stays on its last frame, and uncovering does not play it again.
+  await expect.poll(() => moving(projector, "slideVideo:"), { timeout: 10_000 }).toBe(false);
+  await app.control.locator("body").press("b");
+  await app.control.waitForTimeout(500);
+  await app.control.locator("body").press("b");
+  await app.control.waitForTimeout(500);
+  expect(await moving(projector, "slideVideo:")).toBe(false);
+});
+
+test("after a restart, a deck prepared before still plays its WMV through the engine", async ({ app }) => {
+  await app.addMedia("ppt", "clipdeck.pptx");
+  await app.previewFile("Presentaciones", "clipdeck");
+  await expect.poll(() => app.log.some((line) => line.includes("[engine] slide clip")), { timeout: 60_000 }).toBe(true);
+  await app.quit();
+
+  // Which clips the engine plays is known only in memory: the cached deck,
+  // opened with a bare peek, has to be looked at again in this launch.
+  const again = await relaunch(app);
+  await again.previewFile("Presentaciones", "clipdeck");
+  await expect.poll(() => again.log.some((line) => line.includes("[engine] slide clip")), { timeout: 30_000 }).toBe(true);
+  await again.control.waitForTimeout(1000);
+  await again.goLive();
+  const projector = await again.projector();
+  await expect.poll(() => moving(projector, "slideVideo:")).toBe(true);
+});
+
+test("a clip an older build converted goes back to its original, and every old copy is deleted", async ({ app }) => {
+  await app.addMedia("ppt", "clipdeck.pptx");
+  await app.previewFile("Presentaciones", "clipdeck");
+  await expect.poll(() => app.log.some((line) => line.includes("[engine] slide clip")), { timeout: 60_000 }).toBe(true);
+  await app.quit();
+
+  // What a build before step 1.4 of the engine plan left: the clip's row on a playable copy made
+  // next to its original, and a library file's copy in `converted-media/`.
+  const dbPath = path.join(app.profile, "worship.db");
+  const db = new Database(dbPath);
+  const clip = db
+    .prepare("SELECT v.id, v.video_file AS file, d.cache_dir AS dir FROM deck_videos v JOIN slide_decks d ON d.id = v.deck_id")
+    .get() as { id: number; file: string; dir: string };
+  const copy = path.join(clip.dir, "video", `${path.parse(clip.file).name}.playable.mp4`);
+  fs.copyFileSync(fixture("clip.mp4"), copy);
+  db.prepare("UPDATE deck_videos SET video_file = ?, ext = 'mp4', playable = 1 WHERE id = ?").run(path.basename(copy), clip.id);
+  db.close();
+  const converted = path.join(app.profile, "converted-media");
+  fs.mkdirSync(converted);
+  fs.copyFileSync(fixture("clip.mp4"), path.join(converted, "1-1000-2000.mp4"));
+
+  const again = await relaunch(app);
+  await expect.poll(() => fs.existsSync(converted)).toBe(false);
+  expect(fs.existsSync(copy)).toBe(false);
+  const ro = new Database(dbPath, { readonly: true });
+  expect(ro.prepare("SELECT video_file AS file, playable FROM deck_videos WHERE id = ?").get(clip.id)).toEqual({
+    file: clip.file,
+    playable: 0,
+  });
+  ro.close();
+
+  // And the original plays through the engine, as on any other deck.
+  await again.previewFile("Presentaciones", "clipdeck");
+  await expect.poll(() => again.log.some((line) => line.includes("[engine] slide clip")), { timeout: 30_000 }).toBe(true);
+  await again.control.waitForTimeout(1000);
+  await again.goLive();
+  const projector = await again.projector();
+  await expect.poll(() => moving(projector, "slideVideo:")).toBe(true);
+});
+
+test("a deck whose music is a WMA follows the media engine's clock, and NEGRO freezes both", async ({ app }) => {
+  await app.addMedia("ppt", "hymn-wma.pptx");
+  await app.previewFile("Presentaciones", "hymn-wma");
+  await expect(slideTile(app, 3)).toBeVisible({ timeout: 90_000 });
+  await expect.poll(() => app.log.some((line) => line.includes("[engine] slide clip")), { timeout: 60_000 }).toBe(true);
+  await app.control.waitForTimeout(1000);
+
+  await app.goLive();
+  const projector = await app.projector();
+  const live = app.liveColumn();
+  // The music sounds from the engine, with no <audio>, and its row reads the engine's clock.
+  const music = live.getByRole("slider", { name: "Posición de hymn-wma (música)" });
+  await expect.poll(async () => Number(await music.getAttribute("aria-valuenow"))).toBeGreaterThan(0);
+  expect(await audioStates(projector)).toEqual([]);
+  // Two seconds a slide, from the music's clock.
+  await expect.poll(() => projectedSlide(projector), { timeout: 5_000 }).toBe(2);
+
+  await app.control.locator("body").press("b");
+  await app.control.waitForTimeout(500);
+  const coveredAt = await music.getAttribute("aria-valuenow");
+  // Covered for longer than a slide: neither the music nor the deck moves.
+  await app.control.waitForTimeout(3000);
+  await expect(live.getByText("2/3", { exact: true })).toBeVisible();
+  expect(await music.getAttribute("aria-valuenow")).toBe(coveredAt);
+
+  await app.control.locator("body").press("b");
+  await expect.poll(() => projectedSlide(projector), { timeout: 5_000 }).toBe(3);
 });
 
 test("a slide clicked in the LIVE grid goes up at once; one clicked in PREVIEW does not", async ({ app }) => {
@@ -216,7 +317,6 @@ test("a slide clicked in the LIVE grid goes up at once; one clicked in PREVIEW d
 });
 
 test("Space freezes a deck that advances by itself, and resumes it", async ({ app }) => {
-  test.skip(!hasHymn(), "LibreOffice is not installed, so there is no .pptx fixture");
   await app.addMedia("ppt", "hymn.pptx");
   await app.previewFile("Presentaciones", "hymn");
   await expect(slideTile(app, 3)).toBeVisible({ timeout: 90_000 });
@@ -235,7 +335,6 @@ test("Space freezes a deck that advances by itself, and resumes it", async ({ ap
 });
 
 test("a deck that advances by itself leaves the projector after its last slide", async ({ app }) => {
-  test.skip(!hasHymn(), "LibreOffice is not installed, so there is no .pptx fixture");
   await app.addMedia("ppt", "hymn.pptx");
   await app.previewFile("Presentaciones", "hymn");
   await expect(slideTile(app, 3)).toBeVisible({ timeout: 90_000 });
@@ -247,7 +346,6 @@ test("a deck that advances by itself leaves the projector after its last slide",
 });
 
 test("a song assigned to a deck plays under it, and NEGRO pauses the song and the slides together", async ({ app }) => {
-  test.skip(!hasHymn(), "LibreOffice is not installed, so there is no .pptx fixture");
   await app.addMedia("ppt", "hymn.pptx");
   await app.previewFile("Presentaciones", "hymn");
   await expect(slideTile(app, 3)).toBeVisible({ timeout: 90_000 });
@@ -287,7 +385,7 @@ test("a deck that cannot be converted says so and can be retried", async ({ app 
   fs.writeFileSync(broken, "%PDF-1.4\nthis is not a pdf\n");
   await app.invoke<MediaAsset[]>("library:add", { kind: "ppt", paths: [broken] });
   await app.previewFile("Presentaciones", "roto");
-  await expect(app.previewColumn().getByText("No se pudo convertir la presentación").first()).toBeVisible({ timeout: 60_000 });
+  await expect(app.previewColumn().getByText("No se pudo abrir la presentación").first()).toBeVisible({ timeout: 60_000 });
 
   // Fixed on disk, then retried from the same panel — unless the library sweep
   // saw the edit first and reconverted it on its own, which is just as right.
@@ -299,20 +397,6 @@ test("a deck that cannot be converted says so and can be retried", async ({ app 
   }).toPass({ timeout: 60_000 });
   await app.goLive();
   await expect.poll(async () => projectedSlide(await app.projector())).toBe(1);
-});
-
-test("without LibreOffice, a .pptx is drawn from its model and projected", async ({ app }) => {
-  test.skip(!hasHymn(), "LibreOffice is not installed, so there is no .pptx fixture");
-  await app.invoke("settings:set", { "slides.sofficePath": path.join(app.profile, "missing", "soffice") });
-  await app.addMedia("ppt", "hymn.pptx");
-  await app.quit();
-
-  const again = await relaunch(app);
-  await again.previewFile("Presentaciones", "hymn");
-  await expect(slideTile(again, 3)).toBeVisible({ timeout: 30_000 });
-  await expect(again.previewColumn().getByText("Hace falta LibreOffice para convertir esta presentación")).toHaveCount(0);
-  await again.goLive();
-  await expect.poll(async () => projectedSlide(await again.projector())).toBe(1);
 });
 
 /** A one-slide `.pptx` whose only text names a face no machine has. */
@@ -365,63 +449,109 @@ test("the fallback face chosen in Ajustes reaches a live model slide at once", a
   await expect.poll(projectedFamily).toMatch(/"Lumina Missing Face".*\bMontserrat"?, sans-serif$/);
 });
 
-test("without LibreOffice: warned at launch, a PowerPoint is gated, a PDF still projects", async ({ app }) => {
-  // A machine with no LibreOffice, whatever this one has: an override is
-  // authoritative, and one that is not there is never swapped for autodetection.
-  await app.invoke("settings:set", { "slides.sofficePath": path.join(app.profile, "missing", "soffice") });
-  await app.invoke("deck:environment", { force: true });
-  // Not a presentation, so it can't be drawn from a model: it would need
-  // LibreOffice, and the gate stops it there.
-  const pptx = path.join(app.profile, "himno.pptx");
-  fs.writeFileSync(pptx, "PK not a presentation");
-  await app.invoke<MediaAsset[]>("library:add", { kind: "ppt", paths: [pptx] });
+test("a deck that won't open says why — in its panel, on PREVIEW, at EN VIVO — and never asks to install anything", async ({ app }) => {
+  const toast = (text: string) => app.control.getByRole("status").filter({ hasText: text });
+  // Not a presentation: a zip with nothing of one inside.
+  const broken = path.join(app.profile, "himno.pptx");
+  fs.writeFileSync(broken, "PK not a presentation");
+  // An encrypted `.pptx`: an OLE file holding the encryption streams.
+  const locked = path.join(app.profile, "secreto.pptx");
+  fs.writeFileSync(
+    locked,
+    compoundFile([
+      { name: "EncryptionInfo", data: Buffer.alloc(64, 1) },
+      { name: "EncryptedPackage", data: Buffer.alloc(4096, 2) },
+    ]),
+  );
+  await app.invoke<MediaAsset[]>("library:add", { kind: "ppt", paths: [broken, locked] });
   await app.addMedia("ppt", "deck.pdf");
-  await app.quit();
 
-  const again = await relaunch(app);
-  const toast = (on: WorshipApp, text: string) => on.control.getByRole("status").filter({ hasText: text });
-  await expect(toast(again, "algunas presentaciones de PowerPoint no se van a poder convertir")).toBeVisible();
+  await app.previewFile("Presentaciones", "himno");
+  const preview = app.previewColumn();
+  // The centre panel and the PREVIEW stage both say it, with main's reason.
+  await expect(preview.getByText("No se pudo abrir la presentación")).toHaveCount(2, { timeout: 30_000 });
+  await expect(preview.getByText("No se pudo abrir el archivo como presentación").first()).toBeVisible();
+  await expect(app.control.getByText(/LibreOffice|soffice/i)).toHaveCount(0);
 
-  await again.previewFile("Presentaciones", "himno");
-  const tab = again.control.getByRole("tabpanel", { name: "Presentaciones" });
-  await expect(tab.getByText("Algunos PowerPoint no se pueden abrir sin convertir")).toBeVisible();
-  await expect(again.previewColumn().getByText("Lumina Live usa LibreOffice para convertir")).toBeVisible();
-  // The stage says why — it used to say «Preparando la conversión…» forever.
-  await expect(again.previewColumn().getByText("Hace falta LibreOffice para convertir esta presentación")).toBeVisible();
-  await expect(again.previewColumn().getByText("Preparando la conversión")).toHaveCount(0);
+  await app.goLive();
+  await expect(toast("«himno» no se puede proyectar. No se pudo abrir el archivo como presentación")).toBeVisible({ timeout: 30_000 });
+  expect(await projectedSlide(await app.projector())).toBeNull();
 
-  await again.goLive();
-  await expect(toast(again, "«himno» no se puede proyectar")).toBeVisible({ timeout: 30_000 });
-  expect(await projectedSlide(await again.projector())).toBeNull();
+  await app.previewFile("Presentaciones", "secreto");
+  await expect(preview.getByText("La presentación tiene contraseña para abrirla").first()).toBeVisible({ timeout: 30_000 });
+  await expect(preview.getByRole("button", { name: "Reintentar" }).first()).toBeVisible();
 
-  // Everything that does not need LibreOffice is untouched.
-  await again.previewFile("Presentaciones", "deck");
-  await expect(slideTile(again, 3)).toBeVisible({ timeout: 60_000 });
-  await again.goLive();
-  await expect.poll(async () => projectedSlide(await again.projector())).toBe(1);
+  // Everything that opens is untouched.
+  await app.previewFile("Presentaciones", "deck");
+  await expect(slideTile(app, 3)).toBeVisible({ timeout: 60_000 });
+  await app.goLive();
+  await expect.poll(async () => projectedSlide(await app.projector())).toBe(1);
+  await expect(app.control.getByText(/LibreOffice|soffice/i)).toHaveCount(0);
+});
 
-  // Silenced from the strip — the launch toast saying the same goes with it —
-  // and it stays silenced.
-  await tab.getByRole("button", { name: "No volver a mostrar" }).click();
-  await expect(tab.getByText("Algunos PowerPoint no se pueden abrir sin convertir")).toHaveCount(0);
-  await expect(toast(again, "algunas presentaciones de PowerPoint no se van a poder convertir")).toHaveCount(0);
-  await again.quit();
-  const third = await relaunch(again);
-  await third.openResources("Media", "Presentaciones");
-  await expect(third.control.getByText("Algunos PowerPoint no se pueden abrir sin convertir")).toHaveCount(0);
-  await expect(toast(third, "algunas presentaciones de PowerPoint no se van a poder convertir")).toHaveCount(0);
+test("a slide whose part won't parse is drawn without it, and only the control window says so", async ({ app }) => {
+  const verses = [1, 2, 3].map((n) => ({
+    text: { paragraphs: [{ text: `Estrofa ${n}`, size: 44 }], box: [2 * CM, 5 * CM, 24 * CM, 6 * CM] as [number, number, number, number] },
+  }));
+  const parts = unzipSync(buildPptx(verses));
+  // Slide 2 cut mid-tag, as a damaged download leaves it.
+  const slide2 = strFromU8(parts["ppt/slides/slide2.xml"]!);
+  parts["ppt/slides/slide2.xml"] = strToU8(slide2.slice(0, slide2.indexOf(' sz="') + 2));
+  const file = path.join(app.profile, "dañado.pptx");
+  fs.writeFileSync(file, zipSync(parts));
+  await app.invoke<MediaAsset[]>("library:add", { kind: "ppt", paths: [file] });
 
-  // Installed while the app is open (here: the bad override goes away), found
-  // by «Comprobar de nuevo» without a restart. Only where there is one to find.
-  if (!hasHymn()) return;
-  await third.invoke("settings:set", { "slides.sofficePath": null });
-  await third.control.getByRole("button", { name: "Configuración" }).click();
-  const settings = third.control.getByRole("dialog", { name: "Configuración" });
-  await settings.getByRole("tab", { name: "Diapositivas" }).click();
-  await expect(settings.getByText("No disponible", { exact: true })).toBeVisible();
-  await settings.getByRole("button", { name: "Comprobar de nuevo" }).click();
-  await expect(toast(third, "está listo")).toBeVisible();
-  await expect(settings.getByText(/^Versión \d/)).toBeVisible();
+  await app.previewFile("Presentaciones", "dañado");
+  await expect(slideTile(app, 3)).toBeVisible({ timeout: 30_000 });
+  // The mark names the damage, so it is part of that tile's name and of no other's.
+  const grid = app.previewColumn().getByRole("list", { name: "Presentación" });
+  const damagedTile = grid.getByRole("button", { name: /dañada/ });
+  await expect(damagedTile).toHaveCount(1);
+  await expect(damagedTile).toHaveAccessibleName(/^2/);
+
+  // The column header says it too, while its monitor shows that slide: one
+  // more «Diapositiva dañada» beside the tile's own.
+  const damagedLabels = (column: Locator) => column.getByText("Diapositiva dañada", { exact: true });
+  const preview = app.previewColumn();
+  await expect(damagedLabels(preview)).toHaveCount(1);
+  await damagedTile.click();
+  await expect(damagedLabels(preview)).toHaveCount(2);
+
+  await app.goLive();
+  const projector = await app.projector();
+  await expect.poll(() => projectedSlide(projector)).toBe(2);
+  await expect(damagedLabels(app.liveColumn())).toHaveCount(2);
+  // The projector draws what could be read, and says nothing.
+  await expect(projector.getByText(/dañada/)).toHaveCount(0);
+  await expect(projector.getByText("Estrofa 2")).toHaveCount(0);
+  await app.control.keyboard.press("ArrowRight");
+  await expect.poll(() => projectedSlide(projector)).toBe(3);
+  await expect(damagedLabels(app.liveColumn())).toHaveCount(1);
+});
+
+test("a legacy .ppt with text is drawn from its model and advances by itself", async ({ app }) => {
+  await app.addMedia("ppt", "legacy-text.ppt");
+  await app.previewFile("Presentaciones", "legacy-text");
+  await expect(slideTile(app, 3)).toBeVisible({ timeout: 30_000 });
+  await app.goLive();
+  const projector = await app.projector();
+  await expect.poll(() => projectedSlide(projector)).toBe(1);
+  await expect(projector.getByText("Estrofa 1")).toBeVisible();
+  // Two seconds a slide, from the deck's own records.
+  await expect.poll(() => projectedSlide(projector), { timeout: 8_000 }).toBe(2);
+  await expect.poll(() => projectedSlide(projector), { timeout: 8_000 }).toBe(3);
+});
+
+test("an .odp is drawn from its model and advances by itself", async ({ app }) => {
+  await app.addMedia("ppt", "hymn.odp");
+  await app.previewFile("Presentaciones", "hymn");
+  await expect(slideTile(app, 3)).toBeVisible({ timeout: 30_000 });
+  await app.goLive();
+  const projector = await app.projector();
+  await expect.poll(() => projectedSlide(projector)).toBe(1);
+  await expect(projector.getByText("Estrofa 1")).toBeVisible();
+  await expect.poll(() => projectedSlide(projector), { timeout: 8_000 }).toBe(2);
+  await expect.poll(() => projectedSlide(projector), { timeout: 8_000 }).toBe(3);
 });
 
 test("a deck edited on disk is converted again the next time it is opened", async ({ app }) => {
@@ -463,43 +593,127 @@ test("a deck edited while the app was closed is not projected from the old cache
   await expect(liveSlideTile(again, 3)).toHaveCount(0);
 });
 
-test("a deck finished in the background after the operator cancelled it shows its slides, not «Preparando…»", async ({ app }) => {
-  test.skip(!hasHymn(), "LibreOffice is not installed, so there is no .odp fixture");
-  const [hymn] = await app.addMedia("ppt", "converted.odp");
-  if (!hymn) throw new Error("import failed");
-  await app.previewFile("Presentaciones", "converted");
-  const preview = app.previewColumn();
-  // Main's own word that the job stopped: until its `soffice` is gone, a new
-  // request for the same deck joins the dying job instead of starting one.
+test("a long PDF opens without converting anything, and writes nothing to disk", async ({ app }) => {
+  // Every status main announces for a deck: a PDF used to say «converting»
+  // page by page, then write every page to the slide cache.
   type Bridge = { worship: { on: (channel: string, cb: (payload: { status: string }) => void) => void } };
-  const stopped = app.control.evaluate(
-    () =>
-      new Promise<void>((resolve) =>
-        (window as unknown as Bridge).worship.on("deck-progress", (p) => {
-          if (p.status === "stale") resolve();
-        }),
-      ),
-  );
-  await preview.getByRole("button", { name: "Cancelar" }).first().click();
-  await expect(preview.getByText("Conversión cancelada").first()).toBeVisible();
-  await stopped;
+  await app.control.evaluate(() => {
+    const seen: string[] = [];
+    (window as unknown as { deckStatuses: string[] }).deckStatuses = seen;
+    (window as unknown as Bridge).worship.on("deck-progress", (p) => seen.push(p.status));
+  });
+  const [deck] = await app.addMedia("ppt", "long.pdf");
+  if (!deck) throw new Error("import failed");
+  await app.previewFile("Presentaciones", "long");
+  await expect(slideTile(app, 1)).toBeVisible({ timeout: 30_000 });
+  const read = await app.invoke<{ slideCount: number }>("deck:ensure", { assetId: deck.id });
+  expect(read.slideCount).toBe(160);
 
-  // Later the background prewarm (the library's visible decks, the
-  // schedule's) converts it after all — with nobody in the control window
-  // awaiting that job.
-  await app.invoke("deck:prewarm", { assetIds: [hymn.id], scope: "explicit" });
-  await expect(slideTile(app, 3)).toBeVisible({ timeout: 90_000 });
-  await expect(preview.getByText("Preparando la conversión…")).toHaveCount(0);
+  // Pages the projector has not been sent yet are drawn when it asks.
+  await app.goLive();
+  const projector = await app.projector();
+  await expect.poll(() => projectedSlide(projector)).toBe(1);
+  for (let n = 2; n <= 4; n += 1) {
+    await app.control.keyboard.press("ArrowRight");
+    await expect.poll(() => projectedSlide(projector)).toBe(n);
+  }
+  await expect
+    .poll(() =>
+      projector.evaluate(() => {
+        const image = [...document.querySelectorAll<HTMLImageElement>('img[src^="worship://deck/"]')].at(-1);
+        return image?.complete ? image.naturalWidth : 0;
+      }),
+    )
+    .toBeGreaterThan(0);
+
+  const statuses = await app.control.evaluate(() => (window as unknown as { deckStatuses: string[] }).deckStatuses);
+  expect(statuses).not.toContain("converting");
+  expect(fs.readdirSync(path.join(app.profile, "slides-cache"))).toEqual([]);
 });
 
-test("cancelling a deck that is still waiting in line says so", async ({ app }) => {
-  test.skip(!hasHymn(), "LibreOffice is not installed, so there is no .odp fixture");
-  await app.addMedia("ppt", "converted.odp", "queued.odp");
-  // The first converts; the second deck waits behind it.
-  await app.previewFile("Presentaciones", "converted");
-  await app.previewFile("Presentaciones", "queued");
-  const preview = app.previewColumn();
-  await preview.getByRole("button", { name: "Cancelar" }).first().click();
-  await expect(preview.getByText("Conversión cancelada").first()).toBeVisible();
-  await expect(preview.getByText("Preparando la conversión…")).toHaveCount(0);
+test("taking a copy of a PDF out of the library leaves the one on air drawing its pages", async ({ app }) => {
+  // Same bytes twice: the two rows share one deck, whose source is whichever
+  // was opened last.
+  const copy = path.join(app.profile, "long copia.pdf");
+  fs.copyFileSync(fixture("long.pdf"), copy);
+  await app.addMedia("ppt", "long.pdf");
+  const [duplicate] = await app.invoke<MediaAsset[]>("library:add", { kind: "ppt", paths: [copy] });
+  if (!duplicate) throw new Error("import failed");
+
+  await app.previewFile("Presentaciones", "long");
+  await expect(slideTile(app, 1)).toBeVisible({ timeout: 30_000 });
+  await app.goLive();
+  const projector = await app.projector();
+  await expect.poll(() => projectedSlide(projector)).toBe(1);
+
+  await app.previewFile("Presentaciones", "long copia");
+  await expect(slideTile(app, 1)).toBeVisible({ timeout: 30_000 });
+  await app.invoke("library:remove", { id: duplicate.id });
+  // The hidden window that draws PDFs keeps the document open for 5 minutes;
+  // past that (or after a crash) it reads the file again, and that read is
+  // what was refused for a source no longer in the library. A crash, not a
+  // `destroy()`: a page it was drawing is drawn again in the next window.
+  await app.electron.evaluate(({ webContents }) => {
+    for (const contents of webContents.getAllWebContents()) {
+      if (contents.getURL().includes("rasterizer")) contents.forcefullyCrashRenderer();
+    }
+  });
+
+  // Pages nobody drew yet: they have to come from the file still on air.
+  for (let n = 2; n <= 6; n += 1) {
+    await app.liveColumn().getByRole("button", { name: "Siguiente" }).click();
+    await expect.poll(() => projectedSlide(projector)).toBe(n);
+  }
+  await expect
+    .poll(() =>
+      projector.evaluate(() => {
+        const image = [...document.querySelectorAll<HTMLImageElement>('img[src^="worship://deck/"]')].at(-1);
+        return image?.complete ? image.naturalWidth : 0;
+      }),
+    )
+    .toBeGreaterThan(0);
+});
+
+test("a PDF page whose hidden drawing window crashes is drawn again, not left blank", async ({ app }) => {
+  await app.addMedia("ppt", "long.pdf");
+  await app.previewFile("Presentaciones", "long");
+  await expect(slideTile(app, 1)).toBeVisible({ timeout: 30_000 });
+  await app.goLive();
+  const projector = await app.projector();
+  await expect.poll(() => projectedSlide(projector)).toBe(1);
+
+  // The first time each full-size page is asked for, the hidden window dies
+  // instead of drawing it; asked again, it draws.
+  await app.electron.evaluate(({ app: electronApp, webContents }) => {
+    const crashed = new Set<number>();
+    const sabotage = (contents: Electron.WebContents) => {
+      if (!contents.getURL().includes("rasterizer")) return;
+      const send = contents.send.bind(contents);
+      contents.send = (channel: string, ...args: unknown[]) => {
+        const task = args[0] as { op?: string; thumb?: boolean; page?: number };
+        if (channel === "raster:task" && task.op === "render" && task.thumb === false && !crashed.has(task.page ?? 0)) {
+          crashed.add(task.page ?? 0);
+          contents.forcefullyCrashRenderer();
+          return;
+        }
+        send(channel, ...args);
+      };
+    };
+    for (const contents of webContents.getAllWebContents()) sabotage(contents);
+    electronApp.on("web-contents-created", (_event, contents) => contents.once("did-finish-load", () => sabotage(contents)));
+  });
+
+  for (let n = 2; n <= 5; n += 1) {
+    await app.liveColumn().getByRole("button", { name: "Siguiente" }).click();
+    await expect.poll(() => projectedSlide(projector)).toBe(n);
+  }
+  await expect
+    .poll(() =>
+      projector.evaluate(() => {
+        const image = [...document.querySelectorAll<HTMLImageElement>('img[src^="worship://deck/"]')].at(-1);
+        return image?.complete ? image.naturalWidth : 0;
+      }),
+    )
+    .toBeGreaterThan(0);
+  await expect(app.liveColumn().getByText("No se pudo reproducir el archivo")).toHaveCount(0);
 });

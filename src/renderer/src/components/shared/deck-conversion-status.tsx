@@ -33,7 +33,7 @@ export function DeckConversionStatus({
   // and «Retry»: a conversion starting between the press and the release
   // turned a click on «Retry» into a cancel.
   const cancelAction = (
-    <Button key="cancel" onClick={() => void cancelConversion(assetId)} size="xs" variant="ghost">
+    <Button key="cancel" onClick={() => cancelConversion(assetId)} size="xs" variant="ghost">
       {t("deck.cancel")}
     </Button>
   );

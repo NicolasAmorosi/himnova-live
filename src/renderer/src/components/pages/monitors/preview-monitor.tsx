@@ -1,13 +1,11 @@
 import { useCallback, useState } from "react";
 import { useT } from "@renderer/lib/i18n/i18n-provider";
-import { LoadingState, Monitor } from "@renderer/components/ui";
+import { Monitor } from "@renderer/components/ui";
 import { OutputView } from "@renderer/components/shared/output-view";
 import { DeckConversionStatus } from "@renderer/components/shared/deck-conversion-status";
-import { MediaConversionStatus } from "@renderer/components/shared/media-conversion-status";
-import { useConversion } from "@renderer/stores/conversion.store";
-import { sofficeBlocks, useDeckStore } from "@renderer/stores/deck.store";
 import { usePreviewContent, usePreviewOutput } from "@renderer/lib/hooks/use-preview";
 import { usePreviewMediaStatus } from "@renderer/lib/hooks/use-preview-media-status";
+import { usePreviewEngineVideo } from "@renderer/lib/hooks/use-preview-engine-video";
 import { attachPreviewVideo } from "@renderer/lib/actions/preview-playback";
 
 /** Stage one of the two-stage flow: what the operator has queued up, never on
@@ -25,6 +23,7 @@ export function PreviewMonitor() {
   const output = usePreviewOutput(content);
   const [videoElement, setVideoElement] = useState<HTMLVideoElement | null>(null);
   usePreviewMediaStatus(videoElement);
+  const engineFailedUrl = usePreviewEngineVideo(output);
 
   const handleVideoRef = useCallback((element: HTMLVideoElement | null) => {
     setVideoElement(element);
@@ -41,42 +40,24 @@ export function PreviewMonitor() {
       ? content.asset.name
       : t("preview.placeholder");
 
-  // A deck still converting (or queued behind other work) has no `output`
-  // yet — without this, the stage would just fall back to the generic empty
-  // placeholder with no sign anything is happening.
+  // A deck still being read (or queued behind other work), or one that won't
+  // open, has no `output` — without this, the stage would just fall back to
+  // the generic empty placeholder with no sign of what is happening.
   const convertingAssetId = !missing && !output && content?.kind === "deck" ? content.assetId : null;
-  // …unless nothing is: with LibreOffice missing, an unconverted deck is
-  // never queued, and this stage said «Getting ready to convert…» forever.
-  const environment = useDeckStore((s) => s.environment);
-  const convertingEntry = useDeckStore((s) => (convertingAssetId === null ? undefined : s.byAssetId[convertingAssetId]));
-  const sofficeMissing =
-    convertingAssetId !== null && content?.kind === "deck" && sofficeBlocks(environment, content.ext, convertingEntry);
-  // A video or audio being converted: its original would play black, or not
-  // at all, so the stage says so instead of mounting a player for it.
-  const mediaAsset = !missing && content?.kind === "media" ? content.asset : null;
-  const conversion = useConversion(mediaAsset?.id ?? null);
 
   return (
     <Monitor empty={empty}>
-      {mediaAsset && conversion ? (
-        <MediaConversionStatus assetId={mediaAsset.id} kind={mediaAsset.kind} state={conversion} surface="stage" />
-      ) : output ? (
-        // No `reportedErrorUrls`: the preview's own elements ARE the ones being
-        // checked here, which is the point — a file the operator queues up is
-        // exercised in this window before it ever reaches the projector.
+      {output ? (
+        // The preview's own elements ARE the ones being checked here, which is
+        // the point — a file the operator queues up is exercised in this window
+        // before it ever reaches the projector. A video the engine plays has no
+        // element, so the engine's own failure is passed in.
         <OutputView
           errorLabel={t("media.loadError")}
           mode="preview"
           output={output}
+          reportedErrorUrls={engineFailedUrl ? [engineFailedUrl] : []}
           videoRef={handleVideoRef}
-        />
-      ) : sofficeMissing ? (
-        <LoadingState
-          hint={t("deck.noLibreOffice.stageHint")}
-          icon="alert"
-          surface="stage"
-          title={t("deck.noLibreOffice.title")}
-          tone="failed"
         />
       ) : convertingAssetId !== null ? (
         <DeckConversionStatus assetId={convertingAssetId} surface="stage" />

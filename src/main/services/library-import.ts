@@ -4,8 +4,8 @@ import { ASSET_EXTENSIONS, PREWARM_EXPLICIT_MAX, type AssetKind } from "@shared/
 import type { MediaAsset } from "@shared/types/media";
 import { getMediaRepo } from "./repos";
 import { broadcast } from "./broadcast";
-import { prewarmExplicit } from "../slides/deck-service";
-import { notifyMediaChanged } from "../media/conversion-service";
+import { prewarm } from "../slides/deck-service";
+import { notifyMediaChanged } from "../media/engine-assets";
 
 const CHUNK_SIZE = 100;
 /** Below this, an import resolves fast enough (a handful of `statSync` calls
@@ -41,7 +41,7 @@ function yieldToEventLoop(): Promise<void> {
  *   file it copies onto a FAT/exFAT stick, and PowerPoint keeps a `~$Himno.pptx`
  *   lock file beside an open deck. Both carry the extension, neither is a
  *   presentation: a hymnal copied from a Mac showed every tile twice, and the
- *   copies were counted, pre-warmed and fed to `soffice` to fail.
+ *   copies were counted, pre-warmed and fed to the readers to fail.
  * - **The extension decides, not the caller.** `kind` comes from the renderer
  *   (a picker's filter is a hint that can be typed past), and an `.mp3` filed
  *   as a video only fails later, on the projector.
@@ -159,11 +159,11 @@ export async function importPaths(
     // prewarm already covers for whatever the operator actually scrolls to.
     //
     // Capped: an import is one gesture, and dragging in a whole folder must
-    // not turn it into hundreds of unrequested conversions (see
+    // not turn it into hundreds of unrequested reads (see
     // `PREWARM_EXPLICIT_MAX`). The rest are reachable from "Prepare
     // folder", which asks first and can be stopped.
     if (kind === "ppt" && inLibrary) {
-      prewarmExplicit(results.slice(0, PREWARM_EXPLICIT_MAX).map((asset) => asset.id));
+      prewarm(results.slice(0, PREWARM_EXPLICIT_MAX).map((asset) => asset.id));
     }
 
     return results;

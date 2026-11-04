@@ -11,8 +11,9 @@ import { programDraftHandlers } from "./handlers/program-draft";
 import { utilityHandlers } from "./handlers/utility";
 import { overlaysHandlers } from "./handlers/overlays";
 import { systemHandlers } from "./handlers/system";
-import { conversionsHandlers } from "./handlers/conversions";
+import { engineAssetsHandlers } from "./handlers/engine-assets";
 import { updatesHandlers } from "./handlers/updates";
+import { previewHandlers } from "./handlers/preview";
 
 /**
  * Assembling the object literal AS `Handlers` is what makes a missing or
@@ -33,8 +34,9 @@ export function registerAllIpcHandlers(): void {
     ...utilityHandlers,
     ...overlaysHandlers,
     ...systemHandlers,
-    ...conversionsHandlers,
+    ...engineAssetsHandlers,
     ...updatesHandlers,
+    ...previewHandlers,
   };
   registerHandlers(handlers);
 }

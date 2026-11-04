@@ -4,6 +4,7 @@ import { onIpc } from "@renderer/lib/ipc";
 import { OutputView } from "@renderer/components/shared/output-view";
 import { useMediaStatusReporter } from "./use-media-status-reporter";
 import { INSTANT_TRANSITION } from "@shared/types/projection";
+import { isEngineUrl } from "@shared/urls";
 import type {
   AudioTrackPush,
   MediaCommand,
@@ -229,8 +230,9 @@ export function ProjectionApp() {
       {/* Outside the output view on purpose: keyed by trackId+epoch so a track
           restarts from the beginning only when it is truly a new play (a
           fresh GO LIVE on the same asset bumps the epoch), never merely
-          because BLACK/LOGO or a pause toggled. */}
-      {tracks.map((track) => (
+          because BLACK/LOGO or a pause toggled. A track the media engine
+          plays has no element at all: main plays it, sound included. */}
+      {tracks.filter((track) => !isEngineUrl(track.url)).map((track) => (
         <AudioTrackElement
           key={`${track.trackId}:${track.epoch}`}
           registry={audioRefs.current}

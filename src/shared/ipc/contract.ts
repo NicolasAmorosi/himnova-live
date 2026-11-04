@@ -2,10 +2,10 @@ import type { AssetKind } from "../constants";
 import type { DisplayInfo } from "../types/display";
 import type {
   DecoderSupport,
+  EngineAssetUpdate,
   ImportProgress,
   MediaAsset,
   MediaAssetUsage,
-  MediaConversionUpdate,
 } from "../types/media";
 import type {
   BibleBookDTO,
@@ -18,13 +18,14 @@ import type {
   AudioTrackPush,
   MediaCommand,
   MediaStatus,
+  PreviewEngineVideo,
+  PreviewVideoStatus,
   ProjectionMediaError,
   ProjectionOutput,
 } from "../types/projection";
 import type {
   DeckCacheStats,
   DeckDTO,
-  DeckEnvironment,
   DeckProgress,
   DeckStatusSummary,
   PrewarmProgress,
@@ -79,6 +80,17 @@ export type IpcContract = {
    *  (the congregation must not see one); it reports, and the control window
    *  is what tells the operator. */
   "projection:reportMediaError": { req: ProjectionMediaError; res: void };
+  /** A canvas for the media engine's frames (`liveEngineFrameKey`,
+   *  `previewEngineFrameKey`) just mounted. A paused engine sends no frames, so
+   *  main has it draw the current one again — a projector rebuilt onto another
+   *  screen, or a monitor remounted, would otherwise stay black until play. */
+  "projection:wantVideoFrame": { req: { key: string }; res: void };
+
+  /** The PREVIEW monitor's video when the media engine plays it, or `null`
+   *  when it shows anything else. Declarative: main loads a new url, and only
+   *  pauses or resumes the same one. */
+  "preview:setVideo": { req: PreviewEngineVideo | null; res: void };
+  "preview:seekVideo": { req: { seconds: number }; res: void };
 
   /** `kind: "all"` combines every `AssetKind`'s extensions into one filter, for
    *  a single file dialog that accepts any supported media at once — the
@@ -95,32 +107,17 @@ export type IpcContract = {
    *  operator has to be able to tell whether that is where his files are. */
   "files:systemFolders": { req: void; res: Record<AssetKind, string> };
 
-  /** Cache lookup only — never triggers a conversion, so it is safe to call
-   *  while merely rendering a list or selecting an item. */
+  /** Cache lookup only — never reads or draws anything, so it is safe to
+   *  call while merely rendering a list or selecting an item. */
   "deck:get": { req: { assetId: number }; res: DeckDTO | null };
-  /** Converts if needed. Idempotent per assetId: a second call while a
-   *  conversion is in flight joins the same job instead of queuing another. */
+  /** Reads the deck from its source if needed (a PDF: its page sizes; its
+   *  pages are drawn when asked for). Idempotent per assetId: a second call
+   *  while one is in flight joins it. */
   "deck:ensure": { req: { assetId: number; force?: boolean }; res: DeckDTO };
-  "deck:cancel": { req: { assetId: number }; res: void };
-  /** The last sweep's answer, or — with `force` — a new sweep: «Check
-   *  again», for a LibreOffice installed while the app was open. */
-  "deck:environment": { req: { force: boolean }; res: DeckEnvironment };
-  /** Opens a native file picker so the user can point at soffice by hand. */
-  "deck:locateSoffice": { req: void; res: DeckEnvironment };
-  /** Opens LibreOffice's download page in the system browser. The URL is
-   *  main's, never the renderer's to choose. */
-  "deck:openSofficeDownload": { req: void; res: void };
 
-  /** Fire-and-forget background conversion for decks not already converted.
-   *  The scope is also the priority: main drains `program` before `explicit`
-   *  before `visible` before a "Prepare folder" batch, and a deck asked for
-   *  again under a higher scope is moved up, even if it was already queued.
-   *
-   *  `"program"` (in the order of service) and `"explicit"` (added via
-   *  `+`/drag&drop) never get cancelled by another call; `"visible"` REPLACES
-   *  the previous visible set — assets that scrolled out are dropped from the
-   *  queue (not-yet-running ones only), assets that scrolled in are added. */
-  "deck:prewarm": { req: { assetIds: number[]; scope: "program" | "explicit" | "visible" }; res: void };
+  /** Fire-and-forget: reads in the background the decks not read yet — the
+   *  order of service, the library tiles on screen. */
+  "deck:prewarm": { req: { assetIds: number[] }; res: void };
   /** Starts one tracked, cancelable batch — the "Prepare folder/view"
    *  button. `assetIds` is whatever the caller already has on screen (the
    *  library tab or linked-folder view's current list); already-converted
@@ -138,9 +135,9 @@ export type IpcContract = {
 
   /** How much disk the slide cache is using against its budget. Read-only and
    *  cheap (one aggregate query plus a setting), so Settings can poll it on
-   *  open without coordinating with the conversion queue. */
+   *  open. */
   "deck:cacheStats": { req: void; res: DeckCacheStats };
-  /** Deletes EVERY cached deck — rows and rasterized files alike — and answers
+  /** Deletes EVERY cached deck — rows and extracted files alike — and answers
    *  with the usage that is left. Nothing is spared, including a deck that is
    *  on the projector right now: main deliberately has no way to know what is
    *  live (see `.claude/knowledge/main-cannot-know-what-is-live-under-an-overlay.md`),
@@ -195,16 +192,15 @@ export type IpcContract = {
    *  changed), which the panel must not show as an empty folder. */
   "library:listFolder": { req: { kind: AssetKind; path: string }; res: MediaAsset[] };
 
-  /** Every video/audio asset that cannot play yet — queued, converting or
-   *  failed — to seed `conversion.store`; `conversion-changed` keeps it current
-   *  from then on. An asset that is not listed plays. */
-  "conversion:list": { req: void; res: MediaConversionUpdate[] };
+  /** The library videos and audios the media engine plays, to seed `engine-assets.store`;
+   *  `engine-asset-changed` keeps it current from then on. Any other one plays in Chromium. */
+  "engine:assets": { req: void; res: number[] };
   /** Whether this machine's Chromium decodes HEVC, which only a renderer can
-   *  ask. Nothing is converted before the first report. */
-  "conversion:reportDecoders": { req: DecoderSupport; res: void };
-  /** The operator is looking at it: it converts next. */
-  "conversion:prioritize": { req: { id: number }; res: void };
-  "conversion:retry": { req: { id: number }; res: void };
+   *  ask. Nothing is decided before the first report. */
+  "engine:reportDecoders": { req: DecoderSupport; res: void };
+  /** A file's length as ffprobe read it, for an audio the media engine plays: no `<audio>` in the
+   *  control window can open it to ask (`useMediaDuration`). `null` while it has not been probed. */
+  "engine:duration": { req: { id: number }; res: number | null };
 
   "programs:list": { req: void; res: ProgramSummary[] };
   /** ADOPTS the program: main starts attributing `projection_history` to it and
@@ -350,6 +346,9 @@ export type IpcEvents = {
   "projector-screen": { connected: boolean };
   "media-status": MediaStatus;
   "media-error": ProjectionMediaError;
+  /** The PREVIEW monitor's engine (`preview:setVideo`), ~4/s. */
+  "preview-video-status": PreviewVideoStatus;
+  "preview-video-error": { url: string };
   "deck-progress": DeckProgress;
   "prewarm-progress": PrewarmProgress;
   /** What `deck:statuses` would answer changed for reasons that are not a
@@ -359,17 +358,21 @@ export type IpcEvents = {
    *  must re-ask for statuses without re-listing files. */
   "deck-statuses-changed": { kind: AssetKind };
   "library-changed": { kind: AssetKind };
-  /** One asset's conversion moved: queued, progress (≤4/s), done (`state:
-   *  null`) or failed. */
-  "conversion-changed": MediaConversionUpdate;
-  /** A converted deck's embedded clip was made playable in place
-   *  (`media/deck-clips.ts`): the deck's DTO now lists a video or soundtrack it
-   *  did not before, so a renderer holding it must read it again. */
+  /** A library asset started or stopped being played by the media engine. */
+  "engine-asset-changed": EngineAssetUpdate;
+  /** A deck's embedded clip turned out playable, by Chromium or by the media
+   *  engine (`media/deck-clips.ts`): the deck's DTO now lists a video or
+   *  soundtrack it did not before, so a renderer holding it must read it again. */
   "deck-updated": { deckId: number };
   /** Only fired for a batch large enough to need a progress bar
    *  (`library-import.ts`'s `PROGRESS_THRESHOLD`), throttled to a few per
    *  second — never one event per file. */
   "library-import-progress": ImportProgress;
+  /** A key pressed while the PROJECTION window had the keyboard — macOS focuses
+   *  it when it opens, and a click on its screen does on any system. Forwarded
+   *  by `windows/projection-window.ts` so the shortcuts answer from either
+   *  window; only keys without Ctrl/⌘/Alt, so the menu's own still work there. */
+  "projector-key": { key: string; repeat: boolean };
   /** The operator asked to close the control window and the schedule has
    *  unsaved changes. Main has already vetoed the close and is asking the
    *  control window what to do; the answer comes back as

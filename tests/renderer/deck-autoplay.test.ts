@@ -65,3 +65,28 @@ test("each deck sent live starts its own clock", () => {
   vi.advanceTimersByTime(3000);
   expect(useProjectionStore.getState().base).toMatchObject({ assetId: 2, slideIndex: 3 });
 });
+
+test("a soundtrack reported paused holds the slide where its music stopped", () => {
+  const live = { ...deck(3, 2000), soundtrack: { url: "worship://engine/deck-audio/1", durationMs: null, origin: "embedded" as const, name: "1.wma" } };
+  sendLive(live);
+  const status = (currentTimeSeconds: number, paused: boolean) =>
+    useProjectionStore.getState().setMediaStatus({
+      target: { kind: "audio", trackId: "deck-soundtrack" },
+      epoch: useProjectionStore.getState().soundtrackEpoch,
+      currentTimeSeconds,
+      durationSeconds: 6,
+      paused,
+      ended: false,
+    });
+  status(0.1, false);
+  status(1.9, false);
+  // The engine pauses it with the projector closed, and keeps saying so four times a second.
+  for (let i = 0; i < 12; i += 1) {
+    status(1.95, true);
+    vi.advanceTimersByTime(250);
+  }
+  expect(useProjectionStore.getState().base).toMatchObject({ slideIndex: 1 });
+  status(1.95, false);
+  vi.advanceTimersByTime(100);
+  expect(useProjectionStore.getState().base).toMatchObject({ slideIndex: 2 });
+});

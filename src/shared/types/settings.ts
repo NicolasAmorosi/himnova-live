@@ -55,20 +55,7 @@ export type SettingsMap = {
    *  full-screen one and a slide's). Off, it shows the video's thumbnail and
    *  the control window decodes nothing — the projector is never affected. */
   "monitors.liveVideoMotion": boolean;
-  /** Explicit user override for the LibreOffice binary. When set and invalid,
-   *  discovery reports the error instead of silently falling back — a wrong
-   *  override must never be invisible. */
-  "slides.sofficePath": string | null;
-  /** Discovery cache so a cold start skips the candidate walk. */
-  "slides.sofficePathResolved": string | null;
-  /** Guards the one-time LibreOffice profile warm-up per version. */
-  "slides.profileWarmedVersion": string | null;
-  /** Whether a missing LibreOffice is announced on its own: the toast at
-   *  launch and the strip over the PPT tab. Off, the operator still meets it
-   *  where it actually stops something — a deck that cannot be converted, and
-   *  Settings — but a machine that never projects a PowerPoint stops being told
-   *  about it every morning. */
-  "slides.warnMissingSoffice": boolean;
+  /** The format a PDF's pages are drawn to, when a window asks for one. */
   "slides.imageFormat": SlideImageFormat;
   /** The face a `.pptx` drawn from its model falls back to when it names one
    *  this machine lacks (after its metric twins); `null` is the operating
@@ -77,13 +64,6 @@ export type SettingsMap = {
   "slides.fallbackFont": SlideFallbackFont | null;
   "slides.cacheMaxMb": number;
   "slides.maxRenderWidth": number;
-  /** Internal escape hatch (no UI control): lets a background prewarm job be
-   *  soft-interrupted when the operator opens something interactively.
-   *  Killing `soffice` mid-conversion carries a small risk of leaving its
-   *  profile locked (see `.claude/knowledge/soffice-shared-profile-race.md`)
-   *  — set to `false` to degrade to plain priority ordering (no preemption)
-   *  without a release, if that risk ever needs to go to zero. */
-  "slides.preemptBackground": boolean;
   /** Folders the operator has linked per asset kind, so a resource tab can
    *  offer "this folder's files" as an alternative to the added-to-library
    *  list. Files inside are registered like any other asset (so preview/
@@ -146,15 +126,10 @@ export const DEFAULT_SETTINGS: SettingsMap = {
   "media.volume": 1,
   "projection.transition.style": "crossfade",
   "projection.transition.durationMs": 300,
-  "slides.sofficePath": null,
-  "slides.sofficePathResolved": null,
-  "slides.profileWarmedVersion": null,
-  "slides.warnMissingSoffice": true,
   "slides.imageFormat": "webp",
   "slides.fallbackFont": null,
   "slides.cacheMaxMb": SLIDES_DEFAULT_CACHE_MB,
   "slides.maxRenderWidth": SLIDES_DEFAULT_RENDER_WIDTH,
-  "slides.preemptBackground": true,
   "monitors.liveVideoMotion": true,
   "library.linkedFolders": { video: [], image: [], audio: [], ppt: [] },
   "library.activeView": { video: "recent", image: "recent", audio: "recent", ppt: "recent" },
@@ -230,15 +205,10 @@ export const SETTINGS_VALIDATORS: Record<keyof SettingsMap, (value: unknown) => 
   "media.volume": isNumberIn(0, 1),
   "projection.transition.style": isOneOf(TRANSITION_STYLES),
   "projection.transition.durationMs": isNumberIn(0, TRANSITION_MAX_DURATION_MS),
-  "slides.sofficePath": isNullOr(isString),
-  "slides.sofficePathResolved": isNullOr(isString),
-  "slides.profileWarmedVersion": isNullOr(isString),
-  "slides.warnMissingSoffice": isBoolean,
   "slides.imageFormat": isOneOf(SLIDE_IMAGE_FORMATS),
   "slides.fallbackFont": isNullOr(isOneOf(SLIDE_FALLBACK_FONTS)),
   "slides.cacheMaxMb": isNumberIn(1, 1_000_000),
   "slides.maxRenderWidth": isNumberIn(320, 16_384),
-  "slides.preemptBackground": isBoolean,
   "monitors.liveVideoMotion": isBoolean,
   "library.linkedFolders": isRecordOfKinds(isStringArray),
   "library.activeView": isRecordOfKinds(isString),

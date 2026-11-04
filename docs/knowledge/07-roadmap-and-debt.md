@@ -4,8 +4,8 @@
 
 Completed: `electron-vite` scaffolding + strict TS, the design system (`components/ui`+
 `shared`), the complete data layer (SQLite + Drizzle + FTS5, with a verified smoke test), the
-end-to-end typed IPC contract, the `worship://` protocol, the slide pipeline with headless
-LibreOffice (cross-platform, see `03-slides-libreoffice.md`), the
+end-to-end typed IPC contract, the `worship://` protocol, the slide pipeline — every deck read
+by the app itself, a PDF's pages drawn on request (cross-platform, see `03-slides.md`) —, the
 declarative projection window, and a working control UI for the 6 audited areas
 (playlist, library, bible, PPT, black/logo, display) plus the new
 saved-services module.
@@ -22,7 +22,7 @@ songs/lyrics with projectable sections.
 
 - **A `.pptx` drawn from its model (2026-10-26) — what was knowingly left.** The switch is total
   and what the model can't draw exactly is approximated (see «Model decks» in
-  `03-slides-libreoffice.md`); what is still approximate or missing, measured against PowerPoint:
+  `03-slides.md`); what is still approximate or missing, measured against PowerPoint:
   text autofit (a `normAutofit` box can overflow), a SmartArt with no saved drawing, 3D text and
   shapes, artistic effects, connector arrowheads, WordArt warps, chart numbers not localised to the
   system's region, Office faces with no metric twin on macOS/Linux, a few Office fonts Chromium
@@ -43,8 +43,9 @@ songs/lyrics with projectable sections.
   What does remain open: a video whose `p:pic` doesn't carry its own `a:xfrm` (it inherits the
   geometry of a layout placeholder, which the parser doesn't resolve) is discarded instead of
   guessed; the slide still looks right: the poster frame is already rasterized in its place. A
-  `.wmv`/`.avi` is extracted marked `playable: false`, but since 2026-10-18 `media/deck-clips.ts`
-  converts it in place with the bundled FFmpeg the first time the deck is opened.
+  `.wmv`/`.avi` is extracted marked `playable: false`; since 2026-10-30 `media/deck-clips.ts` hands
+  it to the media engine the first time the deck is opened each launch (a build with no engine still
+  converts it in place with the bundled FFmpeg, as it did since 2026-10-18).
 - ~~**Configurable projection settings** for bible/text~~: **implemented on 2026-09-20**.
   The verse's style lives in the `bible.style` key of `SettingsMap` —a global style, not a row
   per preset— with `BibleStyle` (`shared/types/bible-style.ts`), its validators/normalizers and
@@ -57,11 +58,7 @@ songs/lyrics with projectable sections.
   precisely so that delete-and-reimport isn't destructive.
 - **Settings screen**: six categories (Projection, Slides, Verses, Bible, System, About) with theme,
   language, `media.volume`, the per-type folders (`files.defaultFolders`) and the `slides.*` keys
-  already exposed. Since 2026-10-22, Slides opens with a **LibreOffice** group (status, version and
-  path, «Download LibreOffice», «Check again», «Locate soffice…» and the
-  `slides.warnMissingSoffice` switch). What still has no UI is **clearing** the override
-  (`slides.sofficePath`): a manually chosen path wins over automatic detection, so if it points to
-  something that isn't LibreOffice the only way out is to pick another one with «Locate soffice…».
+  already exposed.
 
 ## In-app updates — left out on purpose
 
@@ -87,10 +84,10 @@ each item with its reason:
 The full review on that date (main, slides, renderer, UI and Windows) closed all of its critical,
 high and medium findings. This was left open, each item with its reason:
 
-- **A linked music track in WMA/AIFF isn't converted**, it's rejected (`LINKABLE_AUDIO_EXTENSIONS`
-  in `ipc/handlers/library.ts`). `worship://linked-audio/<id>` serves the file as-is, and the 1229
-  linked audio files of the real hymnal are MP3. If it were ever needed, it goes through
-  `conversion-service.ts`.
+- **A linked music track in WMA/AIFF is rejected** (`LINKABLE_AUDIO_EXTENSIONS` in
+  `ipc/handlers/library.ts`). `worship://linked-audio/<id>` serves the file as-is, and the 1229
+  linked audio files of the real hymnal are MP3. If it were ever needed, it gets an engine url
+  (`engine-assets.ts`).
 - **The clickable `ListRow` rows can't be reached with the keyboard** (Scenes, Plates, Timers,
   Overlays). Making them focusable clashes with Enter = GO LIVE: it's an interaction decision,
   not a fix.
@@ -110,7 +107,7 @@ high and medium findings. This was left open, each item with its reason:
 - **To check by hand on the church's PC**: Win+P on «Extend»; different scaling per monitor;
   turning the projector off and on mid-service (the window hides, the sound keeps going, and it
   comes back to full screen on its own); turning on the projector with the app already open;
-  power plan; 64-bit LibreOffice on a cold first start; «Test video» with iPhone HEVC; audio
+  power plan; «Test video» with iPhone HEVC; audio
   output over HDMI; and the E2E suite against the installed `.exe` (`WORSHIP_E2E_EXECUTABLE`),
   with `WORSHIP_E2E_HYMNAL` pointing to that PC's hymnal folder so that `hymnal.spec.ts` runs too.
   And, since the rebrand to **Lumina Live** (2026-10-22), that the new installer REPLACES the
@@ -142,16 +139,13 @@ high and medium findings. This was left open, each item with its reason:
 
 ## Cross-platform — solved
 
-Nothing is Windows-only anymore. COM/PowerShell was removed completely and presentations are
-converted with headless LibreOffice, which runs the same on macOS, Windows and Linux. LibreOffice
-**isn't bundled**: the app detects it on the system (with a manual override in
-`slides.sofficePath`) and, if it's missing, warns and blocks only PowerPoint conversion; PDFs,
-already-converted decks and everything else keep working — see «Without LibreOffice» in
-`03-slides-libreoffice.md`.
+Nothing is Windows-only anymore. COM/PowerShell was removed completely, and since 2026-11-03 so
+was LibreOffice: every presentation is read by the app itself, the same on macOS, Windows and
+Linux, with nothing to install — see `03-slides.md`.
 
 **Linux was packaged and tested for the first time on 2026-10-22**, in Docker (emulated Ubuntu
-24.04 x86_64): it starts, converts with the system's LibreOffice and passes `startup.spec` and
-`decks.spec`; the rest of the suite wasn't run there.
+24.04 x86_64): it started, converted with the system's LibreOffice (as builds did then) and passed
+`startup.spec` and `decks.spec`; the rest of the suite wasn't run there.
 
 **Linux ships as a `.deb` and as an AppImage** (owner's decision, 2026-10-23). The `.deb` is the
 one for Ubuntu, Debian and Mint: its postinst leaves `chrome-sandbox` setuid root if user
@@ -164,14 +158,22 @@ Playwright adds `--no-sandbox` on Linux — see
 `.claude/knowledge/a-space-in-the-linux-install-path-breaks-the-suid-sandbox-and-playwright-never-tests-it.md`.
 Not yet tested on a real desktop Ubuntu (Docker has no AppArmor).
 
-**Linux is experimental in 2.2.0-beta.4** (owner's decision, 2026-10-23; the README and the
-landing say so). On native x86_64 under Xvfb, the projector and control renderers crash with a
-deck on air (`service.spec`, `settings.spec:60`, sometimes `decks.spec:93`): `render-process-gone`
-with `reason: crashed`, `exitCode: 133` (SIGTRAP, a Chromium `CHECK` with no message in the
-official builds). Same with `--disable-gpu`, with and without the sandbox. And `media.spec:69`
-(GO LIVE doesn't reopen a projector closed from outside) fails there, maybe because of Xvfb's
-single screen and its lack of a window manager. Next: a minidump with Electron's symbols, and
-testing on a desktop Linux with a GPU and two monitors.
+**The media engine on Linux uses the system's libmpv** (2026-11-03, `engine-2`): it is built on
+Ubuntu 22.04, whose glibc 2.35 is the oldest it runs on (built on Debian 12 it needed 2.36, for
+the `arc4random` of the static libstdc++), and it loads `libmpv.so.2` or `libmpv.so.1` at run time
+(`native/engine/mpv-linux.cpp`) instead of linking one soname. The `.deb` depends on
+`libmpv2 | libmpv1` and on `libopengl0`, which libmpv does not pull in and the engine links.
+Installed with `apt` in clean Ubuntu 22.04, Debian 12 and Ubuntu 24.04 containers, it loads mpv
+0.34, 0.35 and 0.37; playing needs a GPU, so that part is only tested on a real PC.
+
+**Linux is no longer experimental from 2.2.0** (owner's decision, 2026-10-25). It was in
+2.2.0-beta.4 and beta.5 because, on native x86_64 under Xvfb (a container, no GPU), the projector
+and control renderers crashed with a deck on air: `render-process-gone` with `reason: crashed`,
+`exitCode: 133` (SIGTRAP, a Chromium `CHECK` with no message in the official builds), with and
+without `--disable-gpu` or the sandbox. On a real desktop Linux with a GPU (a CachyOS laptop, Iris
+Xe, GNOME) the whole E2E suite against the package passed on 2026-11-03 — 143 tests, none failed —
+and that crash never appeared. Its cause under Xvfb is still unknown; if a user reports windows
+closing by themselves on Linux, start from there (a minidump with Electron's symbols).
 
 Verified on macOS against real church decks, including a 52-slide binary `.ppt` and a fixture
 with auto-advance + embedded audio. `legacy/` was removed from the repo on 2026-10-22; it's still

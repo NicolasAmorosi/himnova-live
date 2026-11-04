@@ -4,8 +4,8 @@ dist/
 release/
 test-results/
 .scratch/
-# Fetched by `scripts/fetch-ffmpeg.ts` (postinstall and the package scripts):
-# 70–210 MB of binaries per platform, pinned by sha256 instead of versioned.
+# Fetched by `scripts/fetch-binaries.ts` (postinstall and the package scripts):
+# up to 210 MB of binaries per platform, pinned by sha256 instead of versioned.
 resources/ffmpeg/
 .env
 *.log
@@ -15,3 +15,7 @@ resources/ffmpeg/
 # module (better-sqlite3) plus an Electron binary whose Chromium decodes the
 # operator's own media. An installer built twice has to be the same installer.
 .DS_Store
+
+# Fetched like FFmpeg from the Release `engine-<n>`, or built by native/build.sh.
+resources/engine/
+native/.build/

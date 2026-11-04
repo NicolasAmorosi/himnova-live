@@ -13,6 +13,7 @@ import { useProjectionStore } from "@renderer/stores/projection.store";
 import { gotoSlide } from "@renderer/lib/actions/playback";
 import { projectVerse } from "@renderer/lib/actions/bible";
 import { ModelSlide } from "@renderer/components/shared/slide-view/ModelSlide";
+import { DamagedSlideMark } from "@renderer/components/shared/damaged-slide";
 
 /**
  * Below the LIVE monitor: whatever the projector is actually showing, as the
@@ -44,6 +45,7 @@ export function LiveContentGrid() {
             onClick={() => gotoSlide(slide.index)}
             selected={liveSlideIndex === slide.index}
             media={slide.modelUrl ? <ModelSlide url={slide.modelUrl} /> : undefined}
+            overlay={<DamagedSlideMark url={slide.modelUrl} />}
             src={slide.modelUrl ? null : slide.thumbUrl}
             tabIndex={tabIndex}
             title={t("deck.slideAlt", { index: slide.index })}

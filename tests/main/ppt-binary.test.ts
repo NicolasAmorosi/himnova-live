@@ -1,12 +1,12 @@
 /**
- * Reading a legacy binary deck WITHOUT LibreOffice: which pictures make up each
+ * Reading a legacy binary deck made of pictures: which pictures make up each
  * slide, which decks are refused, and the bytes served from the source.
  *
  * The rule under test is the one that keeps the projector honest: a slide is
  * drawn natively only when it is a picture we can draw exactly — the topmost
  * opaque JPEG covering the slide, with nothing above it but pictures or things
- * PowerPoint does not show. Anything else sends the whole deck to LibreOffice,
- * never half of it, and never a slide drawn wrong in silence.
+ * PowerPoint does not show. Anything else sends the whole deck to the model
+ * reader, never half of it, and never a slide drawn wrong in silence.
  */
 import fs from "node:fs";
 import os from "node:os";
@@ -126,7 +126,7 @@ describe("a deck made of pictures is read as its pictures", () => {
     expect(readBinaryPictures(file, [base!, logo!])).toEqual([JPEG_A, LOGO_PNG]);
   });
 
-  test("a hidden slide is left out, as the show and LibreOffice leave it out", () => {
+  test("a hidden slide is left out, as the show leaves it out", () => {
     const deck = hymn();
     deck.slides![0]!.infoFlags = 0x0400 | 0x0004;
     expect(deckOf(write(deck)).slides).toHaveLength(1);
@@ -174,7 +174,7 @@ describe("a deck made of pictures is read as its pictures", () => {
   });
 });
 
-describe("anything we would draw wrong sends the whole deck to LibreOffice", () => {
+describe("anything we would draw wrong sends the whole deck to the model reader", () => {
   test("text over the picture", () => {
     expect(refusal(write(hymn({ second: [{ rect: FULL, pib: 2 }, { type: 1, rect: [100, 100, 900, 900], text: "Coro" }] })))).toMatch(
       /slide 2/,

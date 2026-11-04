@@ -4,14 +4,15 @@ import path from "node:path";
 import { Readable } from "node:stream";
 import type { MediaRepo } from "../db/repositories/media.repo";
 import { getSettingsRepo, getSlidesRepo, isDatabaseOpen } from "../services/repos";
-import { slidesCacheDir, slidesTempDir } from "../paths";
-import { resolveRasterPdf } from "../slides/rasterizer";
+import { slidesCacheDir } from "../paths";
+import { pdfPageImage, resolveRasterPdf } from "../slides/rasterizer";
 import { renderNativeSlide } from "../slides/native-deck";
 import { decodeEmbeddedFont } from "../slides/pptx/embedded-font";
 import { metafileToSvg } from "../slides/pptx/metafile";
+import { readBinaryPart } from "../slides/ppt/parts";
+import { containerKind } from "../slides/pptx-metadata";
 import { readZipEntries } from "../slides/zip-reader";
 import { ensureThumbnail } from "../media/thumbnail-service";
-import { convertedPathFor } from "../media/conversion-service";
 
 /** Must run before app.whenReady(). `standard: true` gives worship:// URLs a
  *  hostname + pathname like http, which is what the parsing below relies on. */
@@ -240,8 +241,8 @@ async function serveFile(
 }
 
 /** The file a deck clip url names (`?f=`, see `deckVideoUrl`), next to the row's
- *  current one: the original the url was built for, even after
- *  `media/deck-clips.ts` pointed the row at a converted copy. A name that is not
+ *  current one: the file the url was built for, even after the row was pointed
+ *  at another one (`media/deck-clips.ts`). A name that is not
  *  bare, or not there, falls back to the row's — and `withinCache` still has
  *  the last word on what leaves the process. */
 function clipFile(current: string | null, url: URL): string | null {
@@ -306,12 +307,7 @@ export function registerWorshipProtocolHandler(mediaRepo: MediaRepo): void {
             });
           }
 
-          // The playable copy when Chromium cannot decode the original
-          // (`conversion-service.ts`).
-          // `?v=` is the copy's version: without one the original is served,
-          // so an element that started on it is never switched mid-play.
-          const converted = convertedPathFor(id, url.searchParams.get("v"));
-          return serveFile(request, converted ?? mediaRepo.getPathById(id));
+          return serveFile(request, mediaRepo.getPathById(id));
         }
         case "logo": {
           return serveFile(request, getSettingsRepo().get("logo.path"));
@@ -345,18 +341,22 @@ export function registerWorshipProtocolHandler(mediaRepo: MediaRepo): void {
           // different deck id. Without this header Chromium re-reads every
           // image on each <img> swap — during a live service.
           const immutable = { "Cache-Control": "public, max-age=31536000, immutable" };
-          if (image?.kind !== "native") {
-            return serveFile(request, withinCache(image?.path ?? null), immutable);
-          }
+          if (!image) return new Response("Not found", { status: 404 });
           // Built from the source itself, so it has to still BE the file the
-          // layers were read from: a deck edited in place would hand out bytes
-          // from the wrong offsets. Gone, not a guess — the deck is read again
-          // the next time it is opened.
-          const stat = await fs.promises.stat(image.sourcePath).catch(() => null);
-          if (!stat || stat.size !== image.sourceSizeBytes || Math.trunc(stat.mtimeMs) !== image.sourceMtimeMs) {
-            return new Response("Gone", { status: 410 });
+          // deck was read from: a deck edited in place would hand out bytes
+          // from the wrong offsets, or another page. Gone, not a guess — the
+          // deck is read again the next time it is opened.
+          if (!(await sourceUnchanged(image))) return new Response("Gone", { status: 410 });
+          let slide: { body: Buffer; contentType: string } | null;
+          if (image.kind === "pdf") {
+            const body = await pdfPageImage(image, image.page, image.variant).catch((error: unknown) => {
+              console.warn(`[slides] couldn't draw page ${image.page} of ${image.sourcePath}`, error);
+              return null;
+            });
+            slide = body ? { body, contentType: `image/${image.imageFormat}` } : null;
+          } else {
+            slide = renderNativeSlide(image.sourcePath, image.layers, image.variant);
           }
-          const slide = renderNativeSlide(image.sourcePath, image.layers, image.variant);
           if (!slide) return new Response("Gone", { status: 410 });
           return new Response(request.method === "HEAD" ? null : new Uint8Array(slide.body), {
             status: 200,
@@ -400,17 +400,16 @@ export function registerWorshipProtocolHandler(mediaRepo: MediaRepo): void {
           const jobId = segments[0];
           const pdfPath = jobId ? resolveRasterPdf(jobId) : null;
           if (!pdfPath) return new Response("Not found", { status: 404 });
+          // The only PDF rasterized is a deck's own source, straight from
+          // wherever the operator keeps it: a library row (a PDF being opened,
+          // no deck yet) or a deck row (every deck was read from a library
+          // file) is the positive assertion. Both, because two copies of one
+          // PDF share one deck whose source is the copy opened last: taking
+          // THAT copy out of the library left the other — on air — blank.
           const resolved = path.resolve(pdfPath);
-          // Two legitimate origins, and the second one is easy to forget: a
-          // PDF we just produced lives under `slidesTempDir`, but a deck whose
-          // SOURCE is already a PDF is rasterized straight from wherever the
-          // operator keeps it (see `deckRequiresSoffice`) — the temp-dir prefix
-          // alone answered 403 for every one of those. A library row is the
-          // positive assertion that replaces it: the same "the operator added
-          // this file" property `worship://asset/<id>` rests on.
-          const allowed =
-            resolved.startsWith(slidesTempDir + path.sep) || mediaRepo.hasPath(resolved);
-          if (!allowed) return new Response("Forbidden", { status: 403 });
+          if (!mediaRepo.hasPath(resolved) && !getSlidesRepo().isDeckSource(pdfPath)) {
+            return new Response("Forbidden", { status: 403 });
+          }
           return serveFile(request, resolved);
         }
         default:
@@ -451,7 +450,12 @@ const PART_TYPES: Record<string, string> = {
 async function serveDeckPart(request: Request, deckId: number, kind: "part" | "font", part: string): Promise<Response> {
   const source = Number.isFinite(deckId) ? getSlidesRepo().getDeckSource(deckId) : null;
   if (!source || !(await sourceUnchanged(source))) return new Response("Gone", { status: 410 });
-  const raw = readZipEntries(source.sourcePath, (name) => name === part)[part];
+  // A legacy binary's parts are ranges of its OLE streams (`ppt/parts.ts`);
+  // a `.pptx`'s and an `.odp`'s, zip entries.
+  const raw =
+    containerKind(source.sourcePath) === "binary"
+      ? (readBinaryPart(source.sourcePath, part) ?? undefined)
+      : readZipEntries(source.sourcePath, (name) => name === part)[part];
   if (!raw) return new Response("Not found", { status: 404 });
   const ext = part.slice(part.lastIndexOf(".") + 1).toLowerCase();
   let body: Uint8Array | string | null = raw;

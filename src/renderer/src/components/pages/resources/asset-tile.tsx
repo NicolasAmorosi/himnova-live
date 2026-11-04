@@ -3,7 +3,6 @@ import { useT } from "@renderer/lib/i18n/i18n-provider";
 import { Badge, ThumbTile, type IconName } from "@renderer/components/ui";
 import { ModelSlide } from "@renderer/components/shared/slide-view/ModelSlide";
 import { useDeckStore } from "@renderer/stores/deck.store";
-import { useConversion } from "@renderer/stores/conversion.store";
 import { createBoundedSet, type BoundedSet } from "@renderer/lib/utils";
 import { assetThumbUrl, assetThumbVersion, assetUrl } from "@shared/urls";
 import type { AssetKind } from "@shared/constants";
@@ -70,9 +69,6 @@ export function AssetTile({
   // all — `undefined` (no bar) once it's ready or if it was never touched.
   const deckEntry = useDeckStore((s) => (kind === "ppt" ? s.byAssetId[asset.id] : undefined));
   const missing = asset.missingSince !== null;
-  // A video or audio being made playable in the background — like a deck's
-  // prewarm, this tile may be the only place it shows.
-  const conversion = useConversion(kind === "video" || kind === "audio" ? asset.id : null);
 
   // Remembered by URL rather than as a flag, so a tile falls through its
   // chain one step at a time and can never oscillate between two URLs that
@@ -97,11 +93,7 @@ export function AssetTile({
     ? deckEntry.progress.total > 0
       ? deckEntry.progress.done / deckEntry.progress.total
       : null
-    : !missing && conversion && conversion.status !== "failed"
-      ? conversion.status === "converting"
-        ? conversion.progress
-        : null
-      : undefined;
+    : undefined;
 
   // Only ever true for a deck, and only while something is genuinely going to
   // appear: the status round-trip is still out, a conversion is running, or it
@@ -139,10 +131,6 @@ export function AssetTile({
         missing ? (
           <span className="absolute inset-0 flex items-center justify-center">
             <Badge variant="danger">{t("library.missing")}</Badge>
-          </span>
-        ) : conversion?.status === "failed" ? (
-          <span className="absolute inset-0 flex items-center justify-center">
-            <Badge variant="danger">{t("conversion.badgeFailed")}</Badge>
           </span>
         ) : undefined
       }

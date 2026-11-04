@@ -1,3 +1,4 @@
+import { api } from "@renderer/lib/api";
 import { usePreviewStore } from "@renderer/stores/preview.store";
 
 /**
@@ -14,6 +15,19 @@ export function attachPreviewVideo(element: HTMLVideoElement | null): void {
   previewVideoElement = element;
 }
 
+/** The url the media engine is showing in the preview instead of an element
+ *  (`usePreviewEngineVideo`): seeks go to main. */
+let previewEngineUrl: string | null = null;
+
+export function attachPreviewEngine(url: string | null): void {
+  previewEngineUrl = url;
+}
+
+function seekPreviewTo(seconds: number): void {
+  if (previewVideoElement) previewVideoElement.currentTime = seconds;
+  else if (previewEngineUrl) void api.preview.seekVideo(seconds);
+}
+
 /**
  * Play/pause is declarative — flipping `playing` here is read by
  * `use-preview.ts`'s `videoUnderlay.paused` and applied by `LiveVideo`'s own
@@ -26,7 +40,7 @@ export function togglePreviewPlayback(): void {
     usePreviewStore.getState();
   if (!playing && durationSeconds > 0 && positionSeconds >= durationSeconds) {
     setPositionSeconds(0);
-    if (previewVideoElement) previewVideoElement.currentTime = 0;
+    seekPreviewTo(0);
   }
   setPlaying(!playing);
 }
@@ -40,7 +54,7 @@ export function togglePreviewPlayback(): void {
 export function seekPreview(seconds: number): void {
   const next = Math.max(0, seconds);
   usePreviewStore.getState().setPositionSeconds(next);
-  if (previewVideoElement) previewVideoElement.currentTime = next;
+  seekPreviewTo(next);
 }
 
 /** Stops the preview without losing its position — called right before

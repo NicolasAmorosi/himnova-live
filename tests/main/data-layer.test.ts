@@ -33,7 +33,6 @@ import { UtilityRepo } from "../../src/main/db/repositories/utility.repo";
 import { seedUtilityScenes } from "../../src/main/db/seed/seed-utility-scenes";
 import { getOverlaysRepo, initRepos } from "../../src/main/services/repos";
 import { readBinarySlideTimings } from "../../src/main/slides/ppt-binary";
-import { backfillDeckTimings } from "../../src/main/slides/backfill-timings";
 import { SNIPPET_MARK_END, SNIPPET_MARK_START, parseSnippet } from "../../src/shared/types/bible";
 import { DEFAULT_SETTINGS, SETTINGS_VALIDATORS, isSettingsKey } from "../../src/shared/types/settings";
 import { BUILTIN_BIBLE_CODE, SLIDES_CONVERTER_VERSION, SLIDES_MODEL_VERSION, SLIDES_NATIVE_VERSION } from "../../src/shared/constants";
@@ -173,6 +172,16 @@ describe("Settings and programs", () => {
     const loaded = programsRepo.load(saved.id);
     assert(loaded.items.length === 1, "program round-trip failed");
     assert(loaded.favorite === false, "program should default to not favorite");
+  });
+
+  test("a row an older build wrote for a key that no longer exists is ignored, not an error", () => {
+    // The LibreOffice keys of the builds before 2026-11-03 stay in the table.
+    sqlite
+      .prepare("INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES (?, ?, ?)")
+      .run("slides.warnMissingSoffice", "false", Date.now());
+    const fresh = new SettingsRepo(db).getAll();
+    expect(fresh["ui.theme"]).toBe("light");
+    expect(Object.keys(fresh)).not.toContain("slides.warnMissingSoffice");
   });
 
   test("favorite survives a re-save and is inherited by a duplicate", () => {
@@ -459,6 +468,30 @@ describe("Deck status is answered by CONTENT, not by row ownership", () => {
     );
   });
 
+  test("reading the same bytes again keeps the deck's id, so a deck on air keeps its slides", () => {
+    // The copy not hashed yet misses `findDeckByAssetContent`, is read, and its
+    // row replaces this one. Windows ask for `worship://deck/<id>/<n>`: a new id
+    // left a deck already on the projector asking for slides that were gone.
+    const row = slidesRepo.getDeckById(deckId);
+    assert(row, "the shared deck must exist");
+    const { id: _id, ...before } = row;
+    const stat = fs.statSync(dupB.path);
+    // Another deck read since: SQLite hands a deleted LAST rowid out again, which
+    // would hide the bug.
+    const other = slidesRepo.insertDeck({ ...before, contentHash: "1".repeat(64), cacheDir: "" }, [], []);
+    const again = slidesRepo.insertDeck(
+      { ...before, mediaAssetId: dupB.id, sourcePath: dupB.path, sourceSizeBytes: stat.size, sourceMtimeMs: Math.trunc(stat.mtimeMs) },
+      [{ slideIndex: 1, imageFile: "1.webp", thumbFile: "1.thumb.webp", widthPx: 1920, heightPx: 1080, bytes: 1024,
+         advanceMs: null, advanceOnClick: true, transition: null, layers: null, hidden: false, title: null, notes: null }],
+      [],
+    );
+    assert(again === deckId, `a re-read of the same identity must keep id ${deckId}, got ${again}`);
+    assert(slidesRepo.getDeckById(deckId)?.slideCount === 1, "the deck and its slides must still be found by that id");
+    // Back as the tests below expect it: owned by the first copy, alone.
+    slidesRepo.deleteDeck(other);
+    slidesRepo.relinkDeck(deckId, dupA.id, dupA.path, row.sourceSizeBytes, row.sourceMtimeMs);
+  });
+
   test("relinking the row to one copy does not unconvert the other", () => {
     // Opening the second copy relinks the row to it. The first must not regress
     // to "pending" — that swap is what made the count oscillate.
@@ -494,38 +527,12 @@ describe("Deck status is answered by CONTENT, not by row ownership", () => {
   });
 });
 
-describe("Auto-advance survives the LibreOffice round-trip that drops it", () => {
-  // The regression test for the auto-advance loss (media-chain audit §11).
-  // LibreOffice's PPTX export only writes `<p:transition>` when the slide has
-  // a visual EFFECT, and `advTm` is an attribute of that element — so a slide
-  // set to "no transition, advance after 27 s" comes out of the round-trip
-  // with no timing at all. 222 of the user's 1226 hymnal decks are affected.
-  // The fix re-reads the times from the source binary; this builds a minimal
-  // OLE2 `.ppt` so that reader is exercised without shipping a real deck.
-  let legacyPath: string;
-  let legacyStat: fs.Stats;
-  let legacyDeckId: number;
-
-  const legacySlide = (slideIndex: number) => ({
-    slideIndex,
-    imageFile: `${slideIndex}.webp`,
-    thumbFile: `${slideIndex}.thumb.webp`,
-    widthPx: 1920,
-    heightPx: 1080,
-    bytes: 1024,
-    advanceMs: null as number | null,
-    advanceOnClick: true,
-    transition: null,
-    layers: null,
-    hidden: false,
-    title: null,
-    notes: null,
-  });
-
-  test("the binary reader reads the times a converted .pptx would have lost", () => {
-    legacyPath = path.join(mediaDir, "legacy-timings.ppt");
+describe("A legacy binary's auto-advance is read from its own records", () => {
+  // Builds a minimal OLE2 `.ppt` so the reader is exercised without shipping
+  // a real deck.
+  test("the binary reader reads each slide's time, and ignores one whose flag is clear", () => {
+    const legacyPath = path.join(mediaDir, "legacy-timings.ppt");
     fs.writeFileSync(legacyPath, buildLegacyPpt());
-    legacyStat = fs.statSync(legacyPath);
 
     const binaryTimings = readBinarySlideTimings(legacyPath);
     assert(binaryTimings !== null, "the synthetic legacy .ppt must parse");
@@ -539,109 +546,9 @@ describe("Auto-advance survives the LibreOffice round-trip that drops it", () =>
       "slide 2 has fAutoAdvance clear, so its stale slideTime must be ignored",
     );
   });
-
-  test("the backfill writes them into an already-converted deck", async () => {
-    // End to end through the backfill: a deck already converted, both slides
-    // with a NULL advance_ms, gets the times written back with no reconversion.
-    initRepos(db, sqlite);
-    const legacyAsset = mediaRepo.upsertFromPath(legacyPath, "ppt", true);
-    legacyDeckId = slidesRepo.insertDeck(
-      {
-        contentHash: "1".repeat(64),
-        renderWidth: 1920,
-        imageFormat: "webp",
-        converterVersion: 1,
-        mediaAssetId: legacyAsset.id,
-        sourcePath: legacyPath,
-        sourceSizeBytes: legacyStat.size,
-        sourceMtimeMs: Math.trunc(legacyStat.mtimeMs),
-        cacheDir: path.join(tmpDir, "deck-legacy"),
-        aspectRatio: "4:3",
-        timingsSource: "ooxml-converted",
-        bytesOnDisk: 2048,
-      },
-      [legacySlide(1), legacySlide(2)],
-      [],
-    );
-
-    assert(
-      slidesRepo.decksNeedingTimings().some((d) => d.id === legacyDeckId),
-      "a converted legacy deck with NULL advance times must be picked up by the backfill",
-    );
-
-    await backfillDeckTimings();
-    const afterBackfill = slidesRepo.slideAdvanceTimes(legacyDeckId);
-    assert(
-      afterBackfill[0]?.advanceMs === 12345,
-      `slide 1 must have been backfilled, got ${String(afterBackfill[0]?.advanceMs)}`,
-    );
-    assert(
-      afterBackfill[1]?.advanceMs === null,
-      "slide 2 auto-advances in neither reading, so it must stay null",
-    );
-  });
-
-  test("a deck whose two readings disagree is left completely untouched", async () => {
-    // The guard that makes the whole thing safe: the two readings come from
-    // independent paths, so a disagreement means one of them is describing the
-    // wrong slide — and a deck advancing on the wrong timing mid-service is
-    // worse than one that does not advance. Nothing may be written.
-    const disagreeDeckId = slidesRepo.insertDeck(
-      {
-        contentHash: "2".repeat(64),
-        renderWidth: 1920,
-        imageFormat: "webp",
-        converterVersion: 1,
-        mediaAssetId: null,
-        sourcePath: legacyPath,
-        sourceSizeBytes: legacyStat.size,
-        sourceMtimeMs: Math.trunc(legacyStat.mtimeMs),
-        cacheDir: path.join(tmpDir, "deck-legacy-disagree"),
-        aspectRatio: "4:3",
-        timingsSource: "ooxml-converted",
-        bytesOnDisk: 2048,
-      },
-      [{ ...legacySlide(1), advanceMs: 90_000 }, legacySlide(2)],
-      [],
-    );
-    await backfillDeckTimings();
-    const afterDisagreement = slidesRepo.slideAdvanceTimes(disagreeDeckId);
-    assert(
-      afterDisagreement[0]?.advanceMs === 90_000 && afterDisagreement[1]?.advanceMs === null,
-      "a deck whose two readings disagree must be left completely untouched",
-    );
-  });
-
-  test("a deck whose source no longer matches its (size, mtime) is skipped", async () => {
-    // A source that changed since the conversion describes slides nobody
-    // rendered, so its times must not be adopted either.
-    const staleDeckId = slidesRepo.insertDeck(
-      {
-        contentHash: "3".repeat(64),
-        renderWidth: 1920,
-        imageFormat: "webp",
-        converterVersion: 1,
-        mediaAssetId: null,
-        sourcePath: legacyPath,
-        sourceSizeBytes: legacyStat.size + 1,
-        sourceMtimeMs: Math.trunc(legacyStat.mtimeMs),
-        cacheDir: path.join(tmpDir, "deck-legacy-stale"),
-        aspectRatio: "4:3",
-        timingsSource: "ooxml-converted",
-        bytesOnDisk: 2048,
-      },
-      [legacySlide(1), legacySlide(2)],
-      [],
-    );
-    await backfillDeckTimings();
-    assert(
-      slidesRepo.slideAdvanceTimes(staleDeckId).every((s) => s.advanceMs === null),
-      "a deck whose source no longer matches its (size, mtime) must be skipped",
-    );
-  });
 });
 
-describe("A deck read natively owns no folder and replaces its converted copy", () => {
+describe("A deck read natively owns no folder, and what LibreOffice drew goes at startup", () => {
   // `image_format = 'native'`: slides are pictures read straight from the
   // source (`ppt-binary.ts`), so the row has no cache folder at all — and every
   // path that deletes or rebases a deck's folder has to know that, or it acts
@@ -693,7 +600,7 @@ describe("A deck read natively owns no folder and replaces its converted copy", 
         imageFormat: "webp",
         converterVersion: SLIDES_CONVERTER_VERSION,
         cacheDir: convertedDir,
-        timingsSource: "ooxml-converted",
+        timingsSource: "binary",
         bytesOnDisk: 1024,
         lastUsedAt: Date.now() - 60_000,
       },
@@ -734,9 +641,9 @@ describe("A deck read natively owns no folder and replaces its converted copy", 
     expect(slidesRepo.getDeckById(nativeId)?.cacheDir).toBe("");
   });
 
-  test("the converted copy it replaces goes with its folder — unless it is kept for the projector", () => {
+  test("every deck drawn to disk goes with its folder at startup; a PDF drawn page by page stays", () => {
     // `adoptCacheRoot` above forgot the converted row (its folder is not under
-    // that root); put it back the way it was for this case.
+    // that root); put it back the way the builds before 2026-11-03 left it.
     if (!slidesRepo.getDeckById(convertedId)) {
       convertedId = slidesRepo.insertDeck(
         {
@@ -750,7 +657,7 @@ describe("A deck read natively owns no folder and replaces its converted copy", 
           sourceMtimeMs: 1,
           cacheDir: convertedDir,
           aspectRatio: null,
-          timingsSource: "ooxml-converted",
+          timingsSource: "binary",
           bytesOnDisk: 1024,
           lastUsedAt: Date.now() - 60_000,
         },
@@ -758,12 +665,56 @@ describe("A deck read natively owns no folder and replaces its converted copy", 
         [],
       );
     }
-    expect(slidesRepo.deleteSupersededBySource([convertedId], hash)).toBe(0);
-    expect(fs.existsSync(convertedDir)).toBe(true);
-    expect(slidesRepo.deleteSupersededBySource([])).toBe(1);
+    const pdfDir = path.join(tmpDir, "rasterized-pdf");
+    fs.mkdirSync(pdfDir);
+    const pdfId = slidesRepo.insertDeck(
+      {
+        contentHash: "9".repeat(64),
+        renderWidth: 1920,
+        imageFormat: "png",
+        converterVersion: SLIDES_CONVERTER_VERSION,
+        mediaAssetId: null,
+        sourcePath: path.join(mediaDir, "Anuncios.PDF"),
+        sourceSizeBytes: 1,
+        sourceMtimeMs: 1,
+        cacheDir: pdfDir,
+        aspectRatio: null,
+        timingsSource: "none",
+        bytesOnDisk: 1024,
+      },
+      [slide(null)],
+      [],
+    );
+
+    // A PDF as this build reads it: no folder, its pages drawn when asked for.
+    const onDemandId = slidesRepo.insertDeck(
+      {
+        contentHash: "8".repeat(64),
+        renderWidth: 1920,
+        imageFormat: "png",
+        converterVersion: SLIDES_CONVERTER_VERSION,
+        mediaAssetId: null,
+        sourcePath: path.join(mediaDir, "Anuncios.PDF"),
+        sourceSizeBytes: 1,
+        sourceMtimeMs: 1,
+        cacheDir: "",
+        aspectRatio: null,
+        timingsSource: "none",
+        bytesOnDisk: 0,
+      },
+      [slide(null)],
+      [],
+    );
+
+    expect(slidesRepo.deleteRasterizedDecks()).toBe(2);
     expect(slidesRepo.getDeckById(convertedId)).toBeNull();
     expect(fs.existsSync(convertedDir)).toBe(false);
+    expect(slidesRepo.getDeckById(pdfId)).toBeNull();
+    expect(fs.existsSync(pdfDir)).toBe(false);
     expect(slidesRepo.getDeckById(nativeId)).not.toBeNull();
+    expect(slidesRepo.getSlideImage(onDemandId, 1, "thumb")).toMatchObject({ kind: "pdf", page: 1, renderWidth: 1920, imageFormat: "png" });
+    expect(slidesRepo.deleteRasterizedDecks()).toBe(0);
+    slidesRepo.deleteDeck(onDemandId);
   });
 
   test("deleting it removes no folder, whatever its row names", () => {
@@ -773,32 +724,6 @@ describe("A deck read natively owns no folder and replaces its converted copy", 
     slidesRepo.deleteDeck(nativeId);
     expect(slidesRepo.getDeckById(nativeId)).toBeNull();
     expect(fs.existsSync(sentinel)).toBe(true);
-  });
-
-  test("a deck converted before transitions were read gets them written, once", () => {
-    const id = slidesRepo.insertDeck(
-      {
-        contentHash: "8".repeat(64),
-        renderWidth: 1920,
-        imageFormat: "webp",
-        converterVersion: SLIDES_CONVERTER_VERSION,
-        mediaAssetId: asset.id,
-        sourcePath: asset.path,
-        sourceSizeBytes: 1,
-        sourceMtimeMs: 1,
-        cacheDir: path.join(tmpDir, "older-conversion"),
-        aspectRatio: null,
-        timingsSource: "ooxml",
-        bytesOnDisk: 0,
-      },
-      [{ ...slide(null), transition: null }],
-      [],
-    );
-    sqlite.prepare("UPDATE slide_decks SET transitions_read = 0 WHERE id = ?").run(id);
-    slidesRepo.setSlideTransitions(id, [{ style: "crossfade", durationMs: 500 }]);
-    const row = slidesRepo.getDeckById(id)!;
-    expect(row.transitionsRead).toBe(1);
-    expect(slidesRepo.toDTO(row, asset.id).slides[0]?.transition).toEqual({ style: "crossfade", durationMs: 500 });
   });
 });
 
@@ -1310,7 +1235,7 @@ describe("Installed bibles keep the order the operator gave them", () => {
 describe("a deck's sounds", () => {
   const sound = (file: string, scope: "deck" | "slide", start: number, stop: number | null, loop = false) => ({
     audioFile: file,
-    ext: "mp3",
+    ext: path.extname(file).slice(1),
     bytes: 10,
     origin: "embedded" as const,
     scope,
@@ -1318,10 +1243,14 @@ describe("a deck's sounds", () => {
     stopSlideIndex: stop,
     loop,
     volume: null,
-    playable: true,
+    playable: !file.endsWith(".wma"),
   });
 
-  function deckWith(name: string, audio: ReturnType<typeof sound>[]) {
+  function deckWith(
+    name: string,
+    audio: ReturnType<typeof sound>[],
+    engineClip?: (kind: "audio" | "video", id: number) => boolean,
+  ) {
     const source = path.join(mediaDir, `${name}.pptx`);
     fs.writeFileSync(source, name);
     const asset = mediaRepo.upsertFromPath(source, "ppt", true);
@@ -1344,7 +1273,7 @@ describe("a deck's sounds", () => {
       [],
       audio,
     );
-    return slidesRepo.toDTO(slidesRepo.getDeckById(id)!, asset.id);
+    return slidesRepo.toDTO(slidesRepo.getDeckById(id)!, asset.id, null, engineClip);
   }
 
   test("the music from the first slide to the end is the soundtrack; every other sound plays on its slides", () => {
@@ -1367,5 +1296,14 @@ describe("a deck's sounds", () => {
       [5, 5],
       [39, null],
     ]);
+  });
+
+  test("a WMA is left out until the media engine takes it, and then it plays from the engine", () => {
+    const audio = [sound("1.wma", "deck", 1, null), sound("2.wma", "slide", 2, 2)];
+    const before = deckWith("wma-before", audio);
+    expect([before.soundtrack, before.sounds]).toEqual([null, []]);
+    const dto = deckWith("wma-engine", audio, (kind) => kind === "audio");
+    expect(dto.soundtrack?.url).toMatch(/^worship:\/\/engine\/deck-audio\/\d+$/);
+    expect(dto.sounds[0]?.url).toMatch(/^worship:\/\/engine\/deck-audio\/\d+$/);
   });
 });

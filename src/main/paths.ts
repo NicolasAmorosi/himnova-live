@@ -24,7 +24,7 @@ export const ooxmlDir = app.isPackaged
   ? path.join(resourcesRoot, "ooxml")
   : path.join(app.getAppPath(), "resources/ooxml");
 
-/** FFmpeg + ffprobe, fetched per platform by `scripts/fetch-ffmpeg.ts` into
+/** FFmpeg + ffprobe, fetched per platform by `scripts/fetch-binaries.ts` into
  *  `resources/ffmpeg/<platform>-<arch>/` and shipped as `resources/ffmpeg/`. */
 const ffmpegDir = app.isPackaged
   ? path.join(resourcesRoot, "ffmpeg")
@@ -33,23 +33,25 @@ const exe = process.platform === "win32" ? ".exe" : "";
 export const ffmpegPath = path.join(ffmpegDir, `ffmpeg${exe}`);
 export const ffprobePath = path.join(ffmpegDir, `ffprobe${exe}`);
 
+/** The media engine (`native/`): fetched per platform by `scripts/fetch-binaries.ts` (or built by
+ *  `native/build.sh`) into `resources/engine/<platform>-<arch>/` and shipped as `resources/engine/`,
+ *  next to its libmpv where the app carries one. */
+export const engineDir = app.isPackaged
+  ? path.join(resourcesRoot, "engine")
+  : path.join(app.getAppPath(), "resources/engine", `${process.platform}-${process.arch}`);
+export const enginePath = path.join(engineDir, `media-engine${exe}`);
+
 export const userDataDir = app.getPath("userData");
 export const dbPath = path.join(userDataDir, "worship.db");
 export const dbBackupDir = path.join(userDataDir, "backups");
 export const legacySettingsPath = path.join(userDataDir, "settings.json");
 export const legacyMediaLibraryPath = path.join(userDataDir, "media_library.json");
 
-/** Persistent, content-addressed cache of converted PowerPoint/Impress decks
- *  (rasterized slide images + extracted audio) — see src/main/slides/. Never
- *  os.tmpdir(): that's what the COM-era exporter used and why its cache was
- *  lost on every restart. */
+/** Persistent, content-addressed cache of what a deck carries that is played
+ *  from a file: the sound and video extracted from a `.pptx` — see
+ *  src/main/slides/. Never os.tmpdir(): that's what the COM-era exporter used
+ *  and why its cache was lost on every restart. */
 export const slidesCacheDir = path.join(userDataDir, "slides-cache");
-/** Conversions in progress land here first; only fs.renameSync'd into their
- *  final deckCacheDir() once every file is written. Swept clean on startup. */
-export const slidesTempDir = path.join(slidesCacheDir, ".tmp");
-/** Dedicated LibreOffice UserInstallation — isolates our headless soffice
- *  from any copy the user runs as a normal GUI app. */
-export const sofficeProfileDir = path.join(userDataDir, "soffice-profile");
 
 /** Generated library thumbnails (images and video first frames). Sharded one
  *  level by the first two characters of the key, because a church's media
@@ -58,10 +60,9 @@ export const sofficeProfileDir = path.join(userDataDir, "soffice-profile");
  *  costs nothing but a regeneration. */
 export const thumbCacheDir = path.join(userDataDir, "thumb-cache");
 
-/** Playable copies of videos and audios Chromium cannot decode, one file per
- *  asset (`main/media/conversion-service.ts`). Unlike the thumbnails, NOT cheap
- *  to lose: each one is minutes of encoding. Files no row points at are swept
- *  at startup. */
+/** Where builds before step 1.4 of the engine plan kept the playable copies of
+ *  the videos and audios Chromium cannot decode. Deleted at startup
+ *  (`main/media/engine-assets.ts`): the media engine plays those files now. */
 export const convertedMediaDir = path.join(userDataDir, "converted-media");
 
 export function thumbCachePath(key: string): string {

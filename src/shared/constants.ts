@@ -5,7 +5,9 @@ export type AssetKind = (typeof ASSET_KINDS)[number];
 
 /** `pptm`/`ppsx`/`ppsm` are the same OOXML zip as `pptx`; `pps` is the legacy
  *  binary format like `ppt` (the v1 vanilla app accepted both and the TS
- *  migration dropped them). `odp` works now that LibreOffice is the engine.
+ *  migration dropped them); `odp` is OpenDocument. Each is read by the app
+ *  itself into a model per slide — what the bytes are decides which reader,
+ *  never the extension (`containerKind`).
  *
  *  `pdf` is deliberately a `ppt`, not an `AssetKind` of its own: everywhere in
  *  the renderer `kind === "ppt"` already means "this is a deck" (the tile's
@@ -15,9 +17,9 @@ export type AssetKind = (typeof ASSET_KINDS)[number];
  *  dialog's filter, drag & drop, folder import, the content-addressed cache
  *  and "Prepare folder" without a single branch. */
 export const ASSET_EXTENSIONS: Record<AssetKind, readonly string[]> = {
-  // Everything past the first six is converted to a playable copy on its way
-  // in (`main/media/conversion-service.ts`) — and so can the first six be,
-  // when what is inside them is a codec Chromium cannot decode.
+  // Everything past the first six is played by the media engine
+  // (`main/media/engine-assets.ts`) — and so can the first six be, when what
+  // is inside them is a codec Chromium cannot decode.
   video: [
     ...["mp4", "m4v", "mov", "mkv", "webm", "3gp"],
     ...["avi", "wmv", "asf", "flv", "f4v", "mpg", "mpeg", "m2v", "vob", "ts", "mts", "m2ts"],
@@ -31,36 +33,6 @@ export const ASSET_EXTENSIONS: Record<AssetKind, readonly string[]> = {
   ppt: ["ppt", "pptx", "pptm", "pps", "ppsx", "ppsm", "odp", "pdf"],
 };
 
-/**
- * Whether converting this deck needs LibreOffice at all.
- *
- * The pipeline is `source → PDF → one image per page`, so a PDF enters it
- * halfway: it is handed straight to the rasterizer. That is not just faster —
- * running one through `soffice` imports it into **Draw** and re-renders it
- * (measured on a real file: 157 KB in, 1,76 MB out), which costs typographic
- * fidelity for nothing.
- *
- * The consequence the UI has to honour: a PDF is projectable on a machine with
- * no LibreOffice installed, so the "install LibreOffice" gate must not stand in
- * front of one.
- */
-export function deckRequiresSoffice(ext: string): boolean {
-  return ext.replace(/^\./, "").toLowerCase() !== "pdf";
-}
-
-/**
- * A legacy `.ppt`/`.pps` is usually read straight from its source, with no
- * LibreOffice at all (`ppt-binary.ts`): the whole hymnal is. Usually, not
- * always — a deck with text still needs it, and only main can tell, by reading
- * the file. A `.pptx` and its siblings are drawn from their model
- * (`slides/pptx/`), and only one that won't open as a presentation goes to
- * LibreOffice. So for all of these the "install LibreOffice" gate is decided
- * after main answers, never in front of the deck.
- */
-export function deckMayBeReadNatively(ext: string): boolean {
-  return ["ppt", "pps", "pptx", "pptm", "ppsx", "ppsm"].includes(ext.replace(/^\./, "").toLowerCase());
-}
-
 // A `text` kind used to live here too: schema column, DTO, repo mapping,
 // preview, projector output — everything except a way to create one. It was
 // removed in 0009 rather than finished; an announcement is a PPT slide in
@@ -73,17 +45,10 @@ export function deckMayBeReadNatively(ext: string): boolean {
 export const PROGRAM_ITEM_KINDS = ["media", "ppt", "bible", "utility", "plate"] as const;
 export type ProgramItemKind = (typeof PROGRAM_ITEM_KINDS)[number];
 
-/** Bump to invalidate every cached deck at once when the conversion pipeline
- *  itself changes (different rasterizer settings, fixed OOXML parsing, …).
- *  Bumped to 2: decks converted before the `soffice` shared-profile race fix
- *  (see .claude/knowledge/soffice-shared-profile-race.md) can be cached with
- *  `timings_source: "none"` and every `advance_ms` null even though the
- *  source file has real timings — only a reconversion recovers them.
- *  Bumped to 3: a deck converted before slide-embedded video was extracted has
- *  no `deck_videos` rows, and nothing else about it would ever look stale —
- *  the images and timings are still perfectly good, so only the version can
- *  say "this cache entry predates a source of content it does not know about". */
-export const SLIDES_CONVERTER_VERSION = 3;
+/** Bump to read every PDF deck again (its page sizes) when the way its pages
+ *  are fitted changes. 4: pages drawn when asked for, nothing rasterized to
+ *  disk (2026-11-03). Reading one costs ~25 ms, so a bump is free. */
+export const SLIDES_CONVERTER_VERSION = 4;
 
 /** The same role for a deck read straight from its source (`image_format =
  *  'native'`, `ppt-binary.ts`): bump when the rules for which pictures make up
@@ -144,14 +109,6 @@ export const SLIDES_DEFAULT_CACHE_MB = 4096;
 /** PowerPoint permits a 0 ms auto-advance; without a floor a whole deck would
  *  fly past in a single frame. */
 export const SLIDES_MIN_ADVANCE_MS = 250;
-export const SOFFICE_PROBE_TIMEOUT_MS = 10_000;
-/** How many decks a background prewarm batch converts per `soffice`
- *  invocation. LibreOffice's own startup cost (not the per-file conversion)
- *  is what dominates converting hundreds of small files one at a time —
- *  batching amortizes it, but a batch this size still finishes in well under
- *  a minute so a soft-preemption for an interactive job never loses much
- *  work. Never used for the interactive `deck:ensure` path (always 1). */
-export const SLIDES_BATCH_SIZE = 20;
 /** A prewarm automatic "visible" set is capped at this many decks. Now that
  *  the library grid is virtualized, "visible" is a real viewport range rather
  *  than "this whole linked folder's current view", so this is a backstop

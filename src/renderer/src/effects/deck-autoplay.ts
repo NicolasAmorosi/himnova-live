@@ -294,6 +294,13 @@ export function startDeckAutoplay(): () => void {
       // without this, `scheduleSynced` would arm a real-time timeout against
       // a clock that has actually stopped advancing behind the overlay.
       if (isFrozenByCover(state)) return;
+      // A stopped clock arms nothing. The media engine keeps reporting a soundtrack it holds paused
+      // (the projector closed under it), where an `<audio>` went away with its window and fell
+      // silent: re-arming on each report would advance the slide while the music stands still.
+      if (status.paused) {
+        clearTimer();
+        return;
+      }
 
       const audioTimeMs = status.currentTimeSeconds * 1000;
       const expected = slideAtAudioTime(deck, audioTimeMs);

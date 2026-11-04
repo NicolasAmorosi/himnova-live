@@ -173,6 +173,26 @@ test("the verse style edited in Ajustes reaches the verse already on the project
   await expect(stage).toContainText(JUAN_3_16);
 });
 
+test("an image background for the verse can be picked: nothing is saved until the image is", async ({ app }) => {
+  const [photo] = await app.addMedia("image", "photo.png");
+  const projector = await verseLive(app);
+  const settings = await openBibleSettings(app, "Versículos");
+
+  await settings.getByRole("group", { name: "Tipo de fondo" }).getByRole("combobox").click();
+  await app.control.getByRole("option", { name: "Imagen", exact: true }).click();
+  // It used to save `assetId: 0` at once, which main refuses: an error toast
+  // and the kind snapping back to the solid colour.
+  const picker = settings.getByRole("group", { name: "Imagen", exact: true });
+  await expect(picker.getByRole("combobox")).toHaveText(/Elegí una imagen/);
+  await app.control.waitForTimeout(500);
+  await expect(app.control.getByRole("status").filter({ hasText: "error inesperado" })).toHaveCount(0);
+
+  await picker.getByRole("combobox").click();
+  await app.control.getByRole("option", { name: "photo" }).click();
+  await expect(projector.locator(`img[src="worship://asset/${photo?.id}"]`)).toBeVisible();
+  await expect(projector.getByText(JUAN_3_16, { exact: false })).toBeVisible();
+});
+
 test("↑/↓ only move PREVIEW; the LIVE transport and grid step the projected passage", async ({ app }) => {
   const projector = await verseLive(app);
   const live = app.liveColumn();

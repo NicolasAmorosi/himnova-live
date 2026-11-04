@@ -6,9 +6,10 @@ WorshipApp — the product has been called **Lumina Live** since 2026-10-22 and 
 (GPL-3.0-or-later) in the `lumina-live` repo; the packages and the internal identifiers stay as
 `worship*` — is a desktop projection app for churches, built with **Electron + TypeScript + React +
 Vite + Tailwind**, with **embedded SQLite** as its backend, meant as a replacement for EasyWorship.
-It drives two windows — control and projection — to show PowerPoint slides (a `.pptx` drawn by the
-app itself, the rest converted with headless LibreOffice), video, images, audio and Bible verses (it
-ships the RV1909, in the public domain; any other version is imported) during a service. Visual identity: Lumina Live's (navy + teal accent +
+It drives two windows — control and projection — to show presentations (PowerPoint old and new,
+`.odp` and PDF, every one read and drawn by the app itself, with nothing else to install), video,
+images, audio and Bible verses (it ships the RV1909, in the public domain; any other version is
+imported) during a service. Visual identity: Lumina Live's (navy + teal accent +
 the flame, identity sheet of 2026-10-22), with a switchable light/dark theme (dark by default, meant
 to be operated from a dark booth).
 
@@ -83,7 +84,8 @@ answer, and ask about what does. Nothing is delivered half-done in silence.
 | DB | `better-sqlite3` (Node-API, no native rebuild) + Drizzle ORM + FTS5 for the Bible |
 | Packaging | `electron-builder` (nsis / ad-hoc signed dmg / AppImage + deb) |
 | Updates | `electron-updater` 6.8.9, from the GitHub release marked Latest; on macOS the app downloads and opens the `.dmg` itself |
-| Media conversion | FFmpeg 9.0.2 (`ffmpeg` + `ffprobe`) **bundled**, pinned by sha256 and downloaded by `scripts/fetch-ffmpeg.ts` (GPLv3, see `resources/ffmpeg-NOTICE.txt`) |
+| Media probe + thumbnails | FFmpeg 9.0.2 (`ffmpeg` + `ffprobe`) **bundled**, pinned by sha256 and downloaded by `scripts/fetch-binaries.ts` (GPLv3, see `resources/ffmpeg-NOTICE.txt`) |
+| Media engine | Our own process on libmpv (`native/`), **prebuilt** per platform in this repo's GitHub Release `engine-<n>`, pinned by sha256 and downloaded by `scripts/fetch-binaries.ts` (see `resources/engine-NOTICE.txt`). `native/build.sh <target>` builds it locally (kept by the fetch: a `.local` marker) and `native/build.sh pack` zips a new release |
 | E2E | Playwright 1.63 (`_electron`) against the built app or the installed one — `tests/e2e/` |
 
 ## Folder structure
@@ -114,14 +116,15 @@ src/
 │   │   ├── index.ts               # assembles every *.ts in handlers/
 │   │   └── handlers/              # one file per domain, same grouping as the contract
 │   ├── protocol/worship-protocol.ts   # worship:// — serves files by id, never by path
-│   ├── slides/                    # libreoffice.ts (discovery+soffice), pptx-metadata.ts (OOXML),
-│   │                              # rasterizer.ts (hidden window+pdfjs), deck-service.ts (queue+cache),
-│   │                              # ppt-binary.ts + native-deck.ts (legacy decks read with no LibreOffice),
-│   │                              # pptx/ + pptx-deck.ts (a .pptx read into a SlideModel per slide,
-│   │                              #   on the pptx-worker.ts thread)
+│   ├── slides/                    # deck-service.ts (which reader, cache), pptx-metadata.ts
+│   │                              # (OOXML timings/media), ppt-binary.ts + native-deck.ts (legacy decks of
+│   │                              # pictures; the unreadable-deck sniff), pptx/ (OOXML), ppt/model-reader.ts
+│   │                              # (legacy with text), odp/ (OpenDocument) — each into a SlideModel per
+│   │                              # slide on the pptx-worker.ts thread —, rasterizer.ts (a PDF's pages, drawn on request: hidden window+pdfjs)
 │   ├── media/                     # media-compat.ts (what Chromium plays: PURE, tested), ffmpeg.ts
-│   │                              #   (processes), conversion-service.ts (queue + cache of playable copies),
-│   │                              #   deck-clips.ts (video/audio embedded in a .pptx), thumbnail-service.ts
+│   │                              #   (probes, frames), engine-assets.ts (which library files the engine plays),
+│   │                              #   deck-clips.ts (video/audio embedded in a .pptx), thumbnail-service.ts,
+│   │                              #   media-engine.ts (one libmpv process per file) + engine-sessions.ts (live video, slide clip and audio, PREVIEW)
 │   ├── windows/projector-screen.ts # the projector bound to its screen: anti-sleep and reconnection
 │   ├── updates/                   # updater.ts (owns UpdateStatus, wraps electron-updater), mac-dmg.ts
 │   │                              #   (macOS without Squirrel), update-status.ts (PURE, tested)
@@ -241,7 +244,7 @@ drew a white halo around every focused control.
 |---|---|
 | [`docs/knowledge/01-architecture.md`](docs/knowledge/01-architecture.md) | electron-vite, the two windows, dev vs. packaged, `paths.ts` |
 | [`docs/knowledge/02-ipc-contract.md`](docs/knowledge/02-ipc-contract.md) | `IpcContract`, how to add a channel, why the preload never changes |
-| [`docs/knowledge/03-slides-libreoffice.md`](docs/knowledge/03-slides-libreoffice.md) | headless LibreOffice, OOXML parsing (timings/audio), rasterizing, deck cache |
+| [`docs/knowledge/03-slides.md`](docs/knowledge/03-slides.md) | which reader opens a deck, model/native/PDF decks, OOXML parsing (timings/audio), a deck that won't open, deck cache |
 | [`docs/knowledge/04-renderer-state.md`](docs/knowledge/04-renderer-state.md) | Zustand, `selectOutput`, the effects layer |
 | [`docs/knowledge/05-data-and-persistence.md`](docs/knowledge/05-data-and-persistence.md) | SQLite schema, FTS5, legacy data migration, missing files |
 | [`docs/knowledge/06-ui-and-theme.md`](docs/knowledge/06-ui-and-theme.md) | design system, tokens, panel layout |
@@ -317,14 +320,20 @@ npm install              # installs deps — better-sqlite3 ships prebuilt binar
                           #   package NO longer does it by itself, and without it `npm run dev` dies with
                           #   `Error: Electron uninstall` while build/typecheck/lint still pass.
                           #   It also downloads this platform's FFmpeg (`resources/ffmpeg/`, ~130 MB
-                          #   on macOS, ~210 MB on Windows), verified by sha256
+                          #   on macOS, ~210 MB on Windows) and media engine (`resources/engine/`,
+                          #   10–47 MB zipped), verified by sha256
 npm run dev               # electron-vite dev (HMR in the renderer, main restarts on watch)
 npm run typecheck          # tsc --noEmit over node (main+preload+shared) and web (renderer+shared)
 npm run lint                # eslint .
-npm run test                 # vitest run — 484 cases in two projects: `main` (Node: migrations, seed,
+npm run test                 # vitest run — 509 cases in two projects: `main` (Node: migrations, seed,
                               #   FTS5, repos and the library sweep, draft, settings and scene validators, WAL backup,
                               #   zip reader, the legacy-deck reader against an OLE2 file built in the test
                               #   (`tests/fixtures/legacy-ppt.ts`: pictures, master inheritance, what it refuses),
+                              #   why a deck won't open (password, PowerPoint 95, neither), damaged slide parts,
+                              #   a legacy deck with text read into a model (`ppt-model.test.ts`: master styles,
+                              #   placeholders, scheme, built-in shapes, fields, autonumbers, a damaged slide) and an
+                              #   `.odp` (`odp-reader.test.ts`),
+                              #   what older builds' LibreOffice decks leave at startup,
                               #   slide transitions from OOXML, native deck rows, linked audio, urls, history prune, timer functions,
                               #   dragging a countdown, timer scenes as an order-of-service item,
                               #   video embedded in a slide: geometry, external rels and node by `spid`,
@@ -332,17 +341,18 @@ npm run test                 # vitest run — 484 cases in two projects: `main` 
                               #   readers against real files written on the fly: Zefania, USFX, OSIS,
                               #   SQLite modules, Latin-1 and .zip)
                               #   and `renderer` (jsdom: selectOutput —including slide video under
-                              #   BLACK and a slide's own way in, forward only—, the LibreOffice gate per deck,
+                              #   BLACK and a slide's own way in, forward only—,
                               #   the dressed verse and its live restyling,
                               #   freezeLivePositions, live-intent, transport
                               #   of timer scenes, the «Test video» verdict, the size of the
                               #   frozen frame, toast store, utils). Nothing imports `electron`: that's
                               #   the suite's boundary
 npm run test:watch            # the same suite in watch mode, while working on a module
-npm run test:e2e              # build + Playwright: 132 walkthroughs of the real app (~7 min) with a
-                              #   throwaway profile and media generated on the fly with the bundled FFmpeg (videos, AVI,
-                              #   WMA, PDF, a legacy .pps made of pictures read with no LibreOffice, and .pptx with
-                              #   auto-advance and with an embedded WMV if LibreOffice is there):
+npm run test:e2e              # build + Playwright: 140 walkthroughs of the real app (~10 min) with a
+                              #   throwaway profile and media generated on the fly — videos, AVI and WMA with the
+                              #   bundled FFmpeg; PDFs, a legacy .pps made of pictures and .pptx with auto-advance, a
+                              #   WMA soundtrack and an embedded WMV written in code (`tests/e2e/support/pptx.ts`),
+                              #   nothing else installed:
                               #   live, library, LOGO, decks, Bible, Functions, programs, keyboard, Settings,
                               #   updates against a local fake of GitHub, robustness and an entire service
                               #   (`service.spec.ts`). Native dialogs are
@@ -352,9 +362,8 @@ npm run test:e2e              # build + Playwright: 132 walkthroughs of the real
                               #   it also runs the real hymnal (`hymnal.spec.ts`). The suite runs the app in
                               #   Spanish on purpose (`--lang=es`, `tests/e2e/support/app.ts`): its locators are
                               #   the `es.ts` strings, so they stay in Spanish
-npm run fetch:ffmpeg          # FFmpeg for this machine (the postinstall and every package:* also do it)
+npm run fetch:binaries        # FFmpeg + media engine for this machine (the postinstall and every package:* also do it)
 npm run db:generate            # drizzle-kit generate — new migration after editing db/schema.ts
-npm run slides:smoke -- x.pptx # conversion + OOXML parsing (timings/audio) WITHOUT Electron
 npm run build                 # electron-vite build
 npm run package:win|mac|linux  # build + electron-builder for that platform
 ```
@@ -487,25 +496,16 @@ npm run package:win|mac|linux  # build + electron-builder for that platform
   change what's projected: what to do with a broken file is decided by the operator, not the app. It's
   the "monitors never lie to the operator" rule applied to the case where the lie would be a
   black, silent stage.
-- **A legacy `.ppt`/`.pps`'s auto-advance timings are read from the source binary, not from the
-  converted `.pptx`.** LibreOffice's PPTX exporter only writes `<p:transition>` when the
-  slide has a visual effect, and `advTm` is an attribute of that element: without an effect, the
-  timing disappears (222 of 1226 files of the real hymnal). `ppt-binary.ts` reads them, and
-  `mergeBinaryTimings` **only fills gaps and abandons the whole merge on a single discrepancy**
-  with what the `.pptx` did bring — advancing with another slide's timing mid-service is worse
-  than not advancing. Diagnosis in
+- **A legacy `.ppt`/`.pps`'s auto-advance timings come from its own records** (`ppt-binary.ts`:
+  `SlideShowSlideInfoAtom`, in presentation order), never from a copy converted to `.pptx`: that
+  round-trip through LibreOffice silently lost the timing of every slide without a transition
+  effect (222 of 1226 files of the real hymnal) — diagnosis in
   [`.claude/knowledge/libreoffice-pptx-export-drops-advtm-without-a-transition-effect.md`](.claude/knowledge/libreoffice-pptx-export-drops-advtm-without-a-transition-effect.md).
-- **A PDF is a deck and is NOT converted with LibreOffice.** It's the pipeline's intermediate format,
-  so `runConversion` sends it straight to the rasterizer (`containerKind === "pdf"`) and
-  `warmBatchPdfCache` takes it out of the batch. `--convert-to pdf` on a `.pdf` imports it into
-  **Draw** and redraws it — measured, 157 KB → 1.76 MB. It follows that **a PDF is projected without
-  LibreOffice installed**: the question is `deckRequiresSoffice(ext)` and it's asked per deck, never per
-  environment. In the renderer it goes through `sofficeBlocks(environment, ext)` (`deck.store.ts`), and
-  every block also asks whether the deck already has slides: a converted one is projected without
-  LibreOffice. Background work isn't even queued if the last sweep didn't find it
-  (`cachedSofficeError`); whatever the operator opens looks for it again. See «Without LibreOffice» in
-  `03-slides-libreoffice.md`. It lives in the `ppt` `AssetKind` on purpose, because throughout the
-  renderer `kind === "ppt"` already means "this is a deck". Diagnosis in
+- **A PDF is a deck, and its pages are drawn when asked for** (owner, 2026-11-03: nothing
+  converted, nothing cached on disk). Opening one reads its page sizes (~25 ms); each page is drawn
+  by pdf.js in a hidden window when a window requests `worship://deck/<id>/<n>`, and kept only in
+  memory (`rasterizer.ts`). There is no conversion queue. It lives in the `ppt` `AssetKind` on purpose, because throughout the renderer
+  `kind === "ppt"` already means "this is a deck". Diagnosis in
   [`.claude/knowledge/a-pdf-source-breaks-two-assumptions-the-pipeline-made-about-its-own-output.md`](.claude/knowledge/a-pdf-source-breaks-two-assumptions-the-pipeline-made-about-its-own-output.md).
 - **Never read a whole `.pptx` to get its XML parts out.** A zip is random access: everything
   goes through `readZipEntries` (`src/main/slides/zip-reader.ts`), which reads the central directory
@@ -514,8 +514,8 @@ npm run package:win|mac|linux  # build + electron-builder for that platform
   buffer with the size the central directory already carries. Diagnosis and measurements in
   [`.claude/knowledge/a-pptx-is-random-access-and-inflatesync-needs-its-out-buffer.md`](.claude/knowledge/a-pptx-is-random-access-and-inflatesync-needs-its-out-buffer.md).
 - **Nothing asynchronous runs in `before-quit`.** Not a `setTimeout`, not a callback, not a promise:
-  the process is already gone. Exit cleanup is synchronous, period — that's why `soffice`'s fallback
-  SIGKILL goes in the same call as the SIGTERM. See
+  the process is already gone. Exit cleanup is synchronous, period — a child process that must not
+  outlive the app is killed in that same call (`killAllEngines`), never by a timer. See
   [`.claude/knowledge/nothing-asynchronous-survives-before-quit.md`](.claude/knowledge/nothing-asynchronous-survives-before-quit.md).
 - **Whatever the projector applies ONCE on mount has to be recomputed before rebuilding the
   window.** `startAtSeconds` (from `AudioTrackPush` and from `VideoUnderlay`) is a mount-time seek, not
@@ -579,18 +579,28 @@ npm run package:win|mac|linux  # build + electron-builder for that platform
   projected.** It's an exhaustive `switch` over `BaseContent` — adding a new content type
   without handling it there is a compile error, not a runtime bug like the legacy
   `restorePrevious()`.
-- **If Chromium can't play a video or an audio file, it's converted; it's never decided by the
-  extension or by waiting for `error`.** Measured: ProRes, MPEG-4 part 2 or MJPEG inside a
+- **If Chromium can't play a video or an audio file, the media engine plays it; it's never decided by
+  the extension alone or by waiting for `error`.** Measured: ProRes, MPEG-4 part 2 or MJPEG inside a
   `.mp4`/`.mov` play sound over black without any `error`, and AC3/DTS/ALAC give a picture WITH NO
-  SOUND. `media-compat.ts` decides from ffprobe's streams (and HEVC depending on the GPU, which the control window reports), and
-  `conversion-service.ts` converts in the background, on import or when watching a linked folder, to
-  H.264/AAC capped at 1080p, without touching the original. `worship://asset/<id>?v=<copy>` serves the
-  copy and the URL without `v` ALWAYS serves the original. **The video/audio URL comes from
-  `playableAssetUrl`**, for two reasons: Chromium reuses a URL's data across elements (when the bytes
-  change the string has to change), and an element that started with the original can't receive the
-  copy's bytes in the middle of a song. That's why the video URL travels resolved in `BaseContent`. A
-  `.pptx`'s clips carry their file (`?f=`) for the same reason.
-  GO LIVE on something that's still being converted is refused with a warning. Diagnoses in
+  SOUND. `media-compat.ts` decides from ffprobe's streams (and HEVC depending on the GPU, which the
+  control window reports); until the probe answers, an extension Chromium never opens (AVI, WMV…)
+  already goes to the engine. The engine is libmpv in its own process (`native/engine/`).
+  `engine-assets.ts` keeps in memory which library files it plays (re-decided every launch), and
+  **the video/audio URL comes from `playableAssetUrl`**: `worship://engine/<id>` for those,
+  `worship://asset/<id>` (always the original) for the rest. `OutputView` draws the engine's frames
+  in a canvas instead of a `<video>` — the same frame in the projector and the monitors. Main drives
+  the live session from the `ProjectionOutput` it already forwards (`media/engine-sessions.ts`), never
+  from a record of its own; PREVIEW has a muted engine of its own (`preview:setVideo`). A library
+  AUDIO: one engine per live track, driven from the `AudioTrackPush[]` main already keeps; the
+  projector mounts no `<audio>` for it, and closing the projector pauses it as it silenced an
+  `<audio>` (owner). A deck's clips and sounds: `deck-clips.ts` marks such a clip for the engine in
+  memory and the DTO names it `worship://engine/deck-{audio,video}/<id>`; the slide's clip is a
+  `slideVideo` engine session drawn in a canvas inside its rect. The URL travels resolved in
+  `BaseContent`, and a `.pptx`'s clips carry their file (`?f=`): Chromium reuses a URL's data across
+  elements, so changed bytes need a changed string. **Nothing is converted since step 1.4
+  (2026-11-02):** a build with no engine plays those files like a damaged one (owner), and the copies
+  older builds made (`converted-media/`, `<n>.playable.mp4` in a deck's folder) are deleted at
+  startup, each deck clip row pointed back at its original first. Diagnoses in
   [`.claude/knowledge/chromium-plays-sound-over-black-for-a-codec-it-cannot-decode.md`](.claude/knowledge/chromium-plays-sound-over-black-for-a-codec-it-cannot-decode.md)
   and
   [`.claude/knowledge/chromium-reuses-a-media-urls-data-across-elements-so-changed-bytes-need-a-changed-url.md`](.claude/knowledge/chromium-reuses-a-media-urls-data-across-elements-so-changed-bytes-need-a-changed-url.md).
@@ -606,21 +616,22 @@ npm run package:win|mac|linux  # build + electron-builder for that platform
   control window only lists the screens again (`display.store.refresh`) and shows the warning; it
   never moves the window, and nothing sends it to the main screen on its own. While it exists, a
   `powerSaveBlocker` keeps the screens from turning off mid-sermon.
-- **A slide is content, not a controlled slideshow — and a `.pptx` is drawn, not converted.** A
-  `.pptx` (any OOXML presentation) is read by `src/main/slides/pptx/` into a `SlideModel` per slide
-  that `SlideView` draws in the renderer (`image_format = 'model'`, no LibreOffice, see «Model
-  decks» in `03-slides-libreoffice.md`). The owner's call (2026-10-26): the switch is **total** —
-  never a deck drawn half by the model and half by LibreOffice — and what the model can't draw
-  exactly is **approximated, never refused**; only a file that won't open as a presentation goes to
-  LibreOffice. A model slide's `url`/`thumbUrl` serve no image: whatever draws a slide checks
-  `modelUrl` first. A legacy `.ppt`/`.pps` made of pictures — the hymnal — is not converted either:
-  `ppt-binary.ts` reads which pictures make up each slide and `worship://` serves them straight from
-  the file (`image_format = 'native'`, no cache folder, see «Native decks»); **a legacy deck the
-  native reader cannot draw exactly is refused whole and goes to LibreOffice** — never half a deck
-  each way, never a slide drawn wrong in silence. What's left (an `.odp`, a legacy deck with text) is
-  converted only once (LibreOffice → PDF → WebP per slide) and cached in `userData/slides-cache` +
-  SQLite, addressed by **content hash**. BLACK/LOGO never hide the projection window: they are
-  normal results of `selectOutput`. Don't reintroduce COM, PowerShell or `assertWindows()`.
+- **A slide is content, not a controlled slideshow — and every deck is read by the app itself,
+  never converted by another program** (owner, 2026-11-03). Which reader, by what the bytes are
+  (`containerKind`): a legacy `.ppt`/`.pps` made of pictures — the hymnal — is served picture by
+  picture straight from the file (`ppt-binary.ts`, `image_format = 'native'`, no cache folder);
+  any other presentation — OOXML, a legacy deck with text, an `.odp` — is read on the
+  `pptx-worker.ts` thread into a `SlideModel` per slide that `SlideView` draws
+  (`image_format = 'model'`); a PDF's pages are drawn by pdf.js on request. A legacy deck the picture reader can't draw
+  exactly is refused **whole** and goes to the model reader — never half a deck each way. What the
+  model can't draw exactly is **approximated, never refused** (owner, 2026-10-26); a slide part
+  that won't parse is drawn without it and marked `damaged`, said only in the control window. A
+  file no reader opens **fails with a stable code and a reason that says what the operator can do**
+  (`DECK_PASSWORD`, `DECK_OLD_FORMAT`, `NOT_A_PRESENTATION`, from `sniffUnreadableDeck`) —
+  **never** a message about installing something. A model slide's `url`/`thumbUrl` serve no image:
+  whatever draws a slide checks `modelUrl` first. See `03-slides.md`. BLACK/LOGO never hide the
+  projection window: they are normal results of `selectOutput`. Don't reintroduce COM, PowerShell,
+  `assertWindows()` or LibreOffice.
 - **A slide enters the way its file says, and only moving forward.** `DeckSlide.transition` comes
   from the deck (fade, fade through black and random bars drawn as themselves, anything else a
   crossfade of its length); `setSlideIndex` keeps it only when the index grows, and a new scene
@@ -646,7 +657,7 @@ npm run package:win|mac|linux  # build + electron-builder for that platform
 
 The vanilla JS version (Electron without a bundler, `main.js`/`preload.js`/`src/js/app.js`) lived in
 `legacy/` until 2026-10-22, when it was retired from the repo before publishing it: the two conditions
-for deleting it were already met (LibreOffice replaced COM, and
+for deleting it were already met (nothing drove PowerPoint over COM any more, and
 `src/main/services/migrate-legacy-data.ts` migrates its data on its own at first startup). To see how
 something behaved before: `git show 90d3821:legacy/src/js/app.js`.
 
@@ -655,9 +666,6 @@ something behaved before: `git show 90d3821:legacy/src/js/app.js`.
 - It's developed and verified on macOS: there are no Windows-only features anymore. On an Apple
   Silicon Mac with Rosetta, `npm run package:win` produces the complete NSIS installer;
   always check `release/win-unpacked/resources/ffmpeg/` afterwards.
-- Requires **LibreOffice installed** to convert an `.odp` or a legacy `.ppt`/`.pps` with text
-  (`brew install --cask libreoffice`); a `.pptx`, a PDF and the hymnal don't need it. It isn't
-  bundled; the app detects it and guides the installation if it's missing.
 - `git` is active; commit/push only if the user asks.
 - Plans, audits and the brand sources are maintainer notes and **aren't published**:
   they live in the maintainer's workspace, outside this repo (`../docs/plans/`, `../docs/auditorias/`).

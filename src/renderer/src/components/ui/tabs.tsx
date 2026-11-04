@@ -1,4 +1,5 @@
 import type { KeyboardEvent, ReactNode } from "react";
+import { isPointerFocused } from "@renderer/lib/focus-modality";
 import { cn } from "@renderer/lib/utils";
 import { Icon, type IconName } from "./icon";
 
@@ -89,6 +90,10 @@ export function Tabs<T extends string>({
     const nextKey = vertical ? "ArrowDown" : "ArrowRight";
     const prevKey = vertical ? "ArrowUp" : "ArrowLeft";
     if (event.key !== nextKey && event.key !== prevKey) return;
+    // Clicked, the arrows are the operator's shortcuts (→ moves the slide on
+    // the projector), as on any clicked control; reached with Tab, they walk
+    // the tabs. See `use-global-shortcuts.ts`.
+    if (isPointerFocused(event.target)) return;
     event.preventDefault();
     const index = tabs.findIndex((tab) => tab.value === value);
     const delta = event.key === nextKey ? 1 : -1;

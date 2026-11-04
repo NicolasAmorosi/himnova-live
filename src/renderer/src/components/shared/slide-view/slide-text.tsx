@@ -70,11 +70,37 @@ export function SlideText({
     // PowerPoint fills a column to the bottom before starting the next.
     ...(body.columns.count > 1 ? { columnCount: body.columns.count, columnGap: u(body.columns.spacing), columnFill: "auto", display: "block" } : null),
   };
+  const paragraphs = body.paragraphs.map((p, i) => (
+    <SlideParagraph key={i} p={p} u={u} wrap={body.wrap} first={i === 0} slideWidth={slideWidth} />
+  ));
+  return <div style={style}>{body.stretch ? <Stretched>{paragraphs}</Stretched> : paragraphs}</div>;
+}
+
+/** The text laid out at its own size, then scaled to fill its box both ways —
+ *  measured, and measured again whenever its size changes (a face arriving). */
+function Stretched({ children }: { children: ReactNode }): ReactNode {
+  const ref = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const inner = ref.current;
+    const box = inner?.parentElement;
+    if (!inner || !box) return;
+    const fit = (): void => {
+      const w = inner.offsetWidth, h = inner.offsetHeight;
+      if (!(w > 0 && h > 0)) return;
+      const sx = box.clientWidth / w, sy = box.clientHeight / h;
+      inner.style.transform = `scale(${sx}, ${sy})`;
+      inner.style.setProperty("--slide-stroke-scale", String(Math.sqrt(sx * sy)));
+    };
+    fit();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(fit);
+    observer.observe(inner);
+    observer.observe(box);
+    return () => observer.disconnect();
+  }, []);
   return (
-    <div style={style}>
-      {body.paragraphs.map((p, i) => (
-        <SlideParagraph key={i} p={p} u={u} wrap={body.wrap} first={i === 0} slideWidth={slideWidth} />
-      ))}
+    <div ref={ref} style={{ width: "max-content", transformOrigin: "center", alignSelf: "center" }}>
+      {children}
     </div>
   );
 }
@@ -158,6 +184,8 @@ function SlideParagraph({
     <div ref={ref} style={style}>
       {p.bullet ? <Bullet p={p} size={size} u={u} /> : null}
       {empty ? <span style={{ fontSize: u(p.endSize * PT) }}>{"​"}</span> : p.runs.map((r, i) => <Run key={i} run={r} u={u} />)}
+      {/* A trailing break still opens a line in PowerPoint; a trailing <br> opens none. */}
+      {!empty && p.runs[p.runs.length - 1]?.kind === "break" ? <span style={{ fontSize: u(p.endSize * PT) }}>{"​"}</span> : null}
       {tabbed ? <span data-tab-end="" /> : null}
     </div>
   );
@@ -259,7 +287,8 @@ function Run({ run, u }: { run: TextRun; u: (emu: number) => string }): ReactNod
     style.color = "transparent";
   } else style.color = fill.kind === "path" ? (fill.stops[0]?.color ?? "black") : fill.kind === "pattern" ? fill.fg : "black";
   if (run.outline?.fill?.kind === "solid") {
-    style.WebkitTextStroke = `${u(run.outline.width)} ${run.outline.fill.color}`;
+    // Inside stretched WordArt the letters are scaled; their outline is not (`Stretched`).
+    style.WebkitTextStroke = `calc(${u(run.outline.width)} / var(--slide-stroke-scale, 1)) ${run.outline.fill.color}`;
   }
   const shadows: string[] = [];
   const shadow = run.effects.shadow;

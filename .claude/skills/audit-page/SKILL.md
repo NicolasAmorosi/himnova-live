@@ -14,7 +14,7 @@ non-exhaustive `selectOutput` switches — don't re-derive what the compiler alr
 Reports are maintainer notes and are not published: `../docs/auditorias/` is the maintainer
 workspace next to this repo. If it does not exist, write under `.scratch/auditorias/` (gitignored).
 Focus your manual tracing on what TypeScript can't see: runtime behavior, error handling, UX
-states, LibreOffice pipeline safety, and design-system consistency. Run `npm run typecheck && npm run lint`
+states, slides pipeline safety, and design-system consistency. Run `npm run typecheck && npm run lint`
 first and fold any failures into the report as Critical findings.
 
 Arguments: `$ARGUMENTS` — the feature to audit (`playlist`, `library`, `bible`, `ppt`,
@@ -28,7 +28,7 @@ report. The deliverable is the report + the updated index.
 ## Phase 0 — Read project knowledge first
 
 1. Read `CLAUDE.md` and the relevant `docs/knowledge/` entries for the target feature:
-   `01-architecture.md` (windows/processes), `02-ipc-contract.md` (channels), `03-slides-libreoffice.md`
+   `01-architecture.md` (windows/processes), `02-ipc-contract.md` (channels), `03-slides.md`
    (if the feature touches PPT), `04-renderer-state.md` (state/flags), `05-data-and-persistence.md`
    (if it touches settings/library/bible data), `06-ui-and-theme.md` (styling).
 2. Scan `.claude/knowledge/INDEX.md` for prior findings on this feature — don't re-report a known
@@ -65,16 +65,15 @@ re-verify by hand.
 
 For every handler this feature owns:
 
-- **Error handling.** Does a failure (missing file, LibreOffice conversion timeout, malformed
-  OOXML, a FK constraint from `program_items.media_asset_id` restrict) surface as a clear
+- **Error handling.** Does a failure (missing file, a deck no reader opens, a PDF that won't
+  rasterize, malformed OOXML, a FK constraint from `program_items.media_asset_id` restrict) surface as a clear
   `IpcError` the renderer can show, or does it throw something opaque? Empty `catch {}` blocks are
   only acceptable for genuinely best-effort operations — flag any that hide a failure the user
   should see.
-- **LibreOffice invocation safety.** `soffice` is spawned with an argument array, never a shell
-  string: flag any string interpolation into a command line, any unquoted filter name, and any
-  path built by concatenation instead of resolved through `src/main/paths.ts`
-  (see `docs/knowledge/03-slides-libreoffice.md` and
-  `.claude/knowledge/slides-libreoffice-pipeline.md`).
+- **Slides pipeline safety.** A deck is read on the worker thread, never on main; a part is read
+  through `readZipEntries`, never the whole file; any process spawned (FFmpeg, the media engine)
+  gets an argument array, never a shell string; and any path is resolved through
+  `src/main/paths.ts`, never built by concatenation (see `docs/knowledge/03-slides.md`).
 - **Range support.** If the handler or protocol path serves media, confirm `serveFile()` still
   honors `Range` (206 + `Accept-Ranges`) — see
   `.claude/knowledge/worship-protocol-range-and-video-lifecycle.md`.
@@ -137,9 +136,10 @@ For each user-facing action in the feature, confirm:
 
 ## Phase 6 — Cross-cutting
 
-- **Missing external dependency.** If the feature touches presentations, confirm it degrades
-  gracefully (no uncaught exception, and a message that guides the install) when LibreOffice
-  isn't present, per `docs/knowledge/03-slides-libreoffice.md`.
+- **A deck that won't open.** If the feature touches presentations, confirm a file no reader opens
+  (password, PowerPoint 95, not a presentation) fails with its code and a reason that says what the
+  operator can do — never an uncaught exception, never a message about installing something — per
+  «A deck that won't open» in `docs/knowledge/03-slides.md`.
 - **Dead/duplicate code.** Any handler, method, or render function this feature made redundant.
 
 ---
@@ -216,7 +216,7 @@ a second screen; audited with one").
 | BLACK/LOGO over a live video (pause + resume; deck audio pauses too, standalone audio keeps playing) | … | … |
 | Loading / empty / error states | … | … |
 | `worship://` `Range` / 206 support | … | n/a |
-| LibreOffice absent → graceful degradation | … | … |
+| A deck that won't open → its reason, nothing to install | … | … |
 | Semantic tokens only (no hardcoded color/shadow/radius) | n/a | … |
 
 ## Not verified / assumptions

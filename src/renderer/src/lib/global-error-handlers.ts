@@ -39,8 +39,7 @@ function describe(reason: unknown): string {
  * deliberate style (there is nothing useful to do with most of those results),
  * but it means a rejection had **nowhere to surface**: no `catch`, no
  * `unhandledrejection` listener, and React's error boundaries never see a
- * promise. A full disk, a locked database or a missing LibreOffice would
- * simply… not happen, silently, and the operator would be left wondering why
+ * promise. A full disk or a locked database would simply… not happen, silently, and the operator would be left wondering why
  * the click did nothing.
  *
  * Toast rather than a dialog on purpose: this fires for things that are often

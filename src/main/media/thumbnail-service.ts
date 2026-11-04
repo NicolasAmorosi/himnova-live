@@ -209,7 +209,7 @@ async function renderThumbnail(asset: MediaAsset): Promise<Buffer | null> {
   // A video never gets decoded in-process to grab a frame: that is exactly the
   // per-tile decoding pipeline this service exists to remove. The OS declines
   // what QuickLook/the shell cannot read (AVI, WMV, MKV…), and those are the
-  // very files that are converted, so ffmpeg grabs one in its own process.
+  // very files the media engine plays, so ffmpeg grabs one in its own process.
   if (asset.kind === "video") return grabFrame(asset.path, MEDIA_THUMB_WIDTH);
   return renderViaResize(asset.path);
 }

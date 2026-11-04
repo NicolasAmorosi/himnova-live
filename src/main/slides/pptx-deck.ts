@@ -6,11 +6,11 @@ import type { PptxRead, PptxReply, PptxRequest } from "./pptx-worker";
 export type { PptxRead } from "./pptx-worker";
 
 /**
- * Reads a `.pptx` in `pptx-worker.ts`, one deck after another on one worker
- * thread, started with the first deck. `null` when the file can't be read as
- * a presentation at all — or when the worker died on it: that deck goes to
- * LibreOffice, and is never retried here on main, where the same file would
- * take the whole app down instead of one thread.
+ * Reads a deck into its model in `pptx-worker.ts`, one deck after another on
+ * one worker thread, started with the first deck. `null` when the file can't be
+ * read as a presentation at all — or when the worker died on it: that deck
+ * fails as unreadable, and is never retried here on main, where the same file
+ * would take the whole app down instead of one thread.
  */
 let worker: Worker | null = null;
 let nextId = 0;
@@ -24,14 +24,14 @@ function pptxWorker(): Worker {
   started.on("message", (reply: PptxReply) => {
     const request = waiting.get(reply.id);
     waiting.delete(reply.id);
-    if ("error" in reply) console.warn(`[slides] unreadable as a .pptx: ${request?.file}: ${reply.error}`);
+    if ("error" in reply) console.warn(`[slides] no reader could open ${request?.file}: ${reply.error}`);
     request?.done("read" in reply ? reply.read : null);
   });
   const lost = (why: string): void => {
     if (worker !== started) return;
     worker = null;
     for (const [id, request] of waiting) {
-      console.warn(`[slides] the .pptx reader stopped (${why}) while reading ${request.file}`);
+      console.warn(`[slides] the deck reader stopped (${why}) while reading ${request.file}`);
       waiting.delete(id);
       request.done(null);
     }

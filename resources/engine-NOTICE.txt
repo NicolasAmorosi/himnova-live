@@ -1,0 +1,24 @@
+Lumina Live plays the video and audio files its built-in player cannot decode with its own media
+engine: a separate program (media-engine) that Lumina Live starts as a child process. The engine
+plays each file with libmpv, the library behind the mpv player. Neither is linked into Lumina Live.
+
+The media engine is part of Lumina Live and, like it, licensed under the GNU General Public License,
+version 3 or later. Its source is in the native/ folder of https://github.com/NicolasAmorosi/lumina-live
+(the binaries of the release named in scripts/fetch-binaries.ts are built from the commit that
+release's tag points at, by native/build.sh).
+
+libmpv:
+
+  macOS     libmpv 0.41.0 built by native/libmpv-mac/build.sh in the same repository, which pins the
+            source of mpv and of every library linked into it by URL and sha256, and carries the one
+            patch applied to mpv. mpv is built in its default configuration, under the GNU GPL,
+            version 2 or later. Linked in: FFmpeg 8.0.3 (built without --enable-gpl, LGPL 2.1 or
+            later), libplacebo, libass, HarfBuzz, FreeType and FriBidi, each under its own license.
+  Windows   libmpv-2.dll from shinchiro's mpv-winbuild-cmake, build 20261021 of mpv master e471496c56:
+              https://github.com/shinchiro/mpv-winbuild-cmake/releases/tag/20261021
+              https://github.com/mpv-player/mpv/tree/e471496c56
+  Linux     Not shipped: the engine loads the libmpv the system provides (libmpv.so.2, or libmpv.so.1).
+
+  License texts:  https://www.gnu.org/licenses/gpl-3.0.txt
+                  https://www.gnu.org/licenses/old-licenses/gpl-2.0.txt
+  mpv:            https://mpv.io/  https://github.com/mpv-player/mpv

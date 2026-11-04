@@ -21,7 +21,7 @@ import type { AssetKind } from "@shared/constants";
  * Lives here rather than in `deck-service.ts` (where it grew up) because the
  * digest is no longer only a slide-pipeline concern: it is `media_assets`'
  * own identity column now, and the backfill below has to be able to compute
- * one without pulling in the whole conversion queue.
+ * one without pulling in the deck service.
  */
 export async function hashFile(filePath: string): Promise<string> {
   const hash = createHash("sha256");
@@ -62,7 +62,7 @@ let running = false;
  * `slides.repo.ts`'s `statusesByAsset` actually able to answer: a deck's
  * identity is its bytes, so an asset can only be matched to a cached deck
  * once its own bytes are known. Assets converted from now on get their hash
- * written by `runConversion` for free (it computes one anyway); this covers
+ * written by the deck readers for free (they compute one anyway); this covers
  * everything that was already in the library before the column existed, plus
  * any file whose bytes changed since.
  *

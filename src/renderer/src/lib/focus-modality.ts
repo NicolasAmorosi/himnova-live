@@ -37,6 +37,11 @@ export function trackFocusModality(): () => void {
     pointerDown = false;
   };
   const onFocusIn = (e: FocusEvent) => {
+    // Focus coming BACK to the element the mouse focused is the window being
+    // reactivated (Alt/⌘-Tab, the taskbar, a click on the projector and back):
+    // no key moved it, so it keeps the mouse's modality. Read as keyboard, the
+    // tile or tab clicked before switching away swallowed the arrows again.
+    if (e.target === pointerFocused) return;
     pointerFocused = pointerDown ? e.target : null;
   };
   window.addEventListener("pointerdown", onPointerDown, true);

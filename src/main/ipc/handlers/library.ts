@@ -7,16 +7,16 @@ import { getMediaRepo, getProgramsRepo } from "../../services/repos";
 import { removeMediaAsset } from "../../services/media-asset-removal";
 import { importPaths } from "../../services/library-import";
 import { broadcast } from "../../services/broadcast";
-import { notifyMediaChanged } from "../../media/conversion-service";
+import { notifyMediaChanged } from "../../media/engine-assets";
 import { showOpenDialogFor } from "../open-dialog";
 import { mt } from "../../i18n";
 
 /** What a deck's linked soundtrack may be. Narrower than `ASSET_EXTENSIONS.audio`
  *  on purpose: `worship://linked-audio/<id>` serves the file itself, so only the
  *  formats Chromium plays as they are can be linked.
- *  ponytail: a WMA/AIFF soundtrack is refused rather than converted — every
- *  linked audio in the real hymnal is an MP3 (1229 of 1229); route it through
- *  `conversion-service.ts` if a church ever needs one. */
+ *  ponytail: a WMA/AIFF soundtrack is refused — every linked audio in the real
+ *  hymnal is an MP3 (1229 of 1229); give it an engine url (`engine-assets.ts`)
+ *  if a church ever needs one. */
 const LINKABLE_AUDIO_EXTENSIONS = new Set(["mp3", "wav", "ogg", "oga", "opus", "m4a", "aac", "flac", "weba"]);
 
 export const libraryHandlers: Pick<

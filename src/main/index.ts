@@ -43,8 +43,8 @@ import { isRasterizerWindow } from "./slides/rasterizer";
 import { startLibrarySweepScheduler } from "./services/library-sweeper";
 import { pruneThumbCache } from "./media/thumbnail-service";
 import { backfillContentHashes } from "./media/content-hash";
-import { backfillDeckTimings } from "./slides/backfill-timings";
-import { initConversions, shutdownConversions } from "./media/conversion-service";
+import { initEngineAssets, shutdownEngineAssets } from "./media/engine-assets";
+import { engineAvailable, killAllEngines, prewarmEngine } from "./media/media-engine";
 import { stopDeckClips } from "./media/deck-clips";
 import { appendLogLine, installMainLog } from "./logging";
 import { initUpdates } from "./updates/updater";
@@ -217,18 +217,21 @@ if (gotSingleInstanceLock) {
     // PROJECTOR) and Cmd+R must never be reachable, not even for one frame.
     installApplicationMenu();
 
-    // Non-blocking: creates the cache dirs, sweeps anything a crash left
-    // half-converted, locates LibreOffice and warms its profile. A failure
-    // here must never keep the app from starting. It yields an event-loop
+    // Non-blocking: creates the cache dirs and sweeps anything a crash left
+    // half-written, and what older builds left behind. A failure here must
+    // never keep the app from starting. It yields an event-loop
     // turn before its first synchronous filesystem work — `void` alone only
     // defers from the first `await`, which used to be after the whole sweep.
     void initSlidesSubsystem().catch((error: unknown) => {
       console.warn("[slides] init failed", error);
     });
     startLibrarySweepScheduler();
-    // Sweeps leftovers only. Converting waits for the control window to report
-    // what this machine decodes (`conversion:reportDecoders`).
-    initConversions();
+    // Deletes the old converted copies only. Deciding what the engine plays waits for the control
+    // window to report what this machine decodes (`engine:reportDecoders`).
+    initEngineAssets();
+    // A media engine started ahead of time, so the first video it plays does not pay for the
+    // process (150–650 ms).
+    if (engineAvailable()) prewarmEngine();
 
     // The other half of the legacy import (`media_library.json`). Off the
     // startup path: it is a whole library's worth of files, and the rows it
@@ -245,14 +248,6 @@ if (gotSingleInstanceLock) {
     setTimeout(() => {
       void backfillContentHashes().catch((error: unknown) => {
         console.warn("[media] content-hash backfill failed", error);
-      });
-      // Recovers the auto-advance times LibreOffice's PPTX export dropped from
-      // decks converted before that was understood — a re-read of the source
-      // `.pps`, no reconversion. Same slot: both are one-time catch-up passes
-      // over the library that must not stand between the operator and a
-      // window. Independent of each other, so neither waits for the other.
-      void backfillDeckTimings().catch((error: unknown) => {
-        console.warn("[slides] timings backfill failed", error);
       });
     }, CONTENT_HASH_BACKFILL_DELAY_MS);
 
@@ -293,7 +288,7 @@ app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();
 });
 
-// Cancels in-flight jobs and kills soffice/the rasterizer. The deck cache is
+// Cancels in-flight jobs and closes the rasterizer. The deck cache is
 // deliberately NOT deleted — persisting it is the point of the pipeline.
 app.on("before-quit", (event) => {
   // Held until the control window answers. No window closes and nothing shuts
@@ -303,7 +298,8 @@ app.on("before-quit", (event) => {
   cancelAllPrewarmBatches();
   shutdownSlides();
   stopDeckClips();
-  shutdownConversions();
+  shutdownEngineAssets();
+  killAllEngines();
 });
 
 // `will-quit`, not `before-quit`, for two reasons. It runs after every window

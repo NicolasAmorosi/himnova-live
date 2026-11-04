@@ -129,11 +129,10 @@ export const useProgramStore = create<ProgramStoreState>((set, get) => ({
   loadProgram: (program) => {
     // Opening a saved service is the strongest signal there is about which
     // decks are going to be needed, and the operator usually does it well
-    // before the service starts — so every unconverted deck in it goes into
-    // the priority background lane, in the order of service, ahead of any
-    // folder batch or on-screen prewarm already queued.
+    // before the service starts — so every deck in it not read yet is read in
+    // the background now.
     const deckIds = program.items.filter((item) => item.kind === "ppt").map((item) => item.mediaAssetId);
-    if (deckIds.length > 0) void api.deck.prewarm(deckIds, "program");
+    if (deckIds.length > 0) void api.deck.prewarm(deckIds);
 
     set({
       currentProgramId: program.id,
@@ -151,7 +150,7 @@ export const useProgramStore = create<ProgramStoreState>((set, get) => ({
     // the ones about to be needed, and the operator has just reopened the app
     // — usually well before the service.
     const deckIds = draft.items.flatMap((item) => (item.kind === "ppt" ? [item.mediaAssetId] : []));
-    if (deckIds.length > 0) void api.deck.prewarm(deckIds, "program");
+    if (deckIds.length > 0) void api.deck.prewarm(deckIds);
 
     set({
       currentProgramId: draft.programId,
@@ -187,11 +186,9 @@ export const useProgramStore = create<ProgramStoreState>((set, get) => ({
 
   addItem: (item, insertAt) => {
     // Added to the schedule counts as an explicit intent to eventually show
-    // this — pre-warm its deck in the background rather than waiting for the
-    // operator to click it into preview. `"program"` rather than
-    // `"explicit"`: this is the lane that outranks a folder batch, so a deck
-    // dropped into the order of service during one doesn't wait behind it.
-    if (item.kind === "ppt") void api.deck.prewarm([item.mediaAssetId], "program");
+    // this — read its deck in the background rather than waiting for the
+    // operator to click it into preview.
+    if (item.kind === "ppt") void api.deck.prewarm([item.mediaAssetId]);
 
     set((state) => {
       // Negative ids mark not-yet-persisted rows — see `nextProvisionalId`.

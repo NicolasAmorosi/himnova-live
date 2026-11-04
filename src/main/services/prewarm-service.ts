@@ -1,16 +1,9 @@
 import { randomUUID } from "node:crypto";
-import { SLIDES_BATCH_SIZE } from "@shared/constants";
 import type { DeckStatusSummary, PrewarmProgress } from "@shared/types/deck";
 import { slideModelUrl, slideThumbUrl } from "@shared/urls";
 import { broadcast } from "./broadcast";
 import { getSlidesRepo } from "./repos";
-import {
-  cacheUsage,
-  cancelBackgroundJobs,
-  prepareDeck,
-  releasePrecomputed,
-  warmBatchPdfCache,
-} from "../slides/deck-service";
+import { cacheUsage, prepareDeck } from "../slides/deck-service";
 
 /** How full the cache is allowed to get from prewarming alone before a batch
  *  stops enqueueing more — converting 600 decks just to immediately evict
@@ -85,34 +78,21 @@ export function startPrewarmBatch(assetIds: readonly number[], label: string): {
 async function runBatch(state: BatchState, assetIds: number[], progress: PrewarmProgress): Promise<void> {
   for (let i = 0; i < assetIds.length; i++) {
     if (state.canceled) {
-      releasePrecomputed(assetIds.slice(i));
       broadcast("prewarm-progress", { ...progress, currentAssetId: null, status: "canceled" });
       activeBatches.delete(state.jobId);
       return;
     }
     if (cacheOverBudget()) {
-      releasePrecomputed(assetIds.slice(i));
       broadcast("prewarm-progress", { ...progress, currentAssetId: null, status: "cache-full" });
       activeBatches.delete(state.jobId);
       return;
-    }
-
-    // At each chunk boundary, pre-convert the whole chunk's PDFs (and, for
-    // legacy decks, their .pptx upgrades) in one `soffice` invocation each —
-    // see `warmBatchPdfCache`'s own comment for the reasoning and its
-    // no-op-on-failure fallback. The per-asset loop below is otherwise
-    // unchanged: it's what actually inserts each deck and reports progress,
-    // one at a time, so cancellation/cache-budget checks stay exactly as
-    // granular as before.
-    if (i % SLIDES_BATCH_SIZE === 0) {
-      await warmBatchPdfCache(assetIds.slice(i, i + SLIDES_BATCH_SIZE));
     }
 
     const assetId = assetIds[i]!;
     progress.currentAssetId = assetId;
     broadcast("prewarm-progress", { ...progress });
     try {
-      await prepareDeck(assetId, { priority: "background", scope: "batch", prewarmJobId: state.jobId });
+      await prepareDeck(assetId, { priority: "background" });
       progress.done += 1;
     } catch {
       // A canceled or genuinely failed conversion either way just doesn't
@@ -133,11 +113,8 @@ export function cancelAllPrewarmBatches(): void {
   for (const state of activeBatches.values()) state.canceled = true;
 }
 
-/** Stops enqueueing further assets in the batch and aborts whichever one of
- *  its jobs is currently in flight (queued-but-not-started ones tagged with
- *  this `jobId` are also dropped, via `cancelBackgroundJobs`). */
+/** Stops the batch before its next asset; the one being read finishes. */
 export function cancelPrewarmBatch(jobId: string): void {
   const state = activeBatches.get(jobId);
   if (state) state.canceled = true;
-  cancelBackgroundJobs(jobId);
 }

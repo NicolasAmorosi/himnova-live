@@ -4,7 +4,7 @@ import { and, asc, eq, inArray, lt, notInArray, sql } from "drizzle-orm";
 import type Database from "better-sqlite3";
 import type { Db } from "../client";
 import { deckAudio, deckSlides, deckVideos, mediaAssets, slideDecks } from "../schema";
-import { slideModelUrl, slideThumbUrl, slideUrl, deckAudioUrl, deckVideoUrl, linkedAudioUrl } from "@shared/urls";
+import { slideModelUrl, slideThumbUrl, slideUrl, deckAudioUrl, deckVideoUrl, engineClipUrl, linkedAudioUrl } from "@shared/urls";
 import { SLIDES_CONVERTER_VERSION, SLIDES_NATIVE_VERSION, SLIDES_MODEL_VERSION } from "@shared/constants";
 import type { DeckDTO, DeckSlide, DeckSlideVideo, DeckSound, DeckStatus, SlideRect } from "@shared/types/deck";
 import { isSlideTransitionStyle, type SlideTransition } from "@shared/types/transition";
@@ -35,10 +35,10 @@ export function isCurrentDeck(row: Pick<DeckRow, "imageFormat" | "converterVersi
   return row.converterVersion === current;
 }
 
-/** What `worship://deck/<id>/<n>` serves: a file in the deck's cache folder,
- *  or a native slide built from its source (`native-deck.ts`). */
+/** What `worship://deck/<id>/<n>` serves, built from the deck's source every
+ *  time: a native slide's pictures (`native-deck.ts`), or a PDF's page drawn
+ *  by pdf.js (`rasterizer.ts`). */
 export type SlideImage =
-  | { kind: "file"; path: string }
   | {
       kind: "native";
       variant: "full" | "thumb";
@@ -46,6 +46,16 @@ export type SlideImage =
       sourceSizeBytes: number;
       sourceMtimeMs: number;
       layers: string;
+    }
+  | {
+      kind: "pdf";
+      variant: "full" | "thumb";
+      page: number;
+      sourcePath: string;
+      sourceSizeBytes: number;
+      sourceMtimeMs: number;
+      renderWidth: number;
+      imageFormat: "webp" | "png";
     };
 
 export type NewDeck = {
@@ -59,7 +69,7 @@ export type NewDeck = {
   sourceMtimeMs: number;
   cacheDir: string;
   aspectRatio: string | null;
-  timingsSource: "ooxml" | "ooxml-converted" | "binary" | "none";
+  timingsSource: "ooxml" | "binary" | "odf" | "none";
   bytesOnDisk: number;
   /** Defaults to the moment of insertion. A background prewarm backdates
    *  this on purpose — see the call site in `deck-service.ts`. */
@@ -129,13 +139,22 @@ export class SlidesRepo {
 
   private slideImageStmt(): Database.Statement {
     this.slideImageStatement ??= this.sqlite.prepare(
-      `SELECT d.cache_dir AS cacheDir, s.image_file AS imageFile, s.thumb_file AS thumbFile,
-              s.layers AS layers, d.image_format AS imageFormat, d.source_path AS sourcePath,
+      `SELECT d.cache_dir AS cacheDir, s.layers AS layers, d.image_format AS imageFormat,
+              d.render_width AS renderWidth, d.source_path AS sourcePath,
               d.source_size_bytes AS sourceSizeBytes, d.source_mtime_ms AS sourceMtimeMs
          FROM deck_slides s JOIN slide_decks d ON d.id = s.deck_id
         WHERE s.deck_id = ? AND s.slide_index = ?`,
     );
     return this.slideImageStatement;
+  }
+
+  private deckSourceStatement: Database.Statement | null = null;
+
+  /** Whether some deck was read from `sourcePath` — every deck's source was a
+   *  library file when it was read. */
+  isDeckSource(sourcePath: string): boolean {
+    this.deckSourceStatement ??= this.sqlite.prepare(`SELECT 1 FROM slide_decks WHERE source_path = ? LIMIT 1`);
+    return this.deckSourceStatement.get(sourcePath) !== undefined;
   }
 
   private insertSlideStatement: Database.Statement | null = null;
@@ -223,10 +242,9 @@ export class SlidesRepo {
    * One query per chunk for a whole grid's worth of assets, instead of
    * `findDeckByAsset` + `fs.existsSync` per asset (what `deckStatuses` used to
    * do). Deliberately skips the filesystem: a cache dir that vanished out from
-   * under a `ready` row is caught by the real conversion/cache-hit path
-   * (`runConversion`), not by a status badge that exists to answer "does this
-   * still need converting?" for hundreds of tiles at once without touching
-   * disk hundreds of times.
+   * under a `ready` row is caught when the deck is read (`prepareDeck`), not
+   * by a status badge that exists to answer "does this still need reading?"
+   * for hundreds of tiles at once without touching disk hundreds of times.
    *
    * **Asked by CONTENT, then by ownership** — this is the fix for `N3`
    * (media-chain audit §5.2). It used to ask only "which deck row does this
@@ -349,7 +367,7 @@ export class SlidesRepo {
 
   /** The deck matching an asset's stamped content hash at the current render
    *  settings — the exact identity `insertDeck` enforces, so at most one row.
-   *  Lets `tryCacheHit` resolve a duplicate file without re-reading it just to
+   *  Lets a reader (`nativeDeck`, `modelDeck`, `pdfDeck`) resolve a duplicate file without re-reading it just to
    *  recompute a digest the asset already carries. */
   findDeckByAssetContent(mediaAssetId: number, renderWidth: number, imageFormat: DeckRow["imageFormat"]): DeckRow | null {
     const row = this.db
@@ -425,31 +443,54 @@ export class SlidesRepo {
 
   // -- writes ---------------------------------------------------------------
 
-  /** A clip `media/deck-clips.ts` made playable in place: the same row, now
-   *  pointing at the converted file (or at the same one, found playable after
-   *  all), so its id — and the `worship://deck-video/<id>` url — never change. */
-  updateClip(kind: "video" | "audio", id: number, file: string, ext: string, bytes: number): void {
+  /** A clip `media/deck-clips.ts` looked at again: the same row, found playable
+   *  after all, or pointed back at the original an earlier build converted
+   *  (`playable` false: only the media engine plays it). Its id — and its url —
+   *  never change. */
+  updateClip(kind: "video" | "audio", id: number, file: string, ext: string, bytes: number, playable = true): void {
+    const flag = playable ? 1 : 0;
     if (kind === "video") {
       this.db
         .update(deckVideos)
-        .set({ videoFile: file, ext, bytes, playable: 1 })
+        .set({ videoFile: file, ext, bytes, playable: flag })
         .where(eq(deckVideos.id, id))
         .run();
     } else {
       this.db
         .update(deckAudio)
-        .set({ audioFile: file, ext, bytes, playable: 1 })
+        .set({ audioFile: file, ext, bytes, playable: flag })
         .where(eq(deckAudio.id, id))
         .run();
     }
+  }
+
+  /** Clips still on the playable copy a build before step 1.4 of the engine plan made
+   *  (`<n>.playable.mp4`/`.m4a`, next to the original in the deck's folder). */
+  clipsOnPlayableCopies(): { kind: "video" | "audio"; id: number; cacheDir: string; file: string }[] {
+    return this.sqlite
+      .prepare(
+        `SELECT 'video' AS kind, v.id, d.cache_dir AS cacheDir, v.video_file AS file
+           FROM deck_videos v JOIN slide_decks d ON d.id = v.deck_id
+          WHERE v.video_file LIKE '%.playable.%'
+         UNION ALL
+         SELECT 'audio', a.id, d.cache_dir, a.audio_file
+           FROM deck_audio a JOIN slide_decks d ON d.id = a.deck_id
+          WHERE a.audio_file LIKE '%.playable.%'`,
+      )
+      .all() as { kind: "video" | "audio"; id: number; cacheDir: string; file: string }[];
   }
 
   /** Single transaction: a half-inserted deck must never be observable. */
   insertDeck(deck: NewDeck, slides: NewSlide[], audio: NewAudio[], videos: NewVideo[] = []): number {
     const now = Date.now();
     const insert = this.sqlite.transaction(() => {
-      // Replace any previous conversion with the same identity (e.g. a forced
-      // reconvert) so ux_deck_identity never collides.
+      // Replace any previous read with the same identity (a forced re-read, a
+      // newer reader, the same bytes through a copy not hashed yet) so
+      // ux_deck_identity never collides — under the SAME id: windows ask for
+      // `worship://deck/<id>/<n>`, and a new id left a deck already on air
+      // asking for slides of a row that no longer existed (blank, mid-service).
+      // ponytail: its audio/video rows still get new ids, so a clip on air
+      // through this deck loses its url; keep those ids too if that bites.
       const existing = this.findDeckByIdentity(
         deck.contentHash,
         deck.renderWidth,
@@ -461,6 +502,7 @@ export class SlidesRepo {
         .insert(slideDecks)
         .values({
           ...deck,
+          ...(existing ? { id: existing.id } : {}),
           slideCount: slides.length,
           transitionsRead: 1,
           status: "ready",
@@ -550,7 +592,7 @@ export class SlidesRepo {
    *
    *  The source stamp moves with it. The row describes whichever file it is
    *  pointed at, and leaving the previous copy's `(size, mtime)` behind meant
-   *  `tryCacheHit`'s first tier — the one that costs a single `statSync` —
+   *  a reader's first lookup — the one that costs a single `statSync` —
    *  could never match again for the new owner: a file merely `touch`ed, or a
    *  duplicate saved at a different moment, fell through to the slower lookup
    *  on every single open, forever. */
@@ -754,118 +796,18 @@ export class SlidesRepo {
   }
 
   /**
-   * Deletes the rasterized decks a deck read from its source (native, model)
-   * replaces — same content, drawn by LibreOffice before this build could read
-   * it — except the ids in `keep`: one on the projector right now keeps its
-   * images until the next launch, when nothing is. `contentHash` narrows it to
-   * one deck; without it, every superseded deck goes (the startup sweep).
-   * Returns how many went.
+   * Deletes every deck a build before 2026-11-03 drew to disk — a raster
+   * (`webp`/`png`) with a folder: a PDF's pages, or a deck LibreOffice
+   * converted — with that folder. Every such deck is read from its source on
+   * its next open; a PDF's pages are drawn when asked for (cache dir `''`).
+   * Run at startup, when nothing is on the projector. Returns how many went.
    */
-  deleteSupersededBySource(keep: readonly number[], contentHash?: string): number {
+  deleteRasterizedDecks(): number {
     const rows = this.sqlite
-      .prepare(
-        `SELECT d.id AS id FROM slide_decks d
-          WHERE d.image_format NOT IN ('native', 'model')
-            AND (? IS NULL OR d.content_hash = ?)
-            AND EXISTS (SELECT 1 FROM slide_decks n
-                         WHERE n.image_format IN ('native', 'model') AND n.content_hash = d.content_hash)`,
-      )
-      .all(contentHash ?? null, contentHash ?? null) as { id: number }[];
-    const kept = new Set(keep);
-    let deleted = 0;
-    for (const row of rows) {
-      if (kept.has(row.id)) continue;
-      this.deleteDeck(row.id);
-      deleted += 1;
-    }
-    return deleted;
-  }
-
-  /** Writes the transitions read from a deck's source onto its slides, in
-   *  slide order, and marks the deck as having them — see
-   *  `slide_decks.transitions_read`. */
-  setSlideTransitions(deckId: number, transitions: readonly (SlideTransition | null)[] | null): void {
-    const statement = this.sqlite.prepare(
-      `UPDATE deck_slides SET transition = ?, transition_ms = ? WHERE deck_id = ? AND slide_index = ?`,
-    );
-    this.sqlite.transaction(() => {
-      transitions?.forEach((transition, i) =>
-        statement.run(transition?.style ?? null, transition?.durationMs ?? null, deckId, i + 1),
-      );
-      this.db.update(slideDecks).set({ transitionsRead: 1 }).where(eq(slideDecks.id, deckId)).run();
-    })();
-  }
-
-  // -- timings backfill -----------------------------------------------------
-
-  /**
-   * Ready decks converted from a legacy binary that still have at least one
-   * slide without an advance time — the population `backfillDeckTimings`
-   * re-reads from the source file.
-   *
-   * `timings_source = 'ooxml-converted'` is the filter that makes the row
-   * indexes trustworthy: it is written only when the slide count and the page
-   * count lined up, which is exactly the condition under which `deck_slides`
-   * row *i* is presentation slide *i*. A `'none'` deck is one where they did
-   * NOT line up, and no amount of re-reading fixes an alignment we already
-   * know is wrong.
-   */
-  decksNeedingTimings(): {
-    id: number;
-    sourcePath: string;
-    slideCount: number;
-    sourceSizeBytes: number;
-    sourceMtimeMs: number;
-  }[] {
-    return this.sqlite
-      .prepare(
-        `SELECT d.id AS id, d.source_path AS sourcePath, d.slide_count AS slideCount,
-                d.source_size_bytes AS sourceSizeBytes, d.source_mtime_ms AS sourceMtimeMs
-           FROM slide_decks d
-          WHERE d.status = 'ready'
-            AND d.timings_source = 'ooxml-converted'
-            AND EXISTS (SELECT 1 FROM deck_slides s
-                         WHERE s.deck_id = d.id AND s.advance_ms IS NULL)`,
-      )
-      .all() as {
-      id: number;
-      sourcePath: string;
-      slideCount: number;
-      sourceSizeBytes: number;
-      sourceMtimeMs: number;
-    }[];
-  }
-
-  /** `(slideIndex, advanceMs)` for one deck, in presentation order. */
-  slideAdvanceTimes(deckId: number): { slideIndex: number; advanceMs: number | null }[] {
-    return this.sqlite
-      .prepare(
-        `SELECT slide_index AS slideIndex, advance_ms AS advanceMs
-           FROM deck_slides WHERE deck_id = ? ORDER BY slide_index`,
-      )
-      .all(deckId) as { slideIndex: number; advanceMs: number | null }[];
-  }
-
-  /** Writes advance times for slides that had none. One transaction, and
-   *  `advance_ms IS NULL` in the WHERE so it can never overwrite a value the
-   *  conversion already established. */
-  fillSlideAdvanceTimes(
-    deckId: number,
-    updates: readonly { slideIndex: number; advanceMs: number }[],
-  ): number {
-    if (updates.length === 0) return 0;
-    const statement = this.sqlite.prepare(
-      `UPDATE deck_slides SET advance_ms = ?
-        WHERE deck_id = ? AND slide_index = ? AND advance_ms IS NULL`,
-    );
-    const run = this.sqlite.transaction(() => {
-      let changed = 0;
-      for (const update of updates) {
-        changed += statement.run(update.advanceMs, deckId, update.slideIndex).changes;
-      }
-      return changed;
-    });
-    return run();
+      .prepare(`SELECT id FROM slide_decks WHERE image_format IN ('webp', 'png') AND cache_dir <> ''`)
+      .all() as { id: number }[];
+    for (const row of rows) this.deleteDeck(row.id);
+    return rows.length;
   }
 
   // -- path resolution (worship:// protocol) --------------------------------
@@ -884,10 +826,9 @@ export class SlidesRepo {
     const row = this.slideImageStmt().get(deckId, slideIndex) as
       | {
           cacheDir: string;
-          imageFile: string;
-          thumbFile: string;
           layers: string | null;
           imageFormat: string;
+          renderWidth: number;
           sourcePath: string;
           sourceSizeBytes: number;
           sourceMtimeMs: number;
@@ -908,7 +849,22 @@ export class SlidesRepo {
         layers: row.layers,
       };
     }
-    return { kind: "file", path: path.join(row.cacheDir, variant === "full" ? row.imageFile : row.thumbFile) };
+    // A PDF's page, drawn when asked for. A raster with a folder is what a
+    // build before 2026-11-03 drew to disk, deleted at the next startup
+    // (`deleteRasterizedDecks`): never served.
+    if ((row.imageFormat === "webp" || row.imageFormat === "png") && row.cacheDir === "") {
+      return {
+        kind: "pdf",
+        variant,
+        page: slideIndex,
+        sourcePath: row.sourcePath,
+        sourceSizeBytes: row.sourceSizeBytes,
+        sourceMtimeMs: row.sourceMtimeMs,
+        renderWidth: row.renderWidth,
+        imageFormat: row.imageFormat,
+      };
+    }
+    return null;
   }
 
   /** A model deck's slide as `SlideModel` JSON, with the source it was read
@@ -948,16 +904,25 @@ export class SlidesRepo {
 
   /** `linkedAudioPath` is resolved by the caller (`deck-service.ts`, via
    *  `MediaRepo`) — this repo only knows about `slide_decks`/`deck_audio`,
-   *  never about `media_assets`. */
-  toDTO(deckRow: DeckRow, assetId: number, linkedAudioPath: string | null = null): DeckDTO {
+   *  never about `media_assets`. So is `engineClip`: whether the media engine
+   *  plays a clip Chromium cannot (`media/deck-clips.ts`), which is decided
+   *  every launch and never stored. */
+  toDTO(
+    deckRow: DeckRow,
+    assetId: number,
+    linkedAudioPath: string | null = null,
+    engineClip: (kind: "audio" | "video", id: number) => boolean = () => false,
+  ): DeckDTO {
     const slideRows = this.listSlides(deckRow.id);
     const audioRows = this.listAudio(deckRow.id);
+    const audioUrl = (row: AudioRow) =>
+      engineClip("audio", row.id) ? engineClipUrl("audio", row.id) : deckAudioUrl(row.id, row.audioFile);
 
     // The deck's music is the sound in the file that plays from the first
     // slide to the end, else a linked external file (an old hymnal's .mp3).
     // Every other playable sound plays on its own slides — a row written
     // before those were read (`scope` slide, no stop) on its own slide only.
-    const playableRows = audioRows.filter((row) => row.playable === 1);
+    const playableRows = audioRows.filter((row) => row.playable === 1 || engineClip("audio", row.id));
     const embeddedTrack =
       playableRows.find((row) => row.scope === "deck" && (row.startSlideIndex ?? 1) === 1) ?? null;
     const sounds: DeckSound[] = playableRows
@@ -966,7 +931,7 @@ export class SlidesRepo {
         const start = row.startSlideIndex ?? 1;
         return {
           id: row.id,
-          url: deckAudioUrl(row.id, row.audioFile),
+          url: audioUrl(row),
           startSlideIndex: start,
           stopSlideIndex: row.stopSlideIndex ?? (row.scope === "slide" ? start : null),
           loop: row.loop === 1,
@@ -975,7 +940,7 @@ export class SlidesRepo {
 
     const soundtrack: DeckDTO["soundtrack"] = embeddedTrack
       ? {
-          url: deckAudioUrl(embeddedTrack.id, embeddedTrack.audioFile),
+          url: audioUrl(embeddedTrack),
           durationMs: null,
           origin: embeddedTrack.origin,
           name: embeddedTrack.audioFile,
@@ -996,7 +961,8 @@ export class SlidesRepo {
     const videos: DeckSlideVideo[] = [];
     const slidesWithVideo = new Set<number>();
     for (const row of this.listVideos(deckRow.id)) {
-      if (row.playable !== 1 || slidesWithVideo.has(row.slideIndex)) continue;
+      const engine = engineClip("video", row.id);
+      if ((row.playable !== 1 && !engine) || slidesWithVideo.has(row.slideIndex)) continue;
       // A video whose slide no longer exists, or whose page has no size on
       // record, has no box to be positioned inside. Dropped rather than given
       // a default: the poster frame in the rasterized slide is already right.
@@ -1005,7 +971,7 @@ export class SlidesRepo {
       slidesWithVideo.add(row.slideIndex);
       videos.push({
         slideIndex: row.slideIndex,
-        url: deckVideoUrl(row.id, row.videoFile),
+        url: engine ? engineClipUrl("video", row.id) : deckVideoUrl(row.id, row.videoFile),
         rect: { x: row.rectX, y: row.rectY, width: row.rectWidth, height: row.rectHeight },
         aspectRatio: page.widthPx / page.heightPx,
         loop: row.loop === 1,

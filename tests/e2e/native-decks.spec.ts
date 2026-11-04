@@ -1,11 +1,10 @@
-import path from "node:path";
 import type { Page } from "@playwright/test";
 import type { DeckDTO } from "../../src/shared/types/deck";
 import { expect, test } from "./support/app";
 
 /**
  * A legacy `.pps` made of pictures — what the hymnal is — read straight from
- * the file (`ppt-binary.ts`): no LibreOffice, no conversion, nothing copied.
+ * the file (`ppt-binary.ts`): no conversion, nothing copied.
  * And each slide entering the way the file says, only when the deck moves
  * forward (decided by the owner, 2026-10-26).
  */
@@ -24,16 +23,12 @@ function projectedSlide(projector: Page): Promise<number | null> {
   });
 }
 
-test("a hymn made of pictures projects with no LibreOffice, and each slide enters as the file says", async ({ app }) => {
-  // A machine with no LibreOffice, whatever this one has.
-  await app.invoke("settings:set", { "slides.sofficePath": path.join(app.profile, "missing", "soffice") });
-  await app.invoke("deck:environment", { force: true });
+test("a hymn made of pictures is read straight from the file, and each slide enters as the file says", async ({ app }) => {
   const [asset] = await app.addMedia("ppt", "legacy-hymn.pps");
 
   await app.previewFile("Presentaciones", "legacy-hymn");
   const grid = app.previewColumn().getByRole("list", { name: "Presentación" });
   await expect(grid.getByRole("button", { name: "3", exact: true })).toBeAttached();
-  await expect(app.previewColumn().getByText("Hace falta LibreOffice")).toHaveCount(0);
   const deck = await app.invoke<DeckDTO>("deck:get", { assetId: asset!.id });
   expect(deck.timingsSource).toBe("binary");
   expect(deck.slides.map((slide) => slide.transition)).toEqual([

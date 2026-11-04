@@ -38,3 +38,9 @@ export function broadcast<K extends IpcEventName>(channel: K, payload: IpcEvents
     win.webContents.send(channel, payload);
   }
 }
+
+/** Those same windows, for what reaches them another way: the media engine's frames
+ *  (`media/engine-sessions.ts`), which the LIVE monitor draws. */
+export function controlWindows(): BrowserWindow[] {
+  return [...targets].filter((win) => !win.isDestroyed());
+}
