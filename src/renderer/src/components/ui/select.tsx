@@ -2,6 +2,7 @@ import type { ButtonHTMLAttributes, KeyboardEvent as ReactKeyboardEvent } from "
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useT } from "@renderer/lib/i18n/i18n-provider";
+import { isPointerFocused } from "@renderer/lib/focus-modality";
 import { cn, normalizeForSearch } from "@renderer/lib/utils";
 import { computeMenuPosition, useFollowTrigger, type MenuPosition } from "./floating-menu";
 import { Icon } from "./icon";
@@ -154,11 +155,15 @@ export function Select({
     if (refocusTrigger) triggerRef.current?.focus({ preventScroll: true });
   }
 
-  function selectOption(index: number) {
+  /** `refocusTrigger` is false for a MOUSE pick: focus put back by code would
+   *  read as the keyboard's, and a trigger focused by the keyboard keeps the
+   *  arrows and Enter — after choosing a book with the mouse, → no longer moved
+   *  the verse on the projector. Left on the page, every shortcut works. */
+  function selectOption(index: number, refocusTrigger = true) {
     const option = visible[index];
     if (!option || option.disabled) return;
     onChange(option.value);
-    closeMenu(true);
+    closeMenu(refocusTrigger);
   }
 
   function moveHighlight(delta: number) {
@@ -206,7 +211,10 @@ export function Select({
   }
 
   function handleKeyDown(e: ReactKeyboardEvent<HTMLElement>) {
-    if (disabled) return;
+    // A closed trigger the mouse focused is just a button that opens on click:
+    // its keys (arrows, Enter, Space, typeahead) are the operator's shortcuts.
+    // Reached with Tab, they open and drive the list.
+    if (disabled || (!open && isPointerFocused(e.currentTarget))) return;
     switch (e.key) {
       case "ArrowDown":
         e.preventDefault();
@@ -368,7 +376,7 @@ export function Select({
                   key={option.value}
                   onClick={(e) => {
                     e.stopPropagation();
-                    selectOption(index);
+                    selectOption(index, false);
                   }}
                   onMouseEnter={() => !option.disabled && setHighlightedIndex(index)}
                   role="option"

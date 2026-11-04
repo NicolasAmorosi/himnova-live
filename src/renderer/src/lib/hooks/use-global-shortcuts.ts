@@ -5,20 +5,34 @@ import { advancePreview } from "@renderer/lib/actions/preview";
 import { toggleAutoplay } from "@renderer/effects/deck-autoplay";
 import { advanceVerse } from "@renderer/lib/actions/bible";
 import { removeSelected } from "@renderer/lib/actions/remove-selected";
+import { onIpc } from "@renderer/lib/ipc";
 import { isPointerFocused, trackFocusModality } from "@renderer/lib/focus-modality";
 
 const ARROW_KEYS_LIST: string[] = ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"];
 
+/**
+ * What a presentation remote sends for «next» and «back»: PageDown and PageUp
+ * (Logitech's own table for the R400/R700/R800, and what the clones copy). Never
+ * suppressed, not even inside a text field — a single-line field has nothing to
+ * page through, and the remote is often in the preacher's hand while the
+ * operator is typing the next verse. Its blank-screen button sends «.», which
+ * is BLACK below.
+ */
+const REMOTE_KEYS = new Set(["PageUp", "PageDown"]);
+
+/** Live stepping: the keyboard's arrows and the remote's buttons. */
+const LIVE_STEP: Record<string, 1 | -1> = { ArrowRight: 1, PageDown: 1, ArrowLeft: -1, PageUp: -1 };
+
 // A text field consumes every keystroke — anything else would type into it.
 const TEXT_ENTRY_TAGS = new Set(["INPUT", "SELECT", "TEXTAREA"]);
 // ...except the `<input>` types that are not text entry at all. A range is a
-// slider: it owns the arrows (and Home/End/PageUp/PageDown) and nothing else.
-// Treating it as a text field would have made `b` and `l` — BLACK and LOGO,
-// the controls an operator reaches for when something appears the
-// congregation should not see — dead for as long as a volume slider kept
-// focus, which is right after they touched one. Same defect the comment on
-// `suppressesKey` describes for buttons, by a different route.
-const SLIDER_INPUT_KEYS = new Set([...ARROW_KEYS_LIST, "Home", "End", "PageUp", "PageDown"]);
+// slider: it owns the arrows (and Home/End) and nothing else. Treating it as a
+// text field would have made `b` and `l` — BLACK and LOGO, the controls an
+// operator reaches for when something appears the congregation should not
+// see — dead for as long as a volume slider kept focus, which is right after
+// they touched one. Same defect the comment on `suppressesKey` describes for
+// buttons, by a different route.
+const SLIDER_INPUT_KEYS = new Set([...ARROW_KEYS_LIST, "Home", "End"]);
 // A button or a link consumes only the keys that actually do something to it:
 // Enter and Space activate it, and the arrows drive the roving tabindex of the
 // resource grid.
@@ -47,6 +61,11 @@ const ARROW_CONSUMING_ROLES = new Set([
   "grid",
 ]);
 
+function isTextEntry(target: HTMLElement): boolean {
+  if (target instanceof HTMLInputElement && target.type === "range") return false;
+  return target.isContentEditable || TEXT_ENTRY_TAGS.has(target.tagName);
+}
+
 /**
  * Per KEY, not per element.
  *
@@ -58,43 +77,103 @@ const ARROW_CONSUMING_ROLES = new Set([
  * congregation should not see, and it was dead for the rest of the service
  * unless they happened to click on empty space. `b`, `l`, Delete and Backspace
  * mean nothing to a button, so there was never anything to protect.
+ *
+ * And a control the MOUSE focused keeps no key at all, whatever its role: a
+ * tab, a volume slider or a seek bar clicked a moment ago used to keep the
+ * arrows, so → changed the resource tab, the volume or the position instead of
+ * the slide on the projector (owner, 2026-11-03: on the work screen the keys
+ * always work). Reached with Tab, each control keeps its own keys. The widgets
+ * that handle the arrows themselves let go of them the same way
+ * (`isPointerFocused` in `Tabs`, `MediaScrubber`, `Select`, `Menu`, `VirtualGrid`).
  */
 function suppressesKey(target: EventTarget | null, key: string): boolean {
-  if (!(target instanceof HTMLElement)) return false;
-  if (target instanceof HTMLInputElement && target.type === "range") {
-    return SLIDER_INPUT_KEYS.has(key);
-  }
-  if (target.isContentEditable || TEXT_ENTRY_TAGS.has(target.tagName)) return true;
-  if (ACTIVATION_TAGS.has(target.tagName) && KEYS_A_CONTROL_CONSUMES.has(key)) {
-    // A tab is a button that owns its arrows however it got focus.
-    const role = target.getAttribute("role");
-    if (role !== null && ARROW_CONSUMING_ROLES.has(role) && ARROW_KEYS.has(key)) return true;
-    return !isPointerFocused(target);
-  }
+  if (REMOTE_KEYS.has(key) || !(target instanceof HTMLElement)) return false;
+  if (isTextEntry(target)) return true;
+  if (isPointerFocused(target)) return false;
+  if (target instanceof HTMLInputElement && target.type === "range") return SLIDER_INPUT_KEYS.has(key);
+  if (ACTIVATION_TAGS.has(target.tagName) && KEYS_A_CONTROL_CONSUMES.has(key)) return true;
   const role = target.getAttribute("role");
   return role !== null && ARROW_CONSUMING_ROLES.has(role) && ARROW_KEYS.has(key);
+}
+
+function black(): void {
+  void toggleOverlay("black");
+}
+
+function logo(): void {
+  void toggleOverlay("logo");
+}
+
+/** Keys that act once per press. Held down, they act once: a held B flickered
+ *  the projector between BLACK and the slide, and a held Enter sent the preview
+ *  live again on every repeat — a new scene each time, the video back to 0. A
+ *  remote that repeats on a long press did the same. Only stepping repeats. */
+const ACTIONS: Record<string, () => void> = {
+  Delete: removeSelected,
+  Backspace: removeSelected,
+  // Pause/resume a self-advancing deck: the operator has to be able to freeze
+  // a PPT that plays by itself.
+  " ": () => {
+    const { base, liveDeck } = useProjectionStore.getState();
+    if (base?.kind === "deck" && liveDeck?.autoAdvance) toggleAutoplay();
+  },
+  b: black,
+  B: black,
+  // A presentation remote's blank-screen button.
+  ".": black,
+  l: logo,
+  L: logo,
+  Enter: () => void goLive(),
+};
+
+/** Runs the shortcut `key` stands for, if any, and says whether it was one.
+ *  Shared by the control window's own keys and the ones the projector forwards
+ *  (`projector-key`), so a key means the same thing in either window. */
+function runShortcut(key: string, repeat: boolean): boolean {
+  const step = LIVE_STEP[key];
+  if (step !== undefined) {
+    const { base } = useProjectionStore.getState();
+    if (base?.kind === "deck") advanceSlide(step);
+    else if (base?.kind === "bible") advanceVerse(step);
+    else return false;
+    return true;
+  }
+  if (key === "ArrowUp" || key === "ArrowDown") {
+    advancePreview(key === "ArrowDown" ? 1 : -1);
+    return true;
+  }
+  const action = ACTIONS[key];
+  if (!action) return false;
+  if (!repeat) action();
+  // Prevented even when it does nothing here: reaching this from a clicked
+  // button, Space would otherwise press that button again (see
+  // `lib/focus-modality.ts`).
+  return true;
 }
 
 /**
  * App-wide keyboard shortcuts, mounted once from App.tsx. The split follows
  * the two-stage flow, which is what makes them safe to press blind:
  *
- * - ←/→: navigate what is LIVE — the deck on the projector, or the verse on it.
- *   Derived from `base`, not from which panel has focus, so the arrows always
- *   mean the same thing.
+ * - ←/→ and a remote's PageUp/PageDown: navigate what is LIVE — the deck on the
+ *   projector, or the verse on it. Derived from `base`, not from which panel
+ *   has focus, so they always mean the same thing.
  * - ↑/↓: navigate the PREVIEW cursor. Nothing reaches the projector.
  * - Enter: send the preview to the projector (the GO LIVE button), also right
  *   after clicking a button with the mouse — see `lib/focus-modality.ts`.
- * - Space: pause/resume a self-advancing deck. The one shortcut a PPT that
- *   plays by itself really needs: the operator has to be able to freeze it.
- * - B/L: toggle BLACK/LOGO overlay.
+ * - Space: pause/resume a self-advancing deck.
+ * - B (or a remote's «.»)/L: toggle BLACK/LOGO overlay.
  * - Delete/Backspace: remove the selected library or schedule item.
+ * - Escape in a text field gives the keys back: it leaves the field.
+ *
+ * Also answered while the PROJECTION window has the keyboard — macOS focuses it
+ * when it opens, and a click on the projector's screen does it on any system —
+ * through main's `projector-key` forward.
  *
  * Suppressed entirely while `suspended` (any modal open — see
- * `useAnyModalOpen`) or while a text field has focus. On a focused button,
- * link, or element carrying a widget role, only the keys that control actually
- * consumes are suppressed — see `suppressesKey` — and on a button the mouse
- * focused, not even those: all of the above keep working right after a click.
+ * `useAnyModalOpen`): only the work screen has shortcuts. In a text field only
+ * the remote's keys work; on a control reached with Tab, that control keeps
+ * the keys it consumes (see `suppressesKey`); on one the mouse focused, none.
  */
 export function useGlobalShortcuts(suspended: boolean): void {
   useEffect(trackFocusModality, []);
@@ -108,58 +187,21 @@ export function useGlobalShortcuts(suspended: boolean): void {
       // Enter on its own trigger, which is a button the mouse may have focused,
       // and choosing a Bible version must not also send the preview live.
       if (e.defaultPrevented) return;
-      if (suppressesKey(e.target, e.key)) return;
-
-      switch (e.key) {
-        case "Delete":
-        case "Backspace":
-          e.preventDefault();
-          removeSelected();
-          return;
-        case "ArrowLeft":
-        case "ArrowRight": {
-          const direction = e.key === "ArrowRight" ? 1 : -1;
-          const base = useProjectionStore.getState().base;
-          if (base?.kind === "deck") {
-            e.preventDefault();
-            advanceSlide(direction);
-          } else if (base?.kind === "bible") {
-            e.preventDefault();
-            advanceVerse(direction);
-          }
-          return;
-        }
-        case "ArrowUp":
-        case "ArrowDown":
-          e.preventDefault();
-          advancePreview(e.key === "ArrowDown" ? 1 : -1);
-          return;
-        case " ": {
-          // Prevented even when it does nothing here: reaching this switch
-          // from a clicked button, Space would otherwise press that button
-          // again (see `lib/focus-modality.ts`).
-          e.preventDefault();
-          const { base, liveDeck } = useProjectionStore.getState();
-          if (base?.kind === "deck" && liveDeck?.autoAdvance) toggleAutoplay();
-          return;
-        }
-        case "b":
-        case "B":
-          e.preventDefault();
-          void toggleOverlay("black");
-          return;
-        case "l":
-        case "L":
-          e.preventDefault();
-          void toggleOverlay("logo");
-          return;
-        case "Enter":
-          e.preventDefault();
-          void goLive();
+      if (e.key === "Escape" && e.target instanceof HTMLElement && isTextEntry(e.target)) {
+        e.target.blur();
+        return;
       }
+      if (suppressesKey(e.target, e.key)) return;
+      if (runShortcut(e.key, e.repeat)) e.preventDefault();
     }
 
     window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
+    const stopProjectorKeys = onIpc("projector-key", ({ key, repeat }) => {
+      runShortcut(key, repeat);
+    });
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      stopProjectorKeys();
+    };
   }, [suspended]);
 }

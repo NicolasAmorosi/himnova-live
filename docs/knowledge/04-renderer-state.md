@@ -170,9 +170,25 @@ EasyWorship's two-stage flow:
 
 | Key | What it moves |
 |---|---|
-| ←/→ | **what is live** — the slide or verse on screen, derived from `base` and not from the focused panel |
+| ←/→, PageUp/PageDown | **what is live** — the slide or verse on screen, derived from `base` and not from the focused panel. PageUp/PageDown are what a presentation remote sends for back/next |
 | ↑/↓ | **the preview cursor** — nothing reaches the projector |
 | Enter | sends the preview to the projector (`goLive()`) |
 | Space | pauses/resumes an auto-advancing deck — the shortcut you need to stop dead a PPT that advances by itself |
-| B / L | BLACK / LOGO |
+| B (or «.») / L | BLACK / LOGO. «.» is a remote's blank-screen button |
 | Delete/Backspace | removes the selected item (library before program) |
+| Escape | in a text field, leaves it: the keys are the operator's again |
+
+On the work screen they always work (owner, 2026-11-03), and that takes three things:
+
+- **A control the mouse focused keeps no key**, whatever its role — a clicked tab, volume slider,
+  seek bar, list trigger or thumbnail gives the arrows back (`isPointerFocused`, checked by
+  `suppressesKey` and by each widget that handles arrows itself: `Tabs`, `MediaScrubber`, `Select`,
+  `Menu`, `VirtualGrid`). Reached with Tab, a control keeps its own keys. A list closed by a mouse
+  pick does not put focus back on its trigger: focus put there by code reads as the keyboard's.
+- **The projector window forwards its keys.** macOS focuses it when it opens and a click on its
+  screen does it on any system; main's `before-input-event` on it sends every key without
+  Ctrl/⌘/Alt to the control window (`projector-key`), which runs the same `runShortcut`.
+- **In a text field only the remote's keys work** (PageUp/PageDown); everything else types.
+
+Held down, only stepping repeats: B, L, Enter, Space and Delete act once per press. A modal open
+suspends all of them. A remote's slideshow button (F5/Esc, alternating) does nothing on purpose.

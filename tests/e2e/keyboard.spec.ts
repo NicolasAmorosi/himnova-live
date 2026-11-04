@@ -91,3 +91,101 @@ test("a tile reached with the arrows and then clicked gives Enter back to EN VIV
   await app.control.keyboard.press("Enter");
   await expect.poll(() => projectedSlide(projector)).toBe(2);
 });
+
+/**
+ * On the work screen the keys always work (owner, 2026-11-03): a clicked tab
+ * or list, the projector window, a text field for the remote's keys, a key
+ * held down. And a presentation remote is a keyboard sending PageDown/PageUp
+ * for next/back and «.» for its blank-screen button.
+ */
+const bibleSearch = (app: WorshipApp) =>
+  app.control
+    .getByRole("tabpanel", { name: "Biblia" })
+    .getByRole("textbox", { name: "Buscar libro y capítulo…" });
+const blackButton = (app: WorshipApp) => app.control.getByRole("button", { name: "NEGRO", exact: true }).first();
+
+test("a remote's PageDown/PageUp step the projected deck, even while typing in a text field", async ({ app }) => {
+  const projector = await deckLive(app);
+  await app.control.keyboard.press("PageDown");
+  await expect.poll(() => projectedSlide(projector)).toBe(2);
+  // The operator types the next verse while the preacher holds the remote.
+  await app.openResources("Biblia");
+  await bibleSearch(app).fill("Jua");
+  await app.control.keyboard.press("PageDown");
+  await expect.poll(() => projectedSlide(projector)).toBe(3);
+  await app.control.keyboard.press("PageUp");
+  await expect.poll(() => projectedSlide(projector)).toBe(2);
+  await expect(bibleSearch(app)).toBeFocused();
+  await expect(bibleSearch(app)).toHaveValue("Jua");
+});
+
+test("the remote's «.» is NEGRO; in a text field it types, and Escape gives the keys back", async ({ app }) => {
+  const projector = await deckLive(app);
+  await app.control.keyboard.press(".");
+  await expect.poll(() => projectedSlide(projector)).toBeNull();
+  await app.control.keyboard.press(".");
+  await expect.poll(() => projectedSlide(projector)).toBe(1);
+
+  await app.openResources("Biblia");
+  await bibleSearch(app).click();
+  await app.control.keyboard.press(".");
+  await expect(bibleSearch(app)).toHaveValue(".");
+  await app.control.keyboard.press("ArrowRight");
+  expect(await projectedSlide(projector)).toBe(1);
+
+  await app.control.keyboard.press("Escape");
+  await expect(bibleSearch(app)).not.toBeFocused();
+  await app.control.keyboard.press("ArrowRight");
+  await expect.poll(() => projectedSlide(projector)).toBe(2);
+});
+
+test("→ after clicking a resource tab, or choosing in a list with the mouse, advances the projector", async ({ app }) => {
+  const projector = await deckLive(app);
+  await app.openResources("Biblia");
+  await app.control.keyboard.press("ArrowRight");
+  await expect.poll(() => projectedSlide(projector)).toBe(2);
+  await expect(app.control.getByRole("tab", { name: "Biblia" })).toHaveAttribute("aria-selected", "true");
+
+  // A book chosen with the mouse in the Bible tab's own list.
+  await app.control.getByRole("tabpanel", { name: "Biblia" }).getByRole("combobox").nth(1).click();
+  await app.control.getByRole("listbox").getByRole("option").first().click();
+  await app.control.keyboard.press("ArrowRight");
+  await expect.poll(() => projectedSlide(projector)).toBe(3);
+  await app.control.keyboard.press("ArrowLeft");
+  await expect.poll(() => projectedSlide(projector)).toBe(2);
+});
+
+/** A key on the projector window through the real input path. Playwright's own
+ *  keyboard reaches a page over CDP, which skips `before-input-event` — the
+ *  hook main forwards the projector's keys from (measured: never fired). */
+function pressOnProjector(app: WorshipApp, keyCode: string): Promise<void> {
+  return app.electron.evaluate(({ BrowserWindow }, code) => {
+    const win = BrowserWindow.getAllWindows().find((w) => w.webContents.getURL().endsWith("/projection.html"));
+    win?.webContents.sendInputEvent({ type: "keyDown", keyCode: code });
+    win?.webContents.sendInputEvent({ type: "keyUp", keyCode: code });
+  }, keyCode);
+}
+
+test("keys pressed while the projector window has the keyboard reach the control window", async ({ app }) => {
+  const projector = await deckLive(app);
+  await pressOnProjector(app, "Right");
+  await expect.poll(() => projectedSlide(projector)).toBe(2);
+  await pressOnProjector(app, "PageUp");
+  await expect.poll(() => projectedSlide(projector)).toBe(1);
+  await pressOnProjector(app, ".");
+  await expect(blackButton(app)).toHaveAttribute("aria-pressed", "true");
+});
+
+test("held down, B toggles NEGRO once", async ({ app }) => {
+  await deckLive(app);
+  // A second `down` without an `up` is an auto-repeat.
+  await app.control.keyboard.down("b");
+  await app.control.keyboard.down("b");
+  await app.control.keyboard.down("b");
+  await app.control.keyboard.down("b");
+  await app.control.keyboard.up("b");
+  await expect(blackButton(app)).toHaveAttribute("aria-pressed", "true");
+  // Settled, not caught mid-flicker: unguarded, four presses end with it off.
+  await app.control.waitForTimeout(500);
+  await expect(blackButton(app)).toHaveAttribute("aria-pressed", "true");
+});

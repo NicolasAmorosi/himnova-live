@@ -120,4 +120,48 @@ something on the projector.
   re-records the modality when the press landed inside `document.activeElement`.
 - Covered by `tests/e2e/keyboard.spec.ts`; each test there fails on the previous build.
 
-**Last updated:** 2026-10-18
+### The keys always work on the work screen: every clicked control, the projector window, a remote (2026-11-03)
+
+The owner reported that the slide keys and BLACK only worked «from the right spot». Read top to
+bottom, four places still swallowed them, each one a case the rules above had left open:
+
+- **The projector window had the keyboard.** `createProjectionWindow` calls `show()` on macOS (only
+  Windows gets `showInactive()`), so on a Mac the first GO LIVE/BLACK/LOGO, which opens the
+  projector, took the keyboard with it — and a click on the projector's screen does the same on any
+  system. That window has no handlers: → and B did nothing until the operator clicked back on the
+  control window. Moving focus back from main was rejected (on one screen it raises the control
+  window over a windowed projector; on macOS a fullscreen window is its own Space). Main's
+  `before-input-event` on the projector forwards every key without Ctrl/⌘/Alt as `projector-key`,
+  and the control window runs the same `runShortcut`.
+- **A role still kept the arrows after a click.** The 2026-10-18 rule exempted clicked buttons but
+  kept a `tab` (and a slider, a combobox) owning its arrows «however it got focus»: one click on
+  «Biblia» and → switched the resource tab instead of the slide; one click on a deck soundtrack's
+  volume or seek bar and → changed the volume or seeked. Now a pointer-focused control keeps no key
+  in `suppressesKey`, and each widget that handles arrows itself returns early on
+  `isPointerFocused` (`Tabs`, `MediaScrubber`, `Select`/`Menu` triggers, like `VirtualGrid`).
+- **Focus put back by CODE after a mouse pick reads as the keyboard's.** `Select` and `Menu`
+  re-focused their trigger on close. After a mouse pick that happens in the `click` handler, after
+  `pointerup` cleared `pointerDown`, so `focusin` recorded keyboard modality: after choosing a book
+  with the mouse, the combobox trigger kept ← → ↑ ↓, Enter re-opened it and a letter both
+  typeaheaded and toggled BLACK/LOGO. A mouse pick now leaves focus where the click left it
+  (`Menu`: refocus only when `click.detail === 0`). Extending `pointerDown` past the click was the
+  other option and is a trap: `Menu` focuses its first item in an effect flushed inside that same
+  click, so the item would read as clicked and Enter would `goLive()` instead of choosing.
+- **Window reactivation re-recorded the modality.** Alt/⌘-Tab back fires `focusin` on the same
+  element with no pointer down, turning a clicked tile into a keyboard-focused one. `focusin` on
+  the element already recorded as pointer-focused now keeps it.
+
+Also: a presentation remote is a keyboard sending PageDown/PageUp (next/back), «.» (blank screen)
+and F5/Esc alternating on one button (Logitech's own table for the R400/R700/R800). PageUp/PageDown
+are never suppressed, not even in a text field (nothing there pages, and the remote is in the
+preacher's hand while the operator types); «.» is BLACK; F5/Esc do nothing, because an alternating
+button mapped to two different actions would desynchronize on the first missed press. And held
+keys: only stepping repeats — a held B flickered BLACK, a held Enter re-sent the preview live on
+every repeat (a new scene each time, the video back to 0).
+
+**Playwright cannot press a key on the projector window for this.** Its keyboard reaches a page
+over CDP, which never goes through `before-input-event` (measured: the hook saw nothing). The test
+uses `webContents.sendInputEvent`, which does — see `pressOnProjector` in `tests/e2e/keyboard.spec.ts`.
+Covered there; the five new tests fail on the previous build.
+
+**Last updated:** 2026-11-03

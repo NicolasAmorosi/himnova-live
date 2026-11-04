@@ -2,6 +2,7 @@ import { app, BrowserWindow, screen } from "electron";
 import path from "node:path";
 import { mt } from "../i18n";
 import { trustWindow } from "../ipc/trusted-senders";
+import { broadcast } from "../services/broadcast";
 import { attachProjector } from "./projector-screen";
 
 const PRELOAD = path.join(__dirname, "../preload/index.js");
@@ -63,6 +64,16 @@ export function createProjectionWindow(displayId?: number): BrowserWindow {
   // second display was verified with it (2026-10-14 rehearsal), and
   // `showInactive` there has not been.
   win.once("ready-to-show", () => (process.platform === "win32" ? win.showInactive() : win.show()));
+  // The projector has no keys of its own. Whatever reaches it — on macOS it
+  // takes the keyboard when it opens, and a click on its screen gives it the
+  // keyboard on any system — is the operator's shortcut, answered by the
+  // control window as if pressed there; before this, → and B did nothing until
+  // the operator clicked back on the control window.
+  win.webContents.on("before-input-event", (event, input) => {
+    if (input.type !== "keyDown" || input.control || input.meta || input.alt) return;
+    event.preventDefault();
+    broadcast("projector-key", { key: input.key, repeat: input.isAutoRepeat });
+  });
   if (!singleMonitor) {
     win.setAlwaysOnTop(true, "screen-saver");
   }
