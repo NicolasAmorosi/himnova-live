@@ -37,7 +37,14 @@ const FLAGS = [
 /** What the renderer's global handlers log before showing the "error
  *  inesperado" toast (`lib/global-error-handlers.ts`), plus main's crash path.
  *  Any of these in a run is a bug, whatever the test was checking. */
-const UNEXPECTED = [/\[renderer\] unhandled rejection/, /\[renderer\] uncaught error/, /\[uncaughtException\]/];
+// A stalled engine nudged back (`watchStall`) is flagged too: whether the test passed or not, the
+// engine stopped where it should have played, or the watch fired where it should not have.
+const UNEXPECTED = [
+  /\[renderer\] unhandled rejection/,
+  /\[renderer\] uncaught error/,
+  /\[uncaughtException\]/,
+  /\[engine\] live \w+ should play but stays/,
+];
 
 export class WorshipApp {
   /** Resolves when the process is gone. Tracked here because Playwright

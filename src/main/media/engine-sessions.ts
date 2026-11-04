@@ -5,7 +5,14 @@ import { getMediaRepo, getSlidesRepo } from "../services/repos";
 import { broadcast, controlWindows } from "../services/broadcast";
 import { projectionState } from "../services/projection-state";
 import { takeEngine, type EngineEvents, type MediaEngine } from "./media-engine";
-import { liveEngineAudio, liveEngineSlideVideo, liveEngineState, type LiveEngineState } from "./live-engine-state";
+import {
+  liveEngineAudio,
+  liveEngineSlideVideo,
+  liveEngineState,
+  watchStall,
+  type LiveEngineState,
+  type StallWatch,
+} from "./live-engine-state";
 
 /**
  * The media engine's sessions: the live video, the live slide's clip, each live audio track, and the
@@ -24,7 +31,15 @@ import { liveEngineAudio, liveEngineSlideVideo, liveEngineState, type LiveEngine
  * 2026-10-30).
  */
 
-type Session = { engine: MediaEngine | null; url: string; epoch: number; paused: boolean; volume: number; loop: boolean };
+type Session = {
+  engine: MediaEngine | null;
+  url: string;
+  epoch: number;
+  paused: boolean;
+  volume: number;
+  loop: boolean;
+  stall?: StallWatch | null;
+};
 
 type VideoTarget = "video" | "slideVideo";
 
@@ -68,7 +83,14 @@ function start(
 /** The live sessions' `media-status` and `media-error`, as the projector's own elements report them. */
 function liveEvents(session: Session, target: MediaTarget, isCurrent: () => boolean): EngineEvents {
   return {
-    status: (status) =>
+    status: (status) => {
+      const { next, nudge } = watchStall(session.stall ?? null, status, session.paused, Date.now());
+      session.stall = next;
+      if (nudge && isCurrent()) {
+        console.warn(`[engine] live ${target.kind} should play but stays at ${status.time}s, ${nudge}: ${session.url}`);
+        if (nudge === "resume") session.engine?.setPaused(false);
+        else session.engine?.seek(status.time);
+      }
       broadcast("media-status", {
         target,
         epoch: session.epoch,
@@ -76,7 +98,8 @@ function liveEvents(session: Session, target: MediaTarget, isCurrent: () => bool
         durationSeconds: status.duration,
         paused: status.paused,
         ended: status.ended,
-      }),
+      });
+    },
     error: (error) => {
       if (!isCurrent()) return;
       console.warn("[engine] live", target.kind, error.code, error.detail);

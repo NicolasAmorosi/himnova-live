@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { liveEngineAudio, liveEngineSlideVideo, liveEngineState } from "../../src/main/media/live-engine-state";
+import { ENGINE_STALL_MS, liveEngineAudio, liveEngineSlideVideo, liveEngineState, watchStall, type StallWatch } from "../../src/main/media/live-engine-state";
 import { INSTANT_TRANSITION, type AudioTrackPush, type ProjectionOutput } from "../../src/shared/types/projection";
 import { assetUrl, deckVideoUrl, engineAssetUrl, engineClipUrl } from "../../src/shared/urls";
 
@@ -80,4 +80,27 @@ test("BLACK/LOGO, the operator's pause and a closed projector pause the slide's 
 
 test("a deck's engine clips are engine tracks too", () => {
   expect(liveEngineAudio([track("deck-soundtrack", engineClipUrl("audio", 9))], true)).toHaveLength(1);
+});
+
+test("a live session that should play but stops moving is nudged once per stall", () => {
+  const playing = (time: number, paused = false) => ({ time, paused, ended: false });
+  let watch: StallWatch | null = null;
+  const step = (status: { time: number; paused: boolean; ended: boolean }, now: number, wantPaused = false) => {
+    const { next, nudge } = watchStall(watch, status, wantPaused, now);
+    watch = next;
+    return nudge;
+  };
+  // Moving: never.
+  expect([step(playing(1), 0), step(playing(1.25), 250), step(playing(1.5), 500)]).toEqual([null, null, null]);
+  // Stuck at 1.5: not before ENGINE_STALL_MS, then a seek, then nothing more for the same stall.
+  expect(step(playing(1.5), 500 + ENGINE_STALL_MS - 1)).toBeNull();
+  expect(step(playing(1.5), 500 + ENGINE_STALL_MS)).toBe("seek");
+  expect(step(playing(1.5), 500 + ENGINE_STALL_MS * 3)).toBeNull();
+  // Moving again re-arms it; the engine still paused when it should play gets a resume.
+  expect(step(playing(2, true), 20_000)).toBeNull();
+  expect(step(playing(2, true), 20_000 + ENGINE_STALL_MS)).toBe("resume");
+  // Wanted paused, or at its end: no watch at all.
+  expect(step(playing(2), 40_000, true)).toBeNull();
+  expect(watch).toBeNull();
+  expect(watchStall(null, { time: 30, paused: false, ended: true }, false, 0)).toEqual({ next: null, nudge: null });
 });

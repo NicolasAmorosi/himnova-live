@@ -64,3 +64,26 @@ export function liveEngineAudio(tracks: AudioTrackPush[], projectorOpen: boolean
     .filter((track) => isEngineUrl(track.url))
     .map((track) => ({ ...track, paused: track.paused || !projectorOpen }));
 }
+
+/** How long a live session that should play may keep the same position before it is nudged. */
+export const ENGINE_STALL_MS = 3_000;
+export type StallWatch = { time: number; since: number; nudged: boolean };
+
+/**
+ * A live session that should be playing but whose position stopped. Twice in ~110 E2E runs a WMA
+ * resumed after the projector was reopened stayed where it was (`media-engine.spec`), never on demand:
+ * the commands reach the engine in order, so the stall is inside it. Nudged once per stall —
+ * `resume` when the engine says it is still paused, else `seek` to where it is, which restarts
+ * mpv's decoding and audio output — and main logs it, so a real one leaves a trace.
+ */
+export function watchStall(
+  prev: StallWatch | null,
+  status: { time: number; paused: boolean; ended: boolean },
+  wantPaused: boolean,
+  now: number,
+): { next: StallWatch | null; nudge: "resume" | "seek" | null } {
+  if (wantPaused || status.ended) return { next: null, nudge: null };
+  if (!prev || prev.time !== status.time) return { next: { time: status.time, since: now, nudged: false }, nudge: null };
+  if (prev.nudged || now - prev.since < ENGINE_STALL_MS) return { next: prev, nudge: null };
+  return { next: { ...prev, nudged: true }, nudge: status.paused ? "resume" : "seek" };
+}
