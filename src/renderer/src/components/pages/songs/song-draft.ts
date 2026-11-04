@@ -1,5 +1,5 @@
 import { isSongUpsert } from "@shared/song-validators";
-import { parseLyrics, serializeLyrics, type ParsedLyrics } from "@shared/song-text";
+import { parseLyrics, serializeLyrics, textOrder, type ParsedLyrics } from "@shared/song-text";
 import type { Locale } from "@shared/types/settings";
 import type { Song, SongUpsert } from "@shared/types/song";
 
@@ -51,13 +51,6 @@ export function toSongDraft(song: Song, locale: Locale): SongDraft {
     order: song.order.length > 0 ? song.order : null,
     themeId: song.themeId,
   };
-}
-
-/** What a text-following order stores: nothing when it is the sections as
- *  written, the text's sequence when the text repeats one. */
-export function textOrder(parsed: ParsedLyrics): string[] {
-  const written = parsed.sections.map((section) => section.key);
-  return JSON.stringify(written) === JSON.stringify(parsed.sequence) ? [] : parsed.sequence;
 }
 
 /** The order the slides follow, as the chips show it. */

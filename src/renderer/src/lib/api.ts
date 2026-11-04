@@ -141,6 +141,7 @@ export const api = {
     remove: (id: number, force = false) => invoke("song:delete", { id, force }),
     usages: (id: number) => invoke("song:usages", { id }),
     search: (query: string) => invoke("song:search", { query }),
+    importEasyWorship: () => invoke("song:importEasyWorship", undefined),
     themes: () => invoke("songTheme:list", undefined),
     createTheme: (input: SongThemeUpsert) => invoke("songTheme:create", input),
     updateTheme: (input: SongThemeUpsert & { id: number }) => invoke("songTheme:update", input),

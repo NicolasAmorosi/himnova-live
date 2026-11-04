@@ -338,6 +338,13 @@ export function serializeLyrics(sections: readonly SongSection[], locale: Locale
     .join("\n\n");
 }
 
+/** What an order that follows the text stores: nothing when it is the
+ *  sections as written, the text's sequence when the text repeats one. */
+export function textOrder(parsed: ParsedLyrics): string[] {
+  const written = parsed.sections.map((section) => section.key);
+  return JSON.stringify(written) === JSON.stringify(parsed.sequence) ? [] : parsed.sequence;
+}
+
 /** Every line of the song, for the search index. */
 export function songLyricsText(sections: readonly SongSection[]): string {
   return sections.flatMap((section) => section.slides.flatMap((slide) => slide.lines)).join("\n");

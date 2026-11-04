@@ -100,6 +100,9 @@ const it: MainMessages = {
     invalid: "Il canto ha dei campi non validi.",
     invalidTitle: "Il titolo del canto non è valido.",
     invalidTheme: "Il tema ha dei campi non validi.",
+    ewPickTitle: "Scegli la cartella Databases\\Data di EasyWorship",
+    ewNotFound: "In quella cartella non c'è un database dei canti di EasyWorship (Songs.db e SongWords.db). Scegli la cartella Databases\\Data del suo profilo.",
+    ewUnreadable: "Non è stato possibile aprire il database dei canti di EasyWorship.",
   },
   seed: {
     countdownName: "Conto alla rovescia 10 minuti",

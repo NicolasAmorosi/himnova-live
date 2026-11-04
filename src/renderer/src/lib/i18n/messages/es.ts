@@ -393,6 +393,10 @@ const es = {
     },
   },
   songs: {
+    importEasyWorship: "Importar de EasyWorship",
+    importHint: "Importar las canciones de EasyWorship 6 o 7: elegí su carpeta Databases\\Data.",
+    importDone: "{imported, plural, =0 {No se importó ninguna canción} one {Se importó # canción} other {Se importaron # canciones}} · {repeated} repetidas · {problems} sin letra",
+    importError: "No se pudieron importar las canciones.",
     theme: "Tema",
     themeHint: "Cómo se ve en el proyector. «Por defecto» sigue al de Ajustes ▸ Canciones.",
     themeDefault: "Por defecto",

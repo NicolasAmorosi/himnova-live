@@ -170,3 +170,22 @@ export async function deleteSongTheme(id: number): Promise<boolean> {
     return false;
   }
 }
+
+/**
+ * EasyWorship 6/7's song database, picked as a folder. Says what it did —
+ * written, already there, without a title or lyrics — and, when main refuses
+ * (no song database in that folder, or one that will not open), main's own
+ * reason, which says which folder to pick.
+ */
+export async function importEasyWorship(): Promise<void> {
+  try {
+    const result = await api.songs.importEasyWorship();
+    if (!result) return;
+    await loadSongs();
+    toast.success(t("songs.importDone", result));
+  } catch (error) {
+    console.warn("[songs] EasyWorship import failed", error);
+    const message = error instanceof Error ? error.message.trim() : "";
+    toast.danger(message || t("songs.importError"));
+  }
+}

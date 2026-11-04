@@ -17,6 +17,7 @@ import { api } from "@renderer/lib/api";
 import { toast } from "@renderer/lib/toast";
 import { setSongDrag } from "@renderer/lib/dnd";
 import { previewSong } from "@renderer/lib/actions/preview";
+import { importEasyWorship } from "@renderer/lib/actions/songs";
 import { goLive } from "@renderer/lib/actions/playback";
 import { useDebouncedCallback } from "@renderer/lib/hooks/use-debounced-callback";
 import { findSong, useSongStore } from "@renderer/stores/song.store";
@@ -50,6 +51,11 @@ export function SongsBrowser() {
   const [hits, setHits] = useState<SongSearchHit[] | null>(null);
   const [editing, setEditing] = useState<{ songId: number | null } | null>(null);
   const [themesOpen, setThemesOpen] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const runImport = () => {
+    setImporting(true);
+    void importEasyWorship().finally(() => setImporting(false));
+  };
   const requestRef = useRef(0);
 
   const previewedId = target?.kind === "song" ? target.songId : null;
@@ -113,9 +119,14 @@ export function SongsBrowser() {
         {songs.length === 0 ? (
           <EmptyState
             action={
-              <Button onClick={() => setEditing({ songId: null })} size="sm" variant="primary">
-                {t("songs.new")}
-              </Button>
+              <div className="flex flex-wrap justify-center gap-2">
+                <Button onClick={() => setEditing({ songId: null })} size="sm" variant="primary">
+                  {t("songs.new")}
+                </Button>
+                <Button loading={importing} onClick={runImport} size="sm" variant="outline">
+                  {t("songs.importEasyWorship")}
+                </Button>
+              </div>
             }
             description={t("songs.emptyHint")}
             icon="song"
@@ -174,6 +185,17 @@ export function SongsBrowser() {
             variant="outline"
           >
             <Icon name="pencil" />
+          </IconButton>
+        </Tooltip>
+        <Tooltip content={t("songs.importHint")} floating>
+          <IconButton
+            aria-label={t("songs.importEasyWorship")}
+            disabled={importing}
+            onClick={runImport}
+            size="sm"
+            variant="outline"
+          >
+            <Icon name="import" />
           </IconButton>
         </Tooltip>
         <Tooltip content={t("songThemes.manageHint")} floating>

@@ -70,6 +70,10 @@ export type SongUpsert = Omit<Song, "id" | "updatedAt"> & { id?: number };
 
 export type SongUsage = { programId: number; programName: string; itemCount: number };
 
+/** What an import did: written, skipped as already there (same title, same
+ *  words), and not written because the song had no title or no lyrics. */
+export type SongImportResult = { imported: number; repeated: number; problems: number };
+
 export type SongSearchHit = {
   songId: number;
   /** The lyrics around the match, marked like a Bible snippet (`parseSnippet`);

@@ -42,7 +42,15 @@ import type { SettingsMap } from "../types/settings";
 import type { GpuStatus, InternalsPage, VideoDecoderReport } from "../types/system";
 import type { UtilityScene, UtilitySceneUpsert, UtilitySceneUsage } from "../types/utility";
 import type { Plate, PlateUpsert, PlateUsage } from "../types/overlay";
-import type { Song, SongSearchHit, SongThemeRow, SongThemeUpsert, SongUpsert, SongUsage } from "../types/song";
+import type {
+  Song,
+  SongImportResult,
+  SongSearchHit,
+  SongThemeRow,
+  SongThemeUpsert,
+  SongUpsert,
+  SongUsage,
+} from "../types/song";
 import type { CloseDecision } from "../types/window";
 import type { UpdateStatus } from "../types/updates";
 
@@ -301,6 +309,11 @@ export type IpcContract = {
   "song:usages": { req: { id: number }; res: SongUsage[] };
   /** Title, number, authors and lyrics, without accents (FTS5), best first. */
   "song:search": { req: { query: string; limit?: number }; res: SongSearchHit[] };
+  /** Asks for EasyWorship 6/7's `Databases/Data` folder (or the profile
+   *  above it) and imports its songs; `null` when the operator cancels.
+   *  Refused as `EW_NOT_FOUND` when the folder holds no song database, and
+   *  `EW_UNREADABLE` when it cannot be opened. */
+  "song:importEasyWorship": { req: void; res: SongImportResult | null };
   "songTheme:list": { req: void; res: SongThemeRow[] };
   /** Validated whole (`isSongThemeUpsert`). A new theme goes to the bottom. */
   "songTheme:create": { req: SongThemeUpsert; res: SongThemeRow };

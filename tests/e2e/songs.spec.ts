@@ -1,3 +1,7 @@
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import Database from "better-sqlite3";
 import type { Page } from "@playwright/test";
 import { expect, relaunch, test, type WorshipApp } from "./support/app";
 
@@ -214,4 +218,47 @@ test("a theme edited in «Temas» dresses the live song, and the footer carries 
     .poll(() => projector.locator("[data-song-block]").last().evaluate((el) => getComputedStyle(el).textTransform))
     .toBe("uppercase");
   await expect(projector.getByText("Aleluya, aleluya")).toBeVisible();
+});
+
+/** An EasyWorship 6 song database, as EasyWorship writes it, in a profile's
+ *  `v6.1/Databases/Data`. Returns the profile folder. */
+function easyWorshipProfile(songs: { title: string; author: string; lyrics: string }[]): string {
+  const profile = fs.mkdtempSync(path.join(os.tmpdir(), "worship-e2e-ew-"));
+  const data = path.join(profile, "v6.1", "Databases", "Data");
+  fs.mkdirSync(data, { recursive: true });
+  const db = new Database(path.join(data, "Songs.db"));
+  db.exec("CREATE TABLE song (rowid integer PRIMARY KEY, title text NOT NULL, author text, copyright text, administrator text, reference_number text, vendor_id integer)");
+  const words = new Database(path.join(data, "SongWords.db"));
+  words.exec("CREATE TABLE word (rowid integer PRIMARY KEY, song_id integer, words text)");
+  songs.forEach((song, i) => {
+    db.prepare("INSERT INTO song (rowid, title, author) VALUES (?, ?, ?)").run(i + 1, song.title, song.author);
+    const body = song.lyrics.split("\n").join("\\par\n\\plain ");
+    words.prepare("INSERT INTO word (song_id, words) VALUES (?, ?)").run(i + 1, `{\\rtf1\\ansi{\\fonttbl{\\f0 Arial;}}{\\plain ${body}}}`);
+  });
+  db.close();
+  words.close();
+  return profile;
+}
+
+test("EasyWorship's songs come in from its profile folder, and a second import skips them", async ({ app }) => {
+  const profile = easyWorshipProfile([
+    { title: "Amazing Grace", author: "John Newton", lyrics: "Verse 1\nAmazing grace how sweet the sound\n\nChorus\nMy chains are gone\n\nVerse 2\nT'was grace\n\nChorus\nMy chains are gone" },
+    { title: "Sin letra", author: "", lyrics: "" },
+  ]);
+  try {
+    await app.openResources("Canciones");
+    await app.answerOpenDialog(profile);
+    await tab(app).getByRole("button", { name: "Importar de EasyWorship" }).first().click();
+    await expect(toast(app, "Se importó 1 canción · 0 repetidas · 1 sin letra")).toBeVisible();
+    await songRows(app).filter({ hasText: "Amazing Grace" }).click();
+    const grid = app.previewColumn().getByRole("list", { name: "Diapositivas de «Amazing Grace»" });
+    await expect(grid.getByRole("listitem")).toHaveText([/Estrofa 1/, /Coro/, /Estrofa 2/, /Coro/]);
+
+    await app.answerOpenDialog(profile);
+    await tab(app).getByRole("button", { name: "Importar de EasyWorship" }).first().click();
+    await expect(toast(app, "No se importó ninguna canción · 1 repetidas · 1 sin letra")).toBeVisible();
+    await expect(songRows(app)).toHaveCount(1);
+  } finally {
+    fs.rmSync(profile, { recursive: true, force: true });
+  }
 });

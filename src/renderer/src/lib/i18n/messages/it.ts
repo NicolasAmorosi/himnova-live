@@ -394,6 +394,10 @@ const it: Messages = {
     },
   },
   songs: {
+    importEasyWorship: "Importa da EasyWorship",
+    importHint: "Importa i canti di EasyWorship 6 o 7: scegli la sua cartella Databases\\Data.",
+    importDone: "{imported, plural, =0 {Nessun canto importato} one {# canto importato} other {# canti importati}} · {repeated} ripetuti · {problems} senza testo",
+    importError: "Non è stato possibile importare i canti.",
     theme: "Tema",
     themeHint: "Come appare sul proiettore. «Predefinito» segue quello di Impostazioni ▸ Canti.",
     themeDefault: "Predefinito",

@@ -392,6 +392,10 @@ const en: Messages = {
     },
   },
   songs: {
+    importEasyWorship: "Import from EasyWorship",
+    importHint: "Import the songs of EasyWorship 6 or 7: choose its Databases\\Data folder.",
+    importDone: "{imported, plural, =0 {No song imported} one {# song imported} other {# songs imported}} · {repeated} repeated · {problems} without lyrics",
+    importError: "The songs couldn't be imported.",
     theme: "Theme",
     themeHint: "How it looks on the projector. «Default» follows Settings ▸ Songs.",
     themeDefault: "Default",

@@ -102,6 +102,9 @@ const es = {
     invalid: "La canción tiene campos inválidos.",
     invalidTitle: "El título de la canción no es válido.",
     invalidTheme: "El tema tiene campos inválidos.",
+    ewPickTitle: "Elegí la carpeta Databases\\Data de EasyWorship",
+    ewNotFound: "En esa carpeta no hay una base de canciones de EasyWorship (Songs.db y SongWords.db). Elegí la carpeta Databases\\Data de su perfil.",
+    ewUnreadable: "No se pudo abrir la base de canciones de EasyWorship.",
   },
   /** The four time scenes a new install starts with (`DEFAULT_UTILITY_SCENES`),
    *  written once, in the language of that first launch. */
