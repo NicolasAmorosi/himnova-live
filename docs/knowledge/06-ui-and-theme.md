@@ -329,6 +329,11 @@ starts on BLACK**, never showing the last content from a previous service. The o
 cuts/restarts it from Settings, not manually from the TopBar.
 
 - **`schedule/`**: the order of service. Click = preview, double click = live, drag = reorder.
+  Every row leads with a small 16:9 picture (`RowThumb`, since 2.2.1): the same thumbnail the
+  library tile shows (`lib/asset-thumb.ts`), a deck's first slide from one `deck:statuses`
+  round-trip for the whole schedule, and the kind's icon in the corner over it; with no picture
+  (audio, verse, time scene, plate, a missing file) the kind's tinted icon fills the same box, so
+  every row keeps one height.
 - **`resources/`**: a single tabbed browser for **everything** projectable, Bible included
   (`variant="folder"` of `Tabs`). An asset can be previewed and projected without being in the
   schedule — that's what EW's resources area does.

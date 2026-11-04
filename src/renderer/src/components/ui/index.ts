@@ -30,6 +30,7 @@ export { SlideGrid } from "./slide-grid";
 export { DECK_GRID_COLUMNS, SLIDE_GRID_GAP_PX, VERSE_TILE_MIN_WIDTH_PX } from "./slide-grid.geometry";
 export { VirtualGrid } from "./virtual-grid";
 export { ListRow } from "./list-row";
+export { RowThumb } from "./row-thumb";
 export { Toolbar, ToolbarGroup } from "./toolbar";
 export { Callout } from "./callout";
 export { Tooltip } from "./tooltip";
