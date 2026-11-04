@@ -98,6 +98,10 @@ const es = {
     invalid: "La placa tiene campos inválidos.",
     invalidName: "El nombre de la placa no es válido.",
   },
+  songs: {
+    invalid: "La canción tiene campos inválidos.",
+    invalidTitle: "El título de la canción no es válido.",
+  },
   /** The four time scenes a new install starts with (`DEFAULT_UTILITY_SCENES`),
    *  written once, in the language of that first launch. */
   seed: {
@@ -108,6 +112,7 @@ const es = {
     clockName: "Reloj",
     stopwatchName: "Cronómetro",
     endMessage: "¡Bienvenidos!",
+    songThemeName: "Predeterminado",
   },
 };
 

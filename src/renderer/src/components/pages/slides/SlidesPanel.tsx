@@ -22,8 +22,9 @@ import { useBibleStore } from "@renderer/stores/bible.store";
 import { usePreviewStore } from "@renderer/stores/preview.store";
 import { useProjectionStore } from "@renderer/stores/projection.store";
 import { usePreviewContent } from "@renderer/lib/hooks/use-preview";
-import { clearPreview, previewVerse } from "@renderer/lib/actions/preview";
-import { goLive } from "@renderer/lib/actions/playback";
+import { clearPreview, previewVerse, setPreviewSlide } from "@renderer/lib/actions/preview";
+import { goLive, gotoSongSlide } from "@renderer/lib/actions/playback";
+import { SongSlideGrid } from "@renderer/components/shared/song-slide-grid";
 import { DeckPreviewBar, DeckSlides } from "./deck-slides";
 import { PreviewMediaBar } from "./preview-media-bar";
 
@@ -99,6 +100,27 @@ export function SlidesPanel() {
       );
     }
 
+    // The song's slides, the order expanded. A double click sends it live
+    // from that slide — or, already live, moves the projector there.
+    if (content.kind === "song") {
+      const live = base?.kind === "song" && base.songId === content.song.id ? base : null;
+      return (
+        <SongSlideGrid
+          liveIndex={live?.slideIndex ?? null}
+          onActivate={(index) => {
+            setPreviewSlide(index);
+            if (live) gotoSongSlide(index);
+            else void goLive();
+          }}
+          onSelect={setPreviewSlide}
+          scrollToIndex={previewSlideIndex}
+          selectedIndex={previewSlideIndex}
+          song={content.resolved}
+          theme={content.theme}
+        />
+      );
+    }
+
     if (content.kind === "media" && content.asset.missingSince !== null) {
       return <PreviewMissingState assetId={content.asset.id} />;
     }
@@ -152,6 +174,13 @@ export function SlidesPanel() {
         </MediaPanel>
       );
     }
+    if (content.kind === "song") {
+      return (
+        <MediaPanel className="w-full">
+          <MediaTrackRow kind="song" label={content.song.title} onDelete={clearPreview} />
+        </MediaPanel>
+      );
+    }
     // A plate goes up from its own row: it does not replace what is live, so
     // the button beside the picture of it is where the operator looks.
     if (content.kind === "plate") {
@@ -175,7 +204,9 @@ export function SlidesPanel() {
             ? content.scene.name
             : content?.kind === "plate"
               ? content.plate.name
-              : null;
+              : content?.kind === "song"
+                ? content.song.title
+                : null;
 
   return (
     <>

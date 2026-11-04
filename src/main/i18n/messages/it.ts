@@ -96,6 +96,10 @@ const it: MainMessages = {
     invalid: "La grafica ha dei campi non validi.",
     invalidName: "Il nome della grafica non è valido.",
   },
+  songs: {
+    invalid: "Il canto ha dei campi non validi.",
+    invalidTitle: "Il titolo del canto non è valido.",
+  },
   seed: {
     countdownName: "Conto alla rovescia 10 minuti",
     countdownTitle: "Il culto inizia tra",
@@ -104,6 +108,7 @@ const it: MainMessages = {
     clockName: "Orologio",
     stopwatchName: "Cronometro",
     endMessage: "Benvenuti!",
+    songThemeName: "Predefinito",
   },
 };
 

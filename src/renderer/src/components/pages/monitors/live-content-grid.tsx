@@ -10,7 +10,8 @@ import {
 } from "@renderer/components/ui";
 import { useBibleStore } from "@renderer/stores/bible.store";
 import { useProjectionStore } from "@renderer/stores/projection.store";
-import { gotoSlide } from "@renderer/lib/actions/playback";
+import { gotoSlide, gotoSongSlide } from "@renderer/lib/actions/playback";
+import { SongSlideGrid } from "@renderer/components/shared/song-slide-grid";
 import { projectVerse } from "@renderer/lib/actions/bible";
 import { ModelSlide } from "@renderer/components/shared/slide-view/ModelSlide";
 import { DamagedSlideMark } from "@renderer/components/shared/damaged-slide";
@@ -83,6 +84,20 @@ export function LiveContentGrid() {
           />
         )}
         scrollToIndex={liveVerseIndex}
+      />
+    );
+  }
+
+  // The live song: a click moves the projector, and the grid follows it.
+  if (base?.kind === "song") {
+    return (
+      <SongSlideGrid
+        liveIndex={base.slideIndex}
+        onSelect={gotoSongSlide}
+        scrollToIndex={base.slideIndex}
+        selectedIndex={base.slideIndex}
+        song={base.song}
+        theme={base.theme}
       />
     );
   }

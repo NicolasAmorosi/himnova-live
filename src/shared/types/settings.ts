@@ -83,6 +83,9 @@ export type SettingsMap = {
    *  back on the next launch. Seeding once is what makes "delete" mean
    *  delete. */
   "utility.seeded": boolean;
+  /** Whether this database has ever been given its default song theme —
+   *  `utility.seeded`'s rule: seeded once, so a deleted theme stays deleted. */
+  "songs.seeded": boolean;
   /** How a scripture verse is drawn on the projector — see `BibleStyle`.
    *  A JSON column in all but name, so it is the one settings key with a
    *  normalizer as well as a validator (`SETTINGS_NORMALIZERS`). */
@@ -135,6 +138,7 @@ export const DEFAULT_SETTINGS: SettingsMap = {
   "library.activeView": { video: "recent", image: "recent", audio: "recent", ppt: "recent" },
   "library.sort": { video: "name-asc", image: "name-asc", audio: "name-asc", ppt: "name-asc" },
   "utility.seeded": false,
+  "songs.seeded": false,
   "bible.style": DEFAULT_BIBLE_STYLE,
   "bible.defaultVersionId": null,
   "bible.builtinSeeded": false,
@@ -214,6 +218,7 @@ export const SETTINGS_VALIDATORS: Record<keyof SettingsMap, (value: unknown) => 
   "library.activeView": isRecordOfKinds(isString),
   "library.sort": isRecordOfKinds(isOneOf(MEDIA_SORT_ORDERS)),
   "utility.seeded": isBoolean,
+  "songs.seeded": isBoolean,
   "bible.style": isBibleStyle,
   "bible.defaultVersionId": (v) => v === null || (typeof v === "number" && Number.isInteger(v) && v > 0),
   "bible.builtinSeeded": isBoolean,

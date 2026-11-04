@@ -318,6 +318,14 @@
   --color-badge-image: var(--wa-badge-image);
   --color-badge-audio: var(--wa-badge-audio);
   --color-badge-bible: var(--wa-badge-bible);
+  /* A song's sections (grid tiles, the order's chips). The sheet's own hues,
+     already the content badges': verse = steel/navy, pre-chorus = amber,
+     chorus = orange, bridge = green; intro, ending and other stay neutral. */
+  --color-section-verse: var(--wa-badge-bible);
+  --color-section-prechorus: var(--wa-badge-video);
+  --color-section-chorus: var(--wa-badge-ppt);
+  --color-section-bridge: var(--wa-badge-image);
+  --color-section-other: var(--wa-border-light);
 
   /* Text/icon counterparts of the fills above — see the note by the palette. */
   --color-danger-ink: var(--wa-danger-ink);

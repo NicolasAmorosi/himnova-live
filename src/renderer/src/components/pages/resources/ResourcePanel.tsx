@@ -5,19 +5,22 @@ import { useLibraryStore } from "@renderer/stores/library.store";
 import { BibleBrowser } from "./bible-browser";
 import { FunctionsTabs } from "./functions-tabs";
 import { MediaTabs } from "./media-tabs";
+import { SongsBrowser } from "@renderer/components/pages/songs/songs-browser";
 
-type ResourceTab = "bible" | "media" | "functions";
+type ResourceTab = "bible" | "songs" | "media" | "functions";
 
-const TAB_ORDER: readonly ResourceTab[] = ["bible", "media", "functions"];
+const TAB_ORDER: readonly ResourceTab[] = ["bible", "songs", "media", "functions"];
 
 const ICON: Record<ResourceTab, IconName> = {
   bible: "bible",
+  songs: "song",
   media: "media",
   functions: "functions",
 };
 
 const LABEL_KEY: Record<ResourceTab, MessageKey> = {
   bible: "bible.title",
+  songs: "songs.tab",
   media: "resources.mediaTab",
   functions: "functions.title",
 };
@@ -80,6 +83,8 @@ export function ResourcePanel() {
           <TabPanel active={value === tab} idBase={TAB_ID_BASE} key={value} value={value}>
             {value === "bible" ? (
               <BibleBrowser />
+            ) : value === "songs" ? (
+              <SongsBrowser />
             ) : value === "media" ? (
               <MediaTabs active={tab === "media"} />
             ) : (

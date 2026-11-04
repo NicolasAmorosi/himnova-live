@@ -42,6 +42,7 @@ import type { SettingsMap } from "../types/settings";
 import type { GpuStatus, InternalsPage, VideoDecoderReport } from "../types/system";
 import type { UtilityScene, UtilitySceneUpsert, UtilitySceneUsage } from "../types/utility";
 import type { Plate, PlateUpsert, PlateUsage } from "../types/overlay";
+import type { Song, SongSearchHit, SongThemeRow, SongUpsert, SongUsage } from "../types/song";
 import type { CloseDecision } from "../types/window";
 import type { UpdateStatus } from "../types/updates";
 
@@ -287,6 +288,20 @@ export type IpcContract = {
   "overlay:delete": { req: { id: number; force?: boolean }; res: void };
   "overlay:usages": { req: { id: number }; res: PlateUsage[] };
   "overlay:reorder": { req: { ids: number[] }; res: Plate[] };
+
+  /** The whole song library, read at boot and after every write — the
+   *  renderer previews and projects from it without a round trip. Every
+   *  write is validated whole (`isSongUpsert`). Deleting a song a saved
+   *  program uses is refused with `SONG_IN_USE` unless `force`, like a plate. */
+  "song:list": { req: void; res: Song[] };
+  "song:create": { req: SongUpsert; res: Song };
+  "song:update": { req: SongUpsert & { id: number }; res: Song };
+  "song:duplicate": { req: { id: number; title: string }; res: Song };
+  "song:delete": { req: { id: number; force?: boolean }; res: void };
+  "song:usages": { req: { id: number }; res: SongUsage[] };
+  /** Title, number, authors and lyrics, without accents (FTS5), best first. */
+  "song:search": { req: { query: string; limit?: number }; res: SongSearchHit[] };
+  "songTheme:list": { req: void; res: SongThemeRow[] };
 
   "settings:get": { req: void; res: SettingsMap };
   "settings:set": { req: Partial<SettingsMap>; res: void };

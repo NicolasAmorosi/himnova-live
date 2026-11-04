@@ -17,6 +17,7 @@ import { toast } from "@renderer/lib/toast";
 import { restoreDraft } from "@renderer/lib/actions/programs";
 import { loadScenes } from "@renderer/lib/actions/utility";
 import { loadPlates } from "@renderer/lib/actions/overlays";
+import { loadSongs, refreshLiveSong } from "@renderer/lib/actions/songs";
 import { useProjectionStore } from "@renderer/stores/projection.store";
 import { LOGO_URL } from "@shared/urls";
 import { useSettingsStore } from "@renderer/stores/settings.store";
@@ -92,6 +93,16 @@ export function App() {
 
   useEffect(() => installGlobalErrorHandlers(), []);
 
+  // A song is measured at the projector's proportion: another screen chosen,
+  // or a projector plugged in, re-measures the live one in place.
+  useEffect(
+    () =>
+      useDisplayStore.subscribe((state, previous) => {
+        if (state.displayId !== previous.displayId || state.displays !== previous.displays) void refreshLiveSong();
+      }),
+    [],
+  );
+
   useEffect(() => {
     void (async () => {
       await loadSettings();
@@ -120,6 +131,9 @@ export function App() {
       // The saved overlay plates, for the same reasons and with the same
       // non-blocking rule.
       void loadPlates();
+      // The song library, the same way: a schedule row of a song paints its
+      // title as soon as this lands.
+      void loadSongs();
 
       // Last, and only once the library is reachable: the draft's items point
       // at media assets, and main has already dropped the ones that no longer

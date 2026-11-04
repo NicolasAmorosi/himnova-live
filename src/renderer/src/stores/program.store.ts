@@ -39,6 +39,7 @@ type ProgramStoreState = {
   removeByMediaAsset: (assetId: number) => void;
   removeByUtilityScene: (sceneId: number) => void;
   removeByPlate: (plateId: number) => void;
+  removeBySong: (songId: number) => void;
   moveUp: (index: number) => void;
   moveDown: (index: number) => void;
   reorder: (from: number, to: number) => void;
@@ -242,6 +243,10 @@ export const useProgramStore = create<ProgramStoreState>((set, get) => ({
   /** And for a plate force-deleted from the «Overlays» editor. */
   removeByPlate: (plateId) =>
     set((state) => removeWhere(state, (item) => item.kind === "plate" && item.overlayPlateId === plateId)),
+
+  /** And for a song force-deleted from its editor. */
+  removeBySong: (songId) =>
+    set((state) => removeWhere(state, (item) => item.kind === "song" && item.songId === songId)),
 
   moveUp: (index) => {
     if (index <= 0) return;

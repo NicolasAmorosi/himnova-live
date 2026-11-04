@@ -6,6 +6,7 @@ import { useMediaAsset } from "@renderer/lib/hooks/use-media-asset";
 import { failedThumbUrls, resolveThumbUrl } from "@renderer/lib/asset-thumb";
 import { useAudioStore } from "@renderer/stores/audio.store";
 import { PlateAirStatus } from "@renderer/components/shared/plate-air-status";
+import { SongFirstSlide } from "@renderer/components/shared/song-slide-tile";
 import type { DeckStatusSummary } from "@shared/types/deck";
 import type { ProgramItemDTO } from "@shared/types/program";
 
@@ -74,7 +75,13 @@ export function ScheduleRow({
       leading={
         <RowThumb
           icon={icon}
-          media={modelUrl ? <ModelSlide url={modelUrl} /> : undefined}
+          media={
+            item.kind === "song" ? (
+              <SongFirstSlide songId={item.songId} />
+            ) : modelUrl ? (
+              <ModelSlide url={modelUrl} />
+            ) : undefined
+          }
           onImageError={() => {
             if (thumbUrl === null) return;
             failedThumbUrls.add(thumbUrl);

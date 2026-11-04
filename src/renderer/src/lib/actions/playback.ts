@@ -23,6 +23,7 @@ import { claimLiveIntent, currentLiveIntent, isCurrentLiveIntent } from "@render
 import { playableAssetUrl } from "@renderer/stores/engine-assets.store";
 import { getCachedMediaAsset } from "@renderer/lib/hooks/use-media-asset";
 import type { AssetKind } from "@shared/constants";
+import { prepareSong } from "@renderer/lib/actions/songs";
 
 let videoEpoch = 0;
 
@@ -255,6 +256,49 @@ function goLiveWithUtilityScene(sceneId: number, scheduleIndex: number | null): 
 }
 
 /**
+ * A song replaces `base` like a verse, starting at the preview cursor's slide.
+ *
+ * Measured BEFORE `base` changes (`prepareSong`, a few milliseconds the first
+ * time), so the projector never shows it at a size it is about to change —
+ * and, like a deck, guarded by the live intent across that wait. Says whether
+ * it went live; the caller places the on-air rail (`settleRail`).
+ */
+async function goLiveWithSong(songId: number, startSlideIndex: number, intent: number): Promise<boolean> {
+  const prepared = await prepareSong(songId);
+  if (!prepared || prepared.resolved.slides.length === 0 || !isCurrentLiveIntent(intent)) return false;
+  useAudioStore.getState().setDeckTrack(null);
+  useBibleStore.getState().setCurrentVerseIndex(null);
+  const store = useProjectionStore.getState();
+  store.beginScene();
+  store.setBase({
+    kind: "song",
+    songId,
+    song: prepared.resolved,
+    slideIndex: Math.min(Math.max(1, startSlideIndex), prepared.resolved.slides.length),
+    theme: prepared.theme,
+    sizeCqw: prepared.sizeCqw,
+  });
+  store.setOverlay("none");
+  return true;
+}
+
+/** ←/→ on the live song: a cut, like a verse. */
+export function advanceSong(direction: 1 | -1): void {
+  const { base, setSongSlide } = useProjectionStore.getState();
+  if (base?.kind !== "song") return;
+  const next = base.slideIndex + direction;
+  if (next < 1 || next > base.song.slides.length) return;
+  claimLiveIntent();
+  setSongSlide(next);
+}
+
+export function gotoSongSlide(index: number): void {
+  if (useProjectionStore.getState().base?.kind !== "song") return;
+  claimLiveIntent();
+  useProjectionStore.getState().setSongSlide(index);
+}
+
+/**
  * A plate does not replace `base`: it goes UP over whatever is projected, and
  * replaces only the plate of its own kind (`showPlate`). Everything that makes
  * GO LIVE "send new content" is deliberately skipped — no `beginScene()`
@@ -347,6 +391,9 @@ async function goLiveWithScheduleItem(
       goLiveWithUtilityScene(item.utilitySceneId, index);
       return;
     }
+    case "song":
+      if (await goLiveWithSong(item.songId, startSlideIndex, intent)) settleRail();
+      return;
     case "plate":
       // Handled before the live intent is claimed — see `goLive()`.
       return;
@@ -447,6 +494,10 @@ export async function goLive(): Promise<void> {
       return;
     case "utility":
       goLiveWithUtilityScene(target.sceneId, null);
+      return;
+    case "song":
+      // Not in the schedule: no row may claim the rail.
+      if (await goLiveWithSong(target.songId, slideIndex, intent)) useProgramStore.getState().setActive(null);
       return;
     case "plate":
       // Handled above, before the live intent is claimed.

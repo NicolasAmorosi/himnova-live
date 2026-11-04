@@ -96,6 +96,10 @@ const pt: MainMessages = {
     invalid: "O overlay tem campos inválidos.",
     invalidName: "O nome do overlay não é válido.",
   },
+  songs: {
+    invalid: "A música tem campos inválidos.",
+    invalidTitle: "O título da música não é válido.",
+  },
   seed: {
     countdownName: "Contagem de 10 minutos",
     countdownTitle: "O culto começa em",
@@ -104,6 +108,7 @@ const pt: MainMessages = {
     clockName: "Relógio",
     stopwatchName: "Cronômetro",
     endMessage: "Sejam bem-vindos!",
+    songThemeName: "Padrão",
   },
 };
 

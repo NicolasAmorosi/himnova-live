@@ -96,6 +96,10 @@ const en: MainMessages = {
     invalid: "The overlay has invalid fields.",
     invalidName: "The overlay name isn't valid.",
   },
+  songs: {
+    invalid: "The song has invalid fields.",
+    invalidTitle: "The song title isn't valid.",
+  },
   seed: {
     countdownName: "10-minute countdown",
     countdownTitle: "Service begins in",
@@ -104,6 +108,7 @@ const en: MainMessages = {
     clockName: "Clock",
     stopwatchName: "Stopwatch",
     endMessage: "Welcome!",
+    songThemeName: "Default",
   },
 };
 

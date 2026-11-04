@@ -24,6 +24,8 @@ import type { SlideTextSettings } from "@shared/types/slide-model";
 import { bibleOutputFor } from "@renderer/lib/bible-output";
 import { timerOutputFor } from "@renderer/lib/utility-output";
 import { plateOutputFor } from "@renderer/lib/plate-output";
+import { songOutputFor } from "@renderer/lib/song-output";
+import type { ResolvedSong, SongTheme } from "@shared/types/song";
 import { defaultMediaVolume } from "@renderer/stores/settings.store";
 
 /** The deck currently loaded for projection — slide urls are durable, DB-backed
@@ -210,6 +212,15 @@ export type ProjectionStoreState = {
    *  not restart. A no-op unless this exact scene is the one that is live. */
   setLiveScene: (scene: UtilityScene) => void;
 
+  /** Re-dresses the live song after it, or its theme, was saved — the
+   *  `setLiveScene` of a song: `base` patched in place, no new scene, the
+   *  projector cuts to the new words. `slideIndex` is where it lands (the
+   *  caller keeps the operator on the same section and slide when it still
+   *  exists). A no-op unless this song is the one live. */
+  setLiveSong: (song: ResolvedSong, theme: SongTheme, sizeCqw: number, slideIndex: number) => void;
+  /** Moves within the live song (1-based, clamped) — a cut, like a verse. */
+  setSongSlide: (index: number) => void;
+
   setLiveDeck: (deck: LiveDeck | null) => void;
   setSlideIndex: (index: number) => void;
   setAutoplay: (state: AutoplayState) => void;
@@ -387,6 +398,25 @@ export const useProjectionStore = create<ProjectionStoreState>()(
         const { base } = state;
         if (base?.kind !== "utility" || base.sceneId !== scene.id || base.scene === scene) return state;
         return { base: { ...base, scene } };
+      }),
+
+    setLiveSong: (song, theme, sizeCqw, slideIndex) =>
+      set((state) => {
+        const { base } = state;
+        if (base?.kind !== "song" || base.songId !== song.id) return state;
+        const index = clamp(slideIndex, 1, Math.max(1, song.slides.length));
+        if (base.song === song && base.theme === theme && base.sizeCqw === sizeCqw && base.slideIndex === index) {
+          return state;
+        }
+        return { base: { ...base, song, theme, sizeCqw, slideIndex: index } };
+      }),
+
+    setSongSlide: (index) =>
+      set((state) => {
+        const { base } = state;
+        if (base?.kind !== "song") return state;
+        const next = clamp(index, 1, Math.max(1, base.song.slides.length));
+        return next === base.slideIndex ? state : { base: { ...base, slideIndex: next } };
       }),
 
     setLiveDeck: (liveDeck) =>
@@ -632,6 +662,8 @@ function selectOutputWithoutUnderlay(state: ProjectionStoreState): ProjectionOut
       // Shared with the PREVIEW monitor's own output, so the two can never
       // translate the same scene differently.
       return timerOutputFor(state.base.scene, state.base.clock);
+    case "song":
+      return songOutputFor(state.base.song, state.base.slideIndex, state.base.theme, state.base.sizeCqw);
   }
 }
 

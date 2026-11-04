@@ -5,6 +5,7 @@ import { usePreviewStore } from "@renderer/stores/preview.store";
 import { useProgramStore } from "@renderer/stores/program.store";
 import type { AssetKind } from "@shared/constants";
 import type { ProgramItemDTO } from "@shared/types/program";
+import { findSong, resolveSong, useSongStore } from "@renderer/stores/song.store";
 
 /**
  * Selecting something only ever previews it — nothing here touches
@@ -52,6 +53,22 @@ export function previewPlate(plateId: number): void {
   usePreviewStore.getState().setTarget({ kind: "plate", plateId });
 }
 
+/** A song from the Songs tab. */
+export function previewSong(songId: number): void {
+  useProgramStore.getState().select(null);
+  useLibraryStore.getState().select(null);
+  usePreviewStore.getState().setTarget({ kind: "song", songId });
+}
+
+/** The song behind the preview target, from the Songs tab or a schedule row. */
+export function previewSongId(): number | null {
+  const target = usePreviewStore.getState().target;
+  if (target?.kind === "song") return target.songId;
+  if (target?.kind !== "scheduleItem") return null;
+  const item = previewedScheduleItem();
+  return item?.kind === "song" ? item.songId : null;
+}
+
 export function setPreviewSlide(index: number): void {
   usePreviewStore.getState().setSlideIndex(index);
 }
@@ -89,9 +106,13 @@ export function advancePreview(direction: 1 | -1): void {
     return;
   }
 
+  const songId = previewSongId();
+  const song = songId === null ? null : findSong(useSongStore.getState().songs, songId);
   const assetId = previewDeckAssetId();
-  if (assetId === null) return;
-  const total = useDeckStore.getState().byAssetId[assetId]?.deck?.slides.length ?? 0;
+  if (!song && assetId === null) return;
+  const total = song
+    ? resolveSong(song).slides.length
+    : (useDeckStore.getState().byAssetId[assetId ?? -1]?.deck?.slides.length ?? 0);
   const next = slideIndex + direction;
   if (next < 1 || next > total) return;
   setSlideIndex(next);

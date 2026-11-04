@@ -38,5 +38,7 @@ export function useLiveHeading(): string | null {
       // WHICH thing is live, and two scenes can perfectly well share the
       // words painted on the screen.
       return base.scene.name;
+    case "song":
+      return base.song.title;
   }
 }

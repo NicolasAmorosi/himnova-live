@@ -26,6 +26,9 @@ export const UTILITY_SCENE_MIME = "application/x-worship-utility-scene";
  *  tab: reordering inside the «Overlays» dialog, and adding it to the order of
  *  service from the tab's list. */
 export const OVERLAY_PLATE_MIME = "application/x-worship-overlay-plate";
+/** A song of the Songs tab, dropped onto the order of service. Its id, for
+ *  the programs one's reason. */
+export const SONG_MIME = "application/x-worship-song";
 /** A row of the installed-bibles list in Settings, dropped on another row to
  *  reorder the list — which is also the order the version picker offers, so
  *  this is an arrangement and not a cosmetic one. Carries the version's **id**
@@ -112,6 +115,19 @@ export function setOverlayPlateDrag(e: DragEvent, plateId: number): void {
 /** The dragged plate's id, or `null` — same contract as `readUtilitySceneDrag`. */
 export function readOverlayPlateDrag(e: DragEvent): number | null {
   const raw = e.dataTransfer.getData(OVERLAY_PLATE_MIME);
+  if (!raw) return null;
+  const id = Number(raw);
+  return Number.isFinite(id) ? id : null;
+}
+
+export function setSongDrag(e: DragEvent, songId: number): void {
+  e.dataTransfer.effectAllowed = "copy";
+  e.dataTransfer.setData(SONG_MIME, String(songId));
+}
+
+/** The dragged song's id, or `null` — `readUtilitySceneDrag`'s contract. */
+export function readSongDrag(e: DragEvent): number | null {
+  const raw = e.dataTransfer.getData(SONG_MIME);
   if (!raw) return null;
   const id = Number(raw);
   return Number.isFinite(id) ? id : null;

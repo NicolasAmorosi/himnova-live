@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { useProjectionStore } from "@renderer/stores/projection.store";
-import { advanceSlide, goLive, toggleOverlay } from "@renderer/lib/actions/playback";
+import { advanceSlide, advanceSong, goLive, toggleOverlay } from "@renderer/lib/actions/playback";
 import { advancePreview } from "@renderer/lib/actions/preview";
 import { toggleAutoplay } from "@renderer/effects/deck-autoplay";
 import { advanceVerse } from "@renderer/lib/actions/bible";
@@ -135,6 +135,7 @@ function runShortcut(key: string, repeat: boolean): boolean {
     const { base } = useProjectionStore.getState();
     if (base?.kind === "deck") advanceSlide(step);
     else if (base?.kind === "bible") advanceVerse(step);
+    else if (base?.kind === "song") advanceSong(step);
     else return false;
     return true;
   }
@@ -156,7 +157,7 @@ function runShortcut(key: string, repeat: boolean): boolean {
  * the two-stage flow, which is what makes them safe to press blind:
  *
  * - ←/→ and a remote's PageUp/PageDown: navigate what is LIVE — the deck on the
- *   projector, or the verse on it. Derived from `base`, not from which panel
+ *   projector, the verse or the song on it. Derived from `base`, not from which panel
  *   has focus, so they always mean the same thing.
  * - ↑/↓: navigate the PREVIEW cursor. Nothing reaches the projector.
  * - Enter: send the preview to the projector (the GO LIVE button), also right

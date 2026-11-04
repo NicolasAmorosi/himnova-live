@@ -17,6 +17,7 @@ import type {
 import type { SettingsMap } from "@shared/types/settings";
 import type { UtilitySceneUpsert } from "@shared/types/utility";
 import type { PlateUpsert } from "@shared/types/overlay";
+import type { SongUpsert } from "@shared/types/song";
 import type { CloseDecision } from "@shared/types/window";
 import type { DecoderSupport } from "@shared/types/media";
 
@@ -131,6 +132,16 @@ export const api = {
     remove: (id: number, force = false) => invoke("overlay:delete", { id, force }),
     usages: (id: number) => invoke("overlay:usages", { id }),
     reorder: (ids: number[]) => invoke("overlay:reorder", { ids }),
+  },
+  songs: {
+    list: () => invoke("song:list", undefined),
+    create: (input: SongUpsert) => invoke("song:create", input),
+    update: (input: SongUpsert & { id: number }) => invoke("song:update", input),
+    duplicate: (id: number, title: string) => invoke("song:duplicate", { id, title }),
+    remove: (id: number, force = false) => invoke("song:delete", { id, force }),
+    usages: (id: number) => invoke("song:usages", { id }),
+    search: (query: string) => invoke("song:search", { query }),
+    themes: () => invoke("songTheme:list", undefined),
   },
   settings: {
     get: () => invoke("settings:get", undefined),

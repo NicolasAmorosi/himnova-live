@@ -18,6 +18,7 @@ import { isEngineUrl, liveEngineFrameKey, previewEngineFrameKey } from "@shared/
 import { ModelSlide } from "./slide-view/ModelSlide";
 import { BibleScene } from "./bible-scene";
 import { TimerScene } from "./timer-scene";
+import { SongScene } from "./song-scene";
 import { PlateLayer } from "./plate-layer";
 import type {
   MediaStatus,
@@ -626,6 +627,9 @@ function OutputScene({ frozenFrame, mode, onImageError, output, posterUrl }: Out
           of the `BibleStyle` inside the output — nothing about a verse is
           hardcoded here any more. */}
       {output.kind === "bible" ? <BibleScene onImageError={onImageError} output={output} /> : null}
+
+      {/* Measures nothing: the song's one size travels in the output. */}
+      {output.kind === "song" ? <SongScene content={output} onImageError={onImageError} /> : null}
     </>
   );
 }
