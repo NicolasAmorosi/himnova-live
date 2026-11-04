@@ -3,6 +3,7 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { SLIDES_RASTER_PAGE_TIMEOUT_MS, SLIDES_THUMB_WIDTH } from "@shared/constants";
 import { SlideError } from "./errors";
+import { takeNewestBurst } from "./raster-order";
 import { trustWindow } from "../ipc/trusted-senders";
 import { mt } from "../i18n";
 
@@ -35,7 +36,8 @@ export type PdfFormat = "webp" | "png";
  * OS process, so crash isolation is equivalent.
  *
  * One task runs in it at a time, `now` before `later`: rendering a page takes
- * 5–110 ms on an M3, so a slide waits at most for one thumbnail.
+ * 5–110 ms on an M3, so a slide waits at most for one thumbnail. Inside `now`,
+ * the newest ask goes first (`takeNewestBurst`).
  */
 let window: BrowserWindow | null = null;
 let idleTimer: NodeJS.Timeout | null = null;
@@ -149,6 +151,8 @@ type Task = {
   id: string;
   pdf: PdfSource;
   payload: TaskPayload;
+  /** When it was last asked for (`Date.now()`): what `takeNewestBurst` orders by. */
+  at: number;
   resolve: (result: unknown) => void;
   reject: (error: unknown) => void;
 };
@@ -182,18 +186,31 @@ function registerChannel(): void {
   });
 }
 
-function enqueue(lane: RasterLane, pdf: PdfSource, payload: TaskPayload): Promise<unknown> {
-  if (stopped) return Promise.reject(new SlideError("CANCELED", mt("slides.shuttingDown")));
+function enqueue(lane: RasterLane, pdf: PdfSource, payload: TaskPayload): { task: Task | null; done: Promise<unknown> } {
+  if (stopped) return { task: null, done: Promise.reject(new SlideError("CANCELED", mt("slides.shuttingDown"))) };
   registerChannel();
-  return new Promise((resolve, reject) => {
-    lanes[lane].push({ id: randomUUID(), pdf, payload, resolve, reject });
-    void pump();
+  let task: Task | null = null;
+  const done = new Promise<unknown>((resolve, reject) => {
+    task = { id: randomUUID(), pdf, payload, at: Date.now(), resolve, reject };
+    lanes[lane].push(task);
   });
+  void pump();
+  return { task, done };
+}
+
+/** A page still waiting in `now` that a window asks for again joins the newest
+ *  ask: the slide on screen was often queued as a warm-up a press earlier. */
+function bump(task: Task): void {
+  const at = lanes.now.indexOf(task);
+  if (at < 0) return; // running, settled, or a thumbnail
+  lanes.now.splice(at, 1);
+  task.at = Date.now();
+  lanes.now.push(task);
 }
 
 async function pump(): Promise<void> {
   if (running || stopped) return;
-  const task = lanes.now.shift() ?? lanes.later.shift();
+  const task = takeNewestBurst(lanes.now) ?? lanes.later.shift();
   if (idleTimer) clearTimeout(idleTimer);
   if (!task) {
     idleTimer = setTimeout(dropWindow, IDLE_SHUTDOWN_MS);
@@ -240,12 +257,13 @@ function settle(task: Task, error: unknown, result?: unknown): void {
 
 /** Every page's size at `targetWidth` — what opening a PDF costs (~25 ms). */
 export async function readPdfPages(pdf: PdfSource, targetWidth: number, lane: RasterLane): Promise<PdfPageSize[]> {
-  const result = (await enqueue(lane, pdf, { op: "open", targetWidth })) as { pages?: unknown };
+  const result = (await enqueue(lane, pdf, { op: "open", targetWidth }).done) as { pages?: unknown };
   const pages = Array.isArray(result?.pages) ? (result.pages as PdfPageSize[]) : [];
   return pages.filter((page) => Number.isFinite(page?.widthPx) && Number.isFinite(page?.heightPx));
 }
 
-type CachedPage = { image: Promise<Buffer>; bytes: number };
+/** `task`: the draw while it may still be queued, so asking again can `bump` it. */
+type CachedPage = { image: Promise<Buffer>; bytes: number; task: Task | null };
 /** Insertion-ordered: a hit moves to the end, the oldest settled page goes first. */
 const pageCache = new Map<string, CachedPage>();
 let cachedBytes = 0;
@@ -267,20 +285,21 @@ export function pdfPageImage(
   if (hit) {
     pageCache.delete(key);
     pageCache.set(key, hit);
+    if (hit.task) bump(hit.task);
     return hit.image;
   }
 
   const quality = thumb ? 0.7 : deck.imageFormat === "webp" ? 0.92 : 1;
-  const image = enqueue(thumb ? "later" : "now", deck, { op: "render", page, width, thumb, format: deck.imageFormat, quality }).then(
-    (data) => {
-      if (!(data instanceof Uint8Array) || data.byteLength === 0) throw new SlideError("RASTER_FAILED", mt("slides.noSlides"));
-      return Buffer.from(data.buffer, data.byteOffset, data.byteLength);
-    },
-  );
-  const entry: CachedPage = { image, bytes: 0 };
+  const { task, done } = enqueue(thumb ? "later" : "now", deck, { op: "render", page, width, thumb, format: deck.imageFormat, quality });
+  const image = done.then((data) => {
+    if (!(data instanceof Uint8Array) || data.byteLength === 0) throw new SlideError("RASTER_FAILED", mt("slides.noSlides"));
+    return Buffer.from(data.buffer, data.byteOffset, data.byteLength);
+  });
+  const entry: CachedPage = { image, bytes: 0, task };
   pageCache.set(key, entry);
   image.then(
     (buffer) => {
+      entry.task = null;
       if (pageCache.get(key) !== entry) return;
       entry.bytes = buffer.byteLength;
       cachedBytes += entry.bytes;

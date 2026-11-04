@@ -282,7 +282,9 @@ measured on real slide PDFs — and records a row with `cache_dir = ''` and one 
 page with no file. `worship://deck/<id>/<n>[/thumb]` then draws that page when a window asks
 (`pdfPageImage` in `rasterizer.ts`): the slide at the deck's width in the `now` lane, a thumbnail at
 `SLIDES_THUMB_WIDTH` in the `later` lane, one task at a time in the window, which keeps the last
-three documents open. Encoded pages stay in memory (128 MB, least recently used out, keyed by the
+three documents open. Inside `now` the newest ask goes first (`takeNewestBurst` in
+`raster-order.ts`): Electron never tells main that a window gave up on a page, so skipped pages are
+drawn after the one on screen, not before it. Encoded pages stay in memory (128 MB, least recently used out, keyed by the
 file's stamp, never by deck id), so the projector gets at once what PREVIEW drew, and its
 `preload` of the next slides is what draws them ahead. Measured on an M3 (2026-11-03): a page at
 1920 px draws in 5–110 ms; encoding it as PNG takes 6–21 ms, as WebP 70–165 ms; a thumbnail 4–23 ms.
