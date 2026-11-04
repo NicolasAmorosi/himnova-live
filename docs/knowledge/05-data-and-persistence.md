@@ -52,14 +52,14 @@ able to reference an asset the operator is about to delete, which is exactly wha
 from the library, a timer scene deleted from the editor—, on main's side, which is the only one
 that can answer that without one IPC round-trip per item.
 
-### The five item kinds, and why every `program_items` migration is written by hand
+### The six item kinds, and why every `program_items` migration is written by hand
 
-`kind` is `media | ppt | bible | utility | plate`, and the table's `CHECK` requires each one to
+`kind` is `media | ppt | bible | utility | plate | song`, and the table's `CHECK` requires each one to
 carry exactly its own reference and no other (`media_asset_id`, `bible_text`,
-`utility_scene_id`, `overlay_plate_id`). That `CHECK` **doesn't exist for Drizzle**: it lives only in the SQL and the snapshot
+`utility_scene_id`, `overlay_plate_id`, `song_id`). That `CHECK` **doesn't exist for Drizzle**: it lives only in the SQL and the snapshot
 reports it empty. Practical consequence, already paid for four times: renaming requires
 `ALTER TABLE` (`0004`), dropping a column the `CHECK` names requires a hand-written rebuild
-(`0009`), and **so does adding a column** (`0011`, and again `0015` for `overlay_plate_id`) — there `drizzle-kit` emits an `ADD COLUMN` that SQLite
+(`0009`), and **so does adding a column** (`0011`, again `0015` for `overlay_plate_id`, and `0019` for `song_id`) — there `drizzle-kit` emits an `ADD COLUMN` that SQLite
 accepts, silently losing the FK's `ON DELETE restrict` and leaving the `CHECK` unaware of the new
 kind. The full diagnosis is in
 [`sqlite-table-rename-must-alter-not-recreate.md`](../../.claude/knowledge/sqlite-table-rename-must-alter-not-recreate.md).
@@ -142,6 +142,26 @@ in `load()` but no longer sorts anything. Rules for the field:
   when they update.
 - Dragging is disabled in the renderer when a search or a filter is active: reordering a partial
   view can't be mapped onto the full list.
+
+## `songs`, `song_themes` and `songs_fts` (`0019`)
+
+A song's structure is JSON — `sections_json` (`SongSection[]`: key `v1`/`c1`/`pc1`…, type, number,
+slides of lines) and `order_json` (keys with repetitions, `[]` = as written) — validated whole on write
+(`isSongUpsert`) and normalized section by section on read. `lyrics_text` is every line flattened,
+only for `songs_fts` (FTS5 external content over title, number, authors and lyrics, `remove_diacritics
+2`, kept by triggers like the Bible's; `bm25` weighs the title most). `theme_id` is `set null`;
+`program_items.song_id` is `restrict`, answered by `song:usages` and «Delete anyway».
+
+A theme is one `SongTheme` JSON per row; every knob added after F1 (outline, footer, fade…) reads its
+default from a stored row that predates it. The default theme is seeded ONCE (`songs.seeded`) from the
+operator's verse style at a singer's size (6 / 2.5 cqw); the last theme cannot be deleted
+(`SONG_THEME_LAST`), and deleting the default one resets `songs.defaultThemeId`.
+
+The lyrics text format (`shared/song-text.ts`) is shared by the editor and the EasyWorship importer
+(`main/songs/`): EasyWorship's RTF (`SongWords.db`) becomes plain text whose blocks start with a label
+(«Verse 1», «Chorus») — exactly what `parseLyrics` reads, in any of the four languages. Its databases
+are opened read-only and never queried with `ORDER BY`/`WHERE` on text: EasyWorship 7 declares a
+collation SQLite lacks.
 
 ## FTS5 without accents
 
