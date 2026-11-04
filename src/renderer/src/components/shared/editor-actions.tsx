@@ -14,7 +14,7 @@ type EditorActionsProps = {
 };
 
 /**
- * The «Scenes» and «Overlays» editors' actions as one row of icons under
+ * The «Scenes», «Overlays» and song editors' actions as one row of icons under
  * «New», in the list column. Icon-only, so each one carries its label as
  * `aria-label` and `title`. A draft's copy and delete are DISABLED rather than
  * hidden, so the row never reflows under the pointer — and «Delete» sits at

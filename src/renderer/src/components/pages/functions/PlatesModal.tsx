@@ -18,7 +18,7 @@ import { useOverlayStore } from "@renderer/stores/overlay.store";
 import type { MediaAsset } from "@shared/types/media";
 import type { Plate, PlateUsage } from "@shared/types/overlay";
 import { emptyPlateDraft, isPlateDraftSavable, toPlateDraft, toPlateUpsert, type PlateDraft } from "./plate-draft";
-import { EditorActions } from "./editor-actions";
+import { EditorActions } from "@renderer/components/shared/editor-actions";
 import { EditorHeader } from "./editor-header";
 import { PlateForm } from "./plate-form";
 import { PlatePreview } from "./plate-preview";

@@ -22,7 +22,7 @@ import type { MediaAsset } from "@shared/types/media";
 import type { UtilityScene, UtilitySceneUsage } from "@shared/types/utility";
 import { emptySceneDraft, isDraftSavable, toDraft, toUpsert, type SceneDraft } from "./scene-draft";
 import { SceneForm } from "./scene-form";
-import { EditorActions } from "./editor-actions";
+import { EditorActions } from "@renderer/components/shared/editor-actions";
 import { EditorHeader } from "./editor-header";
 import { ScenePreview } from "./scene-preview";
 import { TOOL_ICON, TOOL_LABEL } from "./tool-display";
