@@ -1,9 +1,11 @@
-import { useState, type DragEvent } from "react";
+import { useEffect, useState, type DragEvent } from "react";
 import { useT } from "@renderer/lib/i18n/i18n-provider";
 import { Badge, EmptyState, Icon, IconButton, Tooltip } from "@renderer/components/ui";
 import { PanelBody, PanelFooter, PanelHeader } from "@renderer/components/shared/panel";
 import { useProgramStore } from "@renderer/stores/program.store";
 import { useLibraryStore } from "@renderer/stores/library.store";
+import { useDeckStore } from "@renderer/stores/deck.store";
+import type { DeckStatusSummary } from "@shared/types/deck";
 import { api } from "@renderer/lib/api";
 import {
   SCHEDULE_INDEX_MIME,
@@ -21,6 +23,9 @@ import { goLive } from "@renderer/lib/actions/playback";
 import { hasUnsavedChanges } from "@renderer/lib/actions/programs";
 import { ScheduleRow } from "./schedule-row";
 import type { AssetKind } from "@shared/constants";
+
+/** See the `deck:statuses` effect in `SchedulePanel`. */
+const DECK_STATUS_DELAY_MS = 250;
 
 /** The service running order — EasyWorship's "Schedule", top-left. */
 export function SchedulePanel() {
@@ -42,6 +47,33 @@ export function SchedulePanel() {
   const dirty = useProgramStore((s) => s.dirty);
   const refreshLibrary = useLibraryStore((s) => s.refresh);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+
+  // Where each deck's first slide lives, for the rows' thumbnails: one
+  // `deck:statuses` round-trip for the whole schedule, asked again when a deck
+  // finishes reading (every deck added here is read in the background). The
+  // delay coalesces a library batch, which finishes decks one at a time; the
+  // previous answer stays up meanwhile, so nothing flickers.
+  const deckIdsKey = items.flatMap((item) => (item.kind === "ppt" ? [item.mediaAssetId] : [])).join(",");
+  const readyEpoch = useDeckStore((s) => s.readyEpoch);
+  const [deckStatuses, setDeckStatuses] = useState<Record<number, DeckStatusSummary>>({});
+  useEffect(() => {
+    if (deckIdsKey === "") return;
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      api.deck
+        .statuses(deckIdsKey.split(",").map(Number))
+        .then((statuses) => {
+          if (!cancelled) setDeckStatuses(statuses);
+        })
+        // Not worth a toast: the rows keep their icon, and the next finished
+        // deck asks again.
+        .catch(() => undefined);
+    }, DECK_STATUS_DELAY_MS);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [deckIdsKey, readyEpoch]);
 
   function addAssetItem(assetId: number, kind: AssetKind, insertAt?: number) {
     addItem(
@@ -197,6 +229,7 @@ export function SchedulePanel() {
             {items.map((item, index) => (
               <ScheduleRow
                 active={activeIndex === index}
+                deckStatus={item.kind === "ppt" ? deckStatuses[item.mediaAssetId] : undefined}
                 dragOver={dragOverIndex === index}
                 index={index}
                 item={item}
