@@ -166,14 +166,14 @@ the `arc4random` of the static libstdc++), and it loads `libmpv.so.2` or `libmpv
 Installed with `apt` in clean Ubuntu 22.04, Debian 12 and Ubuntu 24.04 containers, it loads mpv
 0.34, 0.35 and 0.37; playing needs a GPU, so that part is only tested on a real PC.
 
-**Linux is experimental in 2.2.0-beta.4** (owner's decision, 2026-10-23; the README and the
-landing say so). On native x86_64 under Xvfb, the projector and control renderers crash with a
-deck on air (`service.spec`, `settings.spec:60`, sometimes `decks.spec:93`): `render-process-gone`
-with `reason: crashed`, `exitCode: 133` (SIGTRAP, a Chromium `CHECK` with no message in the
-official builds). Same with `--disable-gpu`, with and without the sandbox. And `media.spec:69`
-(GO LIVE doesn't reopen a projector closed from outside) fails there, maybe because of Xvfb's
-single screen and its lack of a window manager. Next: a minidump with Electron's symbols, and
-testing on a desktop Linux with a GPU and two monitors.
+**Linux is no longer experimental from 2.2.0** (owner's decision, 2026-10-25). It was in
+2.2.0-beta.4 and beta.5 because, on native x86_64 under Xvfb (a container, no GPU), the projector
+and control renderers crashed with a deck on air: `render-process-gone` with `reason: crashed`,
+`exitCode: 133` (SIGTRAP, a Chromium `CHECK` with no message in the official builds), with and
+without `--disable-gpu` or the sandbox. On a real desktop Linux with a GPU (a CachyOS laptop, Iris
+Xe, GNOME) the whole E2E suite against the package passed on 2026-11-03 — 143 tests, none failed —
+and that crash never appeared. Its cause under Xvfb is still unknown; if a user reports windows
+closing by themselves on Linux, start from there (a minidump with Electron's symbols).
 
 Verified on macOS against real church decks, including a 52-slide binary `.ppt` and a fixture
 with auto-advance + embedded audio. `legacy/` was removed from the repo on 2026-10-22; it's still

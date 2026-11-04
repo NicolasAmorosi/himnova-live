@@ -37,10 +37,6 @@ let the AppImage start without `--no-sandbox`, which turns off a security protec
 files Lumina's media engine plays (AVI, WMV, WMA…) need the distribution's libmpv: the `.deb` installs
 it, and with the AppImage install `libmpv2` (`libmpv1` on Ubuntu 22.04) and `libopengl0`.
 
-**On Linux, Lumina Live is still experimental.** In automated testing the projection and control
-windows closed by themselves while a presentation was on screen, which doesn't happen on Windows or
-macOS. Test it thoroughly before relying on it in a service.
-
 - The installers **aren't signed yet**. On Windows: «More info» → «Run anyway». On macOS: System
   Settings → Privacy & Security → «Open Anyway».
 
@@ -65,7 +61,7 @@ from Releases once, and from then on it can.
 - **macOS:** without a paid Apple signature, macOS doesn't let an app replace itself. Lumina Live
   downloads and checks the `.dmg` and opens it: drag Lumina Live to Applications and choose
   «Replace». Your programs, library and settings stay as they are.
-- **Linux** (experimental): the AppImage replaces itself; the `.deb` asks for your password to
+- **Linux:** the AppImage replaces itself; the `.deb` asks for your password to
   install.
 
 ## Development
