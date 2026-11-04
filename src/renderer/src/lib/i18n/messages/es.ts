@@ -430,7 +430,7 @@ const es = {
     retry: "Reintentar",
     canceled: "Apertura cancelada",
     canceledHint: "La presentación no se terminó de leer. Podés volver a intentarlo cuando quieras.",
-    stale: "El archivo original cambió",
+    stale: "No se pudieron mostrar algunas diapositivas: el archivo cambió o no se pudo leer",
     reconvert: "Volver a leer",
     reconvertBlockedLive:
       "No se puede volver a leer la presentación que está EN VIVO. Sacala del proyector primero.",

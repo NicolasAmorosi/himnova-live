@@ -429,7 +429,7 @@ const en: Messages = {
     retry: "Retry",
     canceled: "Opening canceled",
     canceledHint: "The presentation wasn't read to the end. You can try again whenever you like.",
-    stale: "The original file has changed",
+    stale: "Some slides couldn't be shown: the file changed or couldn't be read",
     reconvert: "Read again",
     reconvertBlockedLive: "Can't read again the presentation that's live. Take it off the projector first.",
     noSlides: "The presentation has no slides",

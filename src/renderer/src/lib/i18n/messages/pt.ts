@@ -430,7 +430,7 @@ const pt: Messages = {
     retry: "Tentar de novo",
     canceled: "Abertura cancelada",
     canceledHint: "A apresentação não foi lida até o fim. Você pode tentar de novo quando quiser.",
-    stale: "O arquivo original mudou",
+    stale: "Não foi possível mostrar alguns slides: o arquivo mudou ou não pôde ser lido",
     reconvert: "Ler de novo",
     reconvertBlockedLive:
       "Não dá para ler de novo a apresentação que está AO VIVO. Tire-a do projetor primeiro.",

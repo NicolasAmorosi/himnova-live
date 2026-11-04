@@ -468,6 +468,30 @@ describe("Deck status is answered by CONTENT, not by row ownership", () => {
     );
   });
 
+  test("reading the same bytes again keeps the deck's id, so a deck on air keeps its slides", () => {
+    // The copy not hashed yet misses `findDeckByAssetContent`, is read, and its
+    // row replaces this one. Windows ask for `worship://deck/<id>/<n>`: a new id
+    // left a deck already on the projector asking for slides that were gone.
+    const row = slidesRepo.getDeckById(deckId);
+    assert(row, "the shared deck must exist");
+    const { id: _id, ...before } = row;
+    const stat = fs.statSync(dupB.path);
+    // Another deck read since: SQLite hands a deleted LAST rowid out again, which
+    // would hide the bug.
+    const other = slidesRepo.insertDeck({ ...before, contentHash: "1".repeat(64), cacheDir: "" }, [], []);
+    const again = slidesRepo.insertDeck(
+      { ...before, mediaAssetId: dupB.id, sourcePath: dupB.path, sourceSizeBytes: stat.size, sourceMtimeMs: Math.trunc(stat.mtimeMs) },
+      [{ slideIndex: 1, imageFile: "1.webp", thumbFile: "1.thumb.webp", widthPx: 1920, heightPx: 1080, bytes: 1024,
+         advanceMs: null, advanceOnClick: true, transition: null, layers: null, hidden: false, title: null, notes: null }],
+      [],
+    );
+    assert(again === deckId, `a re-read of the same identity must keep id ${deckId}, got ${again}`);
+    assert(slidesRepo.getDeckById(deckId)?.slideCount === 1, "the deck and its slides must still be found by that id");
+    // Back as the tests below expect it: owned by the first copy, alone.
+    slidesRepo.deleteDeck(other);
+    slidesRepo.relinkDeck(deckId, dupA.id, dupA.path, row.sourceSizeBytes, row.sourceMtimeMs);
+  });
+
   test("relinking the row to one copy does not unconvert the other", () => {
     // Opening the second copy relinks the row to it. The first must not regress
     // to "pending" — that swap is what made the count oscillate.

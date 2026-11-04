@@ -148,6 +148,15 @@ export class SlidesRepo {
     return this.slideImageStatement;
   }
 
+  private deckSourceStatement: Database.Statement | null = null;
+
+  /** Whether some deck was read from `sourcePath` — every deck's source was a
+   *  library file when it was read. */
+  isDeckSource(sourcePath: string): boolean {
+    this.deckSourceStatement ??= this.sqlite.prepare(`SELECT 1 FROM slide_decks WHERE source_path = ? LIMIT 1`);
+    return this.deckSourceStatement.get(sourcePath) !== undefined;
+  }
+
   private insertSlideStatement: Database.Statement | null = null;
   private insertAudioStatement: Database.Statement | null = null;
   private insertVideoStatement: Database.Statement | null = null;
@@ -475,8 +484,13 @@ export class SlidesRepo {
   insertDeck(deck: NewDeck, slides: NewSlide[], audio: NewAudio[], videos: NewVideo[] = []): number {
     const now = Date.now();
     const insert = this.sqlite.transaction(() => {
-      // Replace any previous conversion with the same identity (e.g. a forced
-      // reconvert) so ux_deck_identity never collides.
+      // Replace any previous read with the same identity (a forced re-read, a
+      // newer reader, the same bytes through a copy not hashed yet) so
+      // ux_deck_identity never collides — under the SAME id: windows ask for
+      // `worship://deck/<id>/<n>`, and a new id left a deck already on air
+      // asking for slides of a row that no longer existed (blank, mid-service).
+      // ponytail: its audio/video rows still get new ids, so a clip on air
+      // through this deck loses its url; keep those ids too if that bites.
       const existing = this.findDeckByIdentity(
         deck.contentHash,
         deck.renderWidth,
@@ -488,6 +502,7 @@ export class SlidesRepo {
         .insert(slideDecks)
         .values({
           ...deck,
+          ...(existing ? { id: existing.id } : {}),
           slideCount: slides.length,
           transitionsRead: 1,
           status: "ready",

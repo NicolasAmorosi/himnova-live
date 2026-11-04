@@ -95,7 +95,7 @@ async function ensureWindow(): Promise<BrowserWindow> {
   win.webContents.on("render-process-gone", () => {
     if (window === win) window = null;
     if (!win.isDestroyed()) win.destroy();
-    if (running) settle(running, new SlideError("RASTER_FAILED", mt("slides.rasterCrashed")));
+    if (running && !retryOnce(running)) settle(running, new SlideError("RASTER_FAILED", mt("slides.rasterCrashed")));
   });
 
   // Subscribed and awaited INSIDE a try: a rejected load (dev server not up
@@ -153,6 +153,8 @@ type Task = {
   payload: TaskPayload;
   /** When it was last asked for (`Date.now()`): what `takeNewestBurst` orders by. */
   at: number;
+  /** Already drawn again once after its window crashed. */
+  retried?: boolean;
   resolve: (result: unknown) => void;
   reject: (error: unknown) => void;
 };
@@ -238,6 +240,22 @@ async function pump(): Promise<void> {
   } catch (error) {
     settle(task, error);
   }
+}
+
+/** The window crashed under `task`: it goes first into a fresh window, once —
+ *  a crash used to leave that page blank on the projector. A page that crashes
+ *  the window again fails. */
+function retryOnce(task: Task): boolean {
+  if (task.retried || running !== task) return false;
+  running = null;
+  if (taskTimer) clearTimeout(taskTimer);
+  taskTimer = null;
+  pendingPdfs.delete(task.id);
+  // A new task, not the same one again: a `pump` still awaiting the dead
+  // window compares `running` against the task it started.
+  lanes.now.push({ ...task, id: randomUUID(), at: Date.now(), retried: true });
+  void pump();
+  return true;
 }
 
 function settle(task: Task, error: unknown, result?: unknown): void {

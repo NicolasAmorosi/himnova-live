@@ -630,3 +630,90 @@ test("a long PDF opens without converting anything, and writes nothing to disk",
   expect(statuses).not.toContain("converting");
   expect(fs.readdirSync(path.join(app.profile, "slides-cache"))).toEqual([]);
 });
+
+test("taking a copy of a PDF out of the library leaves the one on air drawing its pages", async ({ app }) => {
+  // Same bytes twice: the two rows share one deck, whose source is whichever
+  // was opened last.
+  const copy = path.join(app.profile, "long copia.pdf");
+  fs.copyFileSync(fixture("long.pdf"), copy);
+  await app.addMedia("ppt", "long.pdf");
+  const [duplicate] = await app.invoke<MediaAsset[]>("library:add", { kind: "ppt", paths: [copy] });
+  if (!duplicate) throw new Error("import failed");
+
+  await app.previewFile("Presentaciones", "long");
+  await expect(slideTile(app, 1)).toBeVisible({ timeout: 30_000 });
+  await app.goLive();
+  const projector = await app.projector();
+  await expect.poll(() => projectedSlide(projector)).toBe(1);
+
+  await app.previewFile("Presentaciones", "long copia");
+  await expect(slideTile(app, 1)).toBeVisible({ timeout: 30_000 });
+  await app.invoke("library:remove", { id: duplicate.id });
+  // The hidden window that draws PDFs keeps the document open for 5 minutes;
+  // past that (or after a crash) it reads the file again, and that read is
+  // what was refused for a source no longer in the library. A crash, not a
+  // `destroy()`: a page it was drawing is drawn again in the next window.
+  await app.electron.evaluate(({ webContents }) => {
+    for (const contents of webContents.getAllWebContents()) {
+      if (contents.getURL().includes("rasterizer")) contents.forcefullyCrashRenderer();
+    }
+  });
+
+  // Pages nobody drew yet: they have to come from the file still on air.
+  for (let n = 2; n <= 6; n += 1) {
+    await app.liveColumn().getByRole("button", { name: "Siguiente" }).click();
+    await expect.poll(() => projectedSlide(projector)).toBe(n);
+  }
+  await expect
+    .poll(() =>
+      projector.evaluate(() => {
+        const image = [...document.querySelectorAll<HTMLImageElement>('img[src^="worship://deck/"]')].at(-1);
+        return image?.complete ? image.naturalWidth : 0;
+      }),
+    )
+    .toBeGreaterThan(0);
+});
+
+test("a PDF page whose hidden drawing window crashes is drawn again, not left blank", async ({ app }) => {
+  await app.addMedia("ppt", "long.pdf");
+  await app.previewFile("Presentaciones", "long");
+  await expect(slideTile(app, 1)).toBeVisible({ timeout: 30_000 });
+  await app.goLive();
+  const projector = await app.projector();
+  await expect.poll(() => projectedSlide(projector)).toBe(1);
+
+  // The first time each full-size page is asked for, the hidden window dies
+  // instead of drawing it; asked again, it draws.
+  await app.electron.evaluate(({ app: electronApp, webContents }) => {
+    const crashed = new Set<number>();
+    const sabotage = (contents: Electron.WebContents) => {
+      if (!contents.getURL().includes("rasterizer")) return;
+      const send = contents.send.bind(contents);
+      contents.send = (channel: string, ...args: unknown[]) => {
+        const task = args[0] as { op?: string; thumb?: boolean; page?: number };
+        if (channel === "raster:task" && task.op === "render" && task.thumb === false && !crashed.has(task.page ?? 0)) {
+          crashed.add(task.page ?? 0);
+          contents.forcefullyCrashRenderer();
+          return;
+        }
+        send(channel, ...args);
+      };
+    };
+    for (const contents of webContents.getAllWebContents()) sabotage(contents);
+    electronApp.on("web-contents-created", (_event, contents) => contents.once("did-finish-load", () => sabotage(contents)));
+  });
+
+  for (let n = 2; n <= 5; n += 1) {
+    await app.liveColumn().getByRole("button", { name: "Siguiente" }).click();
+    await expect.poll(() => projectedSlide(projector)).toBe(n);
+  }
+  await expect
+    .poll(() =>
+      projector.evaluate(() => {
+        const image = [...document.querySelectorAll<HTMLImageElement>('img[src^="worship://deck/"]')].at(-1);
+        return image?.complete ? image.naturalWidth : 0;
+      }),
+    )
+    .toBeGreaterThan(0);
+  await expect(app.liveColumn().getByText("No se pudo reproducir el archivo")).toHaveCount(0);
+});

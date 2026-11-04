@@ -431,7 +431,7 @@ const it: Messages = {
     retry: "Riprova",
     canceled: "Apertura annullata",
     canceledHint: "La presentazione non è stata letta fino in fondo. Puoi riprovare quando vuoi.",
-    stale: "Il file originale è cambiato",
+    stale: "Alcune diapositive non si sono potute mostrare: il file è cambiato o non si è potuto leggere",
     reconvert: "Leggi di nuovo",
     reconvertBlockedLive:
       "Non puoi rileggere la presentazione che è IN ONDA. Prima toglila dal proiettore.",

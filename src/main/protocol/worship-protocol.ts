@@ -400,12 +400,16 @@ export function registerWorshipProtocolHandler(mediaRepo: MediaRepo): void {
           const jobId = segments[0];
           const pdfPath = jobId ? resolveRasterPdf(jobId) : null;
           if (!pdfPath) return new Response("Not found", { status: 404 });
-          const resolved = path.resolve(pdfPath);
           // The only PDF rasterized is a deck's own source, straight from
-          // wherever the operator keeps it: a library row is the positive
-          // assertion — the same "the operator added this file" property
-          // `worship://asset/<id>` rests on.
-          if (!mediaRepo.hasPath(resolved)) return new Response("Forbidden", { status: 403 });
+          // wherever the operator keeps it: a library row (a PDF being opened,
+          // no deck yet) or a deck row (every deck was read from a library
+          // file) is the positive assertion. Both, because two copies of one
+          // PDF share one deck whose source is the copy opened last: taking
+          // THAT copy out of the library left the other — on air — blank.
+          const resolved = path.resolve(pdfPath);
+          if (!mediaRepo.hasPath(resolved) && !getSlidesRepo().isDeckSource(pdfPath)) {
+            return new Response("Forbidden", { status: 403 });
+          }
           return serveFile(request, resolved);
         }
         default:
