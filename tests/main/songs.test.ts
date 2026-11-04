@@ -25,8 +25,14 @@ import {
   normalizeSections,
   normalizeSongTheme,
 } from "../../src/shared/song-validators";
-import { parseLyrics } from "../../src/shared/song-text";
-import { DEFAULT_SONG_THEME, songThemeFromBibleStyle, type SongUpsert } from "../../src/shared/types/song";
+import { parseLyrics, splitSection } from "../../src/shared/song-text";
+import {
+  DEFAULT_SONG_THEME,
+  songFooterLines,
+  songThemeFromBibleStyle,
+  type SongUpsert,
+} from "../../src/shared/types/song";
+import { isSongThemeUpsert } from "../../src/shared/song-validators";
 import { DEFAULT_BIBLE_STYLE } from "../../src/shared/types/bible-style";
 import { INSTANT_TRANSITION, type ProjectionOutput } from "../../src/shared/types/projection";
 import { IpcError } from "../../src/shared/ipc/result";
@@ -233,9 +239,11 @@ describe("the history", () => {
       songId,
       title: `Canción ${songId}`,
       lines: [line],
+      footer: null,
       theme: DEFAULT_SONG_THEME,
       backgroundUrl: null,
       sizeCqw: 5,
+      enter: null,
       videoUnderlay: null,
       slideVideo: null,
       plates: [],
@@ -274,6 +282,70 @@ describe("the default theme", () => {
       opened.sqlite.prepare("DELETE FROM song_themes").run();
       seedSongThemes(songs, settings);
       expect(songs.listThemes()).toHaveLength(0);
+    } finally {
+      opened.sqlite.close();
+      fs.rmSync(fresh, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("themes (F3)", () => {
+  test("a theme stored before the F3 knobs reads them at their defaults", () => {
+    const { uppercase: _u, outline: _o, footer: _f, slideTransition: _s, maxLines: _m, letterSpacingEm: _l, ...f1 } =
+      DEFAULT_SONG_THEME;
+    const read = normalizeSongTheme({ ...f1, background: { kind: "solid", color: "#112233" } });
+    expect(read.background).toEqual({ kind: "solid", color: "#112233" });
+    expect(read.footer).toEqual(DEFAULT_SONG_THEME.footer);
+    expect(read.slideTransition).toEqual({ style: "fade", durationMs: 300 });
+    expect(isSongTheme(read)).toBe(true);
+  });
+
+  test("a broken knob costs that knob, field by field", () => {
+    const read = normalizeSongTheme({
+      ...DEFAULT_SONG_THEME,
+      footer: { ...DEFAULT_SONG_THEME.footer, show: "sometimes", fields: { title: false, authors: "yes" } },
+      outline: { enabled: true, color: "red", widthCqw: 0.3 },
+      maxLines: 2.5,
+    });
+    expect(read.footer.show).toBe("last");
+    expect(read.footer.fields).toEqual({ ...DEFAULT_SONG_THEME.footer.fields, title: false });
+    expect(read.outline).toEqual({ enabled: true, color: "#000000", widthCqw: 0.3 });
+    expect(read.maxLines).toBe(0);
+    expect(isSongThemeUpsert({ name: "Jóvenes", style: read })).toBe(true);
+    expect(isSongThemeUpsert({ name: " ", style: read })).toBe(false);
+  });
+
+  test("lines per slide split a slide when drawn, never the stored one", () => {
+    const [section] = parseLyrics("[Coro]\nuno\ndos\ntres\ncuatro\ncinco", "es").sections;
+    expect(splitSection(section!, 2).slides.map((s) => s.lines)).toEqual([["uno", "dos"], ["tres", "cuatro"], ["cinco"]]);
+    expect(splitSection(section!, 0)).toBe(section);
+  });
+
+  test("the footer says what the song has, two lines at most", () => {
+    const labels = { ccli: "CCLI n.º", license: "Licencia CCLI n.º" };
+    const all = DEFAULT_SONG_THEME.footer.fields;
+    expect(
+      songFooterLines({ title: "Sublime gracia", authors: "John Newton", copyright: "© Dominio público", ccliNumber: "22025" }, all, "123", labels),
+    ).toEqual(["Sublime gracia — John Newton", "© Dominio público · CCLI n.º 22025 · Licencia CCLI n.º 123"]);
+    expect(songFooterLines({ title: "Sin datos", authors: null, copyright: null, ccliNumber: null }, all, null, labels)).toEqual([
+      "Sin datos",
+    ]);
+  });
+
+  test("the repo updates a theme and never deletes the last one", () => {
+    const fresh = fs.mkdtempSync(path.join(os.tmpdir(), "worship-songs-themes-"));
+    const opened = openDatabase(path.join(fresh, "themes.db"));
+    try {
+      runMigrations(opened.db, drizzleDir);
+      const songs = new SongsRepo(opened.db, opened.sqlite);
+      const a = songs.createTheme("A", DEFAULT_SONG_THEME);
+      const b = songs.createTheme("B", DEFAULT_SONG_THEME);
+      expect(songs.listThemes().map((t) => t.name)).toEqual(["A", "B"]);
+      expect(songs.updateTheme(b.id, "Bis", { ...DEFAULT_SONG_THEME, uppercase: true }).style.uppercase).toBe(true);
+      const dressed = songs.create(song("Con B", "a", { themeId: b.id }));
+      songs.deleteTheme(b.id);
+      expect(songs.get(dressed.id)?.themeId).toBeNull();
+      expect(() => songs.deleteTheme(a.id)).toThrow(IpcError);
     } finally {
       opened.sqlite.close();
       fs.rmSync(fresh, { recursive: true, force: true });

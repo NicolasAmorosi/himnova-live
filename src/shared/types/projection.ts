@@ -169,9 +169,16 @@ export type ProjectionOutputKind =
       songId: number;
       title: string;
       lines: readonly string[];
+      /** The copyright footer, on the slides its theme puts it on; `null` on
+       *  the rest (its place is kept anyway — see `SongFooter`). */
+      footer: readonly string[] | null;
       theme: SongTheme;
       backgroundUrl: string | null;
       sizeCqw: number;
+      /** The theme's fade between two slides of the song — the `slide`
+       *  variant's `enter`, with the same `seq` rule: a push re-sending the
+       *  same slide animates nothing. */
+      enter: SlideEnter | null;
     }
   | {
       kind: "timer";
@@ -409,6 +416,9 @@ export type BaseContent =
       slideIndex: number;
       detour: SongDetour | null;
       lyricsHidden: boolean;
+      /** Advances with every move inside the song — the identity of its
+       *  `enter`. */
+      enterSeq: number;
       theme: SongTheme;
       sizeCqw: number;
     };

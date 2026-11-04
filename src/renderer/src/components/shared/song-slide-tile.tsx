@@ -6,7 +6,7 @@ import type { SongDeckSlide, SongTheme } from "@shared/types/song";
 import { SECTION_FILL } from "./song-section-fill";
 import { SongScene, type SongSlideContent } from "./song-scene";
 import { useSongFit } from "@renderer/lib/song-fit";
-import { slideLines, songOutputFor } from "@renderer/lib/song-output";
+import { footerAt, slideLines, songOutputFor } from "@renderer/lib/song-output";
 import { findSong, resolveSong, themeForSong, useSongStore } from "@renderer/stores/song.store";
 
 /**
@@ -17,6 +17,7 @@ import { findSong, resolveSong, themeForSong, useSongStore } from "@renderer/sto
  */
 export function SongSlideTile({
   backgroundUrl,
+  footer,
   index,
   live,
   onClick,
@@ -28,6 +29,8 @@ export function SongSlideTile({
   theme,
 }: {
   backgroundUrl: string | null;
+  /** The footer, on the slide that carries it. */
+  footer: readonly string[] | null;
   index: number;
   live: boolean;
   onClick: () => void;
@@ -47,7 +50,7 @@ export function SongSlideTile({
       loading={sizeCqw === null}
       media={
         sizeCqw === null ? undefined : (
-          <SongSlideMedia content={{ backgroundUrl, lines: slide.lines, sizeCqw, theme }} />
+          <SongSlideMedia content={{ backgroundUrl, footer, lines: slide.lines, sizeCqw, theme }} />
         )
       }
       onClick={onClick}
@@ -74,9 +77,14 @@ export function SongSlideMedia({ content }: { content: SongSlideContent }) {
 export function SongFirstSlide({ songId }: { songId: number }) {
   const song = useSongStore((s) => findSong(s.songs, songId));
   const themes = useSongStore((s) => s.themes);
-  const resolved = song ? resolveSong(song) : null;
   const theme = song ? themeForSong(song, themes) : null;
+  const resolved = song && theme ? resolveSong(song, theme) : null;
   const fit = useSongFit(resolved, theme);
   if (!resolved || !theme || !fit) return null;
-  return <SongSlideMedia content={songOutputFor(resolved, slideLines(resolved, 1), theme, fit.sizeCqw)} />;
+  const first = { slideIndex: 1, detour: null };
+  return (
+    <SongSlideMedia
+      content={songOutputFor(resolved, slideLines(resolved, 1), theme, fit.sizeCqw, footerAt(resolved, theme, first))}
+    />
+  );
 }

@@ -99,6 +99,7 @@ const it: MainMessages = {
   songs: {
     invalid: "Il canto ha dei campi non validi.",
     invalidTitle: "Il titolo del canto non è valido.",
+    invalidTheme: "Il tema ha dei campi non validi.",
   },
   seed: {
     countdownName: "Conto alla rovescia 10 minuti",

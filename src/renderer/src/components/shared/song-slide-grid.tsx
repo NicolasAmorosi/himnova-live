@@ -1,7 +1,7 @@
 import { useT } from "@renderer/lib/i18n/i18n-provider";
 import { DECK_GRID_COLUMNS, SLIDE_GRID_GAP_PX, VirtualGrid, thumbTileHeight } from "@renderer/components/ui";
 import { useSongFit } from "@renderer/lib/song-fit";
-import { songBackgroundUrl } from "@renderer/lib/song-output";
+import { footerAt, songBackgroundUrl } from "@renderer/lib/song-output";
 import type { ResolvedSong, SongTheme } from "@shared/types/song";
 import { SongSlideTile } from "./song-slide-tile";
 
@@ -45,6 +45,7 @@ export function SongSlideGrid({
       renderItem={({ index, slide }, _i, { tabIndex }) => (
         <SongSlideTile
           backgroundUrl={backgroundUrl}
+          footer={footerAt(song, theme, { slideIndex: index, detour: null })}
           index={index}
           live={liveIndex === index}
           onClick={() => onSelect(index)}

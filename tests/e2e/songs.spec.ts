@@ -182,3 +182,36 @@ test("keys jump to a section: its next time, Shift the previous, and one off the
   await live.getByRole("button", { name: "Ocultar la letra (T)" }).click();
   await expect(projector.getByText("primera")).toBeHidden();
 });
+
+test("a theme edited in «Temas» dresses the live song, and the footer carries the church's licence", async ({ app }) => {
+  const { control } = app;
+  // The church's licence, in Ajustes ▸ Canciones.
+  await control.getByRole("button", { name: "Configuración" }).click();
+  const settings = control.getByRole("dialog", { name: "Configuración" });
+  await settings.getByRole("tab", { name: "Canciones" }).click();
+  await settings.getByRole("textbox", { name: "Licencia CCLI de la iglesia" }).fill("998877");
+  await settings.getByRole("textbox", { name: "Licencia CCLI de la iglesia" }).press("Enter");
+  await settings.getByRole("button", { name: "Cerrar" }).first().click();
+
+  await createSong(app, "Sublime gracia", GRACIA);
+  await songRows(app).first().click();
+  await app.goLive();
+  const projector = await app.projector();
+  await expect(projector.getByText("Sublime gracia del Señor")).toBeVisible();
+  // The footer is on the last slide only (the default theme's choice).
+  await expect(projector.locator("[data-song-footer]")).toHaveCount(0);
+  await app.control.keyboard.press("c");
+  await expect(projector.locator("[data-song-footer]")).toContainText("998877");
+
+  // Capitals, saved in the theme, reach the slide on the projector in place.
+  await tab(app).getByRole("button", { name: "Temas" }).click();
+  const themes = control.getByRole("dialog", { name: "Temas" });
+  await themes.getByRole("group", { name: "Mayúsculas", exact: true }).getByRole("switch").click();
+  await themes.getByRole("button", { name: "Guardar", exact: true }).click();
+  await expect(toast(app, "Se guardó «Predeterminado»")).toBeVisible();
+  await themes.getByRole("button", { name: "Cerrar" }).first().click();
+  await expect
+    .poll(() => projector.locator("[data-song-block]").last().evaluate((el) => getComputedStyle(el).textTransform))
+    .toBe("uppercase");
+  await expect(projector.getByText("Aleluya, aleluya")).toBeVisible();
+});

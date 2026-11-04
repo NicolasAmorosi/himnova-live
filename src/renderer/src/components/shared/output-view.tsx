@@ -24,6 +24,7 @@ import type {
   MediaStatus,
   ProjectionMediaError,
   ProjectionOutput,
+  SlideEnter,
   SlideVideo,
 } from "@shared/types/projection";
 
@@ -64,6 +65,12 @@ function canResync(element: HTMLVideoElement): boolean {
  * like that can never animate a scene fading into an identical copy of
  * itself, no matter which action produced it.
  */
+/** How a slide of the same scene arrives — a deck's slide by its file's own
+ *  transition, a song's by its theme's fade. */
+function entryOf(output: ProjectionOutput): SlideEnter | null {
+  return output.kind === "slide" || output.kind === "song" ? output.enter : null;
+}
+
 function sceneContentKey(output: ProjectionOutput): string {
   // `plates` is not the scene: putting a name on screen must not cross-fade
   // the stage under it (`PlateLayer` animates each plate on its own).
@@ -1081,7 +1088,7 @@ export function OutputView({
   const [transition, setTransition] = useState<LayerTransition>(output.transition);
   /** The last slide entry seen (`output.enter.seq`), so a push re-sending the
    *  same slide — a plate, a volume — does not play its way in again. */
-  const lastEnterSeqRef = useRef(output.kind === "slide" ? (output.enter?.seq ?? null) : null);
+  const lastEnterSeqRef = useRef(entryOf(output)?.seq ?? null);
 
   /**
    * The video hold. A transition INTO a video that has just been mounted waits,
@@ -1146,9 +1153,12 @@ export function OutputView({
     const sameContent = sceneContentKey(topRef.current.output) === sceneContentKey(output);
     // Within a scene, a slide the deck moved forward onto plays its own way
     // in (`enter`); a new scene plays the scene fade, whatever slide it opens.
-    const enter = output.kind === "slide" ? output.enter : null;
+    const enter = entryOf(output);
     const slideEntered =
-      sameEpoch && enter !== null && enter.seq !== lastEnterSeqRef.current && topRef.current.output.kind === "slide";
+      sameEpoch &&
+      enter !== null &&
+      enter.seq !== lastEnterSeqRef.current &&
+      topRef.current.output.kind === output.kind;
     lastEnterSeqRef.current = enter?.seq ?? null;
     const layerTransition: LayerTransition | null = !sameEpoch
       ? output.transition

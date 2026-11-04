@@ -6,7 +6,8 @@ import { findSong, resolveSong, themeForSong, useSongStore } from "@renderer/sto
 import { useProjectionStore } from "@renderer/stores/projection.store";
 import { usePreviewStore } from "@renderer/stores/preview.store";
 import { useProgramStore } from "@renderer/stores/program.store";
-import type { ResolvedSong, Song, SongTheme, SongUpsert, SongUsage } from "@shared/types/song";
+import type { ResolvedSong, Song, SongTheme, SongThemeRow, SongThemeUpsert, SongUpsert, SongUsage } from "@shared/types/song";
+import { useSettingsStore } from "@renderer/stores/settings.store";
 
 /**
  * The song library's writes, and keeping a live song in step with them.
@@ -34,8 +35,8 @@ export async function prepareSong(
   const { songs, themes } = useSongStore.getState();
   const song = findSong(songs, songId);
   if (!song) return null;
-  const resolved = resolveSong(song);
   const theme = themeForSong(song, themes);
+  const resolved = resolveSong(song, theme);
   const fit = await fitSongSize(resolved, theme, currentMeasureAspect());
   return { resolved, theme, sizeCqw: fit.sizeCqw };
 }
@@ -133,4 +134,39 @@ export async function songUsages(id: number): Promise<SongUsage[]> {
 export function isSongLive(id: number): boolean {
   const base = useProjectionStore.getState().base;
   return base?.kind === "song" && base.songId === id;
+}
+
+/** Creates or updates a theme; a live song dressed by it is re-dressed in
+ *  place, re-measured — its size depends on the theme. */
+export async function saveSongTheme(input: SongThemeUpsert): Promise<SongThemeRow | null> {
+  try {
+    const theme =
+      input.id === undefined
+        ? await api.songs.createTheme(input)
+        : await api.songs.updateTheme({ ...input, id: input.id });
+    await loadSongs();
+    await refreshLiveSong();
+    return theme;
+  } catch (error) {
+    console.warn("[songs] could not save the theme", error);
+    toast.danger(t("songThemes.saveError"));
+    return null;
+  }
+}
+
+/** Its songs go back to the default theme; a default that named it, to the
+ *  first (main resets the setting, mirrored here). */
+export async function deleteSongTheme(id: number): Promise<boolean> {
+  try {
+    await api.songs.removeTheme(id);
+    const settings = useSettingsStore.getState();
+    if (settings.settings["songs.defaultThemeId"] === id) await settings.update({ "songs.defaultThemeId": null });
+    await loadSongs();
+    await refreshLiveSong();
+    return true;
+  } catch (error) {
+    console.warn("[songs] could not delete the theme", error);
+    toast.danger(t("songThemes.deleteError"));
+    return false;
+  }
 }

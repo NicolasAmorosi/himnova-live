@@ -99,6 +99,7 @@ const en: MainMessages = {
   songs: {
     invalid: "The song has invalid fields.",
     invalidTitle: "The song title isn't valid.",
+    invalidTheme: "The theme has invalid fields.",
   },
   seed: {
     countdownName: "10-minute countdown",

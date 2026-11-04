@@ -1,6 +1,7 @@
 import { assetUrl } from "@shared/urls";
-import type { ProjectionOutputKind } from "@shared/types/projection";
-import type { ResolvedSong, SongTheme } from "@shared/types/song";
+import type { ProjectionOutputKind, SlideEnter } from "@shared/types/projection";
+import type { SongPosition } from "@shared/song-jump";
+import type { ResolvedSong, SongFooterShow, SongTheme } from "@shared/types/song";
 
 /** The theme's background as a url, when it is an image with a file —
  *  `timerOutputFor`'s sentinel: an image background without one yet is none. */
@@ -16,6 +17,30 @@ export function slideLines(song: ResolvedSong, slideIndex: number): readonly str
   return song.slides[index - 1]?.lines ?? [];
 }
 
+/** Whether the slide at `position` carries the footer. A detour does only
+ *  under «every slide»: it is no slide of the order. */
+export function footerShown(show: SongFooterShow, position: SongPosition, total: number): boolean {
+  if (position.detour) return show === "all";
+  const { slideIndex } = position;
+  switch (show) {
+    case "never":
+      return false;
+    case "first":
+      return slideIndex === 1;
+    case "last":
+      return slideIndex === total;
+    case "firstAndLast":
+      return slideIndex === 1 || slideIndex === total;
+    case "all":
+      return true;
+  }
+}
+
+/** The footer lines a slide shows, or `null`. */
+export function footerAt(song: ResolvedSong, theme: SongTheme, position: SongPosition): readonly string[] | null {
+  return song.footer.length > 0 && footerShown(theme.footer.show, position, song.slides.length) ? song.footer : null;
+}
+
 /**
  * One slide of a song as the projection window wants it — shared by
  * `selectOutput`, the PREVIEW monitor and every drawn tile, so none of them
@@ -26,14 +51,18 @@ export function songOutputFor(
   lines: readonly string[],
   theme: SongTheme,
   sizeCqw: number,
+  footer: readonly string[] | null = null,
+  enter: SlideEnter | null = null,
 ): Extract<ProjectionOutputKind, { kind: "song" }> {
   return {
     kind: "song",
     songId: song.id,
     title: song.title,
     lines,
+    footer,
     theme,
     backgroundUrl: songBackgroundUrl(theme),
     sizeCqw,
+    enter,
   };
 }

@@ -106,7 +106,7 @@ async function measure(song: ResolvedSong, theme: SongTheme, aspect: number): Pr
               width: `${STAGE_WIDTH_PX}px`,
             }}
           >
-            <SongScene content={{ backgroundUrl: null, lines, sizeCqw: max, theme }} />
+            <SongScene content={{ backgroundUrl: null, footer: null, lines, sizeCqw: max, theme }} />
           </div>
         )),
       ),

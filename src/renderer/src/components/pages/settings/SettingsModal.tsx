@@ -6,6 +6,7 @@ import { ModalTitle } from "@renderer/components/shared/modal";
 import { ProjectionSection } from "./sections/projection-section";
 import { VerseSection } from "./sections/verse/verse-section";
 import { BibleSection } from "./sections/bible-section";
+import { SongsSection } from "./sections/songs-section";
 import { SlidesSection } from "./sections/slides-section";
 import { SystemSection } from "./sections/system-section";
 import { AboutSection } from "./sections/about-section";
@@ -50,6 +51,7 @@ export function SettingsModal() {
     // a second, competing level of the category list right beside it.
     { icon: "text", label: t("settings.sections.verse"), value: "verse" },
     { icon: "bible", label: t("settings.sections.bible"), value: "bible" },
+    { icon: "song", label: t("settings.sections.songs"), value: "songs" },
     { icon: "settings", label: t("settings.sections.system"), value: "system" },
     { icon: "info", label: t("settings.sections.about"), value: "about" },
   ];
@@ -123,6 +125,8 @@ export function SettingsModal() {
                       <VerseSection />
                     ) : value === "bible" ? (
                       <BibleSection />
+                    ) : value === "songs" ? (
+                      <SongsSection />
                     ) : value === "system" ? (
                       <SystemSection />
                     ) : (

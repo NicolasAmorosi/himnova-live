@@ -86,6 +86,11 @@ export type SettingsMap = {
   /** Whether this database has ever been given its default song theme —
    *  `utility.seeded`'s rule: seeded once, so a deleted theme stays deleted. */
   "songs.seeded": boolean;
+  /** The theme a song without one of its own is drawn with. `null` = the
+   *  first theme. Reset to `null` by deleting the theme it names. */
+  "songs.defaultThemeId": number | null;
+  /** The church's CCLI licence number, for the copyright footer. */
+  "songs.ccliLicense": string | null;
   /** How a scripture verse is drawn on the projector — see `BibleStyle`.
    *  A JSON column in all but name, so it is the one settings key with a
    *  normalizer as well as a validator (`SETTINGS_NORMALIZERS`). */
@@ -139,6 +144,8 @@ export const DEFAULT_SETTINGS: SettingsMap = {
   "library.sort": { video: "name-asc", image: "name-asc", audio: "name-asc", ppt: "name-asc" },
   "utility.seeded": false,
   "songs.seeded": false,
+  "songs.defaultThemeId": null,
+  "songs.ccliLicense": null,
   "bible.style": DEFAULT_BIBLE_STYLE,
   "bible.defaultVersionId": null,
   "bible.builtinSeeded": false,
@@ -219,6 +226,8 @@ export const SETTINGS_VALIDATORS: Record<keyof SettingsMap, (value: unknown) => 
   "library.sort": isRecordOfKinds(isOneOf(MEDIA_SORT_ORDERS)),
   "utility.seeded": isBoolean,
   "songs.seeded": isBoolean,
+  "songs.defaultThemeId": (v) => v === null || (typeof v === "number" && Number.isInteger(v) && v > 0),
+  "songs.ccliLicense": (v) => v === null || (typeof v === "string" && v.length <= 100),
   "bible.style": isBibleStyle,
   "bible.defaultVersionId": (v) => v === null || (typeof v === "number" && Number.isInteger(v) && v > 0),
   "bible.builtinSeeded": isBoolean,

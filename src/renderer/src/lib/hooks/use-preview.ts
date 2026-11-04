@@ -12,8 +12,9 @@ import { platePreviewOutput } from "@renderer/lib/plate-output";
 import { useLiveVideoPoster } from "@renderer/lib/hooks/use-live-video-poster";
 import { findPlate, useOverlayStore } from "@renderer/stores/overlay.store";
 import { findSong, resolveSong, themeForSong, useSongStore } from "@renderer/stores/song.store";
-import { slideLines, songOutputFor } from "@renderer/lib/song-output";
+import { footerAt, slideLines, songOutputFor } from "@renderer/lib/song-output";
 import { useSongFit } from "@renderer/lib/song-fit";
+import { useSettingsStore } from "@renderer/stores/settings.store";
 import type { ResolvedSong, Song, SongTheme } from "@shared/types/song";
 import { assetUrl } from "@shared/urls";
 import type { MediaAsset } from "@shared/types/media";
@@ -45,9 +46,13 @@ export function usePreviewContent(): PreviewContent | null {
   const plates = useOverlayStore((s) => s.plates);
   const songs = useSongStore((s) => s.songs);
   const themes = useSongStore((s) => s.themes);
+  const defaultThemeId = useSettingsStore((s) => s.settings["songs.defaultThemeId"]);
+  const license = useSettingsStore((s) => s.settings["songs.ccliLicense"]);
   const songContent = (id: number): PreviewContent | null => {
     const song = findSong(songs, id);
-    return song ? { kind: "song", song, resolved: resolveSong(song), theme: themeForSong(song, themes) } : null;
+    if (!song) return null;
+    const theme = themeForSong(song, themes, defaultThemeId);
+    return { kind: "song", song, resolved: resolveSong(song, theme, license), theme };
   };
 
   const selectedIndex = useProgramStore((s) => s.selectedIndex);
@@ -274,7 +279,13 @@ function usePreviewOutputWithoutPlates(content: PreviewContent | null): Projecti
       // monitor never shows it at a size the projector will not use.
       if (!songFit) return null;
       return {
-        ...songOutputFor(content.resolved, slideLines(content.resolved, slideIndex), content.theme, songFit.sizeCqw),
+        ...songOutputFor(
+          content.resolved,
+          slideLines(content.resolved, slideIndex),
+          content.theme,
+          songFit.sizeCqw,
+          footerAt(content.resolved, content.theme, { slideIndex, detour: null }),
+        ),
         videoUnderlay: null,
         slideVideo: null,
         plates: [],

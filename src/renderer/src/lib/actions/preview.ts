@@ -5,7 +5,7 @@ import { usePreviewStore } from "@renderer/stores/preview.store";
 import { useProgramStore } from "@renderer/stores/program.store";
 import type { AssetKind } from "@shared/constants";
 import type { ProgramItemDTO } from "@shared/types/program";
-import { findSong, resolveSong, useSongStore } from "@renderer/stores/song.store";
+import { findSong, resolveSong, themeForSong, useSongStore } from "@renderer/stores/song.store";
 
 /**
  * Selecting something only ever previews it — nothing here touches
@@ -111,7 +111,7 @@ export function advancePreview(direction: 1 | -1): void {
   const assetId = previewDeckAssetId();
   if (!song && assetId === null) return;
   const total = song
-    ? resolveSong(song).slides.length
+    ? resolveSong(song, themeForSong(song, useSongStore.getState().themes)).slides.length
     : (useDeckStore.getState().byAssetId[assetId ?? -1]?.deck?.slides.length ?? 0);
   const next = slideIndex + direction;
   if (next < 1 || next > total) return;

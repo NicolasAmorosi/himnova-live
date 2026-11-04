@@ -278,6 +278,7 @@ async function goLiveWithSong(songId: number, startSlideIndex: number, intent: n
     slideIndex: Math.min(Math.max(1, startSlideIndex), prepared.resolved.slides.length),
     detour: null,
     lyricsHidden: false,
+    enterSeq: 0,
     theme: prepared.theme,
     sizeCqw: prepared.sizeCqw,
   });

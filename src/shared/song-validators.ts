@@ -6,6 +6,8 @@
  */
 import { parseSectionKey, sectionKey } from "./song-text";
 import {
+  isBoolean,
+  isColor,
   isIntegerIn,
   isNumberIn,
   isOneOf,
@@ -17,19 +19,32 @@ import {
   matchesAll,
   normalizeTextStyle,
 } from "./style-validators";
+import { TRANSITION_MAX_DURATION_MS } from "./types/transition";
 import { BIBLE_LINE_HEIGHT_MAX, BIBLE_LINE_HEIGHT_MIN, TEXT_ALIGNS } from "./types/bible-style";
 import { isSafeFontFamily, SCENE_VERTICAL_ALIGNS } from "./types/scene-style";
 import {
   DEFAULT_SONG_THEME,
+  SONG_FOOTER_ALIGNS,
+  SONG_FOOTER_SHOWS,
+  SONG_LETTER_SPACING_MAX_EM,
+  SONG_LETTER_SPACING_MIN_EM,
+  SONG_MAX_LINES_MAX,
+  SONG_OUTLINE_MAX_CQW,
+  SONG_THEME_NAME_MAX_LENGTH,
   SONG_MARGIN_MAX_CQW,
   SONG_SECTION_TYPES,
   SONG_SIZE_MAX_CQW,
   SONG_SIZE_MIN_CQW,
   SONG_THEME_VERSION,
+  type SongFooter,
+  type SongFooterFields,
   type SongMargins,
+  type SongOutline,
+  type SongSlideTransition,
   type SongSection,
   type SongSlide,
   type SongTheme,
+  type SongThemeUpsert,
   type SongUpsert,
 } from "./types/song";
 
@@ -57,6 +72,32 @@ const MARGIN_VALIDATORS: Record<keyof SongMargins, (v: unknown) => boolean> = {
 
 const isSize = isNumberIn(SONG_SIZE_MIN_CQW, SONG_SIZE_MAX_CQW);
 
+const OUTLINE_VALIDATORS: Record<keyof SongOutline, (v: unknown) => boolean> = {
+  enabled: isBoolean,
+  color: isColor,
+  widthCqw: isNumberIn(0.01, SONG_OUTLINE_MAX_CQW),
+};
+
+const FIELDS_VALIDATORS: Record<keyof SongFooterFields, (v: unknown) => boolean> = {
+  title: isBoolean,
+  authors: isBoolean,
+  copyright: isBoolean,
+  ccli: isBoolean,
+  license: isBoolean,
+};
+
+const FOOTER_VALIDATORS: Record<keyof SongFooter, (v: unknown) => boolean> = {
+  show: isOneOf(SONG_FOOTER_SHOWS),
+  fields: (v) => matchesAll(v, FIELDS_VALIDATORS),
+  text: isTextStyle,
+  align: isOneOf(SONG_FOOTER_ALIGNS),
+};
+
+const TRANSITION_VALIDATORS: Record<keyof SongSlideTransition, (v: unknown) => boolean> = {
+  style: isOneOf(["cut", "fade"]),
+  durationMs: isNumberIn(0, TRANSITION_MAX_DURATION_MS),
+};
+
 export const SONG_THEME_VALIDATORS: Record<keyof SongTheme, (v: unknown) => boolean> = {
   version: (v) => v === SONG_THEME_VERSION,
   background: isSceneBackground,
@@ -67,6 +108,12 @@ export const SONG_THEME_VALIDATORS: Record<keyof SongTheme, (v: unknown) => bool
   textAlign: isOneOf(TEXT_ALIGNS),
   verticalAlign: isOneOf(SCENE_VERTICAL_ALIGNS),
   margins: (v) => matchesAll(v, MARGIN_VALIDATORS),
+  uppercase: isBoolean,
+  letterSpacingEm: isNumberIn(SONG_LETTER_SPACING_MIN_EM, SONG_LETTER_SPACING_MAX_EM),
+  outline: (v) => matchesAll(v, OUTLINE_VALIDATORS),
+  maxLines: isIntegerIn(0, SONG_MAX_LINES_MAX),
+  footer: (v) => matchesAll(v, FOOTER_VALIDATORS),
+  slideTransition: (v) => matchesAll(v, TRANSITION_VALIDATORS),
 };
 
 export function isSongTheme(value: unknown): value is SongTheme {
@@ -80,6 +127,31 @@ function normalizeMargins(value: unknown, fallback: SongMargins): SongMargins {
     bottom: keepOr(isMargin(value.bottom), value.bottom, fallback.bottom),
     left: keepOr(isMargin(value.left), value.left, fallback.left),
     right: keepOr(isMargin(value.right), value.right, fallback.right),
+  };
+}
+
+/** Field by field against `validators`, falling back to `fallback`'s — the
+ *  one shape every nested group of the theme is read with. */
+function normalizeGroup<T extends object>(
+  value: unknown,
+  validators: Record<keyof T, (v: unknown) => boolean>,
+  fallback: T,
+): T {
+  if (!isRecord(value)) return fallback;
+  const out = { ...fallback };
+  for (const key of Object.keys(validators) as (keyof T)[]) {
+    if (validators[key](value[key as string])) out[key] = value[key as string] as T[keyof T];
+  }
+  return out;
+}
+
+function normalizeFooter(value: unknown, fallback: SongFooter): SongFooter {
+  if (!isRecord(value)) return fallback;
+  return {
+    show: keepOr(FOOTER_VALIDATORS.show(value.show), value.show, fallback.show),
+    fields: normalizeGroup(value.fields, FIELDS_VALIDATORS, fallback.fields),
+    text: normalizeTextStyle(value.text, fallback.text),
+    align: keepOr(FOOTER_VALIDATORS.align(value.align), value.align, fallback.align),
   };
 }
 
@@ -99,7 +171,23 @@ export function normalizeSongTheme(value: unknown): SongTheme {
     textAlign: keepOr(v.textAlign(value.textAlign), value.textAlign, d.textAlign),
     verticalAlign: keepOr(v.verticalAlign(value.verticalAlign), value.verticalAlign, d.verticalAlign),
     margins: normalizeMargins(value.margins, d.margins),
+    uppercase: keepOr(v.uppercase(value.uppercase), value.uppercase, d.uppercase),
+    letterSpacingEm: keepOr(v.letterSpacingEm(value.letterSpacingEm), value.letterSpacingEm, d.letterSpacingEm),
+    outline: normalizeGroup(value.outline, OUTLINE_VALIDATORS, d.outline),
+    maxLines: keepOr(v.maxLines(value.maxLines), value.maxLines, d.maxLines),
+    footer: normalizeFooter(value.footer, d.footer),
+    slideTransition: normalizeGroup(value.slideTransition, TRANSITION_VALIDATORS, d.slideTransition),
   };
+}
+
+export function isSongThemeName(value: unknown): boolean {
+  return typeof value === "string" && value.trim().length > 0 && value.length <= SONG_THEME_NAME_MAX_LENGTH;
+}
+
+export function isSongThemeUpsert(value: unknown): value is SongThemeUpsert {
+  if (!isRecord(value)) return false;
+  const { id, name, style } = value;
+  return (id === undefined || isId(id)) && isSongThemeName(name) && isSongTheme(style);
 }
 
 /* -------------------------------------------------------------------------

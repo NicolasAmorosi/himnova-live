@@ -16,18 +16,20 @@ import {
   IconButton,
   Input,
   Monitor,
+  Select,
   Textarea,
   Title,
 } from "@renderer/components/ui";
 import { toast } from "@renderer/lib/toast";
 import { useSongFit } from "@renderer/lib/song-fit";
-import { slideLines, songOutputFor } from "@renderer/lib/song-output";
+import { footerAt, slideLines, songOutputFor } from "@renderer/lib/song-output";
 import { deleteSong, duplicateSong, isSongLive, saveSong, songUsages } from "@renderer/lib/actions/songs";
-import { findSong, themeForSong, useSongStore } from "@renderer/stores/song.store";
+import { findSong, resolveSong, themeForSong, useSongStore } from "@renderer/stores/song.store";
+import { useSettingsStore } from "@renderer/stores/settings.store";
 import { INSTANT_TRANSITION, type ProjectionOutput } from "@shared/types/projection";
-import { missingOrderKeys, parseSectionKey, sectionLabel, serializeLyrics, songDeckSlides } from "@shared/song-text";
+import { missingOrderKeys, parseSectionKey, sectionLabel, serializeLyrics } from "@shared/song-text";
 import { SONG_FIELD_MAX_LENGTH, SONG_NOTES_MAX_LENGTH, SONG_TITLE_MAX_LENGTH } from "@shared/song-validators";
-import type { ResolvedSong, Song, SongUsage } from "@shared/types/song";
+import type { Song, SongUsage } from "@shared/types/song";
 import {
   emptySongDraft,
   isSongDraftSavable,
@@ -63,6 +65,8 @@ export function SongEditorModal({ onOpenChange, onSaved, open, songId }: SongEdi
   const { locale, t } = useI18n();
   const songs = useSongStore((s) => s.songs);
   const themes = useSongStore((s) => s.themes);
+  const defaultThemeId = useSettingsStore((s) => s.settings["songs.defaultThemeId"]);
+  const license = useSettingsStore((s) => s.settings["songs.ccliLicense"]);
   const [currentId, setCurrentId] = useState<number | null>(songId);
   const [draft, setDraft] = useState<SongDraft>(emptySongDraft);
   const [baseline, setBaseline] = useState<SongDraft>(emptySongDraft);
@@ -87,18 +91,14 @@ export function SongEditorModal({ onOpenChange, onSaved, open, songId }: SongEdi
   const parsed = useMemo(() => parseDraft(draft, locale), [draft, locale]);
   const baselineParsed = useMemo(() => parseDraft(baseline, locale), [baseline, locale]);
   const order = shownOrder(draft, parsed);
-  const theme = themeForSong({ themeId: draft.themeId }, themes);
-  const preview: ResolvedSong = useMemo(
-    () => ({
-      id: currentId ?? 0,
-      title: draft.title,
-      slides: songDeckSlides(parsed.sections, order),
-      sections: parsed.sections,
-    }),
-    // `order` is derived from these two.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [currentId, draft.title, draft.order, parsed],
+  const theme = themeForSong({ themeId: draft.themeId }, themes, defaultThemeId);
+  // The draft as a song, so the preview is resolved — split, footer and all —
+  // exactly as the projector will resolve it once saved.
+  const draftSong: Song = useMemo(
+    () => ({ ...toSongUpsert(draft, parsed, null), id: currentId ?? 0, updatedAt: 0 }),
+    [currentId, draft, parsed],
   );
+  const preview = resolveSong(draftSong, theme, license);
   const fit = useSongFit(preview, theme);
 
   const upsert = toSongUpsert(draft, parsed, null);
@@ -125,7 +125,13 @@ export function SongEditorModal({ onOpenChange, onSaved, open, songId }: SongEdi
   const output: ProjectionOutput | null =
     fit && preview.slides.length > 0
       ? {
-          ...songOutputFor(preview, slideLines(preview, slideIndex), theme, fit.sizeCqw),
+          ...songOutputFor(
+            preview,
+            slideLines(preview, slideIndex),
+            theme,
+            fit.sizeCqw,
+            footerAt(preview, theme, { slideIndex, detour: null }),
+          ),
           videoUnderlay: null,
           slideVideo: null,
           plates: [],
@@ -206,6 +212,18 @@ export function SongEditorModal({ onOpenChange, onSaved, open, songId }: SongEdi
                   onChange={(e) => patch({ title: e.target.value })}
                   size="sm"
                   value={draft.title}
+                />
+              </FieldRow>
+              <FieldRow description={t("songs.themeHint")} label={t("songs.theme")}>
+                <Select
+                  className="w-52"
+                  onChange={(value) => patch({ themeId: value === "" ? null : Number(value) })}
+                  options={[
+                    { label: t("songs.themeDefault"), value: "" },
+                    ...themes.map((row) => ({ label: row.name, value: String(row.id) })),
+                  ]}
+                  size="md"
+                  value={draft.themeId === null ? "" : String(draft.themeId)}
                 />
               </FieldRow>
               <FieldRow description={t("songs.numberHint")} label={t("songs.number")}>

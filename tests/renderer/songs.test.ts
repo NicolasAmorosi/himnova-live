@@ -46,10 +46,11 @@ function goLive(s: Song, slideIndex = 1) {
   store.setBase({
     kind: "song",
     songId: s.id,
-    song: resolveSong(s),
+    song: resolveSong(s, DEFAULT_SONG_THEME, null),
     slideIndex,
     detour: null,
     lyricsHidden: false,
+    enterSeq: 0,
     theme: DEFAULT_SONG_THEME,
     sizeCqw: 4.2,
   });
@@ -90,7 +91,7 @@ describe("a live song", () => {
 
     // A word fixed in the chorus.
     const after = song("[Estrofa 1]\nuno\n\ndos\n\n[Coro]\ncoro corregido\n\n[Estrofa 2]\ntres", ["v1", "c1", "v2", "c1"]);
-    const resolved = resolveSong(after);
+    const resolved = resolveSong(after, DEFAULT_SONG_THEME, null);
     const base = useProjectionStore.getState().base;
     if (base?.kind !== "song") throw new Error("unreachable");
     useProjectionStore
@@ -105,7 +106,7 @@ describe("a live song", () => {
   test("saving another song changes nothing on the projector", () => {
     goLive(song(LYRICS));
     const before = selectOutputMemo(useProjectionStore.getState());
-    const other = resolveSong(song("[Coro]\notra", [], 8));
+    const other = resolveSong(song("[Coro]\notra", [], 8), DEFAULT_SONG_THEME, null);
     useProjectionStore.getState().setLiveSong(other, DEFAULT_SONG_THEME, 5, 1);
     expect(selectOutputMemo(useProjectionStore.getState())).toBe(before);
   });
@@ -127,25 +128,69 @@ describe("jumps and hidden lyrics on the projector", () => {
     useProjectionStore.getState().setSongPosition({ slideIndex: 2, detour: { sectionKey: "v2", slideIndex: 1, returnTo: 2 } });
     expect(selectOutput(useProjectionStore.getState())).toMatchObject({ lines: ["tres"] });
 
-    const edited = resolveSong(song(LYRICS.replace("tres", "tres bis"), ["v1", "c1"]));
+    const edited = resolveSong(song(LYRICS.replace("tres", "tres bis"), ["v1", "c1"]), DEFAULT_SONG_THEME, null);
     useProjectionStore.getState().setLiveSong(edited, DEFAULT_SONG_THEME, 4.2, 2);
     expect(selectOutput(useProjectionStore.getState())).toMatchObject({ lines: ["tres bis"] });
 
-    const without = resolveSong(song("[Estrofa 1]\nuno\n\ndos\n\n[Coro]\ncoro", ["v1", "c1"]));
+    const without = resolveSong(song("[Estrofa 1]\nuno\n\ndos\n\n[Coro]\ncoro", ["v1", "c1"]), DEFAULT_SONG_THEME, null);
     useProjectionStore.getState().setLiveSong(without, DEFAULT_SONG_THEME, 4.2, 2);
     expect(selectOutput(useProjectionStore.getState())).toMatchObject({ lines: ["dos"] });
   });
 });
 
+describe("the theme on the projector (F3)", () => {
+  test("the footer is on the slides the theme says, and a move fades with the theme", () => {
+    const s = song(LYRICS);
+    const store = useProjectionStore.getState();
+    store.beginScene();
+    store.setBase({
+      kind: "song",
+      songId: s.id,
+      song: resolveSong(s, DEFAULT_SONG_THEME, "999"),
+      slideIndex: 1,
+      detour: null,
+      lyricsHidden: false,
+      enterSeq: 0,
+      theme: DEFAULT_SONG_THEME,
+      sizeCqw: 4,
+    });
+    // The first slide: no footer (it is on the last), and the scene's own way in.
+    expect(selectOutput(useProjectionStore.getState())).toMatchObject({ footer: null, enter: null });
+    useProjectionStore.getState().setSongPosition({ slideIndex: 4, detour: null });
+    const last = selectOutput(useProjectionStore.getState());
+    if (last.kind !== "song") throw new Error("unreachable");
+    expect(last.footer?.[0]).toBe("Sublime gracia");
+    expect(last.footer?.[1]).toContain("999");
+    expect(last.enter).toEqual({ style: "crossfade", durationMs: 300, seq: 1 });
+  });
+
+  test("lines per slide come from the theme, and the default theme from Settings", () => {
+    const s = song("[Coro]\nuno\ndos\ntres");
+    expect(resolveSong(s, { ...DEFAULT_SONG_THEME, maxLines: 2 }, null).slides.map((slide) => slide.lines)).toEqual([
+      ["uno", "dos"],
+      ["tres"],
+    ]);
+    const a = { ...DEFAULT_SONG_THEME, lineHeight: 1 };
+    const b = { ...DEFAULT_SONG_THEME, lineHeight: 2 };
+    const rows = [
+      { id: 1, name: "A", style: a },
+      { id: 2, name: "B", style: b },
+    ];
+    expect(themeForSong({ themeId: null }, rows, 2)).toBe(b);
+    expect(themeForSong({ themeId: 1 }, rows, 2)).toBe(a);
+    expect(themeForSong({ themeId: null }, rows, null)).toBe(a);
+  });
+});
+
 describe("where the operator lands after an edit", () => {
-  const was = resolveSong(song(LYRICS, ["v1", "c1", "v2", "c1"]));
+  const was = resolveSong(song(LYRICS, ["v1", "c1", "v2", "c1"]), DEFAULT_SONG_THEME, null);
 
   test("the same pass and slide, else the same section, else the pass, else the number", () => {
-    expect(sameSlideIn(was, 2, resolveSong(song(LYRICS, ["v1", "c1", "v2", "c1"])))).toBe(2);
+    expect(sameSlideIn(was, 2, resolveSong(song(LYRICS, ["v1", "c1", "v2", "c1"]), DEFAULT_SONG_THEME, null))).toBe(2);
     // The chorus's second pass, after the order lost a verse.
-    expect(sameSlideIn(was, 5, resolveSong(song(LYRICS, ["v1", "c1", "c1"])))).toBe(3);
+    expect(sameSlideIn(was, 5, resolveSong(song(LYRICS, ["v1", "c1", "c1"]), DEFAULT_SONG_THEME, null))).toBe(3);
     // The second slide of verse 1 is gone: its pass.
-    expect(sameSlideIn(was, 2, resolveSong(song("[Estrofa 1]\nuno\n\n[Coro]\ncoro", ["v1", "c1"])))).toBe(1);
+    expect(sameSlideIn(was, 2, resolveSong(song("[Estrofa 1]\nuno\n\n[Coro]\ncoro", ["v1", "c1"]), DEFAULT_SONG_THEME, null))).toBe(1);
   });
 });
 

@@ -42,7 +42,7 @@ import type { SettingsMap } from "../types/settings";
 import type { GpuStatus, InternalsPage, VideoDecoderReport } from "../types/system";
 import type { UtilityScene, UtilitySceneUpsert, UtilitySceneUsage } from "../types/utility";
 import type { Plate, PlateUpsert, PlateUsage } from "../types/overlay";
-import type { Song, SongSearchHit, SongThemeRow, SongUpsert, SongUsage } from "../types/song";
+import type { Song, SongSearchHit, SongThemeRow, SongThemeUpsert, SongUpsert, SongUsage } from "../types/song";
 import type { CloseDecision } from "../types/window";
 import type { UpdateStatus } from "../types/updates";
 
@@ -302,6 +302,12 @@ export type IpcContract = {
   /** Title, number, authors and lyrics, without accents (FTS5), best first. */
   "song:search": { req: { query: string; limit?: number }; res: SongSearchHit[] };
   "songTheme:list": { req: void; res: SongThemeRow[] };
+  /** Validated whole (`isSongThemeUpsert`). A new theme goes to the bottom. */
+  "songTheme:create": { req: SongThemeUpsert; res: SongThemeRow };
+  "songTheme:update": { req: SongThemeUpsert & { id: number }; res: SongThemeRow };
+  /** Refused as `SONG_THEME_LAST` for the last one. Its songs go back to the
+   *  default theme, and a default that named it goes back to the first. */
+  "songTheme:delete": { req: { id: number }; res: void };
 
   "settings:get": { req: void; res: SettingsMap };
   "settings:set": { req: Partial<SettingsMap>; res: void };

@@ -92,24 +92,66 @@ export type SongDeckSlide = {
 };
 
 /** What the projector and the monitors need of a song: nothing to resolve.
- *  `sections` are there for a jump to one that is not in the order. */
+ *  `sections` are there for a jump to one that is not in the order; both are
+ *  already split to the theme's lines per slide. `footer` is the copyright
+ *  footer's lines, composed (`songFooterLines`) — whether a slide shows it is
+ *  the theme's `footer.show`. */
 export type ResolvedSong = {
   id: number;
   title: string;
   slides: SongDeckSlide[];
   sections: SongSection[];
+  footer: readonly string[];
 };
 
 /** Margins of the text block, in `cqw` (width of the stage), every side —
  *  `cqw` and never `cqh` for `OutputView`'s reason. */
 export type SongMargins = { top: number; bottom: number; left: number; right: number };
 
+/** Which slides carry the copyright footer — ProPresenter's and FreeShow's set. */
+export const SONG_FOOTER_SHOWS = ["never", "first", "last", "firstAndLast", "all"] as const;
+export type SongFooterShow = (typeof SONG_FOOTER_SHOWS)[number];
+
+export const SONG_FOOTER_ALIGNS = ["left", "center", "right"] as const;
+export type SongFooterAlign = (typeof SONG_FOOTER_ALIGNS)[number];
+
+/** What the footer says, each piece only when the song has it. */
+export type SongFooterFields = {
+  title: boolean;
+  authors: boolean;
+  copyright: boolean;
+  ccli: boolean;
+  /** The church's CCLI licence (Settings ▸ Songs). */
+  license: boolean;
+};
+
+/**
+ * The copyright footer. Its own size, outside the song's one size, and its
+ * place is kept on EVERY slide whenever it is on (owner, 2026-11-04), so the
+ * lyrics never move when it appears on the last one.
+ */
+export type SongFooter = {
+  show: SongFooterShow;
+  fields: SongFooterFields;
+  text: SceneTextStyle;
+  align: SongFooterAlign;
+};
+
+/** A drawn outline around each letter — what reads over a photo. */
+export type SongOutline = { enabled: boolean; color: string; widthCqw: number };
+
+/** Between two slides of the same song: a cut, or a fade of `durationMs`. */
+export type SongSlideTransition = { style: "cut" | "fade"; durationMs: number };
+
+/** The footer's lines: at most two, so the place it keeps is known. */
+export const SONG_FOOTER_LINES = 2;
+
 export const SONG_THEME_VERSION = 1;
 
 /**
- * How a song looks. F1 carries only what `SongScene` draws today; the theme
- * editor (F3) adds its knobs as new fields, each a branch in
- * `normalizeSongTheme` that falls back to its default.
+ * How a song looks — every knob of the theme editor (owner: «que se puedan
+ * editar espacios, tamaños, colores»). A field added later is a branch in
+ * `normalizeSongTheme` that falls back to its default, never a migration.
  */
 export type SongTheme = {
   version: typeof SONG_THEME_VERSION;
@@ -124,13 +166,30 @@ export type SongTheme = {
   textAlign: TextAlign;
   verticalAlign: SceneVerticalAlign;
   margins: SongMargins;
+  /** CAPITALS on screen; the stored lyrics keep their case. */
+  uppercase: boolean;
+  /** CSS `letter-spacing`, in `em`. */
+  letterSpacingEm: number;
+  outline: SongOutline;
+  /** A slide with more lines is split when it is drawn, never when it is
+   *  saved. 0 = no limit. */
+  maxLines: number;
+  footer: SongFooter;
+  slideTransition: SongSlideTransition;
 };
+
+export type SongThemeUpsert = { id?: number; name: string; style: SongTheme };
 
 export type SongThemeRow = { id: number; name: string; style: SongTheme };
 
 export const SONG_SIZE_MIN_CQW = 0.5;
 export const SONG_SIZE_MAX_CQW = 30;
 export const SONG_MARGIN_MAX_CQW = 40;
+export const SONG_LETTER_SPACING_MIN_EM = -0.1;
+export const SONG_LETTER_SPACING_MAX_EM = 0.5;
+export const SONG_OUTLINE_MAX_CQW = 1;
+export const SONG_MAX_LINES_MAX = 20;
+export const SONG_THEME_NAME_MAX_LENGTH = 80;
 
 /** Lyrics are read standing, from the back: bigger than a verse (3.5 / 1.5). */
 export const SONG_DEFAULT_MAX_CQW = 6;
@@ -155,6 +214,19 @@ export const DEFAULT_SONG_THEME: SongTheme = {
   verticalAlign: "middle",
   // The verse's 88 cqw column and its 4.5 cqw title-safe gutter.
   margins: { top: 4.5, bottom: 4.5, left: 6, right: 6 },
+  uppercase: false,
+  letterSpacingEm: 0,
+  outline: { enabled: false, color: "#000000", widthCqw: 0.12 },
+  maxLines: 0,
+  // On the last slide (owner, 2026-11-04), saying everything the song has.
+  footer: {
+    show: "last",
+    fields: { title: true, authors: true, copyright: true, ccli: true, license: true },
+    text: { sizeCqw: 1.4, color: "#eef2f6", weight: 400, shadow: true, shadowStrength: DEFAULT_SHADOW_STRENGTH },
+    align: "center",
+  },
+  // A short fade between slides of the same song (owner, 2026-11-04).
+  slideTransition: { style: "fade", durationMs: 300 },
 };
 
 /**
@@ -174,4 +246,22 @@ export function songThemeFromBibleStyle(style: BibleStyle): SongTheme {
     verticalAlign: style.verticalAlign,
     margins: { ...DEFAULT_SONG_THEME.margins, left: side, right: side },
   };
+}
+
+/** The footer's lines for a song: «Title — Authors», then «© … · CCLI n.º … ·
+ *  Licence …», each piece only when it is on and the song has it. `labels`
+ *  are the interface's words for the two CCLI numbers. */
+export function songFooterLines(
+  song: Pick<Song, "title" | "authors" | "copyright" | "ccliNumber">,
+  fields: SongFooterFields,
+  license: string | null,
+  labels: { ccli: string; license: string },
+): string[] {
+  const first = [fields.title ? song.title : null, fields.authors ? song.authors : null].filter(Boolean);
+  const second = [
+    fields.copyright && song.copyright ? `© ${song.copyright.replace(/^©\s*/, "")}` : null,
+    fields.ccli && song.ccliNumber ? `${labels.ccli} ${song.ccliNumber}` : null,
+    fields.license && license ? `${labels.license} ${license}` : null,
+  ].filter(Boolean);
+  return [first.join(" — "), second.join(" · ")].filter((line) => line !== "");
 }

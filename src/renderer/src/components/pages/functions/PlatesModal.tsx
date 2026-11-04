@@ -19,7 +19,7 @@ import type { MediaAsset } from "@shared/types/media";
 import type { Plate, PlateUsage } from "@shared/types/overlay";
 import { emptyPlateDraft, isPlateDraftSavable, toPlateDraft, toPlateUpsert, type PlateDraft } from "./plate-draft";
 import { EditorActions } from "@renderer/components/shared/editor-actions";
-import { EditorHeader } from "./editor-header";
+import { EditorHeader } from "@renderer/components/shared/editor-header";
 import { PlateForm } from "./plate-form";
 import { PlatePreview } from "./plate-preview";
 import { PLATE_KIND_ICON, PLATE_KIND_LABEL } from "./plate-display";

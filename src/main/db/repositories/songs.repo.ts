@@ -171,4 +171,24 @@ export class SongsRepo {
       .run().lastInsertRowid as number;
     return toThemeRow(this.db.select().from(songThemes).where(eq(songThemes.id, id)).get()!);
   }
+
+  updateTheme(id: number, name: string, style: SongTheme): SongThemeRow {
+    this.db
+      .update(songThemes)
+      .set({ name, styleJson: JSON.stringify(style), updatedAt: Date.now() })
+      .where(eq(songThemes.id, id))
+      .run();
+    const row = this.db.select().from(songThemes).where(eq(songThemes.id, id)).get();
+    if (!row) throw new IpcError({ code: "SONG_THEME_NOT_FOUND", message: `Song theme ${id} not found` });
+    return toThemeRow(row);
+  }
+
+  /** The last theme is never deleted — a song always has a look to fall back
+   *  to. Its songs go back to the default theme (`theme_id` is `set null`). */
+  deleteTheme(id: number): void {
+    if (this.listThemes().length <= 1) {
+      throw new IpcError({ code: "SONG_THEME_LAST", message: "The last song theme cannot be deleted" });
+    }
+    this.db.delete(songThemes).where(eq(songThemes.id, id)).run();
+  }
 }

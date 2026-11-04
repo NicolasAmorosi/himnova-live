@@ -2,12 +2,25 @@ import { cn } from "@renderer/lib/utils";
 import { sceneTextCss } from "./scene-text";
 import { cssFontFamily, cssSceneBackground, type SceneVerticalAlign } from "@shared/types/scene-style";
 import type { ProjectionOutput } from "@shared/types/projection";
+import { SONG_FOOTER_LINES, type SongTheme } from "@shared/types/song";
 
 export type SongOutput = Extract<ProjectionOutput, { kind: "song" }>;
 
 /** What a slide needs to be drawn — the output minus its identity, so a tile
  *  and the size measurer draw it through this same markup. */
-export type SongSlideContent = Pick<SongOutput, "backgroundUrl" | "lines" | "sizeCqw" | "theme">;
+export type SongSlideContent = Pick<SongOutput, "backgroundUrl" | "footer" | "lines" | "sizeCqw" | "theme">;
+
+/** The footer's own leading. */
+const FOOTER_LINE_HEIGHT = 1.25;
+/** Between the lyrics and the footer, in `cqw`. */
+const FOOTER_GAP_CQW = 1;
+
+/** The height the footer keeps at the bottom of EVERY slide while it is on,
+ *  in `cqw` — so the lyrics never move when it appears (owner, 2026-11-04). */
+function footerReserveCqw(theme: SongTheme): number {
+  if (theme.footer.show === "never") return 0;
+  return SONG_FOOTER_LINES * theme.footer.text.sizeCqw * FOOTER_LINE_HEIGHT + FOOTER_GAP_CQW;
+}
 
 const VERTICAL_ALIGN: Record<SceneVerticalAlign, string> = {
   top: "justify-start",
@@ -33,10 +46,12 @@ export function SongScene({
   content: SongSlideContent;
   onImageError?: ((url: string) => void) | undefined;
 }) {
-  const { backgroundUrl, lines, sizeCqw, theme } = content;
+  const { backgroundUrl, footer, lines, sizeCqw, theme } = content;
   const background = cssSceneBackground(theme.background);
   const imageBackground = theme.background.kind === "image" ? theme.background : null;
   const { bottom, left, right, top } = theme.margins;
+  const reserve = footerReserveCqw(theme);
+  const { outline } = theme;
 
   return (
     <>
@@ -55,7 +70,7 @@ export function SongScene({
       <div
         className={cn("absolute inset-0 flex flex-col", VERTICAL_ALIGN[theme.verticalAlign])}
         data-song-stage=""
-        style={{ padding: `${top}cqw ${right}cqw ${bottom}cqw ${left}cqw` }}
+        style={{ padding: `${top}cqw ${right}cqw ${bottom + reserve}cqw ${left}cqw` }}
       >
         {/* Clipped like the verse: below the theme's floor, what does not fit
             is cut at the margin, and the editor says so. */}
@@ -68,6 +83,12 @@ export function SongScene({
             fontFamily: cssFontFamily(theme.fontFamily),
             lineHeight: theme.lineHeight,
             textAlign: theme.textAlign,
+            letterSpacing: `${theme.letterSpacingEm}em`,
+            textTransform: theme.uppercase ? "uppercase" : undefined,
+            // Drawn under the fill, so it widens each letter outward.
+            ...(outline.enabled
+              ? { WebkitTextStroke: `${outline.widthCqw * 2}cqw ${outline.color}`, paintOrder: "stroke fill" }
+              : {}),
           }}
         >
           {lines.map((line, index) => (
@@ -76,6 +97,29 @@ export function SongScene({
           ))}
         </div>
       </div>
+
+      {footer && footer.length > 0 ? (
+        <div
+          className="absolute flex flex-col justify-end overflow-hidden"
+          data-song-footer=""
+          style={{
+            ...sceneTextCss(theme.footer.text),
+            bottom: `${bottom}cqw`,
+            fontFamily: cssFontFamily(theme.fontFamily),
+            height: `${reserve - FOOTER_GAP_CQW}cqw`,
+            left: `${left}cqw`,
+            lineHeight: FOOTER_LINE_HEIGHT,
+            right: `${right}cqw`,
+            textAlign: theme.footer.align,
+          }}
+        >
+          {footer.map((line, index) => (
+            <p className="truncate" key={index}>
+              {line}
+            </p>
+          ))}
+        </div>
+      ) : null}
     </>
   );
 }

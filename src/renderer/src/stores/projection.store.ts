@@ -24,7 +24,7 @@ import type { SlideTextSettings } from "@shared/types/slide-model";
 import { bibleOutputFor } from "@renderer/lib/bible-output";
 import { timerOutputFor } from "@renderer/lib/utility-output";
 import { plateOutputFor } from "@renderer/lib/plate-output";
-import { songOutputFor } from "@renderer/lib/song-output";
+import { footerAt, songOutputFor } from "@renderer/lib/song-output";
 import { linesAt, type SongPosition } from "@shared/song-jump";
 import type { ResolvedSong, SongTheme } from "@shared/types/song";
 import { defaultMediaVolume } from "@renderer/stores/settings.store";
@@ -440,7 +440,17 @@ export const useProjectionStore = create<ProjectionStoreState>()(
           slideIndex === base.slideIndex &&
           JSON.stringify(position.detour) === JSON.stringify(base.detour) &&
           !base.lyricsHidden;
-        return same ? state : { base: { ...base, slideIndex, detour: position.detour, lyricsHidden: false } };
+        return same
+          ? state
+          : {
+              base: {
+                ...base,
+                slideIndex,
+                detour: position.detour,
+                lyricsHidden: false,
+                enterSeq: base.enterSeq + 1,
+              },
+            };
       }),
 
     setLyricsHidden: (hidden) =>
@@ -694,12 +704,22 @@ function selectOutputWithoutUnderlay(state: ProjectionStoreState): ProjectionOut
       // translate the same scene differently.
       return timerOutputFor(state.base.scene, state.base.clock);
     case "song":
+    {
+      const { base } = state;
+      // The first slide enters with the scene's own transition; every move
+      // after it, with the theme's fade (`enterSeq` is its identity).
+      const fade = base.theme.slideTransition;
       return songOutputFor(
-        state.base.song,
-        state.base.lyricsHidden ? [] : linesAt(state.base.song, state.base),
-        state.base.theme,
-        state.base.sizeCqw,
+        base.song,
+        base.lyricsHidden ? [] : linesAt(base.song, base),
+        base.theme,
+        base.sizeCqw,
+        base.lyricsHidden ? null : footerAt(base.song, base.theme, base),
+        fade.style === "fade" && fade.durationMs > 0 && base.enterSeq > 0
+          ? { style: "crossfade", durationMs: fade.durationMs, seq: base.enterSeq }
+          : null,
       );
+    }
   }
 }
 

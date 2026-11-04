@@ -26,6 +26,7 @@ import { useProjectionStore } from "@renderer/stores/projection.store";
 import { parseSnippet } from "@shared/types/bible";
 import type { Song, SongSearchHit } from "@shared/types/song";
 import { SongEditorModal } from "./SongEditorModal";
+import { SongThemesModal } from "./SongThemesModal";
 
 /** One query per pause in typing, not per keystroke. */
 const SEARCH_DEBOUNCE_MS = 150;
@@ -48,6 +49,7 @@ export function SongsBrowser() {
   const [query, setQuery] = useState("");
   const [hits, setHits] = useState<SongSearchHit[] | null>(null);
   const [editing, setEditing] = useState<{ songId: number | null } | null>(null);
+  const [themesOpen, setThemesOpen] = useState(false);
   const requestRef = useRef(0);
 
   const previewedId = target?.kind === "song" ? target.songId : null;
@@ -174,6 +176,11 @@ export function SongsBrowser() {
             <Icon name="pencil" />
           </IconButton>
         </Tooltip>
+        <Tooltip content={t("songThemes.manageHint")} floating>
+          <IconButton aria-label={t("songThemes.title")} onClick={() => setThemesOpen(true)} size="sm" variant="outline">
+            <Icon name="palette" />
+          </IconButton>
+        </Tooltip>
         <Tooltip className="ml-auto" content={t("resources.addToScheduleHint")} placement="top">
           <IconButton
             aria-label={t("resources.addToSchedule")}
@@ -202,6 +209,16 @@ export function SongsBrowser() {
           open={editing !== null}
           songId={editing?.songId ?? null}
         />
+      </ModalBoundary>
+
+      <ModalBoundary
+        onCrash={() => {
+          setThemesOpen(false);
+          toast.danger(t("app.modalCrashed"));
+        }}
+        open={themesOpen}
+      >
+        <SongThemesModal onOpenChange={setThemesOpen} open={themesOpen} />
       </ModalBoundary>
     </>
   );

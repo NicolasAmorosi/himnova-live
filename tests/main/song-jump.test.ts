@@ -13,7 +13,13 @@ const { sections } = parseLyrics(
   "es",
 );
 // v1 v1 | c | v2 | c   — the bridge and the ending are not in the order.
-const song: ResolvedSong = { id: 1, title: "", sections, slides: songDeckSlides(sections, ["v1", "c1", "v2", "c1"]) };
+const song: ResolvedSong = {
+  id: 1,
+  title: "",
+  sections,
+  slides: songDeckSlides(sections, ["v1", "c1", "v2", "c1"]),
+  footer: [],
+};
 const at = (slideIndex: number): SongPosition => ({ slideIndex, detour: null });
 const chorus = { type: "chorus" as const, number: null };
 

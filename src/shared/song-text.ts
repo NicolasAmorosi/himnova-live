@@ -381,6 +381,19 @@ export function missingOrderKeys(sections: readonly SongSection[], order: readon
   return [...new Set(order.filter((key) => !known.has(key)))];
 }
 
+/** A section with every slide of more than `maxLines` lines split into
+ *  slides of at most that many (0 = as written) — done when drawn, never
+ *  when saved, so changing the theme changes nothing stored. */
+export function splitSection(section: SongSection, maxLines: number): SongSection {
+  if (maxLines <= 0 || section.slides.every((slide) => slide.lines.length <= maxLines)) return section;
+  const slides = section.slides.flatMap((slide) => {
+    const chunks: { lines: string[] }[] = [];
+    for (let i = 0; i < slide.lines.length; i += maxLines) chunks.push({ lines: slide.lines.slice(i, i + maxLines) });
+    return chunks;
+  });
+  return { ...section, slides };
+}
+
 /** The slides of the song as projected: the order (or the sections as
  *  written, when it is empty) expanded, each slide knowing where it came from. */
 export function songDeckSlides(sections: readonly SongSection[], order: readonly string[]): SongDeckSlide[] {

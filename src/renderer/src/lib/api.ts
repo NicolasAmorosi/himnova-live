@@ -17,7 +17,7 @@ import type {
 import type { SettingsMap } from "@shared/types/settings";
 import type { UtilitySceneUpsert } from "@shared/types/utility";
 import type { PlateUpsert } from "@shared/types/overlay";
-import type { SongUpsert } from "@shared/types/song";
+import type { SongThemeUpsert, SongUpsert } from "@shared/types/song";
 import type { CloseDecision } from "@shared/types/window";
 import type { DecoderSupport } from "@shared/types/media";
 
@@ -142,6 +142,9 @@ export const api = {
     usages: (id: number) => invoke("song:usages", { id }),
     search: (query: string) => invoke("song:search", { query }),
     themes: () => invoke("songTheme:list", undefined),
+    createTheme: (input: SongThemeUpsert) => invoke("songTheme:create", input),
+    updateTheme: (input: SongThemeUpsert & { id: number }) => invoke("songTheme:update", input),
+    removeTheme: (id: number) => invoke("songTheme:delete", { id }),
   },
   settings: {
     get: () => invoke("settings:get", undefined),
