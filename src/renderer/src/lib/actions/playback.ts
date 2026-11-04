@@ -24,6 +24,7 @@ import { playableAssetUrl } from "@renderer/stores/engine-assets.store";
 import { getCachedMediaAsset } from "@renderer/lib/hooks/use-media-asset";
 import type { AssetKind } from "@shared/constants";
 import { prepareSong } from "@renderer/lib/actions/songs";
+import { jumpTo, stepSong, type SongJumpTarget } from "@shared/song-jump";
 
 let videoEpoch = 0;
 
@@ -275,6 +276,8 @@ async function goLiveWithSong(songId: number, startSlideIndex: number, intent: n
     songId,
     song: prepared.resolved,
     slideIndex: Math.min(Math.max(1, startSlideIndex), prepared.resolved.slides.length),
+    detour: null,
+    lyricsHidden: false,
     theme: prepared.theme,
     sizeCqw: prepared.sizeCqw,
   });
@@ -282,20 +285,43 @@ async function goLiveWithSong(songId: number, startSlideIndex: number, intent: n
   return true;
 }
 
-/** ←/→ on the live song: a cut, like a verse. */
+/** ←/→ on the live song: a cut, like a verse — through a detour and back to
+ *  the order after it (`stepSong`). */
 export function advanceSong(direction: 1 | -1): void {
-  const { base, setSongSlide } = useProjectionStore.getState();
+  const { base, setSongPosition } = useProjectionStore.getState();
   if (base?.kind !== "song") return;
-  const next = base.slideIndex + direction;
-  if (next < 1 || next > base.song.slides.length) return;
+  const next = stepSong(base.song, base, direction);
+  if (!next) return;
   claimLiveIntent();
-  setSongSlide(next);
+  setSongPosition(next);
 }
 
+/** A slide of the order, from the LIVE grid: leaves any detour. */
 export function gotoSongSlide(index: number): void {
   if (useProjectionStore.getState().base?.kind !== "song") return;
   claimLiveIntent();
-  useProjectionStore.getState().setSongSlide(index);
+  useProjectionStore.getState().setSongPosition({ slideIndex: index, detour: null });
+}
+
+/** A section's key or button: its next time in the order (`direction` 1),
+ *  or its previous one (-1, Shift); a detour when it is not there. Says
+ *  whether the song moved. */
+export function jumpSong(target: SongJumpTarget, direction: 1 | -1): boolean {
+  const { base, setSongPosition } = useProjectionStore.getState();
+  if (base?.kind !== "song") return false;
+  const next = jumpTo(base.song, base, target, direction);
+  if (!next) return false;
+  claimLiveIntent();
+  setSongPosition(next);
+  return true;
+}
+
+/** T: the live song's lyrics off the projector — its background stays — or back. */
+export function toggleSongLyrics(): void {
+  const { base, setLyricsHidden } = useProjectionStore.getState();
+  if (base?.kind !== "song") return;
+  claimLiveIntent();
+  setLyricsHidden(!base.lyricsHidden);
 }
 
 /**

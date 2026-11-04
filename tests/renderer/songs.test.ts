@@ -48,6 +48,8 @@ function goLive(s: Song, slideIndex = 1) {
     songId: s.id,
     song: resolveSong(s),
     slideIndex,
+    detour: null,
+    lyricsHidden: false,
     theme: DEFAULT_SONG_THEME,
     sizeCqw: 4.2,
   });
@@ -74,9 +76,9 @@ describe("a live song", () => {
   test("moving between its slides is a cut, clamped to the song", () => {
     goLive(song(LYRICS));
     const epoch = selectOutput(useProjectionStore.getState()).transition.epoch;
-    useProjectionStore.getState().setSongSlide(2);
+    useProjectionStore.getState().setSongPosition({ slideIndex: 2, detour: null });
     expect(selectOutput(useProjectionStore.getState())).toMatchObject({ lines: ["dos"] });
-    useProjectionStore.getState().setSongSlide(99);
+    useProjectionStore.getState().setSongPosition({ slideIndex: 99, detour: null });
     expect(selectOutput(useProjectionStore.getState())).toMatchObject({ lines: ["tres"] });
     expect(selectOutput(useProjectionStore.getState()).transition.epoch).toBe(epoch);
   });
@@ -106,6 +108,32 @@ describe("a live song", () => {
     const other = resolveSong(song("[Coro]\notra", [], 8));
     useProjectionStore.getState().setLiveSong(other, DEFAULT_SONG_THEME, 5, 1);
     expect(selectOutputMemo(useProjectionStore.getState())).toBe(before);
+  });
+});
+
+describe("jumps and hidden lyrics on the projector", () => {
+  test("T leaves only the background, and moving shows the lyrics again — never a new scene", () => {
+    goLive(song(LYRICS));
+    const epoch = selectOutput(useProjectionStore.getState()).transition.epoch;
+    useProjectionStore.getState().setLyricsHidden(true);
+    expect(selectOutput(useProjectionStore.getState())).toMatchObject({ kind: "song", lines: [] });
+    useProjectionStore.getState().setSongPosition({ slideIndex: 2, detour: null });
+    expect(selectOutput(useProjectionStore.getState())).toMatchObject({ lines: ["dos"] });
+    expect(selectOutput(useProjectionStore.getState()).transition.epoch).toBe(epoch);
+  });
+
+  test("a detour projects its section, and saving keeps it while the section exists", () => {
+    goLive(song(LYRICS, ["v1", "c1"]));
+    useProjectionStore.getState().setSongPosition({ slideIndex: 2, detour: { sectionKey: "v2", slideIndex: 1, returnTo: 2 } });
+    expect(selectOutput(useProjectionStore.getState())).toMatchObject({ lines: ["tres"] });
+
+    const edited = resolveSong(song(LYRICS.replace("tres", "tres bis"), ["v1", "c1"]));
+    useProjectionStore.getState().setLiveSong(edited, DEFAULT_SONG_THEME, 4.2, 2);
+    expect(selectOutput(useProjectionStore.getState())).toMatchObject({ lines: ["tres bis"] });
+
+    const without = resolveSong(song("[Estrofa 1]\nuno\n\ndos\n\n[Coro]\ncoro", ["v1", "c1"]));
+    useProjectionStore.getState().setLiveSong(without, DEFAULT_SONG_THEME, 4.2, 2);
+    expect(selectOutput(useProjectionStore.getState())).toMatchObject({ lines: ["dos"] });
   });
 });
 

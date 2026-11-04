@@ -12,7 +12,7 @@ import { platePreviewOutput } from "@renderer/lib/plate-output";
 import { useLiveVideoPoster } from "@renderer/lib/hooks/use-live-video-poster";
 import { findPlate, useOverlayStore } from "@renderer/stores/overlay.store";
 import { findSong, resolveSong, themeForSong, useSongStore } from "@renderer/stores/song.store";
-import { songOutputFor } from "@renderer/lib/song-output";
+import { slideLines, songOutputFor } from "@renderer/lib/song-output";
 import { useSongFit } from "@renderer/lib/song-fit";
 import type { ResolvedSong, Song, SongTheme } from "@shared/types/song";
 import { assetUrl } from "@shared/urls";
@@ -274,7 +274,7 @@ function usePreviewOutputWithoutPlates(content: PreviewContent | null): Projecti
       // monitor never shows it at a size the projector will not use.
       if (!songFit) return null;
       return {
-        ...songOutputFor(content.resolved, slideIndex, content.theme, songFit.sizeCqw),
+        ...songOutputFor(content.resolved, slideLines(content.resolved, slideIndex), content.theme, songFit.sizeCqw),
         videoUnderlay: null,
         slideVideo: null,
         plates: [],

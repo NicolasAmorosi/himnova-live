@@ -1,7 +1,7 @@
 import { useT } from "@renderer/lib/i18n/i18n-provider";
 import { DECK_GRID_COLUMNS, SLIDE_GRID_GAP_PX, VirtualGrid, thumbTileHeight } from "@renderer/components/ui";
 import { useSongFit } from "@renderer/lib/song-fit";
-import { songOutputFor } from "@renderer/lib/song-output";
+import { songBackgroundUrl } from "@renderer/lib/song-output";
 import type { ResolvedSong, SongTheme } from "@shared/types/song";
 import { SongSlideTile } from "./song-slide-tile";
 
@@ -31,8 +31,7 @@ export function SongSlideGrid({
 }) {
   const t = useT();
   const fit = useSongFit(song, theme);
-  // Only the background url matters to a tile; any slide's output carries it.
-  const { backgroundUrl } = songOutputFor(song, 1, theme, 0);
+  const backgroundUrl = songBackgroundUrl(theme);
   const slides = song.slides.map((slide, i) => ({ slide, index: i + 1 }));
 
   return (

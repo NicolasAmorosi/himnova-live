@@ -387,7 +387,7 @@ export type IpcEvents = {
    *  it when it opens, and a click on its screen does on any system. Forwarded
    *  by `windows/projection-window.ts` so the shortcuts answer from either
    *  window; only keys without Ctrl/⌘/Alt, so the menu's own still work there. */
-  "projector-key": { key: string; repeat: boolean };
+  "projector-key": { key: string; repeat: boolean; shift: boolean; code: string };
   /** The operator asked to close the control window and the schedule has
    *  unsaved changes. Main has already vetoed the close and is asking the
    *  control window what to do; the answer comes back as

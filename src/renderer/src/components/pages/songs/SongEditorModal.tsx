@@ -21,7 +21,7 @@ import {
 } from "@renderer/components/ui";
 import { toast } from "@renderer/lib/toast";
 import { useSongFit } from "@renderer/lib/song-fit";
-import { songOutputFor } from "@renderer/lib/song-output";
+import { slideLines, songOutputFor } from "@renderer/lib/song-output";
 import { deleteSong, duplicateSong, isSongLive, saveSong, songUsages } from "@renderer/lib/actions/songs";
 import { findSong, themeForSong, useSongStore } from "@renderer/stores/song.store";
 import { INSTANT_TRANSITION, type ProjectionOutput } from "@shared/types/projection";
@@ -89,7 +89,12 @@ export function SongEditorModal({ onOpenChange, onSaved, open, songId }: SongEdi
   const order = shownOrder(draft, parsed);
   const theme = themeForSong({ themeId: draft.themeId }, themes);
   const preview: ResolvedSong = useMemo(
-    () => ({ id: currentId ?? 0, title: draft.title, slides: songDeckSlides(parsed.sections, order) }),
+    () => ({
+      id: currentId ?? 0,
+      title: draft.title,
+      slides: songDeckSlides(parsed.sections, order),
+      sections: parsed.sections,
+    }),
     // `order` is derived from these two.
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [currentId, draft.title, draft.order, parsed],
@@ -120,7 +125,7 @@ export function SongEditorModal({ onOpenChange, onSaved, open, songId }: SongEdi
   const output: ProjectionOutput | null =
     fit && preview.slides.length > 0
       ? {
-          ...songOutputFor(preview, slideIndex, theme, fit.sizeCqw),
+          ...songOutputFor(preview, slideLines(preview, slideIndex), theme, fit.sizeCqw),
           videoUnderlay: null,
           slideVideo: null,
           plates: [],

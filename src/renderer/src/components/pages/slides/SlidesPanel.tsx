@@ -25,6 +25,8 @@ import { usePreviewContent } from "@renderer/lib/hooks/use-preview";
 import { clearPreview, previewVerse, setPreviewSlide } from "@renderer/lib/actions/preview";
 import { goLive, gotoSongSlide } from "@renderer/lib/actions/playback";
 import { SongSlideGrid } from "@renderer/components/shared/song-slide-grid";
+import { SongSectionButtons } from "@renderer/components/shared/song-section-buttons";
+import { jumpTo } from "@shared/song-jump";
 import { DeckPreviewBar, DeckSlides } from "./deck-slides";
 import { PreviewMediaBar } from "./preview-media-bar";
 
@@ -106,7 +108,8 @@ export function SlidesPanel() {
       const live = base?.kind === "song" && base.songId === content.song.id ? base : null;
       return (
         <SongSlideGrid
-          liveIndex={live?.slideIndex ?? null}
+          // On a detour no slide of the order is on air.
+          liveIndex={live && !live.detour ? live.slideIndex : null}
           onActivate={(index) => {
             setPreviewSlide(index);
             if (live) gotoSongSlide(index);
@@ -174,10 +177,28 @@ export function SlidesPanel() {
         </MediaPanel>
       );
     }
+    // The section buttons move the PREVIEW cursor, never the projector: a
+    // section that is not in the order has no slide here to land on.
     if (content.kind === "song") {
+      const { resolved } = content;
       return (
         <MediaPanel className="w-full">
           <MediaTrackRow kind="song" label={content.song.title} onDelete={clearPreview} />
+          <div className="px-2 pb-1.5">
+            <SongSectionButtons
+              activeKey={resolved.slides[previewSlideIndex - 1]?.sectionKey ?? null}
+              onPick={(section, shift) => {
+                const next = jumpTo(
+                  resolved,
+                  { slideIndex: previewSlideIndex, detour: null },
+                  { type: section.type, number: section.number },
+                  shift ? -1 : 1,
+                );
+                if (next && !next.detour) setPreviewSlide(next.slideIndex);
+              }}
+              sections={resolved.sections}
+            />
+          </div>
         </MediaPanel>
       );
     }

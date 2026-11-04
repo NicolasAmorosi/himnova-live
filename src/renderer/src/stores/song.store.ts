@@ -37,7 +37,12 @@ const resolved = new WeakMap<Song, ResolvedSong>();
 export function resolveSong(song: Song): ResolvedSong {
   let value = resolved.get(song);
   if (!value) {
-    value = { id: song.id, title: song.title, slides: songDeckSlides(song.sections, song.order) };
+    value = {
+      id: song.id,
+      title: song.title,
+      slides: songDeckSlides(song.sections, song.order),
+      sections: song.sections,
+    };
     resolved.set(song, value);
   }
   return value;

@@ -30,11 +30,12 @@ const GRACIA = [
   "Aleluya, aleluya",
 ].join("\n");
 
-async function createSong(app: WorshipApp, title: string, lyrics: string): Promise<void> {
+async function createSong(app: WorshipApp, title: string, lyrics: string, order?: string): Promise<void> {
   await app.openResources("Canciones");
   await tab(app).getByRole("button", { name: "Nueva canción" }).first().click();
   await dialog(app).getByRole("textbox", { name: "Título" }).fill(title);
   await dialog(app).getByRole("textbox", { name: "Letra" }).fill(lyrics);
+  if (order) await dialog(app).getByRole("textbox", { name: "Orden como texto" }).fill(order);
   await dialog(app).getByRole("button", { name: "Guardar", exact: true }).click();
   await expect(toast(app, `Se guardó «${title}»`)).toBeVisible();
   await dialog(app).getByRole("button", { name: "Cerrar" }).first().click();
@@ -135,4 +136,49 @@ test("a song in the order of service comes back after a restart, and deleting it
   await confirm.getByRole("button", { name: "Eliminar igualmente" }).click();
   await expect(tab(again).getByText("Todavía no hay canciones")).toBeVisible();
   await expect(scheduleRows(again)).toHaveCount(0);
+});
+
+test("keys jump to a section: its next time, Shift the previous, and one off the order comes back", async ({ app }) => {
+  const lyrics = "[Estrofa 1]\nprimera\n\n[Estrofa 2]\nsegunda\n\n[Coro]\nel coro\n\n[Puente]\npuente uno\n\npuente dos";
+  await createSong(app, "Con puente", lyrics, "E1 C E2 C");
+  await songRows(app).filter({ hasText: "Con puente" }).click();
+  await app.goLive();
+  const projector = await app.projector();
+  const live = app.liveColumn();
+  await expect(projector.getByText("primera")).toBeVisible();
+
+  await app.control.keyboard.press("c");
+  await expect(projector.getByText("el coro")).toBeVisible();
+  await expect(live.getByText("2/4")).toBeVisible();
+  await app.control.keyboard.press("2");
+  await expect(projector.getByText("segunda")).toBeVisible();
+  await app.control.keyboard.press("c");
+  await expect(live.getByText("4/4")).toBeVisible();
+  await app.control.keyboard.press("Shift+C");
+  await expect(live.getByText("2/4")).toBeVisible();
+
+  // The bridge is not in the order: sung as a detour, then → carries on after.
+  await app.control.keyboard.press("p");
+  await expect(projector.getByText("puente uno")).toBeVisible();
+  await expect(live.getByText("fuera del orden · 1/2")).toBeVisible();
+  await app.control.keyboard.press("ArrowRight");
+  await expect(projector.getByText("puente dos")).toBeVisible();
+  await app.control.keyboard.press("ArrowRight");
+  await expect(projector.getByText("segunda")).toBeVisible();
+  await expect(live.getByText("3/4")).toBeVisible();
+
+  // T: only the background, and T again brings the words back.
+  await app.control.keyboard.press("t");
+  await expect(projector.getByText("segunda")).toBeHidden();
+  await expect(live.getByText("Letra oculta")).toBeVisible();
+  await app.control.keyboard.press("t");
+  await expect(projector.getByText("segunda")).toBeVisible();
+
+  // The same jumps by click.
+  await live.getByRole("group", { name: "Secciones de la canción" }).getByRole("button", { name: "Estrofa 1" }).click({
+    modifiers: ["Shift"],
+  });
+  await expect(projector.getByText("primera")).toBeVisible();
+  await live.getByRole("button", { name: "Ocultar la letra (T)" }).click();
+  await expect(projector.getByText("primera")).toBeHidden();
 });

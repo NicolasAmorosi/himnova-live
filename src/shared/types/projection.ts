@@ -13,6 +13,7 @@ import type { TimerClock, TimerFormat } from "./timer";
 import type { SlideTransition, TransitionSpec } from "./transition";
 import type { UtilityScene } from "./utility";
 import type { ResolvedSong, SongTheme } from "./song";
+import type { SongDetour } from "../song-jump";
 
 /** Which video (if any) is the current *base* content, independent of BLACK/
  *  LOGO. Present on every `ProjectionOutput` variant (including "black" and
@@ -397,8 +398,19 @@ export type BaseContent =
    * theme and its measured size — for `utility`'s reason: `selectOutput`
    * cannot reach into the songs store. Saving the song while it is live
    * rewrites all three in place (`setLiveSong`), never a new scene.
-   * `slideIndex` is 1-based, like a deck's.
+   * `slideIndex` is 1-based, like a deck's; `detour` is a section sung off
+   * the order (`song-jump.ts`); `lyricsHidden` leaves only the theme's
+   * background on the projector (T), until the operator moves.
    */
-  | { kind: "song"; songId: number; song: ResolvedSong; slideIndex: number; theme: SongTheme; sizeCqw: number };
+  | {
+      kind: "song";
+      songId: number;
+      song: ResolvedSong;
+      slideIndex: number;
+      detour: SongDetour | null;
+      lyricsHidden: boolean;
+      theme: SongTheme;
+      sizeCqw: number;
+    };
 
 export type OverlayState = "none" | "black" | "logo";

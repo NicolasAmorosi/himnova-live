@@ -88,14 +88,16 @@ export function LiveContentGrid() {
     );
   }
 
-  // The live song: a click moves the projector, and the grid follows it.
+  // The live song: a click moves the projector, and the grid follows it. On
+  // a detour no slide of the order is on air; the transport names the section.
   if (base?.kind === "song") {
+    const live = base.detour ? null : base.slideIndex;
     return (
       <SongSlideGrid
-        liveIndex={base.slideIndex}
+        liveIndex={live}
         onSelect={gotoSongSlide}
         scrollToIndex={base.slideIndex}
-        selectedIndex={base.slideIndex}
+        selectedIndex={live}
         song={base.song}
         theme={base.theme}
       />

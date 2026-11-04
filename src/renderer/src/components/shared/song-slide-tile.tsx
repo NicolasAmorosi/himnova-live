@@ -6,7 +6,7 @@ import type { SongDeckSlide, SongTheme } from "@shared/types/song";
 import { SECTION_FILL } from "./song-section-fill";
 import { SongScene, type SongSlideContent } from "./song-scene";
 import { useSongFit } from "@renderer/lib/song-fit";
-import { songOutputFor } from "@renderer/lib/song-output";
+import { slideLines, songOutputFor } from "@renderer/lib/song-output";
 import { findSong, resolveSong, themeForSong, useSongStore } from "@renderer/stores/song.store";
 
 /**
@@ -78,5 +78,5 @@ export function SongFirstSlide({ songId }: { songId: number }) {
   const theme = song ? themeForSong(song, themes) : null;
   const fit = useSongFit(resolved, theme);
   if (!resolved || !theme || !fit) return null;
-  return <SongSlideMedia content={songOutputFor(resolved, 1, theme, fit.sizeCqw)} />;
+  return <SongSlideMedia content={songOutputFor(resolved, slideLines(resolved, 1), theme, fit.sizeCqw)} />;
 }

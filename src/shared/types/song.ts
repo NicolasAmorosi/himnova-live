@@ -91,11 +91,13 @@ export type SongDeckSlide = {
   indexInSection: number;
 };
 
-/** What the projector and the monitors need of a song: nothing to resolve. */
+/** What the projector and the monitors need of a song: nothing to resolve.
+ *  `sections` are there for a jump to one that is not in the order. */
 export type ResolvedSong = {
   id: number;
   title: string;
   slides: SongDeckSlide[];
+  sections: SongSection[];
 };
 
 /** Margins of the text block, in `cqw` (width of the stage), every side —

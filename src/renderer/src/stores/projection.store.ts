@@ -25,6 +25,7 @@ import { bibleOutputFor } from "@renderer/lib/bible-output";
 import { timerOutputFor } from "@renderer/lib/utility-output";
 import { plateOutputFor } from "@renderer/lib/plate-output";
 import { songOutputFor } from "@renderer/lib/song-output";
+import { linesAt, type SongPosition } from "@shared/song-jump";
 import type { ResolvedSong, SongTheme } from "@shared/types/song";
 import { defaultMediaVolume } from "@renderer/stores/settings.store";
 
@@ -218,8 +219,11 @@ export type ProjectionStoreState = {
    *  caller keeps the operator on the same section and slide when it still
    *  exists). A no-op unless this song is the one live. */
   setLiveSong: (song: ResolvedSong, theme: SongTheme, sizeCqw: number, slideIndex: number) => void;
-  /** Moves within the live song (1-based, clamped) — a cut, like a verse. */
-  setSongSlide: (index: number) => void;
+  /** Moves within the live song — a slide of the order (1-based, clamped) or
+   *  a detour off it. A cut, like a verse, and it shows the lyrics again. */
+  setSongPosition: (position: SongPosition) => void;
+  /** T: only the theme's background on the projector, or the lyrics back. */
+  setLyricsHidden: (hidden: boolean) => void;
 
   setLiveDeck: (deck: LiveDeck | null) => void;
   setSlideIndex: (index: number) => void;
@@ -405,18 +409,45 @@ export const useProjectionStore = create<ProjectionStoreState>()(
         const { base } = state;
         if (base?.kind !== "song" || base.songId !== song.id) return state;
         const index = clamp(slideIndex, 1, Math.max(1, song.slides.length));
-        if (base.song === song && base.theme === theme && base.sizeCqw === sizeCqw && base.slideIndex === index) {
+        // A detour survives while its section does, on a slide it still has.
+        const section = base.detour && song.sections.find((s) => s.key === base.detour?.sectionKey);
+        const detour =
+          base.detour && section
+            ? {
+                ...base.detour,
+                slideIndex: clamp(base.detour.slideIndex, 1, section.slides.length),
+                returnTo: index,
+              }
+            : null;
+        if (
+          base.song === song &&
+          base.theme === theme &&
+          base.sizeCqw === sizeCqw &&
+          base.slideIndex === index &&
+          JSON.stringify(base.detour) === JSON.stringify(detour)
+        ) {
           return state;
         }
-        return { base: { ...base, song, theme, sizeCqw, slideIndex: index } };
+        return { base: { ...base, song, theme, sizeCqw, slideIndex: index, detour } };
       }),
 
-    setSongSlide: (index) =>
+    setSongPosition: (position) =>
       set((state) => {
         const { base } = state;
         if (base?.kind !== "song") return state;
-        const next = clamp(index, 1, Math.max(1, base.song.slides.length));
-        return next === base.slideIndex ? state : { base: { ...base, slideIndex: next } };
+        const slideIndex = clamp(position.slideIndex, 1, Math.max(1, base.song.slides.length));
+        const same =
+          slideIndex === base.slideIndex &&
+          JSON.stringify(position.detour) === JSON.stringify(base.detour) &&
+          !base.lyricsHidden;
+        return same ? state : { base: { ...base, slideIndex, detour: position.detour, lyricsHidden: false } };
+      }),
+
+    setLyricsHidden: (hidden) =>
+      set((state) => {
+        const { base } = state;
+        if (base?.kind !== "song" || base.lyricsHidden === hidden) return state;
+        return { base: { ...base, lyricsHidden: hidden } };
       }),
 
     setLiveDeck: (liveDeck) =>
@@ -663,7 +694,12 @@ function selectOutputWithoutUnderlay(state: ProjectionStoreState): ProjectionOut
       // translate the same scene differently.
       return timerOutputFor(state.base.scene, state.base.clock);
     case "song":
-      return songOutputFor(state.base.song, state.base.slideIndex, state.base.theme, state.base.sizeCqw);
+      return songOutputFor(
+        state.base.song,
+        state.base.lyricsHidden ? [] : linesAt(state.base.song, state.base),
+        state.base.theme,
+        state.base.sizeCqw,
+      );
   }
 }
 

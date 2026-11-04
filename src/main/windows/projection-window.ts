@@ -72,7 +72,7 @@ export function createProjectionWindow(displayId?: number): BrowserWindow {
   win.webContents.on("before-input-event", (event, input) => {
     if (input.type !== "keyDown" || input.control || input.meta || input.alt) return;
     event.preventDefault();
-    broadcast("projector-key", { key: input.key, repeat: input.isAutoRepeat });
+    broadcast("projector-key", { key: input.key, repeat: input.isAutoRepeat, shift: input.shift, code: input.code });
   });
   if (!singleMonitor) {
     win.setAlwaysOnTop(true, "screen-saver");
