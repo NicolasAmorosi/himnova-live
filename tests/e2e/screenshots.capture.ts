@@ -4,6 +4,8 @@ import os from "node:os";
 import path from "node:path";
 import type { CDPSession, Page } from "@playwright/test";
 import { DEFAULT_BIBLE_STYLE } from "../../src/shared/types/bible-style";
+import { DEFAULT_SONG_THEME } from "../../src/shared/types/song";
+import { parseLyrics } from "../../src/shared/song-text";
 import type { MediaAsset } from "../../src/shared/types/media";
 import { engineCanvas, expect, relaunch, test, type WorshipApp } from "./support/app";
 import { ROOT, ffmpegBinary } from "./support/paths";
@@ -24,6 +26,34 @@ const MEDIA = path.join(os.tmpdir(), "lumina-screenshots-media");
 const OUT = path.join(ROOT, "docs/screenshots");
 const THEMES = ["dark", "light"] as const;
 const VERSE = "Ciertamente el bien y la misericordia me seguirán";
+
+/** Luther's hymn as a song (trans. Juan B. Cabrera, public domain), its two
+ *  stanzas in two slides each. */
+const CASTILLO = [
+  "[Estrofa 1]",
+  "Castillo fuerte es nuestro Dios,",
+  "defensa y buen escudo.",
+  "Con su poder nos librará",
+  "en este trance agudo.",
+  "",
+  "Con furia y con afán",
+  "acósanos Satán:",
+  "por armas deja ver",
+  "astucia y gran poder;",
+  "cual él no hay en la tierra.",
+  "",
+  "[Estrofa 2]",
+  "Nuestro valor es nada aquí,",
+  "con él todo es perdido;",
+  "mas con nosotros luchará",
+  "de Dios el escogido.",
+  "",
+  "Es nuestro Rey Jesús,",
+  "el que venció en la cruz,",
+  "Señor y Salvador,",
+  "y siendo él solo Dios,",
+  "él triunfa en la batalla.",
+].join("\n");
 
 const media = (name: string) => path.join(MEDIA, name);
 
@@ -105,11 +135,36 @@ test("screenshots", async ({ app: first }) => {
     kind: "video",
     paths: ["Fondo adoración.mp4", "Amanecer.mp4", "Cielo.mp4"].map(media),
   });
-  const [background] = await first.invoke<MediaAsset[]>("library:add", {
+  const [background, warm] = await first.invoke<MediaAsset[]>("library:add", {
     kind: "image",
     paths: ["Fondo azul.png", "Fondo cálido.png"].map(media),
   });
-  if (!background) throw new Error("import failed");
+  if (!background || !warm) throw new Error("import failed");
+  // A song library: Luther's hymn in a theme of its own over the warm
+  // background, read at startup like the verse style.
+  const hymns = await first.invoke<{ id: number }>("songTheme:create", {
+    name: "Himnos",
+    style: { ...DEFAULT_SONG_THEME, background: { kind: "image", assetId: warm.id, fit: "cover" } },
+  });
+  const song = (title: string, authors: string, lyrics: string, themeId: number | null) =>
+    first.invoke("song:create", {
+      title,
+      number: null,
+      authors,
+      copyright: "Dominio público",
+      ccliNumber: null,
+      notes: null,
+      sections: parseLyrics(lyrics, "es").sections,
+      order: [],
+      themeId,
+    });
+  await song("Castillo fuerte", "Martín Lutero · trad. Juan B. Cabrera", CASTILLO, hymns.id);
+  await song(
+    "Santo, santo, santo",
+    "Reginald Heber · trad. Juan B. Cabrera",
+    "[Estrofa 1]\n¡Santo! ¡Santo! ¡Santo! Señor omnipotente,\nsiempre el labio mío loores te dará;",
+    null,
+  );
   await first.invoke("settings:set", {
     "bible.style": { ...DEFAULT_BIBLE_STYLE, background: { kind: "image", assetId: background.id, fit: "cover" } },
   });
@@ -180,6 +235,18 @@ test("screenshots", async ({ app: first }) => {
   const stage = await layOut(projector, 1920, 1080, 1);
   await settle(projector);
   await capture(stage, "projector");
+
+  // A song: its slides drawn in PREVIEW, each with its section's name and
+  // colour; the second on air, with a button per section under LIVE.
+  await app.openResources("Canciones");
+  await control.getByRole("tabpanel", { name: "Canciones" }).getByRole("listitem").filter({ hasText: "Castillo fuerte" }).click();
+  await app.goLive();
+  await expect(projector.getByText("Castillo fuerte es nuestro Dios,")).toBeVisible();
+  await control.keyboard.press("ArrowRight");
+  await expect(projector.getByText("Con furia y con afán")).toBeVisible();
+  const songSlides = app.previewColumn().getByRole("list", { name: "Diapositivas de «Castillo fuerte»" });
+  await songSlides.getByRole("listitem").nth(2).getByRole("button").click();
+  await shoot(app, screen, "songs", { x: 533, y: 0, width: 1067, height: 688 });
 
   // Before the service: the countdown on air, the clock next in PREVIEW.
   await app.openResources("Funciones", "Utilidades");
