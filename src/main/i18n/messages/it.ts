@@ -55,7 +55,7 @@ const it: MainMessages = {
     deckUnreadable: "Impossibile leggere la presentazione appena preparata.",
     rasterCrashed: "Il processo di rasterizzazione si è chiuso inaspettatamente.",
     rasterHung: "La rasterizzazione di una pagina si è bloccata.",
-    pdfPassword: "Il PDF è protetto da password e non può essere convertito.",
+    pdfPassword: "Il PDF è protetto da password e non può essere aperto.",
     deckPassword:
       "La presentazione ha una password di apertura. Aprila in PowerPoint, rimuovi la password (File ▸ Informazioni ▸ Proteggi presentazione) e salvala di nuovo.",
     deckOldFormat:

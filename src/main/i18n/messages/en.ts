@@ -55,7 +55,7 @@ const en: MainMessages = {
     deckUnreadable: "Couldn't read the presentation that was just prepared.",
     rasterCrashed: "The slide rendering process quit unexpectedly.",
     rasterHung: "Rendering one of the pages got stuck.",
-    pdfPassword: "The PDF is password-protected and can't be converted.",
+    pdfPassword: "The PDF is password-protected and can't be opened.",
     deckPassword:
       "The presentation has a password to open it. Open it in PowerPoint, remove the password (File ▸ Info ▸ Protect Presentation) and save it again.",
     deckOldFormat:

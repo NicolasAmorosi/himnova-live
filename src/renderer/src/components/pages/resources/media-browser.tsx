@@ -38,10 +38,10 @@ import { PREWARM_VISIBLE_MAX, type AssetKind } from "@shared/constants";
 import type { DeckStatusSummary } from "@shared/types/deck";
 import type { MediaAsset } from "@shared/types/media";
 
-/** Rough estimate for the "this can take about N minutes" warning — no
- *  history of past conversion times is tracked yet, so a flat, slightly
- *  conservative per-deck figure stands in for one. */
-const PREWARM_FALLBACK_SECONDS_PER_DECK = 8;
+/** Rough estimate for the "this can take about N minutes" warning: a flat,
+ *  slightly conservative per-deck figure. Reading a real deck took 0.2–0.5 s on
+ *  the three systems (2026-11-03); the 8 s this was before was the old conversion's. */
+const PREWARM_FALLBACK_SECONDS_PER_DECK = 1;
 
 /** Grid geometry, in px, handed to `VirtualGrid` — it has to compute the
  *  column count itself, so these can't stay as Tailwind classes. They are the

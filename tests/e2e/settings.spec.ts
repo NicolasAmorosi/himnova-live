@@ -67,7 +67,7 @@ test("emptying the slide cache warns about a deck on air, and a deck is read aga
   await app.goLive();
 
   let settings = await openSettings(app, "Diapositivas");
-  await expect(settings.getByText("1 presentación convertida y guardada en disco")).toBeVisible();
+  await expect(settings.getByText("1 presentación con audio o video guardado en disco")).toBeVisible();
   await settings.getByRole("button", { name: "Vaciar caché" }).click();
   const confirm = app.control.getByRole("dialog", { name: "¿Vaciar la caché de diapositivas?" });
   await expect(confirm).toContainText("Hay una presentación EN VIVO");
@@ -81,7 +81,7 @@ test("emptying the slide cache warns about a deck on air, and a deck is read aga
   await expect(confirm).not.toContainText("EN VIVO");
   await confirm.getByRole("button", { name: "Vaciar caché" }).click();
   await expect(app.control.getByRole("status").filter({ hasText: "Se vació la caché de diapositivas" })).toBeVisible();
-  await expect(settings.getByText("0 presentaciones convertidas y guardadas en disco")).toBeVisible();
+  await expect(settings.getByText("0 presentaciones con audio o video guardado en disco")).toBeVisible();
   await closeSettings(settings);
 
   // The deck the control window still remembers is read again, and what goes
