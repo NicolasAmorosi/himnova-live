@@ -59,7 +59,16 @@ export function LiveMonitor() {
   // has one.
   const settingsLoaded = useSettingsStore((s) => s.loaded);
   const overlay = useProjectionStore((s) => s.overlay);
-  const logoMissing = settingsLoaded && overlay === "logo" && output.kind === "logo" && output.url === null;
+  // A logo scene with a name or a background of its own is something to show
+  // (2026-11-05); only a bare black one is "no logo".
+  const logoMissing =
+    settingsLoaded &&
+    overlay === "logo" &&
+    output.kind === "logo" &&
+    output.url === null &&
+    output.scene.name === null &&
+    output.scene.background.kind === "solid" &&
+    output.scene.background.color === "#000000";
 
   // The monitor's own copy of the live video, or a still of it (`useLiveVideoPoster`,
   // fetched only with the setting off). Local to this

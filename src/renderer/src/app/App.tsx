@@ -75,6 +75,9 @@ export function App() {
   const loadSettings = useSettingsStore((s) => s.load);
   const logoPath = useSettingsStore((s) => s.settings["logo.path"]);
   const setLogoUrl = useProjectionStore((s) => s.setLogoUrl);
+  const logoName = useSettingsStore((s) => s.settings["logo.name"]);
+  const logoBackground = useSettingsStore((s) => s.settings["logo.background"]);
+  const setLogoScene = useProjectionStore((s) => s.setLogoScene);
   const transitionStyle = useSettingsStore(
     (s) => s.settings["projection.transition.style"],
   );
@@ -185,6 +188,12 @@ export function App() {
       logoPath ? `${LOGO_URL}?p=${encodeURIComponent(logoPath)}` : null,
     );
   }, [logoPath, setLogoUrl]);
+
+  // LOGO without an image: edited in Settings, it reaches the projector in
+  // place, like the verse's style.
+  useEffect(() => {
+    setLogoScene({ name: logoName, background: logoBackground });
+  }, [logoName, logoBackground, setLogoScene]);
 
   // Mirrors the projection settings into the store the same way the logo
   // does above — `selectOutput` reads them off `projection.store`, not

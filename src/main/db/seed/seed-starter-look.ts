@@ -5,6 +5,7 @@ import type Database from "better-sqlite3";
 import { DEFAULT_BIBLE_STYLE } from "@shared/types/bible-style";
 import { DEFAULT_BUG_STYLE, DEFAULT_PLATE_STYLE, type Plate } from "@shared/types/overlay";
 import { DEFAULT_SCENE_STYLE, type SceneStyle } from "@shared/types/scene-style";
+import { DEFAULT_SETTINGS } from "@shared/types/settings";
 import { DEFAULT_SONG_THEME, type SongBackground } from "@shared/types/song";
 import type { TimerTool } from "@shared/types/timer";
 import type { MainMessages } from "../../i18n/messages/es";
@@ -21,7 +22,7 @@ import type { UtilityRepo } from "../repositories/utility.repo";
  * them, a quiet one behind the verse, the time scenes dressed, and three
  * overlays ready to fill in.
  *
- * Once per version of the look (`look.seeded`), the rule of the other seeds:
+ * Each version of the look once (`look.seeded`), the rule of the other seeds:
  * whatever the operator deletes stays deleted. On an install that already
  * exists it ADDS — themes, backgrounds, overlays — and restyles only what is
  * still exactly as it came (the verse's style, a time scene's), never what
@@ -29,7 +30,7 @@ import type { UtilityRepo } from "../repositories/utility.repo";
  * fails halfway leaves nothing, and tries again on the next launch. Never
  * throws: a church without its sample look still has a working app.
  */
-export const STARTER_LOOK_VERSION = 1;
+export const STARTER_LOOK_VERSION = 2;
 
 export type BackgroundId = "night" | "sunrise" | "ocean" | "dusk" | "forest" | "ember" | "graphite" | "sky";
 const STILLS: readonly BackgroundId[] = ["night", "sunrise", "ocean", "dusk", "forest", "ember", "graphite", "sky"];
@@ -133,13 +134,18 @@ function plates(text: Text): Omit<Plate, "id">[] {
 export function seedStarterLook(repos: Repos, dirs: Dirs, text: Text, isNewProfile: boolean): void {
   try {
     if (repos.settings.get("look.seeded") >= STARTER_LOOK_VERSION) return;
-    repos.sqlite.transaction(() => seed(repos, dirs, text, isNewProfile))();
+    repos.sqlite.transaction(() => {
+      if (repos.settings.get("look.seeded") < 1) seedFirstLook(repos, dirs, text, isNewProfile);
+      dressLogo(repos, dirs, text);
+      repos.settings.setMany({ "look.seeded": STARTER_LOOK_VERSION });
+    })();
   } catch (error) {
     console.warn("[look] seeding the starter look failed", error);
   }
 }
 
-function seed(repos: Repos, dirs: Dirs, text: Text, isNewProfile: boolean): void {
+/** Version 1 (2.5.0): the backgrounds, themes, verse, time scenes and overlays. */
+function seedFirstLook(repos: Repos, dirs: Dirs, text: Text, isNewProfile: boolean): void {
   const backgrounds = addBackgrounds(repos.media, dirs, text);
 
   const image = (id: BackgroundId) => ({ kind: "image", assetId: backgrounds.image[id], fit: "cover" }) as const;
@@ -166,5 +172,14 @@ function seed(repos: Repos, dirs: Dirs, text: Text, isNewProfile: boolean): void
   }
 
   for (const plate of plates(text)) repos.overlays.create(plate);
-  repos.settings.setMany({ "look.seeded": STARTER_LOOK_VERSION });
+}
+
+/** Version 2: LOGO without an image, still black as it came, over «Noche» —
+ *  found in the library where version 1 put it, never added again: a
+ *  background the operator deleted stays deleted. */
+function dressLogo(repos: Repos, dirs: Dirs, text: Text): void {
+  if (!isDeepStrictEqual(repos.settings.get("logo.background"), DEFAULT_SETTINGS["logo.background"])) return;
+  const night = path.join(dirs.to, `${text.backgrounds.night}.webp`);
+  const asset = repos.media.list("image").find((candidate) => candidate.path === night);
+  if (asset) repos.settings.setMany({ "logo.background": { kind: "image", assetId: asset.id, fit: "cover" } });
 }

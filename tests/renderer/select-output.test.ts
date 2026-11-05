@@ -110,6 +110,26 @@ describe("the overlay wins over the base", () => {
     expect(output()).toMatchObject({ kind: "logo", url: "worship://asset/77" });
   });
 
+  test("LOGO without an image carries its scene — the name, and its background's url", () => {
+    useProjectionStore.getState().setLogoScene({ name: "Iglesia Central", background: { kind: "image", assetId: 9, fit: "cover" } });
+    expect(output()).toMatchObject({
+      kind: "logo",
+      url: null,
+      scene: { name: "Iglesia Central" },
+      backgroundUrl: assetUrl(9),
+    });
+  });
+
+  test("turning «loop» on with a video live rebuilds the memoized output; another end action does not", () => {
+    const store = useProjectionStore.getState();
+    store.setBase({ kind: "video", assetId: 5, url: assetUrl(5), epoch: 2, startAtSeconds: 0 });
+    const before = selectOutputMemo(useProjectionStore.getState());
+    store.setVideoEnd("black");
+    expect(selectOutputMemo(useProjectionStore.getState())).toBe(before);
+    store.setVideoEnd("loop");
+    expect(selectOutputMemo(useProjectionStore.getState()).videoUnderlay?.loop).toBe(true);
+  });
+
   test("nothing selected at all is the logo, never a black screen", () => {
     // What the projector shows between items of a service: the church's logo
     // is the resting state, and "no signal" is not a thing the congregation

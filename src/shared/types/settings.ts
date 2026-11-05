@@ -8,7 +8,9 @@ import { isBibleStyle, normalizeBibleStyle } from "../bible-style-validators";
 import { DEFAULT_BIBLE_STYLE, type BibleStyle } from "./bible-style";
 import { MEDIA_SORT_ORDERS, type MediaSortOrder } from "./media";
 import { TRANSITION_MAX_DURATION_MS, TRANSITION_STYLES, type TransitionStyle } from "./transition";
-import { VIDEO_END_ACTIONS, type VideoEndAction } from "./projection";
+import { LOGO_NAME_MAX_LENGTH, VIDEO_END_ACTIONS, type VideoEndAction } from "./projection";
+import type { SceneBackground } from "./scene-style";
+import { isSceneBackground } from "../style-validators";
 
 export const THEMES = ["dark", "light"] as const;
 export type Theme = (typeof THEMES)[number];
@@ -36,6 +38,11 @@ export type SlideFallbackFont = (typeof SLIDE_FALLBACK_FONTS)[number];
 
 export type SettingsMap = {
   "logo.path": string | null;
+  /** The church's name, on LOGO when there is no logo image. */
+  "logo.name": string | null;
+  /** What LOGO is drawn over when there is no logo image. Black, as LOGO
+   *  always was, until the starter look dresses it. */
+  "logo.background": SceneBackground;
   /** Where the file picker opens for each kind of asset. `null` means "the
    *  operating system's own folder for this kind" (`systemMediaFolder` in
    *  `main/paths.ts`), which is resolved fresh on every pick: it is looked up
@@ -136,6 +143,8 @@ export type SettingsMap = {
 
 export const DEFAULT_SETTINGS: SettingsMap = {
   "logo.path": null,
+  "logo.name": null,
+  "logo.background": { kind: "solid", color: "#000000" },
   "files.defaultFolders": { video: null, image: null, audio: null, ppt: null },
   "projection.displayId": null,
   "stage.displayId": null,
@@ -225,6 +234,8 @@ const isStringArray = (v: unknown): boolean => Array.isArray(v) && v.every(isStr
 
 export const SETTINGS_VALIDATORS: Record<keyof SettingsMap, (value: unknown) => boolean> = {
   "logo.path": isNullOr(isString),
+  "logo.name": (v) => v === null || (typeof v === "string" && v.length <= LOGO_NAME_MAX_LENGTH),
+  "logo.background": isSceneBackground,
   "files.defaultFolders": isRecordOfKinds(isNullOr(isString)),
   "projection.displayId": isDisplayId,
   "stage.displayId": isDisplayId,

@@ -12,6 +12,7 @@ import { toast } from "@renderer/lib/toast";
 import { IpcError } from "@shared/ipc/result";
 import { LOGO_URL } from "@shared/urls";
 import type { TransitionStyle } from "@shared/types/transition";
+import { LogoSceneFields } from "./logo-scene-fields";
 import { VIDEO_END_ACTIONS, type VideoEndAction } from "@shared/types/projection";
 
 /** Everything about what the projector shows: which screen, the fallback
@@ -154,6 +155,8 @@ export function ProjectionSection() {
           </Box>
         </div>
       </FieldGroup>
+
+      <LogoSceneFields />
 
       <FieldGroup title={t("settings.groups.liveContent")}>
         <FieldRow description={t("settings.clearLiveDesc")} label={t("settings.clearLive")}>

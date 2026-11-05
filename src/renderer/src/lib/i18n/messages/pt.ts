@@ -777,6 +777,7 @@ const pt: Messages = {
     groups: {
       screen: "Tela",
       logo: "Logo",
+      logoScene: "Sem imagem de logo",
       liveContent: "Conteúdo ao vivo",
       transition: "Transição",
       audio: "Som",
@@ -940,6 +941,8 @@ const pt: Messages = {
       "O projetor está mostrando o logo agora mesmo: ao removê-lo, a tela fica preta até você mandar algo AO VIVO. Nenhum arquivo é apagado — o logo sai das configurações e você pode escolhê-lo de novo quando quiser.",
     chooseFile: "Escolher arquivo…",
     clearLive: "O que está sendo projetado agora",
+    logoName: "Nome da igreja",
+    logoNameDesc: "Aparece no logo, sobre este fundo, enquanto não houver uma imagem de logo carregada.",
     clearLiveDesc: "Tira o que está projetado agora e volta ao logo.",
     videoEnd: "Quando um vídeo termina",
     videoEndDesc: "O que o projetor mostra quando um vídeo chega ao fim sozinho. Sem um logo carregado, o logo fica preto. «Passar ao próximo do roteiro» manda ao vivo o próximo item do roteiro; se o vídeo não estiver no roteiro ou for o último, mostra o logo.",

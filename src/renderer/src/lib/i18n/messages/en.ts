@@ -776,6 +776,7 @@ const en: Messages = {
     groups: {
       screen: "Screen",
       logo: "Logo",
+      logoScene: "Without a logo image",
       liveContent: "Live content",
       transition: "Transition",
       audio: "Sound",
@@ -939,6 +940,8 @@ const en: Messages = {
       "The projector is showing the logo right now: if you remove it, the screen stays black until you GO LIVE with something. No file is deleted — the logo just leaves the settings, and you can choose it again whenever you like.",
     chooseFile: "Choose file…",
     clearLive: "What is on the projector now",
+    logoName: "Church name",
+    logoNameDesc: "Shown on the logo, over this background, while no logo image is loaded.",
     clearLiveDesc: "Takes down what's projected now and goes back to the logo.",
     videoEnd: "When a video ends",
     videoEndDesc: "What the projector shows when a video reaches its end on its own. Without a logo loaded, the logo is black. «Go to the next schedule item» sends the schedule's next item live; if the video isn't in the schedule or is the last one, it shows the logo.",

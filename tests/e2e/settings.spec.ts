@@ -133,3 +133,16 @@ test("«Al terminar un video»: BLACK over the cleared stage, or a loop that sta
   expect((await videoStates(projector))[0]?.paused).toBe(false);
   await expect(app.control.getByRole("button", { name: "NEGRO", exact: true }).first()).not.toHaveAttribute("aria-pressed", "true");
 });
+
+test("LOGO without an image shows the church's name, typed in Proyección", async ({ app }) => {
+  const settings = await openSettings(app, "Proyección");
+  const name = settings.getByRole("textbox", { name: "Nombre de la iglesia" });
+  await name.fill("Iglesia Central");
+  await name.press("Enter");
+  // The preview in Settings is the projector's own drawing.
+  await expect(settings.locator("[data-logo-name]")).toHaveText("Iglesia Central");
+  await closeSettings(settings);
+  await app.control.getByRole("button", { name: "LOGO", exact: true }).first().click();
+  const projector = await app.projector();
+  await expect(projector.locator("[data-logo-name]")).toHaveText("Iglesia Central");
+});

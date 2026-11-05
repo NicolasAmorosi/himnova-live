@@ -777,6 +777,7 @@ const es = {
     groups: {
       screen: "Pantalla",
       logo: "Logo",
+      logoScene: "Sin imagen de logo",
       liveContent: "Contenido en vivo",
       transition: "Transición",
       audio: "Sonido",
@@ -945,6 +946,8 @@ const es = {
       "El proyector está mostrando el logo ahora mismo: al quitarlo, la pantalla queda en negro hasta que mandes algo EN VIVO. No se borra ningún archivo — el logo sale de la configuración y podés volver a elegirlo cuando quieras.",
     chooseFile: "Elegir archivo…",
     clearLive: "Lo que se proyecta ahora",
+    logoName: "Nombre de la iglesia",
+    logoNameDesc: "Se muestra en el logo, sobre este fondo, mientras no haya una imagen de logo cargada.",
     clearLiveDesc: "Saca lo que está proyectado ahora y vuelve al logo.",
     videoEnd: "Al terminar un video",
     videoEndDesc: "Qué muestra el proyector cuando un video llega al final solo. Sin un logo cargado, el logo es negro. «Pasar al siguiente del programa» manda en vivo el próximo ítem del programa; si el video no está en el programa o es el último, muestra el logo.",

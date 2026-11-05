@@ -17,6 +17,7 @@ import { api } from "@renderer/lib/api";
 import { isEngineUrl, liveEngineFrameKey, previewEngineFrameKey } from "@shared/urls";
 import { ModelSlide } from "./slide-view/ModelSlide";
 import { BibleScene } from "./bible-scene";
+import { LogoScene } from "./logo-scene";
 import { TimerScene } from "./timer-scene";
 import { SongScene } from "./song-scene";
 import { PlateLayer } from "./plate-layer";
@@ -654,6 +655,8 @@ function OutputScene({ frozenFrame, mode, onImageError, output, posterUrl, video
       {output.kind === "video" && !frozenFrame && posterUrl ? (
         <img alt="" className="size-full object-contain" src={posterUrl} />
       ) : null}
+
+      {output.kind === "logo" && !output.url ? <LogoScene onImageError={onImageError} output={output} /> : null}
 
       {(output.kind === "logo" && output.url) || output.kind === "image" ? (
         <img
@@ -1435,8 +1438,10 @@ export function OutputView({
   const sceneUrl =
     output.kind === "slide"
       ? (output.modelUrl ?? output.url)
-      : output.kind === "image" || output.kind === "logo"
+      : output.kind === "image"
         ? output.url
+      : output.kind === "logo"
+        ? (output.url ?? output.backgroundUrl)
       : output.kind === "timer"
         ? output.backgroundUrl
         : null;

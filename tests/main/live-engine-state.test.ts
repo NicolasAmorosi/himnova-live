@@ -68,7 +68,8 @@ function slideOutput(url: string, overrides: Partial<{ kind: "slide" | "logo"; p
     volume: 0.8,
   };
   const base = { videoUnderlay: null, slideVideo, plates: [], transition: INSTANT_TRANSITION };
-  if (overrides.kind === "logo") return { kind: "logo", url: null, ...base };
+  if (overrides.kind === "logo")
+    return { kind: "logo", url: null, scene: { name: null, background: { kind: "solid", color: "#000000" } }, backgroundUrl: null, ...base };
   const text = { fallbackFont: null, locale: "es" };
   return { kind: "slide", deckAssetId: 1, url: "", modelUrl: null, index: 1, total: 1, preload: [], enter: null, text, ...base };
 }

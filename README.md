@@ -40,7 +40,8 @@ Windows, macOS and Linux · English, Spanish, Italian and Portuguese
 - **A stage screen** for the musicians on a third screen: what is live, what comes next and the time.
 - **Timers** (countdown, clock, stopwatch) and **overlays** on top of what is projected (a lower third
   with the preacher's name, the church logo).
-- **BLACK and LOGO** pause whatever is playing and resume it where it was.
+- **BLACK and LOGO** pause whatever is playing and resume it where it was. Without a logo image, LOGO
+  shows your church's name over a background of your choice.
 - **Built for a live service:** if the projector disconnects, the picture comes back by itself when
   it reconnects; the schedule saves itself; closing the app by accident asks first.
 - Saved programs, a media library, light and dark themes.

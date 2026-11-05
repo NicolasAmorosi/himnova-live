@@ -783,6 +783,7 @@ const it: Messages = {
     groups: {
       screen: "Schermo",
       logo: "Logo",
+      logoScene: "Senza un'immagine del logo",
       liveContent: "Contenuto in onda",
       transition: "Transizione",
       audio: "Audio",
@@ -947,6 +948,8 @@ const it: Messages = {
       "Il proiettore sta mostrando il logo in questo momento: se lo rimuovi, lo schermo resta nero finché non mandi qualcosa IN ONDA. Nessun file viene eliminato — il logo esce dalle impostazioni e puoi sceglierlo di nuovo quando vuoi.",
     chooseFile: "Scegli file…",
     clearLive: "Ciò che è proiettato ora",
+    logoName: "Nome della chiesa",
+    logoNameDesc: "Appare sul logo, sopra questo sfondo, finché non c'è un'immagine del logo.",
     clearLiveDesc: "Toglie ciò che è proiettato adesso e torna al logo.",
     videoEnd: "Alla fine di un video",
     videoEndDesc: "Cosa mostra il proiettore quando un video arriva alla fine da solo. Senza un logo caricato, il logo è nero. «Passa al prossimo della scaletta» manda in onda l'elemento successivo della scaletta; se il video non è in scaletta o è l'ultimo, mostra il logo.",

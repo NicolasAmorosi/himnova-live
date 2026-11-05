@@ -176,6 +176,10 @@ value is not hypothetical: the owner's own Mac profile, seeded before 2026-10-22
 untouched, which a check against today's default alone would never have dressed. A future change to a
 factory default has to add the old value to that list.
 
+Version 2 dresses LOGO without an image: `logo.background`, still the factory black, becomes «Noche» —
+found in the library at the path version 1 copied it to, never added again, so a background the
+operator deleted stays deleted. Each version runs once, in order, in the same transaction.
+
 The lyrics text format (`shared/song-text.ts`) is shared by the editor and the EasyWorship importer
 (`main/songs/`): EasyWorship's RTF (`SongWords.db`) becomes plain text whose blocks start with a label
 («Verse 1», «Chorus») — exactly what `parseLyrics` reads, in any of the four languages. Its databases

@@ -7,7 +7,7 @@
 import type { BibleStyle } from "./bible-style";
 import type { SlideRect } from "./deck";
 import type { PlateKind, PlatePosition, PlateStyle } from "./overlay";
-import type { BackgroundFit, SceneStyle } from "./scene-style";
+import type { BackgroundFit, SceneBackground, SceneStyle } from "./scene-style";
 import type { SlideTextSettings } from "./slide-model";
 import type { TimerClock, TimerFormat } from "./timer";
 import type { SlideTransition, TransitionSpec } from "./transition";
@@ -47,6 +47,10 @@ export type VideoUnderlay = {
    *  «loop». State, not a command, so a rebuilt projector loops too. */
   loop: boolean;
 } | null;
+
+/** What LOGO shows without a logo image (`logo.name`, `logo.background`). */
+export type LogoScene = { name: string | null; background: SceneBackground };
+export const LOGO_NAME_MAX_LENGTH = 80;
 
 export const VIDEO_END_ACTIONS = ["logo", "black", "loop", "hold", "next"] as const;
 export type VideoEndAction = (typeof VIDEO_END_ACTIONS)[number];
@@ -89,7 +93,10 @@ export type SlideVideo = {
 
 export type ProjectionOutputKind =
   | { kind: "black" }
-  | { kind: "logo"; url: string | null }
+  /** `url` is the church's logo image; without one, `scene` is drawn — a
+   *  background and the church's name (owner, 2026-11-05), dressed like a
+   *  verse: `backgroundUrl` is its image's, resolved here. */
+  | { kind: "logo"; url: string | null; scene: LogoScene; backgroundUrl: string | null }
   | { kind: "image"; url: string }
   | { kind: "video"; url: string; epoch: number }
   /**

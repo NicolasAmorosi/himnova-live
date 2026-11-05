@@ -11,6 +11,7 @@ import type {
   SceneTransition,
   SlideVideo,
   SongVideo,
+  LogoScene,
   VideoEndAction,
   VideoUnderlay,
 } from "@shared/types/projection";
@@ -63,6 +64,8 @@ export type ProjectionStoreState = {
   base: BaseContent | null;
   overlay: OverlayState;
   logoUrl: string | null;
+  /** LOGO without an image: `logo.name` and `logo.background`, mirrored by `App.tsx`. */
+  logoScene: LogoScene;
   presentationOpen: boolean;
   /** Declarative, operator-set pause for the live video — see `VideoUnderlay`.
    *  Reset to `false` whenever `base` changes, so a fresh GO LIVE always
@@ -176,6 +179,7 @@ export type ProjectionStoreState = {
   setBase: (base: BaseContent | null) => void;
   setOverlay: (overlay: OverlayState) => void;
   setLogoUrl: (url: string | null) => void;
+  setLogoScene: (scene: LogoScene) => void;
   setPresentationOpen: (open: boolean) => void;
   setVideoPaused: (paused: boolean) => void;
   /** Moves where the live video would resume from if its element had to be
@@ -331,6 +335,7 @@ export const useProjectionStore = create<ProjectionStoreState>()(
     base: null,
     overlay: "none",
     logoUrl: null,
+    logoScene: { name: null, background: { kind: "solid", color: "#000000" } },
     presentationOpen: false,
     videoPaused: false,
     videoVolume: defaultMediaVolume(),
@@ -367,6 +372,7 @@ export const useProjectionStore = create<ProjectionStoreState>()(
       })),
     setOverlay: (overlay) => set({ overlay }),
     setLogoUrl: (logoUrl) => set({ logoUrl }),
+    setLogoScene: (logoScene) => set({ logoScene }),
     setPresentationOpen: (presentationOpen) => set({ presentationOpen }),
     setVideoPaused: (videoPaused) => set({ videoPaused }),
     setVideoVolume: (volume) =>
@@ -680,6 +686,16 @@ function selectSongVideo(state: ProjectionStoreState): SongVideo | null {
   return { ...base.backgroundVideo, fit: base.theme.background.fit, posterUrl };
 }
 
+function logoKind(state: ProjectionStoreState): ProjectionOutputKind {
+  const { background } = state.logoScene;
+  return {
+    kind: "logo",
+    url: state.logoUrl,
+    scene: state.logoScene,
+    backgroundUrl: background.kind === "image" && background.assetId > 0 ? assetUrl(background.assetId) : null,
+  };
+}
+
 function selectOutputWithoutUnderlay(state: ProjectionStoreState): ProjectionOutputKind {
   if (state.overlay === "black") return { kind: "black" };
   // `logoUrl` is null while no logo has been chosen (`App.tsx` mirrors
@@ -687,10 +703,10 @@ function selectOutputWithoutUnderlay(state: ProjectionStoreState): ProjectionOut
   // logo-less LOGO is a black stage, not a broken <img>. It used to fall back
   // to the bare `worship://logo`, which main answers with a 404 when there is
   // no `logo.path` — so the projector painted the browser's own broken-image
-  // icon and reported a media error for a file nobody ever picked. Saying
-  // "there is no logo" is the control window's job instead (`LiveMonitor`).
-  if (state.overlay === "logo") return { kind: "logo", url: state.logoUrl };
-  if (state.base === null) return { kind: "logo", url: state.logoUrl };
+  // icon and reported a media error for a file nobody ever picked. Without
+  // an image the projector draws the logo scene instead (black, unless the
+  // operator or the starter look dressed it).
+  if (state.overlay === "logo" || state.base === null) return logoKind(state);
 
   switch (state.base.kind) {
     case "deck": {
@@ -813,6 +829,10 @@ type OutputInputs = readonly [
   ProjectionStoreState["base"],
   ProjectionStoreState["overlay"],
   ProjectionStoreState["logoUrl"],
+  ProjectionStoreState["logoScene"],
+  // Only whether it loops reaches the output: «logo», «black», «hold» and
+  // «next» are the end-of-playback effect's, and must not rebuild it.
+  boolean,
   ProjectionStoreState["videoPaused"],
   ProjectionStoreState["videoVolume"],
   ProjectionStoreState["slideVideoEpoch"],
@@ -834,6 +854,8 @@ function outputInputs(state: ProjectionStoreState): OutputInputs {
     state.base,
     state.overlay,
     state.logoUrl,
+    state.logoScene,
+    state.videoEnd === "loop",
     state.videoPaused,
     state.videoVolume,
     state.slideVideoEpoch,
