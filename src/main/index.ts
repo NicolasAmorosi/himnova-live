@@ -7,6 +7,7 @@ import { backupBeforeMigrate, runMigrations } from "./db/migrate";
 import { seedBuiltinBibles } from "./db/seed/seed-bible";
 import { seedUtilityScenes } from "./db/seed/seed-utility-scenes";
 import { seedSongThemes } from "./db/seed/seed-song-themes";
+import { seedStarterLook } from "./db/seed/seed-starter-look";
 import {
   initRepos,
   getSongsRepo,
@@ -15,6 +16,7 @@ import {
   getMediaRepo,
   getSettingsRepo,
   getUtilityRepo,
+  getOverlaysRepo,
 } from "./services/repos";
 import {
   migrateLegacySettingsIfPresent,
@@ -32,13 +34,14 @@ import { projectionState } from "./services/projection-state";
 import {
   dbBackupDir,
   dbPath,
+  backgroundsDir,
   biblesDir,
   legacyMediaLibraryPath,
   legacySettingsPath,
   migrationsDir,
   userDataDir,
 } from "./paths";
-import { mt, setMainLocale } from "./i18n";
+import { mainMessages, mt, setMainLocale } from "./i18n";
 import { systemLocale } from "./i18n/system-locale";
 import { initSlidesSubsystem, shutdownSlides } from "./slides/deck-service";
 import { cancelAllPrewarmBatches } from "./services/prewarm-service";
@@ -137,6 +140,23 @@ function initDatabase(): void {
   seedUtilityScenes(getUtilityRepo(), getSettingsRepo());
   // After the legacy settings: the theme copies the verse's style.
   seedSongThemes(getSongsRepo(), getSettingsRepo());
+  // After both: it adds to the song themes and dresses the time scenes. The
+  // E2E suite starts from a bare profile unless a spec asks for the look.
+  if (!process.argv.includes("--no-starter-look")) {
+    seedStarterLook(
+      {
+        sqlite,
+        media: getMediaRepo(),
+        songs: getSongsRepo(),
+        utility: getUtilityRepo(),
+        overlays: getOverlaysRepo(),
+        settings: getSettingsRepo(),
+      },
+      { from: backgroundsDir, to: path.join(userDataDir, "backgrounds") },
+      mainMessages().look,
+      isNewProfile,
+    );
+  }
 }
 
 function wireMinimizeRestoreSync(controlWindow: BrowserWindow): void {

@@ -1,6 +1,6 @@
 import { useProjectionStore, type ProjectionStoreState } from "@renderer/stores/projection.store";
 import { DECK_SOUNDTRACK_TRACK_ID } from "@renderer/stores/audio.store";
-import { clearBaseContent } from "@renderer/lib/actions/playback";
+import { clearBaseContent, clearBaseContentUnder } from "@renderer/lib/actions/playback";
 import { mediaTargetKey } from "@shared/types/projection";
 
 const VIDEO_STATUS_KEY = mediaTargetKey({ kind: "video" });
@@ -48,6 +48,11 @@ function selectFinishedLiveContent(state: ProjectionStoreState): "video" | "deck
  */
 export function startEndOfPlaybackEffects(): () => void {
   return useProjectionStore.subscribe(selectFinishedLiveContent, (finished) => {
-    if (finished) clearBaseContent();
+    if (finished === "deck") clearBaseContent();
+    if (finished !== "video") return;
+    // The operator's choice (`projection.videoEnd`). A looping video never
+    // ends; one held on its last frame stays until the operator moves on.
+    const { videoEnd } = useProjectionStore.getState();
+    if (videoEnd === "logo" || videoEnd === "black") clearBaseContentUnder(videoEnd);
   });
 }

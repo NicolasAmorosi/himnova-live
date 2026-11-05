@@ -245,7 +245,7 @@ test("a theme edited in «Temas» dresses the live song, and the footer carries 
   const themes = control.getByRole("dialog", { name: "Temas" });
   await themes.getByRole("group", { name: "Mayúsculas", exact: true }).getByRole("switch").click();
   await themes.getByRole("button", { name: "Guardar", exact: true }).click();
-  await expect(toast(app, "Se guardó «Predeterminado»")).toBeVisible();
+  await expect(toast(app, "Se guardó «Clásico»")).toBeVisible();
   await themes.getByRole("button", { name: "Cerrar" }).first().click();
   await expect
     .poll(() => projector.locator("[data-song-block]").last().evaluate((el) => getComputedStyle(el).textTransform))
@@ -335,6 +335,31 @@ test("OpenLyrics files come in from «Importar», a second language as the trans
     const projector = await app.projector();
     await expect(projector.getByText("Sublime gracia del Señor")).toBeVisible();
     await expect(projector.locator("[data-song-translation]").last()).toContainText("Amazing grace, how sweet the sound");
+  } finally {
+    fs.rmSync(folder, { recursive: true, force: true });
+  }
+});
+
+test("SongSelect and ChordPro files come in from «Importar», labels into sections and chords out", async ({ app }) => {
+  const folder = fs.mkdtempSync(path.join(os.tmpdir(), "worship-e2e-txt-"));
+  const songSelect = path.join(folder, "gracia.txt");
+  fs.writeFileSync(
+    songSelect,
+    "Sublime gracia\r\n\r\n\r\nVerse 1\r\nSublime gracia del Señor\r\n\r\n\r\nChorus\r\nAleluya\r\n\r\nJohn Newton\r\nCCLI Song #22025\r\n© Public Domain\r\nFor use solely with the SongSelect® Terms of Use. All rights reserved. www.ccli.com\r\nCCLI License #11111\r\n",
+  );
+  const chordPro = path.join(folder, "amigo.cho");
+  fs.writeFileSync(chordPro, "{title: Oh qué amigo}\n{c: Verse 1}\n[F]Oh qué amigo [Bb]nos es Cristo\n\n{soc}\n[C]Él llevó\n{eoc}\n");
+  try {
+    await app.openResources("Canciones");
+    await app.answerOpenDialog(songSelect);
+    await importFrom(app, "SongSelect (.txt)");
+    await expect(toast(app, "Se importó 1 canción · 0 repetidas · 0 sin letra")).toBeVisible();
+    await app.answerOpenDialog(chordPro);
+    await importFrom(app, "ChordPro");
+    await expect(songRows(app)).toHaveCount(2);
+    await songRows(app).filter({ hasText: "Oh qué amigo" }).click();
+    const grid = app.previewColumn().getByRole("list", { name: "Diapositivas de «Oh qué amigo»" });
+    await expect(grid.getByRole("listitem")).toHaveText([/^Oh qué amigo nos es Cristo.*Estrofa 1$/, /^Él llevó.*Coro$/]);
   } finally {
     fs.rmSync(folder, { recursive: true, force: true });
   }

@@ -193,6 +193,8 @@ export function SongsBrowser() {
               { label: t("songs.importEasyWorship"), value: "easyworship" },
               { label: t("songs.importOpenLp"), value: "openlp" },
               { label: t("songs.importOpenLyrics"), value: "openlyrics" },
+              { label: t("songs.importSongSelect"), value: "songselect" },
+              { label: t("songs.importChordPro"), value: "chordpro" },
             ]}
             size="sm"
             text={t("songs.import")}

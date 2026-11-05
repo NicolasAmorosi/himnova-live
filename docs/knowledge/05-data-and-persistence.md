@@ -156,7 +156,25 @@ only for `songs_fts` (FTS5 external content over title, number, authors and lyri
 A theme is one `SongTheme` JSON per row; every knob added after F1 (outline, footer, fade…) reads its
 default from a stored row that predates it. The default theme is seeded ONCE (`songs.seeded`) from the
 operator's verse style at a singer's size (6 / 2.5 cqw); the last theme cannot be deleted
-(`SONG_THEME_LAST`), and deleting the default one resets `songs.defaultThemeId`.
+(`SONG_THEME_LAST`), and deleting the default one resets `songs.defaultThemeId`. That first theme is
+«Clásico» (black) since the starter look below; installs seeded earlier keep the row they have.
+
+## The starter look — `look.seeded`, and "untouched" is equality with a factory value
+
+`seedStarterLook` (owner, 2026-11-05: «que se vea lindo») copies the backgrounds the app ships
+(`resources/backgrounds/`: 8 stills and 4 loops, drawn by `scripts/make-backgrounds.ts`) into
+`<userData>/backgrounds/` under the language's names — never referenced in place: an AppImage mounts
+somewhere new on every launch — and adds them to the library; then six song themes over them, three
+overlays, and on a NEW install `songs.defaultThemeId` = the first new theme. It runs after the other
+seeds, in one transaction, once per `look.seeded` version (a number, so a later look can be offered
+again), and the E2E harness skips it with `--no-starter-look`.
+
+On an existing install it only ADDS, and restyles what is still exactly as it came (owner): the verse's
+style when it deep-equals `DEFAULT_BIBLE_STYLE`, a time scene's when it deep-equals a FACTORY style —
+today's `DEFAULT_SCENE_STYLE` or the pre-rebrand one (`#04132b`, `#84adfc`, `#f5f5f5`). That second
+value is not hypothetical: the owner's own Mac profile, seeded before 2026-10-22, had two scenes in it
+untouched, which a check against today's default alone would never have dressed. A future change to a
+factory default has to add the old value to that list.
 
 The lyrics text format (`shared/song-text.ts`) is shared by the editor and the EasyWorship importer
 (`main/songs/`): EasyWorship's RTF (`SongWords.db`) becomes plain text whose blocks start with a label
@@ -170,8 +188,16 @@ straight from them — `[---]`, `[--}{--]` and each `<lines>` a slide, chords an
 (no chords yet), the verse order into `order`. A verse in a second language is the translation, paired by
 section and slide (`withTranslation`; owner, 2026-11-05: the FIRST language met is the lyrics, a third is
 dropped). OpenLP's hymn number is the first `songs_songbooks.entry` (2.4) or `songs.song_number` (2.2),
-its `comments` the notes, and a `temporary` song (kept only for a service) is not imported. All three
-importers write through `writeSongs` (`services/song-import.ts`): one transaction, the same title with
+its `comments` the notes, and a `temporary` song (kept only for a service) is not imported.
+
+SongSelect's lyrics (`.txt`) and ChordPro (`main/songs/text-files.ts`) DO go through the text format: each
+is rewritten as the editor's text — a bracketed label over each block — and parsed by `parseLyrics`, so a
+label the app has no word for («Interlude») is a section of its own instead of a lyric line. Which one a
+file is comes from its words (a directive line = ChordPro; a `CCLI` footer = SongSelect), never its
+extension. SongSelect's footer changed order in 2023 (authors above «CCLI Song #»); both orders are read.
+In ChordPro, `{start_of_…}`/`{end_of_…}` and a `{comment}` that names a section are labels, `{chorus}`
+repeats the last chorus, a paragraph outside any section is a verse of its own, and chords, tabs and grids
+are dropped. A file that is not UTF-8 is read as Windows-1252. All the importers write through `writeSongs` (`services/song-import.ts`): one transaction, the same title with
 the same words skipped as repeated.
 
 `song_uses` (`0021`) is what the CCLI usage report counts (owner, 2026-11-05): `projection:show` writes a

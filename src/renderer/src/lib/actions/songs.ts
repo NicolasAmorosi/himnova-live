@@ -196,7 +196,7 @@ export async function deleteSongTheme(id: number): Promise<boolean> {
 
 /**
  * Another program's songs: EasyWorship 6/7's database (a folder), OpenLP's
- * `songs.sqlite` or OpenLyrics files. Says what it did — written, already
+ * `songs.sqlite`, OpenLyrics, SongSelect or ChordPro files. Says what it did — written, already
  * there, without a title or lyrics — and, when main refuses (no song database
  * there, or one that will not open), main's own reason, which says what to
  * pick.

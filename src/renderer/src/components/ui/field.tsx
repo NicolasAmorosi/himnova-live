@@ -176,9 +176,10 @@ export function FieldRow({
           {label}
         </span>
         {description ? (
-          <span className="text-xs text-muted-foreground" id={descriptionId}>
+          // A `div`: a description may be a block (Settings ▸ About's download).
+          <div className="text-xs text-muted-foreground" id={descriptionId}>
             {description}
-          </span>
+          </div>
         ) : null}
       </div>
       <div className="flex shrink-0 flex-nowrap items-center gap-2">

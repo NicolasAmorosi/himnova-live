@@ -15,8 +15,8 @@ saved-services module.
 EasyWorship 6 import — see «Songs» in `04-renderer-state.md` and `05-data-and-persistence.md`.
 Two languages at once and a video behind the lyrics came on 2026-11-05 (see «Songs» in
 `04-renderer-state.md`), and the OpenLP and OpenLyrics importers and the CCLI usage report the same day
-(`05-data-and-persistence.md`). Left for later, by the owner's plan: other importers
-(ProPresenter, FreeShow, SongSelect, ChordPro), chords,
+(`05-data-and-persistence.md`); SongSelect and ChordPro files on 2026-11-05 too. Left for later, by the
+owner's plan: other importers (ProPresenter, FreeShow), chords,
 configurable keys, and checking the importer against a real EasyWorship 7 database.
 
 ## Debt consciously left for a later session

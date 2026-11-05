@@ -111,7 +111,10 @@ src/
 │   │   ├── client.ts             # SQLite opening + pragmas
 │   │   ├── migrate.ts            # backup + migrate() on startup
 │   │   ├── seed/                 # Bible seed (FTS5 rebuild) + bible-formats/ (JSON,
-│   │   │                         #   Zefania, USFX, OSIS, SQLite modules; 66-book canon)
+│   │   │                         #   Zefania, USFX, OSIS, SQLite modules; 66-book canon), the time scenes,
+│   │   │                         #   the first song theme, and seed-starter-look.ts: the backgrounds in
+│   │   │                         #   resources/backgrounds/ (drawn by scripts/make-backgrounds.ts) into the
+│   │   │                         #   library, song themes over them, the verse's and time scenes' look, 3 overlays
 │   │   └── repositories/         # one repo per aggregate (settings, media, bible, programs, history, slides)
 │   ├── ipc/
 │   │   ├── register.ts           # registerHandlers<Handlers> — exhaustiveness enforced by TS
@@ -132,7 +135,8 @@ src/
 │   │                              #   (macOS without Squirrel), update-status.ts (PURE, tested)
 │   ├── logging.ts                 # main.log and crash.log, rotated
 │   ├── songs/                     # rtf.ts (RTF → text), easyworship.ts (EasyWorship 6's song database),
-│   │                              #   openlp.ts (OpenLP's songs.sqlite and OpenLyrics files), usage-report.ts (CCLI CSV)
+│   │                              #   openlp.ts (OpenLP's songs.sqlite and OpenLyrics files), text-files.ts (SongSelect .txt and
+│   │                              #   ChordPro, told apart by their words), usage-report.ts (CCLI CSV)
 │   └── services/                  # repos.ts (registry), projection-state.ts, broadcast.ts
 ├── preload/
 │   ├── index.ts                  # GENERIC invoke/on bridge — never edited when adding channels
@@ -346,7 +350,7 @@ npm install              # installs deps — better-sqlite3 ships prebuilt binar
 npm run dev               # electron-vite dev (HMR in the renderer, main restarts on watch)
 npm run typecheck          # tsc --noEmit over node (main+preload+shared) and web (renderer+shared)
 npm run lint                # eslint .
-npm run test                 # vitest run — 617 cases in two projects: `main` (Node: migrations, seed,
+npm run test                 # vitest run — 631 cases in two projects: `main` (Node: migrations, seed,
                               #   FTS5, repos and the library sweep, draft, settings and scene validators, WAL backup,
                               #   zip reader, the legacy-deck reader against an OLE2 file built in the test
                               #   (`tests/fixtures/legacy-ppt.ts`: pictures, master inheritance, what it refuses),
@@ -369,8 +373,9 @@ npm run test                 # vitest run — 617 cases in two projects: `main` 
                               #   frozen frame, toast store, utils). Nothing imports `electron`: that's
                               #   the suite's boundary
 npm run test:watch            # the same suite in watch mode, while working on a module
-npm run test:e2e              # build + Playwright: 164 walkthroughs of the real app (~10 min) with a
-                              #   throwaway profile and media generated on the fly — videos, AVI and WMA with the
+npm run test:e2e              # build + Playwright: 168 walkthroughs of the real app (~10 min) with a
+                              #   throwaway, bare profile (`--no-starter-look`; `starter-look.spec.ts` turns it on)
+                              #   and media generated on the fly — videos, AVI and WMA with the
                               #   bundled FFmpeg; PDFs, a legacy .pps made of pictures and .pptx with auto-advance, a
                               #   WMA soundtrack and an embedded WMV written in code (`tests/e2e/support/pptx.ts`),
                               #   nothing else installed:

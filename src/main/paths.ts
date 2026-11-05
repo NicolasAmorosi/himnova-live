@@ -18,6 +18,12 @@ export const biblesDir = app.isPackaged
   ? path.join(resourcesRoot, "bibles")
   : path.join(app.getAppPath(), "resources/bibles");
 
+/** The backgrounds the app ships (`scripts/make-backgrounds.ts`), copied into
+ *  the library once by `seedStarterLook`. */
+export const backgroundsDir = app.isPackaged
+  ? path.join(resourcesRoot, "backgrounds")
+  : path.join(app.getAppPath(), "resources/backgrounds");
+
 /** What the `.pptx` reader draws with: ECMA-376's preset shape definitions
  *  and PowerPoint's built-in table styles (`src/main/slides/pptx/`). */
 export const ooxmlDir = app.isPackaged

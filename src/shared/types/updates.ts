@@ -18,7 +18,8 @@ export type UpdateStatus =
   | { kind: "checking" }
   | { kind: "upToDate"; checkedAt: number }
   | { kind: "available"; version: string }
-  | { kind: "downloading"; version: string; percent: number }
+  /** Bytes so far and in all; `total` is 0 until the server has said. */
+  | { kind: "downloading"; version: string; percent: number; transferred: number; total: number }
   /** `installOnQuit`: the operator chose «When the app closes».
    *  `opensInstaller`: installing opens the `.dmg` for the operator to drag
    *  over the app (macOS without a Developer ID) instead of replacing it and

@@ -43,7 +43,13 @@ export type VideoUnderlay = {
    *  another screen — and the operator would be left with a level the app
    *  believes it is at and the room cannot hear. */
   volume: number;
+  /** Starts over at its end instead of ending — `projection.videoEnd` set to
+   *  «loop». State, not a command, so a rebuilt projector loops too. */
+  loop: boolean;
 } | null;
+
+export const VIDEO_END_ACTIONS = ["logo", "black", "loop", "hold"] as const;
+export type VideoEndAction = (typeof VIDEO_END_ACTIONS)[number];
 
 /**
  * A video embedded in the slide that is currently live, positioned inside it.

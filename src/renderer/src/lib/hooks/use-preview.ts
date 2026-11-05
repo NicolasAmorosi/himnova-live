@@ -248,7 +248,8 @@ function usePreviewOutputWithoutPlates(content: PreviewContent | null): Projecti
         // "live"). The field is here because the shape requires it, not
         // because anything reads it.
         const url = playableUrl ?? assetUrl(content.asset.id);
-        const underlay = { url, epoch: 0, paused: !playing, startAtSeconds: 0, volume: 0 };
+        // PREVIEW plays a video once: what happens at its end is the projector's.
+        const underlay = { url, epoch: 0, paused: !playing, startAtSeconds: 0, volume: 0, loop: false };
         return {
           kind: "video",
           url: underlay.url,

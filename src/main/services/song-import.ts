@@ -3,6 +3,7 @@ import type { SongImportResult } from "@shared/types/song";
 import { mt } from "../i18n";
 import { findEasyWorshipData, readEasyWorship, songIdentity, type SongsRead } from "../songs/easyworship";
 import { readOpenLpDatabase, readOpenLyricsFiles } from "../songs/openlp";
+import { readSongTextFiles } from "../songs/text-files";
 import { getDbHandle, getSettingsRepo, getSongsRepo } from "./repos";
 
 /** Imports EasyWorship's songs from `folder` (its `Databases/Data`, or a
@@ -35,6 +36,11 @@ export function importOpenLpDatabase(file: string): SongImportResult {
 /** OpenLyrics files, one song each: a file that is not one is a problem. */
 export function importOpenLyricsFiles(files: readonly string[]): SongImportResult {
   return writeSongs(readOpenLyricsFiles(files));
+}
+
+/** SongSelect (`.txt`) and ChordPro files, told apart by their words. */
+export function importSongTextFiles(files: readonly string[]): SongImportResult {
+  return writeSongs(readSongTextFiles(files, getSettingsRepo().get("ui.locale")));
 }
 
 /**

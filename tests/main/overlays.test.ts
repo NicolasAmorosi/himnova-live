@@ -185,7 +185,7 @@ describe("the projection history", () => {
       kind: "video",
       url: "worship://asset/3",
       epoch: 4,
-      videoUnderlay: { url: "worship://asset/3", epoch: 4, paused: false, startAtSeconds: 0, volume: 1 },
+      videoUnderlay: { url: "worship://asset/3", epoch: 4, paused: false, startAtSeconds: 0, volume: 1, loop: false },
       slideVideo: null,
       plates: [],
       transition: { epoch: 10, style: "crossfade", durationMs: 300 },

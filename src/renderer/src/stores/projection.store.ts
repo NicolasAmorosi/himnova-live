@@ -11,6 +11,7 @@ import type {
   SceneTransition,
   SlideVideo,
   SongVideo,
+  VideoEndAction,
   VideoUnderlay,
 } from "@shared/types/projection";
 import type { SlideTransition, TransitionStyle } from "@shared/types/transition";
@@ -126,6 +127,8 @@ export type ProjectionStoreState = {
   sceneEpoch: number;
   transitionStyle: TransitionStyle;
   transitionDurationMs: number;
+  /** `projection.videoEnd`, mirrored by `App.tsx` like the transition. */
+  videoEnd: VideoEndAction;
   /**
    * How a verse is drawn, mirrored here from `settings["bible.style"]`.
    *
@@ -254,6 +257,7 @@ export type ProjectionStoreState = {
    *  so the very first output already carries the new epoch. */
   beginScene: () => void;
   setTransitionSettings: (style: TransitionStyle, durationMs: number) => void;
+  setVideoEnd: (videoEnd: VideoEndAction) => void;
   setBibleStyle: (style: BibleStyle) => void;
   setSlideText: (text: SlideTextSettings) => void;
   /** Puts a plate up, taking down whichever plate it collides with (`platesCollide`). */
@@ -347,6 +351,7 @@ export const useProjectionStore = create<ProjectionStoreState>()(
     sceneEpoch: 0,
     transitionStyle: "crossfade",
     transitionDurationMs: 300,
+    videoEnd: "logo",
     bibleStyle: DEFAULT_BIBLE_STYLE,
     slideText: { fallbackFont: null, locale: "es" },
     livePlates: [],
@@ -559,6 +564,7 @@ export const useProjectionStore = create<ProjectionStoreState>()(
       }),
     setTransitionSettings: (transitionStyle, transitionDurationMs) =>
       set({ transitionStyle, transitionDurationMs }),
+    setVideoEnd: (videoEnd) => set({ videoEnd }),
     setBibleStyle: (bibleStyle) => set({ bibleStyle }),
     setSlideText: (slideText) => set({ slideText }),
     showPlate: (plate) =>
@@ -632,6 +638,7 @@ function selectVideoUnderlay(state: ProjectionStoreState): VideoUnderlay {
     paused: state.videoPaused,
     startAtSeconds: state.base.startAtSeconds,
     volume: state.videoVolume,
+    loop: state.videoEnd === "loop",
   };
 }
 

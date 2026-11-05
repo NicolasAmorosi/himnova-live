@@ -12,6 +12,7 @@ import { toast } from "@renderer/lib/toast";
 import { IpcError } from "@shared/ipc/result";
 import { LOGO_URL } from "@shared/urls";
 import type { TransitionStyle } from "@shared/types/transition";
+import { VIDEO_END_ACTIONS, type VideoEndAction } from "@shared/types/projection";
 
 /** Everything about what the projector shows: which screen, the fallback
  *  logo, and clearing whatever is currently live. */
@@ -29,6 +30,7 @@ export function ProjectionSection() {
   const transitionStyle = useSettingsStore((s) => s.settings["projection.transition.style"]);
   const transitionDurationMs = useSettingsStore((s) => s.settings["projection.transition.durationMs"]);
   const startVolume = useSettingsStore((s) => s.settings["media.volume"]);
+  const videoEnd = useSettingsStore((s) => s.settings["projection.videoEnd"]);
   const updateSettings = useSettingsStore((s) => s.update);
 
   // The URL carries the logo's own path as a cache-buster: it's the same
@@ -158,6 +160,14 @@ export function ProjectionSection() {
           <Button disabled={base === null} onClick={clearLive} variant="outline">
             <Icon name="offAir" /> {t("live.takeOffAir")}
           </Button>
+        </FieldRow>
+        <FieldRow description={t("settings.videoEndDesc")} label={t("settings.videoEnd")}>
+          <Select
+            className="min-w-56"
+            onChange={(value) => void updateSettings({ "projection.videoEnd": value as VideoEndAction })}
+            options={VIDEO_END_ACTIONS.map((action) => ({ label: t(`settings.videoEndOptions.${action}`), value: action }))}
+            value={videoEnd}
+          />
         </FieldRow>
       </FieldGroup>
 

@@ -24,7 +24,7 @@ export async function downloadDmg(
   url: string,
   sha512: string,
   size: number,
-  onProgress: (percent: number) => void,
+  onProgress: (percent: number, received: number, total: number) => void,
 ): Promise<string> {
   // One `.dmg` at a time: each is ~200 MB, and an older one is never opened again.
   fs.rmSync(DMG_DIR, { recursive: true, force: true });
@@ -47,7 +47,7 @@ export async function downloadDmg(
       hash.update(chunk.value);
       await file.write(chunk.value);
       received += chunk.value.byteLength;
-      onProgress(total > 0 ? Math.min(100, (received / total) * 100) : 0);
+      onProgress(total > 0 ? Math.min(100, (received / total) * 100) : 0, received, total);
     }
   } finally {
     await file.close();

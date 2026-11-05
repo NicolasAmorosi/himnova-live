@@ -190,3 +190,25 @@ test("a video replaced in place is probed again, and plays as it now is", async 
     .poll(() => projector.evaluate(() => document.querySelector("video")?.duration ?? 0), { timeout: 30_000 })
     .toBeCloseTo(8, 0);
 });
+
+test("«Repetir en bucle» loops an engine video too: past its end it starts over, still on air", async ({ app }) => {
+  await app.control.getByRole("button", { name: "Configuración" }).click();
+  const settings = app.control.getByRole("dialog", { name: "Configuración" });
+  await settings.getByRole("tab", { name: "Proyección" }).click();
+  await settings.getByRole("group", { name: "Al terminar un video" }).getByRole("combobox").click();
+  await app.control.getByRole("option", { name: "Repetir en bucle", exact: true }).click();
+  await settings.getByRole("button", { name: "Volver" }).click();
+
+  const [avi] = await app.addMedia("video", "clip-xvid.avi");
+  if (!avi) throw new Error("import failed");
+  await waitEngine(app, avi);
+  await app.previewFile("Videos", "clip-xvid");
+  await app.goLive();
+  const projector = await app.projector();
+  const position = app.liveColumn().getByRole("slider", { name: "Posición de clip-xvid" });
+  // Six seconds long: near its end, then back at the start — never cleared.
+  await expect.poll(async () => Number(await position.getAttribute("aria-valuenow")), { timeout: 15_000 }).toBeGreaterThan(4);
+  await expect.poll(async () => Number(await position.getAttribute("aria-valuenow")), { timeout: 15_000 }).toBeLessThan(2);
+  await expect.poll(() => moving(projector, "video:")).toBe(true);
+  await expect(app.control.getByRole("button", { name: "LOGO", exact: true }).first()).not.toHaveAttribute("aria-pressed", "true");
+});

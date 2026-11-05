@@ -29,7 +29,7 @@ export function liveEngineState(output: ProjectionOutput | null, projectorOpen: 
     startAtSeconds: video.startAtSeconds,
     paused: video.paused || output.kind !== "video" || !projectorOpen,
     volume: video.volume,
-    loop: false,
+    loop: video.loop,
   };
 }
 

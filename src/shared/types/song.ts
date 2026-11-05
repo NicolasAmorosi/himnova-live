@@ -84,7 +84,7 @@ export type SongUsage = { programId: number; programName: string; itemCount: num
 
 /** The programs whose songs the app reads (owner, 2026-11-05: «Importar» is a
  *  menu of them). */
-export const SONG_IMPORT_SOURCES = ["easyworship", "openlp", "openlyrics"] as const;
+export const SONG_IMPORT_SOURCES = ["easyworship", "openlp", "openlyrics", "songselect", "chordpro"] as const;
 export type SongImportSource = (typeof SONG_IMPORT_SOURCES)[number];
 
 /** One song in the CCLI usage report: the days it went live (one per day). */

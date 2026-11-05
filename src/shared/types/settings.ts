@@ -8,6 +8,7 @@ import { isBibleStyle, normalizeBibleStyle } from "../bible-style-validators";
 import { DEFAULT_BIBLE_STYLE, type BibleStyle } from "./bible-style";
 import { MEDIA_SORT_ORDERS, type MediaSortOrder } from "./media";
 import { TRANSITION_MAX_DURATION_MS, TRANSITION_STYLES, type TransitionStyle } from "./transition";
+import { VIDEO_END_ACTIONS, type VideoEndAction } from "./projection";
 
 export const THEMES = ["dark", "light"] as const;
 export type Theme = (typeof THEMES)[number];
@@ -54,6 +55,10 @@ export type SettingsMap = {
   "projection.transition.style": TransitionStyle;
   /** Ignored when the style is "none". */
   "projection.transition.durationMs": number;
+  /** What the projector does when a video reaches its end on its own (owner,
+   *  2026-11-05): the logo (black without one), BLACK, start over, or stay on
+   *  its last frame. Videos only — an auto-advancing deck still clears. */
+  "projection.videoEnd": VideoEndAction;
   /** Whether the LIVE monitor plays its own moving copy of a live video (the
    *  full-screen one and a slide's). Off, it shows the video's thumbnail and
    *  the control window decodes nothing — the projector is never affected. */
@@ -89,6 +94,10 @@ export type SettingsMap = {
   /** Whether this database has ever been given its default song theme —
    *  `utility.seeded`'s rule: seeded once, so a deleted theme stays deleted. */
   "songs.seeded": boolean;
+  /** Which version of the starter look this database has been given
+   *  (`seedStarterLook`): 0 = none. A version, not a flag, so a later look
+   *  can be offered once more without re-adding the first. */
+  "look.seeded": number;
   /** The theme a song without one of its own is drawn with. `null` = the
    *  first theme. Reset to `null` by deleting the theme it names. */
   "songs.defaultThemeId": number | null;
@@ -137,6 +146,7 @@ export const DEFAULT_SETTINGS: SettingsMap = {
   // in the Live panel.
   "media.volume": 1,
   "projection.transition.style": "crossfade",
+  "projection.videoEnd": "logo",
   "projection.transition.durationMs": 300,
   "slides.imageFormat": "webp",
   "slides.fallbackFont": null,
@@ -148,6 +158,7 @@ export const DEFAULT_SETTINGS: SettingsMap = {
   "library.sort": { video: "name-asc", image: "name-asc", audio: "name-asc", ppt: "name-asc" },
   "utility.seeded": false,
   "songs.seeded": false,
+  "look.seeded": 0,
   "songs.defaultThemeId": null,
   "songs.ccliLicense": null,
   "bible.style": DEFAULT_BIBLE_STYLE,
@@ -220,6 +231,7 @@ export const SETTINGS_VALIDATORS: Record<keyof SettingsMap, (value: unknown) => 
   "ui.locale": isOneOf(LOCALES),
   "media.volume": isNumberIn(0, 1),
   "projection.transition.style": isOneOf(TRANSITION_STYLES),
+  "projection.videoEnd": isOneOf(VIDEO_END_ACTIONS),
   "projection.transition.durationMs": isNumberIn(0, TRANSITION_MAX_DURATION_MS),
   "slides.imageFormat": isOneOf(SLIDE_IMAGE_FORMATS),
   "slides.fallbackFont": isNullOr(isOneOf(SLIDE_FALLBACK_FONTS)),
@@ -231,6 +243,7 @@ export const SETTINGS_VALIDATORS: Record<keyof SettingsMap, (value: unknown) => 
   "library.sort": isRecordOfKinds(isOneOf(MEDIA_SORT_ORDERS)),
   "utility.seeded": isBoolean,
   "songs.seeded": isBoolean,
+  "look.seeded": (v) => typeof v === "number" && Number.isInteger(v) && v >= 0,
   "songs.defaultThemeId": (v) => v === null || (typeof v === "number" && Number.isInteger(v) && v > 0),
   "songs.ccliLicense": (v) => v === null || (typeof v === "string" && v.length <= 100),
   "bible.style": isBibleStyle,
