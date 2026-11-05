@@ -56,6 +56,16 @@ describe("OpenLP's lyrics", () => {
       ["c1", [["[Coro] stays: a word in brackets is not a chord"]]],
       ["pc1", [["Before the chorus"]]],
     ]);
+    // The chords come in apart from the words, for the musicians' screen.
+    expect(sections[0]?.slides[0]?.chords).toEqual([
+      [
+        { at: 0, name: "C" },
+        { at: 8, name: "C7" },
+        { at: 19, name: "F#m7" },
+      ],
+      [{ at: 4, name: "G/B" }],
+    ]);
+    expect(sections[1]?.slides[0]?.chords).toBeUndefined();
   });
 
   test("a second language is the translation, paired by verse and slide; a third is dropped", () => {
@@ -196,6 +206,15 @@ describe("OpenLyrics", () => {
       ["c1", [["Aleluya"]]],
       ["v2", [["Su gracia me enseñó a temer"]]],
     ]);
+    expect(song!.sections[0]?.slides[0]?.chords).toEqual([
+      [
+        { at: 0, name: "C" },
+        { at: 8, name: "C7" },
+        { at: 21, name: "F" },
+      ],
+      [],
+    ]);
+    expect(song!.sections[1]?.slides[0]?.chords).toEqual([[{ at: 0, name: "G" }]]);
     expect(song).toMatchObject({
       title: "Sublime gracia",
       authors: "John Newton",

@@ -180,6 +180,14 @@ Version 2 dresses LOGO without an image: `logo.background`, still the factory bl
 found in the library at the path version 1 copied it to, never added again, so a background the
 operator deleted stays deleted. Each version runs once, in order, in the same transaction.
 
+**Chords** (2026-11-05) are written inline in that text, ChordPro-style (`[G]Amazing [C]grace`, `CHORD_PATTERN`:
+a word in brackets is not one), and stored APART: `SongSlide.chords`, one list of `{ at, name }` per line, so
+`lines` stay the bare words everything else reads — the projector, the fit, the search, the translation.
+`slideFromWritten`/`writtenLines` go between the two; a header is ONE pair of brackets around the whole
+line, so `[G]Cuán grande es [D]` is a line. They survive `splitSection`, `withTranslation` and `sectionsIn`
+(never over a translation), and only `stageOutputFor` puts them in an output: the musicians' screen draws
+them, at 0.66 of the song's size so the measured block still fits; the projector cannot.
+
 The lyrics text format (`shared/song-text.ts`) is shared by the editor and the EasyWorship importer
 (`main/songs/`): EasyWorship's RTF (`SongWords.db`) becomes plain text whose blocks start with a label
 («Verse 1», «Chorus») — exactly what `parseLyrics` reads, in any of the four languages. Its databases

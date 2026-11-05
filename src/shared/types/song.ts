@@ -39,11 +39,18 @@ export const SECTION_KEY_PREFIX: Record<SongSectionType, string> = {
 /** A section's number goes 1..this. A song with a hundredth verse is not a song. */
 export const SONG_SECTION_NUMBER_MAX = 99;
 
+/** A chord over a lyric line: `at` is the character of the line it sits on. */
+export type SongChord = { at: number; name: string };
+
 export type SongSlide = {
   lines: string[];
   /** This slide in the second language, written in the editor's «Traducción»
    *  text and paired by section and slide (`withTranslation`). */
   translation?: string[];
+  /** The chords over each of `lines` (same length), only when the slide has
+   *  any. For the musicians' screen alone: the projector never draws them
+   *  (owner, plan §8). Written inline in the editor's text, `[G]Amazing`. */
+  chords?: SongChord[][];
 };
 
 /** Which language a live song shows (owner, 2026-11-05): a song with a
@@ -105,6 +112,8 @@ export type SongSearchHit = {
  *  knowing which section and which pass of the order it comes from. */
 export type SongDeckSlide = {
   lines: string[];
+  /** `SongSlide.chords`, carried to the musicians' screen. */
+  chords?: SongChord[][];
   /** Drawn under `lines`, smaller (`SongTheme.translation`): only when the song
    *  is resolved in «both» and this slide has one. */
   translation?: string[];

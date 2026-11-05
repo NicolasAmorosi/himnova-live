@@ -13,6 +13,16 @@ function uncovered(state: ProjectionStoreState): ProjectionOutput {
   return { ...selectOutput({ ...state, overlay: "none" }), plates: [], transition: INSTANT_TRANSITION };
 }
 
+/** A song slide with its chords, for the musicians: the slide of the live song
+ *  whose words these are (a chorus sung twice has the same chords twice). In
+ *  «Traducción» the words are the translation's, which carries none. */
+function withChords(output: ProjectionOutput | null, state: ProjectionStoreState): ProjectionOutput | null {
+  if (output?.kind !== "song" || state.base?.kind !== "song") return output;
+  const words = output.lines.join("\n");
+  const slide = state.base.song.slides.find((candidate) => candidate.lines.join("\n") === words);
+  return slide?.chords ? { ...output, chords: slide.chords } : output;
+}
+
 /** The slide or verse → would bring — the same step `advanceSlide`,
  *  `advanceSong` and `advanceVerse` take — or `null`. */
 function nextOutput(state: ProjectionStoreState, bible: StageBibleCursor): ProjectionOutput | null {
@@ -54,9 +64,11 @@ export function stageOutputFor(
   const { base, overlay } = state;
   const lyricsHidden = base?.kind === "song" && base.lyricsHidden;
   return {
-    current:
+    current: withChords(
       base === null ? null : uncovered(lyricsHidden ? { ...state, base: { ...base, lyricsHidden: false } } : state),
-    next: nextOutput(state, bible),
+      state,
+    ),
+    next: withChords(nextOutput(state, bible), state),
     videoStill: { posterUrl, videoUrl: base?.kind === "video" ? base.url : null },
     notice:
       overlay === "black" ? words.black : overlay === "logo" ? words.logo : lyricsHidden ? words.lyricsHidden : null,

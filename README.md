@@ -37,7 +37,9 @@ Windows, macOS and Linux · English, Spanish, Italian and Portuguese
 - **A look to start with:** eight backgrounds and four moving ones in the library, song themes over
   them, a quiet background behind the verse, dressed timers and three overlays ready to fill in — all
   editable, and none of it touches what you already changed.
-- **A stage screen** for the musicians on a third screen: what is live, what comes next and the time.
+- **A stage screen** for the musicians on a third screen: what is live, what comes next and the time —
+  with the song's chords over its words, which the projector never shows. Chords come in from OpenLP,
+  OpenLyrics and ChordPro, or are written in the lyrics as `[G]Amazing [C]grace`.
 - **Timers** (countdown, clock, stopwatch) and **overlays** on top of what is projected (a lower third
   with the preacher's name, the church logo).
 - **BLACK and LOGO** pause whatever is playing and resume it where it was. Without a logo image, LOGO

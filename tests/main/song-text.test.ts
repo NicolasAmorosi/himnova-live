@@ -11,10 +11,12 @@ import {
   parseLyrics,
   parseOrder,
   sectionLabel,
+  sectionsIn,
   serializeLyrics,
   slideAtCaret,
   songDeckSlides,
   splitSection,
+  withTranslation,
 } from "../../src/shared/song-text";
 
 const keysOf = (text: string, locale: "es" | "en" | "it" | "pt" = "es") =>
@@ -214,4 +216,47 @@ describe("the caret and the slides", () => {
     expect(landsOn(text.replace(/\r/g, ""), 1)).toBe("coro");
     expect(text.slice(caretAtSlide(text, "es", 0, deck(text)[1]!)!)).toBe("coro");
   });
+});
+
+describe("chords (2026-11-05)", () => {
+  test("written inline, read apart from the words, and written back the same", () => {
+    const text = "[Estrofa 1]\n[G]Sublime [C]gracia\ndel Señor\n\n[Coro]\n[D]Aleluya";
+    const { sections } = parseLyrics(text, "es");
+    expect(sections[0]?.slides[0]).toEqual({
+      lines: ["Sublime gracia", "del Señor"],
+      chords: [
+        [
+          { at: 0, name: "G" },
+          { at: 8, name: "C" },
+        ],
+        [],
+      ],
+    });
+    expect(serializeLyrics(sections, "es")).toBe(text);
+  });
+
+  test("a word in brackets is not a chord, and a chorus with its chords is still the same chorus", () => {
+    const { sections, sequence } = parseLyrics("[Coro]\n[G]Santo [sic]\n\n[Estrofa]\nuno\n\n[Coro]\n[G]Santo [sic]", "es");
+    expect(sections[0]?.slides[0]).toEqual({ lines: ["Santo [sic]"], chords: [[{ at: 0, name: "G" }]] });
+    expect(sequence).toEqual(["c1", "v1", "c1"]);
+  });
+
+  test("split with their lines, kept by a translation, and never over one", () => {
+    const [section] = parseLyrics("[Estrofa 1]\n[G]uno\n[C]dos\n[D]tres", "es").sections;
+    const split = splitSection(section!, 2);
+    expect(split.slides.map((slide) => slide.chords)).toEqual([
+      [[{ at: 0, name: "G" }], [{ at: 0, name: "C" }]],
+      [[{ at: 0, name: "D" }]],
+    ]);
+    const translated = withTranslation([section!], parseLyrics("[Estrofa 1]\none\ntwo\nthree", "es").sections);
+    expect(translated[0]?.slides[0]?.chords).toEqual(section!.slides[0]?.chords);
+    expect(sectionsIn(translated, "translation")[0]?.slides[0]).toEqual({ lines: ["one", "two", "three"] });
+    expect(sectionsIn(translated, "original")[0]?.slides[0]?.chords).toEqual(section!.slides[0]?.chords);
+  });
+});
+
+test("a line that ends on a chord is a line, not a header", () => {
+  const { sections } = parseLyrics("[Estrofa 1]\n[G]Cuán grande es [D]\n\n[Coro]\ncoro", "es");
+  expect(sections.map((section) => section.key)).toEqual(["v1", "c1"]);
+  expect(sections[0]?.slides[0]).toEqual({ lines: ["Cuán grande es"], chords: [[{ at: 0, name: "G" }, { at: 14, name: "D" }]] });
 });

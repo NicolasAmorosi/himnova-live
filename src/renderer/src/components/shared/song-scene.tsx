@@ -2,7 +2,7 @@ import { cn } from "@renderer/lib/utils";
 import { sceneTextCss } from "./scene-text";
 import { cssFontFamily, cssSceneBackground, type SceneVerticalAlign } from "@shared/types/scene-style";
 import type { ProjectionOutput } from "@shared/types/projection";
-import { SONG_FOOTER_LINES, type SongTheme } from "@shared/types/song";
+import { SONG_FOOTER_LINES, type SongChord, type SongTheme } from "@shared/types/song";
 
 export type SongOutput = Extract<ProjectionOutput, { kind: "song" }>;
 
@@ -11,7 +11,40 @@ export type SongOutput = Extract<ProjectionOutput, { kind: "song" }>;
 export type SongSlideContent = Pick<SongOutput, "backgroundUrl" | "footer" | "lines" | "sizeCqw" | "theme"> & {
   /** The second language, under the lyrics (`SongTheme.translation`). */
   translation?: readonly string[] | null | undefined;
+  /** Only the musicians' screen sends them (`SongOutput.chords`). */
+  chords?: readonly (readonly SongChord[])[] | undefined;
 };
+
+/** A row of chords over every line makes the block this much taller, so the
+ *  words shrink by as much: the song's one size was measured without them. */
+const CHORDED_SCALE = 0.66;
+/** Amber, the flame's: apart from any theme's text colour, and never
+ *  uppercased by one (`Am` is not `AM`). */
+const CHORD_STYLE = { color: "#ffc960", fontSize: "0.6em", fontWeight: 700, lineHeight: 1.15, textTransform: "none" } as const;
+
+/** A line with its chords over it: each chord heads the words from its
+ *  position to the next one's. Spaces are kept (`pre`) so a cut between
+ *  two words keeps the space between them. */
+function ChordedLine({ chords, line }: { chords: readonly SongChord[]; line: string }) {
+  if (chords.length === 0) return <p>{line}</p>;
+  const cuts = chords.map((chord) => Math.min(chord.at, line.length));
+  const head = line.slice(0, cuts[0]);
+  return (
+    <p>
+      {head ? <span className="inline-flex flex-col whitespace-pre"><span style={CHORD_STYLE}>{"\u00a0"}</span>{head}</span> : null}
+      {chords.map((chord, index) => (
+        // Positional: the same chord twice on a line is two chords.
+        <span className="inline-flex flex-col whitespace-pre" key={index}>
+          <span data-song-chord="" style={CHORD_STYLE}>
+            {chord.name}
+            {"\u00a0"}
+          </span>
+          {line.slice(cuts[index], cuts[index + 1] ?? line.length) || "\u00a0"}
+        </span>
+      ))}
+    </p>
+  );
+}
 
 /** The footer's own leading. */
 const FOOTER_LINE_HEIGHT = 1.25;
@@ -52,7 +85,8 @@ export function SongScene({
   /** The theme's video plays under this scene: its still is not drawn here. */
   videoBehind?: boolean;
 }) {
-  const { backgroundUrl, footer, lines, sizeCqw, theme, translation } = content;
+  const { backgroundUrl, chords, footer, lines, sizeCqw, theme, translation } = content;
+  const chorded = chords?.some((line) => line.length > 0) ?? false;
   // A video background paints no colour of its own: the live video is under
   // this scene (`OutputView`'s `SongVideoLayer`), and everywhere else its still
   // is the picture (`backgroundUrl`, `songBackgroundUrl`).
@@ -89,7 +123,7 @@ export function SongScene({
           data-song-block=""
           style={{
             ...sceneTextCss(theme.text),
-            fontSize: `${sizeCqw}cqw`,
+            fontSize: `${chorded ? sizeCqw * CHORDED_SCALE : sizeCqw}cqw`,
             fontFamily: cssFontFamily(theme.fontFamily),
             lineHeight: theme.lineHeight,
             textAlign: theme.textAlign,
@@ -101,10 +135,10 @@ export function SongScene({
               : {}),
           }}
         >
-          {lines.map((line, index) => (
+          {lines.map((line, index) =>
             // Positional on purpose: the same words twice are two lines.
-            <p key={index}>{line}</p>
-          ))}
+            chorded ? <ChordedLine chords={chords?.[index] ?? []} key={index} line={line} /> : <p key={index}>{line}</p>,
+          )}
           {/* Inside the measured block, so the song's one size fits both
               languages; in `em`, so it scales with that size. */}
           {translation && translation.length > 0 ? (

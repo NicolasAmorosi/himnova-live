@@ -1,6 +1,6 @@
 /**
  * SongSelect's `.txt` (both footers) and ChordPro: sections from the labels,
- * chords and the band's parts out, the footer and the directives into the
+ * chords apart from the words, the band's parts out, the footer and the directives into the
  * song's fields, and files told apart by their words.
  */
 import fs from "node:fs";
@@ -78,7 +78,7 @@ describe("SongSelect", () => {
 });
 
 describe("ChordPro", () => {
-  test("sections, repeats and the song's fields; chords, tabs and remarks dropped", () => {
+  test("sections, repeats and the song's fields; chords kept apart; tabs and remarks dropped", () => {
     const text = `{title: Morning Hymn}
 {artist: Ann Writer}
 {composer: Ben Writer}
@@ -117,6 +117,13 @@ Mine is the sunlight`;
       ["c1", [["Praise for the singing"], ["Praise for the morning"]]],
       ["v2", [["Sweet the rain's new fall"]]],
       ["b1", [["Mine is the sunlight"]]],
+    ]);
+    expect(song?.sections[0]?.slides[0]?.chords).toEqual([
+      [
+        { at: 0, name: "G" },
+        { at: 12, name: "C" },
+      ],
+      [{ at: 15, name: "D" }],
     ]);
   });
 

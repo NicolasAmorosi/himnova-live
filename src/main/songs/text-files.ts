@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { TextDecoder } from "node:util";
-import { isSectionLabel, parseLyrics, textOrder } from "@shared/song-text";
+import { hasWords, isSectionLabel, isWrittenChord, parseLyrics, textOrder } from "@shared/song-text";
 import { isSongUpsert, SONG_FIELD_MAX_LENGTH, SONG_TITLE_MAX_LENGTH } from "@shared/song-validators";
 import type { Locale } from "@shared/types/settings";
 import type { SongUpsert } from "@shared/types/song";
@@ -13,7 +13,7 @@ import { ccliNumber, clip, type SongsRead } from "./easyworship";
  * editor reads — a bracketed label over each block — and parsed by
  * `parseLyrics`, so a section is named the same way whichever way it came in.
  * Which one a file is comes from its words, not its extension: a `.txt` may be
- * either. Chords are dropped (owner, 2026-11-05: the app has none yet).
+ * either. ChordPro's chords come in, for the musicians' screen only.
  */
 
 type ReadSong = Omit<SongUpsert, "id">;
@@ -117,8 +117,8 @@ export const isChordPro = (text: string): boolean => lines(text).some((line) => 
  * `{start_of_…}`/`{end_of_…}` or a `{comment}` that names one (CCLI writes
  * `{c: Verse 1}`); `{chorus}` repeats the last chorus; a paragraph outside
  * any section is a verse of its own, a blank line inside one a new slide.
- * Chords (`[G]`, anything in brackets), `#` comments, tabs and grids are
- * dropped. A song without `{title}` takes the file's name.
+ * Chords (`[G]`) come in; any other bracket (`[*Rit.]`), `#` comments, tabs
+ * and grids are dropped. A song without `{title}` takes the file's name.
  */
 export function readChordPro(text: string, fallbackTitle: string, locale: Locale): (ReadSong | null)[] {
   type Draft = Fields & { lyrics: string[] };
@@ -182,8 +182,12 @@ export function readChordPro(text: string, fallbackTitle: string, locale: Locale
       if (section === null && wordsSinceLabel) unlabeled = true;
       continue;
     }
-    const words = line.replace(/\[[^\]]*\]/g, "").replace(/\s+/g, " ").trim();
-    if (!words) continue; // a line of chords only
+    // Chords stay inline for `parseLyrics`; an annotation (`[*Rit.]`) goes.
+    const words = line
+      .replace(/\[[^\]]*\]/g, (bracketed) => (isWrittenChord(bracketed) ? bracketed : ""))
+      .replace(/\s+/g, " ")
+      .trim();
+    if (!hasWords(words)) continue; // a line of chords only
     if (unlabeled && section === null) label("Verse");
     unlabeled = false;
     wordsSinceLabel = true;

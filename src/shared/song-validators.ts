@@ -217,11 +217,26 @@ export function isSongThemeUpsert(value: unknown): value is SongThemeUpsert {
 
 const isLine = (v: unknown): boolean => typeof v === "string" && v.length <= SONG_LINE_MAX_LENGTH;
 
+export const SONG_CHORD_MAX_LENGTH = 16;
+
+const isChord = (v: unknown): boolean =>
+  isRecord(v) &&
+  isIntegerIn(0, SONG_LINE_MAX_LENGTH)(v.at) &&
+  typeof v.name === "string" &&
+  v.name.length > 0 &&
+  v.name.length <= SONG_CHORD_MAX_LENGTH;
+
 function isSlide(value: unknown): value is SongSlide {
   if (!isRecord(value) || !Array.isArray(value.lines)) return false;
-  const { lines, translation } = value;
+  const { chords, lines, translation } = value;
   if (lines.length === 0 || lines.length > SONG_MAX_LINES_PER_SLIDE || !lines.every(isLine)) return false;
   if (!lines.some((line) => typeof line === "string" && line.trim().length > 0)) return false;
+  if (
+    chords !== undefined &&
+    !(Array.isArray(chords) && chords.length === lines.length && chords.every((line) => Array.isArray(line) && line.every(isChord)))
+  ) {
+    return false;
+  }
   return (
     translation === undefined ||
     (Array.isArray(translation) && translation.length <= SONG_MAX_LINES_PER_SLIDE && translation.every(isLine))

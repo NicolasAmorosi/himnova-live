@@ -12,7 +12,7 @@ import type { SlideTextSettings } from "./slide-model";
 import type { TimerClock, TimerFormat } from "./timer";
 import type { SlideTransition, TransitionSpec } from "./transition";
 import type { UtilityScene } from "./utility";
-import type { ResolvedSong, SongLanguage, SongTheme } from "./song";
+import type { ResolvedSong, SongChord, SongLanguage, SongTheme } from "./song";
 import type { SongDetour } from "../song-jump";
 
 /** Which video (if any) is the current *base* content, independent of BLACK/
@@ -185,6 +185,10 @@ export type ProjectionOutputKind =
       /** The slide in the second language, drawn under `lines` — only when the
        *  live song shows both (`SongLanguage`). */
       translation: readonly string[] | null;
+      /** The chords over `lines`. Only the musicians' screen's outputs carry
+       *  them (`stageOutputFor`): `selectOutput` never sets them, so the
+       *  projector and the monitors cannot draw one (owner, plan §8). */
+      chords?: readonly (readonly SongChord[])[];
       /** The copyright footer, on the slides its theme puts it on; `null` on
        *  the rest (its place is kept anyway — see `SongFooter`). */
       footer: readonly string[] | null;

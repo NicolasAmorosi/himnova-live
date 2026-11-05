@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import Database from "better-sqlite3";
 import { XMLParser } from "fast-xml-parser";
-import { sectionKey, withTranslation } from "@shared/song-text";
+import { hasWords, isWrittenChord, sectionKey, slideFromWritten, withTranslation } from "@shared/song-text";
 import { isSongUpsert, SONG_FIELD_MAX_LENGTH, SONG_NOTES_MAX_LENGTH, SONG_TITLE_MAX_LENGTH } from "@shared/song-validators";
 import { SONG_SECTION_NUMBER_MAX, type SongSection, type SongSectionType, type SongUpsert } from "@shared/types/song";
 import { walkXml } from "../db/seed/bible-formats/xml-ordered";
@@ -14,8 +14,8 @@ import { ccliNumber, clip, type SongsRead } from "./easyworship";
  * language: the first language met is the lyrics, the second the «Traducción»
  * (owner, 2026-11-05), any other is dropped.
  *
- * Chords (`[G]` in OpenLP's text, `<chord>` in OpenLyrics) and formatting tags
- * are dropped: the app has no chords yet.
+ * Chords (`[G]` in OpenLP's text, `<chord>` in OpenLyrics) come in, for the
+ * musicians' screen only (`SongSlide.chords`); formatting tags are dropped.
  */
 
 const TYPE_BY_LETTER: Record<string, SongSectionType> = {
@@ -51,7 +51,7 @@ class Sections {
   add(letter: string, label: string, slides: string[][]): void {
     const { type, number } = readName(letter, label);
     const key = sectionKey(type, number);
-    const lines = slides.filter((slide) => slide.length > 0).map((slide) => ({ lines: slide }));
+    const lines = slides.filter((slide) => slide.length > 0).map(slideFromWritten);
     if (lines.length === 0) return;
     const existing = this.list.find((section) => section.key === key);
     if (existing) existing.slides.push(...lines);
@@ -99,22 +99,17 @@ function readOrder(text: string | null | undefined, sections: readonly SongSecti
  * OpenLP's database
  * ------------------------------------------------------------------------ */
 
-/** OpenLP's chords inside the text: `[G]`, `[F#m7]`, `[C/E]` — never a word
- *  in brackets like `[Coro]`, nor its own `[---]`. */
-const CHORD = /\[[A-H][#b]?(?:m|maj|min|dim|aug|sus|add|M|\d|[+°ø#b()-])*(?:\/[A-H][#b]?)?\]/g;
 /** `[---]` (optional) and `[--}{--]` (forced): both are a new slide here. */
 const SLIDE_BREAK = /^\s*\[(?:---|--\}\{--)\]\s*$/;
 
-/** The text of one OpenLP verse → its slides. */
+/** The text of one OpenLP verse → its slides, its `[G]` chords kept inline
+ *  for `slideFromWritten`; a line of chords alone is dropped. */
 function openLpSlides(text: string): string[][] {
   const slides: string[][] = [[]];
-  const plain = text
-    .replace(/\{br\}/g, "\n")
-    .replace(/\{\/?[a-z][a-z0-9]*\}/gi, "")
-    .replace(CHORD, "");
+  const plain = text.replace(/\{br\}/g, "\n").replace(/\{\/?[a-z][a-z0-9]*\}/gi, "");
   for (const line of plain.split(/\r\n?|\n/)) {
     if (SLIDE_BREAK.test(line)) slides.push([]);
-    else if (line.trim()) slides.at(-1)!.push(line.trim());
+    else if (hasWords(line)) slides.at(-1)!.push(line.trim());
   }
   return slides;
 }
@@ -258,6 +253,11 @@ export function readOpenLyrics(xml: string): Omit<SongUpsert, "id"> | null {
       }
       if (tag === "lines" && verse) slide = "";
       if (tag === "br" && slide !== null) slide += "\n";
+      // 0.8 names it (what OpenLP writes); 0.9 gives a root and a bass.
+      if (tag === "chord" && slide !== null) {
+        const name = attrs.name ?? (attrs.root ? `${attrs.root}${attrs.bass ? `/${attrs.bass}` : ""}` : "");
+        if (isWrittenChord(`[${name}]`)) slide += `[${name}]`;
+      }
       return true;
     },
     exit: (tag) => {
@@ -269,7 +269,7 @@ export function readOpenLyrics(xml: string): Omit<SongUpsert, "id"> | null {
       if (tag === "ccliNo") ccli = value;
       if (tag === "verseOrder") verseOrder = value;
       if (tag === "lines" && verse && slide !== null) {
-        verse.slides.push(slide.split("\n").map((line) => line.replace(/\s+/g, " ").trim()).filter(Boolean));
+        verse.slides.push(slide.split("\n").map((line) => line.replace(/\s+/g, " ").trim()).filter(hasWords));
         slide = null;
       }
       if (tag === "verse" && verse) {

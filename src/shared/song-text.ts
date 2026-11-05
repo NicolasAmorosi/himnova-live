@@ -30,6 +30,7 @@ import {
   SECTION_KEY_PREFIX,
   SONG_SECTION_NUMBER_MAX,
   SONG_SECTION_TYPES,
+  type SongChord,
   type SongDeckSlide,
   type SongLanguage,
   type SongSection,
@@ -179,7 +180,9 @@ export type ParsedLyrics = {
 
 type Header = { type: SongSectionType; number: number | null };
 
-const BRACKETED = /^\[(.*)\]$/;
+/** One pair of brackets around the whole line: `[G]Amazing grace [D]` is a
+ *  line with chords, not a header. */
+const BRACKETED = /^\[([^[\]]*)\]$/;
 const LABEL = /^(.*?)\s*(\d{1,2})?\s*:?$/u;
 
 /** A header line, or `null`. Bracketed anywhere; bare («Coro», «Verse 2:»)
@@ -198,6 +201,61 @@ function readHeader(lines: readonly string[], index: number, locale: Locale): He
   // An unknown bracketed name is still a header — of a section of its own.
   if (!type) return bracketed ? { type: "other", number: number && number >= 1 ? number : null } : null;
   return { type, number: number !== null && number >= 1 && number <= SONG_SECTION_NUMBER_MAX ? number : null };
+}
+
+/* ---------------------------------------------------------------------------
+ * Chords (2026-11-05): inline in the text, apart in the slide
+ * ------------------------------------------------------------------------ */
+
+/** A chord written inline, ChordPro-style — `[G]`, `[F#m7]`, `[C/E]` — never
+ *  a word in brackets like `[Coro]`, nor OpenLP's `[---]`. */
+export const CHORD_PATTERN = /\[([A-H][#b]?(?:m|maj|min|dim|aug|sus|add|M|\d|[+°ø#b()-])*(?:\/[A-H][#b]?)?)\]/g;
+
+/** A line as written → its words, trimmed, and the chords over them. */
+export function splitChords(written: string): { text: string; chords: SongChord[] } {
+  const chords: SongChord[] = [];
+  let text = "";
+  let last = 0;
+  for (const match of written.matchAll(CHORD_PATTERN)) {
+    text += written.slice(last, match.index);
+    chords.push({ at: text.length, name: match[1]! });
+    last = match.index + match[0].length;
+  }
+  text += written.slice(last);
+  const lead = text.length - text.trimStart().length;
+  const words = text.trim();
+  return { text: words, chords: chords.map(({ at, name }) => ({ at: Math.min(Math.max(0, at - lead), words.length), name })) };
+}
+
+const ONE_CHORD = new RegExp(`^${CHORD_PATTERN.source}$`);
+
+/** Whether `[G]`-style text is a chord this format reads. */
+export const isWrittenChord = (bracketed: string): boolean => ONE_CHORD.test(bracketed);
+
+/** Whether a written line has words, not only chords. */
+export const hasWords = (written: string): boolean => written.replace(CHORD_PATTERN, "").trim().length > 0;
+
+/** The words with their chords written back in. */
+export function joinChords(text: string, chords: readonly SongChord[] = []): string {
+  let written = "";
+  let last = 0;
+  for (const chord of chords) {
+    written += `${text.slice(last, chord.at)}[${chord.name}]`;
+    last = chord.at;
+  }
+  return written + text.slice(last);
+}
+
+/** Written lines → a slide, its chords apart when it has any. */
+export function slideFromWritten(written: readonly string[]): SongSlide {
+  const split = written.map(splitChords);
+  const lines = split.map((line) => line.text);
+  return split.some((line) => line.chords.length > 0) ? { lines, chords: split.map((line) => line.chords) } : { lines };
+}
+
+/** A slide's lines as the editor writes them: chords back inline. */
+export function writtenLines(slide: SongSlide): string[] {
+  return slide.lines.map((line, index) => joinChords(line, slide.chords?.[index]));
 }
 
 /** Whether a line on its own names a section («Verse 1», «Coro:») and not
@@ -227,7 +285,7 @@ class SectionCollector {
 
   private define(type: SongSectionType, number: number, slides: string[][]): string {
     const key = sectionKey(type, number);
-    const section: SongSection = { key, type, number, slides: slides.map((lines) => ({ lines })) };
+    const section: SongSection = { key, type, number, slides: slides.map(slideFromWritten) };
     this.sections.push(section);
     this.byKey.set(key, section);
     return key;
@@ -240,7 +298,7 @@ class SectionCollector {
     let key: string;
     if (header.number === null) {
       const twin = this.sections.find(
-        (section) => section.type === type && sameSlides(section.slides.map((s) => s.lines), slides),
+        (section) => section.type === type && sameSlides(section.slides.map(writtenLines), slides),
       );
       if (slides.length === 0) key = this.latest(type)?.key ?? sectionKey(type, this.nextFree(type));
       else if (twin) key = twin.key;
@@ -250,7 +308,7 @@ class SectionCollector {
       if (!existing) {
         key = sectionKey(type, header.number);
         if (slides.length > 0) this.define(type, header.number, slides);
-      } else if (slides.length === 0 || sameSlides(existing.slides.map((s) => s.lines), slides)) {
+      } else if (slides.length === 0 || sameSlides(existing.slides.map(writtenLines), slides)) {
         key = existing.key;
       } else {
         // The same header twice with different words: a second section, not a
@@ -429,7 +487,7 @@ export function serializeLyrics(sections: readonly SongSection[], locale: Locale
   return sections
     .map((section) => {
       const header = `[${sectionLabel(section.type, section.number, locale)}]`;
-      const body = section.slides.map((slide) => slide.lines.join("\n")).join("\n\n");
+      const body = section.slides.map((slide) => writtenLines(slide).join("\n")).join("\n\n");
       return body ? `${header}\n${body}` : header;
     })
     .join("\n\n");
@@ -451,7 +509,8 @@ export function withTranslation(sections: readonly SongSection[], translated: re
     ...section,
     slides: section.slides.map((slide, index) => {
       const lines = byKey.get(section.key)?.slides[index]?.lines.filter((line) => line.trim().length > 0);
-      return lines && lines.length > 0 ? { lines: slide.lines, translation: lines } : { lines: slide.lines };
+      const own: SongSlide = slide.chords ? { lines: slide.lines, chords: slide.chords } : { lines: slide.lines };
+      return lines && lines.length > 0 ? { ...own, translation: lines } : own;
     }),
   }));
 }
@@ -479,9 +538,15 @@ export function sectionsIn(sections: readonly SongSection[], language: SongLangu
   if (language === "both") return [...sections];
   return sections.map((section) => ({
     ...section,
-    slides: section.slides.map((slide) => ({
-      lines: language === "translation" && slide.translation ? slide.translation : slide.lines,
-    })),
+    // The chords go with the original's words, never over a translation.
+    slides: section.slides.map(
+      (slide): SongSlide =>
+        language === "translation" && slide.translation
+          ? { lines: slide.translation }
+          : slide.chords
+            ? { lines: slide.lines, chords: slide.chords }
+            : { lines: slide.lines },
+    ),
   }));
 }
 
@@ -548,7 +613,12 @@ export function splitSection(section: SongSection, maxLines: number): SongSectio
     return Array.from({ length: count }, (_, i): SongSlide => {
       const lines = slide.lines.slice(i * maxLines, (i + 1) * maxLines);
       const translation = slide.translation?.slice(i * per, (i + 1) * per);
-      return translation && translation.length > 0 ? { lines, translation } : { lines };
+      const chords = slide.chords?.slice(i * maxLines, (i + 1) * maxLines);
+      return {
+        lines,
+        ...(translation && translation.length > 0 ? { translation } : {}),
+        ...(chords ? { chords } : {}),
+      };
     });
   });
   return { ...section, slides };
@@ -567,6 +637,7 @@ export function songDeckSlides(sections: readonly SongSection[], order: readonly
       slides.push({
         lines: slide.lines,
         ...(slide.translation ? { translation: slide.translation } : {}),
+        ...(slide.chords ? { chords: slide.chords } : {}),
         sectionKey: section.key,
         type: section.type,
         number: section.number,
