@@ -37,6 +37,9 @@ import {
   SONG_SIZE_MAX_CQW,
   SONG_SIZE_MIN_CQW,
   SONG_THEME_VERSION,
+  SONG_TRANSLATION_SCALE_MAX,
+  SONG_TRANSLATION_SCALE_MIN,
+  type SongTranslationStyle,
   type SongFooter,
   type SongFooterFields,
   type SongMargins,
@@ -94,6 +97,12 @@ const FOOTER_VALIDATORS: Record<keyof SongFooter, (v: unknown) => boolean> = {
   align: isOneOf(SONG_FOOTER_ALIGNS),
 };
 
+const TRANSLATION_VALIDATORS: Record<keyof SongTranslationStyle, (v: unknown) => boolean> = {
+  scale: isNumberIn(SONG_TRANSLATION_SCALE_MIN, SONG_TRANSLATION_SCALE_MAX),
+  color: isColor,
+  italic: isBoolean,
+};
+
 const TRANSITION_VALIDATORS: Record<keyof SongSlideTransition, (v: unknown) => boolean> = {
   style: isOneOf(["cut", "fade"]),
   durationMs: isNumberIn(0, TRANSITION_MAX_DURATION_MS),
@@ -123,6 +132,7 @@ export const SONG_THEME_VALIDATORS: Record<keyof SongTheme, (v: unknown) => bool
   maxLines: isIntegerIn(0, SONG_MAX_LINES_MAX),
   footer: (v) => matchesAll(v, FOOTER_VALIDATORS),
   slideTransition: (v) => matchesAll(v, TRANSITION_VALIDATORS),
+  translation: (v) => matchesAll(v, TRANSLATION_VALIDATORS),
 };
 
 export function isSongTheme(value: unknown): value is SongTheme {
@@ -186,6 +196,8 @@ export function normalizeSongTheme(value: unknown): SongTheme {
     maxLines: keepOr(v.maxLines(value.maxLines), value.maxLines, d.maxLines),
     footer: normalizeFooter(value.footer, d.footer),
     slideTransition: normalizeGroup(value.slideTransition, TRANSITION_VALIDATORS, d.slideTransition),
+    // Added 2026-11-05: a theme saved before reads the default.
+    translation: normalizeGroup(value.translation, TRANSLATION_VALIDATORS, d.translation),
   };
 }
 
@@ -210,7 +222,10 @@ function isSlide(value: unknown): value is SongSlide {
   const { lines, translation } = value;
   if (lines.length === 0 || lines.length > SONG_MAX_LINES_PER_SLIDE || !lines.every(isLine)) return false;
   if (!lines.some((line) => typeof line === "string" && line.trim().length > 0)) return false;
-  return translation === undefined || (Array.isArray(translation) && translation.every(isLine));
+  return (
+    translation === undefined ||
+    (Array.isArray(translation) && translation.length <= SONG_MAX_LINES_PER_SLIDE && translation.every(isLine))
+  );
 }
 
 function isSection(value: unknown): value is SongSection {

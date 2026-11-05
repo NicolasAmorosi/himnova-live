@@ -295,3 +295,37 @@ test("EasyWorship's songs come in from its profile folder, and a second import s
     fs.rmSync(profile, { recursive: true, force: true });
   }
 });
+
+test("a translation written in its own tab goes live stacked, and the LIVE row switches the language", async ({ app }) => {
+  await app.openResources("Canciones");
+  await tab(app).getByRole("button", { name: "Nueva canción" }).first().click();
+  await dialog(app).getByRole("textbox", { name: "Título" }).fill("Sublime gracia");
+  await dialog(app).getByRole("textbox", { name: "Letra" }).fill(GRACIA);
+  await dialog(app).getByRole("tab", { name: "Traducción" }).click();
+  await dialog(app)
+    .getByRole("textbox", { name: "Traducción" })
+    .fill("[Estrofa 1]\nAmazing grace, how sweet the sound\nthat saved a wretch like me\n\nI once was lost\n\n[Coro]\nHallelujah");
+  await dialog(app).getByRole("button", { name: "Guardar", exact: true }).click();
+  await expect(toast(app, "Se guardó «Sublime gracia»")).toBeVisible();
+  await dialog(app).getByRole("button", { name: "Cerrar" }).first().click();
+
+  await songRows(app).first().click();
+  await app.goLive();
+  const projector = await app.projector();
+  const translation = projector.locator("[data-song-translation]").last();
+  // «Both» first, stacked: the lyrics and, under them, the translation.
+  await expect(projector.getByText("Sublime gracia del Señor")).toBeVisible();
+  await expect(translation).toContainText("Amazing grace, how sweet the sound");
+
+  const languages = app.liveColumn().getByRole("group", { name: "Idioma" });
+  await expect(languages.getByRole("button", { name: "Ambos" })).toHaveAttribute("aria-pressed", "true");
+  await languages.getByRole("button", { name: "Original" }).click();
+  await expect(projector.locator("[data-song-translation]")).toHaveCount(0);
+  await expect(projector.getByText("Sublime gracia del Señor")).toBeVisible();
+  await languages.getByRole("button", { name: "Traducción" }).click();
+  await expect(projector.getByText("Amazing grace, how sweet the sound")).toBeVisible();
+  await expect(projector.getByText("Sublime gracia del Señor")).toHaveCount(0);
+  // The same slide all along: → goes on to the next one, in that language.
+  await app.control.keyboard.press("ArrowRight");
+  await expect(projector.getByText("I once was lost")).toBeVisible();
+});

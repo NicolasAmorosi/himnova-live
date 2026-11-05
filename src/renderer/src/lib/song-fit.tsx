@@ -36,7 +36,7 @@ export function currentMeasureAspect(): number {
 }
 
 function fitKey(song: ResolvedSong, theme: SongTheme, aspect: number): string {
-  return JSON.stringify([song.slides.map((slide) => slide.lines), theme, aspect.toFixed(4)]);
+  return JSON.stringify([song.slides.map((slide) => [slide.lines, slide.translation]), theme, aspect.toFixed(4)]);
 }
 
 /** The song's size, and the slides (their lines joined by `\n`) that do not
@@ -81,8 +81,13 @@ function search(pairs: readonly { block: HTMLElement; stage: HTMLElement }[], ma
 async function measure(song: ResolvedSong, theme: SongTheme, aspect: number): Promise<SongFit> {
   const max = theme.text.sizeCqw;
   const min = Math.min(theme.minSizeCqw, max);
-  // A chorus sung four times is measured once.
-  const slides = [...new Map(song.slides.map((slide) => [slide.lines.join("\n"), slide.lines])).values()];
+  // A chorus sung four times is measured once — with its translation, when
+  // the song shows both: the one size has to fit the two languages.
+  const slides = [
+    ...new Map(
+      song.slides.map((slide) => [JSON.stringify([slide.lines, slide.translation]), slide]),
+    ).values(),
+  ];
   if (slides.length === 0) return { sizeCqw: max, overflowing: [] };
 
   const host = document.createElement("div");
@@ -94,7 +99,7 @@ async function measure(song: ResolvedSong, theme: SongTheme, aspect: number): Pr
     // The same component every screen draws, so what fits here fits there.
     flushSync(() =>
       root.render(
-        slides.map((lines, index) => (
+        slides.map((slide, index) => (
           <div
             // The list never reorders: it is drawn once and thrown away.
             key={index}
@@ -106,7 +111,9 @@ async function measure(song: ResolvedSong, theme: SongTheme, aspect: number): Pr
               width: `${STAGE_WIDTH_PX}px`,
             }}
           >
-            <SongScene content={{ backgroundUrl: null, footer: null, lines, sizeCqw: max, theme }} />
+            <SongScene
+              content={{ backgroundUrl: null, footer: null, lines: slide.lines, sizeCqw: max, theme, translation: slide.translation ?? null }}
+            />
           </div>
         )),
       ),
@@ -129,7 +136,7 @@ async function measure(song: ResolvedSong, theme: SongTheme, aspect: number): Pr
             const pair = pairs[index];
             return pair !== undefined && !fits(pair.stage, pair.block);
           });
-    return { sizeCqw, overflowing: overflowing.map((lines) => lines.join("\n")) };
+    return { sizeCqw, overflowing: overflowing.map((slide) => slide.lines.join("\n")) };
   } finally {
     root.unmount();
     host.remove();

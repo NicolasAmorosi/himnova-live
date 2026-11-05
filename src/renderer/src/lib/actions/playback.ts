@@ -283,6 +283,8 @@ async function goLiveWithSong(songId: number, startSlideIndex: number, intent: n
     theme: prepared.theme,
     sizeCqw: prepared.sizeCqw,
     backgroundVideo: songBackgroundVideo(prepared.theme, null),
+    // Both languages first (owner, 2026-11-05); the LIVE row switches.
+    language: "both",
   });
   store.setOverlay("none");
   return true;

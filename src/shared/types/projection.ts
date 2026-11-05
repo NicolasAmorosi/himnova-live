@@ -12,7 +12,7 @@ import type { SlideTextSettings } from "./slide-model";
 import type { TimerClock, TimerFormat } from "./timer";
 import type { SlideTransition, TransitionSpec } from "./transition";
 import type { UtilityScene } from "./utility";
-import type { ResolvedSong, SongTheme } from "./song";
+import type { ResolvedSong, SongLanguage, SongTheme } from "./song";
 import type { SongDetour } from "../song-jump";
 
 /** Which video (if any) is the current *base* content, independent of BLACK/
@@ -169,6 +169,9 @@ export type ProjectionOutputKind =
       songId: number;
       title: string;
       lines: readonly string[];
+      /** The slide in the second language, drawn under `lines` — only when the
+       *  live song shows both (`SongLanguage`). */
+      translation: readonly string[] | null;
       /** The copyright footer, on the slides its theme puts it on; `null` on
        *  the rest (its place is kept anyway — see `SongFooter`). */
       footer: readonly string[] | null;
@@ -438,6 +441,8 @@ export type BaseContent =
       /** The theme's video, as the projector plays it (`playableAssetUrl`),
        *  resolved when the song went live and kept while it is the same file. */
       backgroundVideo: { url: string; epoch: number } | null;
+      /** Which language `song` was resolved in; the LIVE row switches it. */
+      language: SongLanguage;
     };
 
 export type OverlayState = "none" | "black" | "logo";

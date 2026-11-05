@@ -6,7 +6,7 @@ import { findSong, resolveSong, themeForSong, useSongStore } from "@renderer/sto
 import { useProjectionStore } from "@renderer/stores/projection.store";
 import { usePreviewStore } from "@renderer/stores/preview.store";
 import { useProgramStore } from "@renderer/stores/program.store";
-import type { ResolvedSong, Song, SongTheme, SongThemeRow, SongThemeUpsert, SongUpsert, SongUsage } from "@shared/types/song";
+import type { ResolvedSong, Song, SongLanguage, SongTheme, SongThemeRow, SongThemeUpsert, SongUpsert, SongUsage } from "@shared/types/song";
 import { useSettingsStore } from "@renderer/stores/settings.store";
 
 /**
@@ -31,12 +31,13 @@ export async function loadSongs(): Promise<void> {
  *  projector's proportion. `null` when the song is gone. */
 export async function prepareSong(
   songId: number,
+  language: SongLanguage = "both",
 ): Promise<{ resolved: ResolvedSong; theme: SongTheme; sizeCqw: number } | null> {
   const { songs, themes } = useSongStore.getState();
   const song = findSong(songs, songId);
   if (!song) return null;
   const theme = themeForSong(song, themes);
-  const resolved = resolveSong(song, theme);
+  const resolved = resolveSong(song, theme, undefined, language);
   const fit = await fitSongSize(resolved, theme, currentMeasureAspect());
   return { resolved, theme, sizeCqw: fit.sizeCqw };
 }
@@ -62,7 +63,7 @@ export function sameSlideIn(previous: ResolvedSong, slideIndex: number, next: Re
 export async function refreshLiveSong(songId: number | null = null): Promise<void> {
   const base = useProjectionStore.getState().base;
   if (base?.kind !== "song" || (songId !== null && base.songId !== songId)) return;
-  const prepared = await prepareSong(base.songId);
+  const prepared = await prepareSong(base.songId, base.language);
   // The operator may have moved on while it was measured.
   const now = useProjectionStore.getState().base;
   if (!prepared || now?.kind !== "song" || now.songId !== base.songId) return;
@@ -74,6 +75,18 @@ export async function refreshLiveSong(songId: number | null = null): Promise<voi
       prepared.sizeCqw,
       sameSlideIn(now.song, now.slideIndex, prepared.resolved),
     );
+}
+
+/** The LIVE row's «Original · Ambos · Traducción»: the live song re-resolved
+ *  in `language` and measured again — each language has its own one size —,
+ *  on the same slide. Never a new scene. */
+export async function setLiveSongLanguage(language: SongLanguage): Promise<void> {
+  const base = useProjectionStore.getState().base;
+  if (base?.kind !== "song" || base.language === language) return;
+  const prepared = await prepareSong(base.songId, language);
+  const now = useProjectionStore.getState().base;
+  if (!prepared || now?.kind !== "song" || now.songId !== base.songId) return;
+  useProjectionStore.getState().setSongLanguage(language, prepared.resolved, prepared.sizeCqw);
 }
 
 export async function saveSong(input: SongUpsert): Promise<Song | null> {

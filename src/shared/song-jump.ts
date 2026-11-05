@@ -80,6 +80,18 @@ export function stepSong(song: ResolvedSong, position: SongPosition, direction: 
 }
 
 /** The lines on screen at `position`. */
+/** The slide at `position` — of the order, or of a detour's section. */
+function slideAt(song: ResolvedSong, position: SongPosition): { lines: readonly string[]; translation?: readonly string[] } | undefined {
+  const { detour } = position;
+  if (detour) return song.sections.find((section) => section.key === detour.sectionKey)?.slides[detour.slideIndex - 1];
+  return song.slides[position.slideIndex - 1];
+}
+
+/** Its translation, when the song was resolved in «both» and it has one. */
+export function translationAt(song: ResolvedSong, position: SongPosition): readonly string[] | null {
+  return slideAt(song, position)?.translation ?? null;
+}
+
 export function linesAt(song: ResolvedSong, position: SongPosition): readonly string[] {
   const { detour } = position;
   if (detour) {

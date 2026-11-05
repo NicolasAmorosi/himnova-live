@@ -54,6 +54,7 @@ function goLive(s: Song, slideIndex = 1) {
     theme: DEFAULT_SONG_THEME,
     sizeCqw: 4.2,
     backgroundVideo: null,
+    language: "both",
   });
 }
 
@@ -155,6 +156,7 @@ describe("the theme on the projector (F3)", () => {
       theme: DEFAULT_SONG_THEME,
       sizeCqw: 4,
       backgroundVideo: null,
+      language: "both",
     });
     // The first slide: no footer (it is on the last), and the scene's own way in.
     expect(selectOutput(useProjectionStore.getState())).toMatchObject({ footer: null, enter: null });

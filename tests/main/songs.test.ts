@@ -249,6 +249,7 @@ describe("the history", () => {
       songId,
       title: `Canción ${songId}`,
       lines: [line],
+      translation: null,
       footer: null,
       theme: DEFAULT_SONG_THEME,
       backgroundUrl: null,

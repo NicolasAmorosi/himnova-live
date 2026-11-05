@@ -194,6 +194,18 @@ lines per slide (`resolveSong`, `stores/song.store.ts`), its theme, and its **on
 - **Saving the live song, its theme, or a song setting re-dresses it in place** (`refreshLiveSong` →
   `setLiveSong`): re-resolved, re-measured, on the same pass and slide when it still exists
   (`sameSlideIn`); `sceneEpoch` never moves.
+- **Two languages at once** (2026-11-05, owner's choices: a second text, stacked, a LIVE switch). A
+  slide's `translation` comes from the editor's «Traducción» text, written like the lyrics and
+  paired with them by section key and slide index (`withTranslation`, in `parseDraft`; written back
+  by `translationSections`). A song is RESOLVED per language (`resolveSong`'s `language`,
+  `sectionsIn`): «original» drops the translation, «translation» puts it in the lines, «both»
+  keeps it on each `SongDeckSlide`, cut with the theme's lines into as many pieces
+  (`splitSection`). So the measuring, the tiles, the jumps and the projector need nothing new:
+  `SongScene` draws `translation` under the lines, inside the measured block, in
+  `SongTheme.translation` (scale of the lyrics' `em`, colour, italic) — the one size fits both. The
+  live `base.language` starts at «both»; the LIVE row's «Original · Ambos · Traducción»
+  (`setLiveSongLanguage`) re-resolves and re-measures the song in place, same slide, no new scene —
+  each language has its own one size.
 - **A theme's video background** (2026-11-05, `SongBackground`'s `video`, songs only) goes live as
   `base.backgroundVideo` (`songBackgroundVideo`: the url `playableAssetUrl` gives, resolved when the
   song goes live and kept, epoch and all, while the re-dressed theme names the same file) and reaches

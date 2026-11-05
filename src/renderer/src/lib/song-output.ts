@@ -41,6 +41,12 @@ export function slideLines(song: ResolvedSong, slideIndex: number): readonly str
   return song.slides[index - 1]?.lines ?? [];
 }
 
+/** That slide's translation, when the song was resolved in «both» and it has one. */
+export function slideTranslation(song: ResolvedSong, slideIndex: number): readonly string[] | null {
+  const index = Math.min(Math.max(1, slideIndex), Math.max(1, song.slides.length));
+  return song.slides[index - 1]?.translation ?? null;
+}
+
 /** Whether the slide at `position` carries the footer. A detour does only
  *  under «every slide»: it is no slide of the order. */
 export function footerShown(show: SongFooterShow, position: SongPosition, total: number): boolean {
@@ -77,12 +83,14 @@ export function songOutputFor(
   sizeCqw: number,
   footer: readonly string[] | null = null,
   enter: SlideEnter | null = null,
+  translation: readonly string[] | null = null,
 ): Extract<ProjectionOutputKind, { kind: "song" }> {
   return {
     kind: "song",
     songId: song.id,
     title: song.title,
     lines,
+    translation,
     footer,
     theme,
     backgroundUrl: songBackgroundUrl(theme),

@@ -26,8 +26,8 @@ import { bibleOutputFor } from "@renderer/lib/bible-output";
 import { timerOutputFor } from "@renderer/lib/utility-output";
 import { plateOutputFor } from "@renderer/lib/plate-output";
 import { footerAt, songBackgroundUrl, songBackgroundVideo, songOutputFor } from "@renderer/lib/song-output";
-import { linesAt, type SongPosition } from "@shared/song-jump";
-import type { ResolvedSong, SongTheme } from "@shared/types/song";
+import { linesAt, translationAt, type SongPosition } from "@shared/song-jump";
+import type { ResolvedSong, SongLanguage, SongTheme } from "@shared/types/song";
 import { defaultMediaVolume } from "@renderer/stores/settings.store";
 
 /** The deck currently loaded for projection — slide urls are durable, DB-backed
@@ -223,6 +223,9 @@ export type ProjectionStoreState = {
   /** Moves within the live song — a slide of the order (1-based, clamped) or
    *  a detour off it. A cut, like a verse, and it shows the lyrics again. */
   setSongPosition: (position: SongPosition) => void;
+  /** The live song in another language, re-resolved and re-measured by the
+   *  caller: same slide, same detour, never a new scene. */
+  setSongLanguage: (language: SongLanguage, song: ResolvedSong, sizeCqw: number) => void;
   /** T: only the theme's background on the projector, or the lyrics back. */
   setLyricsHidden: (hidden: boolean) => void;
 
@@ -433,6 +436,13 @@ export const useProjectionStore = create<ProjectionStoreState>()(
           return state;
         }
         return { base: { ...base, song, theme, sizeCqw, slideIndex: index, detour, backgroundVideo } };
+      }),
+
+    setSongLanguage: (language, song, sizeCqw) =>
+      set((state) => {
+        const { base } = state;
+        if (base?.kind !== "song" || base.songId !== song.id) return state;
+        return { base: { ...base, language, song, sizeCqw } };
       }),
 
     setSongPosition: (position) =>
@@ -732,6 +742,7 @@ function selectOutputWithoutUnderlay(state: ProjectionStoreState): ProjectionOut
         fade.style === "fade" && fade.durationMs > 0 && base.enterSeq > 0
           ? { style: "crossfade", durationMs: fade.durationMs, seq: base.enterSeq }
           : null,
+        base.lyricsHidden ? null : translationAt(base.song, base),
       );
     }
   }

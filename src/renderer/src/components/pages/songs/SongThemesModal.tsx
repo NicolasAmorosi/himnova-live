@@ -25,13 +25,13 @@ import { api } from "@renderer/lib/api";
 import { toast } from "@renderer/lib/toast";
 import { transitionDurationOptions } from "@renderer/lib/transition";
 import { useSongFit } from "@renderer/lib/song-fit";
-import { songOutputFor, slideLines } from "@renderer/lib/song-output";
+import { slideLines, slideTranslation, songOutputFor } from "@renderer/lib/song-output";
 import { deleteSongTheme, saveSongTheme } from "@renderer/lib/actions/songs";
 import { findSong, resolveSong, useSongStore } from "@renderer/stores/song.store";
 import { usePreviewStore } from "@renderer/stores/preview.store";
 import { useSettingsStore } from "@renderer/stores/settings.store";
 import { isSongThemeUpsert } from "@shared/song-validators";
-import { parseLyrics } from "@shared/song-text";
+import { parseLyrics, withTranslation } from "@shared/song-text";
 import { BIBLE_LINE_HEIGHT_MAX, BIBLE_LINE_HEIGHT_MIN, TEXT_ALIGNS, type TextAlign } from "@shared/types/bible-style";
 import { INSTANT_TRANSITION, type ProjectionOutput } from "@shared/types/projection";
 import type { MediaAsset } from "@shared/types/media";
@@ -41,6 +41,8 @@ import {
   SONG_FOOTER_ALIGNS,
   SONG_FOOTER_SHOWS,
   SONG_LETTER_SPACING_MAX_EM,
+  SONG_TRANSLATION_SCALE_MAX,
+  SONG_TRANSLATION_SCALE_MIN,
   SONG_LETTER_SPACING_MIN_EM,
   SONG_MARGIN_MAX_CQW,
   SONG_MAX_LINES_MAX,
@@ -101,7 +103,12 @@ const SAMPLE: Song = {
   copyright: "Dominio público",
   ccliNumber: "22025",
   notes: null,
-  sections: parseLyrics("[Estrofa 1]\nSublime gracia del Señor\nque a un pecador salvó\nfui ciego mas hoy veo yo\nperdido y él me halló", "es").sections,
+  // With John Newton's own words as its translation, so the theme's
+  // «Traducción» knobs show what they do.
+  sections: withTranslation(
+    parseLyrics("[Estrofa 1]\nSublime gracia del Señor\nque a un pecador salvó\nfui ciego mas hoy veo yo\nperdido y él me halló", "es").sections,
+    parseLyrics("[Estrofa 1]\nAmazing grace, how sweet the sound\nthat saved a wretch like me\nI once was lost, but now am found\nwas blind, but now I see", "es").sections,
+  ),
   order: [],
   themeId: null,
   updatedAt: 0,
@@ -169,6 +176,8 @@ export function SongThemesModal({ onOpenChange, open }: { onOpenChange: (open: b
           style,
           fit.sizeCqw,
           style.footer.show === "never" ? null : preview.footer,
+          null,
+          slideTranslation(preview, 1),
         ),
         videoUnderlay: null,
         slideVideo: null,
@@ -437,6 +446,34 @@ export function SongThemesModal({ onOpenChange, open }: { onOpenChange: (open: b
                 />
               </>
             )}
+          </InspectorSection>
+
+          <InspectorSection title={t("songThemes.groups.translation")}>
+            <FieldRow description={t("songThemes.translationScaleHint")} label={t("songThemes.translationScale")}>
+              <Slider
+                format={(value) => `${Math.round(value * 100)}%`}
+                label={t("songThemes.translationScale")}
+                max={SONG_TRANSLATION_SCALE_MAX}
+                min={SONG_TRANSLATION_SCALE_MIN}
+                onChange={(scale) => patchStyle({ translation: { ...style.translation, scale: Number(scale.toFixed(2)) } })}
+                readoutChars={4}
+                step={0.05}
+                value={style.translation.scale}
+              />
+            </FieldRow>
+            <FieldRow label={t("songThemes.translationColor")}>
+              <ColorField
+                label={t("songThemes.translationColor")}
+                onChange={(color) => patchStyle({ translation: { ...style.translation, color } })}
+                value={style.translation.color}
+              />
+            </FieldRow>
+            <FieldRow label={t("songThemes.translationItalic")}>
+              <Switch
+                checked={style.translation.italic}
+                onChange={(e) => patchStyle({ translation: { ...style.translation, italic: e.target.checked } })}
+              />
+            </FieldRow>
           </InspectorSection>
 
           <InspectorSection title={t("songThemes.groups.transition")}>

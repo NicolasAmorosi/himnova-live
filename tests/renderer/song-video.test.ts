@@ -39,6 +39,7 @@ function liveSong(theme: SongTheme) {
     theme,
     sizeCqw: 4,
     backgroundVideo: songBackgroundVideo(theme, null),
+    language: "both",
   });
 }
 

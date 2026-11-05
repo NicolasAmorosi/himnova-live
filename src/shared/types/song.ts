@@ -41,9 +41,15 @@ export const SONG_SECTION_NUMBER_MAX = 99;
 
 export type SongSlide = {
   lines: string[];
-  /** Reserved for the second language (phase 2): never written or shown yet. */
+  /** This slide in the second language, written in the editor's «Traducción»
+   *  text and paired by section and slide (`withTranslation`). */
   translation?: string[];
 };
+
+/** Which language a live song shows (owner, 2026-11-05): a song with a
+ *  translation goes live in «both», stacked, and the LIVE row switches it. */
+export const SONG_LANGUAGES = ["original", "both", "translation"] as const;
+export type SongLanguage = (typeof SONG_LANGUAGES)[number];
 
 export type SongSection = {
   /** `${SECTION_KEY_PREFIX[type]}${number}` — what the order names. */
@@ -91,6 +97,9 @@ export type SongSearchHit = {
  *  knowing which section and which pass of the order it comes from. */
 export type SongDeckSlide = {
   lines: string[];
+  /** Drawn under `lines`, smaller (`SongTheme.translation`): only when the song
+   *  is resolved in «both» and this slide has one. */
+  translation?: string[];
   sectionKey: string;
   type: SongSectionType;
   number: number;
@@ -153,6 +162,11 @@ export type SongOutline = { enabled: boolean; color: string; widthCqw: number };
 /** Between two slides of the same song: a cut, or a fade of `durationMs`. */
 export type SongSlideTransition = { style: "cut" | "fade"; durationMs: number };
 
+/** The second language, stacked under the lyrics: `scale` of the lyrics' size. */
+export type SongTranslationStyle = { scale: number; color: string; italic: boolean };
+export const SONG_TRANSLATION_SCALE_MIN = 0.4;
+export const SONG_TRANSLATION_SCALE_MAX = 1;
+
 /** The footer's lines: at most two, so the place it keeps is known. */
 export const SONG_FOOTER_LINES = 2;
 
@@ -193,6 +207,7 @@ export type SongTheme = {
   maxLines: number;
   footer: SongFooter;
   slideTransition: SongSlideTransition;
+  translation: SongTranslationStyle;
 };
 
 export type SongThemeUpsert = { id?: number; name: string; style: SongTheme };
@@ -244,6 +259,8 @@ export const DEFAULT_SONG_THEME: SongTheme = {
   },
   // A short fade between slides of the same song (owner, 2026-11-04).
   slideTransition: { style: "fade", durationMs: 300 },
+  // Smaller, softer and slanted, so the eye tells the two languages apart.
+  translation: { scale: 0.75, color: "#cfd8e3", italic: true },
 };
 
 /**

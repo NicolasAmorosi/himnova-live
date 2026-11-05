@@ -68,6 +68,7 @@ function liveSong(slideIndex: number, lyricsHidden = false) {
     theme: DEFAULT_SONG_THEME,
     sizeCqw: 4.2,
     backgroundVideo: null,
+    language: "both",
   });
 }
 
