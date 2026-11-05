@@ -1,7 +1,12 @@
 import type { Handlers } from "../register";
 import { getProgramsRepo, getSettingsRepo, getSongsRepo } from "../../services/repos";
 import { removeSong } from "../../services/song-removal";
-import { importEasyWorshipFolder, importOpenLpDatabase, importOpenLyricsFiles } from "../../services/song-import";
+import {
+  importEasyWorshipFolder,
+  importOpenLpDatabase,
+  importOpenLyricsFiles,
+  importSongTextFiles,
+} from "../../services/song-import";
 import { exportSongUsage } from "../../services/song-usage";
 import { showOpenDialogFor } from "../open-dialog";
 import fs from "node:fs";
@@ -23,6 +28,22 @@ function openLpDefaultFolder(): string {
   if (process.platform === "darwin") return path.join(app.getPath("appData"), "openlp", "Data", "songs");
   return path.join(os.homedir(), ".local", "share", "openlp", "songs");
 }
+
+/** The sources picked as one or more files. A ChordPro file may be a `.txt`
+ *  too: the reader tells it from SongSelect's by its words. */
+const FILE_SOURCES = {
+  openlyrics: {
+    title: "songs.openLyricsPickTitle",
+    filter: { name: "OpenLyrics", extensions: ["xml"] },
+    read: importOpenLyricsFiles,
+  },
+  songselect: { title: "songs.songSelectPickTitle", filter: { name: "SongSelect", extensions: ["txt"] }, read: importSongTextFiles },
+  chordpro: {
+    title: "songs.chordProPickTitle",
+    filter: { name: "ChordPro", extensions: ["cho", "chordpro", "chopro", "crd", "pro", "txt"] },
+    read: importSongTextFiles,
+  },
+} as const;
 
 const defaultPathIfThere = (folder: string): Partial<OpenDialogOptions> =>
   fs.existsSync(folder) ? { defaultPath: folder } : {};
@@ -91,12 +112,13 @@ export const songsHandlers: Pick<
       const file = result.filePaths[0];
       return result.canceled || !file ? null : importOpenLpDatabase(file);
     }
+    const files = FILE_SOURCES[from];
     const result = await showOpenDialogFor(ev.sender, {
-      title: mt("songs.openLyricsPickTitle"),
+      title: mt(files.title),
       properties: ["openFile", "multiSelections"],
-      filters: [{ name: "OpenLyrics", extensions: ["xml"] }],
+      filters: [{ name: files.filter.name, extensions: [...files.filter.extensions] }],
     });
-    return result.canceled || result.filePaths.length === 0 ? null : importOpenLyricsFiles(result.filePaths);
+    return result.canceled || result.filePaths.length === 0 ? null : files.read(result.filePaths);
   },
   "song:usageReport": (req, ev) => exportSongUsage(ev.sender, Number(req?.from), Number(req?.to)),
   "songTheme:list": () => getSongsRepo().listThemes(),

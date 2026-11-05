@@ -170,8 +170,16 @@ straight from them — `[---]`, `[--}{--]` and each `<lines>` a slide, chords an
 (no chords yet), the verse order into `order`. A verse in a second language is the translation, paired by
 section and slide (`withTranslation`; owner, 2026-11-05: the FIRST language met is the lyrics, a third is
 dropped). OpenLP's hymn number is the first `songs_songbooks.entry` (2.4) or `songs.song_number` (2.2),
-its `comments` the notes, and a `temporary` song (kept only for a service) is not imported. All three
-importers write through `writeSongs` (`services/song-import.ts`): one transaction, the same title with
+its `comments` the notes, and a `temporary` song (kept only for a service) is not imported.
+
+SongSelect's lyrics (`.txt`) and ChordPro (`main/songs/text-files.ts`) DO go through the text format: each
+is rewritten as the editor's text — a bracketed label over each block — and parsed by `parseLyrics`, so a
+label the app has no word for («Interlude») is a section of its own instead of a lyric line. Which one a
+file is comes from its words (a directive line = ChordPro; a `CCLI` footer = SongSelect), never its
+extension. SongSelect's footer changed order in 2023 (authors above «CCLI Song #»); both orders are read.
+In ChordPro, `{start_of_…}`/`{end_of_…}` and a `{comment}` that names a section are labels, `{chorus}`
+repeats the last chorus, a paragraph outside any section is a verse of its own, and chords, tabs and grids
+are dropped. A file that is not UTF-8 is read as Windows-1252. All the importers write through `writeSongs` (`services/song-import.ts`): one transaction, the same title with
 the same words skipped as repeated.
 
 `song_uses` (`0021`) is what the CCLI usage report counts (owner, 2026-11-05): `projection:show` writes a

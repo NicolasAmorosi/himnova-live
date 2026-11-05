@@ -200,6 +200,12 @@ function readHeader(lines: readonly string[], index: number, locale: Locale): He
   return { type, number: number !== null && number >= 1 && number <= SONG_SECTION_NUMBER_MAX ? number : null };
 }
 
+/** Whether a line on its own names a section («Verse 1», «Coro:») and not
+ *  something else («Capo 2»): what an importer asks of a note that may be either. */
+export function isSectionLabel(line: string, locale: Locale): boolean {
+  return readHeader([line.trim()], 0, locale) !== null;
+}
+
 const sameSlides = (a: readonly string[][], b: readonly string[][]) => JSON.stringify(a) === JSON.stringify(b);
 
 class SectionCollector {

@@ -108,6 +108,8 @@ const es = {
     openLpPickTitle: "Elegí el archivo songs.sqlite de OpenLP",
     openLpUnreadable: "Ese archivo no es una base de canciones de OpenLP (songs.sqlite) o no se pudo abrir.",
     openLyricsPickTitle: "Elegí las canciones OpenLyrics (.xml)",
+    songSelectPickTitle: "Elegí las canciones de SongSelect (.txt)",
+    chordProPickTitle: "Elegí las canciones ChordPro",
     usageSaveTitle: "Guardar el informe CCLI",
     usageFileName: "Informe CCLI",
     usageTitle: "Título",

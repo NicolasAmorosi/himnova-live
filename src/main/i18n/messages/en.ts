@@ -106,6 +106,8 @@ const en: MainMessages = {
     openLpPickTitle: "Choose OpenLP's songs.sqlite file",
     openLpUnreadable: "That file isn't an OpenLP song database (songs.sqlite), or it couldn't be opened.",
     openLyricsPickTitle: "Choose the OpenLyrics songs (.xml)",
+    songSelectPickTitle: "Choose the SongSelect songs (.txt)",
+    chordProPickTitle: "Choose the ChordPro songs",
     usageSaveTitle: "Save the CCLI report",
     usageFileName: "CCLI report",
     usageTitle: "Title",
