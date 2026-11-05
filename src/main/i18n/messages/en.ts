@@ -116,6 +116,26 @@ const en: MainMessages = {
     usageCount: "Uses",
     usageDates: "Dates",
   },
+  look: {
+    backgrounds: {
+      night: "Night",
+      sunrise: "Sunrise",
+      ocean: "Ocean",
+      dusk: "Dusk",
+      forest: "Forest",
+      ember: "Embers",
+      graphite: "Graphite",
+      sky: "Sky",
+    },
+    lowerThirdName: "Name lower third",
+    lowerThirdTitle: "First and last name",
+    lowerThirdSubtitle: "Role or ministry",
+    bannerName: "Announcements banner",
+    bannerTitle: "Welcome!",
+    bannerSubtitle: "Write this week's announcements here",
+    bugName: "Name bug",
+    bugTitle: "Church name",
+  },
   seed: {
     countdownName: "10-minute countdown",
     countdownTitle: "Service begins in",
@@ -124,7 +144,7 @@ const en: MainMessages = {
     clockName: "Clock",
     stopwatchName: "Stopwatch",
     endMessage: "Welcome!",
-    songThemeName: "Default",
+    songThemeName: "Classic",
   },
 };
 

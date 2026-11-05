@@ -120,6 +120,26 @@ const es = {
   },
   /** The four time scenes a new install starts with (`DEFAULT_UTILITY_SCENES`),
    *  written once, in the language of that first launch. */
+  look: {
+    backgrounds: {
+      night: "Noche",
+      sunrise: "Amanecer",
+      ocean: "Océano",
+      dusk: "Atardecer",
+      forest: "Bosque",
+      ember: "Brasas",
+      graphite: "Grafito",
+      sky: "Cielo",
+    },
+    lowerThirdName: "Zócalo con nombre",
+    lowerThirdTitle: "Nombre y apellido",
+    lowerThirdSubtitle: "Cargo o ministerio",
+    bannerName: "Banner de anuncios",
+    bannerTitle: "¡Bienvenidos!",
+    bannerSubtitle: "Escribí acá los anuncios de la semana",
+    bugName: "Mosca con el nombre",
+    bugTitle: "Nombre de la iglesia",
+  },
   seed: {
     countdownName: "Cuenta 10 minutos",
     countdownTitle: "El culto comienza en",
@@ -128,7 +148,7 @@ const es = {
     clockName: "Reloj",
     stopwatchName: "Cronómetro",
     endMessage: "¡Bienvenidos!",
-    songThemeName: "Predeterminado",
+    songThemeName: "Clásico",
   },
 };
 

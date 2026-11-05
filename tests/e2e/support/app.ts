@@ -30,6 +30,9 @@ const FLAGS = [
   // test. The update suite serves its own feed and asks by hand, or turns it
   // back on with `test.use({ launchCheck: true })`.
   "--no-update-check",
+  // The suite was written against a bare profile: no sample backgrounds,
+  // themes or overlays. `starter-look.spec.ts` turns the look back on.
+  "--no-starter-look",
 ];
 
 /** What the renderer's global handlers log before showing the "error
@@ -70,7 +73,7 @@ export class WorshipApp {
 
   /** Starts the built app on `profile`, an empty directory for a first launch
    *  or a previous run's for a relaunch. */
-  static async launch(profile: string, launchCheck = false, locale: Locale = "es"): Promise<WorshipApp> {
+  static async launch(profile: string, launchCheck = false, locale: Locale = "es", starterLook = false): Promise<WorshipApp> {
     // `WORSHIP_E2E_EXECUTABLE` runs the suite against an INSTALLED build
     // (`release/mac-arm64/Lumina Live.app/Contents/MacOS/Lumina Live`, or
     // `Lumina Live.exe` on the church PC) instead of `electron .` on `out/`:
@@ -80,7 +83,8 @@ export class WorshipApp {
     // Every test starts a new profile, and a new profile starts in the OS's
     // language (`main/i18n/system-locale.ts`): pinned, so the suite reads the
     // same Spanish on any machine — or `locale`, for the screenshots.
-    const flags = [...(launchCheck ? FLAGS.filter((flag) => flag !== "--no-update-check") : FLAGS), `--lang=${locale}`];
+    const dropped = [launchCheck && "--no-update-check", starterLook && "--no-starter-look"];
+    const flags = [...FLAGS.filter((flag) => !dropped.includes(flag)), `--lang=${locale}`];
     const app = await electron.launch({
       cwd: ROOT,
       ...(executable
@@ -347,11 +351,13 @@ export function audioStates(page: Page) {
   );
 }
 
-type Fixtures = { app: WorshipApp; appLocale: Locale; profileDir: string; launchCheck: boolean };
+type Fixtures = { app: WorshipApp; appLocale: Locale; profileDir: string; launchCheck: boolean; starterLook: boolean };
 
 export const test = base.extend<Fixtures>({
   /** Whether `app` runs main's update check ten seconds after launch. */
   launchCheck: [false, { option: true }],
+  /** Whether `app` starts with the starter look (backgrounds, themes, overlays). */
+  starterLook: [false, { option: true }],
   /** The language `app` starts in (`--lang`). Spanish, which the specs are written in. */
   appLocale: ["es", { option: true }],
   // A fresh profile per test, removed afterwards. Playwright requires the
@@ -366,8 +372,8 @@ export const test = base.extend<Fixtures>({
     fs.rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
   },
 
-  app: async ({ appLocale, profileDir, launchCheck }, use, testInfo) => {
-    const app = await WorshipApp.launch(profileDir, launchCheck, appLocale);
+  app: async ({ appLocale, profileDir, launchCheck, starterLook }, use, testInfo) => {
+    const app = await WorshipApp.launch(profileDir, launchCheck, appLocale, starterLook);
     await use(app);
     // Whatever app the test ended with — it may have relaunched — is the one
     // registered last; tests that relaunch call `adopt` below.

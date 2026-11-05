@@ -89,6 +89,10 @@ export type SettingsMap = {
   /** Whether this database has ever been given its default song theme —
    *  `utility.seeded`'s rule: seeded once, so a deleted theme stays deleted. */
   "songs.seeded": boolean;
+  /** Which version of the starter look this database has been given
+   *  (`seedStarterLook`): 0 = none. A version, not a flag, so a later look
+   *  can be offered once more without re-adding the first. */
+  "look.seeded": number;
   /** The theme a song without one of its own is drawn with. `null` = the
    *  first theme. Reset to `null` by deleting the theme it names. */
   "songs.defaultThemeId": number | null;
@@ -148,6 +152,7 @@ export const DEFAULT_SETTINGS: SettingsMap = {
   "library.sort": { video: "name-asc", image: "name-asc", audio: "name-asc", ppt: "name-asc" },
   "utility.seeded": false,
   "songs.seeded": false,
+  "look.seeded": 0,
   "songs.defaultThemeId": null,
   "songs.ccliLicense": null,
   "bible.style": DEFAULT_BIBLE_STYLE,
@@ -231,6 +236,7 @@ export const SETTINGS_VALIDATORS: Record<keyof SettingsMap, (value: unknown) => 
   "library.sort": isRecordOfKinds(isOneOf(MEDIA_SORT_ORDERS)),
   "utility.seeded": isBoolean,
   "songs.seeded": isBoolean,
+  "look.seeded": (v) => typeof v === "number" && Number.isInteger(v) && v >= 0,
   "songs.defaultThemeId": (v) => v === null || (typeof v === "number" && Number.isInteger(v) && v > 0),
   "songs.ccliLicense": (v) => v === null || (typeof v === "string" && v.length <= 100),
   "bible.style": isBibleStyle,

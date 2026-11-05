@@ -33,6 +33,9 @@ Windows, macOS and Linux · English, Spanish, Italian and Portuguese
   one), **OpenLP**'s `songs.sqlite`, **OpenLyrics** files (a second language comes in as the
   translation), **SongSelect** lyrics (`.txt`) and **ChordPro** files. A CCLI usage report: what went
   live, once a day, as a CSV.
+- **A look to start with:** eight backgrounds and four moving ones in the library, song themes over
+  them, a quiet background behind the verse, dressed timers and three overlays ready to fill in — all
+  editable, and none of it touches what you already changed.
 - **A stage screen** for the musicians on a third screen: what is live, what comes next and the time.
 - **Timers** (countdown, clock, stopwatch) and **overlays** on top of what is projected (a lower third
   with the preacher's name, the church logo).

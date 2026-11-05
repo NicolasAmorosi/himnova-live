@@ -156,7 +156,25 @@ only for `songs_fts` (FTS5 external content over title, number, authors and lyri
 A theme is one `SongTheme` JSON per row; every knob added after F1 (outline, footer, fade…) reads its
 default from a stored row that predates it. The default theme is seeded ONCE (`songs.seeded`) from the
 operator's verse style at a singer's size (6 / 2.5 cqw); the last theme cannot be deleted
-(`SONG_THEME_LAST`), and deleting the default one resets `songs.defaultThemeId`.
+(`SONG_THEME_LAST`), and deleting the default one resets `songs.defaultThemeId`. That first theme is
+«Clásico» (black) since the starter look below; installs seeded earlier keep the row they have.
+
+## The starter look — `look.seeded`, and "untouched" is equality with a factory value
+
+`seedStarterLook` (owner, 2026-11-05: «que se vea lindo») copies the backgrounds the app ships
+(`resources/backgrounds/`: 8 stills and 4 loops, drawn by `scripts/make-backgrounds.ts`) into
+`<userData>/backgrounds/` under the language's names — never referenced in place: an AppImage mounts
+somewhere new on every launch — and adds them to the library; then six song themes over them, three
+overlays, and on a NEW install `songs.defaultThemeId` = the first new theme. It runs after the other
+seeds, in one transaction, once per `look.seeded` version (a number, so a later look can be offered
+again), and the E2E harness skips it with `--no-starter-look`.
+
+On an existing install it only ADDS, and restyles what is still exactly as it came (owner): the verse's
+style when it deep-equals `DEFAULT_BIBLE_STYLE`, a time scene's when it deep-equals a FACTORY style —
+today's `DEFAULT_SCENE_STYLE` or the pre-rebrand one (`#04132b`, `#84adfc`, `#f5f5f5`). That second
+value is not hypothetical: the owner's own Mac profile, seeded before 2026-10-22, had two scenes in it
+untouched, which a check against today's default alone would never have dressed. A future change to a
+factory default has to add the old value to that list.
 
 The lyrics text format (`shared/song-text.ts`) is shared by the editor and the EasyWorship importer
 (`main/songs/`): EasyWorship's RTF (`SongWords.db`) becomes plain text whose blocks start with a label

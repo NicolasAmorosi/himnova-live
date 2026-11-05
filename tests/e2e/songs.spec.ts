@@ -245,7 +245,7 @@ test("a theme edited in «Temas» dresses the live song, and the footer carries 
   const themes = control.getByRole("dialog", { name: "Temas" });
   await themes.getByRole("group", { name: "Mayúsculas", exact: true }).getByRole("switch").click();
   await themes.getByRole("button", { name: "Guardar", exact: true }).click();
-  await expect(toast(app, "Se guardó «Predeterminado»")).toBeVisible();
+  await expect(toast(app, "Se guardó «Clásico»")).toBeVisible();
   await themes.getByRole("button", { name: "Cerrar" }).first().click();
   await expect
     .poll(() => projector.locator("[data-song-block]").last().evaluate((el) => getComputedStyle(el).textTransform))

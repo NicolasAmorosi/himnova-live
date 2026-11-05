@@ -116,6 +116,26 @@ const it: MainMessages = {
     usageCount: "Utilizzi",
     usageDates: "Date",
   },
+  look: {
+    backgrounds: {
+      night: "Notte",
+      sunrise: "Alba",
+      ocean: "Oceano",
+      dusk: "Tramonto",
+      forest: "Bosco",
+      ember: "Brace",
+      graphite: "Grafite",
+      sky: "Cielo",
+    },
+    lowerThirdName: "Sottopancia con nome",
+    lowerThirdTitle: "Nome e cognome",
+    lowerThirdSubtitle: "Ruolo o ministero",
+    bannerName: "Banner degli avvisi",
+    bannerTitle: "Benvenuti!",
+    bannerSubtitle: "Scrivi qui gli avvisi della settimana",
+    bugName: "Filigrana con il nome",
+    bugTitle: "Nome della chiesa",
+  },
   seed: {
     countdownName: "Conto alla rovescia 10 minuti",
     countdownTitle: "Il culto inizia tra",
@@ -124,7 +144,7 @@ const it: MainMessages = {
     clockName: "Orologio",
     stopwatchName: "Cronometro",
     endMessage: "Benvenuti!",
-    songThemeName: "Predefinito",
+    songThemeName: "Classico",
   },
 };
 

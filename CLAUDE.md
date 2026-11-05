@@ -111,7 +111,10 @@ src/
 │   │   ├── client.ts             # SQLite opening + pragmas
 │   │   ├── migrate.ts            # backup + migrate() on startup
 │   │   ├── seed/                 # Bible seed (FTS5 rebuild) + bible-formats/ (JSON,
-│   │   │                         #   Zefania, USFX, OSIS, SQLite modules; 66-book canon)
+│   │   │                         #   Zefania, USFX, OSIS, SQLite modules; 66-book canon), the time scenes,
+│   │   │                         #   the first song theme, and seed-starter-look.ts: the backgrounds in
+│   │   │                         #   resources/backgrounds/ (drawn by scripts/make-backgrounds.ts) into the
+│   │   │                         #   library, song themes over them, the verse's and time scenes' look, 3 overlays
 │   │   └── repositories/         # one repo per aggregate (settings, media, bible, programs, history, slides)
 │   ├── ipc/
 │   │   ├── register.ts           # registerHandlers<Handlers> — exhaustiveness enforced by TS
@@ -347,7 +350,7 @@ npm install              # installs deps — better-sqlite3 ships prebuilt binar
 npm run dev               # electron-vite dev (HMR in the renderer, main restarts on watch)
 npm run typecheck          # tsc --noEmit over node (main+preload+shared) and web (renderer+shared)
 npm run lint                # eslint .
-npm run test                 # vitest run — 624 cases in two projects: `main` (Node: migrations, seed,
+npm run test                 # vitest run — 626 cases in two projects: `main` (Node: migrations, seed,
                               #   FTS5, repos and the library sweep, draft, settings and scene validators, WAL backup,
                               #   zip reader, the legacy-deck reader against an OLE2 file built in the test
                               #   (`tests/fixtures/legacy-ppt.ts`: pictures, master inheritance, what it refuses),
@@ -370,8 +373,9 @@ npm run test                 # vitest run — 624 cases in two projects: `main` 
                               #   frozen frame, toast store, utils). Nothing imports `electron`: that's
                               #   the suite's boundary
 npm run test:watch            # the same suite in watch mode, while working on a module
-npm run test:e2e              # build + Playwright: 165 walkthroughs of the real app (~10 min) with a
-                              #   throwaway profile and media generated on the fly — videos, AVI and WMA with the
+npm run test:e2e              # build + Playwright: 166 walkthroughs of the real app (~10 min) with a
+                              #   throwaway, bare profile (`--no-starter-look`; `starter-look.spec.ts` turns it on)
+                              #   and media generated on the fly — videos, AVI and WMA with the
                               #   bundled FFmpeg; PDFs, a legacy .pps made of pictures and .pptx with auto-advance, a
                               #   WMA soundtrack and an embedded WMV written in code (`tests/e2e/support/pptx.ts`),
                               #   nothing else installed:
