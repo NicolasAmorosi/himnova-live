@@ -940,6 +940,9 @@ const en: Messages = {
     chooseFile: "Choose file…",
     clearLive: "What is on the projector now",
     clearLiveDesc: "Takes down what's projected now and goes back to the logo.",
+    videoEnd: "When a video ends",
+    videoEndDesc: "What the projector shows when a video reaches its end on its own. Without a logo loaded, the logo is black.",
+    videoEndOptions: { logo: "Show the logo", black: "Black screen", loop: "Loop", hold: "Hold the last frame" },
     startVolume: "Starting volume",
     startVolumeDesc:
       "The volume each video, audio file or presentation's music starts at when you GO LIVE with it. You can adjust each one while it plays, from the Live panel.",

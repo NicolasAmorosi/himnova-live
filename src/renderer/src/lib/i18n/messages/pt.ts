@@ -941,6 +941,9 @@ const pt: Messages = {
     chooseFile: "Escolher arquivo…",
     clearLive: "O que está sendo projetado agora",
     clearLiveDesc: "Tira o que está projetado agora e volta ao logo.",
+    videoEnd: "Quando um vídeo termina",
+    videoEndDesc: "O que o projetor mostra quando um vídeo chega ao fim sozinho. Sem um logo carregado, o logo fica preto.",
+    videoEndOptions: { logo: "Mostrar o logo", black: "Tela preta", loop: "Repetir em loop", hold: "Ficar no último quadro" },
     startVolume: "Volume inicial",
     startVolumeDesc:
       "Com que volume começa cada vídeo, áudio ou música de PPT que você manda AO VIVO. Dá para ajustar cada um enquanto toca, no painel Ao vivo.",

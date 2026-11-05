@@ -11,11 +11,18 @@ import {
 import { INSTANT_TRANSITION, type AudioTrackPush, type ProjectionOutput } from "../../src/shared/types/projection";
 import { assetUrl, deckVideoUrl, engineAssetUrl, engineClipUrl } from "../../src/shared/urls";
 
-function videoOutput(url: string, overrides: Partial<{ kind: "video" | "black"; paused: boolean }> = {}): ProjectionOutput {
-  const underlay = { url, epoch: 3, paused: overrides.paused ?? false, startAtSeconds: 12, volume: 0.5 };
+function videoOutput(
+  url: string,
+  overrides: Partial<{ kind: "video" | "black"; paused: boolean; loop: boolean }> = {},
+): ProjectionOutput {
+  const underlay = { url, epoch: 3, paused: overrides.paused ?? false, startAtSeconds: 12, volume: 0.5, loop: overrides.loop ?? false };
   const base = { videoUnderlay: underlay, slideVideo: null, plates: [], transition: INSTANT_TRANSITION };
   return overrides.kind === "black" ? { kind: "black", ...base } : { kind: "video", url, epoch: 3, ...base };
 }
+
+test("a video set to loop at its end loops in the engine too", () => {
+  expect(liveEngineState(videoOutput(engineAssetUrl(7), { loop: true }), true)?.loop).toBe(true);
+});
 
 test("only a video the engine plays has a session", () => {
   expect(liveEngineState(videoOutput(assetUrl(7)), true)).toBeNull();

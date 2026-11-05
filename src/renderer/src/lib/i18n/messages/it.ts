@@ -948,6 +948,9 @@ const it: Messages = {
     chooseFile: "Scegli file…",
     clearLive: "Ciò che è proiettato ora",
     clearLiveDesc: "Toglie ciò che è proiettato adesso e torna al logo.",
+    videoEnd: "Alla fine di un video",
+    videoEndDesc: "Cosa mostra il proiettore quando un video arriva alla fine da solo. Senza un logo caricato, il logo è nero.",
+    videoEndOptions: { logo: "Mostra il logo", black: "Schermo nero", loop: "Ripeti in loop", hold: "Resta sull'ultimo fotogramma" },
     startVolume: "Volume iniziale",
     startVolumeDesc:
       "Il volume con cui parte ogni video, audio o musica di PPT che mandi IN ONDA. Puoi regolarli uno per uno mentre suonano, dal pannello In onda.",

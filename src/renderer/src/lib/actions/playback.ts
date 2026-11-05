@@ -594,6 +594,14 @@ export function gotoSlide(index: number): void {
  *  no base left, BLACK/LOGO/LIVE would otherwise keep showing LIVE selected
  *  while the projector is actually rendering the logo fallback. */
 export function clearBaseContent(): void {
+  clearBaseContentUnder("logo");
+}
+
+/** `clearBaseContent`, with what goes over the cleared stage: LOGO (black
+ *  without one), or BLACK when the operator chose it for a video's end
+ *  (`projection.videoEnd`). Its own function because `clearBaseContent` is
+ *  handed straight to `onClick`, which would pass the click as the cover. */
+export function clearBaseContentUnder(cover: "logo" | "black"): void {
   // Claimed even when this runs unattended (`end-of-playback.ts`, a video that
   // reached its end): the rule is about the projector changing, not about who
   // changed it, and a deck landing on top of an auto-cleared stage is exactly
@@ -604,7 +612,7 @@ export function clearBaseContent(): void {
   if (wasLive) store.beginScene();
   store.setBase(null);
   store.setLiveDeck(null);
-  if (wasLive) store.setOverlay("logo");
+  if (wasLive) store.setOverlay(cover);
   useAudioStore.getState().setDeckTrack(null);
   useProgramStore.getState().setActive(null);
   // Otherwise the Bible browser would keep showing the deleted verse as

@@ -8,6 +8,7 @@ import { isBibleStyle, normalizeBibleStyle } from "../bible-style-validators";
 import { DEFAULT_BIBLE_STYLE, type BibleStyle } from "./bible-style";
 import { MEDIA_SORT_ORDERS, type MediaSortOrder } from "./media";
 import { TRANSITION_MAX_DURATION_MS, TRANSITION_STYLES, type TransitionStyle } from "./transition";
+import { VIDEO_END_ACTIONS, type VideoEndAction } from "./projection";
 
 export const THEMES = ["dark", "light"] as const;
 export type Theme = (typeof THEMES)[number];
@@ -54,6 +55,10 @@ export type SettingsMap = {
   "projection.transition.style": TransitionStyle;
   /** Ignored when the style is "none". */
   "projection.transition.durationMs": number;
+  /** What the projector does when a video reaches its end on its own (owner,
+   *  2026-11-05): the logo (black without one), BLACK, start over, or stay on
+   *  its last frame. Videos only — an auto-advancing deck still clears. */
+  "projection.videoEnd": VideoEndAction;
   /** Whether the LIVE monitor plays its own moving copy of a live video (the
    *  full-screen one and a slide's). Off, it shows the video's thumbnail and
    *  the control window decodes nothing — the projector is never affected. */
@@ -141,6 +146,7 @@ export const DEFAULT_SETTINGS: SettingsMap = {
   // in the Live panel.
   "media.volume": 1,
   "projection.transition.style": "crossfade",
+  "projection.videoEnd": "logo",
   "projection.transition.durationMs": 300,
   "slides.imageFormat": "webp",
   "slides.fallbackFont": null,
@@ -225,6 +231,7 @@ export const SETTINGS_VALIDATORS: Record<keyof SettingsMap, (value: unknown) => 
   "ui.locale": isOneOf(LOCALES),
   "media.volume": isNumberIn(0, 1),
   "projection.transition.style": isOneOf(TRANSITION_STYLES),
+  "projection.videoEnd": isOneOf(VIDEO_END_ACTIONS),
   "projection.transition.durationMs": isNumberIn(0, TRANSITION_MAX_DURATION_MS),
   "slides.imageFormat": isOneOf(SLIDE_IMAGE_FORMATS),
   "slides.fallbackFont": isNullOr(isOneOf(SLIDE_FALLBACK_FONTS)),

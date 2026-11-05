@@ -84,6 +84,8 @@ export function App() {
   const setTransitionSettings = useProjectionStore(
     (s) => s.setTransitionSettings,
   );
+  const videoEnd = useSettingsStore((s) => s.settings["projection.videoEnd"]);
+  const setVideoEnd = useProjectionStore((s) => s.setVideoEnd);
   const bibleStyle = useSettingsStore((s) => s.settings["bible.style"]);
   const setBibleStyle = useProjectionStore((s) => s.setBibleStyle);
   const fallbackFont = useSettingsStore((s) => s.settings["slides.fallbackFont"]);
@@ -191,6 +193,12 @@ export function App() {
   useEffect(() => {
     setTransitionSettings(transitionStyle, transitionDurationMs);
   }, [transitionStyle, transitionDurationMs, setTransitionSettings]);
+
+  // What a video does at its end: `loop` travels in the output, the rest is
+  // `end-of-playback.ts`'s. Changed while a video plays, it applies to that one.
+  useEffect(() => {
+    setVideoEnd(videoEnd);
+  }, [videoEnd, setVideoEnd]);
 
   // The verse's own look, mirrored for the same reason and by the same route.
   // Editing it in Settings while scripture is on the projector therefore

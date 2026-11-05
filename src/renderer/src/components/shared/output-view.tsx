@@ -129,6 +129,8 @@ type LiveVideoProps = {
    *  construction, and a confidence monitor that could make noise is a way to
    *  put two copies of the same soundtrack in the room. */
   volume: number;
+  /** `VideoUnderlay.loop`: the element starts over and never ends. */
+  loop: boolean;
 };
 
 /**
@@ -166,6 +168,7 @@ function LiveVideo({
   held,
   incomingCovers,
   liveVideoStatus,
+  loop,
   mode,
   onError,
   onFirstFrame,
@@ -286,6 +289,7 @@ function LiveVideo({
   return (
     <video
       autoPlay={shouldPlay}
+      loop={loop}
       // Black, not transparent, around a picture that does not fill the stage:
       // fading in over a scene that holds at full opacity (`incomingCovers`),
       // a 4:3 video's bars would show that scene and then snap to black.
@@ -1571,6 +1575,7 @@ export function OutputView({
           incomingCovers={incomingCovers}
           key={output.videoUnderlay.epoch}
           liveVideoStatus={liveVideoStatus}
+          loop={output.videoUnderlay.loop}
           mode={mode}
           onError={handleVideoError}
           onFirstFrame={handleVideoFirstFrame}

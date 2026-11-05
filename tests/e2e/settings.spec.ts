@@ -105,3 +105,31 @@ test("«Probar video» plays a library video and gives a verdict", async ({ app 
   // It never touched the projector.
   expect(app.hasProjector()).toBe(false);
 });
+
+test("«Al terminar un video»: BLACK over the cleared stage, or a loop that starts over instead of ending", async ({ app }) => {
+  await app.addMedia("video", "clip.mp4");
+  let settings = await openSettings(app, "Proyección");
+  await choose(app, settings.getByRole("group", { name: "Al terminar un video" }), "Pantalla en negro");
+  await closeSettings(settings);
+  await app.previewFile("Videos", "clip");
+  await app.goLive();
+  const projector = await app.projector();
+  const video = projector.locator("video").first();
+  await expect.poll(async () => (await videoStates(projector))[0]?.currentTime ?? 0).toBeGreaterThan(0.2);
+  // Its last half second, then it ends on its own.
+  await video.evaluate((element: HTMLVideoElement) => (element.currentTime = element.duration - 0.5));
+  await expect(app.control.getByRole("button", { name: "NEGRO", exact: true }).first()).toHaveAttribute("aria-pressed", "true");
+  await expect(projector.locator("video")).toHaveCount(0);
+
+  settings = await openSettings(app, "Proyección");
+  await choose(app, settings.getByRole("group", { name: "Al terminar un video" }), "Repetir en bucle");
+  await closeSettings(settings);
+  await app.previewFile("Videos", "clip");
+  await app.goLive();
+  await expect.poll(async () => (await videoStates(projector))[0]?.currentTime ?? 0).toBeGreaterThan(0.2);
+  await video.evaluate((element: HTMLVideoElement) => (element.currentTime = element.duration - 0.5));
+  // Past its end it is back at the start, still playing and still on air.
+  await expect.poll(async () => (await videoStates(projector))[0]?.currentTime ?? 99).toBeLessThan(2);
+  expect((await videoStates(projector))[0]?.paused).toBe(false);
+  await expect(app.control.getByRole("button", { name: "NEGRO", exact: true }).first()).not.toHaveAttribute("aria-pressed", "true");
+});
