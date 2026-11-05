@@ -18,7 +18,7 @@ import type {
 import type { SettingsMap } from "@shared/types/settings";
 import type { UtilitySceneUpsert } from "@shared/types/utility";
 import type { PlateUpsert } from "@shared/types/overlay";
-import type { SongThemeUpsert, SongUpsert } from "@shared/types/song";
+import type { SongImportSource, SongThemeUpsert, SongUpsert } from "@shared/types/song";
 import type { CloseDecision } from "@shared/types/window";
 import type { DecoderSupport } from "@shared/types/media";
 
@@ -152,7 +152,7 @@ export const api = {
     remove: (id: number, force = false) => invoke("song:delete", { id, force }),
     usages: (id: number) => invoke("song:usages", { id }),
     search: (query: string) => invoke("song:search", { query }),
-    importEasyWorship: () => invoke("song:importEasyWorship", undefined),
+    import: (from: SongImportSource) => invoke("song:import", { from }),
     themes: () => invoke("songTheme:list", undefined),
     createTheme: (input: SongThemeUpsert) => invoke("songTheme:create", input),
     updateTheme: (input: SongThemeUpsert & { id: number }) => invoke("songTheme:update", input),

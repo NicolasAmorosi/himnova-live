@@ -216,7 +216,8 @@ of the things of that kind · the canvas · the inspector.
   inside it), and a «⋯» `Menu` with Duplicate/Delete. Without `save`, the screen applies at once and closes with
   «← Back». The edited thing's name is an inline input in the bar (`name`), not a «Name» field.
 - `Menu` without a `value` is a command menu (`menuitem`, nothing checked, options can be `disabled` or
-  `tone: "danger"`).
+  `tone: "danger"`). With `text` its trigger is a worded `Button` instead of an icon (Songs ▸ «Importar», a menu
+  of the programs it reads).
 - **`Inspector`** (`components/ui/inspector.tsx`, 352 px) folds its groups with the platform's `<details>`
   (`InspectorSection`) and sets `FieldLayoutContext` to `compact` for every `FieldRow` inside it: label in a
   fixed 7.5 rem column (the «?» glued to the label's last word, so it never sits alone on a line), the control right beside it taking the whole cell (a switch keeps its size, a slider its

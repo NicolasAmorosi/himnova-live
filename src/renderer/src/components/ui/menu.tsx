@@ -3,6 +3,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { isPointerFocused } from "@renderer/lib/focus-modality";
 import { cn } from "@renderer/lib/utils";
+import { Button } from "./button";
 import { computeMenuPosition, useFollowTrigger, type MenuPosition } from "./floating-menu";
 import { Icon, type IconName } from "./icon";
 import { IconButton } from "./icon-button";
@@ -23,12 +24,16 @@ type MenuSize = "xs" | "sm";
 type MenuProps<T extends string> = {
   align?: "start" | "end";
   className?: string;
+  disabled?: boolean;
   icon: IconName;
-  /** Accessible name of the trigger — it is a button with no text in it. */
+  /** Accessible name of the list, and of the trigger when it has no `text`. */
   label: string;
   onSelect: (value: T) => void;
   options: readonly MenuOption<T>[];
   size?: MenuSize;
+  /** Written beside the icon: the trigger is then a `Button` with words, for
+   *  a footer that names its commands («Importar», 2026-11-04 redesign P2). */
+  text?: string;
   /** The option in effect, rendered checked (`menuitemradio`). Left out, the
    *  menu is a list of COMMANDS (`menuitem`, nothing checked): an editor's
    *  «⋯» with Duplicate and Delete. */
@@ -63,11 +68,13 @@ const triggerSizes: Record<MenuSize, string> = { xs: "size-7", sm: "size-8" };
 export function Menu<T extends string>({
   align = "start",
   className,
+  disabled,
   icon,
   label,
   onSelect,
   options,
   size = "xs",
+  text,
   value,
 }: MenuProps<T>) {
   const id = useId();
@@ -166,20 +173,29 @@ export function Menu<T extends string>({
     }
   }
 
-  const trigger = (
+  // Not `toggled`: that prop means `aria-pressed`, and a button that is
+  // already saying `aria-expanded` is not also a toggle — the two together are
+  // read out as two different states of the same control. The open look is
+  // the same one hover gives, held.
+  const triggerProps = {
+    "aria-controls": open ? menuId : undefined,
+    "aria-expanded": open,
+    "aria-haspopup": "menu" as const,
+    disabled,
+    onClick: () => (open ? close(false) : openMenu()),
+    onKeyDown: handleTriggerKeyDown,
+    ref: triggerRef,
+  };
+  const trigger = text ? (
+    <Button {...triggerProps} className={cn(open && "border-accent bg-muted", className)} size={size} variant="ghost">
+      <Icon name={icon} />
+      {text}
+    </Button>
+  ) : (
     <IconButton
-      aria-controls={open ? menuId : undefined}
-      aria-expanded={open}
-      aria-haspopup="menu"
+      {...triggerProps}
       aria-label={label}
-      // Not `toggled`: that prop means `aria-pressed`, and a button that is
-      // already saying `aria-expanded` is not also a toggle — the two together
-      // are read out as two different states of the same control. The open
-      // look is the same one hover gives, held.
       className={cn(triggerSizes[size], open && "border-accent bg-muted", className)}
-      onClick={() => (open ? close(false) : openMenu())}
-      onKeyDown={handleTriggerKeyDown}
-      ref={triggerRef}
       size="xs"
       variant="ghost"
     >

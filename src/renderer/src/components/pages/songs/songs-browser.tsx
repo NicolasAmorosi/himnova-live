@@ -9,6 +9,7 @@ import {
   IconButton,
   Input,
   ListRow,
+  Menu,
   Tooltip,
 } from "@renderer/components/ui";
 import { PanelBody, PanelFooter } from "@renderer/components/shared/panel";
@@ -17,7 +18,7 @@ import { api } from "@renderer/lib/api";
 import { toast } from "@renderer/lib/toast";
 import { setSongDrag } from "@renderer/lib/dnd";
 import { previewSong } from "@renderer/lib/actions/preview";
-import { importEasyWorship } from "@renderer/lib/actions/songs";
+import { importSongs } from "@renderer/lib/actions/songs";
 import { goLive } from "@renderer/lib/actions/playback";
 import { useDebouncedCallback } from "@renderer/lib/hooks/use-debounced-callback";
 import { findSong, useSongStore } from "@renderer/stores/song.store";
@@ -25,7 +26,7 @@ import { usePreviewStore } from "@renderer/stores/preview.store";
 import { useProgramStore } from "@renderer/stores/program.store";
 import { useProjectionStore } from "@renderer/stores/projection.store";
 import { parseSnippet } from "@shared/types/bible";
-import type { Song, SongSearchHit } from "@shared/types/song";
+import type { Song, SongImportSource, SongSearchHit } from "@shared/types/song";
 import { SongEditorModal } from "./SongEditorModal";
 import { SongThemesModal } from "./SongThemesModal";
 
@@ -52,9 +53,9 @@ export function SongsBrowser() {
   const [editing, setEditing] = useState<{ songId: number | null } | null>(null);
   const [themesOpen, setThemesOpen] = useState(false);
   const [importing, setImporting] = useState(false);
-  const runImport = () => {
+  const runImport = (from: SongImportSource) => {
     setImporting(true);
-    void importEasyWorship().finally(() => setImporting(false));
+    void importSongs(from).finally(() => setImporting(false));
   };
   const requestRef = useRef(0);
 
@@ -183,16 +184,19 @@ export function SongsBrowser() {
         {/* With words, not icons alone (2026-11-04 redesign, P2): nobody finds
             «Themes» behind a palette. «+» and the pencil are universal. */}
         <Tooltip content={t("songs.importHint")} floating>
-          <Button
-            aria-label={t("songs.importEasyWorship")}
+          <Menu
             disabled={importing}
-            onClick={runImport}
+            icon="import"
+            label={t("songs.import")}
+            onSelect={runImport}
+            options={[
+              { label: t("songs.importEasyWorship"), value: "easyworship" },
+              { label: t("songs.importOpenLp"), value: "openlp" },
+              { label: t("songs.importOpenLyrics"), value: "openlyrics" },
+            ]}
             size="sm"
-            variant="ghost"
-          >
-            <Icon name="import" />
-            {t("songs.import")}
-          </Button>
+            text={t("songs.import")}
+          />
         </Tooltip>
         <Tooltip content={t("songThemes.manageHint")} floating>
           <Button onClick={() => setThemesOpen(true)} size="sm" variant="ghost">

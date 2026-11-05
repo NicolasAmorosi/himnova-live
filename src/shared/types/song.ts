@@ -82,6 +82,11 @@ export type SongUpsert = Omit<Song, "id" | "updatedAt"> & { id?: number };
 
 export type SongUsage = { programId: number; programName: string; itemCount: number };
 
+/** The programs whose songs the app reads (owner, 2026-11-05: «Importar» is a
+ *  menu of them). */
+export const SONG_IMPORT_SOURCES = ["easyworship", "openlp", "openlyrics"] as const;
+export type SongImportSource = (typeof SONG_IMPORT_SOURCES)[number];
+
 /** What an import did: written, skipped as already there (same title, same
  *  words), and not written because the song had no title or no lyrics. */
 export type SongImportResult = { imported: number; repeated: number; problems: number };

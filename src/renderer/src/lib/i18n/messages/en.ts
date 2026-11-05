@@ -399,8 +399,10 @@ const en: Messages = {
   },
   songs: {
     import: "Import",
-    importEasyWorship: "Import from EasyWorship",
-    importHint: "Import the songs of EasyWorship 6 or 7: choose its Databases\\Data folder.",
+    importEasyWorship: "EasyWorship 6 or 7",
+    importOpenLp: "OpenLP",
+    importOpenLyrics: "OpenLyrics (.xml)",
+    importHint: "Import songs from EasyWorship, OpenLP or OpenLyrics.",
     importDone: "{imported, plural, =0 {No song imported} one {# song imported} other {# songs imported}} · {repeated} repeated · {problems} without lyrics",
     importError: "The songs couldn't be imported.",
     theme: "Theme",

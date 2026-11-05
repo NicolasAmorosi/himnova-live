@@ -401,8 +401,10 @@ const it: Messages = {
   },
   songs: {
     import: "Importa",
-    importEasyWorship: "Importa da EasyWorship",
-    importHint: "Importa i canti di EasyWorship 6 o 7: scegli la sua cartella Databases\\Data.",
+    importEasyWorship: "EasyWorship 6 o 7",
+    importOpenLp: "OpenLP",
+    importOpenLyrics: "OpenLyrics (.xml)",
+    importHint: "Importa i canti da EasyWorship, OpenLP o OpenLyrics.",
     importDone: "{imported, plural, =0 {Nessun canto importato} one {# canto importato} other {# canti importati}} · {repeated} ripetuti · {problems} senza testo",
     importError: "Non è stato possibile importare i canti.",
     theme: "Tema",

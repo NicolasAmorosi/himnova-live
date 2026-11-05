@@ -6,7 +6,17 @@ import { findSong, resolveSong, themeForSong, useSongStore } from "@renderer/sto
 import { useProjectionStore } from "@renderer/stores/projection.store";
 import { usePreviewStore } from "@renderer/stores/preview.store";
 import { useProgramStore } from "@renderer/stores/program.store";
-import type { ResolvedSong, Song, SongLanguage, SongTheme, SongThemeRow, SongThemeUpsert, SongUpsert, SongUsage } from "@shared/types/song";
+import type {
+  ResolvedSong,
+  Song,
+  SongImportSource,
+  SongLanguage,
+  SongTheme,
+  SongThemeRow,
+  SongThemeUpsert,
+  SongUpsert,
+  SongUsage,
+} from "@shared/types/song";
 import { useSettingsStore } from "@renderer/stores/settings.store";
 
 /**
@@ -185,19 +195,20 @@ export async function deleteSongTheme(id: number): Promise<boolean> {
 }
 
 /**
- * EasyWorship 6/7's song database, picked as a folder. Says what it did —
- * written, already there, without a title or lyrics — and, when main refuses
- * (no song database in that folder, or one that will not open), main's own
- * reason, which says which folder to pick.
+ * Another program's songs: EasyWorship 6/7's database (a folder), OpenLP's
+ * `songs.sqlite` or OpenLyrics files. Says what it did — written, already
+ * there, without a title or lyrics — and, when main refuses (no song database
+ * there, or one that will not open), main's own reason, which says what to
+ * pick.
  */
-export async function importEasyWorship(): Promise<void> {
+export async function importSongs(from: SongImportSource): Promise<void> {
   try {
-    const result = await api.songs.importEasyWorship();
+    const result = await api.songs.import(from);
     if (!result) return;
     await loadSongs();
     toast.success(t("songs.importDone", result));
   } catch (error) {
-    console.warn("[songs] EasyWorship import failed", error);
+    console.warn(`[songs] ${from} import failed`, error);
     const message = error instanceof Error ? error.message.trim() : "";
     toast.danger(message || t("songs.importError"));
   }

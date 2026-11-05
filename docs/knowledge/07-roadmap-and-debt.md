@@ -14,8 +14,9 @@ saved-services module.
 2026-11-04):** the song library, one size per song, live jumps, named themes and the
 EasyWorship 6 import — see «Songs» in `04-renderer-state.md` and `05-data-and-persistence.md`.
 Two languages at once and a video behind the lyrics came on 2026-11-05 (see «Songs» in
-`04-renderer-state.md`). Left for later, by the owner's plan: other importers
-(OpenLP, OpenLyrics, ProPresenter, FreeShow, SongSelect, ChordPro), the CCLI usage report, chords,
+`04-renderer-state.md`), and the OpenLP and OpenLyrics importers the same day (`05-data-and-persistence.md`).
+Left for later, by the owner's plan: other importers
+(ProPresenter, FreeShow, SongSelect, ChordPro), the CCLI usage report, chords,
 configurable keys, and checking the importer against a real EasyWorship 7 database.
 
 ## Debt consciously left for a later session

@@ -47,6 +47,7 @@ import type { Plate, PlateUpsert, PlateUsage } from "../types/overlay";
 import type {
   Song,
   SongImportResult,
+  SongImportSource,
   SongSearchHit,
   SongThemeRow,
   SongThemeUpsert,
@@ -330,11 +331,13 @@ export type IpcContract = {
   "song:usages": { req: { id: number }; res: SongUsage[] };
   /** Title, number, authors and lyrics, without accents (FTS5), best first. */
   "song:search": { req: { query: string; limit?: number }; res: SongSearchHit[] };
-  /** Asks for EasyWorship 6/7's `Databases/Data` folder (or the profile
-   *  above it) and imports its songs; `null` when the operator cancels.
-   *  Refused as `EW_NOT_FOUND` when the folder holds no song database, and
-   *  `EW_UNREADABLE` when it cannot be opened. */
-  "song:importEasyWorship": { req: void; res: SongImportResult | null };
+  /** Asks for another program's songs and imports them; `null` when the
+   *  operator cancels. EasyWorship 6/7: its `Databases/Data` folder (or the
+   *  profile above it), refused as `EW_NOT_FOUND` when the folder holds no song
+   *  database and `EW_UNREADABLE` when it cannot be opened. OpenLP: its
+   *  `songs.sqlite`, refused as `OPENLP_UNREADABLE`. OpenLyrics: one or more
+   *  `.xml` files, a file that is not a song counted as a problem. */
+  "song:import": { req: { from: SongImportSource }; res: SongImportResult | null };
   "songTheme:list": { req: void; res: SongThemeRow[] };
   /** Validated whole (`isSongThemeUpsert`). A new theme goes to the bottom. */
   "songTheme:create": { req: SongThemeUpsert; res: SongThemeRow };

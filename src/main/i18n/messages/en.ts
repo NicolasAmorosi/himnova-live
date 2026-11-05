@@ -103,6 +103,9 @@ const en: MainMessages = {
     ewPickTitle: "Choose EasyWorship's Databases\\Data folder",
     ewNotFound: "That folder holds no EasyWorship song database (Songs.db and SongWords.db). Choose its profile's Databases\\Data folder.",
     ewUnreadable: "EasyWorship's song database couldn't be opened.",
+    openLpPickTitle: "Choose OpenLP's songs.sqlite file",
+    openLpUnreadable: "That file isn't an OpenLP song database (songs.sqlite), or it couldn't be opened.",
+    openLyricsPickTitle: "Choose the OpenLyrics songs (.xml)",
   },
   seed: {
     countdownName: "10-minute countdown",

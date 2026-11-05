@@ -103,6 +103,9 @@ const it: MainMessages = {
     ewPickTitle: "Scegli la cartella Databases\\Data di EasyWorship",
     ewNotFound: "In quella cartella non c'è un database dei canti di EasyWorship (Songs.db e SongWords.db). Scegli la cartella Databases\\Data del suo profilo.",
     ewUnreadable: "Non è stato possibile aprire il database dei canti di EasyWorship.",
+    openLpPickTitle: "Scegli il file songs.sqlite di OpenLP",
+    openLpUnreadable: "Quel file non è un database dei canti di OpenLP (songs.sqlite) o non è stato possibile aprirlo.",
+    openLyricsPickTitle: "Scegli i canti OpenLyrics (.xml)",
   },
   seed: {
     countdownName: "Conto alla rovescia 10 minuti",

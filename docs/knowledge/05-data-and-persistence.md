@@ -164,6 +164,16 @@ The lyrics text format (`shared/song-text.ts`) is shared by the editor and the E
 are opened read-only and never queried with `ORDER BY`/`WHERE` on text: EasyWorship 7 declares a
 collation SQLite lacks.
 
+OpenLP (`songs.sqlite`, 2.0 on) and OpenLyrics (its export, one `.xml` per song) need no text format:
+both name each verse (`v1`, `c`, `v1a` a part of verse 1) and `main/songs/openlp.ts` builds the sections
+straight from them — `[---]`, `[--}{--]` and each `<lines>` a slide, chords and formatting tags dropped
+(no chords yet), the verse order into `order`. A verse in a second language is the translation, paired by
+section and slide (`withTranslation`; owner, 2026-11-05: the FIRST language met is the lyrics, a third is
+dropped). OpenLP's hymn number is the first `songs_songbooks.entry` (2.4) or `songs.song_number` (2.2),
+its `comments` the notes, and a `temporary` song (kept only for a service) is not imported. All three
+importers write through `writeSongs` (`services/song-import.ts`): one transaction, the same title with
+the same words skipped as repeated.
+
 ## FTS5 without accents
 
 `bible_verses_fts` uses `tokenize="unicode61 remove_diacritics 2"` — searching "espiritu" finds

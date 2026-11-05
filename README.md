@@ -27,7 +27,8 @@ Windows, macOS and Linux · English, Spanish, Italian and Portuguese
   P the bridge, F the ending; Shift the previous time) and T hides the lyrics. Named themes (background,
   font, sizes, colours, outline, margins, lines per slide, a copyright footer with your church's CCLI
   licence, a fade between slides), and import from **EasyWorship 6**'s song database (version 7 should
-  read the same; not yet tested with one).
+  read the same; not yet tested with one), **OpenLP**'s `songs.sqlite` and **OpenLyrics** files (a second
+  language comes in as the translation).
 - **Timers** (countdown, clock, stopwatch) and **overlays** on top of what is projected (a lower third
   with the preacher's name, the church logo).
 - **BLACK and LOGO** pause whatever is playing and resume it where it was.

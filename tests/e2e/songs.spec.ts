@@ -273,6 +273,12 @@ function easyWorshipProfile(songs: { title: string; author: string; lyrics: stri
   return profile;
 }
 
+/** «Importar» in the Songs footer is a menu of the programs it reads. */
+async function importFrom(app: WorshipApp, program: string): Promise<void> {
+  await tab(app).getByRole("button", { name: "Importar", exact: true }).click();
+  await app.control.getByRole("menuitem", { name: program }).click();
+}
+
 test("EasyWorship's songs come in from its profile folder, and a second import skips them", async ({ app }) => {
   const profile = easyWorshipProfile([
     { title: "Amazing Grace", author: "John Newton", lyrics: "Verse 1\nAmazing grace how sweet the sound\n\nChorus\nMy chains are gone\n\nVerse 2\nT'was grace\n\nChorus\nMy chains are gone" },
@@ -281,18 +287,56 @@ test("EasyWorship's songs come in from its profile folder, and a second import s
   try {
     await app.openResources("Canciones");
     await app.answerOpenDialog(profile);
-    await tab(app).getByRole("button", { name: "Importar de EasyWorship" }).first().click();
+    await importFrom(app, "EasyWorship 6 o 7");
     await expect(toast(app, "Se importó 1 canción · 0 repetidas · 1 sin letra")).toBeVisible();
     await songRows(app).filter({ hasText: "Amazing Grace" }).click();
     const grid = app.previewColumn().getByRole("list", { name: "Diapositivas de «Amazing Grace»" });
     await expect(grid.getByRole("listitem")).toHaveText([/Estrofa 1/, /Coro/, /Estrofa 2/, /Coro/]);
 
     await app.answerOpenDialog(profile);
-    await tab(app).getByRole("button", { name: "Importar de EasyWorship" }).first().click();
+    await importFrom(app, "EasyWorship 6 o 7");
     await expect(toast(app, "No se importó ninguna canción · 1 repetidas · 1 sin letra")).toBeVisible();
     await expect(songRows(app)).toHaveCount(1);
   } finally {
     fs.rmSync(profile, { recursive: true, force: true });
+  }
+});
+
+test("OpenLyrics files come in from «Importar», a second language as the translation", async ({ app }) => {
+  const folder = fs.mkdtempSync(path.join(os.tmpdir(), "worship-e2e-ol-"));
+  const file = (name: string, title: string, verses: string) => {
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<song xmlns="http://openlyrics.info/namespace/2009/song" version="0.8">
+  <properties><titles><title>${title}</title></titles><verseOrder>v1 c v2 c</verseOrder></properties>
+  <lyrics>${verses}</lyrics>
+</song>`;
+    fs.writeFileSync(path.join(folder, name), xml);
+    return path.join(folder, name);
+  };
+  const gracia = file(
+    "gracia.xml",
+    "Sublime gracia",
+    `<verse name="v1" lang="es"><lines>Sublime gracia del Señor<br/>que a un infeliz salvó</lines></verse>
+     <verse name="v1" lang="en"><lines>Amazing grace, how sweet the sound<br/>that saved a wretch like me</lines></verse>
+     <verse name="c" lang="es"><lines>Aleluya</lines></verse>
+     <verse name="v2" lang="es"><lines>Su gracia me enseñó a temer</lines></verse>`,
+  );
+  const amigo = file("amigo.xml", "Oh qué amigo", `<verse name="v1"><lines>Oh qué amigo nos es Cristo</lines></verse>`);
+  try {
+    await app.openResources("Canciones");
+    await app.answerOpenDialog(gracia, amigo);
+    await importFrom(app, "OpenLyrics (.xml)");
+    await expect(toast(app, "Se importaron 2 canciones · 0 repetidas · 0 sin letra")).toBeVisible();
+    await expect(songRows(app)).toHaveCount(2);
+    await songRows(app).filter({ hasText: "Sublime gracia" }).click();
+    const grid = app.previewColumn().getByRole("list", { name: "Diapositivas de «Sublime gracia»" });
+    await expect(grid.getByRole("listitem")).toHaveText([/Estrofa 1/, /Coro/, /Estrofa 2/, /Coro/]);
+    await app.goLive();
+    const projector = await app.projector();
+    await expect(projector.getByText("Sublime gracia del Señor")).toBeVisible();
+    await expect(projector.locator("[data-song-translation]").last()).toContainText("Amazing grace, how sweet the sound");
+  } finally {
+    fs.rmSync(folder, { recursive: true, force: true });
   }
 });
 

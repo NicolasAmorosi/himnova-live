@@ -1,17 +1,30 @@
 import type { Handlers } from "../register";
 import { getProgramsRepo, getSettingsRepo, getSongsRepo } from "../../services/repos";
 import { removeSong } from "../../services/song-removal";
-import { importEasyWorshipFolder } from "../../services/song-import";
+import { importEasyWorshipFolder, importOpenLpDatabase, importOpenLyricsFiles } from "../../services/song-import";
 import { showOpenDialogFor } from "../open-dialog";
 import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { app, type OpenDialogOptions } from "electron";
 import { IpcError } from "@shared/ipc/result";
 import { isSongThemeUpsert, isSongTitle, isSongUpsert } from "@shared/song-validators";
-import type { SongThemeUpsert, SongUpsert } from "@shared/types/song";
+import { SONG_IMPORT_SOURCES, type SongThemeUpsert, type SongUpsert } from "@shared/types/song";
 import { mt } from "../../i18n";
 
 /** Where EasyWorship 6/7 keeps its default profile's databases on Windows
  *  («Default» is the profile, and can be moved). */
 const EASYWORSHIP_DEFAULT_DATA = "C:\\Users\\Public\\Documents\\Softouch\\EasyWorship\\Default\\v6.1\\Databases\\Data";
+
+/** Where OpenLP keeps `songs.sqlite` unless it was moved (its manual). */
+function openLpDefaultFolder(): string {
+  if (process.platform === "win32") return path.join(app.getPath("appData"), "openlp", "data", "songs");
+  if (process.platform === "darwin") return path.join(app.getPath("appData"), "openlp", "Data", "songs");
+  return path.join(os.homedir(), ".local", "share", "openlp", "songs");
+}
+
+const defaultPathIfThere = (folder: string): Partial<OpenDialogOptions> =>
+  fs.existsSync(folder) ? { defaultPath: folder } : {};
 
 function assertValidTheme(input: unknown): { name: string; style: SongThemeUpsert["style"] } {
   if (!isSongThemeUpsert(input)) {
@@ -36,7 +49,7 @@ export const songsHandlers: Pick<
   | "song:delete"
   | "song:usages"
   | "song:search"
-  | "song:importEasyWorship"
+  | "song:import"
   | "songTheme:list"
   | "songTheme:create"
   | "songTheme:update"
@@ -54,15 +67,34 @@ export const songsHandlers: Pick<
   },
   "song:usages": ({ id }) => getProgramsRepo().findSongUsages(id),
   "song:search": ({ query, limit }) => getSongsRepo().search(query, limit),
-  "song:importEasyWorship": async (_req, ev) => {
+  "song:import": async (req, ev) => {
+    const from = req?.from;
+    if (!SONG_IMPORT_SOURCES.includes(from)) throw new IpcError({ code: "INVALID_ARGUMENT", message: "Invalid import source." });
+    if (from === "easyworship") {
+      const result = await showOpenDialogFor(ev.sender, {
+        title: mt("songs.ewPickTitle"),
+        properties: ["openDirectory"],
+        ...defaultPathIfThere(EASYWORSHIP_DEFAULT_DATA),
+      });
+      const folder = result.filePaths[0];
+      return result.canceled || !folder ? null : importEasyWorshipFolder(folder);
+    }
+    if (from === "openlp") {
+      const result = await showOpenDialogFor(ev.sender, {
+        title: mt("songs.openLpPickTitle"),
+        properties: ["openFile"],
+        filters: [{ name: "OpenLP", extensions: ["sqlite", "db"] }],
+        ...defaultPathIfThere(openLpDefaultFolder()),
+      });
+      const file = result.filePaths[0];
+      return result.canceled || !file ? null : importOpenLpDatabase(file);
+    }
     const result = await showOpenDialogFor(ev.sender, {
-      title: mt("songs.ewPickTitle"),
-      properties: ["openDirectory"],
-      ...(fs.existsSync(EASYWORSHIP_DEFAULT_DATA) ? { defaultPath: EASYWORSHIP_DEFAULT_DATA } : {}),
+      title: mt("songs.openLyricsPickTitle"),
+      properties: ["openFile", "multiSelections"],
+      filters: [{ name: "OpenLyrics", extensions: ["xml"] }],
     });
-    const folder = result.filePaths[0];
-    if (result.canceled || !folder) return null;
-    return importEasyWorshipFolder(folder);
+    return result.canceled || result.filePaths.length === 0 ? null : importOpenLyricsFiles(result.filePaths);
   },
   "songTheme:list": () => getSongsRepo().listThemes(),
   "songTheme:create": (input) => {
