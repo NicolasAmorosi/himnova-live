@@ -48,14 +48,18 @@ export function LiveMonitor() {
   );
   // LOGO with nothing to show. The projector is black and correct — the logo
   // is simply not configured yet — so this is a notice and not an error, and
-  // it names the way out instead of the symptom.
+  // it names the way out instead of the symptom. Only once the operator ASKED
+  // for the logo (2026-11-04 redesign, P5): resting on the logo with nothing
+  // live is how every launch starts, and a band there was an alarm before the
+  // operator had done anything.
   //
   // Gated on `loaded` because `logoUrl` is mirrored from the settings
   // (`App.tsx`) and starts null: without it, every launch would flash "No logo
   // set" for as long as the first `settings:get` takes, on a machine that
   // has one.
   const settingsLoaded = useSettingsStore((s) => s.loaded);
-  const logoMissing = settingsLoaded && output.kind === "logo" && output.url === null;
+  const overlay = useProjectionStore((s) => s.overlay);
+  const logoMissing = settingsLoaded && overlay === "logo" && output.kind === "logo" && output.url === null;
 
   // The monitor's own copy of the live video, or a still of it (`useLiveVideoPoster`,
   // fetched only with the setting off). Local to this

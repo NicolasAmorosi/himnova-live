@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useT, type Translate } from "@renderer/lib/i18n/i18n-provider";
-import { ColorField, FieldGroup, FieldRow, Input, Select, Switch, type SelectOption } from "@renderer/components/ui";
+import { ColorField, FieldRow, Input, InspectorSection, Select, Switch, type SelectOption } from "@renderer/components/ui";
 import {
   BackgroundFields,
   FontFamilyFields,
@@ -8,7 +8,7 @@ import {
   VerticalAlignField,
 } from "@renderer/components/shared/style-fields";
 import { transitionDurationOptions, transitionStyleOptions } from "@renderer/lib/transition";
-import { SCENE_NAME_MAX_LENGTH, SCENE_TEXT_MAX_LENGTH } from "@shared/scene-validators";
+import { SCENE_TEXT_MAX_LENGTH } from "@shared/scene-validators";
 import { formatDuration, formatMinuteOfDay, parseDuration, parseMinuteOfDay } from "@shared/timer";
 import type { SceneStyle, SceneTextStyle } from "@shared/types/scene-style";
 import {
@@ -34,8 +34,9 @@ type SceneFormProps = {
 };
 
 /**
- * Everything about one scene, as grouped rows in the same visual language as
- * Settings — which is what the `FieldGroup`/`FieldRow` promotion was for.
+ * Everything about one scene but its name (which is the editor's title), as the
+ * sections of the editor's inspector: what the scene IS first (its tool, its
+ * clock, its texts, what happens at zero), then how it looks.
  *
  * The rows that edit the parts of `SceneStyle` the Bible verse style ALSO has
  * — the background, the typeface, the vertical alignment, a text role's four
@@ -64,29 +65,19 @@ export function SceneForm({ addingImages, imageAssets, onAddImages, onChange, va
   }));
 
   return (
-    <div className="flex flex-col gap-5">
-      <FieldGroup title={t("scenes.groups.scene")}>
-        <FieldRow label={t("scenes.name")}>
-          <Input
-            className="w-64"
-            maxLength={SCENE_NAME_MAX_LENGTH}
-            onChange={(e) => patch({ name: e.target.value })}
-            size="md"
-            value={value.name}
-          />
-        </FieldRow>
+    <>
+      <InspectorSection title={t("scenes.groups.scene")}>
         <FieldRow description={t("scenes.toolHint")} label={t("scenes.tool")}>
           <Select
             className="w-52"
             onChange={(next) => patch({ tool: next as TimerTool })}
             options={toolOptions}
-            size="md"
             value={value.tool}
           />
         </FieldRow>
-      </FieldGroup>
+      </InspectorSection>
 
-      <FieldGroup title={t("scenes.groups.time")}>
+      <InspectorSection title={t("scenes.groups.time")}>
         {value.tool === "countdown" ? (
           <FieldRow description={t("scenes.durationHint")} label={t("scenes.duration")}>
             <NumericTextField
@@ -145,15 +136,14 @@ export function SceneForm({ addingImages, imageAssets, onAddImages, onChange, va
             />
           </FieldRow>
         ) : null}
-      </FieldGroup>
+      </InspectorSection>
 
-      <FieldGroup title={t("scenes.groups.texts")}>
+      <InspectorSection title={t("scenes.groups.texts")}>
         <FieldRow description={t("scenes.titleHint")} label={t("scenes.titleText")}>
           <Input
             className="w-64"
             maxLength={SCENE_TEXT_MAX_LENGTH}
             onChange={(e) => patch({ title: e.target.value === "" ? null : e.target.value })}
-            size="md"
             value={value.title ?? ""}
           />
         </FieldRow>
@@ -162,64 +152,22 @@ export function SceneForm({ addingImages, imageAssets, onAddImages, onChange, va
             className="w-64"
             maxLength={SCENE_TEXT_MAX_LENGTH}
             onChange={(e) => patch({ message: e.target.value === "" ? null : e.target.value })}
-            size="md"
             value={value.message ?? ""}
           />
         </FieldRow>
-      </FieldGroup>
-
-      <FieldGroup title={t("style.groups.background")}>
-        <BackgroundFields
-          addingImages={addingImages}
-          imageAssets={imageAssets}
-          onAddImages={onAddImages}
-          onChange={(background) => patchStyle({ background })}
-          value={value.style.background}
-        />
-      </FieldGroup>
-
-      <FieldGroup title={t("style.groups.typography")}>
-        <FontFamilyFields
-          onChange={(fontFamily) => patchStyle({ fontFamily })}
-          value={value.style.fontFamily}
-        />
-        <VerticalAlignField
-          onChange={(verticalAlign) => patchStyle({ verticalAlign })}
-          value={value.style.verticalAlign}
-        />
-      </FieldGroup>
-
-      <TextStyleGroup
-        onChange={(next) => patchStyle({ value: next })}
-        t={t}
-        title={t("scenes.groups.number")}
-        value={value.style.value}
-      />
-      <TextStyleGroup
-        onChange={(next) => patchStyle({ title: next })}
-        t={t}
-        title={t("scenes.groups.titleLine")}
-        value={value.style.title}
-      />
-      <TextStyleGroup
-        onChange={(next) => patchStyle({ message: next })}
-        t={t}
-        title={t("scenes.groups.messageLine")}
-        value={value.style.message}
-      />
+      </InspectorSection>
 
       {/* Everything that happens when the count runs out, in one group: the
           text that replaces the line below, how that text is drawn, and what
           disappears. Only a countdown has an end, so a clock and a stopwatch
           never see it. */}
       {isCountdownTool(value.tool) ? (
-        <FieldGroup title={t("scenes.groups.end")}>
+        <InspectorSection title={t("scenes.groups.end")}>
           <FieldRow description={t("scenes.endMessageHint")} label={t("scenes.endMessage")}>
             <Input
               className="w-64"
               maxLength={SCENE_TEXT_MAX_LENGTH}
               onChange={(e) => patchConfig({ endMessage: e.target.value === "" ? null : e.target.value })}
-              size="md"
               value={value.config.endMessage ?? ""}
             />
           </FieldRow>
@@ -254,7 +202,6 @@ export function SceneForm({ addingImages, imageAssets, onAddImages, onChange, va
                 })
               }
               options={transitionStyleOptions(t)}
-              size="md"
               value={value.style.end.transition.style}
             />
           </FieldRow>
@@ -271,15 +218,14 @@ export function SceneForm({ addingImages, imageAssets, onAddImages, onChange, va
                 })
               }
               options={transitionDurationOptions(t)}
-              size="md"
               value={String(value.style.end.transition.durationMs)}
             />
           </FieldRow>
-        </FieldGroup>
+        </InspectorSection>
       ) : null}
 
       {isCountdownTool(value.tool) ? (
-        <FieldGroup title={t("scenes.groups.triggers")}>
+        <InspectorSection title={t("scenes.groups.triggers")}>
           <FieldRow description={t("scenes.triggersHint")} label={t("scenes.triggersEnabled")}>
             <Switch
               checked={value.style.triggers !== null}
@@ -311,7 +257,6 @@ export function SceneForm({ addingImages, imageAssets, onAddImages, onChange, va
                 <ColorField
                   label={t("scenes.warningColor")}
                   onChange={(warningColor) => patchStyle({ triggers: { ...value.style.triggers!, warningColor } })}
-                  size="md"
                   value={value.style.triggers.warningColor}
                 />
               </FieldRow>
@@ -319,19 +264,58 @@ export function SceneForm({ addingImages, imageAssets, onAddImages, onChange, va
                 <ColorField
                   label={t("scenes.endColor")}
                   onChange={(endColor) => patchStyle({ triggers: { ...value.style.triggers!, endColor } })}
-                  size="md"
                   value={value.style.triggers.endColor}
                 />
               </FieldRow>
             </>
           ) : null}
-        </FieldGroup>
+        </InspectorSection>
       ) : null}
-    </div>
+      <InspectorSection title={t("style.groups.background")}>
+        <BackgroundFields
+          addingImages={addingImages}
+          imageAssets={imageAssets}
+          onAddImages={onAddImages}
+          onChange={(background) => patchStyle({ background })}
+          value={value.style.background}
+        />
+      </InspectorSection>
+
+      <InspectorSection title={t("style.groups.typography")}>
+        <FontFamilyFields
+          onChange={(fontFamily) => patchStyle({ fontFamily })}
+          value={value.style.fontFamily}
+        />
+        <VerticalAlignField
+          onChange={(verticalAlign) => patchStyle({ verticalAlign })}
+          value={value.style.verticalAlign}
+        />
+      </InspectorSection>
+
+      <TextStyleGroup
+        onChange={(next) => patchStyle({ value: next })}
+        t={t}
+        title={t("scenes.groups.number")}
+        value={value.style.value}
+      />
+      <TextStyleGroup
+        onChange={(next) => patchStyle({ title: next })}
+        t={t}
+        title={t("scenes.groups.titleLine")}
+        value={value.style.title}
+      />
+      <TextStyleGroup
+        onChange={(next) => patchStyle({ message: next })}
+        t={t}
+        title={t("scenes.groups.messageLine")}
+        value={value.style.message}
+      />
+
+    </>
   );
 }
 
-/** A whole group that is nothing but one text role's four knobs — the number,
+/** A whole section that is nothing but one text role's four knobs — the number,
  *  the title and the message, so they can never drift apart. */
 function TextStyleGroup({
   onChange,
@@ -345,9 +329,9 @@ function TextStyleGroup({
   value: SceneTextStyle;
 }) {
   return (
-    <FieldGroup title={title}>
+    <InspectorSection title={title}>
       <TextStyleFields onChange={onChange} t={t} value={value} />
-    </FieldGroup>
+    </InspectorSection>
   );
 }
 
@@ -385,7 +369,6 @@ function NumericTextField({
         const parsed = parse(e.target.value);
         if (parsed !== null) onCommit(parsed);
       }}
-      size="md"
       value={text}
     />
   );

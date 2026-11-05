@@ -20,7 +20,7 @@ export function Textarea({ className, ref, ...props }: TextareaProps) {
   return (
     <textarea
       className={cn(
-        "w-full resize-none rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-subtle focus-ring hover:border-border-light disabled:cursor-not-allowed disabled:opacity-60 aria-invalid:border-danger/80 aria-invalid:focus-visible:outline-danger",
+        "w-full resize-none rounded-md border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-subtle focus-ring hover:border-border-light disabled:cursor-not-allowed disabled:opacity-60 aria-invalid:border-danger/80 aria-invalid:focus-visible:outline-danger",
         className,
       )}
       ref={ref}

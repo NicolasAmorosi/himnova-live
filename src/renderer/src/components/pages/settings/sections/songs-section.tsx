@@ -36,7 +36,6 @@ export function SongsSection() {
             void update({ "songs.defaultThemeId": Number(value) }).then(() => refreshLiveSong())
           }
           options={themes.map((theme) => ({ label: theme.name, value: String(theme.id) }))}
-          size="md"
           value={String(themes.find((theme) => theme.id === defaultThemeId)?.id ?? themes[0]?.id ?? "")}
         />
       </FieldRow>

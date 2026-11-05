@@ -1,5 +1,4 @@
 import { useMemo } from "react";
-import { Monitor } from "@renderer/components/ui";
 import { OutputView } from "@renderer/components/shared/output-view";
 import { timerOutputFor } from "@renderer/lib/utility-output";
 import { editorRestingClock } from "@shared/timer";
@@ -33,6 +32,8 @@ import type { SceneDraft } from "./scene-draft";
  * out, so the end message, its own type and the two hides are drawn by exactly
  * the code that will draw them on the night. Without it the whole «When the countdown
  * ends» group would be configured blind.
+ *
+ * Only the picture: the editor's `EditorStage` frames it.
  */
 export function ScenePreview({ atEnd, draft }: { atEnd: boolean; draft: SceneDraft }) {
   const output = useMemo(() => {
@@ -52,5 +53,5 @@ export function ScenePreview({ atEnd, draft }: { atEnd: boolean; draft: SceneDra
     };
   }, [atEnd, draft]);
 
-  return <Monitor className="p-0">{<OutputView mode="preview" output={output} />}</Monitor>;
+  return <OutputView mode="preview" output={output} />;
 }

@@ -8,8 +8,8 @@ const es = {
     reload: "Recargar",
   },
   header: {
-    openDisplay: "Abrir Pantalla",
-    closeDisplay: "Cerrar Pantalla",
+    openDisplay: "Abrir pantalla",
+    closeDisplay: "Cerrar pantalla",
     primaryDisplay: "(principal)",
   },
   schedule: {
@@ -20,7 +20,6 @@ const es = {
     addError: "No se pudieron agregar los archivos al programa",
     saved: "Guardado",
     notSaved: "No guardado",
-    savedHint: "El programa coincide con la última versión guardada.",
     notSavedHint:
       "Hay cambios en el programa (agregados, quitados o reordenados) que todavía no se guardaron. Usá el botón Guardar o «Administrar programas» para guardarlos.",
     moveUp: "Mover arriba",
@@ -30,7 +29,6 @@ const es = {
     remove: "Quitar",
     removeHint: "Quitar del programa el elemento seleccionado",
     clear: "Vaciar",
-    clearHint: "Quitar todos los elementos del programa",
     discardAndClear: "Descartar y vaciar",
     addAll: "Agregar medios",
     addAllHint: "Agregar PPT, video, imagen o audio al programa (podés elegir varios archivos de distinto tipo a la vez)",
@@ -45,6 +43,7 @@ const es = {
   resources: {
     empty: "No hay archivos",
     emptyHint: "Agregá archivos o arrastralos acá",
+    addToScheduleShort: "Agregar",
     addToSchedule: "Agregar al programa",
     addToScheduleHint: "Agregar el elemento seleccionado al programa",
     mediaTab: "Media",
@@ -136,7 +135,7 @@ const es = {
     resume: "Reanudar",
     stop: "Detener y volver al inicio",
     finished: "Terminó",
-    manage: "Escenas…",
+    manage: "Escenas",
     manageHint: "Crear, editar y ordenar las escenas de tiempo",
     empty: "No hay escenas de tiempo",
     emptyHint: "Creá una cuenta regresiva, un reloj o un cronómetro para proyectar.",
@@ -304,7 +303,7 @@ const es = {
     coveredHint: "Está puesta, pero NEGRO, LOGO o la falta de algo en vivo la tapan",
     willBeCoveredHint: "NEGRO, LOGO o la falta de algo en vivo la van a tapar hasta que se destape",
     autoHideHint: "Se oculta sola cuando la cuenta llega a cero",
-    manage: "Placas…",
+    manage: "Placas",
     manageHint: "Crear, editar y ordenar las placas",
     empty: "No hay placas",
     emptyHint: "Creá un zócalo con el nombre del predicador, un banner con un aviso o una mosca con el logo de la iglesia.",
@@ -393,6 +392,7 @@ const es = {
     },
   },
   songs: {
+    import: "Importar",
     importEasyWorship: "Importar de EasyWorship",
     importHint: "Importar las canciones de EasyWorship 6 o 7: elegí su carpeta Databases\\Data.",
     importDone: "{imported, plural, =0 {No se importó ninguna canción} one {Se importó # canción} other {Se importaron # canciones}} · {repeated} repetidas · {problems} sin letra",
@@ -417,6 +417,8 @@ const es = {
     editHint: "Editar la canción elegida",
     newTitle: "Nueva canción",
     editTitle: "Editar canción",
+    slides: "Diapositivas",
+    slidesEmpty: "Las diapositivas aparecen al escribir la letra.",
     slidesLabel: "Diapositivas de «{title}»",
     previous: "Diapositiva anterior",
     next: "Diapositiva siguiente",
@@ -548,6 +550,8 @@ const es = {
     previous: "Anterior",
     next: "Siguiente",
     counter: "{current}/{total}",
+    styleHint: "Cómo se ve un versículo en el proyector",
+    styleTitle: "Estilo del versículo",
   },
   deck: {
     title: "Presentación",
@@ -619,6 +623,7 @@ const es = {
     unmute: "Activar sonido",
   },
   live: {
+    takeOffAir: "Sacar del aire",
     title: "En Vivo",
     disconnected: "Sin pantalla",
     noSignal: "Sin señal",
@@ -627,7 +632,7 @@ const es = {
     videoMotionOff: "Vista de video desactivada",
     videoMotionOffHint: "El proyector lo reproduce normalmente",
   },
-  footer: { black: "NEGRO", logo: "LOGO", live: "VIVO", clear: "LIMPIAR" },
+  footer: { black: "NEGRO", logo: "LOGO", live: "VIVO" },
   projector: {
     closedUnexpectedly: "Se cerró la ventana de proyección",
     screenLost:
@@ -643,11 +648,7 @@ const es = {
     save: "Guardar",
     saveHint: "Guardar los cambios en este programa",
     saveNoChanges: "Sin cambios",
-    duplicate: "Duplicar",
-    duplicateTitle: "Duplicar programa",
     duplicateName: "{name} (copia)",
-    edit: "Editar",
-    delete: "Eliminar",
     new: "Nuevo programa",
     newHint: "Empezar un programa nuevo y vacío",
     createAndOpen: "Crear y abrir",
@@ -658,7 +659,6 @@ const es = {
     noResults: "Sin resultados",
     name: "Nombre",
     namePlaceholder: "Nombre del programa",
-    favorite: "Favorito",
     favoriteAdd: "Marcar como favorito",
     favoriteRemove: "Quitar de favoritos",
     favoriteError: "No se pudo actualizar el favorito",
@@ -667,7 +667,6 @@ const es = {
     filterOthers: "No favoritos",
     notes: "Notas",
     notesPlaceholder: "Notas opcionales",
-    create: "Crear programa",
     saved: "\"{name}\" guardado",
     saveError: "No se pudo guardar el programa",
     createError: "No se pudo crear el programa",
@@ -684,12 +683,16 @@ const es = {
     discardConfirm: "Descartar y abrir",
     discardAndNew: "Descartar y empezar",
     itemCount: "{count, plural, one {# elemento} other {# elementos}}",
-    panelDirtyWarning: "Hay cambios sin guardar en el panel. Si seguís, se pierden.",
     reorderError: "No se pudo guardar el orden de los programas",
+    listLabel: "Programas guardados",
+    createdAt: "Creado",
+    lastOpenedAt: "Abierto por última vez",
+    neverOpened: "Nunca",
+    leaveBody: "Si salís ahora, los cambios de este programa se pierden.",
+    leave: "Descartar cambios",
   },
   settings: {
     title: "Configuración",
-    close: "Cerrar",
     slidesCacheUsage: "Espacio usado",
     slidesCacheUsageDesc:
       "{decks, plural, one {# presentación con audio o video guardado en disco} other {# presentaciones con audio o video guardado en disco}}",
@@ -719,14 +722,13 @@ const es = {
     sections: {
       projection: "Proyección",
       slides: "Diapositivas",
-      verse: "Versículos",
       bible: "Biblia",
       songs: "Canciones",
       system: "Sistema",
       about: "Acerca de",
     },
     songs: {
-      title: "Canciones",
+      title: "Tema y licencia",
       defaultTheme: "Tema por defecto",
       defaultThemeHint: "El de las canciones que no eligen uno propio.",
       license: "Licencia CCLI de la iglesia",
@@ -747,13 +749,11 @@ const es = {
       language: "Idioma",
       folders: "Carpetas de archivos",
       performance: "Rendimiento",
-      about: "Acerca de",
+      about: "Versión y actualizaciones",
     },
-    /** How a verse is DRESSED — its own section of Ajustes, next to (not
-     *  inside) «Biblia», which is now only about which bibles are installed.
-     *  The two were one screen with two tabs and had nothing to say to each
-     *  other: the version names live in a table, the look lives in a single
-     *  `settings` key. */
+    /** How a verse is DRESSED — the Bible tab's «Estilo» editor
+     *  (`VerseStyleModal`). The keys kept their old `settings.` home when it
+     *  left Ajustes: the look still lives in a single `settings` key. */
     verse: {
       preview: "Ver con un versículo largo",
       previewHint: "Para comprobar cómo queda el ajuste automático.",
@@ -900,7 +900,7 @@ const es = {
     logoRemoveLiveBody:
       "El proyector está mostrando el logo ahora mismo: al quitarlo, la pantalla queda en negro hasta que mandes algo EN VIVO. No se borra ningún archivo — el logo sale de la configuración y podés volver a elegirlo cuando quieras.",
     chooseFile: "Elegir archivo…",
-    clearLive: "Limpiar contenido en vivo",
+    clearLive: "Lo que se proyecta ahora",
     clearLiveDesc: "Saca lo que está proyectado ahora y vuelve al logo.",
     startVolume: "Volumen inicial",
     startVolumeDesc: "Con qué volumen arranca cada video, audio o música de PPT que mandás EN VIVO. Podés ajustar cada uno mientras suena, desde el panel de En Vivo.",
@@ -980,6 +980,14 @@ const es = {
       "600": "Lenta (600 ms)",
     },
   },
+  /** The bar of a full-screen editor (`components/shared/editor-screen/`). */
+  editor: {
+    back: "Volver",
+    edited: "Editado",
+    discard: "Descartar",
+    more: "Más acciones",
+    saveHint: "Guardar ({shortcut})",
+  },
   common: {
     cancel: "Cancelar",
     confirm: "Confirmar",
@@ -988,7 +996,6 @@ const es = {
     delete: "Eliminar",
     remove: "Quitar",
     duplicate: "Duplicar",
-    revert: "Deshacer cambios",
     close: "Cerrar",
     dismiss: "Cerrar aviso",
     retry: "Reintentar",

@@ -1,6 +1,5 @@
 import { useMemo } from "react";
 import { useT } from "@renderer/lib/i18n/i18n-provider";
-import { Monitor } from "@renderer/components/ui";
 import { OutputView } from "@renderer/components/shared/output-view";
 import { bibleOutputFor } from "@renderer/lib/bible-output";
 import { bibleVersionLabel, useBibleStore } from "@renderer/stores/bible.store";
@@ -31,6 +30,8 @@ import type { BibleStyle } from "@shared/types/bible-style";
  * `INSTANT_TRANSITION` keeps `epoch` fixed, so `OutputView`'s `sameEpoch`
  * short-circuit means dragging a slider re-renders the verse without ever
  * running a scene transition.
+ *
+ * Only the picture: the editor's `EditorStage` frames it.
  */
 export function VersePreview({ long, style }: { long: boolean; style: BibleStyle }) {
   const t = useT();
@@ -55,9 +56,5 @@ export function VersePreview({ long, style }: { long: boolean; style: BibleStyle
     };
   }, [defaultVersionId, long, style, t, versions]);
 
-  return (
-    <Monitor className="p-0">
-      <OutputView mode="preview" output={output} />
-    </Monitor>
-  );
+  return <OutputView mode="preview" output={output} />;
 }

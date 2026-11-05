@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useI18n, type MessageKey } from "@renderer/lib/i18n/i18n-provider";
-import { ConfirmModal, Modal, ModalTitle } from "@renderer/components/shared/modal";
-import { EditorActions } from "@renderer/components/shared/editor-actions";
-import { EditorHeader } from "@renderer/components/shared/editor-header";
+import { ConfirmModal } from "@renderer/components/shared/modal";
+import { EditorScreen, EditorStage } from "@renderer/components/shared/editor-screen";
 import { OutputView } from "@renderer/components/shared/output-view";
 import {
   BackgroundFields,
@@ -12,19 +11,15 @@ import {
   type TextSizeRange,
 } from "@renderer/components/shared/style-fields";
 import {
-  Button,
   ColorField,
-  DialogHeader,
-  FieldGroup,
   FieldRow,
-  Icon,
-  IconButton,
-  Input,
+  Inspector,
+  InspectorSection,
   ListRow,
-  Monitor,
   Select,
   Slider,
   Switch,
+  type MenuOption,
 } from "@renderer/components/ui";
 import { api } from "@renderer/lib/api";
 import { toast } from "@renderer/lib/toast";
@@ -203,6 +198,15 @@ export function SongThemesModal({ onOpenChange, open }: { onOpenChange: (open: b
     }
   }
 
+  /** A copy of what is SAVED, saved at once and chosen — the other editors'
+   *  «Duplicate» (it used to copy the draft, discarded changes included). */
+  async function handleDuplicate(source: Draft) {
+    const copy = await saveSongTheme({ name: t("songThemes.copyName", { name: source.name }), style: source.style });
+    if (!copy) return;
+    setEditing({ themeId: copy.id, draft: toDraft(copy), baseline: toDraft(copy) });
+    toast.success(t("songThemes.saved", { name: copy.name }));
+  }
+
   async function handleAddImages() {
     setAddingImages(true);
     try {
@@ -223,53 +227,221 @@ export function SongThemesModal({ onOpenChange, open }: { onOpenChange: (open: b
     }
   }
 
+  const menuOptions: MenuOption<"duplicate" | "delete">[] = [
+    { disabled: editing?.themeId == null, label: t("common.duplicate"), value: "duplicate" },
+    // The last theme stays: a song always has a look to fall back to.
+    { disabled: editing?.themeId == null || themes.length <= 1, label: t("common.delete"), tone: "danger", value: "delete" },
+  ];
+
   return (
     <>
-      <Modal
-        height="tall"
-        onOpenChange={(next) => (next ? onOpenChange(true) : leaveEditing(() => onOpenChange(false)))}
-        open={open}
-        size="2xl"
-      >
-        <DialogHeader className="border-b border-border">
-          <ModalTitle>{t("songThemes.title")}</ModalTitle>
-          <IconButton
-            aria-label={t("common.close")}
-            onClick={() => leaveEditing(() => onOpenChange(false))}
-            size="xs"
-            title={t("common.close")}
-            variant="ghost"
-          >
-            <Icon name="close" />
-          </IconButton>
-        </DialogHeader>
+      <EditorScreen
+        inspector={
+          editing ? (
+            <Inspector key={editing.themeId ?? "new"} label={t("songThemes.title")}>
+          <InspectorSection title={t("style.groups.background")}>
+            <BackgroundFields
+              addingImages={addingImages}
+              imageAssets={imageAssets}
+              onAddImages={() => void handleAddImages()}
+              onChange={(background) => {
+                const noImageYet = background.kind === "image" && background.assetId === 0;
+                setPendingImage(noImageYet ? background : null);
+                if (!noImageYet) patchStyle({ background });
+              }}
+              value={pendingImage ?? style.background}
+            />
+          </InspectorSection>
 
-        <div className="flex min-h-0 flex-1">
-          <div className="flex w-64 shrink-0 flex-col border-r border-border">
-            <div className="flex shrink-0 flex-col gap-1.5 border-b border-border p-2">
-              <Button className="w-full" onClick={() => createNew()} size="xs" variant="outline">
-                <Icon name="add" />
-                {t("songThemes.new")}
-              </Button>
-              {editing ? (
-                <EditorActions
-                  canSave={canSave}
-                  dirty={dirty}
-                  // The last theme stays: a song always has a look to fall back to.
-                  onDelete={() => {
-                    if (editing.themeId !== null && themes.length > 1) setPending({ kind: "delete", themeId: editing.themeId });
-                  }}
-                  onDuplicate={() =>
-                    createNew({ name: t("songThemes.copyName", { name: editing.draft.name }), style: editing.draft.style })
+          <InspectorSection title={t("songThemes.groups.lyrics")}>
+            <FontFamilyFields onChange={(fontFamily) => patchStyle({ fontFamily })} value={style.fontFamily} />
+            <TextStyleFields
+              onChange={(text) => patchStyle({ text })}
+              sizeRange={LYRICS_SIZE_RANGE}
+              t={t}
+              value={style.text}
+            />
+            <FieldRow description={t("songThemes.minSizeHint")} label={t("songThemes.minSize")}>
+              <Slider
+                label={t("songThemes.minSize")}
+                max={style.text.sizeCqw}
+                min={LYRICS_SIZE_RANGE.min}
+                onChange={(minSizeCqw) => patchStyle({ minSizeCqw: Number(minSizeCqw.toFixed(1)) })}
+                readoutChars={5}
+                step={0.1}
+                value={Math.min(style.minSizeCqw, style.text.sizeCqw)}
+              />
+            </FieldRow>
+            <FieldRow label={t("songThemes.uppercase")}>
+              <Switch checked={style.uppercase} onChange={(e) => patchStyle({ uppercase: e.target.checked })} />
+            </FieldRow>
+            <FieldRow label={t("songThemes.letterSpacing")}>
+              <Slider
+                format={(value) => value.toFixed(2)}
+                label={t("songThemes.letterSpacing")}
+                max={SONG_LETTER_SPACING_MAX_EM}
+                min={SONG_LETTER_SPACING_MIN_EM}
+                onChange={(letterSpacingEm) => patchStyle({ letterSpacingEm: Number(letterSpacingEm.toFixed(2)) })}
+                readoutChars={5}
+                step={0.01}
+                value={style.letterSpacingEm}
+              />
+            </FieldRow>
+            <FieldRow description={t("songThemes.outlineHint")} label={t("songThemes.outline")}>
+              <Switch
+                checked={style.outline.enabled}
+                onChange={(e) => patchStyle({ outline: { ...style.outline, enabled: e.target.checked } })}
+              />
+            </FieldRow>
+            {style.outline.enabled ? (
+              <>
+                <FieldRow label={t("songThemes.outlineColor")}>
+                  <ColorField
+                    label={t("songThemes.outlineColor")}
+                    onChange={(color) => patchStyle({ outline: { ...style.outline, color } })}
+                    value={style.outline.color}
+                  />
+                </FieldRow>
+                <FieldRow label={t("songThemes.outlineWidth")}>
+                  <Slider
+                    format={(value) => value.toFixed(2)}
+                    label={t("songThemes.outlineWidth")}
+                    max={SONG_OUTLINE_MAX_CQW}
+                    min={0.02}
+                    onChange={(widthCqw) => patchStyle({ outline: { ...style.outline, widthCqw: Number(widthCqw.toFixed(2)) } })}
+                    readoutChars={5}
+                    step={0.02}
+                    value={style.outline.widthCqw}
+                  />
+                </FieldRow>
+              </>
+            ) : null}
+          </InspectorSection>
+
+          <InspectorSection title={t("songThemes.groups.spacing")}>
+            <VerticalAlignField onChange={(verticalAlign) => patchStyle({ verticalAlign })} value={style.verticalAlign} />
+            <FieldRow label={t("settings.verse.textAlign")}>
+              <Select
+                className="w-52"
+                onChange={(align) => patchStyle({ textAlign: align as TextAlign })}
+                options={TEXT_ALIGNS.map((align) => ({ label: t(ALIGN_LABEL[align]), value: align }))}
+                value={style.textAlign}
+              />
+            </FieldRow>
+            <FieldRow label={t("settings.verse.lineHeight")}>
+              <Slider
+                format={(value) => value.toFixed(2)}
+                label={t("settings.verse.lineHeight")}
+                max={BIBLE_LINE_HEIGHT_MAX}
+                min={BIBLE_LINE_HEIGHT_MIN}
+                onChange={(lineHeight) => patchStyle({ lineHeight: Number(lineHeight.toFixed(2)) })}
+                step={0.01}
+                value={style.lineHeight}
+              />
+            </FieldRow>
+            {(Object.keys(MARGIN_LABEL) as (keyof SongMargins)[]).map((side) => (
+              <FieldRow key={side} label={t(MARGIN_LABEL[side])}>
+                <Slider
+                  format={(value) => value.toFixed(1)}
+                  label={t(MARGIN_LABEL[side])}
+                  max={SONG_MARGIN_MAX_CQW}
+                  min={0}
+                  onChange={(value) =>
+                    patchStyle({ margins: { ...style.margins, [side]: Number(value.toFixed(1)) } })
                   }
-                  onRevert={() => setEditing({ ...editing, draft: editing.baseline })}
-                  onSave={() => void handleSave()}
-                  persisted={editing.themeId !== null}
-                  saving={saving}
+                  readoutChars={5}
+                  step={0.5}
+                  value={style.margins[side]}
                 />
-              ) : null}
-            </div>
-            <ul aria-label={t("songThemes.listLabel")} className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto p-1.5">
+              </FieldRow>
+            ))}
+            <FieldRow description={t("songThemes.maxLinesHint")} label={t("songThemes.maxLines")}>
+              <Slider
+                format={(value) => (value === 0 ? t("songThemes.noLimit") : String(value))}
+                label={t("songThemes.maxLines")}
+                max={SONG_MAX_LINES_MAX}
+                min={0}
+                onChange={(maxLines) => patchStyle({ maxLines: Math.round(maxLines) })}
+                readoutChars={9}
+                step={1}
+                value={style.maxLines}
+              />
+            </FieldRow>
+          </InspectorSection>
+
+          <InspectorSection title={t("songThemes.groups.footer")}>
+            <FieldRow description={t("songThemes.footerShowHint")} label={t("songThemes.footerShowLabel")}>
+              <Select
+                className="w-52"
+                onChange={(show) => patchFooter({ show: show as SongFooterShow })}
+                options={SONG_FOOTER_SHOWS.map((show) => ({ label: t(FOOTER_SHOW_LABEL[show]), value: show }))}
+                value={style.footer.show}
+              />
+            </FieldRow>
+            {style.footer.show === "never" ? null : (
+              <>
+                {(Object.keys(FOOTER_FIELD_LABEL) as (keyof SongFooterFields)[]).map((field) => (
+                  <FieldRow key={field} label={t(FOOTER_FIELD_LABEL[field])}>
+                    <Switch
+                      checked={style.footer.fields[field]}
+                      onChange={(e) =>
+                        patchFooter({ fields: { ...style.footer.fields, [field]: e.target.checked } })
+                      }
+                    />
+                  </FieldRow>
+                ))}
+                <FieldRow label={t("settings.verse.textAlign")}>
+                  <Select
+                    className="w-52"
+                    onChange={(align) => patchFooter({ align: align as SongFooterAlign })}
+                    options={SONG_FOOTER_ALIGNS.map((align) => ({ label: t(ALIGN_LABEL[align]), value: align }))}
+                    value={style.footer.align}
+                  />
+                </FieldRow>
+                <TextStyleFields
+                  onChange={(text) => patchFooter({ text })}
+                  sizeRange={FOOTER_SIZE_RANGE}
+                  t={t}
+                  value={style.footer.text}
+                />
+              </>
+            )}
+          </InspectorSection>
+
+          <InspectorSection title={t("songThemes.groups.transition")}>
+            <FieldRow description={t("songThemes.transitionHint")} label={t("songThemes.transition")}>
+              <Select
+                className="w-52"
+                onChange={(value) =>
+                  patchStyle({ slideTransition: { ...style.slideTransition, style: value as "cut" | "fade" } })
+                }
+                options={[
+                  { label: t("songThemes.cut"), value: "cut" },
+                  { label: t("songThemes.fade"), value: "fade" },
+                ]}
+                value={style.slideTransition.style}
+              />
+            </FieldRow>
+            {style.slideTransition.style === "fade" ? (
+              <FieldRow label={t("songThemes.duration")}>
+                <Select
+                  className="w-52"
+                  onChange={(value) =>
+                    patchStyle({ slideTransition: { ...style.slideTransition, durationMs: Number(value) } })
+                  }
+                  options={transitionDurationOptions(t)}
+                  value={String(style.slideTransition.durationMs)}
+                />
+              </FieldRow>
+            ) : null}
+          </InspectorSection>
+            </Inspector>
+          ) : null
+        }
+        onNew={{ label: t("songThemes.new"), onClick: () => createNew() }}
+        list={
+          <>
+            <ul aria-label={t("songThemes.listLabel")} className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-2 pb-2">
               {themes.map((theme) => (
                 <ListRow
                   key={theme.id}
@@ -283,235 +455,51 @@ export function SongThemesModal({ onOpenChange, open }: { onOpenChange: (open: b
               ))}
               {editing?.themeId === null ? <ListRow selected>{editing.draft.name}</ListRow> : null}
             </ul>
-          </div>
-
-          {editing ? (
-            <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-              <EditorHeader
-                invalidHint={savable ? undefined : t("songThemes.invalidHint")}
-                preview={<Monitor className="p-0">{output ? <OutputView mode="preview" output={output} /> : null}</Monitor>}
-              />
-              <div className="flex min-w-0 flex-1 flex-col gap-5 overflow-y-auto p-6" key={editing.themeId ?? "new"}>
-                <FieldGroup title={t("songThemes.groups.theme")}>
-                  <FieldRow label={t("songThemes.name")}>
-                    <Input
-                      aria-label={t("songThemes.name")}
-                      maxLength={SONG_THEME_NAME_MAX_LENGTH}
-                      onChange={(e) =>
-                        setEditing({ ...editing, draft: { ...editing.draft, name: e.target.value } })
-                      }
-                      size="sm"
-                      value={editing.draft.name}
-                    />
-                  </FieldRow>
-                </FieldGroup>
-
-                <FieldGroup title={t("style.groups.background")}>
-                  <BackgroundFields
-                    addingImages={addingImages}
-                    imageAssets={imageAssets}
-                    onAddImages={() => void handleAddImages()}
-                    onChange={(background) => {
-                      const noImageYet = background.kind === "image" && background.assetId === 0;
-                      setPendingImage(noImageYet ? background : null);
-                      if (!noImageYet) patchStyle({ background });
-                    }}
-                    value={pendingImage ?? style.background}
-                  />
-                </FieldGroup>
-
-                <FieldGroup title={t("songThemes.groups.lyrics")}>
-                  <FontFamilyFields onChange={(fontFamily) => patchStyle({ fontFamily })} value={style.fontFamily} />
-                  <TextStyleFields
-                    onChange={(text) => patchStyle({ text })}
-                    sizeRange={LYRICS_SIZE_RANGE}
-                    t={t}
-                    value={style.text}
-                  />
-                  <FieldRow description={t("songThemes.minSizeHint")} label={t("songThemes.minSize")}>
-                    <Slider
-                      label={t("songThemes.minSize")}
-                      max={style.text.sizeCqw}
-                      min={LYRICS_SIZE_RANGE.min}
-                      onChange={(minSizeCqw) => patchStyle({ minSizeCqw: Number(minSizeCqw.toFixed(1)) })}
-                      readoutChars={5}
-                      step={0.1}
-                      value={Math.min(style.minSizeCqw, style.text.sizeCqw)}
-                    />
-                  </FieldRow>
-                  <FieldRow label={t("songThemes.uppercase")}>
-                    <Switch checked={style.uppercase} onChange={(e) => patchStyle({ uppercase: e.target.checked })} />
-                  </FieldRow>
-                  <FieldRow label={t("songThemes.letterSpacing")}>
-                    <Slider
-                      format={(value) => value.toFixed(2)}
-                      label={t("songThemes.letterSpacing")}
-                      max={SONG_LETTER_SPACING_MAX_EM}
-                      min={SONG_LETTER_SPACING_MIN_EM}
-                      onChange={(letterSpacingEm) => patchStyle({ letterSpacingEm: Number(letterSpacingEm.toFixed(2)) })}
-                      readoutChars={5}
-                      step={0.01}
-                      value={style.letterSpacingEm}
-                    />
-                  </FieldRow>
-                  <FieldRow description={t("songThemes.outlineHint")} label={t("songThemes.outline")}>
-                    <Switch
-                      checked={style.outline.enabled}
-                      onChange={(e) => patchStyle({ outline: { ...style.outline, enabled: e.target.checked } })}
-                    />
-                  </FieldRow>
-                  {style.outline.enabled ? (
-                    <>
-                      <FieldRow label={t("songThemes.outlineColor")}>
-                        <ColorField
-                          label={t("songThemes.outlineColor")}
-                          onChange={(color) => patchStyle({ outline: { ...style.outline, color } })}
-                          value={style.outline.color}
-                        />
-                      </FieldRow>
-                      <FieldRow label={t("songThemes.outlineWidth")}>
-                        <Slider
-                          format={(value) => value.toFixed(2)}
-                          label={t("songThemes.outlineWidth")}
-                          max={SONG_OUTLINE_MAX_CQW}
-                          min={0.02}
-                          onChange={(widthCqw) => patchStyle({ outline: { ...style.outline, widthCqw: Number(widthCqw.toFixed(2)) } })}
-                          readoutChars={5}
-                          step={0.02}
-                          value={style.outline.widthCqw}
-                        />
-                      </FieldRow>
-                    </>
-                  ) : null}
-                </FieldGroup>
-
-                <FieldGroup title={t("songThemes.groups.spacing")}>
-                  <VerticalAlignField onChange={(verticalAlign) => patchStyle({ verticalAlign })} value={style.verticalAlign} />
-                  <FieldRow label={t("settings.verse.textAlign")}>
-                    <Select
-                      className="w-52"
-                      onChange={(align) => patchStyle({ textAlign: align as TextAlign })}
-                      options={TEXT_ALIGNS.map((align) => ({ label: t(ALIGN_LABEL[align]), value: align }))}
-                      size="md"
-                      value={style.textAlign}
-                    />
-                  </FieldRow>
-                  <FieldRow label={t("settings.verse.lineHeight")}>
-                    <Slider
-                      format={(value) => value.toFixed(2)}
-                      label={t("settings.verse.lineHeight")}
-                      max={BIBLE_LINE_HEIGHT_MAX}
-                      min={BIBLE_LINE_HEIGHT_MIN}
-                      onChange={(lineHeight) => patchStyle({ lineHeight: Number(lineHeight.toFixed(2)) })}
-                      step={0.01}
-                      value={style.lineHeight}
-                    />
-                  </FieldRow>
-                  {(Object.keys(MARGIN_LABEL) as (keyof SongMargins)[]).map((side) => (
-                    <FieldRow key={side} label={t(MARGIN_LABEL[side])}>
-                      <Slider
-                        format={(value) => value.toFixed(1)}
-                        label={t(MARGIN_LABEL[side])}
-                        max={SONG_MARGIN_MAX_CQW}
-                        min={0}
-                        onChange={(value) =>
-                          patchStyle({ margins: { ...style.margins, [side]: Number(value.toFixed(1)) } })
-                        }
-                        readoutChars={5}
-                        step={0.5}
-                        value={style.margins[side]}
-                      />
-                    </FieldRow>
-                  ))}
-                  <FieldRow description={t("songThemes.maxLinesHint")} label={t("songThemes.maxLines")}>
-                    <Slider
-                      format={(value) => (value === 0 ? t("songThemes.noLimit") : String(value))}
-                      label={t("songThemes.maxLines")}
-                      max={SONG_MAX_LINES_MAX}
-                      min={0}
-                      onChange={(maxLines) => patchStyle({ maxLines: Math.round(maxLines) })}
-                      readoutChars={9}
-                      step={1}
-                      value={style.maxLines}
-                    />
-                  </FieldRow>
-                </FieldGroup>
-
-                <FieldGroup title={t("songThemes.groups.footer")}>
-                  <FieldRow description={t("songThemes.footerShowHint")} label={t("songThemes.footerShowLabel")}>
-                    <Select
-                      className="w-52"
-                      onChange={(show) => patchFooter({ show: show as SongFooterShow })}
-                      options={SONG_FOOTER_SHOWS.map((show) => ({ label: t(FOOTER_SHOW_LABEL[show]), value: show }))}
-                      size="md"
-                      value={style.footer.show}
-                    />
-                  </FieldRow>
-                  {style.footer.show === "never" ? null : (
-                    <>
-                      {(Object.keys(FOOTER_FIELD_LABEL) as (keyof SongFooterFields)[]).map((field) => (
-                        <FieldRow key={field} label={t(FOOTER_FIELD_LABEL[field])}>
-                          <Switch
-                            checked={style.footer.fields[field]}
-                            onChange={(e) =>
-                              patchFooter({ fields: { ...style.footer.fields, [field]: e.target.checked } })
-                            }
-                          />
-                        </FieldRow>
-                      ))}
-                      <FieldRow label={t("settings.verse.textAlign")}>
-                        <Select
-                          className="w-52"
-                          onChange={(align) => patchFooter({ align: align as SongFooterAlign })}
-                          options={SONG_FOOTER_ALIGNS.map((align) => ({ label: t(ALIGN_LABEL[align]), value: align }))}
-                          size="md"
-                          value={style.footer.align}
-                        />
-                      </FieldRow>
-                      <TextStyleFields
-                        onChange={(text) => patchFooter({ text })}
-                        sizeRange={FOOTER_SIZE_RANGE}
-                        t={t}
-                        value={style.footer.text}
-                      />
-                    </>
-                  )}
-                </FieldGroup>
-
-                <FieldGroup title={t("songThemes.groups.transition")}>
-                  <FieldRow description={t("songThemes.transitionHint")} label={t("songThemes.transition")}>
-                    <Select
-                      className="w-52"
-                      onChange={(value) =>
-                        patchStyle({ slideTransition: { ...style.slideTransition, style: value as "cut" | "fade" } })
-                      }
-                      options={[
-                        { label: t("songThemes.cut"), value: "cut" },
-                        { label: t("songThemes.fade"), value: "fade" },
-                      ]}
-                      size="md"
-                      value={style.slideTransition.style}
-                    />
-                  </FieldRow>
-                  {style.slideTransition.style === "fade" ? (
-                    <FieldRow label={t("songThemes.duration")}>
-                      <Select
-                        className="w-52"
-                        onChange={(value) =>
-                          patchStyle({ slideTransition: { ...style.slideTransition, durationMs: Number(value) } })
-                        }
-                        options={transitionDurationOptions(t)}
-                        size="md"
-                        value={String(style.slideTransition.durationMs)}
-                      />
-                    </FieldRow>
-                  ) : null}
-                </FieldGroup>
-              </div>
-            </div>
-          ) : null}
-        </div>
-      </Modal>
+          </>
+        }
+        menu={{
+          onSelect: (command) => {
+            if (!editing || editing.themeId === null) return;
+            if (command === "duplicate") {
+              const source = themes.find((theme) => theme.id === editing.themeId);
+              if (source) leaveEditing(() => void handleDuplicate(source));
+            } else if (themes.length > 1) {
+              setPending({ kind: "delete", themeId: editing.themeId });
+            }
+          },
+          options: menuOptions,
+        }}
+        name={
+          editing
+            ? {
+                label: t("songThemes.name"),
+                maxLength: SONG_THEME_NAME_MAX_LENGTH,
+                onChange: (name) => setEditing({ ...editing, draft: { ...editing.draft, name } }),
+                value: editing.draft.name,
+              }
+            : undefined
+        }
+        onClose={() => leaveEditing(() => onOpenChange(false))}
+        open={open}
+        save={
+          editing
+            ? {
+                canSave,
+                dirty,
+                onDiscard: () => setEditing({ ...editing, draft: editing.baseline }),
+                onSave: () => void handleSave(),
+                saving,
+              }
+            : undefined
+        }
+        title={t("songThemes.title")}
+      >
+        {editing ? (
+          <EditorStage warning={savable ? undefined : t("songThemes.invalidHint")}>
+            {output ? <OutputView mode="preview" output={output} /> : null}
+          </EditorStage>
+        ) : null}
+      </EditorScreen>
 
       <ConfirmModal
         confirmLabel={pending?.kind === "delete" ? t("common.delete") : t("songThemes.discard")}

@@ -82,7 +82,6 @@ export function SlidesSection({ active }: { active: boolean }) {
               { label: t("settings.slidesFallbackFontSystem"), value: "" },
               ...SLIDE_FALLBACK_FONTS.map((font) => ({ label: font, value: font })),
             ]}
-            size="md"
             value={fallbackFont ?? ""}
           />
         </FieldRow>
@@ -128,7 +127,6 @@ export function SlidesSection({ active }: { active: boolean }) {
               label: formatBytes(mb * 1024 * 1024, locale),
               value: String(mb),
             }))}
-            size="md"
             value={String(cacheMaxMb)}
           />
         </FieldRow>
@@ -140,7 +138,6 @@ export function SlidesSection({ active }: { active: boolean }) {
             className="min-w-40"
             onChange={(value) => void change({ "slides.maxRenderWidth": Number(value) })}
             options={RENDER_WIDTH_OPTIONS.map((px) => ({ label: `${px} px`, value: String(px) }))}
-            size="md"
             value={String(renderWidth)}
           />
         </FieldRow>
@@ -153,7 +150,6 @@ export function SlidesSection({ active }: { active: boolean }) {
               label: t(`settings.slidesImageFormats.${format}`),
               value: format,
             }))}
-            size="md"
             value={imageFormat}
           />
         </FieldRow>

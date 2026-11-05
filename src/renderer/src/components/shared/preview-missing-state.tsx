@@ -18,7 +18,7 @@ export function PreviewMissingState({ assetId }: { assetId: number }) {
   return (
     <EmptyState
       action={
-        <Button className="mt-1" onClick={() => void relocateAsset(assetId)} size="sm" variant="secondary">
+        <Button className="mt-1" onClick={() => void relocateAsset(assetId)} size="sm" variant="outline">
           <Icon name="folder" /> {t("library.relocate")}
         </Button>
       }

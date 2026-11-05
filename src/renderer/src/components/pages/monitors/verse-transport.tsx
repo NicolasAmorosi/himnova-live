@@ -35,7 +35,7 @@ export function VerseTransport() {
           aria-label={t("bible.previous")}
           disabled={currentVerseIndex === null || currentVerseIndex <= 0}
           onClick={() => advanceVerse(-1)}
-          size="xs"
+          size="sm"
           variant="ghost"
         >
           <Icon name="prev" />
@@ -45,7 +45,7 @@ export function VerseTransport() {
           aria-label={t("bible.next")}
           disabled={currentVerseIndex === null || currentVerseIndex >= verses.length - 1}
           onClick={() => advanceVerse(1)}
-          size="xs"
+          size="sm"
           variant="ghost"
         >
           <Icon name="next" />
@@ -57,8 +57,22 @@ export function VerseTransport() {
           </span>
         ) : null}
 
-        <IconButton aria-label={t("common.remove")} onClick={clearBaseContent} size="xs" variant="ghost">
-          <Icon name="close" />
+        <IconButton
+
+          aria-label={t("live.takeOffAir")}
+
+          onClick={clearBaseContent}
+
+          size="sm"
+
+          title={t("live.takeOffAir")}
+
+          variant="ghost"
+
+        >
+
+          <Icon name="offAir" />
+
         </IconButton>
       </div>
     </MediaPanel>

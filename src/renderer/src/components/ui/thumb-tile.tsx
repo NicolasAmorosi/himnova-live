@@ -19,7 +19,7 @@ const decodedSrcs = createBoundedSet(2_000);
 /** The corner number's box. A text-only tile reserves this same box at the
  *  start of its first line, so a long verse flows around the number instead
  *  of running underneath it. */
-const INDEX_BADGE = "rounded px-1 text-[0.625rem] leading-4 font-semibold";
+const INDEX_BADGE = "rounded-sm px-1 text-[0.625rem] leading-4 font-semibold";
 
 type ThumbTileProps = {
   className?: string;
@@ -126,7 +126,7 @@ export function ThumbTile({
         // named "001", 267px for a long filename, tiles overlapping each
         // other. A grid item gets stretched for free and hid this for as long
         // as the tile was one.
-        "group flex h-full w-full cursor-pointer flex-col overflow-hidden rounded-lg border bg-card text-left transition-colors focus-ring-inset",
+        "group flex h-full w-full cursor-pointer flex-col overflow-hidden rounded-md border bg-card text-left transition-colors focus-ring-inset",
         selected ? "border-accent ring-2 ring-accent" : "border-border hover:border-border-light",
         live && !selected && "border-on-air ring-1 ring-on-air",
         className,
@@ -168,7 +168,7 @@ export function ThumbTile({
             // `-mb-1` keeps it shorter than one line so only the first line
             // wraps around it. No bottom padding: `line-clamp` clips at the
             // padding box, so any padding there shows half of the sixth line.
-            <span className="line-clamp-5 w-full self-start px-1.5 pt-0.5 text-[0.6875rem] leading-tight text-white/90">
+            <span className="line-clamp-5 w-full self-start px-1.5 pt-0.5 text-2xs leading-tight text-white/90">
               {index !== undefined ? (
                 <span aria-hidden="true" className={cn(INDEX_BADGE, "invisible float-left -mb-1 -ml-1 mr-1")}>
                   {index}

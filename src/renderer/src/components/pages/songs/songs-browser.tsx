@@ -117,17 +117,10 @@ export function SongsBrowser() {
 
       <PanelBody className="p-1.5">
         {songs.length === 0 ? (
+          // No buttons in an empty state (2026-11-04 review): «+» and «Importar»
+          // are in the footer right below, and some empty states had a button
+          // while others did not.
           <EmptyState
-            action={
-              <div className="flex flex-wrap justify-center gap-2">
-                <Button onClick={() => setEditing({ songId: null })} size="sm" variant="primary">
-                  {t("songs.new")}
-                </Button>
-                <Button loading={importing} onClick={runImport} size="sm" variant="outline">
-                  {t("songs.importEasyWorship")}
-                </Button>
-              </div>
-            }
             description={t("songs.emptyHint")}
             icon="song"
             title={t("songs.empty")}
@@ -172,7 +165,7 @@ export function SongsBrowser() {
 
       <PanelFooter>
         <Tooltip content={t("songs.newHint")} floating>
-          <IconButton aria-label={t("songs.new")} onClick={() => setEditing({ songId: null })} size="sm" variant="outline">
+          <IconButton aria-label={t("songs.new")} onClick={() => setEditing({ songId: null })} size="sm" variant="ghost">
             <Icon name="add" />
           </IconButton>
         </Tooltip>
@@ -182,37 +175,42 @@ export function SongsBrowser() {
             disabled={!previewed}
             onClick={() => previewed && setEditing({ songId: previewed.id })}
             size="sm"
-            variant="outline"
+            variant="ghost"
           >
             <Icon name="pencil" />
           </IconButton>
         </Tooltip>
+        {/* With words, not icons alone (2026-11-04 redesign, P2): nobody finds
+            «Themes» behind a palette. «+» and the pencil are universal. */}
         <Tooltip content={t("songs.importHint")} floating>
-          <IconButton
+          <Button
             aria-label={t("songs.importEasyWorship")}
             disabled={importing}
             onClick={runImport}
             size="sm"
-            variant="outline"
+            variant="ghost"
           >
             <Icon name="import" />
-          </IconButton>
+            {t("songs.import")}
+          </Button>
         </Tooltip>
         <Tooltip content={t("songThemes.manageHint")} floating>
-          <IconButton aria-label={t("songThemes.title")} onClick={() => setThemesOpen(true)} size="sm" variant="outline">
+          <Button onClick={() => setThemesOpen(true)} size="sm" variant="ghost">
             <Icon name="palette" />
-          </IconButton>
+            {t("songThemes.title")}
+          </Button>
         </Tooltip>
         <Tooltip className="ml-auto" content={t("resources.addToScheduleHint")} placement="top">
-          <IconButton
+          <Button
             aria-label={t("resources.addToSchedule")}
             disabled={!previewed}
             onClick={() => previewed && addItem({ kind: "song", songId: previewed.id, title: null })}
             size="sm"
-            variant="primary"
+            variant="outline"
           >
             <Icon name="addToSchedule" />
-          </IconButton>
+            {t("resources.addToScheduleShort")}
+          </Button>
         </Tooltip>
       </PanelFooter>
 

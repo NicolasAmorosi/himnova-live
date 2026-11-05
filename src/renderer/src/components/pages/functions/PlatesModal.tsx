@@ -1,8 +1,9 @@
 import { useEffect, useState, type DragEvent } from "react";
 import { useT } from "@renderer/lib/i18n/i18n-provider";
-import { ConfirmModal, Modal, ModalTitle } from "@renderer/components/shared/modal";
+import { ConfirmModal } from "@renderer/components/shared/modal";
+import { EditorScreen } from "@renderer/components/shared/editor-screen";
 import { ProgramUsages } from "@renderer/components/shared/program-usages";
-import { Badge, Button, DialogHeader, EmptyState, Icon, IconButton, ListRow } from "@renderer/components/ui";
+import { Badge, Button, EmptyState, Icon, Inspector, ListRow, type MenuOption } from "@renderer/components/ui";
 import { api } from "@renderer/lib/api";
 import { toast } from "@renderer/lib/toast";
 import { hideDragGhost, OVERLAY_PLATE_MIME } from "@renderer/lib/dnd";
@@ -15,11 +16,10 @@ import {
   savePlate,
 } from "@renderer/lib/actions/overlays";
 import { useOverlayStore } from "@renderer/stores/overlay.store";
+import { PLATE_NAME_MAX_LENGTH } from "@shared/overlay-validators";
 import type { MediaAsset } from "@shared/types/media";
 import type { Plate, PlateUsage } from "@shared/types/overlay";
 import { emptyPlateDraft, isPlateDraftSavable, toPlateDraft, toPlateUpsert, type PlateDraft } from "./plate-draft";
-import { EditorActions } from "@renderer/components/shared/editor-actions";
-import { EditorHeader } from "@renderer/components/shared/editor-header";
 import { PlateForm } from "./plate-form";
 import { PlatePreview } from "./plate-preview";
 import { PLATE_KIND_ICON, PLATE_KIND_LABEL } from "./plate-display";
@@ -31,8 +31,8 @@ type Pending =
   | { kind: "delete"; plateId: number; up: boolean; usages: PlateUsage[] };
 
 /**
- * The plate editor — the same layout and the same EXPLICIT save as the
- * «Scenes» modal, for the same reason: a plate can be on the air while it is
+ * The plate editor — the same full-screen layout and the same EXPLICIT save as
+ * the «Scenes» editor, for the same reason: a plate can be on the air while it is
  * edited, and saving per keystroke would spell a name out letter by letter in
  * front of the congregation. Once saved, a plate that is up is re-dressed in
  * place (`setLivePlate`), without its entrance playing again.
@@ -168,52 +168,34 @@ export function PlatesModal({ onOpenChange, open }: { onOpenChange: (open: boole
     void reorderPlates([...ids.slice(0, at), draggedId, ...ids.slice(at)]);
   }
 
+  const persisted = editing !== null && editing.plateId !== null;
+  const menuOptions: MenuOption<"duplicate" | "delete">[] = [
+    { disabled: !persisted, label: t("common.duplicate"), value: "duplicate" },
+    { disabled: !persisted, label: t("common.delete"), tone: "danger", value: "delete" },
+  ];
+
   return (
     <>
-      <Modal
-        height="tall"
-        onOpenChange={(next) => (next ? onOpenChange(true) : leaveEditing(() => onOpenChange(false)))}
-        open={open}
-        size="2xl"
-      >
-        <DialogHeader className="border-b border-border">
-          <ModalTitle>{t("plates.title")}</ModalTitle>
-          <IconButton
-            onClick={() => leaveEditing(() => onOpenChange(false))}
-            size="xs"
-            aria-label={t("common.close")}
-            title={t("common.close")}
-            variant="ghost"
-          >
-            <Icon name="close" />
-          </IconButton>
-        </DialogHeader>
-
-        <div className="flex min-h-0 flex-1">
-          <div className="flex w-64 shrink-0 flex-col border-r border-border">
-            <div className="flex shrink-0 flex-col gap-1.5 border-b border-border p-2">
-              <Button className="w-full" onClick={createNew} size="xs" variant="outline">
-                <Icon name="add" />
-                {t("plates.new")}
-              </Button>
-              {editing !== null ? (
-                <EditorActions
-                  canSave={canSave}
-                  dirty={dirty}
-                  onDelete={() => {
-                    if (editing.plateId !== null) void askToDelete(editing.plateId);
-                  }}
-                  // Through the guard like every other exit from the form: the
-                  // copy is made of the SAVED plate and replaces the open form.
-                  onDuplicate={() => leaveEditing(() => void handleDuplicate())}
-                  onRevert={() => setEditing({ ...editing, draft: editing.baseline })}
-                  onSave={() => void handleSave()}
-                  persisted={editing.plateId !== null}
-                  saving={saving}
-                />
-              ) : null}
-            </div>
-            <ul aria-label={t("plates.listLabel")} className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto p-1.5">
+      <EditorScreen
+        inspector={
+          editing ? (
+            // Keyed by plate, so opening another one starts at its top instead
+            // of at the scroll position the previous one was left at.
+            <Inspector key={editing.plateId ?? "new"} label={t("plates.title")}>
+              <PlateForm
+                addingImages={addingImages}
+                imageAssets={imageAssets}
+                onAddImages={() => void handleAddImages()}
+                onChange={(draft) => setEditing({ ...editing, draft })}
+                value={editing.draft}
+              />
+            </Inspector>
+          ) : null
+        }
+        onNew={{ label: t("plates.new"), onClick: createNew }}
+        list={
+          <>
+            <ul aria-label={t("plates.listLabel")} className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-2 pb-2">
               {plates.map((plate) => (
                 <ListRow
                   draggable
@@ -221,8 +203,11 @@ export function PlatesModal({ onOpenChange, open }: { onOpenChange: (open: boole
                   grip
                   key={plate.id}
                   leading={
-                    <Badge className="px-2" variant="neutral">
+                    // The kind as an icon only: written out beside the name it
+                    // left the name «Cuent…» in a 256 px list.
+                    <Badge className="px-2" title={t(PLATE_KIND_LABEL[plate.kind])} variant="neutral">
                       <Icon className="size-3.5" name={PLATE_KIND_ICON[plate.kind]} />
+                      <span className="sr-only">{t(PLATE_KIND_LABEL[plate.kind])}</span>
                     </Badge>
                   }
                   onClick={() => select(plate)}
@@ -239,62 +224,72 @@ export function PlatesModal({ onOpenChange, open }: { onOpenChange: (open: boole
                   }}
                   onDrop={(e) => handleDrop(e, plate.id)}
                   selected={editing?.plateId === plate.id}
-                  trailing={<span className="text-xs text-subtle">{t(PLATE_KIND_LABEL[plate.kind])}</span>}
                 >
                   {plate.name}
                 </ListRow>
               ))}
               {editing?.plateId === null ? (
-                <ListRow
-                  leading={
-                    <Badge className="px-2" variant="blue">
-                      <Icon className="size-3.5" name="add" />
-                    </Badge>
-                  }
-                  selected
-                >
-                  {editing.draft.name}
-                </ListRow>
+                <ListRow selected>{editing.draft.name}</ListRow>
               ) : null}
             </ul>
+          </>
+        }
+        menu={{
+          onSelect: (command) => {
+            if (editing?.plateId == null) return;
+            // Through the guard like every other exit from the form: the copy
+            // is made of the SAVED plate and replaces the open form.
+            if (command === "duplicate") leaveEditing(() => void handleDuplicate());
+            else void askToDelete(editing.plateId);
+          },
+          options: menuOptions,
+        }}
+        name={
+          editing
+            ? {
+                label: t("plates.name"),
+                maxLength: PLATE_NAME_MAX_LENGTH,
+                onChange: (name) => setEditing({ ...editing, draft: { ...editing.draft, name } }),
+                value: editing.draft.name,
+              }
+            : undefined
+        }
+        onClose={() => leaveEditing(() => onOpenChange(false))}
+        open={open}
+        save={
+          editing
+            ? {
+                canSave,
+                dirty,
+                onDiscard: () => setEditing({ ...editing, draft: editing.baseline }),
+                onSave: () => void handleSave(),
+                saving,
+              }
+            : undefined
+        }
+        title={t("plates.title")}
+      >
+        {editing === null ? (
+          <div className="relative flex-1">
+            <EmptyState
+              action={
+                <Button onClick={createNew} size="sm" variant="primary">
+                  {t("plates.new")}
+                </Button>
+              }
+              description={t("plates.emptyHint")}
+              icon="overlay"
+              title={t("plates.empty")}
+            />
           </div>
-
-          <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-            {editing === null ? (
-              <div className="relative flex-1">
-                <EmptyState
-                  action={
-                    <Button onClick={createNew} size="sm" variant="primary">
-                      {t("plates.new")}
-                    </Button>
-                  }
-                  description={t("plates.emptyHint")}
-                  icon="overlay"
-                  title={t("plates.empty")}
-                />
-              </div>
-            ) : (
-              <>
-                <EditorHeader
-                  invalidHint={savable ? undefined : t("plates.invalidHint")}
-                  preview={<PlatePreview draft={editing.draft} id={editing.plateId} />}
-                />
-                {/* Keyed by plate, so opening another one starts at its top instead
-                    of at the scroll position the previous one was left at. */}
-                <div className="min-w-0 flex-1 overflow-y-auto p-6" key={editing.plateId ?? "new"}>
-                  <PlateForm
-                    addingImages={addingImages}
-                    imageAssets={imageAssets}
-                    onAddImages={() => void handleAddImages()}
-                    onChange={(draft) => setEditing({ ...editing, draft })}
-                    value={editing.draft}
-                  />
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-      </Modal>
+        ) : (
+          <PlatePreview
+            draft={editing.draft}
+            id={editing.plateId}
+            warning={savable ? undefined : t("plates.invalidHint")}
+          />
+        )}
+      </EditorScreen>
 
       <ConfirmModal
         confirmLabel={

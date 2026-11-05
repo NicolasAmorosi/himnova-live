@@ -21,6 +21,14 @@ describe("cn", () => {
     expect(cn("shadow-raised", "shadow-overlay")).toBe("shadow-overlay");
   });
 
+  test("the two added type steps are sizes, not colours", () => {
+    // Unknown to tailwind-merge, `text-dense` is a colour and erases the
+    // `text-foreground` beside it — the text turns the inherited colour.
+    expect(cn("text-dense", "text-foreground")).toBe("text-dense text-foreground");
+    expect(cn("text-sm", "text-dense")).toBe("text-dense");
+    expect(cn("text-2xs", "text-xs")).toBe("text-xs");
+  });
+
   test("falsy values drop out, so a conditional class needs no ternary", () => {
     expect(cn("p-2", false, undefined, null, "m-1")).toBe("p-2 m-1");
   });

@@ -759,7 +759,7 @@ function RandomBars({
   ));
 }
 
-type OutputNoticeTone = "danger" | "warning";
+type OutputNoticeTone = "danger" | "notice";
 type OutputNoticeProps = {
   /** Second line, smaller and lighter: what to DO about the first one. Its own
    *  string rather than a line break inside `label`, so the wording and the
@@ -770,14 +770,15 @@ type OutputNoticeProps = {
   tone: OutputNoticeTone;
 };
 
-/** `danger` is "what you are looking at is broken"; `warning` is "the stage is
- *  empty on purpose, and here is what to do about it". Two colours rather than
+/** `danger` is "what you are looking at is broken"; `notice` is "the stage is
+ *  this way on purpose, and here is what to do about it". Two looks rather than
  *  one because a black projector the operator CHOSE and a file that failed to
- *  decode must not look the same from across a dark booth. */
+ *  decode must not look the same from across a dark booth — and the notice is
+ *  neutral, not amber (2026-11-04 redesign, P5): it is information, and an
+ *  alarm for something optional trains the operator to ignore alarms. */
 const noticeToneClass: Record<OutputNoticeTone, string> = {
   danger: "bg-danger/90 text-danger-foreground",
-  // The amber indicator carries dark text, never white (1.92:1).
-  warning: "bg-warning/90 text-warning-foreground",
+  notice: "bg-card/90 text-foreground",
 };
 
 /**
@@ -1374,7 +1375,7 @@ export function OutputView({
   const notice: { detail?: string | undefined; label: string; tone: OutputNoticeTone } | null = errorNotice
     ? { label: errorNotice, tone: "danger" }
     : mode !== "live" && noticeLabel
-      ? { detail: noticeDetail, label: noticeLabel, tone: "warning" }
+      ? { detail: noticeDetail, label: noticeLabel, tone: "notice" }
       : null;
 
   /**

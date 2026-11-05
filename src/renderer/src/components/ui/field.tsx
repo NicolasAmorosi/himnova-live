@@ -1,24 +1,29 @@
-import { useId, type MouseEvent, type ReactNode } from "react";
+import { useContext, useId, type MouseEvent, type ReactNode } from "react";
 import { cn } from "@renderer/lib/utils";
+import { FieldLayoutContext, type FieldLayout } from "./field-layout";
 import { Icon } from "./icon";
 import { Title } from "./title";
+import { Tooltip } from "./tooltip";
 
-/** A titled group of related fields, rendered as a bordered, divider-lined
- *  group of rows — the same lines-not-shadows container the rest of the system
- *  uses (`Panel`, the theme toggle, `deck-slides`), not the elevated `Card`
- *  primitive. Add a field to an existing group, or start a new group; never a
- *  flat list of rows.
- *
- *  Lives here rather than in `pages/settings/` because two features use it now
- *  — Settings and the «Scenes» editor — which is exactly the second use the
- *  reuse rule in `CLAUDE.md` promotes on. */
+
+/** In a compact row every control takes the whole cell, so the fields of an
+ *  inspector share one right edge whatever width the call site gave them for
+ *  a Settings page (`w-52`, `w-64`, a slider's `w-40`). A switch keeps its own
+ *  size, and a slider's readout its `ch` width (an inline style, which beats
+ *  the class); the track takes what the readout leaves. */
+const COMPACT_CONTROL =
+  "flex min-w-0 items-center gap-2 *:max-w-full [&>*:not([role=switch])]:w-full [&>input[type=range]]:min-w-0 [&>input[type=range]]:flex-1";
+
+/** A titled group of related fields on a Settings page: a subtitle and its
+ *  rows between thin lines, with no box around them — GitHub's settings
+ *  (2026-11-04 redesign): groups are told apart by space and their subtitle.
+ *  Add a field to an existing group, or start a new group; never a flat list
+ *  of rows. */
 export function FieldGroup({ children, className, title }: { children: ReactNode; className?: string; title: string }) {
   return (
     <div className={cn("flex flex-col gap-2", className)}>
-      <Title as="h2">{title}</Title>
-      <div className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-surface">
-        {children}
-      </div>
+      <Title as="h3">{title}</Title>
+      <div className="divide-y divide-border border-t border-border">{children}</div>
     </div>
   );
 }
@@ -50,6 +55,7 @@ export function FieldRow({
   grip = false,
   gripDisabled = false,
   label,
+  layout,
   leading,
   onGripMouseDown,
   onGripMouseUp,
@@ -66,6 +72,8 @@ export function FieldRow({
    *  not change width when reordering is momentarily unavailable. */
   gripDisabled?: boolean;
   label: ReactNode;
+  /** Overrides the surrounding `FieldLayoutContext` — see `FieldLayout`. */
+  layout?: FieldLayout | undefined;
   /** Sits before the label — an icon badge for a row that names a THING (a
    *  bible, a file) rather than a preference. */
   leading?: ReactNode;
@@ -74,12 +82,68 @@ export function FieldRow({
 }) {
   const labelId = useId();
   const descriptionId = useId();
+  const contextLayout = useContext(FieldLayoutContext);
+  const effective = layout ?? contextLayout;
+
+  if (effective !== "spread") {
+    // No grip or `leading` here: those belong to a LIST of things in Settings,
+    // which never sits in an inspector.
+    const stacked = effective === "stacked";
+    const help = description ? (
+      <Tooltip className="ml-1 align-[-0.125rem]" content={description} floating>
+        <Icon className="size-3.5 text-subtle" name="help" />
+      </Tooltip>
+    ) : null;
+    // The «?» travels with the label's last word, so a label that wraps never
+    // leaves it alone on a line of its own (2026-11-04 review).
+    const text = typeof label === "string" ? label : null;
+    const cut = text !== null && help ? text.lastIndexOf(" ") : -1;
+    return (
+      <div
+        aria-describedby={description ? descriptionId : undefined}
+        aria-labelledby={labelId}
+        className={cn(
+          "grid items-center gap-x-3 gap-y-1 py-1",
+          stacked ? "grid-cols-1" : "grid-cols-[7.5rem_minmax(0,1fr)]",
+        )}
+        role="group"
+      >
+        <span className="min-w-0 text-dense text-muted-foreground">
+          {/* The hint behind a «?» rather than under the row: written out, the
+              hints made an inspector of 30 knobs twice as long. It stays the
+              row's description for a screen reader. */}
+          {text !== null && cut > 0 ? (
+            <span id={labelId}>
+              {text.slice(0, cut + 1)}
+              <span className="whitespace-nowrap">
+                {text.slice(cut + 1)}
+                {help}
+              </span>
+            </span>
+          ) : (
+            <>
+              <span id={labelId}>{label}</span>
+              {help}
+            </>
+          )}
+        </span>
+        <div className={COMPACT_CONTROL}>{children}</div>
+        {description ? (
+          <span className="sr-only" id={descriptionId}>
+            {description}
+          </span>
+        ) : null}
+      </div>
+    );
+  }
+
   return (
     <div
       aria-describedby={description ? descriptionId : undefined}
       aria-labelledby={labelId}
       className={cn(
-        "relative flex flex-nowrap items-center justify-between gap-6 px-4 py-3",
+        // Flush with the group's subtitle: a Settings row has no box to sit in.
+        "relative flex flex-nowrap items-center justify-between gap-6 py-3",
         dropBefore &&
           "before:absolute before:inset-x-0 before:-top-px before:h-0.5 before:rounded-full before:bg-accent",
       )}

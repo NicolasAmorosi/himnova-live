@@ -20,9 +20,11 @@
  * update landing. */
 .wa-toast-exit { animation: toast-exit 180ms var(--ease-exit) forwards; }
 
-/* A modal arrives; it does not blink in. Enter only: an exit would have to
- * keep the dialog mounted after `open` turns false, and a closing dialog that
- * still takes focus and clicks for 120 ms is worse than one that just goes. */
+/* A modal arrives; it does not blink in. A centred dialog has no exit: it would
+ * have to stay mounted after `open` turns false, and a closing dialog that
+ * still takes focus and clicks is worse than one that just goes. A full-screen
+ * editor does fade out (owner, 2026-11-04) — as a picture that is already
+ * `inert`, see `Modal`. */
 @keyframes modal-enter {
   from { opacity: 0; transform: translate3d(0, 0.5rem, 0) scale(0.98); }
   to   { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
@@ -33,6 +35,16 @@
 }
 .wa-modal-enter { animation: modal-enter 150ms var(--ease-enter); }
 .wa-backdrop-enter { animation: backdrop-enter 150ms var(--ease-enter); }
+/* A full-screen editor (`Modal size="screen"`) fades in place: it replaces the
+ * work screen, it does not rise over it, so no scale and no slide. */
+.wa-screen-enter { animation: backdrop-enter 150ms var(--ease-enter); }
+/* `forwards`, like the toast's: held at 0 until `Modal` unmounts it
+ * (SCREEN_EXIT_MS), instead of snapping back for a frame. */
+@keyframes screen-exit {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+.wa-screen-exit { animation: screen-exit 150ms var(--ease-exit) forwards; }
 
 /* The focus indicator of every control. An OUTLINE, not a ring: Tailwind's
  * `ring-offset-*` paints its gap in an explicit colour (white by default), so
@@ -47,17 +59,6 @@
   &:focus-visible { outline: 2px solid var(--color-ring); outline-offset: -2px; }
 }
 
-/* The programs modal's side panel (`components/pages/programs/`) expands the
- * dialog itself sideways rather than compressing the list column — see
- * `.claude/knowledge/` for the rationale. The dialog itself resizes
- * instantly (animating its `max-width` stretched the header's empty middle,
- * since the header spans the full dialog width but its title/close button
- * don't grow with it) — only the panel's own mount animates, below. */
-@keyframes program-panel-enter {
-  from { opacity: 0; transform: translate3d(-0.75rem, 0, 0); }
-  to   { opacity: 1; transform: translate3d(0, 0, 0); }
-}
-.wa-program-panel-enter { animation: program-panel-enter 50ms ease-out; }
 @keyframes linear-loader-slide {
   0% { transform: translateX(-120%); }
   60%  { transform: translateX(320%); }
@@ -119,9 +120,7 @@
   /* The store still waits EXIT_MS before removing the item — it just spends
    * that time already invisible, which is the point of the preference. */
   .wa-toast-exit { animation-duration: 1ms; }
-  @keyframes program-panel-enter { from { opacity: 0; } to { opacity: 1; } }
-  .wa-program-panel-enter { animation-duration: 1ms; }
-  .wa-modal-enter, .wa-backdrop-enter { animation-duration: 1ms; }
+  .wa-modal-enter, .wa-backdrop-enter, .wa-screen-enter, .wa-screen-exit { animation-duration: 1ms; }
 }
 
 /*
@@ -338,6 +337,29 @@
    * same variable file, `font-stretch-extra-condensed`) for titles and the
    * wordmark, as the identity sheet sets them. */
   --font-sans: "Noto Sans Variable", "Noto Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
+
+  /*
+   * The type and size scales (2026-11-04 redesign). The type scale is CLOSED:
+   *   11  text-2xs    slide numbers, tiny counters — never a sentence
+   *   12  text-xs     hints, captions, descriptions
+   *   13  text-dense  dense rows: an inspector's fields, toolbars
+   *   14  text-sm     body, fields, buttons; Title h3 = a section's title
+   *   15  Title h2    the three column titles (condensed reads smaller)
+   *   20  text-xl     an editor's title (condensed)
+   * Body text never goes under 13 px on the dark theme: small light-on-dark
+   * text is what reads worst in a dark booth (NN/g, «Dark Mode»).
+   *
+   * Spacing is Tailwind's own 4 px step, used as a rule rather than a token:
+   * 4–8 inside a control, 8 between controls, 12–16 at a panel's edge, 24
+   * between groups. Control heights (GitHub's Primer): 28 (h-7, a compact
+   * bar), 32 (h-8, the default of every control), 40 (h-10, what is pressed
+   * during a service: GO LIVE, LOGO, BLACK, LIVE). Radii: see
+   * `tests/renderer/radius-scale.test.ts` and `06-ui-and-theme.md`.
+   */
+  --text-2xs: 0.6875rem;
+  --text-2xs--line-height: 1rem;
+  --text-dense: 0.8125rem;
+  --text-dense--line-height: 1.25rem;
 
   /*
    * Elevation scale — 3 levels only. surface = resting cards/panels,

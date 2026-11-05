@@ -18,7 +18,7 @@ export function ProgramUsages({ intro, usages, warning }: ProgramUsagesProps) {
   return (
     <div className="flex flex-col gap-3">
       <p className="text-foreground">{intro}</p>
-      <ul className="flex flex-col gap-1 rounded-lg border border-border bg-muted p-1.5">
+      <ul className="flex flex-col gap-1 rounded-md border border-border bg-muted p-1.5">
         {usages.map((usage) => (
           <li className="flex items-center gap-2 rounded-md px-2 py-1.5 text-foreground" key={usage.programId}>
             <Icon className="text-subtle" name="fileText" />

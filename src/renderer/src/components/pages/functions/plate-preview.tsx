@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useState } from "react";
-import { Button, Monitor } from "@renderer/components/ui";
+import { Button } from "@renderer/components/ui";
+import { EditorStage } from "@renderer/components/shared/editor-screen";
 import { OutputView } from "@renderer/components/shared/output-view";
 import { useT } from "@renderer/lib/i18n/i18n-provider";
 import { plateOutputFor } from "@renderer/lib/plate-output";
@@ -36,8 +37,12 @@ type Stage = "shown" | "leaving" | "reentering" | "returning";
  * `mode="preview"`: muted, and never a scene transition, so typing a name
  * re-renders text without anything fading. Its two test buttons replay the
  * plate's own entrance and exit here only — nothing reaches the projector.
+ *
+ * It is the editor's whole canvas — the stage, the two tests under it and the
+ * reason «Save» is off — because the tests drive the very state the picture is
+ * drawn from.
  */
-export function PlatePreview({ draft, id }: { draft: PlateDraft; id: number | null }) {
+export function PlatePreview({ draft, id, warning }: { draft: PlateDraft; id: number | null; warning: string | undefined }) {
   const t = useT();
   const live = useProjectionStore(selectOutputMemo);
   const [stage, setStage] = useState<Stage>("shown");
@@ -68,24 +73,21 @@ export function PlatePreview({ draft, id }: { draft: PlateDraft; id: number | nu
   const testable = draft.style.animation.style !== "none" && draft.style.animation.durationMs > 0;
 
   return (
-    <div className="flex flex-col gap-2">
-      <Monitor className="p-0">
-        <OutputView mode="preview" output={output} />
-      </Monitor>
-      <div className="flex items-center gap-2">
-        <Button disabled={!testable} onClick={() => setStage("reentering")} size="xs" variant="outline">
-          {t("plates.testEnter")}
-        </Button>
-        <Button
-          disabled={!testable || stage === "leaving"}
-          onClick={() => setStage("leaving")}
-          size="xs"
-          variant="outline"
-        >
-          {t("plates.testExit")}
-        </Button>
-        <p className="ml-auto text-right text-xs text-muted-foreground">{t("plates.previewHint")}</p>
-      </div>
-    </div>
+    <EditorStage
+      below={
+        <>
+          <Button disabled={!testable} onClick={() => setStage("reentering")} size="sm" variant="outline">
+            {t("plates.testEnter")}
+          </Button>
+          <Button disabled={!testable || stage === "leaving"} onClick={() => setStage("leaving")} size="sm" variant="outline">
+            {t("plates.testExit")}
+          </Button>
+          <span>{t("plates.previewHint")}</span>
+        </>
+      }
+      warning={warning}
+    >
+      <OutputView mode="preview" output={output} />
+    </EditorStage>
   );
 }

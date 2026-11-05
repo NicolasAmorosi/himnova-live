@@ -16,6 +16,8 @@ type PlateTrackRowProps = {
   /** Takes the plate off THIS column: the preview cursor under PREVIEW, the
    *  projector in the LIVE panel. */
   onDelete: () => void;
+  /** The LIVE panel's row: `onDelete` takes it off the projector. */
+  offAir?: boolean;
   plate: Plate;
   /** The preview row only: its own GO LIVE, or «Hide» once it is up. The
    *  LIVE row's X already takes it down, and a second button doing the same
@@ -36,7 +38,7 @@ type PlateTrackRowProps = {
  * it has been up, a read-only bar, and its total. Before it goes up the bar
  * rests at 0 — the total alone tells the operator it will not stay.
  */
-export function PlateTrackRow({ onDelete, plate, withLiveButton = false }: PlateTrackRowProps) {
+export function PlateTrackRow({ offAir = false, onDelete, plate, withLiveButton = false }: PlateTrackRowProps) {
   const t = useT();
   const up = useProjectionStore((s) => s.livePlates.some((live) => live.id === plate.id));
   const hideClock = useProjectionStore((s) => (up ? s.plateHideClocks[plate.id] : undefined));
@@ -49,6 +51,7 @@ export function PlateTrackRow({ onDelete, plate, withLiveButton = false }: Plate
       hint={covered ? t(up ? "overlays.coveredHint" : "overlays.willBeCoveredHint") : undefined}
       kind="plate"
       label={plate.name}
+      offAir={offAir}
       onDelete={onDelete}
       onGoLive={withLiveButton && !up ? () => void goLive() : undefined}
       onTakeDown={withLiveButton && up ? () => hidePlate(plate.id) : undefined}

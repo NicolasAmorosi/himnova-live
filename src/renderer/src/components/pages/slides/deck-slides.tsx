@@ -63,24 +63,24 @@ function DeckAudioStrip({ assetId, deck }: { assetId: number; deck: DeckDTO }) {
          * (already derived from the slides themselves) is the fact this badge
          * claims to show. */}
         {deck.autoAdvance ? <Badge variant="blue">{t("deck.audio.autoAdvance")}</Badge> : null}
-        {/* `h-6` like the `IconButton`s beside them, so this row is exactly as
+        {/* `sm` like the `IconButton`s beside them, so this row is exactly as
             tall as `DeckTransport` across from it. */}
         {deck.soundtrack?.origin === "linked" ? (
-          <Button className="h-6" onClick={() => void remove()} size="xs" variant="ghost">
+          <Button onClick={() => void remove()} size="sm" variant="ghost">
             {t("deck.audio.remove")}
           </Button>
         ) : null}
         {deck.soundtrack?.origin !== "embedded" && deck.soundtrack?.origin !== "transition" ? (
-          <Button className="h-6" onClick={() => void assign()} size="xs" variant="ghost">
+          <Button onClick={() => void assign()} size="sm" variant="ghost">
             {deck.soundtrack ? t("deck.audio.change") : t("deck.audio.assign")}
           </Button>
         ) : null}
         <Tooltip content={t("deck.audio.help")}>
-          <IconButton aria-label={t("deck.audio.help")} size="xs" variant="ghost">
+          <IconButton aria-label={t("deck.audio.help")} size="sm" variant="ghost">
             <Icon name="help" />
           </IconButton>
         </Tooltip>
-        <IconButton aria-label={t("common.remove")} onClick={clearPreview} size="xs" variant="ghost">
+        <IconButton aria-label={t("common.remove")} onClick={clearPreview} size="sm" variant="ghost">
           <Icon name="close" />
         </IconButton>
       </div>
@@ -123,7 +123,8 @@ export function DeckSlides({ assetId, missingSince }: { assetId: number; missing
 
   /** «Read again»/«Retry» over slides that are still there. */
   const reconvertAction = (label: string) => (
-    <Button className="mt-2" onClick={reconvert} size="sm">
+    // Outline like every «Retry» inside content (2026-11-04 review: five looks).
+    <Button className="mt-2" onClick={reconvert} size="sm" variant="outline">
       {label}
     </Button>
   );

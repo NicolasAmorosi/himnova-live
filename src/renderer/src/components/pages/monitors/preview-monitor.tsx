@@ -34,11 +34,17 @@ export function PreviewMonitor() {
     (content?.kind === "media" && content.asset.missingSince !== null) ||
     (content?.kind === "deck" && content.missingSince !== null);
 
+  // With nothing in preview the stage stays black, like the LIVE one: the
+  // column's empty state right below already says «Nada en vista previa» and
+  // what to do — the same words twice was one of four empty messages at launch
+  // (2026-11-04 review).
   const empty = missing
     ? t("preview.missing")
     : content?.kind === "media"
       ? content.asset.name
-      : t("preview.placeholder");
+      : content
+        ? t("preview.placeholder")
+        : "";
 
   // A deck still being read (or queued behind other work), or one that won't
   // open, has no `output` — without this, the stage would just fall back to

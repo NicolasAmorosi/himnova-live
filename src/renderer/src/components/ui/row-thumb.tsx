@@ -26,7 +26,7 @@ export function RowThumb({ className, icon, media, onImageError, src, tone }: Ro
   return (
     <span
       className={cn(
-        "relative flex aspect-video w-16 shrink-0 items-center justify-center overflow-hidden rounded",
+        "relative flex aspect-video w-16 shrink-0 items-center justify-center overflow-hidden rounded-sm",
         picture && "bg-black",
         className,
       )}
@@ -43,7 +43,7 @@ export function RowThumb({ className, icon, media, onImageError, src, tone }: Ro
           photo look alike — so the icon stays, in the corner, on a scrim that
           reads over any picture. */}
       {picture ? (
-        <span className="absolute bottom-0 left-0 flex rounded-tr bg-black/70 p-0.5 text-white">
+        <span className="absolute bottom-0 left-0 flex rounded-tr-sm bg-black/70 p-0.5 text-white">
           <Icon className="size-3" name={icon} />
         </span>
       ) : null}

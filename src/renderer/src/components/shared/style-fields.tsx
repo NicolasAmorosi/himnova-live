@@ -141,7 +141,6 @@ export function BackgroundFields({
             label: t(BACKGROUND_LABEL[kind]),
             value: kind,
           }))}
-          size="md"
           value={value.kind}
         />
       </FieldRow>
@@ -151,7 +150,6 @@ export function BackgroundFields({
           <ColorField
             label={t("style.backgroundColor")}
             onChange={(color) => onChange({ kind: "solid", color })}
-            size="md"
             value={value.color}
           />
         </FieldRow>
@@ -163,7 +161,6 @@ export function BackgroundFields({
             <ColorField
               label={t("style.gradientFrom")}
               onChange={(from) => onChange({ ...value, from })}
-              size="md"
               value={value.from}
             />
           </FieldRow>
@@ -171,7 +168,6 @@ export function BackgroundFields({
             <ColorField
               label={t("style.gradientTo")}
               onChange={(to) => onChange({ ...value, to })}
-              size="md"
               value={value.to}
             />
           </FieldRow>
@@ -185,7 +181,6 @@ export function BackgroundFields({
                 label: t(GRADIENT_LABEL[direction]),
                 value: direction,
               }))}
-              size="md"
               value={value.direction}
             />
           </FieldRow>
@@ -200,10 +195,9 @@ export function BackgroundFields({
               onChange={(assetId) => onChange({ ...value, assetId: Number(assetId) })}
               options={imageAssets.map((asset) => ({ label: asset.name, value: String(asset.id) }))}
               placeholder={t("style.imagePlaceholder")}
-              size="md"
               value={String(value.assetId)}
             />
-            <Button disabled={addingImages} onClick={onAddImages} size="md" variant="outline">
+            <Button disabled={addingImages} onClick={onAddImages} variant="outline">
               <Icon name="add" />
               {t("style.addImage")}
             </Button>
@@ -213,7 +207,6 @@ export function BackgroundFields({
               className="w-52"
               onChange={(fit) => onChange({ ...value, fit: fit as (typeof BACKGROUND_FITS)[number] })}
               options={BACKGROUND_FITS.map((fit) => ({ label: t(FIT_LABEL[fit]), value: fit }))}
-              size="md"
               value={value.fit}
             />
           </FieldRow>
@@ -258,7 +251,6 @@ export function FontFamilyFields({
           onChange={(family) => onChange(family === APP_FONT ? null : family)}
           options={options}
           searchable
-          size="md"
           value={value ?? APP_FONT}
         />
       </FieldRow>
@@ -285,7 +277,6 @@ export function VerticalAlignField({
         className="w-52"
         onChange={(align) => onChange(align as SceneVerticalAlign)}
         options={SCENE_VERTICAL_ALIGNS.map((align) => ({ label: t(ALIGN_LABEL[align]), value: align }))}
-        size="md"
         value={value}
       />
     </FieldRow>
@@ -365,7 +356,6 @@ export function TextStyleFields({
         <ColorField
           label={t("style.color")}
           onChange={(color) => onChange({ ...value, color })}
-          size="md"
           value={value.color}
         />
       </FieldRow>
@@ -374,7 +364,6 @@ export function TextStyleFields({
           className="w-40"
           onChange={(weight) => onChange({ ...value, weight: Number(weight) as SceneFontWeight })}
           options={SCENE_FONT_WEIGHTS.map((weight) => ({ label: t(WEIGHT_LABEL[weight]), value: String(weight) }))}
-          size="md"
           value={String(value.weight)}
         />
       </FieldRow>

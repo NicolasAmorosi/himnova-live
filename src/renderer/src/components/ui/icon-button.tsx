@@ -1,7 +1,9 @@
 import type { ButtonHTMLAttributes, Ref } from "react";
 import { cn } from "@renderer/lib/utils";
 
-type IconButtonVariant = "primary" | "outline" | "ghost" | "success" | "warning" | "danger";
+/** Two looks only (2026-11-04 redesign, F4b): an icon button is a tool, never
+ *  the main action of a surface — that is a `Button` with its word. */
+type IconButtonVariant = "outline" | "ghost";
 type IconButtonSize = "xs" | "sm" | "md";
 
 type IconButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
@@ -16,17 +18,13 @@ type IconButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
 };
 
 const variants: Record<IconButtonVariant, string> = {
-  primary: "border border-primary-border bg-primary text-primary-foreground hover:bg-primary-hover",
   outline: "border border-border bg-transparent text-foreground hover:border-accent hover:bg-muted",
   ghost: "text-foreground hover:bg-muted",
-  success: "bg-success text-success-foreground hover:bg-success/90",
-  warning: "bg-warning text-warning-foreground hover:bg-warning/90",
-  danger: "bg-danger text-danger-foreground hover:bg-danger/90",
 };
 
 const sizes: Record<IconButtonSize, string> = {
   xs: "size-6",
-  sm: "size-9",
+  sm: "size-8",
   md: "size-10",
 };
 
@@ -43,7 +41,7 @@ export function IconButton({
     <button
       aria-pressed={toggled || undefined}
       className={cn(
-        "focus-ring inline-flex shrink-0 cursor-pointer items-center justify-center rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-60",
+        "focus-ring inline-flex shrink-0 cursor-pointer items-center justify-center rounded-md transition-colors disabled:cursor-not-allowed disabled:opacity-50",
         variants[variant],
         sizes[size],
         toggled && "border-accent bg-accent text-accent-foreground hover:bg-accent",

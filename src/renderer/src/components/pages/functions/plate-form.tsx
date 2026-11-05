@@ -1,5 +1,5 @@
 import { useT } from "@renderer/lib/i18n/i18n-provider";
-import { Button, FieldGroup, FieldRow, Icon, Input, Select, Slider, Switch } from "@renderer/components/ui";
+import { Button, FieldRow, Icon, Input, InspectorSection, Select, Slider, Switch } from "@renderer/components/ui";
 import { BackgroundFields, FontFamilyFields, TextStyleFields, type TextSizeRange } from "@renderer/components/shared/style-fields";
 import { transitionDurationOptions } from "@renderer/lib/transition";
 import {
@@ -8,7 +8,6 @@ import {
   PLATE_IMAGE_MAX_CQW,
   PLATE_IMAGE_MIN_CQW,
   PLATE_MARGIN_MAX_CQW,
-  PLATE_NAME_MAX_LENGTH,
   PLATE_TEXT_MAX_LENGTH,
   PLATE_TICKER_MAX_CQW,
   PLATE_TICKER_MIN_CQW,
@@ -44,8 +43,9 @@ type PlateFormProps = {
   value: PlateDraft;
 };
 
-/** Everything about one plate, in the same grouped rows as the scene editor,
- *  reusing its style rows (`style-fields.tsx`). Fully controlled. */
+/** Everything about one plate but its name (the editor's title), as the
+ *  sections of the editor's inspector, reusing the scene editor's style rows
+ *  (`style-fields.tsx`). Fully controlled. */
 export function PlateForm({ addingImages, imageAssets, onAddImages, onChange, value }: PlateFormProps) {
   const t = useT();
   const patch = (next: Partial<PlateDraft>) => onChange({ ...value, ...next });
@@ -53,35 +53,24 @@ export function PlateForm({ addingImages, imageAssets, onAddImages, onChange, va
   const { style } = value;
 
   return (
-    <div className="flex flex-col gap-5">
-      <FieldGroup title={t("plates.groups.plate")}>
-        <FieldRow label={t("plates.name")}>
-          <Input
-            className="w-64"
-            maxLength={PLATE_NAME_MAX_LENGTH}
-            onChange={(e) => patch({ name: e.target.value })}
-            size="md"
-            value={value.name}
-          />
-        </FieldRow>
+    <>
+      <InspectorSection title={t("plates.groups.plate")}>
         <FieldRow description={t("plates.kindHint")} label={t("plates.kind")}>
           <Select
             className="w-52"
             onChange={(kind) => onChange(withKind(value, kind as PlateKind))}
             options={PLATE_KINDS.map((kind) => ({ label: t(PLATE_KIND_LABEL[kind]), value: kind }))}
-            size="md"
             value={value.kind}
           />
         </FieldRow>
-      </FieldGroup>
+      </InspectorSection>
 
-      <FieldGroup title={t("plates.groups.texts")}>
+      <InspectorSection title={t("plates.groups.texts")}>
         <FieldRow description={t("plates.titleHint")} label={t("plates.titleText")}>
           <Input
             className="w-64"
             maxLength={PLATE_TEXT_MAX_LENGTH}
             onChange={(e) => patch({ title: e.target.value === "" ? null : e.target.value })}
-            size="md"
             value={value.title ?? ""}
           />
         </FieldRow>
@@ -90,14 +79,13 @@ export function PlateForm({ addingImages, imageAssets, onAddImages, onChange, va
             className="w-64"
             maxLength={PLATE_TEXT_MAX_LENGTH}
             onChange={(e) => patch({ subtitle: e.target.value === "" ? null : e.target.value })}
-            size="md"
             value={value.subtitle ?? ""}
           />
         </FieldRow>
-      </FieldGroup>
+      </InspectorSection>
 
       {value.kind === "bug" ? (
-        <FieldGroup title={t("plates.groups.image")}>
+        <InspectorSection title={t("plates.groups.image")}>
           <FieldRow description={t("style.imageHint")} label={t("plates.image")}>
             <Select
               className="w-52"
@@ -106,10 +94,9 @@ export function PlateForm({ addingImages, imageAssets, onAddImages, onChange, va
                 { label: t("plates.imageNone"), value: NO_IMAGE },
                 ...imageAssets.map((asset) => ({ label: asset.name, value: String(asset.id) })),
               ]}
-              size="md"
               value={value.imageAssetId === null ? NO_IMAGE : String(value.imageAssetId)}
             />
-            <Button disabled={addingImages} onClick={onAddImages} size="md" variant="outline">
+            <Button disabled={addingImages} onClick={onAddImages} variant="outline">
               <Icon name="add" />
               {t("style.addImage")}
             </Button>
@@ -136,10 +123,10 @@ export function PlateForm({ addingImages, imageAssets, onAddImages, onChange, va
               value={style.image.opacity}
             />
           </FieldRow>
-        </FieldGroup>
+        </InspectorSection>
       ) : null}
 
-      <FieldGroup title={t("plates.groups.band")}>
+      <InspectorSection title={t("plates.groups.band")}>
         <BackgroundFields
           addingImages={false}
           imageAssets={[]}
@@ -160,30 +147,30 @@ export function PlateForm({ addingImages, imageAssets, onAddImages, onChange, va
             value={style.backgroundOpacity}
           />
         </FieldRow>
-      </FieldGroup>
+      </InspectorSection>
 
-      <FieldGroup title={t("style.groups.typography")}>
+      <InspectorSection title={t("style.groups.typography")}>
         <FontFamilyFields onChange={(fontFamily) => patchStyle({ fontFamily })} value={style.fontFamily} />
-      </FieldGroup>
+      </InspectorSection>
 
-      <FieldGroup title={t("plates.groups.titleLine")}>
+      <InspectorSection title={t("plates.groups.titleLine")}>
         <TextStyleFields
           onChange={(title) => patchStyle({ title })}
           sizeRange={PLATE_TEXT_SIZES}
           t={t}
           value={style.title}
         />
-      </FieldGroup>
-      <FieldGroup title={t("plates.groups.subtitleLine")}>
+      </InspectorSection>
+      <InspectorSection title={t("plates.groups.subtitleLine")}>
         <TextStyleFields
           onChange={(subtitle) => patchStyle({ subtitle })}
           sizeRange={PLATE_TEXT_SIZES}
           t={t}
           value={style.subtitle}
         />
-      </FieldGroup>
+      </InspectorSection>
 
-      <FieldGroup title={t("plates.groups.layout")}>
+      <InspectorSection title={t("plates.groups.layout")}>
         <FieldRow
           {...(value.kind === "banner" ? { description: t("plates.bannerPositionHint") } : {})}
           label={t("plates.position")}
@@ -195,7 +182,6 @@ export function PlateForm({ addingImages, imageAssets, onAddImages, onChange, va
               label: t(PLATE_POSITION_LABEL[position]),
               value: position,
             }))}
-            size="md"
             value={value.position}
           />
         </FieldRow>
@@ -209,10 +195,10 @@ export function PlateForm({ addingImages, imageAssets, onAddImages, onChange, va
             value={style.marginCqw}
           />
         </FieldRow>
-      </FieldGroup>
+      </InspectorSection>
 
       {value.kind === "banner" ? (
-        <FieldGroup title={t("plates.groups.ticker")}>
+        <InspectorSection title={t("plates.groups.ticker")}>
           <FieldRow description={t("plates.tickerEnabledHint")} label={t("plates.tickerEnabled")}>
             <Switch
               checked={style.ticker.enabled}
@@ -230,10 +216,10 @@ export function PlateForm({ addingImages, imageAssets, onAddImages, onChange, va
               value={style.ticker.speedCqw}
             />
           </FieldRow>
-        </FieldGroup>
+        </InspectorSection>
       ) : null}
 
-      <FieldGroup title={t("plates.groups.animation")}>
+      <InspectorSection title={t("plates.groups.animation")}>
         <FieldRow label={t("plates.animation")}>
           <Select
             className="w-52"
@@ -244,7 +230,6 @@ export function PlateForm({ addingImages, imageAssets, onAddImages, onChange, va
               label: t(PLATE_ANIMATION_LABEL[animation]),
               value: animation,
             }))}
-            size="md"
             value={style.animation.style}
           />
         </FieldRow>
@@ -254,13 +239,12 @@ export function PlateForm({ addingImages, imageAssets, onAddImages, onChange, va
             disabled={style.animation.style === "none"}
             onChange={(durationMs) => patchStyle({ animation: { ...style.animation, durationMs: Number(durationMs) } })}
             options={transitionDurationOptions(t)}
-            size="md"
             value={String(style.animation.durationMs)}
           />
         </FieldRow>
-      </FieldGroup>
+      </InspectorSection>
 
-      <FieldGroup title={t("plates.groups.autoHide")}>
+      <InspectorSection title={t("plates.groups.autoHide")}>
         <FieldRow description={t("plates.autoHideEnabledHint")} label={t("plates.autoHideEnabled")}>
           <Switch
             checked={style.autoHide.enabled}
@@ -280,7 +264,7 @@ export function PlateForm({ addingImages, imageAssets, onAddImages, onChange, va
             value={style.autoHide.afterMs / 1000}
           />
         </FieldRow>
-      </FieldGroup>
-    </div>
+      </InspectorSection>
+    </>
   );
 }

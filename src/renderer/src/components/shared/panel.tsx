@@ -15,18 +15,36 @@ export function Panel({ children, className, ...props }: PanelProps) {
 
 export function PanelHeader({
   actions,
+  meta,
   title,
 }: {
   actions?: ReactNode;
+  /** The column's data — what is in it, whether it is saved — as quiet text
+   *  beside the title, not a pill (2026-11-04 redesign, P4): a capsule on every
+   *  header is badges everywhere. Each piece in its own element; they truncate
+   *  before the actions do. Something that asks the operator to act still
+   *  goes in `actions`, as a badge. */
+  meta?: readonly ReactNode[];
   /** Usually a plain string; the monitors column needs a blinking on-air dot
    *  next to its label, hence ReactNode instead of forcing a second header
    *  primitive that would only differ in that one respect. */
   title: ReactNode;
 }) {
+  const shownMeta = meta?.filter((piece) => piece !== null && piece !== undefined && piece !== "") ?? [];
   return (
-    <div className="flex shrink-0 flex-wrap items-center justify-between gap-y-1 border-b border-border px-2 py-2">
-      <Title as="h2">{title}</Title>
-      {actions ? <div className="flex min-w-0 flex-wrap items-center gap-1.5">{actions}</div> : null}
+    // A fixed height: the three columns' headers line up whatever each one holds.
+    <div className="flex h-10 shrink-0 items-center gap-3 border-b border-border px-3">
+      <Title as="h2" className="shrink-0">
+        {title}
+      </Title>
+      <div className="flex min-w-0 flex-1 items-center justify-end gap-1.5">
+        {shownMeta.map((piece, index) => (
+          <span className="min-w-0 truncate text-xs text-muted-foreground" key={index}>
+            {piece}
+          </span>
+        ))}
+        {actions}
+      </div>
     </div>
   );
 }
@@ -56,7 +74,7 @@ export function PanelBody({ children, className, ...props }: PanelProps) {
 export function PanelFooter({ children, className, ...props }: PanelProps) {
   return (
     <div
-      className={cn("flex shrink-0 flex-wrap items-center gap-1 border-t border-border px-2 py-1.5", className)}
+      className={cn("flex shrink-0 flex-wrap items-center gap-2 border-t border-border px-3 py-2", className)}
       {...props}
     >
       {children}

@@ -42,7 +42,7 @@ const PICKER_WIDTH_PX = 232;
 /** Exactly `#rrggbb` — the one canonical form the row validator accepts. */
 const HEX = /^#[0-9a-fA-F]{6}$/;
 
-type ColorFieldSize = "xs" | "sm" | "md";
+type ColorFieldSize = "xs" | "sm";
 
 type ColorFieldProps = {
   className?: string;
@@ -59,8 +59,7 @@ type ColorFieldProps = {
 
 const sizes: Record<ColorFieldSize, string> = {
   xs: "h-7 px-2 text-xs",
-  sm: "h-9 px-3 text-sm",
-  md: "h-10 px-3 text-sm",
+  sm: "h-8 px-3 text-sm",
 };
 
 /**
@@ -138,7 +137,7 @@ export function ColorField({ className, label, onChange, size = "sm", value }: C
         aria-haspopup="dialog"
         aria-label={label}
         className={cn(
-          "focus-ring flex cursor-pointer items-center gap-2 rounded-lg border border-border bg-surface text-foreground transition-colors hover:border-accent",
+          "focus-ring flex cursor-pointer items-center gap-2 rounded-md border border-border bg-surface text-foreground transition-colors hover:border-accent",
           sizes[size],
           open && "border-accent",
           className,
@@ -162,7 +161,7 @@ export function ColorField({ className, label, onChange, size = "sm", value }: C
             // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- the tab stops inside this popover are the swatches and the two inputs; Escape has to close it from whichever one holds focus, which is a handler on the container by definition. Same delegated pattern `Select`, `Menu` and `Tabs` use — see `.claude/knowledge/jsx-a11y-reads-one-element-so-every-delegated-keyboard-pattern-is-an-error.md`.
             <div
               aria-label={label}
-              className="fixed z-[var(--z-popover)] flex flex-col gap-2 rounded-lg border border-border bg-card p-2 shadow-overlay"
+              className="fixed z-[var(--z-popover)] flex flex-col gap-2 rounded-xl border border-border bg-card p-2 shadow-overlay"
               onKeyDown={handlePopoverKeyDown}
               ref={popoverRef}
               role="dialog"
@@ -207,7 +206,7 @@ export function ColorField({ className, label, onChange, size = "sm", value }: C
                 <input
                   aria-invalid={invalid || undefined}
                   aria-label={label}
-                  className="h-7 w-full rounded-lg border border-border bg-surface px-2 font-mono text-xs text-foreground uppercase focus-ring aria-invalid:border-danger/80 aria-invalid:focus-visible:outline-danger"
+                  className="h-7 w-full rounded-md border border-border bg-surface px-2 font-mono text-xs text-foreground uppercase focus-ring aria-invalid:border-danger/80 aria-invalid:focus-visible:outline-danger"
                   maxLength={7}
                   onChange={(e) => commitDraft(e.target.value)}
                   spellCheck={false}

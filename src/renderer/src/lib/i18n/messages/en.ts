@@ -20,7 +20,6 @@ const en: Messages = {
     addError: "Couldn't add the files to the schedule",
     saved: "Saved",
     notSaved: "Not saved",
-    savedHint: "The schedule matches the last saved version.",
     notSavedHint:
       "The schedule has changes (items added, removed or reordered) that haven't been saved yet. Use the Save button or “Manage schedules” to save them.",
     moveUp: "Move up",
@@ -30,7 +29,6 @@ const en: Messages = {
     remove: "Remove",
     removeHint: "Remove the selected item from the schedule",
     clear: "Clear",
-    clearHint: "Remove every item from the schedule",
     discardAndClear: "Discard and clear",
     addAll: "Add media",
     addAllHint:
@@ -46,6 +44,7 @@ const en: Messages = {
   resources: {
     empty: "No files",
     emptyHint: "Add files or drag them here",
+    addToScheduleShort: "Add",
     addToSchedule: "Add to schedule",
     addToScheduleHint: "Add the selected item to the schedule",
     mediaTab: "Media",
@@ -137,7 +136,7 @@ const en: Messages = {
     resume: "Resume",
     stop: "Stop and reset",
     finished: "Ended",
-    manage: "Scenes…",
+    manage: "Scenes",
     manageHint: "Create, edit and reorder timer scenes",
     empty: "No timer scenes",
     emptyHint: "Create a countdown, a clock or a stopwatch to project.",
@@ -299,7 +298,7 @@ const en: Messages = {
     coveredHint: "It's up, but BLACK, LOGO or having nothing live is covering it",
     willBeCoveredHint: "BLACK, LOGO or having nothing live will cover it until that changes",
     autoHideHint: "Hides itself when the count reaches zero",
-    manage: "Overlays…",
+    manage: "Overlays",
     manageHint: "Create, edit and reorder overlays",
     empty: "No overlays",
     emptyHint:
@@ -392,6 +391,7 @@ const en: Messages = {
     },
   },
   songs: {
+    import: "Import",
     importEasyWorship: "Import from EasyWorship",
     importHint: "Import the songs of EasyWorship 6 or 7: choose its Databases\\Data folder.",
     importDone: "{imported, plural, =0 {No song imported} one {# song imported} other {# songs imported}} · {repeated} repeated · {problems} without lyrics",
@@ -416,6 +416,8 @@ const en: Messages = {
     editHint: "Edit the selected song",
     newTitle: "New song",
     editTitle: "Edit song",
+    slides: "Slides",
+    slidesEmpty: "The slides appear as you write the lyrics.",
     slidesLabel: "Slides of “{title}”",
     previous: "Previous slide",
     next: "Next slide",
@@ -547,6 +549,8 @@ const en: Messages = {
     previous: "Previous",
     next: "Next",
     counter: "{current}/{total}",
+    styleHint: "How a verse looks on the projector",
+    styleTitle: "Verse style",
   },
   deck: {
     title: "Presentation",
@@ -618,6 +622,7 @@ const en: Messages = {
     unmute: "Unmute",
   },
   live: {
+    takeOffAir: "Take off air",
     title: "Live",
     disconnected: "Projector off",
     noSignal: "No signal",
@@ -626,7 +631,7 @@ const en: Messages = {
     videoMotionOff: "Moving video off",
     videoMotionOffHint: "The projector plays it normally",
   },
-  footer: { black: "BLACK", logo: "LOGO", live: "LIVE", clear: "CLEAR" },
+  footer: { black: "BLACK", logo: "LOGO", live: "LIVE" },
   projector: {
     closedUnexpectedly: "The projector window closed",
     screenLost:
@@ -642,11 +647,7 @@ const en: Messages = {
     save: "Save",
     saveHint: "Save the changes to this schedule",
     saveNoChanges: "No changes",
-    duplicate: "Duplicate",
-    duplicateTitle: "Duplicate schedule",
     duplicateName: "{name} (copy)",
-    edit: "Edit",
-    delete: "Delete",
     new: "New schedule",
     newHint: "Start a new, empty schedule",
     createAndOpen: "Create and open",
@@ -657,7 +658,6 @@ const en: Messages = {
     noResults: "No results",
     name: "Name",
     namePlaceholder: "Schedule name",
-    favorite: "Favorite",
     favoriteAdd: "Mark as favorite",
     favoriteRemove: "Remove from favorites",
     favoriteError: "Couldn't update the favorite",
@@ -666,7 +666,6 @@ const en: Messages = {
     filterOthers: "Others",
     notes: "Notes",
     notesPlaceholder: "Optional notes",
-    create: "Create schedule",
     saved: "“{name}” saved",
     saveError: "Couldn't save the schedule",
     createError: "Couldn't create the schedule",
@@ -683,12 +682,16 @@ const en: Messages = {
     discardConfirm: "Discard and open",
     discardAndNew: "Discard and start new",
     itemCount: "{count, plural, one {# item} other {# items}}",
-    panelDirtyWarning: "The panel has unsaved changes. If you continue, they'll be lost.",
     reorderError: "Couldn't save the order of the schedules",
+    listLabel: "Saved schedules",
+    createdAt: "Created",
+    lastOpenedAt: "Last opened",
+    neverOpened: "Never",
+    leaveBody: "If you leave now, this schedule's changes are lost.",
+    leave: "Discard changes",
   },
   settings: {
     title: "Settings",
-    close: "Close",
     slidesCacheUsage: "Space used",
     slidesCacheUsageDesc:
       "{decks, plural, one {# presentation with audio or video stored on disk} other {# presentations with audio or video stored on disk}}",
@@ -718,14 +721,13 @@ const en: Messages = {
     sections: {
       projection: "Projection",
       slides: "Slides",
-      verse: "Verses",
       bible: "Bible",
       songs: "Songs",
       system: "System",
       about: "About",
     },
     songs: {
-      title: "Songs",
+      title: "Theme and licence",
       defaultTheme: "Default theme",
       defaultThemeHint: "For the songs that don't pick one of their own.",
       license: "Church CCLI licence",
@@ -746,7 +748,7 @@ const en: Messages = {
       language: "Language",
       folders: "File folders",
       performance: "Performance",
-      about: "About",
+      about: "Version and updates",
     },
     verse: {
       preview: "Show with a long verse",
@@ -892,7 +894,7 @@ const en: Messages = {
     logoRemoveLiveBody:
       "The projector is showing the logo right now: if you remove it, the screen stays black until you GO LIVE with something. No file is deleted — the logo just leaves the settings, and you can choose it again whenever you like.",
     chooseFile: "Choose file…",
-    clearLive: "Clear live content",
+    clearLive: "What is on the projector now",
     clearLiveDesc: "Takes down what's projected now and goes back to the logo.",
     startVolume: "Starting volume",
     startVolumeDesc:
@@ -968,6 +970,14 @@ const en: Messages = {
       "600": "Slow (600 ms)",
     },
   },
+  /** The bar of a full-screen editor (`components/shared/editor-screen/`). */
+  editor: {
+    back: "Back",
+    edited: "Edited",
+    discard: "Discard",
+    more: "More actions",
+    saveHint: "Save ({shortcut})",
+  },
   common: {
     cancel: "Cancel",
     confirm: "Confirm",
@@ -976,7 +986,6 @@ const en: Messages = {
     delete: "Delete",
     remove: "Remove",
     duplicate: "Duplicate",
-    revert: "Revert changes",
     close: "Close",
     dismiss: "Dismiss",
     retry: "Retry",

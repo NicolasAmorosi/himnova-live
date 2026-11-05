@@ -46,3 +46,23 @@ export function Badge({ className, variant = "neutral", ...props }: BadgeProps) 
     />
   );
 }
+
+/**
+ * A section of a song as a chip that is not a button — the order of a song,
+ * where each chip is dragged and has its own ✕. The same box as the section
+ * buttons beside it (`Button` outline `xs`: 28 px, 6 px, 1 px border), so a
+ * song's sections have ONE look everywhere (2026-11-04 review: they had three).
+ * `danger` marks a chip whose section no longer exists.
+ */
+export function Token({ className, danger = false, ...props }: HTMLAttributes<HTMLSpanElement> & { danger?: boolean }) {
+  return (
+    <span
+      className={cn(
+        "inline-flex h-7 shrink-0 items-center gap-1 rounded-md border px-2 text-xs font-medium text-foreground",
+        danger ? "border-danger-ink" : "border-border",
+        className,
+      )}
+      {...props}
+    />
+  );
+}

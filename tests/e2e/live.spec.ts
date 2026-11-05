@@ -16,7 +16,7 @@ async function videoLive(app: WorshipApp, name = "clip") {
   return projector;
 }
 
-async function openSettings(app: WorshipApp, section: "Proyección" | "Diapositivas" | "Versículos" | "Biblia" | "Sistema") {
+async function openSettings(app: WorshipApp, section: "Proyección" | "Diapositivas" | "Biblia" | "Sistema") {
   await app.control.getByRole("button", { name: "Configuración" }).click();
   const dialog = app.control.getByRole("dialog", { name: "Configuración" });
   await dialog.getByRole("tab", { name: section }).click();
@@ -81,9 +81,9 @@ test("a video that plays to its end leaves the projector by itself", async ({ ap
   await expect(app.control.getByRole("button", { name: "VIVO", exact: true })).toBeDisabled();
 });
 
-test("«Quitar» on the LIVE row takes the video off the projector", async ({ app }) => {
+test("«Sacar del aire» on the LIVE row takes the video off the projector", async ({ app }) => {
   const projector = await videoLive(app);
-  await app.liveColumn().getByRole("button", { name: "Quitar" }).click();
+  await app.liveColumn().getByRole("button", { name: "Sacar del aire" }).click();
   await expect.poll(async () => (await videoStates(projector)).length).toBe(0);
   await expect(app.liveColumn().getByRole("slider", { name: "Posición de clip" })).toHaveCount(0);
 });
@@ -128,7 +128,7 @@ test("the start volume set in Ajustes is the level a new video starts at", async
   const settings = await openSettings(app, "Proyección");
   await settings.getByRole("slider", { name: "Volumen inicial" }).fill("40");
   await expect(settings.getByText("40%", { exact: true })).toBeVisible();
-  await settings.getByRole("button", { name: "Cerrar" }).first().click();
+  await settings.getByRole("button", { name: "Volver" }).click();
 
   const projector = await videoLive(app);
   expect((await videoStates(projector))[0]?.volume).toBeCloseTo(0.4, 2);
@@ -140,12 +140,12 @@ test("closing and reopening the projector from Ajustes keeps the video where it 
   await expect.poll(async () => (await videoStates(first))[0]?.currentTime ?? 0).toBeGreaterThan(2.5);
 
   const settings = await openSettings(app, "Proyección");
-  await settings.getByRole("button", { name: "Cerrar Pantalla" }).click();
+  await settings.getByRole("button", { name: "Cerrar pantalla" }).click();
   await expect.poll(() => app.hasProjector()).toBe(false);
   // Read once the window is gone: this is where the operator stopped it.
-  await settings.getByRole("button", { name: "Abrir Pantalla" }).click();
+  await settings.getByRole("button", { name: "Abrir pantalla" }).click();
   const second = await app.projector();
-  await settings.getByRole("button", { name: "Cerrar" }).first().click();
+  await settings.getByRole("button", { name: "Volver" }).click();
 
   // A reopened projector starts covered — and the video under it is mounted
   // where it was, not back at 0:00.
@@ -158,10 +158,10 @@ test("closing and reopening the projector from Ajustes keeps the video where it 
   expect((await videoStates(second))[0]?.currentTime).toBeGreaterThan(2.3);
 });
 
-test("LIMPIAR in Ajustes empties the projector", async ({ app }) => {
+test("«Sacar del aire» in Ajustes empties the projector", async ({ app }) => {
   const projector = await videoLive(app);
   const settings = await openSettings(app, "Proyección");
-  await settings.getByRole("button", { name: "LIMPIAR" }).click();
+  await settings.getByRole("button", { name: "Sacar del aire" }).click();
   await expect.poll(async () => (await videoStates(projector)).length).toBe(0);
-  await expect(settings.getByRole("button", { name: "LIMPIAR" })).toBeDisabled();
+  await expect(settings.getByRole("button", { name: "Sacar del aire" })).toBeDisabled();
 });

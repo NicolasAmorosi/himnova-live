@@ -1,24 +1,23 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useI18n } from "@renderer/lib/i18n/i18n-provider";
-import { ConfirmModal, Modal, ModalTitle } from "@renderer/components/shared/modal";
+import { ConfirmModal } from "@renderer/components/shared/modal";
+import { EditorScreen } from "@renderer/components/shared/editor-screen";
 import { ProgramUsages } from "@renderer/components/shared/program-usages";
-import { EditorActions } from "@renderer/components/shared/editor-actions";
 import { OutputView } from "@renderer/components/shared/output-view";
 import { SongSlideGrid } from "@renderer/components/shared/song-slide-grid";
 import {
   Button,
   Callout,
   Caption,
-  DialogHeader,
-  FieldGroup,
   FieldRow,
-  Icon,
-  IconButton,
   Input,
+  Inspector,
+  InspectorSection,
   Monitor,
   Select,
   Textarea,
   Title,
+  type MenuOption,
 } from "@renderer/components/ui";
 import { toast } from "@renderer/lib/toast";
 import { useSongFit } from "@renderer/lib/song-fit";
@@ -27,7 +26,14 @@ import { deleteSong, duplicateSong, isSongLive, saveSong, songUsages } from "@re
 import { findSong, resolveSong, themeForSong, useSongStore } from "@renderer/stores/song.store";
 import { useSettingsStore } from "@renderer/stores/settings.store";
 import { INSTANT_TRANSITION, type ProjectionOutput } from "@shared/types/projection";
-import { missingOrderKeys, parseSectionKey, sectionLabel, serializeLyrics } from "@shared/song-text";
+import {
+  caretAtSlide,
+  missingOrderKeys,
+  parseSectionKey,
+  sectionLabel,
+  serializeLyrics,
+  slideAtCaret,
+} from "@shared/song-text";
 import { SONG_FIELD_MAX_LENGTH, SONG_NOTES_MAX_LENGTH, SONG_TITLE_MAX_LENGTH } from "@shared/song-validators";
 import type { Song, SongUsage } from "@shared/types/song";
 import {
@@ -55,10 +61,17 @@ type SongEditorModalProps = {
 };
 
 /**
- * One song: its data, its lyrics as text, its order, and a preview of the
- * slide chosen, drawn by the projector's own `OutputView` at the song's one
- * size. Saved by hand like the scene and plate editors — a song can be live
- * while it is edited — and a live song is re-dressed in place on save
+ * One song, full screen (2026-11-04 redesign): its slides on the left, its
+ * lyrics as text in the middle, and on the right the slide chosen — drawn by
+ * the projector's own `OutputView` at the song's one size — with its theme,
+ * its order and its data. The title is the name in the bar.
+ *
+ * The caret and the slides go together (owner, 2026-11-04): the caret in the
+ * lyrics picks its slide on both sides, and a click on a slide puts the caret
+ * at the start of its words (`slideAtCaret` / `caretAtSlide`).
+ *
+ * Saved by hand like the scene and plate editors — a song can be live while
+ * it is edited — and a live song is re-dressed in place on save
  * (`refreshLiveSong`), on the same section and slide.
  */
 export function SongEditorModal({ onOpenChange, onSaved, open, songId }: SongEditorModalProps) {
@@ -70,9 +83,13 @@ export function SongEditorModal({ onOpenChange, onSaved, open, songId }: SongEdi
   const [currentId, setCurrentId] = useState<number | null>(songId);
   const [draft, setDraft] = useState<SongDraft>(emptySongDraft);
   const [baseline, setBaseline] = useState<SongDraft>(emptySongDraft);
+  /** The slide chosen with a click, 1-based. */
   const [selected, setSelected] = useState(1);
+  /** Where the caret is in the lyrics; `null` until the operator puts it there. */
+  const [caret, setCaret] = useState<number | null>(null);
   const [pending, setPending] = useState<Pending | null>(null);
   const [saving, setSaving] = useState(false);
+  const lyricsRef = useRef<HTMLTextAreaElement>(null);
 
   // Opening loads the song asked for, once — never again under the operator's typing.
   useEffect(() => {
@@ -83,6 +100,7 @@ export function SongEditorModal({ onOpenChange, onSaved, open, songId }: SongEdi
     setDraft(loaded);
     setBaseline(loaded);
     setSelected(1);
+    setCaret(null);
     setPending(null);
     // `locale` only shapes the headers of a song being opened.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -121,7 +139,11 @@ export function SongEditorModal({ onOpenChange, onSaved, open, songId }: SongEdi
     return section ? sectionLabel(section.type, section.number, locale) : key;
   };
 
-  const slideIndex = Math.min(Math.max(1, selected), Math.max(1, preview.slides.length));
+  // The caret's slide when it is on one that is projected, else the one clicked.
+  const caretSlide =
+    caret === null ? null : slideAtCaret(draft.lyrics, caret, locale, theme.maxLines, preview.slides, selected - 1);
+  const slideIndex = Math.min(Math.max(1, caretSlide === null ? selected : caretSlide + 1), Math.max(1, preview.slides.length));
+  const shownSlide = preview.slides[slideIndex - 1];
   const output: ProjectionOutput | null =
     fit && preview.slides.length > 0
       ? {
@@ -141,6 +163,23 @@ export function SongEditorModal({ onOpenChange, onSaved, open, songId }: SongEdi
 
   const patch = (next: Partial<SongDraft>) => setDraft((current) => ({ ...current, ...next }));
 
+  /** The lyrics replaced from outside the textarea: the caret's offset no longer means anything. */
+  function replaceDraft(next: SongDraft) {
+    setDraft(next);
+    setCaret(null);
+  }
+
+  function selectSlide(index: number) {
+    setSelected(index);
+    const slide = preview.slides[index - 1];
+    const offset = slide ? caretAtSlide(draft.lyrics, locale, theme.maxLines, slide) : null;
+    const lyrics = lyricsRef.current;
+    if (offset === null || !lyrics) return;
+    lyrics.focus();
+    lyrics.setSelectionRange(offset, offset);
+    setCaret(offset);
+  }
+
   function leaveEditing(go: () => void) {
     if (dirty) setPending({ kind: "discard", go });
     else go();
@@ -149,7 +188,7 @@ export function SongEditorModal({ onOpenChange, onSaved, open, songId }: SongEdi
   function show(song: Song) {
     const loaded = toSongDraft(song, locale);
     setCurrentId(song.id);
-    setDraft(loaded);
+    replaceDraft(loaded);
     setBaseline(loaded);
   }
 
@@ -181,57 +220,66 @@ export function SongEditorModal({ onOpenChange, onSaved, open, songId }: SongEdi
     setPending({ kind: "delete", songId: id, live: isSongLive(id), usages: await songUsages(id) });
   }
 
+  const menuOptions: MenuOption<"duplicate" | "delete">[] = [
+    { disabled: currentId === null, label: t("common.duplicate"), value: "duplicate" },
+    { disabled: currentId === null, label: t("common.delete"), tone: "danger", value: "delete" },
+  ];
+
   return (
     <>
-      <Modal
-        height="tall"
-        onOpenChange={(next) => (next ? onOpenChange(true) : leaveEditing(() => onOpenChange(false)))}
-        open={open}
-        size="2xl"
-      >
-        <DialogHeader className="border-b border-border">
-          <ModalTitle>{currentId === null ? t("songs.newTitle") : t("songs.editTitle")}</ModalTitle>
-          <IconButton
-            aria-label={t("common.close")}
-            onClick={() => leaveEditing(() => onOpenChange(false))}
-            size="xs"
-            title={t("common.close")}
-            variant="ghost"
-          >
-            <Icon name="close" />
-          </IconButton>
-        </DialogHeader>
+      <EditorScreen
+        inspector={
+          <Inspector label={t("songs.editTitle")}>
+            <div className="flex flex-col gap-3 border-b border-border pb-4">
+              <Monitor>{output ? <OutputView mode="preview" output={output} /> : null}</Monitor>
+              <div className="flex flex-col gap-3 px-4">
+                {shownSlide ? (
+                  <Caption>
+                    {t("songs.counter", { current: slideIndex, total: preview.slides.length })} ·{" "}
+                    {sectionLabel(shownSlide.type, shownSlide.number, locale)}
+                  </Caption>
+                ) : null}
+                <FieldRow description={t("songs.themeHint")} label={t("songs.theme")}>
+                  <Select
+                    onChange={(value) => patch({ themeId: value === "" ? null : Number(value) })}
+                    options={[
+                      { label: t("songs.themeDefault"), value: "" },
+                      ...themes.map((row) => ({ label: row.name, value: String(row.id) })),
+                    ]}
+                    value={draft.themeId === null ? "" : String(draft.themeId)}
+                  />
+                </FieldRow>
+              </div>
+            </div>
 
-        <div className="flex min-h-0 flex-1">
-          <div className="flex min-w-0 flex-1 flex-col gap-6 overflow-y-auto p-6">
-            <FieldGroup title={t("songs.groups.data")}>
-              <FieldRow label={t("songs.title")}>
-                <Input
-                  aria-label={t("songs.title")}
-                  maxLength={SONG_TITLE_MAX_LENGTH}
-                  onChange={(e) => patch({ title: e.target.value })}
-                  size="sm"
-                  value={draft.title}
-                />
-              </FieldRow>
-              <FieldRow description={t("songs.themeHint")} label={t("songs.theme")}>
-                <Select
-                  className="w-52"
-                  onChange={(value) => patch({ themeId: value === "" ? null : Number(value) })}
-                  options={[
-                    { label: t("songs.themeDefault"), value: "" },
-                    ...themes.map((row) => ({ label: row.name, value: String(row.id) })),
-                  ]}
-                  size="md"
-                  value={draft.themeId === null ? "" : String(draft.themeId)}
-                />
-              </FieldRow>
+            <InspectorSection title={t("songs.groups.order")}>
+              <SongOrderField
+                custom={draft.order !== null}
+                onChange={(next) => patch({ order: next })}
+                onReset={() => patch({ order: null })}
+                order={order}
+                sections={parsed.sections}
+              />
+              {missing.length > 0 ? (
+                <Callout className="mt-2 py-2" role="status" tone="warning">
+                  {t("songs.orderMissingHint", { sections: missing.map(labelOf).join(", ") })}
+                </Callout>
+              ) : null}
+              {draft.order !== null && unused.length > 0 ? (
+                <Callout className="mt-2 py-2" role="status" tone="info">
+                  {t("songs.orderUnusedHint", {
+                    sections: unused.map((s) => sectionLabel(s.type, s.number, locale)).join(", "),
+                  })}
+                </Callout>
+              ) : null}
+            </InspectorSection>
+
+            <InspectorSection title={t("songs.groups.data")}>
               <FieldRow description={t("songs.numberHint")} label={t("songs.number")}>
                 <Input
                   aria-label={t("songs.number")}
                   maxLength={SONG_FIELD_MAX_LENGTH}
                   onChange={(e) => patch({ number: e.target.value })}
-                  size="sm"
                   value={draft.number}
                 />
               </FieldRow>
@@ -240,7 +288,6 @@ export function SongEditorModal({ onOpenChange, onSaved, open, songId }: SongEdi
                   aria-label={t("songs.authors")}
                   maxLength={SONG_FIELD_MAX_LENGTH}
                   onChange={(e) => patch({ authors: e.target.value })}
-                  size="sm"
                   value={draft.authors}
                 />
               </FieldRow>
@@ -249,7 +296,6 @@ export function SongEditorModal({ onOpenChange, onSaved, open, songId }: SongEdi
                   aria-label={t("songs.copyright")}
                   maxLength={SONG_FIELD_MAX_LENGTH}
                   onChange={(e) => patch({ copyright: e.target.value })}
-                  size="sm"
                   value={draft.copyright}
                 />
               </FieldRow>
@@ -258,114 +304,108 @@ export function SongEditorModal({ onOpenChange, onSaved, open, songId }: SongEdi
                   aria-label={t("songs.ccli")}
                   maxLength={SONG_FIELD_MAX_LENGTH}
                   onChange={(e) => patch({ ccliNumber: e.target.value })}
-                  size="sm"
                   value={draft.ccliNumber}
                 />
               </FieldRow>
-              <FieldRow label={t("songs.notes")}>
+              <FieldRow label={t("songs.notes")} layout="stacked">
                 <Textarea
                   aria-label={t("songs.notes")}
                   maxLength={SONG_NOTES_MAX_LENGTH}
                   onChange={(e) => patch({ notes: e.target.value })}
-                  rows={2}
+                  rows={3}
                   value={draft.notes}
                 />
               </FieldRow>
-            </FieldGroup>
-
-            <div className="flex flex-col gap-2">
-              <div className="flex items-center gap-2">
-                <Title as="h2" className="flex-1">
-                  {t("songs.groups.lyrics")}
-                </Title>
-                <Button
-                  disabled={parsed.sections.length === 0}
-                  onClick={() => patch({ lyrics: serializeLyrics(parsed.sections, locale) })}
-                  size="xs"
-                  title={t("songs.writeHeadersHint")}
-                  variant="outline"
-                >
-                  {t("songs.writeHeaders")}
-                </Button>
-              </div>
-              <Textarea
-                aria-label={t("songs.groups.lyrics")}
-                onChange={(e) => patch({ lyrics: e.target.value })}
-                placeholder={t("songs.lyricsPlaceholder")}
-                rows={16}
-                spellCheck={false}
-                value={draft.lyrics}
-              />
-              <Caption>{t("songs.lyricsHint")}</Caption>
+            </InspectorSection>
+          </Inspector>
+        }
+        list={
+          <>
+            <div className="flex h-10 shrink-0 items-center px-4">
+              <Title as="h3">{t("songs.slides")}</Title>
             </div>
-
-            <div className="flex flex-col gap-2">
-              <Title as="h2">{t("songs.groups.order")}</Title>
-              <SongOrderField
-                custom={draft.order !== null}
-                onChange={(next) => patch({ order: next })}
-                onReset={() => patch({ order: null })}
-                order={order}
-                sections={parsed.sections}
-              />
-            </div>
-          </div>
-
-          <div className="flex w-96 shrink-0 flex-col border-l border-border">
-            <div className="shrink-0 border-b border-border p-2">
-              <EditorActions
-                canSave={canSave}
-                dirty={dirty}
-                onDelete={() => {
-                  if (currentId !== null) void askToDelete(currentId);
-                }}
-                onDuplicate={() => leaveEditing(() => void handleDuplicate())}
-                onRevert={() => setDraft(baseline)}
-                onSave={() => void handleSave()}
-                persisted={currentId !== null}
-                saving={saving}
-              />
-            </div>
-            <Monitor className="pb-3">
-              {output ? <OutputView mode="preview" output={output} /> : null}
-            </Monitor>
-            <div className="flex shrink-0 flex-col gap-2 px-3">
-              {!savable ? (
-                <Callout className="py-2" role="status" tone="warning">
-                  {t("songs.invalidHint")}
-                </Callout>
-              ) : null}
-              {overflowingLabels.length > 0 ? (
-                <Callout className="py-2" role="status" tone="warning">
-                  {t("songs.overflowHint", { sections: overflowingLabels.join(", ") })}
-                </Callout>
-              ) : null}
-              {missing.length > 0 ? (
-                <Callout className="py-2" role="status" tone="warning">
-                  {t("songs.orderMissingHint", { sections: missing.map(labelOf).join(", ") })}
-                </Callout>
-              ) : null}
-              {draft.order !== null && unused.length > 0 ? (
-                <Callout className="py-2" role="status" tone="info">
-                  {t("songs.orderUnusedHint", {
-                    sections: unused.map((s) => sectionLabel(s.type, s.number, locale)).join(", "),
-                  })}
-                </Callout>
-              ) : null}
-            </div>
-            <div className="min-h-0 flex-1 overflow-y-auto p-1.5">
+            <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-2">
+              {/* A new song's column said nothing at all (2026-11-04 review). */}
+              {preview.slides.length === 0 ? <Caption className="block px-2">{t("songs.slidesEmpty")}</Caption> : null}
               <SongSlideGrid
+                columns={1}
                 liveIndex={null}
-                onSelect={setSelected}
+                onSelect={selectSlide}
                 scrollToIndex={slideIndex}
                 selectedIndex={slideIndex}
                 song={preview}
                 theme={theme}
               />
             </div>
+          </>
+        }
+        menu={{
+          onSelect: (command) => {
+            if (currentId === null) return;
+            if (command === "duplicate") leaveEditing(() => void handleDuplicate());
+            else void askToDelete(currentId);
+          },
+          options: menuOptions,
+        }}
+        name={{
+          label: t("songs.title"),
+          maxLength: SONG_TITLE_MAX_LENGTH,
+          onChange: (title) => patch({ title }),
+          placeholder: t("songs.newTitle"),
+          value: draft.title,
+        }}
+        onClose={() => leaveEditing(() => onOpenChange(false))}
+        open={open}
+        save={{
+          canSave,
+          dirty,
+          onDiscard: () => replaceDraft(baseline),
+          onSave: () => void handleSave(),
+          saving,
+        }}
+        title={t("songs.tab")}
+      >
+        <div className="mx-auto flex min-h-0 w-full max-w-3xl flex-1 flex-col gap-2 p-6">
+          <div className="flex items-center gap-2">
+            <Title as="h3" className="flex-1">
+              {t("songs.groups.lyrics")}
+            </Title>
+            <Button
+              disabled={parsed.sections.length === 0}
+              onClick={() => replaceDraft({ ...draft, lyrics: serializeLyrics(parsed.sections, locale) })}
+              size="xs"
+              title={t("songs.writeHeadersHint")}
+              variant="outline"
+            >
+              {t("songs.writeHeaders")}
+            </Button>
           </div>
+          <Textarea
+            aria-label={t("songs.groups.lyrics")}
+            className="min-h-0 flex-1"
+            onChange={(e) => {
+              patch({ lyrics: e.target.value });
+              setCaret(e.target.selectionStart);
+            }}
+            onSelect={(e) => setCaret(e.currentTarget.selectionStart)}
+            placeholder={t("songs.lyricsPlaceholder")}
+            ref={lyricsRef}
+            spellCheck={false}
+            value={draft.lyrics}
+          />
+          <Caption>{t("songs.lyricsHint")}</Caption>
+          {!savable ? (
+            <Callout className="py-2" role="status" tone="warning">
+              {t("songs.invalidHint")}
+            </Callout>
+          ) : null}
+          {overflowingLabels.length > 0 ? (
+            <Callout className="py-2" role="status" tone="warning">
+              {t("songs.overflowHint", { sections: overflowingLabels.join(", ") })}
+            </Callout>
+          ) : null}
         </div>
-      </Modal>
+      </EditorScreen>
 
       <ConfirmModal
         confirmLabel={

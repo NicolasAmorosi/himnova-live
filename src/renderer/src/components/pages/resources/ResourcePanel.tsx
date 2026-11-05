@@ -76,7 +76,7 @@ export function ResourcePanel() {
         }}
         tabs={tabs}
         value={tab}
-        variant="folder"
+        variant="underline"
       />
       <TabPanels>
         {TAB_ORDER.filter((value) => visited.includes(value)).map((value) => (

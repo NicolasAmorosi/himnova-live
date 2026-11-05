@@ -1,14 +1,14 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { ErrorBoundary } from "./error-boundary";
 
 type ModalBoundaryProps = {
   children: ReactNode;
-  /** Whether the modal inside is currently open. Doubles as the reset key:
-   *  a boundary that has caught stays caught, so without remounting it on
-   *  close the modal would be permanently dead for the rest of the session —
-   *  reopening it would render the fallback again. Closing already happens on
-   *  every crash (that is what `onCrash` is for), so keying on `open` means
-   *  the next open always gets a fresh attempt. */
+  /** Whether the modal inside is currently open. Each OPENING remounts the
+   *  boundary: one that has caught stays caught, so without a fresh one the
+   *  modal would be dead for the rest of the session. Closing already happens
+   *  on every crash (that is what `onCrash` is for), so the next open always
+   *  gets a fresh attempt. Not on closing: a full-screen editor stays mounted
+   *  for its fade-out (`Modal`), and a remount there cut it off. */
   open: boolean;
   /** Close this modal and tell the operator. Runs in the commit phase — see
    *  `ErrorBoundary.onError`. */
@@ -31,8 +31,14 @@ type ModalBoundaryProps = {
  * inline error panel would just be a second dead dialog to dismiss.
  */
 export function ModalBoundary({ children, onCrash, open }: ModalBoundaryProps) {
+  const [opens, setOpens] = useState(0);
+  const [wasOpen, setWasOpen] = useState(open);
+  if (open !== wasOpen) {
+    setWasOpen(open);
+    if (open) setOpens((n) => n + 1);
+  }
   return (
-    <ErrorBoundary fallback={() => null} key={String(open)} onError={onCrash}>
+    <ErrorBoundary fallback={() => null} key={opens} onError={onCrash}>
       {children}
     </ErrorBoundary>
   );

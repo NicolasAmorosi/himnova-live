@@ -35,7 +35,7 @@ export function SongTransport() {
         <IconButton
           aria-label={base.lyricsHidden ? t("songs.showLyrics") : t("songs.hideLyrics")}
           onClick={toggleSongLyrics}
-          size="xs"
+          size="sm"
           title={base.lyricsHidden ? t("songs.showLyrics") : t("songs.hideLyrics")}
           toggled={base.lyricsHidden}
           variant="ghost"
@@ -46,7 +46,7 @@ export function SongTransport() {
           aria-label={t("songs.previous")}
           disabled={!base.detour && base.slideIndex <= 1}
           onClick={() => advanceSong(-1)}
-          size="xs"
+          size="sm"
           variant="ghost"
         >
           <Icon name="prev" />
@@ -55,7 +55,7 @@ export function SongTransport() {
           aria-label={t("songs.next")}
           disabled={!base.detour && base.slideIndex >= total}
           onClick={() => advanceSong(1)}
-          size="xs"
+          size="sm"
           variant="ghost"
         >
           <Icon name="next" />
@@ -65,8 +65,14 @@ export function SongTransport() {
             ? t("songs.detourCounter", { current: base.detour.slideIndex, total: detourSection.slides.length })
             : t("songs.counter", { current: base.slideIndex, total })}
         </span>
-        <IconButton aria-label={t("common.remove")} onClick={clearBaseContent} size="xs" variant="ghost">
-          <Icon name="close" />
+        <IconButton
+          aria-label={t("live.takeOffAir")}
+          onClick={clearBaseContent}
+          size="sm"
+          title={t("live.takeOffAir")}
+          variant="ghost"
+        >
+          <Icon name="offAir" />
         </IconButton>
       </div>
       <div className="px-2 pb-1.5">

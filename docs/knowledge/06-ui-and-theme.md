@@ -105,10 +105,18 @@ operated in a dark projection booth.
 
 ### Shape, focus, elevation and motion
 
-- **Pill** for everything that acts or marks: `Button`, `IconButton` (circle), `Badge`, `Switch`,
-  the segments and the sidebar of `Tabs`. Dialogs `rounded-2xl`; cards, groups (`FieldGroup`),
-  menus and popovers `rounded-xl`; fields, thumbnails and rows `rounded-lg`. A surface never
-  contains a radius larger than its own.
+- **Four radii, GitHub's** (owner, 2026-11-04: «a GitHub feel… not so heavily rounded»; values read
+  from Primer's tokens). `rounded-md` (6 px) for everything that acts or contains — `Button`,
+  `IconButton` (a square, not a circle), fields, `Switch` (a rounded rectangle), the segments, rows,
+  thumbnails, `Card`/`Callout`/`FieldGroup`/`MediaPanel` boxes, tooltips, toasts. `rounded-xl` (12) for
+  what floats: the centred `Dialog`, menus and dropdowns. `rounded-sm` (4) for something small inside
+  something else (a thumbnail's number, a swatch, the inner segment of a segmented box).
+  `rounded-full` only for what is NOT a control: `Badge` (GitHub's `Label` is a pill too — the song
+  order's chips are `Badge`s), status dots, progress bars, slider and scrubber thumbs. The sidebar of
+  `Tabs` is GitHub's NavList: a 32 px row, the chosen one on a quiet fill with a 4 px accent bar on its
+  left. `rounded-lg`, `rounded-2xl`, the bare `rounded` and any `rounded-[…]` but the logo's are retired
+  — `tests/renderer/radius-scale.test.ts` fails on them. A surface never contains a radius larger than
+  its own.
 - **Focus = `outline`** with the `focus-ring` / `focus-ring-inset` utilities from `globals.css`,
   never `ring` + `ring-offset`: Tailwind paints the offset gap with an explicit color (white by
   default), and in the dark theme every focused control had a 1 px white halo. The gap of an
@@ -128,8 +136,10 @@ operated in a dark projection booth.
 - A modal's scrim is `bg-scrim`: black at 60% in dark, navy at 40% in light.
 - **Out of room, the text gives way, never the icon** (owner's rule, 2026-10-22). `Icon` and
   `Badge` are `shrink-0` by default; text truncates in its own `<span className="truncate">` —
-  `Button` (`truncateText()`) and `Tabs` do it on their own. Equal-width tabs (`folder`,
-  `segment`) show the full name as `title` on hover, only if it's cut off.
+  `Button` (`truncateText()`) and `Tabs` do it on their own. Tabs show the full name as `title`
+  on hover, only if it's cut off. The resource tabs (`underline`) share the row equally and drop their icons in a
+  window under 1100 px; a `segment` has no icons at all — the 2026-11-04 locale tour found «Presentaciones» cut at
+  1440 and «Canciones»/«Funciones» at the 1000 px minimum (`tools/release-checks/locale-tour/` in the workspace).
 
 ## Typography: Noto Sans and its ExtraCondensed cut
 
@@ -163,10 +173,89 @@ with a ~22% radius and the template's shadow) and `build/icon.png` (Windows/Linu
 shape with a 3% margin; electron-builder derives the `.ico` from it). They were rendered with an
 offscreen Electron window (the `paint` event, which does keep the alpha) and `iconutil`.
 
+## Scales: type, spacing, control heights (2026-11-04)
+
+Written in `globals.css` next to `--text-*`. The type scale is closed — `text-2xs` (11 px, slide numbers and
+counters, never a sentence), `text-xs` (12, hints), `text-dense` (13, an inspector's rows, toolbars), `text-sm`
+(14, body, fields, buttons), `Title h2` (15 condensed), `ModalTitle` (20 condensed) — and body text never goes
+under 13 px on the dark theme. `text-2xs` and `text-dense` are taught to tailwind-merge in `lib/utils.ts`:
+unknown to it, `text-dense` reads as a colour and erases the `text-foreground` beside it (a test asserts it).
+Section titles (`InspectorSection`, `FieldGroup`) are `Title h3` — 14 px semibold, sentence case, GitHub's — and
+the condensed uppercase `Title h2` is kept for the three column headers and, at 20 px, an editor's title (owner,
+2026-11-04). Spacing is Tailwind's 4 px step as a rule (4–8 inside a control, 8 between controls, 12–16 at a
+panel's edge, 24 between groups); separate with space before boxes, and a box is a 1 px border + 6 px, no
+shadow. Control heights, GitHub's: 24 (an icon inside a row), 28 (`xs`, a compact bar), **32 (`sm`, the default
+of `Button`, `IconButton`, `Input`, `Select`, `ColorField`)**, 40 (`md`, `Button` only: GO LIVE and LOGO / BLACK /
+LIVE — what is pressed during a service). Fields have no 40 any more. The transports under the monitors (deck,
+song, verse) and the rows of `MediaTrackRow` are 32 too, both sides at once: the row under each monitor must land
+on the same pixel as its twin across, so a control taller on one side misaligns both grids. A disabled FILLED button turns grey
+(`disabledVariants` in `button.tsx`) instead of fading: at 60 % opacity the light theme's navy read as a
+pale-blue button that could be pressed.
+
+## Full-screen editors: `EditorScreen`, `Inspector`, `EditorStage`
+
+Every editor in the control window (song themes, timer scenes, plates, the verse's look, the song editor, the saved
+programs and Settings; `docs/plans/2026-11-04-rediseno-ui/` in the maintainer workspace) is a full-screen
+`EditorScreen` (`components/shared/editor-screen/`) instead of a centred modal: a 48 px bar, and under it a list
+of the things of that kind · the canvas · the inspector.
+
+- **It is still a `Modal`**, `size="screen"` (`inset-0`, no backdrop, no frame): the stack, the focus trap, the
+  inert work screen, Escape and the global shortcuts switched off (`useAnyModalOpen`) all come with it.
+- **It fades in and out** (150 ms; the way out is the owner's, 2026-11-04). It is closed the instant `open` turns
+  false — off the stack, focus back on the opener, the work screen usable — and only its PICTURE stays to fade:
+  the children of the closing render, `inert`, `aria-hidden`, no pointer events. The editors clear their draft
+  once closed, so a fade of the live children would be a blink. `ModalBoundary` remounts on each OPENING, not on
+  open/close, or it would cut the fade off. A centred dialog still has no exit.
+  The owner's rule (2026-11-04) is that with an editor open no key acts on the projector, remote included;
+  `LiveIndicator` in the bar shows what is on air instead — the LIVE column's own heading/status and an
+  `OutputView` fed `selectOutput`, with `videoStill` so the thumbnail never decodes a video. Because of it, every
+  full-screen screen holds a second copy of what is projected — the logo too, when nothing is live — so a test that
+  looks for projected content inside an editor's dialog must scope it to the canvas or the tab panel, or it finds two.
+- **Two save models, two looks.** An editor that saves on demand passes `save`: ✕ to close, «Edited» by the
+  title while dirty, «Discard» while dirty, «Save» (the screen's ONE primary button, ⌘S/Ctrl+S while focus is
+  inside it), and a «⋯» `Menu` with Duplicate/Delete. Without `save`, the screen applies at once and closes with
+  «← Back». The edited thing's name is an inline input in the bar (`name`), not a «Name» field.
+- `Menu` without a `value` is a command menu (`menuitem`, nothing checked, options can be `disabled` or
+  `tone: "danger"`).
+- **`Inspector`** (`components/ui/inspector.tsx`, 352 px) folds its groups with the platform's `<details>`
+  (`InspectorSection`) and sets `FieldLayoutContext` to `compact` for every `FieldRow` inside it: label in a
+  fixed 7.5 rem column (the «?» glued to the label's last word, so it never sits alone on a line), the control right beside it taking the whole cell (a switch keeps its size, a slider its
+  readout), and the description behind a «?» tooltip — written out, the hints made an inspector twice as long —
+  still the row's description for a screen reader. The shared knobs of `style-fields.tsx` render compact in an
+  inspector and spread in Settings without a prop. `layout="stacked"` puts the label on top for what is too
+  wide to sit beside one.
+- **`EditorStage`** is a look editor's canvas: the 16:9 preview as large as the window allows (capped by height
+  too), its sample controls under it («See how it ends», «Try the way in/out», «See it with a long verse»), and
+  the reason «Save» is off. The previews (`ScenePreview`, `VersePreview`) are only the `OutputView`; the stage
+  frames them. `PlatePreview` IS the plates editor's canvas, because its two tests drive the state it draws.
+- **The verse's look is an editor, not a setting** (owner, 2026-11-04): the palette at the foot of the Bible tab
+  opens `VerseStyleModal`, the way «Themes» opens from the Songs tab's. It applies at once (a `settings` key, see the
+  note in the component), so its bar is «← Back» with nothing to save.
+- **The song editor's canvas is the lyrics, not a stage** (`SongEditorModal`): the list column holds the song's
+  slides as projected (`SongSlideGrid`, one tile wide), the textarea fills the middle, and the inspector starts
+  with the chosen slide drawn large, then its theme, order and data. The caret and the slides go together
+  (owner, 2026-11-04): the caret picks its slide on both sides and a click on a slide puts the caret at the start
+  of its words. Both directions are pure (`slideAtCaret` / `caretAtSlide` in `shared/song-text.ts`, tested); the
+  editor only holds the caret's offset, reported by the textarea's `onSelect` — which React fires on keys and the
+  mouse, NOT on a synthetic `select` event, so a test moves the caret with a real key.
+- **`onNew`** puts «+ New …» at the top of the list column, one look in every editor; a new, unsaved thing is a
+  plain selected row at the end of the list. «Duplicate» always saves a copy of what is SAVED and chooses it (it
+  copied the draft in two editors, discarded changes included).
+- **The saved programs are a screen too** (`ProgramsModal`, owner's D10): the programs on the left (search,
+  favourites filter, drag to reorder, the unsaved schedule pinned on top), what the chosen one IS — its items,
+  read with `programs:peek` so choosing never adopts it, drawn with the schedule's own row picture
+  (`shared/program-item-thumb.tsx`) inside a `Box` that runs down to the bottom of the canvas, the song editor's
+  lyrics box (rows hanging at the top of an empty canvas read as floating) — with «Open», and its favourite, notes and
+  dates in the inspector; Duplicate and Delete in «⋯». The top bar's «Save» of a program never saved opens it with
+  that schedule's row chosen and the caret in the name. The star in a row is saved at once and the chosen row's
+  draft follows it, so it is never a pending change. Opening a program over unsaved work, and leaving a changed
+  row, ask with the small `ConfirmModal` — a second question set by the first one's answer is kept, which is why
+  its `onOpenChange` only clears the question it showed.
+
 ## Forms: `FieldGroup`/`FieldRow`, and `ColorField`
 
 `FieldGroup` + `FieldRow` (`components/ui/field.tsx`) are the shape of ANY options screen: a
-title, a box with dividing lines and one row per option — label (with an optional description)
+subtitle, rows between thin lines with no box around them (GitHub's settings, 2026-11-04), and one row per option — label (with an optional description)
 on the left, its control on the right, never wrapping. They were born inside Settings as
 `SettingsGroup`/`SettingsRow` and moved up to `ui/` when the Timers scene editor became the
 second consumer: it's literally the `CLAUDE.md` reuse rule firing. You add an option to an
@@ -279,9 +368,9 @@ overscan that means the first and last lines cut in half.
 The `TopBar` is a **3-column grid identical to the `<main>`'s** below it (`grid-cols-3`), so each
 group of controls sits exactly above the column it acts on, regardless of the window's width:
 
-- **Column 1** (above Schedule/Resources): the Lumina Live symbol, the gear icon (Settings) and
-  the current schedule's card — name, Saved/Not saved badge, and three buttons (quick save, new
-  schedule, manage saved schedules) that open `pages/programs/ProgramsModal.tsx`.
+- **Column 1** (above Schedule/Resources): the Lumina Live symbol, the gear icon (Settings), the
+  current schedule's name as plain text, **«Save» with its word** (it was a 16 px icon), and two
+  icons: new schedule, and the saved schedules (`pages/programs/ProgramsModal.tsx`).
 - **Column 2** (above Slides): a single **GO LIVE** button that calls
   `lib/actions/playback.ts::goLive()` — it sends what's in preview to the projector, replacing
   whatever was there. It's the only way to cross from preview to live; there's no second
@@ -302,23 +391,22 @@ StatusBar or "projector connected/disconnected" indicator in the TopBar — CLEA
 selection and opening/closing the projection, the light/dark theme and the language all moved to
 `pages/settings/SettingsModal.tsx`, behind the gear icon that replaces the app's title.
 
-That modal is a category panel in the style of macOS System Settings, not a flat list: `Modal
-size="2xl" height="tall"` (a large fixed height — switching category never resizes the dialog)
-with `Tabs variant="sidebar"` on the left (`components/ui/tabs.tsx`, the same primitive as
-`resources/`, with a third, vertical variant) and, on the right, a scrollable panel with one
-`sections/<name>-section.tsx` per category. Inside each section, `FieldGroup` + `FieldRow`
-(in `components/ui/`, promoted there when the scene editor became the second user) group related
-rows into a card with dividers; each row follows the usual rule: label (+ optional description)
+Settings is a full-screen `EditorScreen` without `save` (it applies at once: «← Back»), laid out like GitHub's
+settings (2026-11-04): `Tabs variant="sidebar"` in the list column (`components/ui/tabs.tsx`, NavList's look) and
+the chosen section as a page in a reading column (`max-w-3xl`) CENTRED in the canvas, like every other screen's canvas
+— left-aligned, all the free space sat on the right and read as broken (owner); one scrollbar at the window's edge
+(`scrollbar-gutter: stable both-edges`) — a `PageHeader` (20 px, a thin line
+under it), then one `sections/<name>-section.tsx` per category. Inside each section, `FieldGroup` + `FieldRow`
+group related rows under a subtitle, separated by space and thin lines, never boxed; each row follows the usual rule: label (+ optional description)
 on the left, control(s) on the right, no wrap. Today's categories: **Projection** (screen,
 open/close the window, logo, clear live content, transition, starting volume), **Slides** (the slides'
-text fallback face, the cache and PDF rasterizing quality), **Verses** (how a verse is DRESSED, with its 16:9 preview on top),
+text fallback face, the cache and PDF rasterizing quality),
 **Bible** (which versions are installed: import, rename, default, delete), **System** (theme,
 language, folders, performance) and **About** (logo, version and logs folder). A new setting goes
 into an existing group or creates one inside its section — a category isn't added without need.
 
-«Verses» and «Bible» are two categories and not one with tabs, which is how they started: the
-style is a single `settings` key with a preview that wants the whole panel, and the versions are
-a table. The version list is drawn with the SAME `FieldRow`s as the rest of Settings (wrapped in
+How a verse is DRESSED is not in Settings: since 2026-11-04 it is the Bible tab's verse style editor (see
+«Full-screen editors» above). The version list is drawn with the SAME `FieldRow`s as the rest of Settings (wrapped in
 `<li>` inside a `<ul class="divide-y">`), not with the dense `ListRow` of the resource panels: a
 32 px row among 60 px rows is what made that screen read like a different application. That's
 why `FieldRow` accepts a `label` that is a node (the rename `<Input>` takes the name's place,
@@ -340,6 +428,20 @@ connected; otherwise, the first non-primary one) and exposes `open()/close()`. T
 starts on BLACK**, never showing the last content from a previous service. The operator
 cuts/restarts it from Settings, not manually from the TopBar.
 
+- **The work screen's chrome (2026-11-04 redesign, F4):** a column header is the title plus its data in
+  quiet text (`PanelHeader`'s `meta`), never a pill — only what asks the operator to act stays a
+  badge (the schedule's «Not saved», a damaged slide). The panel footers are neutral (`ghost`):
+  colour no longer carries meaning, and an action whose icon is not universal has its word
+  («Agregar medios», «Importar», «Temas», «Estilo del versículo», «Escenas», «Placas»); a
+  destructive and rare one goes in «⋯» (the schedule's «Vaciar»). «Agregar» (add to schedule) is
+  an `outline` button with its word at the right of each resource footer — neutral, so GO LIVE is
+  the one strong button of the work screen (owner's D13). Empty states carry no buttons. The transport boxes (`MediaPanel`) have no border
+  of their own — the card's fill sets them apart —, an `EmptyState` shows its icon without a disc,
+  everything that takes content off the projector — the transports' button, the LIVE panel's rows,
+  Settings' button — is «Sacar del aire» with the `offAir` icon (owner's D12), never the ✕ that
+  clears PREVIEW; a song's sections are one box everywhere (`Button outline xs`, and `Token` for
+  the order's removable chips); and the LIVE monitor's «No logo» notice appears only once LOGO is pressed, in a neutral band
+  (`OutputView`'s `notice` tone): resting on a missing logo is how every launch starts.
 - **`schedule/`**: the order of service. Click = preview, double click = live, drag = reorder.
   Every row leads with a small 16:9 picture (`RowThumb`, since 2.2.1): the same thumbnail the
   library tile shows (`lib/asset-thumb.ts`), a deck's first slide from one `deck:statuses`
@@ -347,7 +449,7 @@ cuts/restarts it from Settings, not manually from the TopBar.
   (audio, verse, time scene, plate, a missing file) the kind's tinted icon fills the same box, so
   every row keeps one height.
 - **`resources/`**: a single tabbed browser for **everything** projectable, Bible included
-  (`variant="folder"` of `Tabs`). An asset can be previewed and projected without being in the
+  (`variant="underline"` of `Tabs`, GitHub's UnderlineNav; the second level is a `segment`). An asset can be previewed and projected without being in the
   schedule — that's what EW's resources area does.
 - **`slides/`**: the grid of what the item in preview can put on screen — the slides of a deck,
   the verses of a chapter, or the file itself if it's a single one. It's also the only place that

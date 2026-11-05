@@ -5,6 +5,7 @@ import {
   Caption,
   EmptyState,
   HighlightedText,
+  Button,
   Icon,
   IconButton,
   Input,
@@ -12,6 +13,7 @@ import {
   Select,
   Tooltip,
 } from "@renderer/components/ui";
+import { ModalBoundary } from "@renderer/components/shared/modal-boundary";
 import { PanelBody, PanelFooter } from "@renderer/components/shared/panel";
 import { useBibleStore } from "@renderer/stores/bible.store";
 import { usePreviewStore } from "@renderer/stores/preview.store";
@@ -22,7 +24,9 @@ import { goLive } from "@renderer/lib/actions/playback";
 import { setBibleVerseDrag } from "@renderer/lib/dnd";
 import { useDebouncedCallback } from "@renderer/lib/hooks/use-debounced-callback";
 import { normalizeForSearch } from "@renderer/lib/utils";
+import { toast } from "@renderer/lib/toast";
 import { parseSnippet, type BibleBookDTO, type BibleSearchHit } from "@shared/types/bible";
+import { VerseStyleModal } from "./VerseStyleModal";
 
 const MIN_TEXT_QUERY_LENGTH = 3;
 /** One FTS query per keystroke was one round-trip per keystroke, each of them
@@ -74,6 +78,7 @@ export function BibleBrowser() {
   const [pendingBook, setPendingBook] = useState("");
   const [pendingChapter, setPendingChapter] = useState("");
   const [searchMode, setSearchMode] = useState<SearchMode>("reference");
+  const [styleOpen, setStyleOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [searchResults, setSearchResults] = useState<BibleSearchHit[]>([]);
   const [highlightedIndex, setHighlightedIndex] = useState(0);
@@ -325,18 +330,36 @@ export function BibleBrowser() {
       </PanelBody>
 
       <PanelFooter>
+        {/* Bottom left, like the Songs tab's «Themes»: the tab's own tools. */}
+        <Tooltip content={t("bible.styleHint")} floating>
+          <Button onClick={() => setStyleOpen(true)} size="sm" variant="ghost">
+            <Icon name="palette" />
+            {t("bible.styleTitle")}
+          </Button>
+        </Tooltip>
         <Tooltip className="ml-auto" content={t("resources.addToScheduleHint")} placement="top">
-          <IconButton
+          <Button
             aria-label={t("resources.addToSchedule")}
             disabled={previewIndex === null}
             onClick={() => previewIndex !== null && addVerseToSchedule(previewIndex)}
             size="sm"
-            variant="primary"
+            variant="outline"
           >
             <Icon name="addToSchedule" />
-          </IconButton>
+            {t("resources.addToScheduleShort")}
+          </Button>
         </Tooltip>
       </PanelFooter>
+
+      <ModalBoundary
+        onCrash={() => {
+          setStyleOpen(false);
+          toast.danger(t("app.modalCrashed"));
+        }}
+        open={styleOpen}
+      >
+        <VerseStyleModal onOpenChange={setStyleOpen} open={styleOpen} />
+      </ModalBoundary>
     </>
   );
 }

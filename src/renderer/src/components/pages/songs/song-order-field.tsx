@@ -1,6 +1,6 @@
 import { useEffect, useState, type DragEvent } from "react";
 import { useI18n } from "@renderer/lib/i18n/i18n-provider";
-import { Badge, Button, Caption, Icon, IconButton, Input } from "@renderer/components/ui";
+import { Button, Caption, Icon, IconButton, Input, Token } from "@renderer/components/ui";
 import { SECTION_FILL } from "@renderer/components/shared/song-section-fill";
 import { cn } from "@renderer/lib/utils";
 import { hideDragGhost } from "@renderer/lib/dnd";
@@ -94,7 +94,7 @@ export function SongOrderField({ custom, onChange, onReset, order, sections }: S
               }}
               title={labelOf(key)}
             >
-              <Badge className="cursor-grab gap-1.5 pr-0.5" variant={known.has(key) ? "neutral" : "danger"}>
+              <Token className="cursor-grab gap-1.5 pr-0.5" danger={!known.has(key)}>
                 <span className={cn("size-2 rounded-full", parsed ? SECTION_FILL[parsed.type] : "bg-danger")} />
                 {formatOrder([key], locale)}
                 <IconButton
@@ -105,7 +105,7 @@ export function SongOrderField({ custom, onChange, onReset, order, sections }: S
                 >
                   <Icon name="close" />
                 </IconButton>
-              </Badge>
+              </Token>
             </li>
           );
         })}

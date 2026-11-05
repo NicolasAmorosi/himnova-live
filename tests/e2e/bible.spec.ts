@@ -77,11 +77,18 @@ function writeZefania(dir: string, name: string): string {
   return file;
 }
 
-async function openBibleSettings(app: WorshipApp, section: "Biblia" | "Versículos" = "Biblia") {
+async function openBibleSettings(app: WorshipApp) {
   await app.control.getByRole("button", { name: "Configuración" }).click();
   const settings = app.control.getByRole("dialog", { name: "Configuración" });
-  await settings.getByRole("tab", { name: section }).click();
+  await settings.getByRole("tab", { name: "Biblia" }).click();
   return settings;
+}
+
+/** The verse's look: the palette at the foot of the Bible tab, a full-screen editor. */
+async function openVerseStyle(app: WorshipApp) {
+  await app.openResources("Biblia");
+  await app.control.getByRole("tabpanel", { name: "Biblia" }).getByRole("button", { name: "Estilo del versículo" }).click();
+  return app.control.getByRole("dialog", { name: "Estilo del versículo" });
 }
 
 async function verseLive(app: WorshipApp) {
@@ -152,12 +159,12 @@ for (const [file, contents] of [
   });
 }
 
-test("the verse style edited in Ajustes reaches the verse already on the projector", async ({ app }) => {
+test("the verse style edited from the Bible tab reaches the verse already on the projector", async ({ app }) => {
   const projector = await verseLive(app);
   const stage = projector.locator("body");
   await expect(stage).toContainText("Juan 3:16");
 
-  const settings = await openBibleSettings(app, "Versículos");
+  const settings = await openVerseStyle(app);
   await settings.getByRole("group", { name: "Mayúsculas" }).getByRole("combobox").click();
   await app.control.getByRole("option", { name: "TODO EN MAYÚSCULAS" }).click();
   await expect(stage).toContainText("JUAN 3:16");
@@ -176,7 +183,7 @@ test("the verse style edited in Ajustes reaches the verse already on the project
 test("an image background for the verse can be picked: nothing is saved until the image is", async ({ app }) => {
   const [photo] = await app.addMedia("image", "photo.png");
   const projector = await verseLive(app);
-  const settings = await openBibleSettings(app, "Versículos");
+  const settings = await openVerseStyle(app);
 
   await settings.getByRole("group", { name: "Tipo de fondo" }).getByRole("combobox").click();
   await app.control.getByRole("option", { name: "Imagen", exact: true }).click();

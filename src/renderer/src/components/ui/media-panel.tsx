@@ -7,7 +7,7 @@ type MediaPanelProps = {
 };
 
 /**
- * The one bordered container every media-transport row lives in — the live
+ * The one container every media-transport row lives in — the live
  * panel, the preview bar, the deck transport. A single shared shell is what
  * keeps all three visually identical instead of drifting apart one Tailwind
  * tweak at a time.
@@ -22,7 +22,10 @@ type MediaPanelProps = {
 export function MediaPanel({ children, className }: MediaPanelProps) {
   return (
     <div
-      className={cn("flex min-w-0 flex-col divide-y divide-border rounded-xl border border-border bg-card", className)}
+      // No border of its own (2026-11-04 redesign, P8): the card's fill already
+      // sets it apart from the column, and a line around every row was one
+      // more box inside a box.
+      className={cn("flex min-w-0 flex-col divide-y divide-border rounded-md bg-card", className)}
     >
       {children}
     </div>

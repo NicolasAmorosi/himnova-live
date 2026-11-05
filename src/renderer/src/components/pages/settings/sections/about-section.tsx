@@ -104,7 +104,7 @@ export function AboutSection() {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center gap-5 py-2">
-        <BrandMark className="size-20 rounded-2xl" />
+        <BrandMark className="size-20" />
         <div className="flex flex-col gap-2">
           <Wordmark className="text-5xl" />
           <Caption className="select-text">

@@ -40,6 +40,9 @@ type MediaTrackRowProps = {
    *  live image. Distinct from `onStop`: this empties the projector's own
    *  content, not just a standalone audio track. */
   onDelete?: (() => void) | undefined;
+  /** `onDelete` takes this off the PROJECTOR (the LIVE panel's rows), not just
+   *  off the preview: its own icon and name (owner, 2026-11-04, D12). */
+  offAir?: boolean | undefined;
   /** Present only where stopping makes sense — a standalone audio track.
    *  Absent for the video row and the deck's own music: nothing should be
    *  able to cut what's on the projector from here (that's `onDelete`'s job
@@ -161,6 +164,7 @@ export function MediaTrackRow({
   label,
   hint,
   onSeek,
+  offAir = false,
   onDelete,
   onGoLive,
   onRestart,
@@ -217,17 +221,18 @@ export function MediaTrackRow({
           <span className="shrink-0 whitespace-nowrap text-xs text-danger-ink">{readoutNote}</span>
         ) : null}
 
-        {/* `h-6`, the height of every `IconButton` beside it: an `xs` Button
-            is `h-7`, and it made the PREVIEW row of a plate 4px taller than
-            the LIVE one across. */}
+        {/* `sm`, 32 px like every `IconButton` of these rows (2026-11-04
+            redesign: the transports went from 24 to 32): a taller control on
+            one side made the PREVIEW row of a plate taller than the LIVE one
+            across. */}
         {onTakeDown ? (
-          <Button className="h-6 shrink-0" onClick={onTakeDown} size="xs" variant="outline">
+          <Button className="shrink-0" onClick={onTakeDown} size="sm" variant="outline">
             {t("media.takeDown")}
           </Button>
         ) : onGoLive ? (
           // The top bar's GO LIVE, same variant and wording: it does exactly
           // what that button does with this row's content in preview.
-          <Button className="h-6 shrink-0" onClick={onGoLive} size="xs" variant="live">
+          <Button className="shrink-0" onClick={onGoLive} size="sm" variant="live">
             <Icon name="play" />
             {t("actions.goLive")}
           </Button>
@@ -237,7 +242,7 @@ export function MediaTrackRow({
           <IconButton
             aria-label={paused ? (playLabel ?? t("media.play")) : (pauseLabel ?? t("media.pause"))}
             onClick={onTogglePause}
-            size="xs"
+            size="sm"
             variant="ghost"
           >
             <Icon name={paused ? "play" : "pause"} />
@@ -245,7 +250,7 @@ export function MediaTrackRow({
         ) : null}
 
         {onRestart ? (
-          <IconButton aria-label={t("media.restart")} onClick={onRestart} size="xs" variant="ghost">
+          <IconButton aria-label={t("media.restart")} onClick={onRestart} size="sm" variant="ghost">
             <Icon name="restart" />
           </IconButton>
         ) : null}
@@ -261,19 +266,25 @@ export function MediaTrackRow({
         ) : null}
 
         {onStop ? (
-          <IconButton aria-label={t("media.stop")} onClick={onStop} size="xs" variant="ghost">
+          <IconButton aria-label={t("media.stop")} onClick={onStop} size="sm" variant="ghost">
             <Icon name="close" />
           </IconButton>
         ) : onDelete ? (
-          <IconButton aria-label={t("common.remove")} onClick={onDelete} size="xs" variant="ghost">
-            <Icon name="close" />
+          <IconButton
+            aria-label={offAir ? t("live.takeOffAir") : t("common.remove")}
+            onClick={onDelete}
+            size="sm"
+            title={offAir ? t("live.takeOffAir") : undefined}
+            variant="ghost"
+          >
+            <Icon name={offAir ? "offAir" : "close"} />
           </IconButton>
         ) : (
           // Reserves the trailing button's footprint even when this row has
           // none (the deck's own music row, a video before it gained its
           // delete button) — every row in a panel stays the same height
           // whether or not it happens to end in a button.
-          <span aria-hidden="true" className="size-6 shrink-0" />
+          <span aria-hidden="true" className="size-8 shrink-0" />
         )}
       </div>
 

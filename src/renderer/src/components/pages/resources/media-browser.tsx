@@ -432,7 +432,7 @@ export function MediaBrowser({ active, kind }: { active: boolean; kind: AssetKin
             in-app picker could add to the view being browsed. */}
         {!isFolderView ? (
           <Tooltip align="start" content={t("library.addHint")} placement="top">
-            <IconButton aria-label={t("library.add")} onClick={() => void handleAdd()} size="sm" variant="success">
+            <IconButton aria-label={t("library.add")} onClick={() => void handleAdd()} size="sm" variant="ghost">
               <Icon name="add" />
             </IconButton>
           </Tooltip>
@@ -444,7 +444,7 @@ export function MediaBrowser({ active, kind }: { active: boolean; kind: AssetKin
               disabled={selectedId === null}
               onClick={() => selectedId !== null && void removeAsset(selectedId)}
               size="sm"
-              variant="warning"
+              variant="ghost"
             >
               <Icon name="close" />
             </IconButton>
@@ -456,14 +456,14 @@ export function MediaBrowser({ active, kind }: { active: boolean; kind: AssetKin
               aria-label={t("prewarm.action")}
               onClick={() => setConfirmPrewarmOpen(true)}
               size="sm"
-              variant="outline"
+              variant="ghost"
             >
               <Icon name="layers" />
             </IconButton>
           </Tooltip>
         ) : null}
         <Tooltip className="ml-auto" content={t("resources.addToScheduleHint")} placement="top">
-          <IconButton
+          <Button
             aria-label={t("resources.addToSchedule")}
             disabled={selectedId === null}
             onClick={() =>
@@ -475,10 +475,11 @@ export function MediaBrowser({ active, kind }: { active: boolean; kind: AssetKin
               )
             }
             size="sm"
-            variant="primary"
+            variant="outline"
           >
             <Icon name="addToSchedule" />
-          </IconButton>
+            {t("resources.addToScheduleShort")}
+          </Button>
         </Tooltip>
       </PanelFooter>
     </>
