@@ -9,5 +9,5 @@ export function LinearLoader({ className }: { className?: string }) {
 }
 
 export function Skeleton({ className }: { className?: string }) {
-  return <div className={cn("rounded-lg bg-muted motion-safe:animate-pulse", className)} />;
+  return <div className={cn("rounded-md bg-muted motion-safe:animate-pulse", className)} />;
 }

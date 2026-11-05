@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useT } from "@renderer/lib/i18n/i18n-provider";
-import { Badge, Button, EmptyState, Icon, IconButton, ListRow, Tooltip } from "@renderer/components/ui";
+import { Badge, Button, EmptyState, Icon, ListRow, Tooltip } from "@renderer/components/ui";
 import { PanelBody, PanelFooter } from "@renderer/components/shared/panel";
 import { ModalBoundary } from "@renderer/components/shared/modal-boundary";
 import { PlateAirStatus } from "@renderer/components/shared/plate-air-status";
@@ -42,12 +42,8 @@ export function OverlaysPanel() {
     <>
       <PanelBody className="gap-1.5 p-1.5">
         {plates.length === 0 ? (
+          // No button: «Placas» is in the footer right below (2026-11-04 review).
           <EmptyState
-            action={
-              <Button onClick={() => setEditorOpen(true)} size="sm" variant="primary">
-                {t("plates.new")}
-              </Button>
-            }
             description={t("overlays.emptyHint")}
             icon="overlay"
             title={t("overlays.empty")}
@@ -94,20 +90,22 @@ export function OverlaysPanel() {
           schedule» pinned right. */}
       <PanelFooter>
         <Tooltip content={t("overlays.manageHint")} floating>
-          <IconButton aria-label={t("overlays.manage")} onClick={() => setEditorOpen(true)} size="sm" variant="outline">
-            <Icon name="pencil" />
-          </IconButton>
+          <Button onClick={() => setEditorOpen(true)} size="sm" variant="ghost">
+            <Icon name="overlay" />
+            {t("overlays.manage")}
+          </Button>
         </Tooltip>
         <Tooltip className="ml-auto" content={t("resources.addToScheduleHint")} placement="top">
-          <IconButton
+          <Button
             aria-label={t("resources.addToSchedule")}
             disabled={previewedId === null}
             onClick={() => previewedId !== null && addItem({ kind: "plate", overlayPlateId: previewedId, title: null })}
             size="sm"
-            variant="primary"
+            variant="outline"
           >
             <Icon name="addToSchedule" />
-          </IconButton>
+            {t("resources.addToScheduleShort")}
+          </Button>
         </Tooltip>
       </PanelFooter>
 

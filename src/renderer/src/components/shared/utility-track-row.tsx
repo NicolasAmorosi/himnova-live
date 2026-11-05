@@ -16,6 +16,8 @@ type UtilityTrackRowProps = {
    *  two, which is the point: everything else about a time scene reads and
    *  behaves identically wherever the row is. */
   onDelete: () => void;
+  /** The LIVE panel's row: `onDelete` takes it off the projector. */
+  offAir?: boolean;
   scene: UtilityScene;
 };
 
@@ -44,7 +46,7 @@ type UtilityTrackRowProps = {
  * - **The readout** belongs to all four, because every one of them is a number
  *   the operator has to be able to read without looking at the projector.
  */
-export function UtilityTrackRow({ onDelete, scene }: UtilityTrackRowProps) {
+export function UtilityTrackRow({ offAir = false, onDelete, scene }: UtilityTrackRowProps) {
   const t = useT();
   const base = useProjectionStore((s) => s.base);
   const run = useUtilityStore((s) => s.run);
@@ -79,6 +81,7 @@ export function UtilityTrackRow({ onDelete, scene }: UtilityTrackRowProps) {
       durationSeconds={hasBar ? scene.config.durationMs / MS_PER_SECOND : undefined}
       kind="utility"
       label={scene.name}
+      offAir={offAir}
       onDelete={onDelete}
       onRestart={hasTransport ? () => resetTimer(scene) : undefined}
       onSeek={

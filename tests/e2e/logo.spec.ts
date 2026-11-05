@@ -25,8 +25,8 @@ test("LOGO with no logo chosen says so to the operator, and a chosen one is proj
   await expect(logoOnProjector(projector)).toHaveCount(0);
 
   const settings = await chooseLogo(app, fixture("photo.png"));
-  await expect(settings.locator('img[src^="worship://logo"]')).toBeVisible();
-  await settings.getByRole("button", { name: "Cerrar" }).first().click();
+  await expect(settings.getByRole("tabpanel", { name: "Proyección" }).locator('img[src^="worship://logo"]')).toBeVisible();
+  await settings.getByRole("button", { name: "Volver" }).click();
   await expect(logoOnProjector(projector)).toBeVisible();
   await expect.poll(() => logoOnProjector(projector).evaluate((img: HTMLImageElement) => img.naturalWidth)).toBe(1280);
   await expect(app.liveColumn().getByText("No hay logo cargado")).toHaveCount(0);
@@ -34,7 +34,7 @@ test("LOGO with no logo chosen says so to the operator, and a chosen one is proj
 
 test("L covers what is live with the logo and uncovers it again, also after a restart", async ({ app }) => {
   const settings = await chooseLogo(app, fixture("photo.png"));
-  await settings.getByRole("button", { name: "Cerrar" }).first().click();
+  await settings.getByRole("button", { name: "Volver" }).click();
   const [clip] = await app.addMedia("video", "clip.mp4");
   await app.previewFile("Videos", "clip");
   await app.goLive();
@@ -58,18 +58,18 @@ test("an image that cannot be read is refused and the previous logo stays", asyn
   const broken = path.join(app.profile, "broken.png");
   fs.writeFileSync(broken, Buffer.alloc(2048, 1));
   let settings = await chooseLogo(app, fixture("photo.png"));
-  await settings.getByRole("button", { name: "Cerrar" }).first().click();
+  await settings.getByRole("button", { name: "Volver" }).click();
 
   settings = await chooseLogo(app, broken);
   await expect(app.control.getByRole("status").filter({ hasText: "Esa imagen no se pudo leer. Se conserva el logo anterior." })).toBeVisible();
   const stored = await app.invoke<Record<string, unknown>>("settings:get");
   expect(stored["logo.path"]).toBe(fixture("photo.png"));
-  await expect(settings.locator('img[src^="worship://logo"]')).toBeVisible();
+  await expect(settings.getByRole("tabpanel", { name: "Proyección" }).locator('img[src^="worship://logo"]')).toBeVisible();
 });
 
 test("removing the logo while it is on the projector asks first", async ({ app }) => {
   const settings = await chooseLogo(app, fixture("photo.png"));
-  await settings.getByRole("button", { name: "Cerrar" }).first().click();
+  await settings.getByRole("button", { name: "Volver" }).click();
   await app.control.getByRole("button", { name: "LOGO", exact: true }).click();
   const projector = await app.projector();
   await expect(logoOnProjector(projector)).toBeVisible();

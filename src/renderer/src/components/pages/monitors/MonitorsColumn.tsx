@@ -1,9 +1,8 @@
 import { useT } from "@renderer/lib/i18n/i18n-provider";
-import { Badge } from "@renderer/components/ui";
 import { PanelBody, PanelHeader } from "@renderer/components/shared/panel";
 import { DamagedSlideBadge } from "@renderer/components/shared/damaged-slide";
 import { selectOutputMemo, useProjectionStore } from "@renderer/stores/projection.store";
-import { useLiveHeading } from "@renderer/lib/hooks/use-live";
+import { useLiveHeading, useLiveStatus } from "@renderer/lib/hooks/use-live";
 import { cn } from "@renderer/lib/utils";
 import { LiveMonitor } from "./live-monitor";
 import { LiveContentGrid } from "./live-content-grid";
@@ -26,28 +25,6 @@ import { SongTransport } from "./song-transport";
  * too; it's redundant with `DeckTransport`'s own counter and the highlighted
  * tile in `LiveContentGrid`, so it was dropped rather than shown three times.
  */
-function useLiveStatus(): string {
-  const t = useT();
-  const presentationOpen = useProjectionStore((s) => s.presentationOpen);
-  // Read off the SAME value the monitor renders, never a second reading of
-  // `overlay`/`base`: this badge used to re-derive the precedence by hand and
-  // got it wrong for the one case the two disagree on. With nothing selected
-  // and no overlay, `selectOutputWithoutUnderlay` falls back to the logo — so
-  // the stage showed the logo while the badge beside it said "No signal".
-  // A badge that contradicts the stage it labels is the monitor lying to the
-  // operator, which is the one thing this column may never do.
-  // `.kind` and not the whole output: a string is comparable by `Object.is`,
-  // so this subscription only wakes the column when the badge would actually
-  // change — not on every slide advance. `selectOutputMemo` makes the call
-  // inside the selector free.
-  const outputKind = useProjectionStore((s) => selectOutputMemo(s).kind);
-
-  if (!presentationOpen) return t("live.disconnected");
-  if (outputKind === "black") return t("status.black");
-  if (outputKind === "logo") return t("status.logo");
-  return "";
-}
-
 export function MonitorsColumn() {
   const t = useT();
   const presentationOpen = useProjectionStore((s) => s.presentationOpen);
@@ -66,21 +43,8 @@ export function MonitorsColumn() {
   return (
     <>
       <PanelHeader
-        actions={
-          <>
-            {heading ? (
-              <Badge className="min-w-0 flex-1" variant="blue">
-                <span className="truncate">{heading}</span>
-              </Badge>
-            ) : null}
-            <DamagedSlideBadge url={liveModelUrl} />
-            {status ? (
-              <Badge variant="neutral">
-                {status}
-              </Badge>
-            ) : null}
-          </>
-        }
+        actions={<DamagedSlideBadge url={liveModelUrl} />}
+        meta={[heading, status]}
         title={
           <span className="flex items-center gap-1.5">
             {broadcasting ? (
@@ -100,7 +64,7 @@ export function MonitorsColumn() {
           scrolling body for a while, which put it 6px lower and 18px narrower
           than the PREVIEW row; it caps its own height instead, so any number
           of tracks only ever takes part of the live grid's room. */}
-      <div className="flex min-h-0 flex-1 flex-col gap-3 p-3">
+      <div className="flex min-h-0 flex-1 flex-col gap-4 p-4">
         <LiveMonitor />
         <DeckTransport />
         <VerseTransport />

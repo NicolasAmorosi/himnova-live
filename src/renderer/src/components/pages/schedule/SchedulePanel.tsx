@@ -1,7 +1,8 @@
 import { useEffect, useState, type DragEvent } from "react";
 import { useT } from "@renderer/lib/i18n/i18n-provider";
-import { Badge, EmptyState, Icon, IconButton, Tooltip } from "@renderer/components/ui";
+import { Badge, Button, EmptyState, Icon, IconButton, Menu, Tooltip } from "@renderer/components/ui";
 import { PanelBody, PanelFooter, PanelHeader } from "@renderer/components/shared/panel";
+import { ConfirmModal } from "@renderer/components/shared/modal";
 import { useProgramStore } from "@renderer/stores/program.store";
 import { useLibraryStore } from "@renderer/stores/library.store";
 import { useDeckStore } from "@renderer/stores/deck.store";
@@ -104,12 +105,10 @@ export function SchedulePanel() {
   /** Same guard as «New schedule» beside it: unsaved work is only thrown
    *  away when the operator says so. A saved program empties at once — it is
    *  still in «Saved schedules». */
+  const [confirmClear, setConfirmClear] = useState(false);
   function handleClear() {
-    if (hasUnsavedChanges()) {
-      toast.warning(t("programs.discardWarning"), { action: { label: t("schedule.discardAndClear"), onClick: clear } });
-      return;
-    }
-    clear();
+    if (hasUnsavedChanges()) setConfirmClear(true);
+    else clear();
   }
 
   async function handleAddAll() {
@@ -212,14 +211,17 @@ export function SchedulePanel() {
 
   return (
     <>
+      {/* Unsaved asks the operator to act, so it stays a badge; saved is just
+          a fact, in quiet text. */}
       <PanelHeader
         actions={
-          <Tooltip content={dirty ? t("schedule.notSavedHint") : t("schedule.savedHint")} floating>
-            <Badge variant={dirty ? "neutral" : "success"}>
-              {dirty ? t("schedule.notSaved") : t("schedule.saved")}
-            </Badge>
-          </Tooltip>
+          dirty ? (
+            <Tooltip content={t("schedule.notSavedHint")} floating>
+              <Badge variant="neutral">{t("schedule.notSaved")}</Badge>
+            </Tooltip>
+          ) : null
         }
+        meta={[dirty ? null : t("schedule.saved")]}
         title={t("schedule.title")}
       />
       <PanelBody
@@ -259,22 +261,16 @@ export function SchedulePanel() {
           </ul>
         )}
       </PanelBody>
+      {/* Neutral buttons, no colours (2026-11-04 redesign, P1): the colour
+          was carrying the meaning instead of the words, and four saturated
+          fills competed with GO LIVE. «Clear» is destructive and rare: it
+          lives in «⋯». */}
       <PanelFooter>
         <Tooltip align="start" content={t("schedule.addAllHint")} placement="top">
-          <IconButton aria-label={t("schedule.addAll")} onClick={() => void handleAddAll()} size="sm" variant="success">
+          <Button onClick={() => void handleAddAll()} size="sm" variant="ghost">
             <Icon name="add" />
-          </IconButton>
-        </Tooltip>
-        <Tooltip align="start" content={t("schedule.removeHint")} placement="top">
-          <IconButton
-            aria-label={t("schedule.remove")}
-            disabled={selectedIndex === null}
-            onClick={() => selectedIndex !== null && removeAt(selectedIndex)}
-            size="sm"
-            variant="warning"
-          >
-            <Icon name="close" />
-          </IconButton>
+            {t("schedule.addAll")}
+          </Button>
         </Tooltip>
         <Tooltip align="start" content={t("schedule.moveUpHint")} placement="top">
           <IconButton
@@ -282,6 +278,7 @@ export function SchedulePanel() {
             disabled={selectedIndex === null || selectedIndex === 0}
             onClick={() => selectedIndex !== null && moveUp(selectedIndex)}
             size="sm"
+            variant="ghost"
           >
             <Icon name="chevronUp" />
           </IconButton>
@@ -292,22 +289,42 @@ export function SchedulePanel() {
             disabled={selectedIndex === null || selectedIndex === items.length - 1}
             onClick={() => selectedIndex !== null && moveDown(selectedIndex)}
             size="sm"
+            variant="ghost"
           >
             <Icon name="chevronDown" />
           </IconButton>
         </Tooltip>
-        <Tooltip className="ml-auto" content={t("schedule.clearHint")} placement="top">
+        <Tooltip align="start" content={t("schedule.removeHint")} placement="top">
           <IconButton
-            aria-label={t("schedule.clear")}
-            disabled={items.length === 0}
-            onClick={handleClear}
+            aria-label={t("schedule.remove")}
+            disabled={selectedIndex === null}
+            onClick={() => selectedIndex !== null && removeAt(selectedIndex)}
             size="sm"
-            variant="danger"
+            variant="ghost"
           >
-            <Icon name="ban" />
+            <Icon name="close" />
           </IconButton>
         </Tooltip>
+        <Menu
+          align="end"
+          className="ml-auto"
+          icon="more"
+          label={t("editor.more")}
+          onSelect={(command) => {
+            if (command === "clear") handleClear();
+          }}
+          options={[{ disabled: items.length === 0, label: t("schedule.clear"), tone: "danger", value: "clear" }]}
+          size="sm"
+        />
       </PanelFooter>
+      <ConfirmModal
+        confirmLabel={t("schedule.discardAndClear")}
+        description={t("programs.discardWarning")}
+        onConfirm={clear}
+        onOpenChange={setConfirmClear}
+        open={confirmClear}
+        title={t("programs.discardTitle")}
+      />
     </>
   );
 }

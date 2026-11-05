@@ -1,6 +1,5 @@
 import { useT } from "@renderer/lib/i18n/i18n-provider";
 import {
-  Badge,
   EmptyState,
   MediaPanel,
   SLIDE_GRID_GAP_PX,
@@ -232,19 +231,11 @@ export function SlidesPanel() {
   return (
     <>
       <PanelHeader
-        actions={
-          <>
-            {heading ? (
-              <Badge className="min-w-0 flex-1" variant="blue">
-                <span className="truncate">{heading}</span>
-              </Badge>
-            ) : null}
-            <DamagedSlideBadge url={previewModelUrl} />
-          </>
-        }
+        actions={<DamagedSlideBadge url={previewModelUrl} />}
+        meta={[heading]}
         title={t("slides.title")}
       />
-      <div className="flex min-h-0 flex-1 flex-col gap-3 p-3">
+      <div className="flex min-h-0 flex-1 flex-col gap-4 p-4">
         <PreviewMonitor />
         {mediaBar}
         <PanelBody className="p-1.5">{body()}</PanelBody>

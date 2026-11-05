@@ -5,9 +5,11 @@ import { extendTailwindMerge } from "tailwind-merge";
 // part of tailwind-merge's default value list for the `shadow` group, so plain
 // twMerge doesn't know shadow-surface and shadow-none conflict — both survive
 // and cascade order (not className order) picks the winner. Copied from
-// libretto-villaaurora's lib/utils.ts, same reason.
+// libretto-villaaurora's lib/utils.ts, same reason. The two type steps added
+// to `--text-*` (globals.css) likewise: unknown to it, `text-dense` reads as a
+// COLOUR and silently removes the `text-foreground` next to it.
 const twMerge = extendTailwindMerge({
-  extend: { theme: { shadow: ["surface", "raised", "overlay"] } },
+  extend: { theme: { shadow: ["surface", "raised", "overlay"], text: ["2xs", "dense"] } },
 });
 
 export function cn(...inputs: ClassValue[]): string {

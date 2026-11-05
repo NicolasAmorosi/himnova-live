@@ -1,16 +1,20 @@
 /**
  * The lyrics text format: headers in four languages, the guess for text
- * pasted without any, the order line, and the round trip.
+ * pasted without any, the order line, the round trip, and the editor's caret
+ * ↔ slide link.
  */
 import { describe, expect, test } from "vitest";
 import {
+  caretAtSlide,
   formatOrder,
   missingOrderKeys,
   parseLyrics,
   parseOrder,
   sectionLabel,
   serializeLyrics,
+  slideAtCaret,
   songDeckSlides,
+  splitSection,
 } from "../../src/shared/song-text";
 
 const keysOf = (text: string, locale: "es" | "en" | "it" | "pt" = "es") =>
@@ -129,5 +133,85 @@ describe("the order", () => {
     ]);
     expect(songDeckSlides(sections, []).map((s) => s.lines[0])).toEqual(["a", "b", "c"]);
     expect(missingOrderKeys(sections, ["v1", "x1", "x1"])).toEqual(["x1"]);
+  });
+});
+
+describe("the caret and the slides", () => {
+  /** The song as projected, the way `resolveSong` builds it. */
+  const deck = (text: string, maxLines = 0, order?: string[]) => {
+    const parsed = parseLyrics(text, "es");
+    const sections = parsed.sections.map((section) => splitSection(section, maxLines));
+    return songDeckSlides(sections, order ?? parsed.sequence);
+  };
+  /** The slide (0-based) under the caret placed right before `needle`. */
+  const at = (text: string, needle: string, maxLines = 0, preferred: number | null = null, order?: string[]) =>
+    slideAtCaret(text, text.indexOf(needle), "es", maxLines, deck(text, maxLines, order), preferred);
+  /** The line the caret lands on for slide `index`. */
+  const landsOn = (text: string, index: number, maxLines = 0) => {
+    const offset = caretAtSlide(text, "es", maxLines, deck(text, maxLines)[index]!);
+    return offset === null ? null : text.slice(offset).split("\n")[0];
+  };
+
+  const headed = "[Estrofa 1]\nuno\ndos\n\ntres\n\n[Coro]\ncoro a\ncoro b\n\n[Estrofa 2]\ncuatro\n\n[Coro]";
+
+  test("with headers: a lyric line is its slide; a header or a blank line, the slide that comes next", () => {
+    expect(at(headed, "uno")).toBe(0);
+    expect(at(headed, "dos")).toBe(0);
+    expect(at(headed, "tres")).toBe(1);
+    expect(at(headed, "[Coro]")).toBe(2);
+    expect(at(headed, "\n\n[Estrofa 2]")).toBe(2); // the end of «coro b» is still the chorus
+    expect(at(headed, "\n[Estrofa 2]")).toBe(3); // the blank line after it belongs to what follows
+    expect(at(headed, "cuatro")).toBe(3);
+  });
+
+  test("a chorus the order sings twice: the pass chosen stays, else the first", () => {
+    // The bare «[Coro]» at the end is the chorus again: E1 E1 C E2 C.
+    expect(deck(headed).map((s) => s.lines[0])).toEqual(["uno", "tres", "coro a", "cuatro", "coro a"]);
+    expect(at(headed, "coro a")).toBe(2);
+    expect(at(headed, "coro a", 0, 4)).toBe(4);
+    expect(at(headed, "coro a", 0, 3)).toBe(2);
+  });
+
+  test("without headers: the block that comes back is the chorus, wherever it is written", () => {
+    // Not «coro»: a bare section name at the start of a block is a header.
+    const text = "uno\n\nven ya\n\ndos\n\nven ya";
+    expect(deck(text).map((s) => s.sectionKey)).toEqual(["v1", "c1", "v2", "c1"]);
+    expect(at(text, "dos")).toBe(2);
+    expect(at(text, "ven ya")).toBe(1);
+    expect(at(text, "ven ya", 0, 3)).toBe(3);
+    expect(landsOn(text, 3)).toBe("ven ya");
+    expect(text.indexOf("ven ya")).toBe(caretAtSlide(text, "es", 0, deck(text)[3]!));
+  });
+
+  test("double blank lines and padding change nothing", () => {
+    const text = "[Coro]\n  a  \n\n\n\nb\n\n\n";
+    expect(at(text, "  a")).toBe(0);
+    expect(at(text, "\n\n\nb")).toBe(1);
+    expect(at(text, "b")).toBe(1);
+    expect(slideAtCaret(text, text.length, "es", 0, deck(text), null)).toBe(1);
+    expect(landsOn(text, 1)).toBe("b");
+  });
+
+  test("a theme that splits long slides: the caret follows the piece, and back", () => {
+    const text = "[Estrofa 1]\n1\n2\n3\n4\n5\n\n6\n[Coro]\nc";
+    // 2 lines a slide: [1 2] [3 4] [5] [6] [c]
+    expect(deck(text, 2).map((s) => s.lines.join(" "))).toEqual(["1 2", "3 4", "5", "6", "c"]);
+    expect(at(text, "4", 2)).toBe(1);
+    expect(at(text, "5", 2)).toBe(2);
+    expect(at(text, "6", 2)).toBe(3);
+    expect(at(text, "c", 2)).toBe(4);
+    expect([0, 1, 2, 3, 4].map((i) => landsOn(text, i, 2))).toEqual(["1", "3", "5", "6", "c"]);
+  });
+
+  test("a section out of the order is not projected: no slide", () => {
+    expect(at(headed, "cuatro", 0, null, ["v1", "c1"])).toBeNull();
+    expect(slideAtCaret("", 0, "es", 0, [], null)).toBeNull();
+  });
+
+  test("Windows line ends count as one line", () => {
+    const text = "[Estrofa 1]\r\nuno\r\n\r\n[Coro]\r\ncoro";
+    expect(at(text, "coro")).toBe(1);
+    expect(landsOn(text.replace(/\r/g, ""), 1)).toBe("coro");
+    expect(text.slice(caretAtSlide(text, "es", 0, deck(text)[1]!)!)).toBe("coro");
   });
 });

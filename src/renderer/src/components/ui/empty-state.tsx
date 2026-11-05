@@ -30,15 +30,10 @@ export function EmptyState({ action, className, description, icon, title, tone =
         )}
         {...props}
       >
+        {/* The bare icon, no disc behind it (2026-11-04 redesign, P9): most of
+            these are the normal state of an empty list, not an event. */}
         {icon ? (
-          <span
-            className={cn(
-              "mb-1 flex size-12 items-center justify-center rounded-full",
-              tone === "danger" ? "bg-danger/15 text-danger-ink" : "bg-muted text-subtle",
-            )}
-          >
-            <Icon className="size-6" name={icon} />
-          </span>
+          <Icon className={cn("size-5", tone === "danger" ? "text-danger-ink" : "text-subtle")} name={icon} />
         ) : null}
         <p className={cn("text-sm font-semibold", tone === "danger" ? "text-danger-ink" : "text-foreground")}>{title}</p>
         {description ? <p className="text-xs text-subtle">{description}</p> : null}

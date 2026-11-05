@@ -118,6 +118,38 @@ test("saving the song that is live changes the projector in place, on the same s
   await expect(app.liveColumn().getByText("3/3")).toBeVisible();
 });
 
+test("in the editor the caret in the lyrics and the slides go together", async ({ app }) => {
+  // E1 C E1 C: six slides, the verse's two and the chorus, twice.
+  await createSong(app, "Sublime gracia", GRACIA, "E1 C E1 C");
+  await songRows(app).first().click();
+  await tab(app).getByRole("button", { name: "Editar canción" }).click();
+  const editor = dialog(app);
+  const lyrics = editor.getByRole("textbox", { name: "Letra" });
+  const caretAt = async (needle: string) => {
+    await lyrics.evaluate((el: HTMLTextAreaElement, text) => {
+      el.focus();
+      const at = el.value.indexOf(text) + 1;
+      el.setSelectionRange(at, at);
+    }, needle);
+    // Moved with a real key, as the operator does: that is what reports the caret.
+    await app.control.keyboard.press("ArrowLeft");
+  };
+  const caretLine = () => lyrics.evaluate((el: HTMLTextAreaElement) => el.value.slice(el.selectionStart).split("\n")[0]);
+
+  await caretAt("Fui ciego");
+  await expect(editor.getByText("2/6 · Estrofa 1")).toBeVisible();
+  await caretAt("Aleluya");
+  await expect(editor.getByText("3/6 · Coro")).toBeVisible();
+
+  // A click on the chorus's second pass keeps that pass, and puts the caret on its words.
+  await editor.getByRole("button", { name: "6 Coro" }).click();
+  await expect(editor.getByText("6/6 · Coro")).toBeVisible();
+  await expect.poll(caretLine).toBe("Aleluya, aleluya");
+  await editor.getByRole("button", { name: "5 Estrofa 1" }).click();
+  await expect.poll(caretLine).toBe("Fui ciego mas hoy veo yo");
+  await expect(editor.getByText("5/6 · Estrofa 1")).toBeVisible();
+});
+
 test("a song in the order of service comes back after a restart, and deleting it asks", async ({ app }) => {
   await createSong(app, "Sublime gracia", GRACIA);
   await songRows(app).first().click();
@@ -134,7 +166,8 @@ test("a song in the order of service comes back after a restart, and deleting it
   await again.openResources("Canciones");
   await songRows(again).first().click();
   await tab(again).getByRole("button", { name: "Editar canción" }).click();
-  await dialog(again).getByRole("button", { name: "Eliminar", exact: true }).click();
+  await dialog(again).getByRole("button", { name: "Más acciones" }).click();
+  await again.control.getByRole("menuitem", { name: "Eliminar", exact: true }).click();
   const confirm = again.control.getByRole("dialog", { name: "¿Eliminar esta canción?" });
   await expect(confirm.getByText("Domingo")).toBeVisible();
   await confirm.getByRole("button", { name: "Eliminar igualmente" }).click();
@@ -195,7 +228,7 @@ test("a theme edited in «Temas» dresses the live song, and the footer carries 
   await settings.getByRole("tab", { name: "Canciones" }).click();
   await settings.getByRole("textbox", { name: "Licencia CCLI de la iglesia" }).fill("998877");
   await settings.getByRole("textbox", { name: "Licencia CCLI de la iglesia" }).press("Enter");
-  await settings.getByRole("button", { name: "Cerrar" }).first().click();
+  await settings.getByRole("button", { name: "Volver" }).click();
 
   await createSong(app, "Sublime gracia", GRACIA);
   await songRows(app).first().click();

@@ -145,17 +145,19 @@ src/
         ├── projection/ProjectionApp.tsx  # projection window shell (no domain logic)
         ├── components/
         │   ├── ui/          # design system primitives — barrel index.ts
-        │   ├── shared/      # cross-feature: modal, panel, output-view (renders a ProjectionOutput),
-        │   │                #   timer-scene + bible-scene (the two generated scenes), style-fields
+        │   ├── shared/      # cross-feature: modal, editor-screen (the full-screen editor shell), panel,
+        │   │                #   output-view (renders a ProjectionOutput), timer-scene + bible-scene (the two
+        │   │                #   generated scenes), style-fields
         │   └── pages/       # one folder per feature:
         │       ├── layout/     # AppShell (EasyWorship-style grid), TopBar
         │       ├── schedule/   # the order of service (left column, top)
-        │       ├── resources/  # tabbed browser: Bible | Songs | Media (videos, images, audio, presentations) | Functions
+        │       ├── resources/  # tabbed browser: Bible | Songs | Media (videos, images, audio, presentations) | Functions;
+        │       │               #   the verse's look editor (`VerseStyleModal`, the palette at the foot of the Bible tab)
         │       ├── songs/      # the Songs tab, the song editor (one song at a time) and the «Temas» editor
         │       ├── slides/     # center: PREVIEW monitor + grid of slides/verses of the item in preview
         │       ├── monitors/   # right column: LIVE monitor, live grid, deck transport
-        │       ├── settings/   # Settings; sections/bible/ = verse style + version manager
-        │       └── programs/   # saved programs modal
+        │       ├── settings/   # Settings (the bible versions manager among them)
+        │       └── programs/   # the saved programs screen
         ├── stores/          # Zustand: program, toast, preview, projection, deck, bible,
         │                    #   library, settings, audio, display, ui
         ├── effects/         # projection-sync.ts + deck-autoplay.ts + deck-sounds.ts +
@@ -235,10 +237,23 @@ amber carries dark text, never white.
 
 Every color value comes from the Lumina Live identity sheet, or is a mix of two of
 its colors — never invented. Before adding one, read the palette table in
-`docs/knowledge/06-ui-and-theme.md`. Shapes come from the identity too: buttons, badges,
-switches and segments are **pills** (`rounded-full`), a dialog `rounded-2xl`, a card or a
-group `rounded-xl`, a field or a thumbnail `rounded-lg` — a surface never contains a radius
-larger than its own. Focus is the `outline` of the `focus-ring` utility (or `focus-ring-inset` inside
+`docs/knowledge/06-ui-and-theme.md`. Shapes do NOT come from the identity sheet any more (owner,
+2026-11-04: «less heavily rounded», GitHub's Primer): **four radii** — `rounded-sm` (4, something small
+inside something else), `rounded-md` (6, everything that acts or contains: buttons, fields, switches,
+segments, rows, thumbnails, boxes, tooltips, toasts), `rounded-xl` (12, what floats: centred dialogs,
+menus, dropdowns) and `rounded-full` only for what is not a control (badges, dots, progress bars, thumbs).
+`rounded-lg`, `rounded-2xl` and the bare `rounded` are retired, and `tests/renderer/radius-scale.test.ts`
+fails on them; a surface never contains a radius larger than its own. Controls are 32 px by default
+(`sm`), 28 in a compact bar (`xs`), and 40 (`md`) only for what is pressed during a service.
+**Five button looks, each with one job** (2026-11-04 review, F4b): `primary` (filled, WITH its word, one per surface:
+an editor's Save, a dialog's Confirm), `live` (GO LIVE only — and a plate's own row in PREVIEW, owner's D14), a tool
+(`IconButton ghost`, a universal icon, always a tooltip), a tool with its word (`Button ghost` icon + text) and the
+secondary (`Button outline`: inside content, Settings, under a canvas, «Add to schedule»). `danger` only on the button
+that confirms something destructive; the teal fill means a state (toggled), never an action. There is no `secondary`
+variant any more and `IconButton` has only `ghost`/`outline`. One verb, one icon: ✕ closes or removes from a list,
+`offAir` takes something off the projector («Sacar del aire»), the pencil edits the chosen thing. Discarding unsaved
+work always asks with the small `ConfirmModal`, never a toast with an action. Empty states carry no buttons — the
+action is in the panel's footer. Focus is the `outline` of the `focus-ring` utility (or `focus-ring-inset` inside
 something that clips), **never** `ring-offset-*`: its gap is painted white, and in the dark theme it
 drew a white halo around every focused control.
 
@@ -329,7 +344,7 @@ npm install              # installs deps — better-sqlite3 ships prebuilt binar
 npm run dev               # electron-vite dev (HMR in the renderer, main restarts on watch)
 npm run typecheck          # tsc --noEmit over node (main+preload+shared) and web (renderer+shared)
 npm run lint                # eslint .
-npm run test                 # vitest run — 574 cases in two projects: `main` (Node: migrations, seed,
+npm run test                 # vitest run — 584 cases in two projects: `main` (Node: migrations, seed,
                               #   FTS5, repos and the library sweep, draft, settings and scene validators, WAL backup,
                               #   zip reader, the legacy-deck reader against an OLE2 file built in the test
                               #   (`tests/fixtures/legacy-ppt.ts`: pictures, master inheritance, what it refuses),
@@ -352,7 +367,7 @@ npm run test                 # vitest run — 574 cases in two projects: `main` 
                               #   frozen frame, toast store, utils). Nothing imports `electron`: that's
                               #   the suite's boundary
 npm run test:watch            # the same suite in watch mode, while working on a module
-npm run test:e2e              # build + Playwright: 155 walkthroughs of the real app (~10 min) with a
+npm run test:e2e              # build + Playwright: 157 walkthroughs of the real app (~10 min) with a
                               #   throwaway profile and media generated on the fly — videos, AVI and WMA with the
                               #   bundled FFmpeg; PDFs, a legacy .pps made of pictures and .pptx with auto-advance, a
                               #   WMA soundtrack and an embedded WMV written in code (`tests/e2e/support/pptx.ts`),

@@ -1,18 +1,27 @@
-import { useEffect, useId, useRef, useSyncExternalStore, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { cn } from "@renderer/lib/utils";
 import { Dialog } from "@renderer/components/ui";
 import { getTopModalId, popModal, pushModal, subscribeModalStack } from "./modal-stack";
 import { ModalTitleIdContext } from "./modal-title-id";
 
-type ModalSize = "sm" | "md" | "lg" | "xl" | "2xl";
+/** `screen` is a full-screen editor (`components/shared/editor-screen/`): the
+ *  whole control window, no backdrop, no frame. It stays a `Modal` on purpose —
+ *  the stack, the focus trap, the `inert` work screen behind it, Escape and the
+ *  shortcuts switched off (`useAnyModalOpen`) are exactly what an editor that
+ *  covers everything needs, and a confirm opened from it still stacks on top. */
+type ModalSize = "sm" | "md" | "lg" | "xl" | "2xl" | "screen";
 const modalSizes: Record<ModalSize, string> = {
   sm: "max-w-md",
   md: "max-w-lg",
   lg: "max-w-2xl",
   xl: "max-w-4xl",
   "2xl": "max-w-5xl",
+  screen: "",
 };
+
+/** How long a full-screen editor takes to fade out — `.wa-screen-exit`. */
+const SCREEN_EXIT_MS = 150;
 
 type ModalHeight = "auto" | "tall";
 /** "tall" gives a modal a large, fixed height instead of growing to its
@@ -83,6 +92,26 @@ export function Modal({
   const topId = useSyncExternalStore(subscribeModalStack, getTopModalId);
   const dialogRef = useRef<HTMLDivElement>(null);
   const openerRef = useRef<HTMLElement | null>(null);
+  const screen = size === "screen";
+
+  // A full-screen editor fades OUT as it faded in (owner, 2026-11-04). It is
+  // closed the instant `open` turns false — off the stack, the work screen no
+  // longer inert, focus back on the opener, no Escape — and what stays for
+  // `SCREEN_EXIT_MS` is only its picture: `inert`, hidden from the
+  // accessibility tree and from the pointer. The picture is the children of
+  // the closing render, kept as they were, because the editors clear their
+  // draft once closed and a fade of an emptied screen is a blink.
+  const [wasOpen, setWasOpen] = useState(open);
+  const [leaving, setLeaving] = useState<ReactNode>(null);
+  if (open !== wasOpen) {
+    setWasOpen(open);
+    setLeaving(!open && screen ? children : null);
+  }
+  useEffect(() => {
+    if (leaving === null) return;
+    const timer = setTimeout(() => setLeaving(null), SCREEN_EXIT_MS);
+    return () => clearTimeout(timer);
+  }, [leaving]);
 
   useEffect(() => {
     if (!open) return;
@@ -123,8 +152,8 @@ export function Modal({
     };
   }, [open]);
 
-  if (!open) return null;
-  const isTop = topId === id;
+  if (!open && leaving === null) return null;
+  const isTop = open && topId === id;
 
   /** Wrapping Tab/Shift+Tab back into the dialog. A sentinel receiving focus
    *  means the tab order just ran off that end. */
@@ -137,8 +166,16 @@ export function Modal({
 
   return createPortal(
     <ModalTitleIdContext.Provider value={titleId}>
-      <div className="fixed inset-0 z-[var(--z-modal)] flex items-center justify-center p-4">
-        {isTop ? (
+      <div
+        aria-hidden={open ? undefined : true}
+        className={cn(
+          "fixed inset-0 z-[var(--z-modal)] flex items-center justify-center",
+          !screen && "p-4",
+          !open && "pointer-events-none",
+        )}
+        inert={!open}
+      >
+        {isTop && !screen ? (
           <button
             aria-hidden="true"
             className="wa-backdrop-enter absolute inset-0 cursor-default bg-scrim backdrop-blur-sm"
@@ -159,15 +196,20 @@ export function Modal({
           aria-labelledby={titleId}
           aria-modal="true"
           className={cn(
-            "wa-modal-enter relative max-h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)]",
+            screen
+              ? cn(
+                  open ? "wa-screen-enter" : "wa-screen-exit",
+                  "relative size-full rounded-none border-0 bg-background shadow-none",
+                )
+              : "wa-modal-enter relative max-h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)]",
             modalSizes[size],
-            modalHeights[height],
+            !screen && modalHeights[height],
             className,
           )}
           ref={dialogRef}
           tabIndex={-1}
         >
-          {children}
+          {open ? children : leaving}
         </Dialog>
         {/* eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- see above */}
         <span aria-hidden="true" onFocus={() => focusEdge("first")} tabIndex={isTop ? 0 : -1} />

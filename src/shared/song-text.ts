@@ -225,7 +225,8 @@ class SectionCollector {
     return key;
   }
 
-  add(header: Header, rawSlides: string[][]): void {
+  /** The block under `header`, filed; returns the key of the section it is. */
+  add(header: Header, rawSlides: string[][]): string {
     const slides = rawSlides.filter((lines) => lines.length > 0);
     const { type } = header;
     let key: string;
@@ -250,6 +251,7 @@ class SectionCollector {
       }
     }
     this.sequence.push(key);
+    return key;
   }
 
   result(): ParsedLyrics {
@@ -257,72 +259,159 @@ class SectionCollector {
   }
 }
 
-/** Blocks of non-blank lines. */
-function blocks(lines: readonly string[]): string[][] {
-  const out: string[][] = [];
-  let current: string[] = [];
-  for (const line of lines) {
-    if (line === "") {
-      if (current.length > 0) out.push(current);
-      current = [];
-    } else {
-      current.push(line);
-    }
-  }
-  if (current.length > 0) out.push(current);
+/** A slide as written: its lines and the text line it starts on (0-based). */
+type WrittenSlide = { lines: string[]; line: number };
+type WrittenBlock = { header: Header; slides: WrittenSlide[] };
+
+/** Runs of non-blank lines. */
+function slideRuns(lines: readonly string[]): WrittenSlide[] {
+  const out: WrittenSlide[] = [];
+  let current: WrittenSlide | null = null;
+  lines.forEach((line, index) => {
+    if (line === "") current = null;
+    else if (current) current.lines.push(line);
+    else out.push((current = { lines: [line], line: index }));
+  });
   return out;
 }
 
 /** Text without a single header: each block is a section of its own, and a
  *  block that comes back word for word is the chorus (FreeShow's guess, the
  *  minimum; the operator corrects it). */
-function parseWithoutHeaders(lines: readonly string[]): ParsedLyrics {
-  const all = blocks(lines);
+function blocksWithoutHeaders(lines: readonly string[]): WrittenBlock[] {
+  const all = slideRuns(lines);
   const counts = new Map<string, number>();
-  for (const block of all) counts.set(block.join("\n"), (counts.get(block.join("\n")) ?? 0) + 1);
-  const collector = new SectionCollector();
-  for (const block of all) {
-    const repeated = (counts.get(block.join("\n")) ?? 0) > 1;
-    collector.add({ type: repeated ? "chorus" : "verse", number: null }, [block]);
-  }
-  return collector.result();
+  for (const run of all) counts.set(run.lines.join("\n"), (counts.get(run.lines.join("\n")) ?? 0) + 1);
+  return all.map((run) => ({
+    header: { type: (counts.get(run.lines.join("\n")) ?? 0) > 1 ? "chorus" : "verse", number: null },
+    slides: [run],
+  }));
 }
 
-function parseWithHeaders(lines: readonly string[], locale: Locale): ParsedLyrics {
-  const collector = new SectionCollector();
+function blocksWithHeaders(lines: readonly string[], locale: Locale): WrittenBlock[] {
+  const out: WrittenBlock[] = [];
   // Lines above the first header are a verse, so nothing typed is dropped.
   let header: Header | null = null;
-  let slides: string[][] = [];
-  let slide: string[] = [];
+  let body: string[] = [];
+  let bodyStart = 0;
   const flush = () => {
-    if (slide.length > 0) slides.push(slide);
-    if (header !== null || slides.length > 0) collector.add(header ?? { type: "verse", number: null }, slides);
-    slides = [];
-    slide = [];
+    const slides = slideRuns(body).map((run) => ({ ...run, line: run.line + bodyStart }));
+    if (header !== null || slides.length > 0) out.push({ header: header ?? { type: "verse", number: null }, slides });
   };
   lines.forEach((line, index) => {
     const next = readHeader(lines, index, locale);
-    if (next) {
-      flush();
-      header = next;
-    } else if (line === "") {
-      if (slide.length > 0) slides.push(slide);
-      slide = [];
-    } else {
-      slide.push(line);
+    if (!next) {
+      body.push(line);
+      return;
     }
+    flush();
+    header = next;
+    body = [];
+    bodyStart = index + 1;
   });
   flush();
-  return collector.result();
+  return out;
 }
 
-export function parseLyrics(text: string, locale: Locale): ParsedLyrics {
+function writtenBlocks(text: string, locale: Locale): WrittenBlock[] {
   const lines = text
     .replace(/\r\n?/g, "\n")
     .split("\n")
     .map((line) => line.trim());
   const headed = lines.some((_, index) => readHeader(lines, index, locale) !== null);
-  return headed ? parseWithHeaders(lines, locale) : parseWithoutHeaders(lines);
+  return headed ? blocksWithHeaders(lines, locale) : blocksWithoutHeaders(lines);
+}
+
+export function parseLyrics(text: string, locale: Locale): ParsedLyrics {
+  const collector = new SectionCollector();
+  for (const block of writtenBlocks(text, locale)) {
+    collector.add(block.header, block.slides.map((slide) => slide.lines));
+  }
+  return collector.result();
+}
+
+/* ---------------------------------------------------------------------------
+ * The caret and the slides (the song editor, owner 2026-11-04)
+ * ------------------------------------------------------------------------ */
+
+/** Every slide as written, in the text's order: the section `parseLyrics` files
+ *  it under, its index there (before a theme splits it), and its lines. A
+ *  chorus written twice is two entries of the same key. */
+type SlideSpan = { key: string; index: number; line: number; lines: number };
+
+function slideSpans(text: string, locale: Locale): SlideSpan[] {
+  const collector = new SectionCollector();
+  return writtenBlocks(text, locale).flatMap((block) => {
+    const key = collector.add(block.header, block.slides.map((slide) => slide.lines));
+    return block.slides.map((slide, index) => ({ key, index, line: slide.line, lines: slide.lines.length }));
+  });
+}
+
+/** How many slides `splitSection` cuts a written slide of `lines` lines into. */
+const pieces = (lines: number, maxLines: number) => (maxLines > 0 ? Math.max(1, Math.ceil(lines / maxLines)) : 1);
+
+/** The lines of the `index`-th written slide of `key`. */
+const spanLines = (spans: readonly SlideSpan[], key: string, index: number) =>
+  spans.find((span) => span.key === key && span.index === index)?.lines ?? 1;
+
+function lineAt(text: string, offset: number): number {
+  return text.slice(0, offset).split(/\r\n?|\n/).length - 1;
+}
+
+function lineStart(text: string, line: number): number {
+  const breaks = /\r\n?|\n/g;
+  let start = 0;
+  for (let n = 0; n < line; n += 1) {
+    const match = breaks.exec(text);
+    if (!match) return text.length;
+    start = match.index + match[0].length;
+  }
+  return start;
+}
+
+/**
+ * Which of `slides` — the song as projected: the order expanded and split to
+ * the theme's `maxLines` (`ResolvedSong.slides`) — the caret at `offset` of
+ * `text` is on, 0-based. On a header or a blank line it is the slide that comes
+ * next. A section the order sings more than once is `preferred` when that is
+ * one of its passes, else its first. `null` when the caret's slide is not
+ * projected (a section out of the order) or there are no lyrics.
+ */
+export function slideAtCaret(
+  text: string,
+  offset: number,
+  locale: Locale,
+  maxLines: number,
+  slides: readonly SongDeckSlide[],
+  preferred: number | null,
+): number | null {
+  const spans = slideSpans(text, locale);
+  const line = lineAt(text, offset);
+  const span =
+    spans.find((s) => line >= s.line && line < s.line + s.lines) ?? spans.find((s) => s.line > line) ?? spans.at(-1);
+  if (!span) return null;
+  let split = 0;
+  for (let index = 0; index < span.index; index += 1) split += pieces(spanLines(spans, span.key, index), maxLines);
+  const inSpan = Math.min(Math.max(0, line - span.line), span.lines - 1);
+  if (maxLines > 0) split += Math.floor(inSpan / maxLines);
+  const matches = slides.flatMap((slide, i) =>
+    slide.sectionKey === span.key && slide.indexInSection === split ? [i] : [],
+  );
+  return preferred !== null && matches.includes(preferred) ? preferred : (matches[0] ?? null);
+}
+
+/** And back: where the caret goes for `slide` — the start of its first line,
+ *  where its words are first written. `null` when the text has no such slide. */
+export function caretAtSlide(text: string, locale: Locale, maxLines: number, slide: SongDeckSlide): number | null {
+  const spans = slideSpans(text, locale);
+  let rest = slide.indexInSection;
+  for (let index = 0; ; index += 1) {
+    const span = spans.find((s) => s.key === slide.sectionKey && s.index === index);
+    if (!span) return null;
+    const count = pieces(span.lines, maxLines);
+    if (rest < count) return lineStart(text, span.line + rest * maxLines);
+    rest -= count;
+  }
 }
 
 /** Sections → the text the editor shows: every section once, with its header

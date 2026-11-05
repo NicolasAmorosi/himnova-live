@@ -12,6 +12,7 @@ import { SongSlideTile } from "./song-slide-tile";
  * 1-based, like a deck's.
  */
 export function SongSlideGrid({
+  columns = DECK_GRID_COLUMNS,
   liveIndex,
   onActivate,
   onSelect,
@@ -20,6 +21,8 @@ export function SongSlideGrid({
   song,
   theme,
 }: {
+  /** The song editor's slide column is one tile wide. */
+  columns?: number;
   liveIndex: number | null;
   onActivate?: (index: number) => void;
   onSelect: (index: number) => void;
@@ -37,7 +40,7 @@ export function SongSlideGrid({
   return (
     <VirtualGrid
       aria-label={t("songs.slidesLabel", { title: song.title })}
-      columns={DECK_GRID_COLUMNS}
+      columns={columns}
       gap={SLIDE_GRID_GAP_PX}
       itemHeight={(columnWidth) => thumbTileHeight(columnWidth, { label: true })}
       itemKey={({ index }) => index}

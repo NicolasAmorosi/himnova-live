@@ -19,14 +19,13 @@ type SelectProps = Omit<ButtonHTMLAttributes<HTMLButtonElement>, "onChange" | "t
    *  default, because for a handful of options the box is one more thing
    *  between the operator and the value. */
   searchable?: boolean;
-  size?: "xs" | "sm" | "md";
+  size?: "xs" | "sm";
   value: string;
 };
 
 const sizes: Record<NonNullable<SelectProps["size"]>, string> = {
   xs: "h-7 text-xs pl-2 pr-6",
-  sm: "h-9 text-sm pl-3 pr-8",
-  md: "h-10 text-sm pl-3 pr-8",
+  sm: "h-8 text-sm pl-3 pr-8",
 };
 
 /**
@@ -281,7 +280,7 @@ export function Select({
       aria-expanded={open}
       aria-haspopup="listbox"
       className={cn(
-        "focus-ring relative inline-flex items-center rounded-lg border border-border bg-surface text-left text-foreground transition-colors hover:border-border-light disabled:cursor-not-allowed disabled:opacity-60",
+        "focus-ring relative inline-flex items-center rounded-md border border-border bg-surface text-left text-foreground transition-colors hover:border-border-light disabled:cursor-not-allowed disabled:opacity-60",
         sizes[size],
         className,
       )}
@@ -368,7 +367,7 @@ export function Select({
                   aria-disabled={option.disabled || undefined}
                   aria-selected={option.value === value}
                   className={cn(
-                    "flex items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-sm text-foreground",
+                    "flex items-center justify-between gap-2 rounded-md px-2 py-1.5 text-sm text-foreground",
                     option.disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer",
                     !option.disabled && index === highlightedIndex && "bg-hover",
                   )}

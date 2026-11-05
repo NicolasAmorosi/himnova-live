@@ -30,7 +30,7 @@ function Toast({ item, onDismiss }: { item: ToastItem; onDismiss: () => void }) 
   return (
     <div
       className={cn(
-        "flex items-start gap-2 rounded-xl border p-3 text-sm shadow-overlay",
+        "flex items-start gap-2 rounded-md border p-3 text-sm shadow-overlay",
         toneClassName[item.tone],
         // A dismissed toast keeps its box while it fades, but stops taking
         // clicks: its action button is on its way out and pressing it would

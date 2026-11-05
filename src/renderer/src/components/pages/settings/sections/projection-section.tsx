@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useT } from "@renderer/lib/i18n/i18n-provider";
-import { Button, FieldGroup, FieldRow, Icon, Select, Tooltip, VolumeControl } from "@renderer/components/ui";
+import { Box, Button, FieldGroup, FieldRow, Icon, Select, Tooltip, VolumeControl } from "@renderer/components/ui";
 import { ConfirmModal } from "@renderer/components/shared/modal";
 import { transitionDurationOptions, transitionStyleOptions } from "@renderer/lib/transition";
 import { useDisplayStore } from "@renderer/stores/display.store";
@@ -81,17 +81,18 @@ export function ProjectionSection() {
               label: `${d.label}${d.primary ? ` ${t("header.primaryDisplay")}` : ""}`,
               value: String(d.id),
             }))}
-            size="md"
             value={displayId !== null ? String(displayId) : ""}
           />
         </FieldRow>
         <FieldRow description={t("settings.windowDesc")} label={t("settings.windowLabel")}>
           {presentationOpen ? (
-            <Button onClick={() => void useDisplayStore.getState().close()} variant="secondary">
+            <Button onClick={() => void useDisplayStore.getState().close()} variant="outline">
               {t("header.closeDisplay")}
             </Button>
           ) : (
-            <Button disabled={displayId === null} onClick={() => void useDisplayStore.getState().open()}>
+            // The same look as «Close» in the same place: Settings applies at
+            // once and has no primary action (2026-11-04 review).
+            <Button disabled={displayId === null} onClick={() => void useDisplayStore.getState().open()} variant="outline">
               {t("header.openDisplay")}
             </Button>
           )}
@@ -103,7 +104,7 @@ export function ProjectionSection() {
           <Tooltip content={t("settings.logoFormats")} floating>
             <Icon className="text-subtle" name="help" />
           </Tooltip>
-          <Button onClick={() => void changeLogo()} variant="secondary">
+          <Button onClick={() => void changeLogo()} variant="outline">
             {t("settings.chooseFile")}
           </Button>
           {/* Asked first only when the logo IS the picture on the projector:
@@ -118,7 +119,10 @@ export function ProjectionSection() {
             <Icon name="close" /> {t("settings.logoRemove")}
           </Button>
         </FieldRow>
-        <div className="flex h-64 flex-col items-center justify-center gap-2 overflow-hidden bg-surface px-4 py-3">
+        {/* The projector's own proportion, small — the empty 704×256 slab it
+            was took the page over (2026-11-04 review). */}
+        <div className="py-3">
+          <Box className="flex aspect-video w-full max-w-sm flex-col items-center justify-center gap-2 overflow-hidden px-4">
           {logoUrl ? (
             <img alt="" className="h-full max-w-full object-contain" src={logoUrl} />
           ) : (
@@ -127,13 +131,14 @@ export function ProjectionSection() {
               <span className="text-xs text-subtle">{t("settings.logoEmpty")}</span>
             </>
           )}
+          </Box>
         </div>
       </FieldGroup>
 
       <FieldGroup title={t("settings.groups.liveContent")}>
         <FieldRow description={t("settings.clearLiveDesc")} label={t("settings.clearLive")}>
           <Button disabled={base === null} onClick={clearLive} variant="outline">
-            <Icon name="close" /> {t("footer.clear")}
+            <Icon name="offAir" /> {t("live.takeOffAir")}
           </Button>
         </FieldRow>
       </FieldGroup>
@@ -167,7 +172,6 @@ export function ProjectionSection() {
             className="min-w-48"
             onChange={(value) => void updateSettings({ "projection.transition.style": value as TransitionStyle })}
             options={transitionStyleOptions(t)}
-            size="md"
             value={transitionStyle}
           />
         </FieldRow>
@@ -177,7 +181,6 @@ export function ProjectionSection() {
             disabled={transitionStyle === "none"}
             onChange={(value) => void updateSettings({ "projection.transition.durationMs": Number(value) })}
             options={transitionDurationOptions(t)}
-            size="md"
             value={String(transitionDurationMs)}
           />
         </FieldRow>

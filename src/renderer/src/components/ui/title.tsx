@@ -1,4 +1,4 @@
-import type { HTMLAttributes, LabelHTMLAttributes } from "react";
+import type { HTMLAttributes, LabelHTMLAttributes, ReactNode } from "react";
 import { cn } from "@renderer/lib/utils";
 
 type TitleProps = HTMLAttributes<HTMLHeadingElement> & { as?: "h1" | "h2" | "h3" };
@@ -16,6 +16,12 @@ const sizes: Record<NonNullable<TitleProps["as"]>, string> = {
 export function Title({ as = "h2", className, ...props }: TitleProps) {
   const Component = as;
   return <Component className={cn(sizes[as], className)} {...props} />;
+}
+
+/** The heading of a page in a full-screen screen with sections (Settings):
+ *  GitHub's «Subhead», a 20 px title with a thin line under it. */
+export function PageHeader({ children }: { children: ReactNode }) {
+  return <h2 className="border-b border-border pb-2 text-xl font-semibold text-foreground">{children}</h2>;
 }
 
 /** `Label`'s typography without the `<label>` semantics — for text that names

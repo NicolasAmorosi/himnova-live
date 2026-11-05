@@ -85,7 +85,7 @@ export function DeckTransport() {
             aria-label={t("deck.previous")}
             disabled={current <= 1}
             onClick={() => advanceSlide(-1)}
-            size="xs"
+            size="sm"
             variant="ghost"
           >
             <Icon name="prev" />
@@ -96,12 +96,12 @@ export function DeckTransport() {
               <IconButton
                 aria-label={autoplay === "playing" ? t("deck.pause") : t("deck.play")}
                 onClick={() => toggleAutoplay()}
-                size="xs"
+                size="sm"
                 variant="ghost"
               >
                 <Icon name={autoplay === "playing" ? "pause" : "play"} />
               </IconButton>
-              <IconButton aria-label={t("deck.restart")} onClick={() => restartDeck()} size="xs" variant="ghost">
+              <IconButton aria-label={t("deck.restart")} onClick={() => restartDeck()} size="sm" variant="ghost">
                 <Icon name="restart" />
               </IconButton>
             </>
@@ -111,7 +111,7 @@ export function DeckTransport() {
             aria-label={t("deck.next")}
             disabled={current >= total}
             onClick={() => advanceSlide(1)}
-            size="xs"
+            size="sm"
             variant="ghost"
           >
             <Icon name="next" />
@@ -121,8 +121,22 @@ export function DeckTransport() {
             {t("deck.counter", { current, total })}
           </span>
 
-          <IconButton aria-label={t("common.remove")} onClick={clearBaseContent} size="xs" variant="ghost">
-            <Icon name="close" />
+          <IconButton
+
+            aria-label={t("live.takeOffAir")}
+
+            onClick={clearBaseContent}
+
+            size="sm"
+
+            title={t("live.takeOffAir")}
+
+            variant="ghost"
+
+          >
+
+            <Icon name="offAir" />
+
           </IconButton>
         </div>
 

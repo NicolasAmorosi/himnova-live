@@ -99,8 +99,7 @@ high and medium findings. This was left open, each item with its reason:
 - **Style violations in `pages/`** (the UI review's table): the hand-written buttons of
   `media-source-bar.tsx` and of the theme selector (the rebrand to Lumina Live only changed their
   shape and focus; they're still hand-written), about 25 hand-written typography classes in
-  `pages/`, the warning note duplicated between `remove-asset-confirm` and `program-side-panel`,
-  and two copies of the `FieldGroup` box. They're cosmetic and each one needs a visual pass.
+  `pages/`, and two copies of the `FieldGroup` box. They're cosmetic and each one needs a visual pass.
 - **The units `s`, `px` and `%` are still written in the code.** They're typography, not words;
   the neutral color names did go through i18n.
 - **The Windows package carries the better-sqlite3 prebuilds for other platforms** and their

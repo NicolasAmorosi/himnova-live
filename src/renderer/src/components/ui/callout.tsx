@@ -36,7 +36,7 @@ export function Callout({ children, className, tone = "info", ...rest }: Callout
   const { dismissLabel: _dismissLabel, onDismiss: _onDismiss, ...props } = rest;
   return (
     <div
-      className={cn("flex items-start gap-2 rounded-xl border p-3 text-sm", toneClassName[tone], className)}
+      className={cn("flex items-start gap-2 rounded-md border p-3 text-sm", toneClassName[tone], className)}
       {...props}
     >
       <Icon className={cn("mt-0.5", toneIconClassName[tone])} name={toneIcon[tone]} />

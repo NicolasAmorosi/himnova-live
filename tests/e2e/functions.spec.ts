@@ -27,9 +27,9 @@ test("a plate made in the editor goes up over what is live", async ({ app }) => 
   const projector = await app.projector();
   await expect(projector.locator(`img[src="worship://asset/${photo?.id}"]`)).toBeVisible();
 
-  // An empty Overlays panel opens the editor straight on a new plate.
+  // «Placas» on an empty Overlays panel opens the editor straight on a new plate.
   await app.openResources("Funciones", "Overlays");
-  await control.getByRole("tabpanel", { name: "Overlays" }).getByRole("button", { name: "Nueva placa" }).click();
+  await control.getByRole("tabpanel", { name: "Overlays" }).getByRole("button", { name: "Placas", exact: true }).click();
   const editor = control.getByRole("dialog", { name: "Placas" });
   await editor.getByRole("group", { name: "Título", exact: true }).getByRole("textbox").fill("Pr. Juan Pérez");
   await editor.getByRole("button", { name: "Guardar", exact: true }).click();
@@ -54,10 +54,10 @@ async function sceneLive(app: WorshipApp, name: string) {
 test("a countdown made in the editor runs out on the projector and shows its end message", async ({ app }) => {
   const { control } = app;
   await app.openResources("Funciones", "Utilidades");
-  await control.getByRole("button", { name: "Escenas…" }).click();
+  await control.getByRole("button", { name: "Escenas", exact: true }).click();
   const editor = control.getByRole("dialog", { name: "Escenas de tiempo" });
   await editor.getByRole("button", { name: "Nueva escena" }).first().click();
-  await editor.getByRole("group", { name: "Nombre", exact: true }).getByRole("textbox").fill("Cuenta corta");
+  await editor.getByRole("textbox", { name: "Nombre", exact: true }).fill("Cuenta corta");
   await editor.getByRole("group", { name: "Duración", exact: true }).getByRole("textbox").fill("0:04");
   await editor.getByRole("group", { name: "Mensaje al terminar", exact: true }).getByRole("textbox").fill("¡Empezamos!");
   await editor.getByRole("button", { name: "Guardar", exact: true }).click();
@@ -123,7 +123,7 @@ async function plateUp(app: WorshipApp, configure?: (editor: Locator) => Promise
   await expect(projector.locator(`img[src="worship://asset/${photo?.id}"]`)).toBeVisible();
 
   await app.openResources("Funciones", "Overlays");
-  await control.getByRole("tabpanel", { name: "Overlays" }).getByRole("button", { name: "Nueva placa" }).click();
+  await control.getByRole("tabpanel", { name: "Overlays" }).getByRole("button", { name: "Placas", exact: true }).click();
   const editor = control.getByRole("dialog", { name: "Placas" });
   await editor.getByRole("group", { name: "Título", exact: true }).getByRole("textbox").fill("Pr. Juan Pérez");
   await configure?.(editor);
@@ -138,7 +138,7 @@ async function plateUp(app: WorshipApp, configure?: (editor: Locator) => Promise
 test("a plate taken down from the LIVE panel leaves what is under it", async ({ app }) => {
   const { projector, photo } = await plateUp(app);
   const row = app.liveColumn().getByText("Placa nueva").locator("..");
-  await row.getByRole("button", { name: "Quitar" }).click();
+  await row.getByRole("button", { name: "Sacar del aire" }).click();
   await expect(projector.getByText("Pr. Juan Pérez")).toHaveCount(0);
   await expect(projector.locator(`img[src="worship://asset/${photo?.id}"]`)).toBeVisible();
 });
@@ -163,10 +163,11 @@ test("a plate set to hide by itself goes down after its time", async ({ app }) =
 test("deleting a plate that is up takes it off the projector first", async ({ app }) => {
   const { projector } = await plateUp(app);
   const { control } = app;
-  await control.getByRole("tabpanel", { name: "Overlays" }).getByRole("button", { name: "Placas…" }).click();
+  await control.getByRole("tabpanel", { name: "Overlays" }).getByRole("button", { name: "Placas", exact: true }).click();
   const editor = control.getByRole("dialog", { name: "Placas" });
   await editor.getByRole("list", { name: "Placas guardadas" }).getByRole("listitem").filter({ hasText: "Placa nueva" }).click();
-  await editor.getByRole("button", { name: "Eliminar", exact: true }).click();
+  await editor.getByRole("button", { name: "Más acciones" }).click();
+  await control.getByRole("menuitem", { name: "Eliminar", exact: true }).click();
   const confirm = control.getByRole("dialog", { name: "¿Eliminar esta placa?" });
   await expect(confirm).toContainText("La placa está en el aire");
   await confirm.getByRole("button", { name: "Eliminar", exact: true }).click();

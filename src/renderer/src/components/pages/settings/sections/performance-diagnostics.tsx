@@ -203,10 +203,10 @@ export function PerformanceDiagnostics() {
       ) : null}
 
       <FieldRow description={t("settings.internalsDesc")} label={t("settings.internals")}>
-        <Button onClick={() => void api.system.openInternals("gpu")} variant="secondary">
+        <Button onClick={() => void api.system.openInternals("gpu")} variant="outline">
           {t("settings.internalsGpu")}
         </Button>
-        <Button onClick={() => void api.system.openInternals("media-internals")} variant="secondary">
+        <Button onClick={() => void api.system.openInternals("media-internals")} variant="outline">
           {t("settings.internalsMedia")}
         </Button>
       </FieldRow>
@@ -218,10 +218,9 @@ export function PerformanceDiagnostics() {
           onChange={(value) => setSelectedId(Number(value))}
           options={videos.map((video) => ({ label: video.name, value: String(video.id) }))}
           placeholder={videos.length === 0 ? t("settings.probeNoVideos") : t("settings.probeChoose")}
-          size="md"
           value={selectedId === null ? "" : String(selectedId)}
         />
-        <Button disabled={running || selectedId === null} onClick={() => void startProbe()} variant="secondary">
+        <Button disabled={running || selectedId === null} onClick={() => void startProbe()} variant="outline">
           {running ? t("settings.probeRunning") : t("settings.probeRun")}
         </Button>
       </FieldRow>

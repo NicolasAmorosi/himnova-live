@@ -18,7 +18,7 @@ export type ProgramMetaInput = {
 
 /** True when loading a different program, starting a new one, or deleting the
  *  one that's currently open would throw away work — the guard callers (the
- *  modal's `discard` panel, or the TopBar's "New schedule" toast) check
+ *  programs screen's «Discard and open», or the TopBar's "New schedule" toast) check
  *  before calling `openProgram`/`newProgram`/`deleteProgram` unconditionally. */
 export function hasUnsavedChanges(): boolean {
   const { dirty, items } = useProgramStore.getState();
@@ -123,9 +123,9 @@ export async function saveCurrentProgram(): Promise<void> {
   }
 }
 
-/** Creates a new saved program from the schedule currently open — used by the
- *  side panel's `create` mode, whether that's the very first save of a new
- *  program or an explicit "Save as" off an already-saved one. */
+/** Creates a new saved program from the schedule currently open — the
+ *  programs screen's unsaved-schedule row, which is also where the top bar's
+ *  «Save» of a program that was never saved lands. */
 export async function createProgramFromCurrent(meta: ProgramMetaInput): Promise<ProgramSummary | null> {
   try {
     const { sent, items } = draftItems();
@@ -175,7 +175,7 @@ export async function updateProgramMeta(id: number, meta: ProgramMetaInput): Pro
 }
 
 /** Copies a program's header + items under the given metadata — chosen by the
- *  user in the side panel's `duplicate` mode, prefilled with a "(copy)"
+ *  user from the programs screen's «⋯ › Duplicate», prefilled with a "(copy)"
  *  name suggestion and the source's own notes/favorite. Never touches the
  *  currently loaded program. */
 export async function duplicateProgram(id: number, meta: ProgramMetaInput): Promise<ProgramSummary | null> {

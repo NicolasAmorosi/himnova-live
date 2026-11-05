@@ -87,7 +87,7 @@ test("closing the projector window from outside does not strand the operator", a
  *  when it has one, its position bar. `null` until it is on screen. */
 async function firstRow(column: Locator) {
   const box = await column.boundingBox();
-  const close = await column.getByRole("button", { name: /^(Quitar|Detener)$/ }).first().boundingBox();
+  const close = await column.getByRole("button", { name: /^(Quitar|Detener|Sacar del aire)$/ }).first().boundingBox();
   const bar = column.getByRole("slider", { name: /^Posición de / }).first();
   const barBox = (await bar.count()) > 0 ? await bar.boundingBox() : null;
   if (!box || !close) return null;

@@ -16,35 +16,29 @@ type ProgramRowProps = {
    *  its floating clone (see `ProgramsModal`) does the moving. */
   dragging: boolean;
   isCurrent: boolean;
-  onDelete: () => void;
-  onDuplicate: () => void;
-  onEdit: () => void;
   /** Double click — the fast path straight to the projector's schedule. */
   onOpen: () => void;
   onDragStart: (e: DragEvent<HTMLLIElement>) => void;
-  /** Single click — opens the side panel with the program's items and an
-   *  explicit "Open" confirmation, instead of switching schedules on a
-   *  single accidental click. */
-  onPreview: () => void;
+  /** Single click — chooses the program: its items in the canvas, its notes
+   *  in the inspector. Never switches schedules on an accidental click. */
+  onSelect: () => void;
   onToggleFavorite: () => void;
   program: ProgramSummary;
   ref: Ref<HTMLLIElement>;
   selected: boolean;
 };
 
-/** One saved program in the administration list — the only row with action
- *  buttons; the current unsaved schedule gets its own pinned row instead. */
+/** One saved program in the programs screen's list. Duplicate and Delete act
+ *  on the chosen one from the bar's «⋯»; the star is the only action here,
+ *  because it is saved at once. */
 export function ProgramRow({
   draggable,
   dragOver,
   dragging,
   isCurrent,
-  onDelete,
   onDragStart,
-  onDuplicate,
-  onEdit,
   onOpen,
-  onPreview,
+  onSelect,
   onToggleFavorite,
   program,
   ref,
@@ -58,7 +52,7 @@ export function ProgramRow({
 
   return (
     <ListRow
-      className={cn("rounded-none px-4 py-1.5", dragging && "opacity-40")}
+      className={cn(dragging && "opacity-40")}
       data-id={program.id}
       draggable={draggable && dragReady}
       dropBefore={dragOver}
@@ -82,7 +76,7 @@ export function ProgramRow({
           </IconButton>
         </Tooltip>
       }
-      onClick={onPreview}
+      onClick={onSelect}
       onDoubleClick={onOpen}
       onDragEnd={() => setDragReady(false)}
       onDragStart={(e) => {
@@ -91,47 +85,7 @@ export function ProgramRow({
       }}
       ref={ref}
       selected={selected}
-      trailing={
-        <>
-          {isCurrent ? <Badge variant="blue">{t("programs.inUse")}</Badge> : null}
-          <Tooltip content={t("programs.edit")} floating>
-            <IconButton
-              aria-label={t("programs.edit")}
-              onClick={(e) => {
-                e.stopPropagation();
-                onEdit();
-              }}
-              variant="ghost"
-            >
-              <Icon name="pencil" />
-            </IconButton>
-          </Tooltip>
-          <Tooltip content={t("programs.duplicate")} floating>
-            <IconButton
-              aria-label={t("programs.duplicate")}
-              onClick={(e) => {
-                e.stopPropagation();
-                onDuplicate();
-              }}
-              variant="ghost"
-            >
-              <Icon name="copy" />
-            </IconButton>
-          </Tooltip>
-          <Tooltip content={t("programs.delete")} floating>
-            <IconButton
-              aria-label={t("programs.delete")}
-              onClick={(e) => {
-                e.stopPropagation();
-                onDelete();
-              }}
-              variant="danger"
-            >
-              <Icon name="remove" />
-            </IconButton>
-          </Tooltip>
-        </>
-      }
+      trailing={isCurrent ? <Badge variant="blue">{t("programs.inUse")}</Badge> : null}
     >
       {program.name}
     </ListRow>

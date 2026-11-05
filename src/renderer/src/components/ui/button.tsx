@@ -1,7 +1,7 @@
 import { Children, type ButtonHTMLAttributes, type ReactNode, type Ref } from "react";
 import { cn } from "@renderer/lib/utils";
 
-type ButtonVariant = "primary" | "secondary" | "outline" | "ghost" | "danger" | "live" | "link";
+type ButtonVariant = "primary" | "outline" | "ghost" | "danger" | "live" | "link";
 type ButtonSize = "xs" | "sm" | "md" | "lg";
 
 type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
@@ -18,7 +18,6 @@ const variants: Record<ButtonVariant, string> = {
   // and without an edge the button is a label floating on nothing. On the
   // light theme `primary-border` IS the fill, so it adds nothing there.
   primary: "border border-primary-border bg-primary text-primary-foreground hover:bg-primary-hover active:bg-primary-hover/80",
-  secondary: "bg-secondary text-secondary-foreground hover:bg-secondary-hover active:bg-secondary-hover/80",
   outline: "border border-border bg-transparent text-foreground hover:border-accent hover:bg-muted active:bg-muted/80",
   ghost: "text-foreground hover:bg-muted active:bg-muted/80",
   danger: "bg-danger text-danger-foreground hover:bg-danger/90 active:bg-danger/75",
@@ -35,6 +34,22 @@ const variants: Record<ButtonVariant, string> = {
 // own Record rather than a special case inside `sizes` because a link and a
 // button of the same `size` are not the same height, and pretending otherwise
 // is how one of them ends up nudged by hand at a call site.
+/** How a disabled button looks. A filled one turns into a quiet grey button
+ *  instead of fading: at 60% opacity the light theme's navy read as a
+ *  pale-blue button you could press (the editors' «Save» did, 2026-11-04). An
+ *  unfilled one only dims — it has no fill to give up. */
+const disabledVariants: Record<ButtonVariant, string> = {
+  // No fill at all: in the dark theme the navy primary and a grey fill were
+  // two dark rectangles 0.1 apart in lightness — enabled and disabled read the
+  // same (2026-11-04 review).
+  primary: "disabled:border-border disabled:bg-transparent disabled:text-subtle",
+  outline: "disabled:opacity-50",
+  ghost: "disabled:opacity-50",
+  danger: "disabled:bg-muted disabled:text-subtle",
+  live: "disabled:bg-muted disabled:text-subtle",
+  link: "disabled:opacity-50",
+};
+
 const linkSizes: Record<ButtonSize, string> = {
   xs: "text-xs",
   sm: "text-sm",
@@ -44,7 +59,7 @@ const linkSizes: Record<ButtonSize, string> = {
 
 const sizes: Record<ButtonSize, string> = {
   xs: "h-7 px-2 text-xs gap-1",
-  sm: "h-9 px-3 text-sm gap-1.5",
+  sm: "h-8 px-3 text-sm gap-1.5",
   md: "h-10 px-4 text-sm gap-2",
   lg: "h-12 px-5 text-base gap-2",
 };
@@ -91,9 +106,12 @@ export function Button({
       aria-busy={loading || undefined}
       aria-pressed={toggled || undefined}
       className={cn(
-        // Pill: the identity draws every control that acts as a capsule.
-        "focus-ring relative inline-flex cursor-pointer items-center justify-center overflow-hidden rounded-full font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-60",
+        // 6 px, GitHub's (owner, 2026-11-04): the identity's pills read as
+        // «heavily rounded». 32 px by default; `md` (40) is what is pressed
+        // during a service.
+        "focus-ring relative inline-flex cursor-pointer items-center justify-center overflow-hidden rounded-md font-medium transition-colors disabled:cursor-not-allowed",
         variants[variant],
+        disabledVariants[variant],
         variant === "link" ? linkSizes[size] : sizes[size],
         // A pressed toggle is FILLED with the accent, whatever its variant.
         // It used to be a ring in the focus ring's own colour, so "this one is

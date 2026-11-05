@@ -7,7 +7,16 @@ import { computeMenuPosition, useFollowTrigger, type MenuPosition } from "./floa
 import { Icon, type IconName } from "./icon";
 import { IconButton } from "./icon-button";
 
-export type MenuOption<T extends string> = { label: string; value: T };
+export type MenuOption<T extends string> = {
+  /** Shown greyed and skipped by the arrows — kept in the list so it never
+   *  reflows under the pointer (an editor's «Delete» on a draft). */
+  disabled?: boolean;
+  label: string;
+  /** `danger` writes a destructive command in the danger ink: the word says
+   *  what it does, the colour only confirms it. */
+  tone?: "danger";
+  value: T;
+};
 
 type MenuSize = "xs" | "sm";
 
@@ -20,9 +29,10 @@ type MenuProps<T extends string> = {
   onSelect: (value: T) => void;
   options: readonly MenuOption<T>[];
   size?: MenuSize;
-  /** The option in effect, rendered checked. Every menu in this app picks one
-   *  out of a set (`menuitemradio`); there is no command-menu variant. */
-  value: T;
+  /** The option in effect, rendered checked (`menuitemradio`). Left out, the
+   *  menu is a list of COMMANDS (`menuitem`, nothing checked): an editor's
+   *  «⋯» with Duplicate and Delete. */
+  value?: T | undefined;
 };
 
 /** Sized by its longest label rather than by its trigger: an icon button is
@@ -34,7 +44,7 @@ const MENU_WIDTH_PX = 224;
  *  field in a toolbar row, and `IconButton`'s own xs (24px) next to an xs
  *  input (28px) reads as a button that slipped. `cn` resolves the later class,
  *  so this is the height that wins. */
-const triggerSizes: Record<MenuSize, string> = { xs: "size-7", sm: "size-9" };
+const triggerSizes: Record<MenuSize, string> = { xs: "size-7", sm: "size-8" };
 
 /**
  * An icon button that opens a short list of choices, one of which is in
@@ -99,8 +109,8 @@ export function Menu<T extends string>({
   function openMenu() {
     if (options.length === 0 || !triggerRef.current) return;
     setPosition(computeMenuPosition(triggerRef.current, MENU_WIDTH_PX, align));
-    const current = options.findIndex((option) => option.value === value);
-    setFocusIndex(current >= 0 ? current : 0);
+    const current = options.findIndex((option) => option.value === value && !option.disabled);
+    setFocusIndex(current >= 0 ? current : Math.max(0, options.findIndex((option) => !option.disabled)));
     setOpen(true);
   }
 
@@ -117,23 +127,32 @@ export function Menu<T extends string>({
     openMenu();
   }
 
+  /** The next enabled option from `index` in `step`'s direction, wrapping. */
+  function step(index: number, by: 1 | -1): number {
+    for (let i = 1; i <= options.length; i++) {
+      const next = (index + by * i + options.length) % options.length;
+      if (!options[next]?.disabled) return next;
+    }
+    return index;
+  }
+
   function handleItemKeyDown(e: ReactKeyboardEvent<HTMLButtonElement>, index: number) {
     switch (e.key) {
       case "ArrowDown":
         e.preventDefault();
-        setFocusIndex((index + 1) % options.length);
+        setFocusIndex(step(index, 1));
         break;
       case "ArrowUp":
         e.preventDefault();
-        setFocusIndex((index - 1 + options.length) % options.length);
+        setFocusIndex(step(index, -1));
         break;
       case "Home":
         e.preventDefault();
-        setFocusIndex(0);
+        setFocusIndex(step(-1, 1));
         break;
       case "End":
         e.preventDefault();
-        setFocusIndex(options.length - 1);
+        setFocusIndex(step(options.length, -1));
         break;
       case "Escape":
         e.preventDefault();
@@ -162,6 +181,7 @@ export function Menu<T extends string>({
       onKeyDown={handleTriggerKeyDown}
       ref={triggerRef}
       size="xs"
+      variant="ghost"
     >
       <Icon name={icon} />
     </IconButton>
@@ -186,8 +206,12 @@ export function Menu<T extends string>({
             {options.map((option, index) => (
               <li key={option.value} role="none">
                 <button
-                  aria-checked={option.value === value}
-                  className="flex w-full cursor-pointer items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-left text-sm text-foreground hover:bg-hover focus-visible:bg-hover focus-visible:outline-none"
+                  aria-checked={value === undefined ? undefined : option.value === value}
+                  className={cn(
+                    "flex w-full cursor-pointer items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left text-sm text-foreground hover:bg-hover focus-visible:bg-hover focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent",
+                    option.tone === "danger" && "text-danger-ink",
+                  )}
+                  disabled={option.disabled}
                   onClick={(e) => {
                     onSelect(option.value);
                     // Back to the trigger only after a keyboard pick (`detail`
@@ -199,7 +223,7 @@ export function Menu<T extends string>({
                   ref={(el) => {
                     itemRefs.current[index] = el;
                   }}
-                  role="menuitemradio"
+                  role={value === undefined ? "menuitem" : "menuitemradio"}
                   tabIndex={-1}
                   type="button"
                 >

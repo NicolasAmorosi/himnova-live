@@ -16,6 +16,7 @@ import {
   Clock,
   Copy,
   Download,
+  Ellipsis,
   Eye,
   EyeOff,
   File,
@@ -38,6 +39,7 @@ import {
   Megaphone,
   MicVocal,
   Monitor,
+  MonitorOff,
   Moon,
   Music,
   Palette,
@@ -88,6 +90,7 @@ const icons = {
   timer: Timer,
   copy: Copy,
   download: Download,
+  more: Ellipsis,
   eye: Eye,
   eyeOff: EyeOff,
   file: File,
@@ -109,6 +112,9 @@ const icons = {
   addToSchedule: ListPlus,
   spinner: Loader2,
   display: Monitor,
+  // Taking something off the projector (2026-11-04, owner's D12): its own
+  // picture, never the ✕ that only clears a preview or closes a screen.
+  offAir: MonitorOff,
   moon: Moon,
   audio: Music,
   palette: Palette,

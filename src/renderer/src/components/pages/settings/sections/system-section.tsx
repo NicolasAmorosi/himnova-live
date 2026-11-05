@@ -68,9 +68,9 @@ export function SystemSection() {
     <div className="flex flex-col gap-6">
       <FieldGroup title={t("settings.groups.appearance")}>
         <FieldRow description={t("settings.themeDesc")} label={t("settings.theme")}>
-          <div className="inline-flex gap-1 rounded-full border border-border p-0.5">
+          <div className="inline-flex gap-1 rounded-md border border-border p-0.5">
             <Button
-              className="w-28 justify-center"
+              className="w-28 justify-center rounded-sm"
               onClick={() => void updateSettings({ "ui.theme": "dark" })}
               size="sm"
               toggled={theme === "dark"}
@@ -79,7 +79,7 @@ export function SystemSection() {
               <Icon name="moon" /> {t("settings.themeDark")}
             </Button>
             <Button
-              className="w-28 justify-center"
+              className="w-28 justify-center rounded-sm"
               onClick={() => void updateSettings({ "ui.theme": "light" })}
               size="sm"
               toggled={theme === "light"}
@@ -97,7 +97,6 @@ export function SystemSection() {
             className="min-w-40"
             onChange={(value) => void updateSettings({ "ui.locale": value as Locale })}
             options={availableLocales.map((l) => ({ label: t(LOCALE_LABEL_KEYS[l]), value: l }))}
-            size="md"
             value={locale}
           />
         </FieldRow>
@@ -130,7 +129,7 @@ export function SystemSection() {
               key={kind}
               label={t(KIND_LABEL_KEYS[kind])}
             >
-              <Button onClick={() => void chooseFolder(kind)} variant="secondary">
+              <Button onClick={() => void chooseFolder(kind)} variant="outline">
                 {t("settings.chooseFolder")}
               </Button>
               <Button

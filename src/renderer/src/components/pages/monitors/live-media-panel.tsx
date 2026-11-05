@@ -82,6 +82,7 @@ export function LiveMediaPanel() {
         key="video"
         kind="video"
         label={heading ?? ""}
+        offAir
         onDelete={clearBaseContent}
         onRestart={() => restartMedia({ kind: "video" })}
         onSeek={(seconds) => seekMedia({ kind: "video" }, seconds)}
@@ -100,6 +101,7 @@ export function LiveMediaPanel() {
         key="image"
         kind="image"
         label={heading ?? ""}
+        offAir
         onDelete={clearBaseContent}
       />,
     );
@@ -112,7 +114,7 @@ export function LiveMediaPanel() {
     // changes on its own. Its own row (`UtilityTrackRow`) rather than a bare
     // `MediaTrackRow`, because which controls a time scene deserves depends on
     // its tool — see that component.
-    rows.push(<UtilityTrackRow key="utility" onDelete={clearBaseContent} scene={base.scene} />);
+    rows.push(<UtilityTrackRow key="utility" offAir onDelete={clearBaseContent} scene={base.scene} />);
   }
 
   // A deck's slide can carry its own clip. Its own row rather than folded into
@@ -146,7 +148,7 @@ export function LiveMediaPanel() {
   // Every plate that is up, with what it has left and a way down. Covered or
   // not: a plate under BLACK is still up, and still has to be takeable down.
   for (const plate of livePlates) {
-    rows.push(<PlateTrackRow key={`plate-${plate.id}`} onDelete={() => hidePlate(plate.id)} plate={plate} />);
+    rows.push(<PlateTrackRow key={`plate-${plate.id}`} offAir onDelete={() => hidePlate(plate.id)} plate={plate} />);
   }
 
   for (const track of audioTracks) {

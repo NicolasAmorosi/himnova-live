@@ -31,10 +31,9 @@ type Pending = { version: BibleVersionDTO; usages: BibleVersionUsage[] };
  * «Bible»: the installed versions, and nothing else — import, rename, choose
  * a default, delete.
  *
- * How a verse LOOKS moved out to its own category of Settings
- * (`sections/verse/`). The two shared a section with two tabs and had nothing
- * to say to each other: this one is a table of bibles, that one is a single
- * `settings` key with a live 16:9 preview that wants the whole panel.
+ * How a verse LOOKS is not here: it is the Bible tab's verse style editor
+ * (`pages/resources/VerseStyleModal.tsx`), a single `settings` key with a live
+ * 16:9 preview that wants the whole screen, while this is a table of bibles.
  *
  * Each of the four actions exists for its own reason:
  *
@@ -255,7 +254,7 @@ export function BibleSection() {
             loading={importing}
             loadingLabel={t("bible.importing")}
             onClick={() => void importVersion()}
-            variant="secondary"
+            variant="outline"
           >
             <Icon name="import" />
             {t("bible.import")}
@@ -309,7 +308,7 @@ export function BibleSection() {
           {/* Outside the `<ul>` so it is not announced as one more version,
               and only while the gesture is actually available. */}
           {reorderEnabled ? (
-            <p className="px-4 py-2 text-xs text-muted-foreground">{t("settings.bible.reorderHint")}</p>
+            <p className="py-2 text-xs text-muted-foreground">{t("settings.bible.reorderHint")}</p>
           ) : null}
         </FieldGroup>
       ) : null}

@@ -5,7 +5,7 @@ import { Icon, type IconName } from "./icon";
 
 export type TabItem<T extends string> = { icon?: IconName; label: string; value: T };
 
-export type TabsVariant = "underline" | "folder" | "segment" | "sidebar";
+export type TabsVariant = "underline" | "segment" | "sidebar";
 
 type TabsProps<T extends string> = {
   className?: string;
@@ -15,9 +15,10 @@ type TabsProps<T extends string> = {
   idBase?: string;
   onChange: (value: T) => void;
   tabs: readonly TabItem<T>[];
-  /** "folder" is the dense, EasyWorship-style resource selector. "segment" is
-   *  the row that sits UNDER a folder row, for the second level of the same
-   *  panel. "sidebar" is a vertical category list, e.g. Settings' left
+  /** "underline" is the resource panel's first level (GitHub's UnderlineNav;
+   *  it was EasyWorship-style folder tabs until the 2026-11-04 redesign, P6).
+   *  "segment" is the row that sits UNDER it, for the second level of the
+   *  same panel. "sidebar" is a vertical category list, e.g. Settings' left
    *  column. */
   variant?: TabsVariant;
   value: T;
@@ -35,41 +36,39 @@ function panelDomId(idBase: string, value: string): string {
 
 const isVertical: Record<TabsVariant, boolean> = {
   underline: false,
-  folder: false,
   segment: false,
   sidebar: true,
 };
 
 const listVariants: Record<TabsVariant, string> = {
   underline: "flex items-center gap-1 border-b border-border px-2",
-  folder: "flex items-center gap-0.5 border-b border-border px-1 pt-1",
   segment: "flex items-center gap-0.5 border-b border-border px-1 py-1",
   sidebar: "flex w-56 shrink-0 flex-col items-stretch gap-1 overflow-y-auto border-r border-border p-2",
 };
 
 const tabVariants: Record<TabsVariant, string> = {
-  underline: "gap-1.5 border-b-2 px-3 py-2 text-sm",
-  // flex-1 + justify-center: every tab claims the same share of the row
-  // regardless of its label's length, so the resource tabs always fill the
-  // whole width instead of leaving dead space after short labels.
-  folder: "min-w-0 flex-1 justify-center gap-1 rounded-t-md border border-b-0 px-2 py-1 text-xs",
-  // No tab-shaped border, on purpose: a second row of folder tabs under the
-  // first reads as two competing levels of the same thing. This one is a
-  // segmented control — a filled pill inside the panel the folder row opened.
-  segment: "min-w-0 flex-1 justify-center gap-1 rounded-full px-2 py-1 text-xs",
-  sidebar: "w-full justify-start gap-2 rounded-full px-3 py-2 text-sm",
+  // `-mb-px`: the active tab's line sits ON the list's own bottom border.
+  // `flex-1`: every tab takes the same share of the row and together they fill
+  // it, whatever the length of each label (owner, 2026-11-04).
+  underline: "-mb-px min-w-0 flex-1 justify-center gap-1.5 border-b-2 px-1 py-2 text-sm",
+  // No tab-shaped border, on purpose: a second row of tabs under the first
+  // reads as two competing levels of the same thing. This one is a segmented
+  // control — a filled segment inside the panel the first row opened.
+  segment: "min-w-0 flex-1 justify-center gap-1 rounded-md px-2 py-1 text-xs",
+  // GitHub's NavList: a 32 px row, and the chosen one marked by a 4 px bar of
+  // the accent on its left over a quiet fill — not a filled pill.
+  sidebar:
+    "relative h-8 w-full shrink-0 justify-start gap-2 rounded-md px-3 text-sm before:absolute before:inset-y-1.5 before:-left-2 before:w-1 before:rounded-full",
 };
 
 const activeVariants: Record<TabsVariant, string> = {
   underline: "border-accent text-foreground",
-  folder: "border-border bg-surface text-accent-ink",
   segment: "bg-active text-foreground ring-1 ring-accent/40 ring-inset",
-  sidebar: "bg-active font-medium text-foreground ring-1 ring-accent/40 ring-inset",
+  sidebar: "bg-muted font-semibold text-foreground before:bg-accent",
 };
 
 const inactiveVariants: Record<TabsVariant, string> = {
   underline: "border-transparent text-subtle hover:text-foreground",
-  folder: "border-transparent bg-muted/50 text-subtle hover:bg-hover hover:text-foreground",
   segment: "text-subtle hover:bg-hover hover:text-foreground",
   sidebar: "border-transparent text-muted-foreground hover:bg-hover hover:text-foreground",
 };
@@ -145,7 +144,13 @@ export function Tabs<T extends string>({
             tabIndex={active ? 0 : -1}
             type="button"
           >
-            {tab.icon ? <Icon className="size-3.5" name={tab.icon} /> : null}
+            {/* The words are what fit (2026-11-04 locale tour: «Presentaciones» was
+                cut at 1440, «Canciones» and «Funciones» at the 1000 px minimum):
+                a segment shows no icon, and the resource tabs drop theirs in a
+                narrow window. */}
+            {tab.icon && variant !== "segment" ? (
+              <Icon className={cn("size-3.5", variant === "underline" && "max-[1100px]:hidden")} name={tab.icon} />
+            ) : null}
             {/* A bare text node is an anonymous flex item and can't ellipsize. */}
             <span className="truncate">{tab.label}</span>
           </button>

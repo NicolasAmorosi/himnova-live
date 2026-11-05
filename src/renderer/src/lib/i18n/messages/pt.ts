@@ -20,7 +20,6 @@ const pt: Messages = {
     addError: "Não foi possível adicionar os arquivos ao roteiro",
     saved: "Salvo",
     notSaved: "Não salvo",
-    savedHint: "O roteiro é igual à última versão salva.",
     notSavedHint:
       "Há alterações no roteiro (itens adicionados, removidos ou reordenados) que ainda não foram salvas. Use o botão Salvar ou “Gerenciar roteiros” para salvá-las.",
     moveUp: "Mover para cima",
@@ -30,7 +29,6 @@ const pt: Messages = {
     remove: "Remover",
     removeHint: "Remover do roteiro o item selecionado",
     clear: "Esvaziar",
-    clearHint: "Remover todos os itens do roteiro",
     discardAndClear: "Descartar e esvaziar",
     addAll: "Adicionar mídia",
     addAllHint:
@@ -46,6 +44,7 @@ const pt: Messages = {
   resources: {
     empty: "Nenhum arquivo",
     emptyHint: "Adicione arquivos ou arraste-os para cá",
+    addToScheduleShort: "Adicionar",
     addToSchedule: "Adicionar ao roteiro",
     addToScheduleHint: "Adicionar o item selecionado ao roteiro",
     mediaTab: "Mídia",
@@ -137,7 +136,7 @@ const pt: Messages = {
     resume: "Retomar",
     stop: "Parar e voltar ao início",
     finished: "Terminou",
-    manage: "Cenas…",
+    manage: "Cenas",
     manageHint: "Criar, editar e ordenar as cenas de tempo",
     empty: "Nenhuma cena de tempo",
     emptyHint: "Crie uma contagem regressiva, um relógio ou um cronômetro para projetar.",
@@ -300,7 +299,7 @@ const pt: Messages = {
     coveredHint: "Está no ar, mas PRETO, LOGO ou a falta de algo ao vivo o encobrem",
     willBeCoveredHint: "Vai ficar encoberto por PRETO, LOGO ou pela falta de algo ao vivo até que isso mude",
     autoHideHint: "Some sozinho quando a contagem chega a zero",
-    manage: "Overlays…",
+    manage: "Overlays",
     manageHint: "Criar, editar e ordenar os overlays",
     empty: "Nenhum overlay",
     emptyHint:
@@ -393,6 +392,7 @@ const pt: Messages = {
     },
   },
   songs: {
+    import: "Importar",
     importEasyWorship: "Importar do EasyWorship",
     importHint: "Importar as músicas do EasyWorship 6 ou 7: escolha a pasta Databases\\Data dele.",
     importDone: "{imported, plural, =0 {Nenhuma música importada} one {# música importada} other {# músicas importadas}} · {repeated} repetidas · {problems} sem letra",
@@ -417,6 +417,8 @@ const pt: Messages = {
     editHint: "Editar a música selecionada",
     newTitle: "Nova música",
     editTitle: "Editar música",
+    slides: "Slides",
+    slidesEmpty: "Os slides aparecem enquanto você escreve a letra.",
     slidesLabel: "Slides de “{title}”",
     previous: "Slide anterior",
     next: "Próximo slide",
@@ -548,6 +550,8 @@ const pt: Messages = {
     previous: "Anterior",
     next: "Próximo",
     counter: "{current}/{total}",
+    styleHint: "Como um versículo aparece no projetor",
+    styleTitle: "Estilo do versículo",
   },
   deck: {
     title: "Apresentação",
@@ -619,6 +623,7 @@ const pt: Messages = {
     unmute: "Ativar som",
   },
   live: {
+    takeOffAir: "Tirar do ar",
     title: "Ao vivo",
     disconnected: "Sem tela",
     noSignal: "Sem sinal",
@@ -627,7 +632,7 @@ const pt: Messages = {
     videoMotionOff: "Visualização de vídeo desativada",
     videoMotionOffHint: "O projetor reproduz normalmente",
   },
-  footer: { black: "PRETO", logo: "LOGO", live: "NO AR", clear: "LIMPAR" },
+  footer: { black: "PRETO", logo: "LOGO", live: "NO AR" },
   projector: {
     closedUnexpectedly: "A janela de projeção foi fechada",
     screenLost:
@@ -643,11 +648,7 @@ const pt: Messages = {
     save: "Salvar",
     saveHint: "Salvar as alterações neste roteiro",
     saveNoChanges: "Sem alterações",
-    duplicate: "Duplicar",
-    duplicateTitle: "Duplicar roteiro",
     duplicateName: "{name} (cópia)",
-    edit: "Editar",
-    delete: "Excluir",
     new: "Novo roteiro",
     newHint: "Começar um roteiro novo e vazio",
     createAndOpen: "Criar e abrir",
@@ -658,7 +659,6 @@ const pt: Messages = {
     noResults: "Nenhum resultado",
     name: "Nome",
     namePlaceholder: "Nome do roteiro",
-    favorite: "Favorito",
     favoriteAdd: "Marcar como favorito",
     favoriteRemove: "Remover dos favoritos",
     favoriteError: "Não foi possível atualizar o favorito",
@@ -667,7 +667,6 @@ const pt: Messages = {
     filterOthers: "Não favoritos",
     notes: "Notas",
     notesPlaceholder: "Notas opcionais",
-    create: "Criar roteiro",
     saved: "“{name}” salvo",
     saveError: "Não foi possível salvar o roteiro",
     createError: "Não foi possível criar o roteiro",
@@ -684,12 +683,16 @@ const pt: Messages = {
     discardConfirm: "Descartar e abrir",
     discardAndNew: "Descartar e começar",
     itemCount: "{count, plural, =0 {# itens} one {# item} other {# itens}}",
-    panelDirtyWarning: "Há alterações não salvas no painel. Se você continuar, elas serão perdidas.",
     reorderError: "Não foi possível salvar a ordem dos roteiros",
+    listLabel: "Roteiros salvos",
+    createdAt: "Criado",
+    lastOpenedAt: "Aberto pela última vez",
+    neverOpened: "Nunca",
+    leaveBody: "Se sair agora, as alterações deste roteiro se perdem.",
+    leave: "Descartar alterações",
   },
   settings: {
     title: "Configurações",
-    close: "Fechar",
     slidesCacheUsage: "Espaço usado",
     slidesCacheUsageDesc:
       "{decks, plural, =0 {Nenhuma apresentação com áudio ou vídeo salvo no disco} one {# apresentação com áudio ou vídeo salvo no disco} other {# apresentações com áudio ou vídeo salvo no disco}}",
@@ -719,14 +722,13 @@ const pt: Messages = {
     sections: {
       projection: "Projeção",
       slides: "Slides",
-      verse: "Versículos",
       bible: "Bíblia",
       songs: "Músicas",
       system: "Sistema",
       about: "Sobre",
     },
     songs: {
-      title: "Músicas",
+      title: "Tema e licença",
       defaultTheme: "Tema padrão",
       defaultThemeHint: "Para as músicas que não escolhem um próprio.",
       license: "Licença CCLI da igreja",
@@ -747,7 +749,7 @@ const pt: Messages = {
       language: "Idioma",
       folders: "Pastas de arquivos",
       performance: "Desempenho",
-      about: "Sobre",
+      about: "Versão e atualizações",
     },
     verse: {
       preview: "Ver com um versículo longo",
@@ -893,7 +895,7 @@ const pt: Messages = {
     logoRemoveLiveBody:
       "O projetor está mostrando o logo agora mesmo: ao removê-lo, a tela fica preta até você mandar algo AO VIVO. Nenhum arquivo é apagado — o logo sai das configurações e você pode escolhê-lo de novo quando quiser.",
     chooseFile: "Escolher arquivo…",
-    clearLive: "Limpar conteúdo ao vivo",
+    clearLive: "O que está sendo projetado agora",
     clearLiveDesc: "Tira o que está projetado agora e volta ao logo.",
     startVolume: "Volume inicial",
     startVolumeDesc:
@@ -969,6 +971,14 @@ const pt: Messages = {
       "600": "Lenta (600 ms)",
     },
   },
+  /** The bar of a full-screen editor (`components/shared/editor-screen/`). */
+  editor: {
+    back: "Voltar",
+    edited: "Editado",
+    discard: "Descartar",
+    more: "Mais ações",
+    saveHint: "Salvar ({shortcut})",
+  },
   common: {
     cancel: "Cancelar",
     confirm: "Confirmar",
@@ -977,7 +987,6 @@ const pt: Messages = {
     delete: "Excluir",
     remove: "Remover",
     duplicate: "Duplicar",
-    revert: "Desfazer alterações",
     close: "Fechar",
     dismiss: "Fechar aviso",
     retry: "Tentar de novo",

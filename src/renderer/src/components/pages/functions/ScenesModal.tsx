@@ -1,29 +1,29 @@
 import { useEffect, useState, type DragEvent } from "react";
 import { useT } from "@renderer/lib/i18n/i18n-provider";
-import { ConfirmModal, Modal, ModalTitle } from "@renderer/components/shared/modal";
+import { ConfirmModal } from "@renderer/components/shared/modal";
+import { EditorScreen, EditorStage } from "@renderer/components/shared/editor-screen";
 import { ProgramUsages } from "@renderer/components/shared/program-usages";
 import {
   Badge,
   Button,
-  DialogHeader,
   EmptyState,
   Icon,
-  IconButton,
+  Inspector,
   ListRow,
   Switch,
+  type MenuOption,
 } from "@renderer/components/ui";
 import { api } from "@renderer/lib/api";
 import { toast } from "@renderer/lib/toast";
 import { hideDragGhost, UTILITY_SCENE_MIME } from "@renderer/lib/dnd";
 import { deleteScene, duplicateScene, reorderScenes, saveScene, sceneUsages } from "@renderer/lib/actions/utility";
 import { useUtilityStore } from "@renderer/stores/utility.store";
+import { SCENE_NAME_MAX_LENGTH } from "@shared/scene-validators";
 import { isCountdownTool } from "@shared/types/timer";
 import type { MediaAsset } from "@shared/types/media";
 import type { UtilityScene, UtilitySceneUsage } from "@shared/types/utility";
 import { emptySceneDraft, isDraftSavable, toDraft, toUpsert, type SceneDraft } from "./scene-draft";
 import { SceneForm } from "./scene-form";
-import { EditorActions } from "@renderer/components/shared/editor-actions";
-import { EditorHeader } from "@renderer/components/shared/editor-header";
 import { ScenePreview } from "./scene-preview";
 import { TOOL_ICON, TOOL_LABEL } from "./tool-display";
 
@@ -40,8 +40,9 @@ type Pending =
   | { kind: "delete"; sceneId: number; usages: UtilitySceneUsage[] };
 
 /**
- * The scene editor: the list on the left, one scene's fields on the right,
- * and the projector's own renderer at the top of it.
+ * The scene editor, full screen (`EditorScreen`): the scenes on the left, the
+ * scene as the projector draws it in the middle, its knobs on the right and
+ * its name in the bar.
  *
  * Saving is EXPLICIT, unlike Settings, and that is a decision rather than an
  * inconsistency: a scene can be on the projector while it is being edited, and
@@ -62,10 +63,10 @@ export function ScenesModal({ onOpenChange, open }: { onOpenChange: (open: boole
   const [dragOverId, setDragOverId] = useState<number | null>(null);
   const [imageAssets, setImageAssets] = useState<readonly MediaAsset[]>([]);
   const [addingImages, setAddingImages] = useState(false);
-  /** Whether the preview above the form is drawing the scene as it rests or as
-   *  it ends. A view of the editor, not part of the draft: it must never reach
-   *  a row, and it survives switching scenes on purpose — an operator dressing
-   *  the end state of several countdowns keeps looking at the end state. */
+  /** Whether the stage is drawing the scene as it rests or as it ends. A view
+   *  of the editor, not part of the draft: it must never reach a row, and it
+   *  survives switching scenes on purpose — an operator dressing the end state
+   *  of several countdowns keeps looking at the end state. */
   const [previewAtEnd, setPreviewAtEnd] = useState(false);
 
   const dirty = editing !== null && JSON.stringify(editing.draft) !== JSON.stringify(editing.baseline);
@@ -73,7 +74,7 @@ export function ScenesModal({ onOpenChange, open }: { onOpenChange: (open: boole
    *  the wrong gate for it: creating one and saving it untouched is a perfectly
    *  ordinary thing to do, and comparing a fresh draft against its own copy
    *  left the button dead. `dirty` keeps its own meaning — it is what the
-   *  discard guard and «Revert changes» ask. */
+   *  discard guard and the bar's «Discard» ask. */
   const canSave = editing !== null && isDraftSavable(editing.draft) && (editing.sceneId === null || dirty);
 
   // The image library, for an image background's picker. Read on open rather
@@ -213,47 +214,32 @@ export function ScenesModal({ onOpenChange, open }: { onOpenChange: (open: boole
     void reorderScenes([...ids.slice(0, at), draggedId, ...ids.slice(at)]);
   }
 
+  const persisted = editing !== null && editing.sceneId !== null;
+  const menuOptions: MenuOption<"duplicate" | "delete">[] = [
+    { disabled: !persisted, label: t("common.duplicate"), value: "duplicate" },
+    { disabled: !persisted, label: t("common.delete"), tone: "danger", value: "delete" },
+  ];
+
   return (
     <>
-      <Modal height="tall" onOpenChange={(next) => (next ? onOpenChange(true) : leaveEditing(() => onOpenChange(false)))} open={open} size="2xl">
-        <DialogHeader className="border-b border-border">
-          <ModalTitle>{t("scenes.title")}</ModalTitle>
-          <IconButton
-            onClick={() => leaveEditing(() => onOpenChange(false))}
-            size="xs"
-            aria-label={t("common.close")}
-            title={t("common.close")}
-            variant="ghost"
-          >
-            <Icon name="close" />
-          </IconButton>
-        </DialogHeader>
-
-        <div className="flex min-h-0 flex-1">
-          <div className="flex w-64 shrink-0 flex-col border-r border-border">
-            <div className="flex shrink-0 flex-col gap-1.5 border-b border-border p-2">
-              <Button className="w-full" onClick={createNew} size="xs" variant="outline">
-                <Icon name="add" />
-                {t("scenes.new")}
-              </Button>
-              {editing !== null ? (
-                <EditorActions
-                  canSave={canSave}
-                  dirty={dirty}
-                  onDelete={() => {
-                    if (editing.sceneId !== null) void askToDelete(editing.sceneId);
-                  }}
-                  // Through the guard like every other exit from the form: the
-                  // copy is made of the SAVED scene and replaces the open form.
-                  onDuplicate={() => leaveEditing(() => void handleDuplicate())}
-                  onRevert={() => setEditing({ ...editing, draft: editing.baseline })}
-                  onSave={() => void handleSave()}
-                  persisted={editing.sceneId !== null}
-                  saving={saving}
-                />
-              ) : null}
-            </div>
-            <ul aria-label={t("scenes.listLabel")} className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto p-1.5">
+      <EditorScreen
+        inspector={
+          editing ? (
+            <Inspector key={editing.sceneId ?? "new"} label={t("scenes.title")}>
+              <SceneForm
+                addingImages={addingImages}
+                imageAssets={imageAssets}
+                onAddImages={() => void handleAddImages()}
+                onChange={(draft) => setEditing({ ...editing, draft })}
+                value={editing.draft}
+              />
+            </Inspector>
+          ) : null
+        }
+        onNew={{ label: t("scenes.new"), onClick: createNew }}
+        list={
+          <>
+            <ul aria-label={t("scenes.listLabel")} className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-2 pb-2">
               {scenes.map((scene) => (
                 <ListRow
                   draggable
@@ -261,8 +247,11 @@ export function ScenesModal({ onOpenChange, open }: { onOpenChange: (open: boole
                   grip
                   key={scene.id}
                   leading={
-                    <Badge className="px-2" variant="neutral">
+                    // The kind as an icon only: written out beside the name it
+                    // left the name «Cuent…» in a 256 px list.
+                    <Badge className="px-2" title={t(TOOL_LABEL[scene.tool])} variant="neutral">
                       <Icon className="size-3.5" name={TOOL_ICON[scene.tool]} />
+                      <span className="sr-only">{t(TOOL_LABEL[scene.tool])}</span>
                     </Badge>
                   }
                   onClick={() => select(scene)}
@@ -282,76 +271,82 @@ export function ScenesModal({ onOpenChange, open }: { onOpenChange: (open: boole
                   }}
                   onDrop={(e) => handleDrop(e, scene.id)}
                   selected={editing?.sceneId === scene.id}
-                  trailing={<span className="text-xs text-subtle">{t(TOOL_LABEL[scene.tool])}</span>}
                 >
                   {scene.name}
                 </ListRow>
               ))}
               {editing?.sceneId === null ? (
-                <ListRow
-                  leading={
-                    <Badge className="px-2" variant="blue">
-                      <Icon className="size-3.5" name="add" />
-                    </Badge>
-                  }
-                  selected
-                >
-                  {editing.draft.name}
-                </ListRow>
+                <ListRow selected>{editing.draft.name}</ListRow>
               ) : null}
             </ul>
+          </>
+        }
+        menu={{
+          onSelect: (command) => {
+            if (editing?.sceneId == null) return;
+            // Through the guard like every other exit from the form: the copy
+            // is made of the SAVED scene and replaces the open form.
+            if (command === "duplicate") leaveEditing(() => void handleDuplicate());
+            else void askToDelete(editing.sceneId);
+          },
+          options: menuOptions,
+        }}
+        name={
+          editing
+            ? {
+                label: t("scenes.name"),
+                maxLength: SCENE_NAME_MAX_LENGTH,
+                onChange: (name) => setEditing({ ...editing, draft: { ...editing.draft, name } }),
+                value: editing.draft.name,
+              }
+            : undefined
+        }
+        onClose={() => leaveEditing(() => onOpenChange(false))}
+        open={open}
+        save={
+          editing
+            ? {
+                canSave,
+                dirty,
+                onDiscard: () => setEditing({ ...editing, draft: editing.baseline }),
+                onSave: () => void handleSave(),
+                saving,
+              }
+            : undefined
+        }
+        title={t("scenes.title")}
+      >
+        {editing === null ? (
+          <div className="relative flex-1">
+            <EmptyState
+              action={
+                <Button onClick={createNew} size="sm" variant="primary">
+                  {t("scenes.new")}
+                </Button>
+              }
+              description={t("scenes.emptyHint")}
+              icon="clock"
+              title={t("scenes.empty")}
+            />
           </div>
-
-          <div className="flex min-w-0 min-h-0 flex-1 flex-col">
-            {editing === null ? (
-              <div className="relative flex-1">
-                <EmptyState
-                  action={
-                    <Button onClick={createNew} size="sm" variant="primary">
-                      {t("scenes.new")}
-                    </Button>
-                  }
-                  description={t("scenes.emptyHint")}
-                  icon="clock"
-                  title={t("scenes.empty")}
-                />
-              </div>
-            ) : (
-              <>
-                <EditorHeader
-                  invalidHint={isDraftSavable(editing.draft) ? undefined : t("scenes.invalidHint")}
-                  preview={
-                    <div className="flex flex-col gap-2">
-                      <ScenePreview atEnd={previewAtEnd} draft={editing.draft} />
-                      {/* Only where there is an end to look at. A clock and a
-                          stopwatch never run out, so the switch would toggle
-                          nothing. */}
-                      {isCountdownTool(editing.draft.tool) ? (
-                        <label
-                          className="flex items-center justify-end gap-2 text-xs text-muted-foreground"
-                          title={t("scenes.endPreviewHint")}
-                        >
-                          {t("scenes.endPreview")}
-                          <Switch checked={previewAtEnd} onChange={(e) => setPreviewAtEnd(e.target.checked)} />
-                        </label>
-                      ) : null}
-                    </div>
-                  }
-                />
-                <div className="min-w-0 flex-1 overflow-y-auto p-6">
-                  <SceneForm
-                    addingImages={addingImages}
-                    imageAssets={imageAssets}
-                    onAddImages={() => void handleAddImages()}
-                    onChange={(draft) => setEditing({ ...editing, draft })}
-                    value={editing.draft}
-                  />
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-      </Modal>
+        ) : (
+          <EditorStage
+            below={
+              // Only where there is an end to look at. A clock and a stopwatch
+              // never run out, so the switch would toggle nothing.
+              isCountdownTool(editing.draft.tool) ? (
+                <label className="flex items-center gap-2" title={t("scenes.endPreviewHint")}>
+                  {t("scenes.endPreview")}
+                  <Switch checked={previewAtEnd} onChange={(e) => setPreviewAtEnd(e.target.checked)} />
+                </label>
+              ) : undefined
+            }
+            warning={isDraftSavable(editing.draft) ? undefined : t("scenes.invalidHint")}
+          >
+            <ScenePreview atEnd={previewAtEnd} draft={editing.draft} />
+          </EditorStage>
+        )}
+      </EditorScreen>
 
       <ConfirmModal
         confirmLabel={

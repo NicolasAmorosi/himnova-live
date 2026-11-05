@@ -218,8 +218,8 @@ export type IpcContract = {
    *  may call this — see `programs:peek` for merely looking at one. */
   "programs:load": { req: { id: number }; res: ProgramDTO };
   /** The same rows, read-only: no `setCurrentProgramId`, no `pinDecks`, no
-   *  `lastOpenedAt`. Exists because one click on a row in the programs modal
-   *  opens a side panel that lists its items, and doing that through
+   *  `lastOpenedAt`. Exists because one click on a row in the programs screen
+   *  shows its items, and doing that through
    *  `programs:load` silently handed the open service's eviction pins and its
    *  history attribution to a program the operator had only glanced at. */
   "programs:peek": { req: { id: number }; res: ProgramDTO };

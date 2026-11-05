@@ -3,7 +3,7 @@ import { expect, relaunch, test, videoStates, type WorshipApp } from "./support/
 
 async function openSettings(
   app: WorshipApp,
-  section: "Proyección" | "Diapositivas" | "Versículos" | "Biblia" | "Sistema",
+  section: "Proyección" | "Diapositivas" | "Biblia" | "Sistema",
 ): Promise<Locator> {
   await app.control.getByRole("button", { name: "Configuración" }).click();
   const dialog = app.control.getByRole("dialog", { name: "Configuración" });
@@ -11,7 +11,7 @@ async function openSettings(
   return dialog;
 }
 
-const closeSettings = (settings: Locator) => settings.getByRole("button", { name: "Cerrar" }).first().click();
+const closeSettings = (settings: Locator) => settings.getByRole("button", { name: "Volver" }).click();
 
 async function choose(app: WorshipApp, field: Locator, option: string) {
   await field.getByRole("combobox").click();
@@ -75,7 +75,7 @@ test("emptying the slide cache warns about a deck on air, and a deck is read aga
 
   // Off the air, it is a plain question — and the cache really empties.
   await closeSettings(settings);
-  await app.liveColumn().getByRole("button", { name: "Quitar" }).click();
+  await app.liveColumn().getByRole("button", { name: "Sacar del aire" }).click();
   settings = await openSettings(app, "Diapositivas");
   await settings.getByRole("button", { name: "Vaciar caché" }).click();
   await expect(confirm).not.toContainText("EN VIVO");

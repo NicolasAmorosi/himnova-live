@@ -20,7 +20,6 @@ const it: Messages = {
     addError: "Impossibile aggiungere i file alla scaletta",
     saved: "Salvata",
     notSaved: "Non salvata",
-    savedHint: "La scaletta corrisponde all'ultima versione salvata.",
     notSavedHint:
       "Ci sono modifiche alla scaletta (elementi aggiunti, rimossi o riordinati) non ancora salvate. Usa il pulsante Salva o «Gestisci scalette» per salvarle.",
     moveUp: "Sposta su",
@@ -30,7 +29,6 @@ const it: Messages = {
     remove: "Rimuovi",
     removeHint: "Rimuovi dalla scaletta l'elemento selezionato",
     clear: "Svuota",
-    clearHint: "Rimuovi tutti gli elementi dalla scaletta",
     discardAndClear: "Scarta e svuota",
     addAll: "Aggiungi media",
     addAllHint:
@@ -46,6 +44,7 @@ const it: Messages = {
   resources: {
     empty: "Nessun file",
     emptyHint: "Aggiungi dei file o trascinali qui",
+    addToScheduleShort: "Aggiungi",
     addToSchedule: "Aggiungi alla scaletta",
     addToScheduleHint: "Aggiungi alla scaletta l'elemento selezionato",
     mediaTab: "Media",
@@ -137,7 +136,7 @@ const it: Messages = {
     resume: "Riprendi",
     stop: "Ferma e torna all'inizio",
     finished: "Finito",
-    manage: "Scene…",
+    manage: "Scene",
     manageHint: "Crea, modifica e ordina le scene con timer",
     empty: "Nessuna scena con timer",
     emptyHint: "Crea un conto alla rovescia, un orologio o un cronometro da proiettare.",
@@ -300,7 +299,7 @@ const it: Messages = {
     coveredHint: "È attiva, ma NERO, LOGO o l'assenza di contenuti in onda la coprono",
     willBeCoveredHint: "NERO, LOGO o l'assenza di contenuti in onda la copriranno finché non verrà scoperta",
     autoHideHint: "Si nasconde da sola quando il conteggio arriva a zero",
-    manage: "Grafiche…",
+    manage: "Grafiche",
     manageHint: "Crea, modifica e ordina le grafiche",
     empty: "Nessuna grafica",
     emptyHint:
@@ -394,6 +393,7 @@ const it: Messages = {
     },
   },
   songs: {
+    import: "Importa",
     importEasyWorship: "Importa da EasyWorship",
     importHint: "Importa i canti di EasyWorship 6 o 7: scegli la sua cartella Databases\\Data.",
     importDone: "{imported, plural, =0 {Nessun canto importato} one {# canto importato} other {# canti importati}} · {repeated} ripetuti · {problems} senza testo",
@@ -418,6 +418,8 @@ const it: Messages = {
     editHint: "Modifica il canto selezionato",
     newTitle: "Nuovo canto",
     editTitle: "Modifica canto",
+    slides: "Diapositive",
+    slidesEmpty: "Le diapositive compaiono mentre scrivi il testo.",
     slidesLabel: "Diapositive di «{title}»",
     previous: "Diapositiva precedente",
     next: "Diapositiva successiva",
@@ -549,6 +551,8 @@ const it: Messages = {
     previous: "Precedente",
     next: "Successivo",
     counter: "{current}/{total}",
+    styleHint: "Come appare un versetto sul proiettore",
+    styleTitle: "Stile del versetto",
   },
   deck: {
     title: "Presentazione",
@@ -624,6 +628,7 @@ const it: Messages = {
     unmute: "Riattiva audio",
   },
   live: {
+    takeOffAir: "Togli dalla diretta",
     title: "In onda",
     disconnected: "Nessuno schermo",
     noSignal: "Nessun segnale",
@@ -632,7 +637,7 @@ const it: Messages = {
     videoMotionOff: "Video in movimento disattivato",
     videoMotionOffHint: "Il proiettore lo riproduce normalmente",
   },
-  footer: { black: "NERO", logo: "LOGO", live: "LIVE", clear: "PULISCI" },
+  footer: { black: "NERO", logo: "LOGO", live: "LIVE" },
   projector: {
     closedUnexpectedly: "La finestra di proiezione si è chiusa",
     screenLost:
@@ -648,11 +653,7 @@ const it: Messages = {
     save: "Salva",
     saveHint: "Salva le modifiche a questa scaletta",
     saveNoChanges: "Nessuna modifica",
-    duplicate: "Duplica",
-    duplicateTitle: "Duplica scaletta",
     duplicateName: "{name} (copia)",
-    edit: "Modifica",
-    delete: "Elimina",
     new: "Nuova scaletta",
     newHint: "Inizia una nuova scaletta vuota",
     createAndOpen: "Crea e apri",
@@ -663,7 +664,6 @@ const it: Messages = {
     noResults: "Nessun risultato",
     name: "Nome",
     namePlaceholder: "Nome della scaletta",
-    favorite: "Preferita",
     favoriteAdd: "Aggiungi ai preferiti",
     favoriteRemove: "Rimuovi dai preferiti",
     favoriteError: "Impossibile aggiornare i preferiti",
@@ -672,7 +672,6 @@ const it: Messages = {
     filterOthers: "Non preferite",
     notes: "Note",
     notesPlaceholder: "Note facoltative",
-    create: "Crea scaletta",
     saved: "«{name}» salvata",
     saveError: "Impossibile salvare la scaletta",
     createError: "Impossibile creare la scaletta",
@@ -689,12 +688,16 @@ const it: Messages = {
     discardConfirm: "Scarta e apri",
     discardAndNew: "Scarta e inizia",
     itemCount: "{count, plural, one {# elemento} other {# elementi}}",
-    panelDirtyWarning: "Ci sono modifiche non salvate nel pannello. Se continui, andranno perse.",
     reorderError: "Impossibile salvare l'ordine delle scalette",
+    listLabel: "Scalette salvate",
+    createdAt: "Creata",
+    lastOpenedAt: "Aperta l'ultima volta",
+    neverOpened: "Mai",
+    leaveBody: "Se esci ora, le modifiche a questa scaletta vanno perse.",
+    leave: "Scarta le modifiche",
   },
   settings: {
     title: "Impostazioni",
-    close: "Chiudi",
     slidesCacheUsage: "Spazio usato",
     slidesCacheUsageDesc:
       "{decks, plural, one {# presentazione con audio o video salvato su disco} other {# presentazioni con audio o video salvato su disco}}",
@@ -725,14 +728,13 @@ const it: Messages = {
     sections: {
       projection: "Proiezione",
       slides: "Diapositive",
-      verse: "Versetti",
       bible: "Bibbia",
       songs: "Canti",
       system: "Sistema",
       about: "Informazioni",
     },
     songs: {
-      title: "Canti",
+      title: "Tema e licenza",
       defaultTheme: "Tema predefinito",
       defaultThemeHint: "Per i canti che non ne scelgono uno proprio.",
       license: "Licenza CCLI della chiesa",
@@ -753,7 +755,7 @@ const it: Messages = {
       language: "Lingua",
       folders: "Cartelle dei file",
       performance: "Prestazioni",
-      about: "Informazioni",
+      about: "Versione e aggiornamenti",
     },
     verse: {
       preview: "Vedi con un versetto lungo",
@@ -900,7 +902,7 @@ const it: Messages = {
     logoRemoveLiveBody:
       "Il proiettore sta mostrando il logo in questo momento: se lo rimuovi, lo schermo resta nero finché non mandi qualcosa IN ONDA. Nessun file viene eliminato — il logo esce dalle impostazioni e puoi sceglierlo di nuovo quando vuoi.",
     chooseFile: "Scegli file…",
-    clearLive: "Pulisci il contenuto in onda",
+    clearLive: "Ciò che è proiettato ora",
     clearLiveDesc: "Toglie ciò che è proiettato adesso e torna al logo.",
     startVolume: "Volume iniziale",
     startVolumeDesc:
@@ -976,6 +978,14 @@ const it: Messages = {
       "600": "Lenta (600 ms)",
     },
   },
+  /** The bar of a full-screen editor (`components/shared/editor-screen/`). */
+  editor: {
+    back: "Indietro",
+    edited: "Modificato",
+    discard: "Scarta",
+    more: "Altre azioni",
+    saveHint: "Salva ({shortcut})",
+  },
   common: {
     cancel: "Annulla",
     confirm: "Conferma",
@@ -984,7 +994,6 @@ const it: Messages = {
     delete: "Elimina",
     remove: "Rimuovi",
     duplicate: "Duplica",
-    revert: "Annulla modifiche",
     close: "Chiudi",
     dismiss: "Chiudi avviso",
     retry: "Riprova",
