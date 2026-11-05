@@ -165,7 +165,7 @@ test("the verse style edited from the Bible tab reaches the verse already on the
   await expect(stage).toContainText("Juan 3:16");
 
   const settings = await openVerseStyle(app);
-  await settings.getByRole("group", { name: "Mayúsculas" }).getByRole("combobox").click();
+  await settings.getByRole("combobox", { name: "Mayúsculas" }).click();
   await app.control.getByRole("option", { name: "TODO EN MAYÚSCULAS" }).click();
   await expect(stage).toContainText("JUAN 3:16");
 
@@ -283,4 +283,7 @@ test("a starred verse and the passage read live come back from Favoritos y recie
   await tab.getByRole("region", { name: "Favoritos" }).getByRole("listitem").click();
   await expect(tab.getByRole("listitem").filter({ hasText: JUAN_3_16 })).toHaveAttribute("aria-current", "true");
   await expect(tab.getByRole("button", { name: "Quitar de favoritos" })).toBeVisible();
+  // The pickers follow it, so the next chapter is one step away.
+  await expect(tab.getByRole("combobox", { name: "Libro" })).toHaveText("Juan");
+  await expect(tab.getByRole("combobox", { name: "Capítulo" })).toHaveText("3");
 });

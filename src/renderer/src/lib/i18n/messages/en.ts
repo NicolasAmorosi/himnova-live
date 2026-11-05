@@ -532,6 +532,9 @@ const en: Messages = {
     deleteBody: "The songs that use it go back to the default theme.",
   },
   bible: {
+    versionLabel: "Version",
+    bookLabel: "Book",
+    chapterLabel: "Chapter",
     title: "Bible",
     import: "Import",
     importing: "Importing…",
@@ -650,6 +653,7 @@ const en: Messages = {
     chooseScreen: "Choose screen",
   },
   programs: {
+    filterLabel: "Show",
     title: "Schedules",
     manage: "Manage schedules",
     save: "Save",

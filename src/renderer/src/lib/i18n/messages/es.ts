@@ -533,6 +533,9 @@ const es = {
     deleteBody: "Las canciones que lo usan pasan al tema por defecto.",
   },
   bible: {
+    versionLabel: "Versión",
+    bookLabel: "Libro",
+    chapterLabel: "Capítulo",
     title: "Biblia",
     import: "Importar",
     importing: "Importando…",
@@ -651,6 +654,7 @@ const es = {
     chooseScreen: "Elegir pantalla",
   },
   programs: {
+    filterLabel: "Mostrar",
     title: "Programas",
     manage: "Administrar programas",
     save: "Guardar",

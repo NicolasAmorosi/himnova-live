@@ -251,6 +251,7 @@ export function BibleBrowser() {
       <div className="flex shrink-0 flex-col gap-1.5 border-b border-border p-1.5">
         <div className="flex items-center gap-1.5">
           <Select
+            aria-label={t("bible.versionLabel")}
             className="min-w-0 flex-[3]"
             onChange={(value) => void setVersion(Number(value))}
             options={versions.map((v) => ({ label: v.name, value: String(v.id) }))}
@@ -258,6 +259,7 @@ export function BibleBrowser() {
             value={versionId !== null ? String(versionId) : ""}
           />
           <Select
+            aria-label={t("bible.bookLabel")}
             className="min-w-0 flex-[3]"
             onChange={(value) => {
               setPendingBook(value);
@@ -269,6 +271,7 @@ export function BibleBrowser() {
             value={pendingBook}
           />
           <Select
+            aria-label={t("bible.chapterLabel")}
             className="min-w-16 flex-1"
             disabled={!selectedBook}
             onChange={(value) => {

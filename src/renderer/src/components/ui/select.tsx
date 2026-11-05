@@ -1,9 +1,10 @@
 import type { ButtonHTMLAttributes, KeyboardEvent as ReactKeyboardEvent } from "react";
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useContext, useEffect, useId, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useT } from "@renderer/lib/i18n/i18n-provider";
 import { isPointerFocused } from "@renderer/lib/focus-modality";
 import { cn, normalizeForSearch } from "@renderer/lib/utils";
+import { FieldLabelContext } from "./field-layout";
 import { computeMenuPosition, useFollowTrigger, type MenuPosition } from "./floating-menu";
 import { Icon } from "./icon";
 
@@ -59,6 +60,8 @@ export function Select({
   const t = useT();
   const id = useId();
   const listboxId = `${id}-listbox`;
+  // Named by the `FieldRow` it sits in, unless the caller names it.
+  const fieldLabelId = useContext(FieldLabelContext);
   const [open, setOpen] = useState(false);
   const [position, setPosition] = useState<MenuPosition | null>(null);
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
@@ -279,6 +282,7 @@ export function Select({
       aria-controls={listboxId}
       aria-expanded={open}
       aria-haspopup="listbox"
+      aria-labelledby={props["aria-label"] === undefined ? fieldLabelId : undefined}
       className={cn(
         "focus-ring relative inline-flex items-center rounded-md border border-border bg-surface text-left text-foreground transition-colors hover:border-border-light disabled:cursor-not-allowed disabled:opacity-60",
         sizes[size],

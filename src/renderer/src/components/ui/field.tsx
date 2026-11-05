@@ -1,6 +1,6 @@
 import { useContext, useId, type MouseEvent, type ReactNode } from "react";
 import { cn } from "@renderer/lib/utils";
-import { FieldLayoutContext, type FieldLayout } from "./field-layout";
+import { FieldLabelContext, FieldLayoutContext, type FieldLayout } from "./field-layout";
 import { Icon } from "./icon";
 import { Title } from "./title";
 import { Tooltip } from "./tooltip";
@@ -44,10 +44,9 @@ export function FieldGroup({ children, className, title }: { children: ReactNode
  *  resource panel are the same interaction at two densities, and two spellings
  *  of it is how the two start behaving differently.
  *
- *  The row is a `group` named by its label and described by its description.
- *  The control inside comes from the caller, so this cannot name it directly,
- *  but a screen reader announces the group on the way in — which is what an
- *  unnamed `Select` that read out only «Centered» was missing. */
+ *  The row is a `group` named by its label and described by its description,
+ *  and it hands the label's id down (`FieldLabelContext`) so a `Select` inside
+ *  is named by it too — a combobox named by nothing read out only «Centered». */
 export function FieldRow({
   children,
   description,
@@ -127,7 +126,9 @@ export function FieldRow({
             </>
           )}
         </span>
-        <div className={COMPACT_CONTROL}>{children}</div>
+        <div className={COMPACT_CONTROL}>
+          <FieldLabelContext value={labelId}>{children}</FieldLabelContext>
+        </div>
         {description ? (
           <span className="sr-only" id={descriptionId}>
             {description}
@@ -180,7 +181,9 @@ export function FieldRow({
           </span>
         ) : null}
       </div>
-      <div className="flex shrink-0 flex-nowrap items-center gap-2">{children}</div>
+      <div className="flex shrink-0 flex-nowrap items-center gap-2">
+        <FieldLabelContext value={labelId}>{children}</FieldLabelContext>
+      </div>
     </div>
   );
 }

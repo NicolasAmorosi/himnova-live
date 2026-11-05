@@ -18,3 +18,8 @@ import { createContext } from "react";
  */
 export type FieldLayout = "spread" | "compact" | "stacked";
 export const FieldLayoutContext = createContext<FieldLayout>("spread");
+
+/** The id of the enclosing `FieldRow`'s label, so a control the caller put
+ *  in the row can name itself after it (`aria-labelledby`). The row cannot
+ *  name a child it does not render. */
+export const FieldLabelContext = createContext<string | undefined>(undefined);

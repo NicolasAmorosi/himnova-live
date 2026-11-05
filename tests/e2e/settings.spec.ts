@@ -35,12 +35,12 @@ test("the transition chosen in Ajustes is kept after a restart", async ({ app })
   let settings = await openSettings(app, "Proyección");
   await choose(app, settings.getByRole("group", { name: "Estilo", exact: true }), "Instantáneo");
   // A duration means nothing to a cut.
-  await expect(settings.getByRole("group", { name: "Duración", exact: true }).getByRole("combobox")).toBeDisabled();
+  await expect(settings.getByRole("combobox", { name: "Duración", exact: true })).toBeDisabled();
   await app.quit();
 
   const again = await relaunch(app);
   settings = await openSettings(again, "Proyección");
-  await expect(settings.getByRole("group", { name: "Estilo", exact: true }).getByRole("combobox")).toHaveText(/Instantáneo/);
+  await expect(settings.getByRole("combobox", { name: "Estilo", exact: true })).toHaveText(/Instantáneo/);
 });
 
 test("with the LIVE monitor's video turned off, the projector still plays it", async ({ app }) => {

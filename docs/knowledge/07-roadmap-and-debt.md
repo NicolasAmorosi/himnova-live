@@ -133,10 +133,10 @@ high and medium findings. This was left open, each item with its reason:
   requires a native `File`), two real screens, and the native dialogs — those are answered by
   replacing `dialog.showOpenDialog` in main (`answerOpenDialog`), so the button and everything
   after it are the real ones.
-- **31 of the 35 `Select`s have no accessible name.** The ones living in a `FieldRow` are named
-  only by the `role="group"`, not the combobox; the three in the Bible browser and the Schedules
-  filter, by nothing. The fix is in the primitive (have `Select` take the `labelId` of the
-  `FieldRow` that contains it) plus an `aria-label` on the four standalone ones.
+- ~~**31 of the 35 `Select`s have no accessible name.**~~ **Fixed on 2026-11-05:** a `FieldRow` hands
+  its label's id down (`FieldLabelContext`) and a `Select` inside is `aria-labelledby` it unless the
+  caller passes an `aria-label`, which the four standalone ones (the Bible tab's three pickers and
+  the programs filter) now do. Every combobox of every screen was checked at run time.
 
 ## Cross-platform — solved
 

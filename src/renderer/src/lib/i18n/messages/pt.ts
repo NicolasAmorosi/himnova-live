@@ -533,6 +533,9 @@ const pt: Messages = {
     deleteBody: "As músicas que o usam passam para o tema padrão.",
   },
   bible: {
+    versionLabel: "Versão",
+    bookLabel: "Livro",
+    chapterLabel: "Capítulo",
     title: "Bíblia",
     import: "Importar",
     importing: "Importando…",
@@ -651,6 +654,7 @@ const pt: Messages = {
     chooseScreen: "Escolher tela",
   },
   programs: {
+    filterLabel: "Mostrar",
     title: "Roteiros",
     manage: "Gerenciar roteiros",
     save: "Salvar",

@@ -534,6 +534,9 @@ const it: Messages = {
     deleteBody: "I canti che lo usano passano al tema predefinito.",
   },
   bible: {
+    versionLabel: "Versione",
+    bookLabel: "Libro",
+    chapterLabel: "Capitolo",
     title: "Bibbia",
     import: "Importa",
     importing: "Importazione…",
@@ -656,6 +659,7 @@ const it: Messages = {
     chooseScreen: "Scegli schermo",
   },
   programs: {
+    filterLabel: "Mostra",
     title: "Scalette",
     manage: "Gestisci scalette",
     save: "Salva",
