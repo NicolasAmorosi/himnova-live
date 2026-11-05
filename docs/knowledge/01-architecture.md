@@ -32,7 +32,7 @@ in watch mode. Full config in `electron.vite.config.ts` (repo root).
 and the user DB live) are resolved in a single file, `src/main/paths.ts` — don't repeat
 `app.isPackaged ? ... : ...` anywhere else.
 
-## The two windows
+## The windows
 
 As in the legacy version (removed from the repo on 2026-10-22; still in git history at
 `90d3821`): `createControlWindow()` (1400×900, minimum 1000×700, background `#162231`) and
@@ -45,6 +45,18 @@ Because the projection window is destroyed and recreated, main keeps the last `P
 sent (`src/main/services/projection-state.ts`) and replays it on `did-finish-load` — otherwise,
 reopening the projection leaves it black even though the control believes it is projecting
 something.
+
+**The stage window** (2026-11-05, `main/windows/stage-window.ts`, page `stage.html` →
+`StageApp`) is the musicians' screen: what is live, what comes next and the time, on the screen
+chosen in Settings ▸ Projection (`stage.displayId`, `null` = none). Unlike the projector it exists
+whenever that screen is connected — `syncStageWindow()` decides, called when the control window
+opens, when the setting changes and when a screen comes or goes — and it plays nothing: a video is
+its poster (`OutputView`'s `videoStill`), so it has no audio, no media commands and no engine
+session. The control window builds its picture (`lib/stage-output.ts`, pushed by
+`effects/stage-sync.ts` through `stage:show`); main keeps the last one for a window that opens
+later (`stage:getSnapshot`). On the operator's own screen it is a movable 800×450 window, never a
+fullscreen one over the control window. Its keys are forwarded to the control window, like the
+projector's.
 
 ## In-app updates
 

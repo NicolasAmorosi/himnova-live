@@ -76,6 +76,8 @@ const es = {
     placeholderHint: "Elegí un elemento del programa o de los recursos",
   },
   actions: { goLive: "EN VIVO" },
+  /** The musicians' screen (`StageApp`), its words sent from here. */
+  stage: { next: "Sigue", lyricsHidden: "LETRA OCULTA" },
   status: {
     black: "NEGRO",
     logo: "LOGO",
@@ -853,6 +855,9 @@ const es = {
     },
     display: "Pantalla de proyección",
     displayDesc: "El monitor donde se muestra lo que está en vivo. Se aplica al abrir la ventana de proyección.",
+    stageDisplay: "Pantalla de escenario",
+    stageDisplayDesc: "Un monitor para los músicos: lo que está en vivo, lo que sigue y la hora. Con NEGRO o LOGO sigue mostrando el contenido y lo avisa.",
+    stageNone: "Ninguna",
     windowLabel: "Ventana de proyección",
     windowDesc: "Reiniciala si el proyector deja de responder.",
     theme: "Tema",

@@ -105,7 +105,7 @@ src/
 ├── main/
 │   ├── index.ts                # entry: DB, migrations, seed, IPC, windows
 │   ├── paths.ts                 # dev vs. packaged, ALL paths resolved here
-│   ├── windows/                 # control-window.ts, projection-window.ts
+│   ├── windows/                 # control-window.ts, projection-window.ts, stage-window.ts (the musicians' screen)
 │   ├── db/
 │   │   ├── schema.ts             # Drizzle tables
 │   │   ├── client.ts             # SQLite opening + pragmas
@@ -143,6 +143,7 @@ src/
         ├── main.tsx / projection.tsx    # entries
         ├── app/App.tsx                   # control window shell
         ├── projection/ProjectionApp.tsx  # projection window shell (no domain logic)
+        ├── stage/StageApp.tsx            # the musicians' screen: live + next + time, built by lib/stage-output.ts
         ├── components/
         │   ├── ui/          # design system primitives — barrel index.ts
         │   ├── shared/      # cross-feature: modal, editor-screen (the full-screen editor shell), panel,
@@ -344,7 +345,7 @@ npm install              # installs deps — better-sqlite3 ships prebuilt binar
 npm run dev               # electron-vite dev (HMR in the renderer, main restarts on watch)
 npm run typecheck          # tsc --noEmit over node (main+preload+shared) and web (renderer+shared)
 npm run lint                # eslint .
-npm run test                 # vitest run — 588 cases in two projects: `main` (Node: migrations, seed,
+npm run test                 # vitest run — 595 cases in two projects: `main` (Node: migrations, seed,
                               #   FTS5, repos and the library sweep, draft, settings and scene validators, WAL backup,
                               #   zip reader, the legacy-deck reader against an OLE2 file built in the test
                               #   (`tests/fixtures/legacy-ppt.ts`: pictures, master inheritance, what it refuses),
@@ -367,7 +368,7 @@ npm run test                 # vitest run — 588 cases in two projects: `main` 
                               #   frozen frame, toast store, utils). Nothing imports `electron`: that's
                               #   the suite's boundary
 npm run test:watch            # the same suite in watch mode, while working on a module
-npm run test:e2e              # build + Playwright: 158 walkthroughs of the real app (~10 min) with a
+npm run test:e2e              # build + Playwright: 159 walkthroughs of the real app (~10 min) with a
                               #   throwaway profile and media generated on the fly — videos, AVI and WMA with the
                               #   bundled FFmpeg; PDFs, a legacy .pps made of pictures and .pptx with auto-advance, a
                               #   WMA soundtrack and an embedded WMV written in code (`tests/e2e/support/pptx.ts`),

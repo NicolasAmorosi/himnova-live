@@ -23,6 +23,7 @@ import type {
   PreviewVideoStatus,
   ProjectionMediaError,
   ProjectionOutput,
+  StageOutput,
 } from "../types/projection";
 import type {
   DeckCacheStats,
@@ -95,6 +96,11 @@ export type IpcContract = {
    *  main has it draw the current one again — a projector rebuilt onto another
    *  screen, or a monitor remounted, would otherwise stay black until play. */
   "projection:wantVideoFrame": { req: { key: string }; res: void };
+
+  /** Control window -> main -> the stage window, like `projection:show`; main
+   *  keeps the last one for a stage window that opens later. */
+  "stage:show": { req: StageOutput; res: void };
+  "stage:getSnapshot": { req: void; res: StageOutput | null };
 
   /** The PREVIEW monitor's video when the media engine plays it, or `null`
    *  when it shows anything else. Declarative: main loads a new url, and only
@@ -375,6 +381,8 @@ export type Res<K extends IpcChannel> = IpcContract[K]["res"];
 export type IpcEvents = {
   /** -> projection window */
   "display-content": ProjectionOutput;
+  /** -> stage window */
+  "stage-content": StageOutput;
   "media-command": MediaCommand;
   "audio-tracks": AudioTrackPush[];
   /** -> control window */

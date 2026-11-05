@@ -77,6 +77,8 @@ const pt: Messages = {
     placeholderHint: "Escolha um item do roteiro ou dos recursos",
   },
   actions: { goLive: "AO VIVO" },
+  /** The musicians' screen (`StageApp`), its words sent from here. */
+  stage: { next: "Depois", lyricsHidden: "LETRA OCULTA" },
   status: {
     black: "PRETO",
     logo: "LOGO",
@@ -848,6 +850,9 @@ const pt: Messages = {
     },
     display: "Tela de projeção",
     displayDesc: "O monitor onde aparece o que está ao vivo. Vale ao abrir a janela de projeção.",
+    stageDisplay: "Tela do palco",
+    stageDisplayDesc: "Um monitor para os músicos: o que está ao vivo, o que vem depois e a hora. Com PRETO ou LOGO continua mostrando o conteúdo e avisa.",
+    stageNone: "Nenhuma",
     windowLabel: "Janela de projeção",
     windowDesc: "Reinicie-a se o projetor parar de responder.",
     theme: "Tema",

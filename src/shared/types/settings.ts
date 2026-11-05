@@ -44,6 +44,9 @@ export type SettingsMap = {
    *  the operator chose in Settings. */
   "files.defaultFolders": Record<AssetKind, string | null>;
   "projection.displayId": number | null;
+  /** The musicians' screen (`main/windows/stage-window.ts`): what is live, what
+   *  comes next and the time. `null`, the default, is no stage display. */
+  "stage.displayId": number | null;
   "ui.theme": Theme;
   "ui.locale": Locale;
   "media.volume": number;
@@ -125,6 +128,7 @@ export const DEFAULT_SETTINGS: SettingsMap = {
   "logo.path": null,
   "files.defaultFolders": { video: null, image: null, audio: null, ppt: null },
   "projection.displayId": null,
+  "stage.displayId": null,
   "ui.theme": "dark",
   "ui.locale": "es",
   // Full. Anything sent live is meant to be heard, and a level the operator
@@ -211,6 +215,7 @@ export const SETTINGS_VALIDATORS: Record<keyof SettingsMap, (value: unknown) => 
   "logo.path": isNullOr(isString),
   "files.defaultFolders": isRecordOfKinds(isNullOr(isString)),
   "projection.displayId": isDisplayId,
+  "stage.displayId": isDisplayId,
   "ui.theme": isOneOf(THEMES),
   "ui.locale": isOneOf(LOCALES),
   "media.volume": isNumberIn(0, 1),

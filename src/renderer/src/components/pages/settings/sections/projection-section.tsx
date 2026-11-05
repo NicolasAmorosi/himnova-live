@@ -25,6 +25,7 @@ export function ProjectionSection() {
   // is about to blank a screen the congregation is looking at.
   const output = useProjectionStore(selectOutputMemo);
   const logoPath = useSettingsStore((s) => s.settings["logo.path"]);
+  const stageDisplayId = useSettingsStore((s) => s.settings["stage.displayId"]);
   const transitionStyle = useSettingsStore((s) => s.settings["projection.transition.style"]);
   const transitionDurationMs = useSettingsStore((s) => s.settings["projection.transition.durationMs"]);
   const startVolume = useSettingsStore((s) => s.settings["media.volume"]);
@@ -96,6 +97,23 @@ export function ProjectionSection() {
               {t("header.openDisplay")}
             </Button>
           )}
+        </FieldRow>
+        {/* Open whenever its screen is connected; main places it (`stage-window.ts`). */}
+        <FieldRow description={t("settings.stageDisplayDesc")} label={t("settings.stageDisplay")}>
+          <Select
+            className="min-w-56"
+            onChange={(value) =>
+              void useSettingsStore.getState().update({ "stage.displayId": value === "none" ? null : Number(value) })
+            }
+            options={[
+              { label: t("settings.stageNone"), value: "none" },
+              ...displays.map((d) => ({
+                label: `${d.label}${d.primary ? ` ${t("header.primaryDisplay")}` : ""}`,
+                value: String(d.id),
+              })),
+            ]}
+            value={stageDisplayId !== null ? String(stageDisplayId) : "none"}
+          />
         </FieldRow>
       </FieldGroup>
 

@@ -14,7 +14,7 @@ saved-services module.
 2026-11-04):** the song library, one size per song, live jumps, named themes and the
 EasyWorship 6 import — see «Songs» in `04-renderer-state.md` and `05-data-and-persistence.md`.
 Left for later, by the owner's plan: two languages at once (the `translation` slot of a slide is
-reserved and never written), a video behind the lyrics, a stage display, other importers
+reserved and never written), a video behind the lyrics, other importers
 (OpenLP, OpenLyrics, ProPresenter, FreeShow, SongSelect, ChordPro), the CCLI usage report, chords,
 configurable keys, and checking the importer against a real EasyWorship 7 database.
 

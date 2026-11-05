@@ -77,6 +77,8 @@ const en: Messages = {
     placeholderHint: "Pick an item from the schedule or the resources",
   },
   actions: { goLive: "GO LIVE" },
+  /** The musicians' screen (`StageApp`), its words sent from here. */
+  stage: { next: "Next", lyricsHidden: "LYRICS HIDDEN" },
   status: {
     black: "BLACK",
     logo: "LOGO",
@@ -847,6 +849,9 @@ const en: Messages = {
     },
     display: "Projector screen",
     displayDesc: "The monitor that shows what's live. Takes effect when the projector window opens.",
+    stageDisplay: "Stage screen",
+    stageDisplayDesc: "A monitor for the musicians: what's live, what's next and the time. Under BLACK or LOGO it keeps showing the content and says so.",
+    stageNone: "None",
     windowLabel: "Projector window",
     windowDesc: "Restart it if the projector stops responding.",
     theme: "Theme",

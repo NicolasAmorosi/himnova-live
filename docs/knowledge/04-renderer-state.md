@@ -126,6 +126,13 @@ GO LIVE, even of the same deck) and the transport's restart start them all over.
 sounds from the deck store, not from `liveDeck`: `liveDeck` is the deck as it went live, and a WMA
 the media engine takes afterwards only reaches the deck store (`deck-updated`).
 
+`src/renderer/src/effects/stage-sync.ts` builds the musicians' screen (`stageOutputFor`,
+`lib/stage-output.ts`) while one is chosen: the live content with nothing covering it, the slide or
+verse → would bring (`stepSong` for a song, the Bible tab's cursor for a verse — a program's verse
+has none), and BLACK, LOGO or hidden lyrics named as a `notice` rather than shown (owner,
+2026-11-05: the band still needs the words). It rebuilds only when an input changes by reference,
+like `selectOutputMemo`.
+
 `src/renderer/src/effects/end-of-playback.ts` takes off the air, on its own, a video or an
 auto-advancing deck that finished playing by itself, leaving the logo scene
 (`clearBaseContent()`) — the congregation is never left staring at the last frame or the last

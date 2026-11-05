@@ -424,3 +424,24 @@ export type BaseContent =
     };
 
 export type OverlayState = "none" | "black" | "logo";
+
+/**
+ * What the musicians' screen shows, built by the control window
+ * (`lib/stage-output.ts`) and drawn by `StageApp` — which, like the projector,
+ * resolves nothing. Under BLACK, LOGO or hidden lyrics the stage keeps the
+ * content and says so (`notice`): the band still needs the words the
+ * congregation is not seeing (owner, 2026-11-05).
+ */
+export type StageOutput = {
+  /** What is live, uncovered; `null` when nothing is. */
+  current: ProjectionOutput | null;
+  /** The next slide or verse, the one → would bring; `null` when there is none. */
+  next: ProjectionOutput | null;
+  /** A live full-screen video as its poster (`OutputView`'s `videoStill`):
+   *  the stage decodes no video, a slide's included. */
+  videoStill: { posterUrl: string | null; videoUrl: string | null };
+  /** «NEGRO», «LOGO» or the hidden lyrics, in the operator's language. */
+  notice: string | null;
+  /** The caption over `next`, in the operator's language. */
+  nextLabel: string;
+};

@@ -77,6 +77,8 @@ const it: Messages = {
     placeholderHint: "Scegli un elemento della scaletta o delle risorse",
   },
   actions: { goLive: "IN ONDA" },
+  /** The musicians' screen (`StageApp`), its words sent from here. */
+  stage: { next: "Segue", lyricsHidden: "TESTO NASCOSTO" },
   status: {
     black: "NERO",
     logo: "LOGO",
@@ -855,6 +857,9 @@ const it: Messages = {
     },
     display: "Schermo di proiezione",
     displayDesc: "Il monitor su cui si vede ciò che è in onda. Si applica all'apertura della finestra di proiezione.",
+    stageDisplay: "Schermo del palco",
+    stageDisplayDesc: "Un monitor per i musicisti: ciò che è in onda, ciò che segue e l'ora. Con NERO o LOGO continua a mostrare il contenuto e lo segnala.",
+    stageNone: "Nessuno",
     windowLabel: "Finestra di proiezione",
     windowDesc: "Riaprila se il proiettore smette di rispondere.",
     theme: "Tema",

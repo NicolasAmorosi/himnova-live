@@ -7,6 +7,7 @@ import type {
   PreviewEngineVideo,
   ProjectionMediaError,
   ProjectionOutput,
+  StageOutput,
 } from "@shared/types/projection";
 import type {
   ProgramDraft,
@@ -58,6 +59,10 @@ export const api = {
     statuses: (assetIds: number[]) => invoke("deck:statuses", { assetIds }),
     cacheStats: () => invoke("deck:cacheStats", undefined),
     clearCache: () => invoke("deck:clearCache", undefined),
+  },
+  stage: {
+    show: (output: StageOutput) => invoke("stage:show", output),
+    getSnapshot: () => invoke("stage:getSnapshot", undefined),
   },
   bible: {
     versions: () => invoke("bible:versions", undefined),
