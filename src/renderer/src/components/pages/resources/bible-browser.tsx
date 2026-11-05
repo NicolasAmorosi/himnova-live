@@ -154,6 +154,14 @@ export function BibleBrowser() {
       });
   }, TEXT_SEARCH_DEBOUNCE_MS);
 
+  // The hits belong to a version: a search typed before the browsed version
+  // loaded (on a cold start it arrives after the window) or before switching
+  // it ran against none or the old one, so a new version runs it again.
+  useEffect(() => {
+    if (searchMode === "text") runTextSearch(query);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only a new version re-runs it; query and mode changes already search through onChange and the toggle
+  }, [versionId]);
+
   function handleTextSearch(value: string) {
     // Cleared synchronously so the list can never show hits for a query the
     // input no longer holds while the debounce is pending.
