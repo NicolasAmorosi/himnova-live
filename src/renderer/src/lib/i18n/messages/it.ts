@@ -949,8 +949,8 @@ const it: Messages = {
     clearLive: "Ciò che è proiettato ora",
     clearLiveDesc: "Toglie ciò che è proiettato adesso e torna al logo.",
     videoEnd: "Alla fine di un video",
-    videoEndDesc: "Cosa mostra il proiettore quando un video arriva alla fine da solo. Senza un logo caricato, il logo è nero.",
-    videoEndOptions: { logo: "Mostra il logo", black: "Schermo nero", loop: "Ripeti in loop", hold: "Resta sull'ultimo fotogramma" },
+    videoEndDesc: "Cosa mostra il proiettore quando un video arriva alla fine da solo. Senza un logo caricato, il logo è nero. «Passa al prossimo della scaletta» manda in onda l'elemento successivo della scaletta; se il video non è in scaletta o è l'ultimo, mostra il logo.",
+    videoEndOptions: { logo: "Mostra il logo", black: "Schermo nero", loop: "Ripeti in loop", hold: "Resta sull'ultimo fotogramma", next: "Passa al prossimo della scaletta" },
     startVolume: "Volume iniziale",
     startVolumeDesc:
       "Il volume con cui parte ogni video, audio o musica di PPT che mandi IN ONDA. Puoi regolarli uno per uno mentre suonano, dal pannello In onda.",

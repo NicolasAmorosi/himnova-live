@@ -452,6 +452,28 @@ async function goLiveWithAsset(
   if (result === "base") useProgramStore.getState().setActive(null);
 }
 
+/**
+ * The schedule's next item that changes the picture, straight to the
+ * projector: a video's end set to «next» (`projection.videoEnd`, owner
+ * 2026-11-05). A plate or an audio never changes the picture, so it is
+ * skipped. False when the live video was not a schedule row (nothing claims
+ * the rail) or nothing after it shows anything. PREVIEW stays where the
+ * operator left it.
+ */
+export async function goLiveWithNextScheduleItem(): Promise<boolean> {
+  const { activeIndex, items } = useProgramStore.getState();
+  if (activeIndex === null) return false;
+  const next = items.findIndex(
+    (item, index) =>
+      index > activeIndex &&
+      item.kind !== "plate" &&
+      !(item.kind === "media" && getCachedMediaAsset(item.mediaAssetId)?.kind === "audio"),
+  );
+  if (next < 0) return false;
+  await goLiveWithScheduleItem(next, 1, 0, claimLiveIntent());
+  return true;
+}
+
 /** Whether a preview target is a standalone audio, which goes live without
  *  changing the picture. A schedule row only says "media", so its asset says
  *  the kind — already cached, since PREVIEW resolved it to show it. */

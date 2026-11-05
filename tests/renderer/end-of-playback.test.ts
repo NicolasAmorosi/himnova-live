@@ -2,8 +2,9 @@
  * What the projector does when a live video reaches its end on its own —
  * `projection.videoEnd`, mirrored into the projection store.
  */
-import { afterEach, beforeEach, expect, test } from "vitest";
+import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { startEndOfPlaybackEffects } from "@renderer/effects/end-of-playback";
+import { useProgramStore } from "@renderer/stores/program.store";
 import { selectOutput, useProjectionStore } from "@renderer/stores/projection.store";
 import type { VideoEndAction } from "@shared/types/projection";
 import { assetUrl } from "@shared/urls";
@@ -50,4 +51,33 @@ test("«Repetir en bucle» travels in the output, so the element loops instead o
   expect(selectOutput(useProjectionStore.getState()).videoUnderlay?.loop).toBe(false);
   store.setVideoEnd("loop");
   expect(selectOutput(useProjectionStore.getState()).videoUnderlay?.loop).toBe(true);
+});
+
+test("«Pasar al siguiente del programa» sends the next row that shows something, past a plate", async () => {
+  const program = useProgramStore.getState();
+  program.clear();
+  program.addItem({ kind: "media", mediaAssetId: 5, title: "Video" });
+  program.addItem({ kind: "plate", overlayPlateId: 1, title: "Zócalo" });
+  program.addItem({
+    kind: "bible",
+    bibleVersionId: null,
+    bibleBookId: null,
+    chapter: null,
+    verseFrom: null,
+    verseTo: null,
+    reference: "Juan 3:16",
+    text: "Porque de tal manera amó Dios al mundo",
+  });
+  program.setActive(0);
+  playToTheEnd("next");
+  await vi.waitFor(() => expect(useProjectionStore.getState().base?.kind).toBe("bible"));
+  expect(useProgramStore.getState().activeIndex).toBe(2);
+});
+
+test("a video that is not a schedule row has no next: the logo", async () => {
+  useProgramStore.getState().clear();
+  const state = playToTheEnd("next");
+  await vi.waitFor(() => expect(useProjectionStore.getState().overlay).toBe("logo"));
+  expect(state.base?.kind).toBe("video");
+  expect(useProjectionStore.getState().base).toBeNull();
 });

@@ -146,7 +146,9 @@ mirrored into `projection.store` by `App.tsx` like the transition): «logo» cle
 under BLACK (`clearBaseContentUnder`), «hold» does nothing — the element, or mpv's `keep-open`, holds the
 last frame — and «loop» never ends at all: `VideoUnderlay.loop` travels in the output, so the `<video>`
 and the engine session (`setLoop`) start over by themselves, seamlessly, and a rebuilt projector loops
-too. A deck still clears.
+too. «next» (`goLiveWithNextScheduleItem`) sends the schedule's next row that changes the picture — a plate
+or an audio is skipped — from the row on the rail; a video that was not a schedule row, or the last one,
+falls back to «logo». A deck still clears.
 
 The point to respect when touching this file: `MediaStatus.ended` is *sticky* on the DOM
 element and is re-emitted on mount (`use-media-status-reporter.ts` calls `report()` without

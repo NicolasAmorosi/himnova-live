@@ -56,8 +56,9 @@ export type SettingsMap = {
   /** Ignored when the style is "none". */
   "projection.transition.durationMs": number;
   /** What the projector does when a video reaches its end on its own (owner,
-   *  2026-11-05): the logo (black without one), BLACK, start over, or stay on
-   *  its last frame. Videos only — an auto-advancing deck still clears. */
+   *  2026-11-05): the logo (black without one), BLACK, start over, stay on its
+   *  last frame, or the schedule's next item. Videos only — an auto-advancing
+   *  deck still clears. */
   "projection.videoEnd": VideoEndAction;
   /** Whether the LIVE monitor plays its own moving copy of a live video (the
    *  full-screen one and a slide's). Off, it shows the video's thumbnail and

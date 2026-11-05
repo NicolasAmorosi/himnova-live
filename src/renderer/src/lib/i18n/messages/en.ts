@@ -941,8 +941,8 @@ const en: Messages = {
     clearLive: "What is on the projector now",
     clearLiveDesc: "Takes down what's projected now and goes back to the logo.",
     videoEnd: "When a video ends",
-    videoEndDesc: "What the projector shows when a video reaches its end on its own. Without a logo loaded, the logo is black.",
-    videoEndOptions: { logo: "Show the logo", black: "Black screen", loop: "Loop", hold: "Hold the last frame" },
+    videoEndDesc: "What the projector shows when a video reaches its end on its own. Without a logo loaded, the logo is black. «Go to the next schedule item» sends the schedule's next item live; if the video isn't in the schedule or is the last one, it shows the logo.",
+    videoEndOptions: { logo: "Show the logo", black: "Black screen", loop: "Loop", hold: "Hold the last frame", next: "Go to the next schedule item" },
     startVolume: "Starting volume",
     startVolumeDesc:
       "The volume each video, audio file or presentation's music starts at when you GO LIVE with it. You can adjust each one while it plays, from the Live panel.",

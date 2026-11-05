@@ -1,6 +1,6 @@
 import { useProjectionStore, type ProjectionStoreState } from "@renderer/stores/projection.store";
 import { DECK_SOUNDTRACK_TRACK_ID } from "@renderer/stores/audio.store";
-import { clearBaseContent, clearBaseContentUnder } from "@renderer/lib/actions/playback";
+import { clearBaseContent, clearBaseContentUnder, goLiveWithNextScheduleItem } from "@renderer/lib/actions/playback";
 import { mediaTargetKey } from "@shared/types/projection";
 
 const VIDEO_STATUS_KEY = mediaTargetKey({ kind: "video" });
@@ -54,5 +54,7 @@ export function startEndOfPlaybackEffects(): () => void {
     // ends; one held on its last frame stays until the operator moves on.
     const { videoEnd } = useProjectionStore.getState();
     if (videoEnd === "logo" || videoEnd === "black") clearBaseContentUnder(videoEnd);
+    // Nothing after it in the schedule (or not from the schedule): the logo.
+    if (videoEnd === "next") void goLiveWithNextScheduleItem().then((moved) => moved || clearBaseContent());
   });
 }

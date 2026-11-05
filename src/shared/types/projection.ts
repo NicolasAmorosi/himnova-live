@@ -48,7 +48,7 @@ export type VideoUnderlay = {
   loop: boolean;
 } | null;
 
-export const VIDEO_END_ACTIONS = ["logo", "black", "loop", "hold"] as const;
+export const VIDEO_END_ACTIONS = ["logo", "black", "loop", "hold", "next"] as const;
 export type VideoEndAction = (typeof VIDEO_END_ACTIONS)[number];
 
 /**

@@ -16,8 +16,8 @@ Windows, macOS and Linux · English, Spanish, Italian and Portuguese
   slide's timing and the embedded audio are kept.
 - **Any video or audio.** Whatever the player can't decode (AVI, WMV, ProRes, AC3…) plays at once
   through Lumina's own media engine, built on libmpv. Nothing is converted and the original file is
-  never touched. When a video ends, the projector shows the logo, goes black, loops it or holds its
-  last frame — your choice in Settings.
+  never touched. When a video ends, the projector shows the logo, goes black, loops it, holds its
+  last frame or moves on to the schedule's next item — your choice in Settings.
 - **Bible** with full-text search (accent-insensitive), favourite passages and the ones that went live
   recently. Ships with the Reina-Valera 1909; import other versions in JSON, Zefania, USFX, OSIS or
   MyBible/MySword modules.
