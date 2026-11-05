@@ -17,8 +17,9 @@ Windows, macOS and Linux · English, Spanish, Italian and Portuguese
 - **Any video or audio.** Whatever the player can't decode (AVI, WMV, ProRes, AC3…) plays at once
   through Lumina's own media engine, built on libmpv. Nothing is converted and the original file is
   never touched.
-- **Bible** with full-text search (accent-insensitive). Ships with the Reina-Valera 1909; import other
-  versions in JSON, Zefania, USFX, OSIS or MyBible/MySword modules.
+- **Bible** with full-text search (accent-insensitive), favourite passages and the ones that went live
+  recently. Ships with the Reina-Valera 1909; import other versions in JSON, Zefania, USFX, OSIS or
+  MyBible/MySword modules.
 - **Songs:** type or paste the lyrics — with headers like `[Verse 1]` or `[Chorus]` in English, Spanish,
   Italian or Portuguese, or none, and the block that repeats becomes the chorus — and the app builds the
   slides. One order per song, as chips you drag or a line like `V1 C V2 C B C`. **Every slide of a song is
@@ -26,9 +27,12 @@ Windows, macOS and Linux · English, Spanish, Italian and Portuguese
   word of the lyrics (accent-insensitive). Live, the keys jump to a section (1–9 a verse, C the chorus,
   P the bridge, F the ending; Shift the previous time) and T hides the lyrics. Named themes (background,
   font, sizes, colours, outline, margins, lines per slide, a copyright footer with your church's CCLI
-  licence, a fade between slides), and import from **EasyWorship 6**'s song database (version 7 should
-  read the same; not yet tested with one), **OpenLP**'s `songs.sqlite` and **OpenLyrics** files (a second
-  language comes in as the translation). A CCLI usage report: what went live, once a day, as a CSV.
+  licence, a fade between slides, a looping video behind the lyrics). **Two languages at once:** a
+  translation under the lyrics, and live you switch between the original, both or the translation.
+  Import from **EasyWorship 6**'s song database (version 7 should read the same; not yet tested with
+  one), **OpenLP**'s `songs.sqlite` and **OpenLyrics** files (a second language comes in as the
+  translation). A CCLI usage report: what went live, once a day, as a CSV.
+- **A stage screen** for the musicians on a third screen: what is live, what comes next and the time.
 - **Timers** (countdown, clock, stopwatch) and **overlays** on top of what is projected (a lower third
   with the preacher's name, the church logo).
 - **BLACK and LOGO** pause whatever is playing and resume it where it was.
