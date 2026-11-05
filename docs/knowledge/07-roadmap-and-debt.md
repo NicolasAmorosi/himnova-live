@@ -188,5 +188,8 @@ another in `main/i18n/messages/` (both typed against their `es`), its Bible book
 `main/db/seed/bible-formats/book-names.ts` and its endonym in `settings.locales`. No components
 touched: the dictionary maps are typed over `Locale`, so forgetting one doesn't compile.
 
-Pending: the screenshots (`npm run screenshots`) and the landing show the interface in Spanish in
-every language.
+The screenshots (`npm run screenshots`) are taken once per language since 2026-11-05
+(`docs/screenshots/<locale>/`): the interface and the content, each language's public-domain hymns and
+Bible (`tests/e2e/screenshots.content.ts`, every text copied from a named source). The specs drive the
+app through `translate()` (`tests/e2e/support/locale.ts`), which finds a Spanish label's wording in
+the other language through the app's own dictionaries, so the suite stays written in Spanish.

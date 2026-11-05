@@ -7,7 +7,7 @@ and only then send it LIVE.
 **[Website](https://lumina-live-site.vercel.app/)** · **[Download](https://github.com/NicolasAmorosi/lumina-live/releases/latest)** ·
 Windows, macOS and Linux · English, Spanish, Italian and Portuguese
 
-![The Lumina Live control window: the schedule on the left, the preview in the middle and what is on the projector on the right](docs/screenshots/control-dark.webp)
+![The Lumina Live control window: the schedule on the left, the preview in the middle and what is on the projector on the right](docs/screenshots/en/control-dark.webp)
 
 ## Features
 

@@ -6,63 +6,37 @@ import type { CDPSession, Page } from "@playwright/test";
 import { DEFAULT_BIBLE_STYLE } from "../../src/shared/types/bible-style";
 import { DEFAULT_SONG_THEME } from "../../src/shared/types/song";
 import { parseLyrics } from "../../src/shared/song-text";
+import type { BibleVersionDTO } from "../../src/shared/types/bible";
 import type { MediaAsset } from "../../src/shared/types/media";
+import { LOCALES, type Locale } from "../../src/shared/types/settings";
 import { engineCanvas, expect, relaunch, test, type WorshipApp } from "./support/app";
 import { ROOT, ffmpegBinary } from "./support/paths";
 import { buildPdf } from "./support/pdf";
 import { CM, buildPptx, type PptxSlideSpec } from "./support/pptx";
+import { CONTENT, type Hymn } from "./screenshots.content";
 
 /**
  * `npm run screenshots`: the README's and the landing's pictures, taken off
- * the real app. Everything on screen is generated here and publishable —
- * public-domain hymns (Heber and Luther, both trans. Juan B. Cabrera), FFmpeg
- * gradients and tones and the bundled RV1909 — never a church's own decks. The
- * control window is laid out at a fixed 1600×1000 at 2×, whatever screen runs
- * this, so a re-run on any machine writes the same frames. Each feature also
- * gets a `-detail` crop, for a page that shows it next to a paragraph.
+ * the real app, once per language (`docs/screenshots/<locale>/`) — the
+ * interface AND what is on it: each language's own public-domain hymns and
+ * Bible (`screenshots.content.ts`), FFmpeg gradients and tones, never a
+ * church's own decks. The control window is laid out at a fixed 1600×1000 at
+ * 2×, whatever screen runs this, so a re-run on any machine writes the same
+ * frames. Each feature also gets a `-detail` crop, for a page that shows it
+ * next to a paragraph.
  */
 
 const MEDIA = path.join(os.tmpdir(), "lumina-screenshots-media");
 const OUT = path.join(ROOT, "docs/screenshots");
 const THEMES = ["dark", "light"] as const;
-const VERSE = "Ciertamente el bien y la misericordia me seguirán";
 
-/** Luther's hymn as a song (trans. Juan B. Cabrera, public domain), its two
- *  stanzas in two slides each. */
-const CASTILLO = [
-  "[Estrofa 1]",
-  "Castillo fuerte es nuestro Dios,",
-  "defensa y buen escudo.",
-  "Con su poder nos librará",
-  "en este trance agudo.",
-  "",
-  "Con furia y con afán",
-  "acósanos Satán:",
-  "por armas deja ver",
-  "astucia y gran poder;",
-  "cual él no hay en la tierra.",
-  "",
-  "[Estrofa 2]",
-  "Nuestro valor es nada aquí,",
-  "con él todo es perdido;",
-  "mas con nosotros luchará",
-  "de Dios el escogido.",
-  "",
-  "Es nuestro Rey Jesús,",
-  "el que venció en la cruz,",
-  "Señor y Salvador,",
-  "y siendo él solo Dios,",
-  "él triunfa en la batalla.",
-].join("\n");
-
-const media = (name: string) => path.join(MEDIA, name);
+/** The generated media, under names that mean nothing: each language copies
+ *  them under its own. */
+const raw = (name: string) => path.join(MEDIA, "raw", name);
 
 test.beforeAll(() => {
   fs.rmSync(MEDIA, { recursive: true, force: true });
-  fs.mkdirSync(MEDIA, { recursive: true });
-  // Rewritten whole, so a renamed or dropped shot never lingers.
-  fs.rmSync(OUT, { recursive: true, force: true });
-  fs.mkdirSync(OUT, { recursive: true });
+  fs.mkdirSync(path.join(MEDIA, "raw"), { recursive: true });
 
   const run = (...args: string[]) => execFileSync(ffmpegBinary(), ["-hide_banner", "-loglevel", "error", "-y", ...args]);
   // A slow diagonal sweep through three colours: a worship background loop.
@@ -73,204 +47,246 @@ test.beforeAll(() => {
     return ["-f", "lavfi", "-i", `gradients=s=${size}:c0=${c0}:c1=${c1}:c2=${c2}:n=3:x0=0:y0=${height}:x1=${width}:y1=0:seed=5:d=${seconds}`];
   };
   const loop = (name: string, colors: [string, string, string]) =>
-    run(...gradient(colors, "1280x720", 12), "-c:v", "libx264", "-pix_fmt", "yuv420p", media(name));
+    run(...gradient(colors, "1280x720", 12), "-c:v", "libx264", "-pix_fmt", "yuv420p", raw(name));
   const still = (name: string, colors: [string, string, string]) =>
-    run(...gradient(colors, "1920x1080", 1), "-frames:v", "1", media(name));
+    run(...gradient(colors, "1920x1080", 1), "-frames:v", "1", raw(name));
 
-  loop("Fondo adoración.mp4", ["0x0b1a33", "0x1d6f86", "0x0b1a33"]);
-  loop("Amanecer.mp4", ["0x2a1446", "0xe07a3f", "0xf4c06a"]);
-  loop("Cielo.mp4", ["0x0e2340", "0x3a6ea5", "0x7fb6d9"]);
-  loop("Anuncios.mp4", ["0x3b2a5c", "0x9b5d8c", "0xf2a97e"]);
-  still("Bienvenida.png", ["0x3b2a5c", "0x9b5d8c", "0xf2a97e"]);
-  still("Fondo azul.png", ["0x0b1a33", "0x1f5a8a", "0x0e2340"]);
-  still("Fondo cálido.png", ["0x2a1446", "0xe07a3f", "0xf4c06a"]);
-  run("-f", "lavfi", "-i", "sine=frequency=330:duration=20", "-c:a", "libmp3lame", media("Música de ofrenda.mp3"));
+  loop("worship.mp4", ["0x0b1a33", "0x1d6f86", "0x0b1a33"]);
+  loop("sunrise.mp4", ["0x2a1446", "0xe07a3f", "0xf4c06a"]);
+  loop("sky.mp4", ["0x0e2340", "0x3a6ea5", "0x7fb6d9"]);
+  loop("announcements.mp4", ["0x3b2a5c", "0x9b5d8c", "0xf2a97e"]);
+  still("welcome.png", ["0x3b2a5c", "0x9b5d8c", "0xf2a97e"]);
+  still("blue.png", ["0x0b1a33", "0x1f5a8a", "0x0e2340"]);
+  still("warm.png", ["0x2a1446", "0xe07a3f", "0xf4c06a"]);
+  run("-f", "lavfi", "-i", "sine=frequency=330:duration=20", "-c:a", "libmp3lame", raw("offering.mp3"));
   // MPEG-4 part 2 in an AVI: Chromium cannot play it, the media engine does.
-  run(...gradient(["0x0b1a33", "0x1d6f86", "0x7fb6d9"], "1920x1080", 90), "-c:v", "mpeg4", "-q:v", "4", media("Testimonio.avi"));
-
+  run(...gradient(["0x0b1a33", "0x1d6f86", "0x7fb6d9"], "1920x1080", 90), "-c:v", "mpeg4", "-q:v", "4", raw("testimony.avi"));
   // A soft major chord to sing over, faded in and out. Named after nothing:
   // a track named like its deck is linked to it on its own.
   run(
     ...["-f", "lavfi", "-i", "sine=frequency=196:duration=60", "-f", "lavfi", "-i", "sine=frequency=247:duration=60"],
     ...["-f", "lavfi", "-i", "sine=frequency=294:duration=60"],
     ...["-filter_complex", "amix=inputs=3,afade=t=in:d=3,afade=t=out:st=56:d=4", "-c:a", "libmp3lame"],
-    media("Pista instrumental.mp3"),
+    raw("track.mp3"),
   );
+});
 
-  const convert = (name: string, format: "pptx" | "pdf", deck: Uint8Array | Buffer) =>
-    fs.writeFileSync(media(`${name}.${format}`), deck);
-  const navy = { background: "#14213d", color: "#ffffff", accent: "#9fc9cc" };
-  convert("Santo, santo, santo", "pptx", presentation(navy, [
-    { title: "Santo, santo, santo", credit: "Reginald Heber · trad. Juan B. Cabrera" },
-    { lines: ["¡Santo! ¡Santo! ¡Santo! Señor omnipotente,", "siempre el labio mío loores te dará;", "¡Santo! ¡Santo! ¡Santo! te adoro reverente,", "Dios en tres Personas, bendita Trinidad."] },
-    { lines: ["¡Santo! ¡Santo! ¡Santo! en numeroso coro,", "santos escogidos te adoran sin cesar,", "de alegría llenos, y sus coronas de oro", "rinden ante el trono y el cristalino mar."] },
-    { lines: ["¡Santo! ¡Santo! ¡Santo! la inmensa muchedumbre", "de ángeles que cumplen tu santa voluntad,", "ante ti se postra bañada de tu lumbre,", "ante ti que has sido, que eres y serás."] },
-    { lines: ["¡Santo! ¡Santo! ¡Santo! por más que estés velado,", "e imposible sea tu gloria contemplar,", "santo tú eres solo, y nada hay a tu lado", "en poder perfecto, pureza y caridad."] },
+/** Copies the generated media under `locale`'s names and writes its decks and
+ *  its Bible; answers the path of a file by that name. */
+function prepare(locale: Locale): (name: string) => string {
+  const dir = path.join(MEDIA, locale);
+  fs.mkdirSync(dir, { recursive: true });
+  const media = (name: string) => path.join(dir, name);
+  const { decks, files, bible } = CONTENT[locale];
+  for (const [key, name] of Object.entries(files)) {
+    const source = fs.readdirSync(path.join(MEDIA, "raw")).find((file) => file.startsWith(`${key}.`));
+    if (!source) throw new Error(`no generated media for «${key}»`);
+    fs.copyFileSync(raw(source), media(`${name}${path.extname(source)}`));
+  }
+
+  const holy = CONTENT[locale].holy;
+  const fortress = CONTENT[locale].fortress;
+  fs.writeFileSync(media(`${holy.title}.pptx`), presentation({ background: "#14213d", color: "#ffffff", accent: "#9fc9cc" }, [
+    { title: holy.title, credit: holy.credit },
+    ...holy.stanzas.map((lines) => ({ lines })),
   ]));
   // Advances by itself, the way the hymnal decks a church already has do.
-  convert("Castillo fuerte", "pptx", presentation({ background: "#3a1f12", color: "#fff6e8", accent: "#f2b66d" }, [
-    { title: "Castillo fuerte", credit: "Martín Lutero · trad. Juan B. Cabrera" },
-    { lines: ["Castillo fuerte es nuestro Dios,", "defensa y buen escudo.", "Con su poder nos librará", "en este trance agudo."] },
-    { lines: ["Con furia y con afán", "acósanos Satán:", "por armas deja ver", "astucia y gran poder;", "cual él no hay en la tierra."] },
-    { lines: ["Nuestro valor es nada aquí,", "con él todo es perdido;", "mas con nosotros luchará", "de Dios el escogido."] },
-    { lines: ["Es nuestro Rey Jesús,", "el que venció en la cruz,", "Señor y Salvador,", "y siendo él solo Dios,", "él triunfa en la batalla."] },
+  fs.writeFileSync(media(`${fortress.title}.pptx`), presentation({ background: "#3a1f12", color: "#fff6e8", accent: "#f2b66d" }, [
+    { title: fortress.title, credit: fortress.credit },
+    ...fortress.stanzas.flatMap((stanza) => [{ lines: stanza.slice(0, 4) }, { lines: stanza.slice(4) }]),
   ], 12));
-  convert("Anuncios de la semana", "pptx", presentation({ background: "#0f3b3e", color: "#ffffff", accent: "#8fd3cf" }, [
-    { title: "Anuncios", credit: "Esta semana en la iglesia" },
-    { title: "Reunión de jóvenes", credit: "Sábado · 18:00 · Salón principal" },
-    { title: "Cena de camaradería", credit: "Domingo · 20:30 · Traé algo para compartir" },
-  ]));
-  convert("Bosquejo del sermón", "pdf", presentationPdf({ background: "#f6f1e7", color: "#14213d", accent: "#8a5a2b" }, [
-    { title: "El Señor es mi pastor", credit: "Salmo 23" },
-    { title: "1. Él me guía", credit: "«Junto á aguas de reposo me pastoreará» (v. 2)" },
-    { title: "2. Él me acompaña", credit: "«Porque tú estarás conmigo» (v. 4)" },
-  ]));
-});
-
-test("screenshots", async ({ app: first }) => {
-  test.setTimeout(600_000);
-  // The library a church would have, and verses over one of its backgrounds.
-  // The verse style is read at startup, hence the relaunch.
-  await first.invoke("library:add", {
-    kind: "video",
-    paths: ["Fondo adoración.mp4", "Amanecer.mp4", "Cielo.mp4"].map(media),
-  });
-  const [background, warm] = await first.invoke<MediaAsset[]>("library:add", {
-    kind: "image",
-    paths: ["Fondo azul.png", "Fondo cálido.png"].map(media),
-  });
-  if (!background || !warm) throw new Error("import failed");
-  // A song library: Luther's hymn in a theme of its own over the warm
-  // background, read at startup like the verse style.
-  const hymns = await first.invoke<{ id: number }>("songTheme:create", {
-    name: "Himnos",
-    style: { ...DEFAULT_SONG_THEME, background: { kind: "image", assetId: warm.id, fit: "cover" } },
-  });
-  const song = (title: string, authors: string, lyrics: string, themeId: number | null) =>
-    first.invoke("song:create", {
-      title,
-      number: null,
-      authors,
-      copyright: "Dominio público",
-      ccliNumber: null,
-      notes: null,
-      sections: parseLyrics(lyrics, "es").sections,
-      order: [],
-      themeId,
-    });
-  await song("Castillo fuerte", "Martín Lutero · trad. Juan B. Cabrera", CASTILLO, hymns.id);
-  await song(
-    "Santo, santo, santo",
-    "Reginald Heber · trad. Juan B. Cabrera",
-    "[Estrofa 1]\n¡Santo! ¡Santo! ¡Santo! Señor omnipotente,\nsiempre el labio mío loores te dará;",
-    null,
+  fs.writeFileSync(
+    media(`${decks.announcements.name}.pptx`),
+    presentation({ background: "#0f3b3e", color: "#ffffff", accent: "#8fd3cf" }, decks.announcements.slides),
   );
-  await first.invoke("settings:set", {
-    "bible.style": { ...DEFAULT_BIBLE_STYLE, background: { kind: "image", assetId: background.id, fit: "cover" } },
-  });
-  await first.quit();
-  const app = await relaunch(first);
-  const { control } = app;
-  const screen = await layOut(control, 1600, 1000, 2);
+  fs.writeFileSync(
+    media(`${decks.sermon.name}.pdf`),
+    presentationPdf({ background: "#f6f1e7", color: "#14213d", accent: "#8a5a2b" }, decks.sermon.slides),
+  );
 
-  // A Saturday-night preparation: the whole order of service, saved.
-  await app.openResources("Funciones", "Utilidades");
-  await scenes(app).filter({ hasText: "Cuenta 10 minutos" }).click();
-  await control.getByRole("tabpanel", { name: "Utilidades" }).getByRole("button", { name: "Agregar al programa" }).click();
-  await app.answerOpenDialog(media("Bienvenida.png"), media("Santo, santo, santo.pptx"));
-  await schedule(app).getByRole("button", { name: "Agregar medios" }).click();
-  await app.openChapter("Salmos 23");
-  await bible(app).getByRole("listitem").filter({ hasText: VERSE }).click();
-  await bible(app).getByRole("button", { name: "Agregar al programa" }).click();
-  await app.answerOpenDialog(media("Anuncios.mp4"), media("Música de ofrenda.mp3"));
-  await schedule(app).getByRole("button", { name: "Agregar medios" }).click();
-  await expect(rows(app)).toHaveCount(6);
-  await control.getByRole("button", { name: "Guardar", exact: true }).click();
-  const programs = control.getByRole("dialog", { name: "Programas" });
-  await programs.getByRole("textbox", { name: "Nombre" }).fill("Culto de adoración");
-  await programs.getByRole("button", { name: "Guardar", exact: true }).last().click();
-  await programs.getByRole("button", { name: "Cerrar" }).click();
-
-  // The hymn: its second slide on air, the next one waiting in PREVIEW.
-  await rows(app).filter({ hasText: "Santo, santo, santo" }).click();
-  const slides = app.previewColumn().getByRole("list", { name: "Presentación" });
-  await expect(slides.getByRole("button", { name: "5", exact: true })).toBeVisible({ timeout: 120_000 });
-  await slides.getByRole("button", { name: "2", exact: true }).click();
-  await app.goLive();
-  await slides.getByRole("button", { name: "3", exact: true }).click();
-  await app.openResources("Media", "Videos");
-  await shoot(app, screen, "control");
-
-  // Decks as they were made: a hymn that advances by itself, with its music.
-  await app.invoke("library:add", {
-    kind: "ppt",
-    paths: ["Bosquejo del sermón.pdf", "Anuncios de la semana.pptx", "Castillo fuerte.pptx"].map(media),
-  });
-  await app.openResources("Media", "Presentaciones");
-  const decks = control.getByRole("tabpanel", { name: "Presentaciones" });
-  // Opened once each, so their tiles draw the first slide: a PDF's as an image, a .pptx from its model.
-  const firstSlide = app.previewColumn().getByRole("list", { name: "Presentación" }).getByRole("button", { name: "1", exact: true });
-  for (const name of ["Bosquejo del sermón", "Anuncios de la semana", "Castillo fuerte"]) {
-    await decks.getByRole("button", { name }).click();
-    await expect(firstSlide).toBeVisible({ timeout: 120_000 });
+  if (bible) {
+    const verses = bible.psalm23.map((text, index) => `<VERS vnumber="${index + 1}">${text}</VERS>`).join("");
+    fs.writeFileSync(
+      media("bible.xml"),
+      `<?xml version="1.0" encoding="UTF-8"?>\n<XMLBIBLE biblename="${bible.name}"><BIBLEBOOK bnumber="19" bname="${bible.psalms}"><CHAPTER cnumber="23">${verses}</CHAPTER></BIBLEBOOK></XMLBIBLE>`,
+    );
   }
-  const preview = app.previewColumn();
-  await app.answerOpenDialog(media("Pista instrumental.mp3"));
-  await preview.getByRole("button", { name: "Asignar audio" }).click();
-  await expect(preview.getByRole("button", { name: "Cambiar", exact: true })).toBeVisible();
-  await expect(preview.getByText("Auto-avance", { exact: true })).toBeVisible();
-  await slides.getByRole("button", { name: "2", exact: true }).click();
-  await app.goLive();
-  await expect(app.liveColumn().getByText("Castillo fuerte (música)")).toBeVisible();
-  await slides.getByRole("button", { name: "3", exact: true }).click();
-  await shoot(app, screen, "decks", { x: 533, y: 0, width: 1067, height: 688 });
+  return media;
+}
 
-  // The reading: the psalm in the Bible tab, its last verse on air.
-  await app.openChapter("Salmos 23");
-  await bible(app).getByRole("listitem").filter({ hasText: VERSE }).click();
-  await app.goLive();
-  const projector = await app.projector();
-  await expect(projector.getByText(VERSE, { exact: false })).toBeVisible();
-  await shoot(app, screen, "bible", { x: 0, y: 88, width: 1066, height: 680 });
-  const stage = await layOut(projector, 1920, 1080, 1);
-  await settle(projector);
-  await capture(stage, "projector");
+/** A hymn's stanzas as a song: each stanza one section, a slide per four lines. */
+function lyrics(hymn: Hymn, stanzas = hymn.stanzas): string {
+  return stanzas
+    .map((lines, index) => [`[Estrofa ${index + 1}]`, ...lines.slice(0, 4), ...(lines.length > 4 ? ["", ...lines.slice(4)] : [])].join("\n"))
+    .join("\n\n");
+}
 
-  // A song: its slides drawn in PREVIEW, each with its section's name and
-  // colour; the second on air, with a button per section under LIVE.
-  await app.openResources("Canciones");
-  await control.getByRole("tabpanel", { name: "Canciones" }).getByRole("listitem").filter({ hasText: "Castillo fuerte" }).click();
-  await app.goLive();
-  await expect(projector.getByText("Castillo fuerte es nuestro Dios,")).toBeVisible();
-  await control.keyboard.press("ArrowRight");
-  await expect(projector.getByText("Con furia y con afán")).toBeVisible();
-  const songSlides = app.previewColumn().getByRole("list", { name: "Diapositivas de «Castillo fuerte»" });
-  await songSlides.getByRole("listitem").nth(2).getByRole("button").click();
-  await shoot(app, screen, "songs", { x: 533, y: 0, width: 1067, height: 688 });
+for (const locale of LOCALES) {
+  test.describe(locale, () => {
+    test.use({ appLocale: locale });
 
-  // Before the service: the countdown on air, the clock next in PREVIEW.
-  await app.openResources("Funciones", "Utilidades");
-  await scenes(app).filter({ hasText: "Cuenta 10 minutos" }).click();
-  await app.goLive();
-  await scenes(app).filter({ hasText: "Reloj" }).click();
-  await expect(app.liveColumn().getByText("09:5", { exact: false }).first()).toBeVisible();
-  await shoot(app, screen, "functions", { x: 533, y: 0, width: 1067, height: 600 });
+    test(`screenshots (${locale})`, async ({ app: first }) => {
+      test.setTimeout(600_000);
+      const content = CONTENT[locale];
+      const { files, decks, holy, fortress } = content;
+      const media = prepare(locale);
+      // Each language's folder rewritten whole, so a renamed or dropped shot
+      // never lingers. Only its own: a failed test restarts the worker, and
+      // this hook with it.
+      const out = path.join(OUT, locale);
+      fs.rmSync(out, { recursive: true, force: true });
+      fs.mkdirSync(out, { recursive: true });
+      const tr = (text: string, vars?: Record<string, string>) => first.tr(text, vars);
+      const psalm = `${content.bible?.psalms ?? "Salmos"} 23`;
 
-  // The library: a background on air, and an AVI in PREVIEW, played by the media engine.
-  await app.openResources("Media", "Videos");
-  const videos = control.getByRole("tabpanel", { name: "Videos" });
-  await videos.getByRole("button", { name: "Amanecer" }).dblclick();
-  await app.invoke("library:add", { kind: "video", paths: [media("Testimonio.avi")] });
-  await videos.getByRole("button", { name: "Testimonio" }).click();
-  await expect.poll(async () => (await engineCanvas(control, "preview:"))?.width ?? 0, { timeout: 30_000 }).toBeGreaterThan(0);
-  await shoot(app, screen, "media", { x: 533, y: 0, width: 1067, height: 600 });
-});
+      // The library a church would have, and verses over one of its backgrounds.
+      // The verse style is read at startup, hence the relaunch.
+      await first.invoke("library:add", {
+        kind: "video",
+        paths: [files.worship, files.sunrise, files.sky].map((name) => media(`${name}.mp4`)),
+      });
+      const [background, warm] = await first.invoke<MediaAsset[]>("library:add", {
+        kind: "image",
+        paths: [files.blue, files.warm].map((name) => media(`${name}.png`)),
+      });
+      if (!background || !warm) throw new Error("import failed");
+      // A song library: Luther's hymn in a theme of its own over the warm
+      // background, read at startup like the verse style.
+      const hymns = await first.invoke<{ id: number }>("songTheme:create", {
+        name: content.theme,
+        style: { ...DEFAULT_SONG_THEME, background: { kind: "image", assetId: warm.id, fit: "cover" } },
+      });
+      const song = (hymn: Hymn, text: string, themeId: number | null) =>
+        first.invoke("song:create", {
+          title: hymn.title,
+          number: null,
+          authors: hymn.credit,
+          copyright: content.copyright,
+          ccliNumber: null,
+          notes: null,
+          // The section headers are this file's, in Spanish: a section is
+          // stored by its kind, and the window names it in its own language.
+          sections: parseLyrics(text, "es").sections,
+          order: [],
+          themeId,
+        });
+      await song(fortress, lyrics(fortress), hymns.id);
+      await song(holy, lyrics(holy, [holy.stanzas[0]!.slice(0, 2)]), null);
+      // This language's Bible, opened by default.
+      if (content.bible) {
+        await first.answerOpenDialog(media("bible.xml"));
+        const version = await first.invoke<BibleVersionDTO | null>("bible:import");
+        if (!version) throw new Error("bible import failed");
+        await first.invoke("settings:set", { "bible.defaultVersionId": version.id });
+      }
+      await first.invoke("settings:set", {
+        "bible.style": { ...DEFAULT_BIBLE_STYLE, background: { kind: "image", assetId: background.id, fit: "cover" } },
+      });
+      await first.quit();
+      const app = await relaunch(first);
+      const { control } = app;
+      const screen = await layOut(control, 1600, 1000, 2);
+      const shoot = (name: string, detail?: Clip) => shootThemes(app, screen, out, name, detail);
+      const bible = control.getByRole("tabpanel", { name: tr("Biblia") });
+      const scenes = control.getByRole("list", { name: tr("Escenas de tiempo") }).getByRole("listitem");
+      const schedule = control.locator("section").filter({ has: control.getByRole("heading", { name: tr("Programa"), exact: true }) });
+      const rows = schedule.getByRole("list").first().getByRole("listitem");
+      const verse = bible.getByRole("listitem").filter({ hasText: content.verse });
 
-const scenes = (app: WorshipApp) => app.control.getByRole("list", { name: "Escenas de tiempo" }).getByRole("listitem");
-const bible = (app: WorshipApp) => app.control.getByRole("tabpanel", { name: "Biblia" });
-const schedule = (app: WorshipApp) =>
-  app.control.locator("section").filter({ has: app.control.getByRole("heading", { name: "Programa", exact: true }) });
-const rows = (app: WorshipApp) => schedule(app).getByRole("list").first().getByRole("listitem");
+      // A Saturday-night preparation: the whole order of service, saved.
+      await app.openResources("Funciones", "Utilidades");
+      await scenes.filter({ hasText: tr("Cuenta 10 minutos") }).click();
+      await control.getByRole("tabpanel", { name: tr("Utilidades") }).getByRole("button", { name: tr("Agregar al programa") }).click();
+      await app.answerOpenDialog(media(`${files.welcome}.png`), media(`${holy.title}.pptx`));
+      await schedule.getByRole("button", { name: tr("Agregar medios") }).click();
+      await app.openChapter(psalm);
+      await verse.click();
+      await bible.getByRole("button", { name: tr("Agregar al programa") }).click();
+      await app.answerOpenDialog(media(`${files.announcements}.mp4`), media(`${files.offering}.mp3`));
+      await schedule.getByRole("button", { name: tr("Agregar medios") }).click();
+      await expect(rows).toHaveCount(6);
+      await control.getByRole("button", { name: tr("Guardar"), exact: true }).click();
+      const programs = control.getByRole("dialog", { name: tr("Programas") });
+      await programs.getByRole("textbox", { name: tr("Nombre") }).fill(content.program);
+      await programs.getByRole("button", { name: tr("Guardar"), exact: true }).last().click();
+      await programs.getByRole("button", { name: tr("Cerrar") }).click();
+
+      // The hymn: its second slide on air, the next one waiting in PREVIEW.
+      await rows.filter({ hasText: holy.title }).click();
+      const slides = app.previewColumn().getByRole("list", { name: tr("Presentación") });
+      await expect(slides.getByRole("button", { name: "5", exact: true })).toBeVisible({ timeout: 120_000 });
+      await slides.getByRole("button", { name: "2", exact: true }).click();
+      await app.goLive();
+      await slides.getByRole("button", { name: "3", exact: true }).click();
+      await app.openResources("Media", "Videos");
+      await shoot("control");
+
+      // Decks as they were made: a hymn that advances by itself, with its music.
+      await app.invoke("library:add", {
+        kind: "ppt",
+        paths: [`${decks.sermon.name}.pdf`, `${decks.announcements.name}.pptx`, `${fortress.title}.pptx`].map(media),
+      });
+      await app.openResources("Media", "Presentaciones");
+      const deckTab = control.getByRole("tabpanel", { name: tr("Presentaciones") });
+      // Opened once each, so their tiles draw the first slide: a PDF's as an image, a .pptx from its model.
+      const firstSlide = app.previewColumn().getByRole("list", { name: tr("Presentación") }).getByRole("button", { name: "1", exact: true });
+      for (const name of [decks.sermon.name, decks.announcements.name, fortress.title]) {
+        await deckTab.getByRole("button", { name }).click();
+        await expect(firstSlide).toBeVisible({ timeout: 120_000 });
+      }
+      const preview = app.previewColumn();
+      await app.answerOpenDialog(media(`${files.track}.mp3`));
+      await preview.getByRole("button", { name: tr("Asignar audio"), exact: true }).click();
+      await expect(preview.getByRole("button", { name: tr("Cambiar"), exact: true })).toBeVisible();
+      await expect(preview.getByText(tr("Auto-avance"), { exact: true })).toBeVisible();
+      await slides.getByRole("button", { name: "2", exact: true }).click();
+      await app.goLive();
+      await expect(app.liveColumn().getByText(tr("{title} (música)", { title: fortress.title }))).toBeVisible();
+      await slides.getByRole("button", { name: "3", exact: true }).click();
+      await shoot("decks", { x: 533, y: 0, width: 1067, height: 688 });
+
+      // The reading: the psalm in the Bible tab, its last verse on air.
+      await app.openChapter(psalm);
+      await verse.click();
+      await app.goLive();
+      const projector = await app.projector();
+      await expect(projector.getByText(content.verse, { exact: false })).toBeVisible();
+      await shoot("bible", { x: 0, y: 88, width: 1066, height: 680 });
+      const stage = await layOut(projector, 1920, 1080, 1);
+      await settle(projector);
+      await capture(stage, out, "projector");
+
+      // A song: its slides drawn in PREVIEW, each with its section's name and
+      // colour; the second on air, with a button per section under LIVE.
+      await app.openResources("Canciones");
+      await control.getByRole("tabpanel", { name: tr("Canciones") }).getByRole("listitem").filter({ hasText: fortress.title }).click();
+      await app.goLive();
+      await expect(projector.getByText(fortress.stanzas[0]![0]!)).toBeVisible();
+      await control.keyboard.press("ArrowRight");
+      await expect(projector.getByText(fortress.stanzas[0]![4]!)).toBeVisible();
+      const songSlides = app.previewColumn().getByRole("list", { name: tr("Diapositivas de «{title}»", { title: fortress.title }) });
+      await songSlides.getByRole("listitem").nth(2).getByRole("button").click();
+      await shoot("songs", { x: 533, y: 0, width: 1067, height: 688 });
+
+      // Before the service: the countdown on air, the clock next in PREVIEW.
+      await app.openResources("Funciones", "Utilidades");
+      await scenes.filter({ hasText: tr("Cuenta 10 minutos") }).click();
+      await app.goLive();
+      await scenes.filter({ hasText: tr("Reloj") }).click();
+      await expect(app.liveColumn().getByText("09:5", { exact: false }).first()).toBeVisible();
+      await shoot("functions", { x: 533, y: 0, width: 1067, height: 600 });
+
+      // The library: a background on air, and an AVI in PREVIEW, played by the media engine.
+      await app.openResources("Media", "Videos");
+      const videos = control.getByRole("tabpanel", { name: tr("Videos") });
+      await videos.getByRole("button", { name: files.sunrise }).dblclick();
+      await app.invoke("library:add", { kind: "video", paths: [media(`${files.testimony}.avi`)] });
+      await videos.getByRole("button", { name: files.testimony }).click();
+      await expect.poll(async () => (await engineCanvas(control, "preview:"))?.width ?? 0, { timeout: 30_000 }).toBeGreaterThan(0);
+      await shoot("media", { x: 533, y: 0, width: 1067, height: 600 });
+    });
+  });
+}
 
 /** Lays the page out at a fixed size and pixel ratio, whatever the window and
  *  the screen under it measure. Playwright's own screenshot would use the
@@ -286,13 +302,13 @@ type Clip = { x: number; y: number; width: number; height: number };
 /** The whole page, or `clip` of it (CSS px), at the page's pixel ratio. WebP,
  *  not PNG: the same 2× frame at a fraction of the weight, for a README and a
  *  landing that load them over the network. */
-async function capture(cdp: CDPSession, name: string, clip?: Clip) {
+async function capture(cdp: CDPSession, out: string, name: string, clip?: Clip) {
   const { data } = await cdp.send("Page.captureScreenshot", {
     format: "webp",
     quality: 90,
     ...(clip && { clip: { ...clip, scale: 1 } }),
   });
-  fs.writeFileSync(path.join(OUT, `${name}.webp`), Buffer.from(data, "base64"));
+  fs.writeFileSync(path.join(out, `${name}.webp`), Buffer.from(data, "base64"));
 }
 
 /** Waits until nothing on the page is still loading or announcing, with the
@@ -308,12 +324,12 @@ async function settle(page: Page) {
 
 /** The control window in each theme, switched the way Ajustes switches it,
  *  and `detail` of it when the feature has one. */
-async function shoot(app: WorshipApp, screen: CDPSession, name: string, detail?: Clip) {
+async function shootThemes(app: WorshipApp, screen: CDPSession, out: string, name: string, detail?: Clip) {
   for (const theme of THEMES) {
     await app.control.evaluate((value) => (document.documentElement.dataset["theme"] = value), theme);
     await settle(app.control);
-    await capture(screen, `${name}-${theme}`);
-    if (detail) await capture(screen, `${name}-detail-${theme}`, detail);
+    await capture(screen, out, `${name}-${theme}`);
+    if (detail) await capture(screen, out, `${name}-detail-${theme}`, detail);
   }
   await app.control.evaluate(() => (document.documentElement.dataset["theme"] = "dark"));
 }
@@ -331,7 +347,8 @@ function presentation(look: Look, slides: Slide[], advance?: number): Uint8Array
         box: [1.5 * CM, 1.5 * CM, 25 * CM, 12.75 * CM],
         paragraphs:
           "lines" in slide
-            ? [{ text: slide.lines.join("\n"), size: 34, color: look.color, font: "Georgia", lineSpacing: 135 }]
+            ? // A stanza of eight short lines (the Italian «Santo») in a smaller size, so it fits.
+              [{ text: slide.lines.join("\n"), size: slide.lines.length > 5 ? 26 : 34, color: look.color, font: "Georgia", lineSpacing: 135 }]
             : [
                 { text: slide.title, size: 60, color: look.color, font: "Georgia" },
                 { text: slide.credit, size: 22, color: look.accent, font: "Georgia", italic: true, spaceBefore: 17 },
