@@ -1,4 +1,12 @@
-import { BrowserWindow, dialog, type OpenDialogOptions, type OpenDialogReturnValue, type WebContents } from "electron";
+import {
+  BrowserWindow,
+  dialog,
+  type OpenDialogOptions,
+  type OpenDialogReturnValue,
+  type SaveDialogOptions,
+  type SaveDialogReturnValue,
+  type WebContents,
+} from "electron";
 
 /**
  * `dialog.showOpenDialog`, owned by the window that asked. Without an owner,
@@ -9,4 +17,10 @@ import { BrowserWindow, dialog, type OpenDialogOptions, type OpenDialogReturnVal
 export function showOpenDialogFor(sender: WebContents, options: OpenDialogOptions): Promise<OpenDialogReturnValue> {
   const owner = BrowserWindow.fromWebContents(sender);
   return owner ? dialog.showOpenDialog(owner, options) : dialog.showOpenDialog(options);
+}
+
+/** `dialog.showSaveDialog`, owned the same way. */
+export function showSaveDialogFor(sender: WebContents, options: SaveDialogOptions): Promise<SaveDialogReturnValue> {
+  const owner = BrowserWindow.fromWebContents(sender);
+  return owner ? dialog.showSaveDialog(owner, options) : dialog.showSaveDialog(options);
 }

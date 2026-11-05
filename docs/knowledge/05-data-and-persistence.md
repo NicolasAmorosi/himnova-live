@@ -28,7 +28,8 @@ share the same "the user moved the file" problem), `programs`+`program_items`
 (saved playlists, polymorphic with a `CHECK` over five item kinds; renamed from `services`/`service_items` in
 migration `0004_rename_programs.sql` with `ALTER TABLE ... RENAME` — a table recreate would have
 lost the `CHECK`, which Drizzle doesn't materialize in the snapshot), `bible_versions`+`bible_books`+`bible_verses`+
-`bible_verses_fts` (FTS5 external-content), `bible_favorites`, `projection_history`,
+`bible_verses_fts` (FTS5 external-content), `bible_favorites` + `bible_recents` (`0020`, see «Favorites and
+recent passages» below), `projection_history`, `song_uses` (`0021`, the CCLI report: see «`songs`…» below),
 `slide_decks`+`deck_slides`+`deck_audio`+`deck_videos` (persistent record of every deck read,
 addressed by content hash — see `03-slides.md`: a PDF's page sizes, its pages drawn on request
 (until 2026-11-03 its rasterized pages, in a folder); since `0018` also the
@@ -163,6 +164,25 @@ The lyrics text format (`shared/song-text.ts`) is shared by the editor and the E
 are opened read-only and never queried with `ORDER BY`/`WHERE` on text: EasyWorship 7 declares a
 collation SQLite lacks.
 
+OpenLP (`songs.sqlite`, 2.0 on) and OpenLyrics (its export, one `.xml` per song) need no text format:
+both name each verse (`v1`, `c`, `v1a` a part of verse 1) and `main/songs/openlp.ts` builds the sections
+straight from them — `[---]`, `[--}{--]` and each `<lines>` a slide, chords and formatting tags dropped
+(no chords yet), the verse order into `order`. A verse in a second language is the translation, paired by
+section and slide (`withTranslation`; owner, 2026-11-05: the FIRST language met is the lyrics, a third is
+dropped). OpenLP's hymn number is the first `songs_songbooks.entry` (2.4) or `songs.song_number` (2.2),
+its `comments` the notes, and a `temporary` song (kept only for a service) is not imported. All three
+importers write through `writeSongs` (`services/song-import.ts`): one transaction, the same title with
+the same words skipped as repeated.
+
+`song_uses` (`0021`) is what the CCLI usage report counts (owner, 2026-11-05): `projection:show` writes a
+row when a song goes live, ONE per song per local day (`SongsRepo.recordUse`), never pruned — unlike
+`projection_history`, which keeps 5000 rows and so cannot hold the six months a report covers. Each row
+keeps the title, authors and CCLI number it went live with (a song deleted since still reports, `song_id`
+set null); a song still in the library reports under its current ones (`usesBetween` joins `songs`), so a
+CCLI number filled in afterwards counts. Settings ▸ Songs ▸ «Informe CCLI» exports `[from, to)` as CSV
+(`services/song-usage.ts`, `songs/usage-report.ts`): every song used — an empty CCLI column shows what is
+missing — most used first, its days; a BOM for Excel and `;` as the separator except in English (`,`).
+
 ## FTS5 without accents
 
 `bible_verses_fts` uses `tokenize="unicode61 remove_diacritics 2"` — searching "espiritu" finds
@@ -287,9 +307,25 @@ point to, so editing it would orphan favorites and duplicate the version on the 
 
 Deleting cascades to `bible_books`/`bible_verses` (and to the FTS5 indexes via trigger) and
 deliberately does **not** touch two things: the `program_items` rows, whose FK is `set null` —the
-saved program keeps the text and the reference and loses only the link—, and the `bible_favorites`
-rows, which are keyed by CODE precisely to survive a delete-and-reimport. `force` here is informed
+saved program keeps the text and the reference and loses only the link—, and the `bible_favorites`/`bible_recents`
+rows, which are keyed by CODE and abbrev precisely to survive a delete-and-reimport. `force` here is informed
 consent and nothing more: unlike a timer scene's, this delete can't fail on an FK.
+
+## Favorites and recent passages
+
+The Bible tab's ⭐ list (2026-11-05). Both tables name a passage by **book abbrev** + chapter + verses,
+never by a version's row ids, and the renderer opens it in whichever version is being browsed: the
+abbrev is the same in every version (`canon.ts`). `reference` is how it read when saved, shown only
+when the browsed version lacks that book. `version_code` records where it was made and nothing reads it.
+
+- **Favorites** (`bible:favorites`, `bible:setFavorite`): one verse each, starred from the tab's
+  footer on the verse in PREVIEW, listed in Bible order. Unstarring removes every row that contains
+  the verse.
+- **Recents** (`bible:recents`, `bible:recordRecent`): what went LIVE, newest first, at most
+  `BIBLE_RECENTS_MAX` (20) rows. One row per chapter: reading on through the chapter at the top
+  widens its range (`Juan 3:16-18`); another chapter goes on top, replacing an older row of itself.
+  The control window records it — `projectVerse` and a program row's verse —, because the `bible`
+  output carries only text: `projection_history` cannot tell which book a verse came from.
 
 ## `SETTINGS_NORMALIZERS` — the first `settings` key that is a STRUCTURE
 

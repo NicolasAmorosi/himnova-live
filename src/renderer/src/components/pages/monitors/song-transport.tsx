@@ -1,9 +1,12 @@
 import { useT, useI18n } from "@renderer/lib/i18n/i18n-provider";
-import { Badge, Icon, IconButton, MediaPanel } from "@renderer/components/ui";
+import { Badge, Button, Icon, IconButton, MediaPanel } from "@renderer/components/ui";
 import { SongSectionButtons } from "@renderer/components/shared/song-section-buttons";
 import { useProjectionStore } from "@renderer/stores/projection.store";
 import { advanceSong, clearBaseContent, jumpSong, toggleSongLyrics } from "@renderer/lib/actions/playback";
-import { sectionLabel } from "@shared/song-text";
+import { setLiveSongLanguage } from "@renderer/lib/actions/songs";
+import { findSong, useSongStore } from "@renderer/stores/song.store";
+import { hasTranslation, sectionLabel } from "@shared/song-text";
+import { SONG_LANGUAGES } from "@shared/types/song";
 
 /**
  * Transport for the live song — `VerseTransport`'s row: which section is on
@@ -14,7 +17,11 @@ export function SongTransport() {
   const t = useT();
   const { locale } = useI18n();
   const base = useProjectionStore((s) => s.base);
+  const songs = useSongStore((s) => s.songs);
   if (base?.kind !== "song") return null;
+  // Asked of the stored song: resolved in «original», the live one has none.
+  const stored = findSong(songs, base.songId);
+  const translated = stored !== null && hasTranslation(stored.sections);
   const total = base.song.slides.length;
   const detourSection = base.detour ? base.song.sections.find((s) => s.key === base.detour?.sectionKey) : undefined;
   const slide = base.song.slides[base.slideIndex - 1];
@@ -75,12 +82,29 @@ export function SongTransport() {
           <Icon name="offAir" />
         </IconButton>
       </div>
-      <div className="px-2 pb-1.5">
-        <SongSectionButtons
-          activeKey={activeKey}
-          onPick={(picked, shift) => jumpSong({ type: picked.type, number: picked.number }, shift ? -1 : 1)}
-          sections={base.song.sections}
-        />
+      <div className="flex items-center gap-2 px-2 pb-1.5">
+        <div className="min-w-0 flex-1">
+          <SongSectionButtons
+            activeKey={activeKey}
+            onPick={(picked, shift) => jumpSong({ type: picked.type, number: picked.number }, shift ? -1 : 1)}
+            sections={base.song.sections}
+          />
+        </div>
+        {translated ? (
+          <div aria-label={t("songs.language.label")} className="flex shrink-0 items-center gap-1" role="group">
+            {SONG_LANGUAGES.map((language) => (
+              <Button
+                key={language}
+                onClick={() => void setLiveSongLanguage(language)}
+                size="xs"
+                toggled={base.language === language}
+                variant="ghost"
+              >
+                {t(`songs.language.${language}`)}
+              </Button>
+            ))}
+          </div>
+        ) : null}
       </div>
     </MediaPanel>
   );

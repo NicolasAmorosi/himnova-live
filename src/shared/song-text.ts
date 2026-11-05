@@ -31,8 +31,10 @@ import {
   SONG_SECTION_NUMBER_MAX,
   SONG_SECTION_TYPES,
   type SongDeckSlide,
+  type SongLanguage,
   type SongSection,
   type SongSectionType,
+  type SongSlide,
 } from "./types/song";
 
 const SECTION_NAMES: Record<Locale, Record<SongSectionType, string>> = {
@@ -427,6 +429,56 @@ export function serializeLyrics(sections: readonly SongSection[], locale: Locale
     .join("\n\n");
 }
 
+/* ---------------------------------------------------------------------------
+ * The second language (owner, 2026-11-05)
+ * ------------------------------------------------------------------------ */
+
+/**
+ * The lyrics' sections with each slide's translation, from the editor's
+ * «Traducción» text, written the same way: paired by section key and slide
+ * index. A translated section or slide the lyrics lack is dropped; a slide
+ * with no counterpart carries none.
+ */
+export function withTranslation(sections: readonly SongSection[], translated: readonly SongSection[]): SongSection[] {
+  const byKey = new Map(translated.map((section) => [section.key, section]));
+  return sections.map((section) => ({
+    ...section,
+    slides: section.slides.map((slide, index) => {
+      const lines = byKey.get(section.key)?.slides[index]?.lines.filter((line) => line.trim().length > 0);
+      return lines && lines.length > 0 ? { lines: slide.lines, translation: lines } : { lines: slide.lines };
+    }),
+  }));
+}
+
+/** The translation as the editor's text holds it: the sections whose slides
+ *  have one, those slides only. ponytail: a section whose FIRST slide is the
+ *  untranslated one re-pairs its translations one slide early once written
+ *  back; a blank placeholder slide would fix it if it ever matters. */
+export function translationSections(sections: readonly SongSection[]): SongSection[] {
+  return sections.flatMap((section) => {
+    const slides = section.slides.flatMap((slide) => (slide.translation ? [{ lines: slide.translation }] : []));
+    return slides.length > 0 ? [{ ...section, slides }] : [];
+  });
+}
+
+/** Whether any slide of the song has a translation — the LIVE row's selector. */
+export function hasTranslation(sections: readonly SongSection[]): boolean {
+  return sections.some((section) => section.slides.some((slide) => slide.translation !== undefined));
+}
+
+/** The sections in `language`: «translation» puts each slide's translation in
+ *  its lines (the original where it has none), «original» drops them, «both»
+ *  keeps them, to be drawn stacked. */
+export function sectionsIn(sections: readonly SongSection[], language: SongLanguage): SongSection[] {
+  if (language === "both") return [...sections];
+  return sections.map((section) => ({
+    ...section,
+    slides: section.slides.map((slide) => ({
+      lines: language === "translation" && slide.translation ? slide.translation : slide.lines,
+    })),
+  }));
+}
+
 /** What an order that follows the text stores: nothing when it is the
  *  sections as written, the text's sequence when the text repeats one. */
 export function textOrder(parsed: ParsedLyrics): string[] {
@@ -483,9 +535,15 @@ export function missingOrderKeys(sections: readonly SongSection[], order: readon
 export function splitSection(section: SongSection, maxLines: number): SongSection {
   if (maxLines <= 0 || section.slides.every((slide) => slide.lines.length <= maxLines)) return section;
   const slides = section.slides.flatMap((slide) => {
-    const chunks: { lines: string[] }[] = [];
-    for (let i = 0; i < slide.lines.length; i += maxLines) chunks.push({ lines: slide.lines.slice(i, i + maxLines) });
-    return chunks;
+    const count = Math.ceil(slide.lines.length / maxLines);
+    // The translation is cut into as many pieces, evenly, so each piece stays
+    // under the lines it translates.
+    const per = slide.translation ? Math.ceil(slide.translation.length / count) : 0;
+    return Array.from({ length: count }, (_, i): SongSlide => {
+      const lines = slide.lines.slice(i * maxLines, (i + 1) * maxLines);
+      const translation = slide.translation?.slice(i * per, (i + 1) * per);
+      return translation && translation.length > 0 ? { lines, translation } : { lines };
+    });
   });
   return { ...section, slides };
 }
@@ -502,6 +560,7 @@ export function songDeckSlides(sections: readonly SongSection[], order: readonly
     section.slides.forEach((slide, indexInSection) => {
       slides.push({
         lines: slide.lines,
+        ...(slide.translation ? { translation: slide.translation } : {}),
         sectionKey: section.key,
         type: section.type,
         number: section.number,

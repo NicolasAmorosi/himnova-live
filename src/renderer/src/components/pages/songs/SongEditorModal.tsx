@@ -16,12 +16,13 @@ import {
   Monitor,
   Select,
   Textarea,
+  Tabs,
   Title,
   type MenuOption,
 } from "@renderer/components/ui";
 import { toast } from "@renderer/lib/toast";
 import { useSongFit } from "@renderer/lib/song-fit";
-import { footerAt, slideLines, songOutputFor } from "@renderer/lib/song-output";
+import { footerAt, slideLines, slideTranslation, songOutputFor } from "@renderer/lib/song-output";
 import { deleteSong, duplicateSong, isSongLive, saveSong, songUsages } from "@renderer/lib/actions/songs";
 import { findSong, resolveSong, themeForSong, useSongStore } from "@renderer/stores/song.store";
 import { useSettingsStore } from "@renderer/stores/settings.store";
@@ -29,6 +30,7 @@ import { INSTANT_TRANSITION, type ProjectionOutput } from "@shared/types/project
 import {
   caretAtSlide,
   missingOrderKeys,
+  parseLyrics,
   parseSectionKey,
   sectionLabel,
   serializeLyrics,
@@ -87,6 +89,8 @@ export function SongEditorModal({ onOpenChange, onSaved, open, songId }: SongEdi
   const [selected, setSelected] = useState(1);
   /** Where the caret is in the lyrics; `null` until the operator puts it there. */
   const [caret, setCaret] = useState<number | null>(null);
+  /** Which text the lyrics zone shows: the lyrics, or their translation. */
+  const [textTab, setTextTab] = useState<"lyrics" | "translation">("lyrics");
   const [pending, setPending] = useState<Pending | null>(null);
   const [saving, setSaving] = useState(false);
   const lyricsRef = useRef<HTMLTextAreaElement>(null);
@@ -101,6 +105,7 @@ export function SongEditorModal({ onOpenChange, onSaved, open, songId }: SongEdi
     setBaseline(loaded);
     setSelected(1);
     setCaret(null);
+    setTextTab("lyrics");
     setPending(null);
     // `locale` only shapes the headers of a song being opened.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -153,6 +158,8 @@ export function SongEditorModal({ onOpenChange, onSaved, open, songId }: SongEdi
             theme,
             fit.sizeCqw,
             footerAt(preview, theme, { slideIndex, detour: null }),
+            null,
+            slideTranslation(preview, slideIndex),
           ),
           videoUnderlay: null,
           slideVideo: null,
@@ -367,12 +374,24 @@ export function SongEditorModal({ onOpenChange, onSaved, open, songId }: SongEdi
       >
         <div className="mx-auto flex min-h-0 w-full max-w-3xl flex-1 flex-col gap-2 p-6">
           <div className="flex items-center gap-2">
-            <Title as="h3" className="flex-1">
-              {t("songs.groups.lyrics")}
-            </Title>
+            <div className="flex-1">
+              <Tabs
+                onChange={setTextTab}
+                tabs={[
+                  { label: t("songs.groups.lyrics"), value: "lyrics" },
+                  { label: t("songs.groups.translation"), value: "translation" },
+                ]}
+                value={textTab}
+                variant="segment"
+              />
+            </div>
             <Button
-              disabled={parsed.sections.length === 0}
-              onClick={() => replaceDraft({ ...draft, lyrics: serializeLyrics(parsed.sections, locale) })}
+              disabled={textTab === "lyrics" ? parsed.sections.length === 0 : draft.translation.trim() === ""}
+              onClick={() =>
+                textTab === "lyrics"
+                  ? replaceDraft({ ...draft, lyrics: serializeLyrics(parsed.sections, locale) })
+                  : patch({ translation: serializeLyrics(parseLyrics(draft.translation, locale).sections, locale) })
+              }
               size="xs"
               title={t("songs.writeHeadersHint")}
               variant="outline"
@@ -380,20 +399,32 @@ export function SongEditorModal({ onOpenChange, onSaved, open, songId }: SongEdi
               {t("songs.writeHeaders")}
             </Button>
           </div>
-          <Textarea
-            aria-label={t("songs.groups.lyrics")}
-            className="min-h-0 flex-1"
-            onChange={(e) => {
-              patch({ lyrics: e.target.value });
-              setCaret(e.target.selectionStart);
-            }}
-            onSelect={(e) => setCaret(e.currentTarget.selectionStart)}
-            placeholder={t("songs.lyricsPlaceholder")}
-            ref={lyricsRef}
-            spellCheck={false}
-            value={draft.lyrics}
-          />
-          <Caption>{t("songs.lyricsHint")}</Caption>
+          {textTab === "lyrics" ? (
+            <Textarea
+              aria-label={t("songs.groups.lyrics")}
+              className="min-h-0 flex-1"
+              onChange={(e) => {
+                patch({ lyrics: e.target.value });
+                setCaret(e.target.selectionStart);
+              }}
+              onSelect={(e) => setCaret(e.currentTarget.selectionStart)}
+              placeholder={t("songs.lyricsPlaceholder")}
+              ref={lyricsRef}
+              spellCheck={false}
+              value={draft.lyrics}
+            />
+          ) : (
+            // Its own text: the caret ↔ slide link stays with the lyrics.
+            <Textarea
+              aria-label={t("songs.groups.translation")}
+              className="min-h-0 flex-1"
+              onChange={(e) => patch({ translation: e.target.value })}
+              placeholder={t("songs.translationPlaceholder")}
+              spellCheck={false}
+              value={draft.translation}
+            />
+          )}
+          <Caption>{textTab === "lyrics" ? t("songs.lyricsHint") : t("songs.translationHint")}</Caption>
           {!savable ? (
             <Callout className="py-2" role="status" tone="warning">
               {t("songs.invalidHint")}

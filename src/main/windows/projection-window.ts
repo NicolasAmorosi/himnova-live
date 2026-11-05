@@ -69,14 +69,20 @@ export function createProjectionWindow(displayId?: number): BrowserWindow {
   // keyboard on any system — is the operator's shortcut, answered by the
   // control window as if pressed there; before this, → and B did nothing until
   // the operator clicked back on the control window.
-  win.webContents.on("before-input-event", (event, input) => {
-    if (input.type !== "keyDown" || input.control || input.meta || input.alt) return;
-    event.preventDefault();
-    broadcast("projector-key", { key: input.key, repeat: input.isAutoRepeat, shift: input.shift, code: input.code });
-  });
+  forwardKeysToControl(win);
   if (!singleMonitor) {
     win.setAlwaysOnTop(true, "screen-saver");
   }
 
   return win;
+}
+
+/** Every key that reaches `win` is the operator's shortcut, answered by the
+ *  control window as if pressed there (see the comment above its call). */
+export function forwardKeysToControl(win: BrowserWindow): void {
+  win.webContents.on("before-input-event", (event, input) => {
+    if (input.type !== "keyDown" || input.control || input.meta || input.alt) return;
+    event.preventDefault();
+    broadcast("projector-key", { key: input.key, repeat: input.isAutoRepeat, shift: input.shift, code: input.code });
+  });
 }

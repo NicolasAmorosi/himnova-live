@@ -10,7 +10,8 @@ import type { BibleSearchHit } from "@shared/types/bible";
  *  implementation behind `goLive()` on a verse target and the global ←/→
  *  shortcut (use-global-shortcuts.ts) while scripture is on the projector. */
 export function projectVerse(index: number): void {
-  const { setCurrentVerseIndex, versionId, verses, versions } = useBibleStore.getState();
+  const { bookId, chapter, recordRecent, setCurrentVerseIndex, versionId, verses, versions } =
+    useBibleStore.getState();
   const verse = verses[index];
   if (!verse) return;
   const reference = `${verse.bookName} ${verse.chapter}:${verse.verse}`;
@@ -25,6 +26,7 @@ export function projectVerse(index: number): void {
   claimLiveIntent();
   useProjectionStore.getState().setBase({ kind: "bible", text: verse.text, reference, versionLabel });
   setCurrentVerseIndex(index);
+  if (bookId !== null && chapter !== null) recordRecent(bookId, chapter, verse.verse, verse.verse);
 }
 
 /** Live navigation: the arrows move what the congregation sees, not the
@@ -40,8 +42,14 @@ export function advanceVerse(direction: 1 | -1): void {
 /** A search hit lives outside the loaded chapter: load it, then preview the
  *  verse the operator actually clicked. */
 export async function previewSearchHit(hit: BibleSearchHit): Promise<void> {
-  await useBibleStore.getState().setBookAndChapter(hit.bookId, hit.chapter);
-  const index = useBibleStore.getState().verses.findIndex((v) => v.verse === hit.verse);
+  await previewPassage(hit.bookId, hit.chapter, hit.verse);
+}
+
+/** Loads a chapter and previews one of its verses — a search hit, a favorite
+ *  or a recent passage. */
+export async function previewPassage(bookId: number, chapter: number, verse: number): Promise<void> {
+  await useBibleStore.getState().setBookAndChapter(bookId, chapter);
+  const index = useBibleStore.getState().verses.findIndex((v) => v.verse === verse);
   if (index >= 0) previewVerse(index);
 }
 

@@ -12,7 +12,7 @@ import { platePreviewOutput } from "@renderer/lib/plate-output";
 import { useLiveVideoPoster } from "@renderer/lib/hooks/use-live-video-poster";
 import { findPlate, useOverlayStore } from "@renderer/stores/overlay.store";
 import { findSong, resolveSong, themeForSong, useSongStore } from "@renderer/stores/song.store";
-import { footerAt, slideLines, songOutputFor } from "@renderer/lib/song-output";
+import { footerAt, slideLines, slideTranslation, songOutputFor } from "@renderer/lib/song-output";
 import { useSongFit } from "@renderer/lib/song-fit";
 import { useSettingsStore } from "@renderer/stores/settings.store";
 import type { ResolvedSong, Song, SongTheme } from "@shared/types/song";
@@ -285,6 +285,8 @@ function usePreviewOutputWithoutPlates(content: PreviewContent | null): Projecti
           content.theme,
           songFit.sizeCqw,
           footerAt(content.resolved, content.theme, { slideIndex, detour: null }),
+          null,
+          slideTranslation(content.resolved, slideIndex),
         ),
         videoUnderlay: null,
         slideVideo: null,

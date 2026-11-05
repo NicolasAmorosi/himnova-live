@@ -1,5 +1,12 @@
 import { isSongUpsert } from "@shared/song-validators";
-import { parseLyrics, serializeLyrics, textOrder, type ParsedLyrics } from "@shared/song-text";
+import {
+  parseLyrics,
+  serializeLyrics,
+  textOrder,
+  translationSections,
+  withTranslation,
+  type ParsedLyrics,
+} from "@shared/song-text";
 import type { Locale } from "@shared/types/settings";
 import type { Song, SongUpsert } from "@shared/types/song";
 
@@ -21,6 +28,9 @@ export type SongDraft = {
   ccliNumber: string;
   notes: string;
   lyrics: string;
+  /** The second language, written like `lyrics`: paired with it by section
+   *  and slide when parsed (`parseDraft`). */
+  translation: string;
   order: string[] | null;
   themeId: number | null;
 };
@@ -34,6 +44,7 @@ export function emptySongDraft(): SongDraft {
     ccliNumber: "",
     notes: "",
     lyrics: "",
+    translation: "",
     order: null,
     themeId: null,
   };
@@ -48,6 +59,7 @@ export function toSongDraft(song: Song, locale: Locale): SongDraft {
     ccliNumber: song.ccliNumber ?? "",
     notes: song.notes ?? "",
     lyrics: serializeLyrics(song.sections, locale),
+    translation: serializeLyrics(translationSections(song.sections), locale),
     order: song.order.length > 0 ? song.order : null,
     themeId: song.themeId,
   };
@@ -80,6 +92,10 @@ export function isSongDraftSavable(draft: SongDraft, parsed: ParsedLyrics): bool
   return isSongUpsert(toSongUpsert(draft, parsed, null));
 }
 
+/** The lyrics, with the translation paired into their slides — so saving, the
+ *  preview and «Save»'s check all see the song as it will be stored. */
 export function parseDraft(draft: SongDraft, locale: Locale): ParsedLyrics {
-  return parseLyrics(draft.lyrics, locale);
+  const parsed = parseLyrics(draft.lyrics, locale);
+  if (draft.translation.trim() === "") return parsed;
+  return { ...parsed, sections: withTranslation(parsed.sections, parseLyrics(draft.translation, locale).sections) };
 }

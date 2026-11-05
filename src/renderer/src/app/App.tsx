@@ -28,6 +28,7 @@ import { useUiStore } from "@renderer/stores/ui.store";
 import { startProjectionEffects } from "@renderer/effects/projection-sync";
 import { startLibrarySyncEffects } from "@renderer/effects/library-sync";
 import { startDraftAutosave } from "@renderer/effects/draft-autosave";
+import { startStageSync } from "@renderer/effects/stage-sync";
 import { startEngineAssetsSync } from "@renderer/effects/engine-assets-sync";
 import { startUpdateAnnouncement } from "@renderer/effects/update-announcement";
 import { useGlobalShortcuts } from "@renderer/lib/hooks/use-global-shortcuts";
@@ -123,6 +124,7 @@ export function App() {
       // why the Bible tab no longer loads them on its own mount — two
       // unordered callers is exactly how that race was won by the wrong one.
       void useBibleStore.getState().loadVersions();
+      void useBibleStore.getState().loadBookmarks();
       // The saved time scenes. Not awaited before the draft restore below and
       // not blocking it either: nothing in the schedule references a scene
       // yet (that is F3), and the Utilities panel is perfectly able to paint
@@ -153,6 +155,7 @@ export function App() {
       }
     })();
     const stopProjectionEffects = startProjectionEffects();
+    const stopStageSync = startStageSync();
     const stopLibrarySync = startLibrarySyncEffects();
     // Also what lets main decide what the media engine plays — see `engine-assets-sync.ts`.
     const stopEngineAssetsSync = startEngineAssetsSync();
@@ -164,6 +167,7 @@ export function App() {
     const stopUpdateAnnouncement = startUpdateAnnouncement();
     return () => {
       stopProjectionEffects();
+      stopStageSync();
       stopLibrarySync();
       stopEngineAssetsSync();
       stopDraftAutosave();

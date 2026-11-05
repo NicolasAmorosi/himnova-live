@@ -13,7 +13,13 @@
  * tokens.
  */
 import type { BibleStyle, TextAlign } from "./bible-style";
-import { DEFAULT_SHADOW_STRENGTH, type SceneBackground, type SceneTextStyle, type SceneVerticalAlign } from "./scene-style";
+import {
+  DEFAULT_SHADOW_STRENGTH,
+  type BackgroundFit,
+  type SceneBackground,
+  type SceneTextStyle,
+  type SceneVerticalAlign,
+} from "./scene-style";
 
 export const SONG_SECTION_TYPES = ["verse", "prechorus", "chorus", "bridge", "ending", "intro", "other"] as const;
 export type SongSectionType = (typeof SONG_SECTION_TYPES)[number];
@@ -35,9 +41,15 @@ export const SONG_SECTION_NUMBER_MAX = 99;
 
 export type SongSlide = {
   lines: string[];
-  /** Reserved for the second language (phase 2): never written or shown yet. */
+  /** This slide in the second language, written in the editor's «Traducción»
+   *  text and paired by section and slide (`withTranslation`). */
   translation?: string[];
 };
+
+/** Which language a live song shows (owner, 2026-11-05): a song with a
+ *  translation goes live in «both», stacked, and the LIVE row switches it. */
+export const SONG_LANGUAGES = ["original", "both", "translation"] as const;
+export type SongLanguage = (typeof SONG_LANGUAGES)[number];
 
 export type SongSection = {
   /** `${SECTION_KEY_PREFIX[type]}${number}` — what the order names. */
@@ -70,6 +82,14 @@ export type SongUpsert = Omit<Song, "id" | "updatedAt"> & { id?: number };
 
 export type SongUsage = { programId: number; programName: string; itemCount: number };
 
+/** The programs whose songs the app reads (owner, 2026-11-05: «Importar» is a
+ *  menu of them). */
+export const SONG_IMPORT_SOURCES = ["easyworship", "openlp", "openlyrics"] as const;
+export type SongImportSource = (typeof SONG_IMPORT_SOURCES)[number];
+
+/** One song in the CCLI usage report: the days it went live (one per day). */
+export type SongUse = { title: string; authors: string | null; ccliNumber: string | null; days: number[] };
+
 /** What an import did: written, skipped as already there (same title, same
  *  words), and not written because the song had no title or no lyrics. */
 export type SongImportResult = { imported: number; repeated: number; problems: number };
@@ -85,6 +105,9 @@ export type SongSearchHit = {
  *  knowing which section and which pass of the order it comes from. */
 export type SongDeckSlide = {
   lines: string[];
+  /** Drawn under `lines`, smaller (`SongTheme.translation`): only when the song
+   *  is resolved in «both» and this slide has one. */
+  translation?: string[];
   sectionKey: string;
   type: SongSectionType;
   number: number;
@@ -147,10 +170,22 @@ export type SongOutline = { enabled: boolean; color: string; widthCqw: number };
 /** Between two slides of the same song: a cut, or a fade of `durationMs`. */
 export type SongSlideTransition = { style: "cut" | "fade"; durationMs: number };
 
+/** The second language, stacked under the lyrics: `scale` of the lyrics' size. */
+export type SongTranslationStyle = { scale: number; color: string; italic: boolean };
+export const SONG_TRANSLATION_SCALE_MIN = 0.4;
+export const SONG_TRANSLATION_SCALE_MAX = 1;
+
 /** The footer's lines: at most two, so the place it keeps is known. */
 export const SONG_FOOTER_LINES = 2;
 
 export const SONG_THEME_VERSION = 1;
+
+/** A looping video behind the lyrics, never heard — songs only: the verse,
+ *  the time scenes and the plates keep `SceneBackground` (owner, 2026-11-05;
+ *  plan `2026-11-05-video-de-fondo`). Any video the library takes: one the
+ *  projector cannot play goes through the media engine, like a live video. */
+export type SongVideoBackground = { kind: "video"; assetId: number; fit: BackgroundFit };
+export type SongBackground = SceneBackground | SongVideoBackground;
 
 /**
  * How a song looks — every knob of the theme editor (owner: «que se puedan
@@ -159,7 +194,7 @@ export const SONG_THEME_VERSION = 1;
  */
 export type SongTheme = {
   version: typeof SONG_THEME_VERSION;
-  background: SceneBackground;
+  background: SongBackground;
   fontFamily: string | null;
   /** `sizeCqw` is the CEILING: a song is drawn at the largest size at or
    *  below it at which all of its slides fit. */
@@ -180,6 +215,7 @@ export type SongTheme = {
   maxLines: number;
   footer: SongFooter;
   slideTransition: SongSlideTransition;
+  translation: SongTranslationStyle;
 };
 
 export type SongThemeUpsert = { id?: number; name: string; style: SongTheme };
@@ -231,6 +267,8 @@ export const DEFAULT_SONG_THEME: SongTheme = {
   },
   // A short fade between slides of the same song (owner, 2026-11-04).
   slideTransition: { style: "fade", durationMs: 300 },
+  // Smaller, softer and slanted, so the eye tells the two languages apart.
+  translation: { scale: 0.75, color: "#cfd8e3", italic: true },
 };
 
 /**

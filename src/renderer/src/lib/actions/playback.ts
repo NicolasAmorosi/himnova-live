@@ -24,6 +24,7 @@ import { playableAssetUrl } from "@renderer/stores/engine-assets.store";
 import { getCachedMediaAsset } from "@renderer/lib/hooks/use-media-asset";
 import type { AssetKind } from "@shared/constants";
 import { prepareSong } from "@renderer/lib/actions/songs";
+import { songBackgroundVideo } from "@renderer/lib/song-output";
 import { jumpTo, stepSong, type SongJumpTarget } from "@shared/song-jump";
 
 let videoEpoch = 0;
@@ -281,6 +282,9 @@ async function goLiveWithSong(songId: number, startSlideIndex: number, intent: n
     enterSeq: 0,
     theme: prepared.theme,
     sizeCqw: prepared.sizeCqw,
+    backgroundVideo: songBackgroundVideo(prepared.theme, null),
+    // Both languages first (owner, 2026-11-05); the LIVE row switches.
+    language: "both",
   });
   store.setOverlay("none");
   return true;
@@ -407,6 +411,10 @@ async function goLiveWithScheduleItem(
         versionLabel: bibleVersionLabel(useBibleStore.getState().versions, item.bibleVersionId),
       });
       useProjectionStore.getState().setOverlay("none");
+      const { bibleBookId, chapter, verseFrom, verseTo } = item;
+      if (bibleBookId !== null && chapter !== null && verseFrom !== null) {
+        useBibleStore.getState().recordRecent(bibleBookId, chapter, verseFrom, verseTo ?? verseFrom);
+      }
       return;
     }
     case "utility": {

@@ -13,9 +13,10 @@ saved-services module.
 ~~**Not implemented:** songs/lyrics with projectable sections.~~ **Implemented (2.3.0,
 2026-11-04):** the song library, one size per song, live jumps, named themes and the
 EasyWorship 6 import — see «Songs» in `04-renderer-state.md` and `05-data-and-persistence.md`.
-Left for later, by the owner's plan: two languages at once (the `translation` slot of a slide is
-reserved and never written), a video behind the lyrics, a stage display, other importers
-(OpenLP, OpenLyrics, ProPresenter, FreeShow, SongSelect, ChordPro), the CCLI usage report, chords,
+Two languages at once and a video behind the lyrics came on 2026-11-05 (see «Songs» in
+`04-renderer-state.md`), and the OpenLP and OpenLyrics importers and the CCLI usage report the same day
+(`05-data-and-persistence.md`). Left for later, by the owner's plan: other importers
+(ProPresenter, FreeShow, SongSelect, ChordPro), chords,
 configurable keys, and checking the importer against a real EasyWorship 7 database.
 
 ## Debt consciously left for a later session
@@ -38,9 +39,9 @@ configurable keys, and checking the importer against a real EasyWorship 7 databa
   converted deck, until they can be served from the `.pptx` by range. And the slide grids mount a
   whole `SlideView` per visible tile: fine on the decks tested, not measured on a very long deck
   full of large pictures.
-- **Bible favorites and history UI**: the `bible_favorites` and `projection_history` tables and
-  their repos exist and work (`HistoryRepo.record()` is already called on every
-  `projection:show`), but there's no screen that lists them yet.
+- ~~**Bible favorites and history UI**~~: **implemented on 2026-11-05** as the Bible tab's ⭐ list
+  (favorites + recent passages, see «Favorites and recent passages» in `05-data-and-persistence.md`).
+  `projection_history` (every `projection:show`, all kinds) still has no screen.
 - ~~**Video embedded inside a slide**~~: **implemented on 2026-09-20** as a positioned overlay.
   One hard limit remains that isn't debt but format: legacy `.ppt`/`.pps` files lose the video
   entirely, so the feature is only for `.pptx`/`.ppsx` — measured in
@@ -58,9 +59,6 @@ configurable keys, and checking the importer against a real EasyWorship 7 databa
   preview drawn by the same `OutputView` as the projector, and it's saved instantly: `App`
   mirrors it to `projection.store`, which recomputes `selectOutput` **without** touching
   `sceneEpoch`, so editing what's LIVE is an in-place patch and not a transition.
-- **Bible favorites UI**: `bible_favorites` still has no screen. Watch out for a decision already
-  made: deleting a version does **not** delete its favorites (they're keyed by code, not by FK)
-  precisely so that delete-and-reimport isn't destructive.
 - **Settings screen**: six categories (Projection, Slides, Verses, Bible, System, About) with theme,
   language, `media.volume`, the per-type folders (`files.defaultFolders`) and the `slides.*` keys
   already exposed.
@@ -136,10 +134,10 @@ high and medium findings. This was left open, each item with its reason:
   requires a native `File`), two real screens, and the native dialogs — those are answered by
   replacing `dialog.showOpenDialog` in main (`answerOpenDialog`), so the button and everything
   after it are the real ones.
-- **31 of the 35 `Select`s have no accessible name.** The ones living in a `FieldRow` are named
-  only by the `role="group"`, not the combobox; the three in the Bible browser and the Schedules
-  filter, by nothing. The fix is in the primitive (have `Select` take the `labelId` of the
-  `FieldRow` that contains it) plus an `aria-label` on the four standalone ones.
+- ~~**31 of the 35 `Select`s have no accessible name.**~~ **Fixed on 2026-11-05:** a `FieldRow` hands
+  its label's id down (`FieldLabelContext`) and a `Select` inside is `aria-labelledby` it unless the
+  caller passes an `aria-label`, which the four standalone ones (the Bible tab's three pickers and
+  the programs filter) now do. Every combobox of every screen was checked at run time.
 
 ## Cross-platform — solved
 
@@ -191,5 +189,8 @@ another in `main/i18n/messages/` (both typed against their `es`), its Bible book
 `main/db/seed/bible-formats/book-names.ts` and its endonym in `settings.locales`. No components
 touched: the dictionary maps are typed over `Locale`, so forgetting one doesn't compile.
 
-Pending: the screenshots (`npm run screenshots`) and the landing show the interface in Spanish in
-every language.
+The screenshots (`npm run screenshots`) are taken once per language since 2026-11-05
+(`docs/screenshots/<locale>/`): the interface and the content, each language's public-domain hymns and
+Bible (`tests/e2e/screenshots.content.ts`, every text copied from a named source). The specs drive the
+app through `translate()` (`tests/e2e/support/locale.ts`), which finds a Spanish label's wording in
+the other language through the app's own dictionaries, so the suite stays written in Spanish.

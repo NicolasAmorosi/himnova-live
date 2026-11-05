@@ -6,7 +6,7 @@ import type { SongDeckSlide, SongTheme } from "@shared/types/song";
 import { SECTION_FILL } from "./song-section-fill";
 import { SongScene, type SongSlideContent } from "./song-scene";
 import { useSongFit } from "@renderer/lib/song-fit";
-import { footerAt, slideLines, songOutputFor } from "@renderer/lib/song-output";
+import { footerAt, slideLines, slideTranslation, songOutputFor } from "@renderer/lib/song-output";
 import { findSong, resolveSong, themeForSong, useSongStore } from "@renderer/stores/song.store";
 
 /**
@@ -50,7 +50,9 @@ export function SongSlideTile({
       loading={sizeCqw === null}
       media={
         sizeCqw === null ? undefined : (
-          <SongSlideMedia content={{ backgroundUrl, footer, lines: slide.lines, sizeCqw, theme }} />
+          <SongSlideMedia
+            content={{ backgroundUrl, footer, lines: slide.lines, sizeCqw, theme, translation: slide.translation ?? null }}
+          />
         )
       }
       onClick={onClick}
@@ -84,7 +86,15 @@ export function SongFirstSlide({ songId }: { songId: number }) {
   const first = { slideIndex: 1, detour: null };
   return (
     <SongSlideMedia
-      content={songOutputFor(resolved, slideLines(resolved, 1), theme, fit.sizeCqw, footerAt(resolved, theme, first))}
+      content={songOutputFor(
+        resolved,
+        slideLines(resolved, 1),
+        theme,
+        fit.sizeCqw,
+        footerAt(resolved, theme, first),
+        null,
+        slideTranslation(resolved, 1),
+      )}
     />
   );
 }

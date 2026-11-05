@@ -474,6 +474,7 @@ export function ProgramsModal({ initialMode, onOpenChange, open }: ProgramsModal
                 value={query}
               />
               <Select
+                aria-label={t("programs.filterLabel")}
                 className="w-full"
                 onChange={(value) => setFavoriteFilter(value as FavoriteFilter)}
                 options={[

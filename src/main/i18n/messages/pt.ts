@@ -1,7 +1,7 @@
 import type { MainMessages } from "./es";
 
 const pt: MainMessages = {
-  window: { projectionTitle: "Lumina Live — Projeção" },
+  window: { projectionTitle: "Lumina Live — Projeção", stageTitle: "Lumina Live — Palco" },
   menu: {
     about: "Sobre o {app}",
     services: "Serviços",
@@ -103,6 +103,16 @@ const pt: MainMessages = {
     ewPickTitle: "Escolha a pasta Databases\\Data do EasyWorship",
     ewNotFound: "Essa pasta não tem um banco de músicas do EasyWorship (Songs.db e SongWords.db). Escolha a pasta Databases\\Data do perfil dele.",
     ewUnreadable: "Não foi possível abrir o banco de músicas do EasyWorship.",
+    openLpPickTitle: "Escolha o arquivo songs.sqlite do OpenLP",
+    openLpUnreadable: "Esse arquivo não é um banco de músicas do OpenLP (songs.sqlite) ou não foi possível abri-lo.",
+    openLyricsPickTitle: "Escolha as músicas OpenLyrics (.xml)",
+    usageSaveTitle: "Salvar o relatório CCLI",
+    usageFileName: "Relatório CCLI",
+    usageTitle: "Título",
+    usageAuthors: "Autores",
+    usageCcli: "Número CCLI",
+    usageCount: "Usos",
+    usageDates: "Datas",
   },
   seed: {
     countdownName: "Contagem de 10 minutos",

@@ -34,7 +34,9 @@ type SongRow = {
   vendor_id: number | string | null;
 };
 
-export type EasyWorshipRead = { songs: Omit<SongUpsert, "id">[]; problems: number };
+/** What a reader of another program's songs gives: the songs that can be
+ *  written, and how many it found without a title or without lyrics. */
+export type SongsRead = { songs: Omit<SongUpsert, "id">[]; problems: number };
 
 /** Where the two files are: the folder picked, its `Data`, its
  *  `Databases/Data`, or the profile's (`Default/v6.1/Databases/Data`) — the
@@ -57,23 +59,22 @@ export function findEasyWorshipData(folder: string): string | null {
   return null;
 }
 
-const clip = (value: string | null | undefined, max: number): string | null => {
+export const clip = (value: string | null | undefined, max: number): string | null => {
   const trimmed = (value ?? "").trim();
   return trimmed === "" ? null : trimmed.slice(0, max);
 };
 
-/** A CCLI song number looks like one: digits only. Neither column is one in
- *  OpenLP's test files («Den Danske», 0, 1), so a column that is not digits
- *  is not taken for one. */
-function ccliOf(row: SongRow): string | null {
-  for (const value of [row.reference_number, row.vendor_id]) {
-    const text = String(value ?? "").trim();
-    if (/^\d{3,9}$/.test(text)) return text;
-  }
-  return null;
+/** A CCLI song number looks like one: digits only. */
+export function ccliNumber(value: string | number | null | undefined): string | null {
+  const text = String(value ?? "").trim();
+  return /^\d{3,9}$/.test(text) ? text : null;
 }
 
-export function readEasyWorship(dataFolder: string, locale: Locale): EasyWorshipRead {
+/** Neither column is a CCLI number in OpenLP's test files («Den Danske», 0,
+ *  1), so a column that is not digits is not taken for one. */
+const ccliOf = (row: SongRow): string | null => ccliNumber(row.reference_number) ?? ccliNumber(row.vendor_id);
+
+export function readEasyWorship(dataFolder: string, locale: Locale): SongsRead {
   const songsDb = new Database(path.join(dataFolder, "Songs.db"), { readonly: true, fileMustExist: true });
   const wordsDb = new Database(path.join(dataFolder, "SongWords.db"), { readonly: true, fileMustExist: true });
   try {

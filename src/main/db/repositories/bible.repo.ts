@@ -1,14 +1,29 @@
-import { and, eq, max } from "drizzle-orm";
+import { and, desc, eq, gte, lte, max, sql } from "drizzle-orm";
 import type Database from "better-sqlite3";
 import type { Db } from "../client";
 import { toFtsQuery } from "../fts-query";
-import { bibleBooks, bibleVersions, bibleVerses } from "../schema";
-import type {
-  BibleBookDTO,
-  BibleSearchHit,
-  BibleVerseDTO,
-  BibleVersionDTO,
+import { bibleBooks, bibleFavorites, bibleRecents, bibleVersions, bibleVerses } from "../schema";
+import { canonByAbbrev } from "../seed/bible-formats/canon";
+import {
+  BIBLE_RECENTS_MAX,
+  passageReference,
+  type BibleBookDTO,
+  type BibleBookmark,
+  type BibleSearchHit,
+  type BibleVerseDTO,
+  type BibleVersionDTO,
 } from "@shared/types/bible";
+
+function toBookmark(row: typeof bibleFavorites.$inferSelect | typeof bibleRecents.$inferSelect): BibleBookmark {
+  return {
+    id: row.id,
+    bookAbbrev: row.bookAbbrev,
+    chapter: row.chapter,
+    verseFrom: row.verseFrom,
+    verseTo: row.verseTo,
+    reference: row.reference,
+  };
+}
 
 /** One mapper, so `listVersions` and `getVersion` can never describe the same
  *  row differently. */
@@ -185,5 +200,135 @@ export class BibleRepo {
       // A pathological query (bare operator, etc.) that still slipped through toFtsQuery.
       return [];
     }
+  }
+
+  /** What a bookmark is keyed by: the book's abbrev and its version's code,
+   *  never the row ids a re-import renumbers. */
+  private bookKey(bookId: number) {
+    return this.db
+      .select({ abbrev: bibleBooks.abbrev, name: bibleBooks.name, versionCode: bibleVersions.code })
+      .from(bibleBooks)
+      .innerJoin(bibleVersions, eq(bibleVersions.id, bibleBooks.versionId))
+      .where(eq(bibleBooks.id, bookId))
+      .get();
+  }
+
+  /** In Bible order, Genesis first — a list to scan from the booth, not a log. */
+  listFavorites(): BibleBookmark[] {
+    const position = (abbrev: string) => canonByAbbrev(abbrev)?.index ?? Number.MAX_SAFE_INTEGER;
+    return this.db
+      .select()
+      .from(bibleFavorites)
+      .all()
+      .map(toBookmark)
+      .sort(
+        (a, b) =>
+          position(a.bookAbbrev) - position(b.bookAbbrev) || a.chapter - b.chapter || a.verseFrom - b.verseFrom,
+      );
+  }
+
+  /** Stars or unstars one verse. Unstarring removes every favorite that
+   *  contains it, so a range saved by an older build can be cleared too. */
+  setFavorite(bookId: number, chapter: number, verse: number, favorite: boolean): BibleBookmark[] {
+    const key = this.bookKey(bookId);
+    if (!key) return this.listFavorites();
+    this.sqlite.transaction(() => {
+      this.db
+        .delete(bibleFavorites)
+        .where(
+          and(
+            eq(bibleFavorites.bookAbbrev, key.abbrev),
+            eq(bibleFavorites.chapter, chapter),
+            lte(bibleFavorites.verseFrom, verse),
+            gte(bibleFavorites.verseTo, verse),
+          ),
+        )
+        .run();
+      if (!favorite) return;
+      this.db
+        .insert(bibleFavorites)
+        .values({
+          versionCode: key.versionCode,
+          bookAbbrev: key.abbrev,
+          chapter,
+          verseFrom: verse,
+          verseTo: verse,
+          reference: passageReference(key.name, chapter, verse, verse),
+          label: null,
+          createdAt: Date.now(),
+        })
+        .run();
+    })();
+    return this.listFavorites();
+  }
+
+  listRecents(): BibleBookmark[] {
+    return this.db
+      .select()
+      .from(bibleRecents)
+      .orderBy(desc(bibleRecents.projectedAt), desc(bibleRecents.id))
+      .limit(BIBLE_RECENTS_MAX)
+      .all()
+      .map(toBookmark);
+  }
+
+  /**
+   * A passage went live. One row per chapter: reading on through the chapter
+   * that is already at the top widens its range; any other chapter moves to
+   * the top on its own, replacing an older row of that same chapter.
+   */
+  recordRecent(bookId: number, chapter: number, verseFrom: number, verseTo: number): BibleBookmark[] {
+    const key = this.bookKey(bookId);
+    if (!key) return this.listRecents();
+    const now = Date.now();
+    this.sqlite.transaction(() => {
+      const newest = this.db
+        .select()
+        .from(bibleRecents)
+        .orderBy(desc(bibleRecents.projectedAt), desc(bibleRecents.id))
+        .limit(1)
+        .get();
+      if (newest && newest.bookAbbrev === key.abbrev && newest.chapter === chapter) {
+        const from = Math.min(newest.verseFrom, verseFrom);
+        const to = Math.max(newest.verseTo, verseTo);
+        this.db
+          .update(bibleRecents)
+          .set({
+            verseFrom: from,
+            verseTo: to,
+            reference: passageReference(key.name, chapter, from, to),
+            projectedAt: now,
+          })
+          .where(eq(bibleRecents.id, newest.id))
+          .run();
+        return;
+      }
+      this.db
+        .delete(bibleRecents)
+        .where(and(eq(bibleRecents.bookAbbrev, key.abbrev), eq(bibleRecents.chapter, chapter)))
+        .run();
+      this.db
+        .insert(bibleRecents)
+        .values({
+          versionCode: key.versionCode,
+          bookAbbrev: key.abbrev,
+          chapter,
+          verseFrom,
+          verseTo,
+          reference: passageReference(key.name, chapter, verseFrom, verseTo),
+          projectedAt: now,
+        })
+        .run();
+      this.db
+        .delete(bibleRecents)
+        .where(
+          sql`${bibleRecents.id} NOT IN (
+            SELECT ${bibleRecents.id} FROM ${bibleRecents}
+            ORDER BY ${bibleRecents.projectedAt} DESC, ${bibleRecents.id} DESC LIMIT ${BIBLE_RECENTS_MAX}
+          )`,
+        )
+        .run();
+    })();
+    return this.listRecents();
   }
 }

@@ -18,5 +18,5 @@
     "noEmit": true,
     "composite": true
   },
-  "include": ["playwright.config.ts", "playwright.screenshots.config.ts", "tests/e2e/**/*.ts", "tests/fixtures/**/*.ts", "src/shared/**/*.ts"]
+  "include": ["playwright.config.ts", "playwright.screenshots.config.ts", "tests/e2e/**/*.ts", "tests/fixtures/**/*.ts", "src/shared/**/*.ts", "src/renderer/src/lib/i18n/messages/*.ts", "src/main/i18n/messages/*.ts"]
 }

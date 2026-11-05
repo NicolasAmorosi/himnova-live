@@ -9,6 +9,7 @@ import type {
 } from "../types/media";
 import type {
   BibleBookDTO,
+  BibleBookmark,
   BibleSearchHit,
   BibleVerseDTO,
   BibleVersionDTO,
@@ -22,6 +23,7 @@ import type {
   PreviewVideoStatus,
   ProjectionMediaError,
   ProjectionOutput,
+  StageOutput,
 } from "../types/projection";
 import type {
   DeckCacheStats,
@@ -45,6 +47,7 @@ import type { Plate, PlateUpsert, PlateUsage } from "../types/overlay";
 import type {
   Song,
   SongImportResult,
+  SongImportSource,
   SongSearchHit,
   SongThemeRow,
   SongThemeUpsert,
@@ -94,6 +97,11 @@ export type IpcContract = {
    *  main has it draw the current one again — a projector rebuilt onto another
    *  screen, or a monitor remounted, would otherwise stay black until play. */
   "projection:wantVideoFrame": { req: { key: string }; res: void };
+
+  /** Control window -> main -> the stage window, like `projection:show`; main
+   *  keeps the last one for a stage window that opens later. */
+  "stage:show": { req: StageOutput; res: void };
+  "stage:getSnapshot": { req: void; res: StageOutput | null };
 
   /** The PREVIEW monitor's video when the media engine plays it, or `null`
    *  when it shows anything else. Declarative: main loads a new url, and only
@@ -176,6 +184,20 @@ export type IpcContract = {
    *  with the re-sorted list, so the caller replaces its state with what was
    *  actually persisted instead of trusting its optimistic guess. */
   "bible:reorder": { req: { ids: number[] }; res: BibleVersionDTO[] };
+  /** Favorites and the passages that went live lately — see `BibleBookmark`.
+   *  Each write answers with the whole list, so the caller never keeps a guess. */
+  "bible:favorites": { req: void; res: BibleBookmark[] };
+  "bible:setFavorite": {
+    req: { bookId: number; chapter: number; verse: number; favorite: boolean };
+    res: BibleBookmark[];
+  };
+  "bible:recents": { req: void; res: BibleBookmark[] };
+  /** Sent by the control window when a verse goes live: main cannot tell a
+   *  verse's book from the `bible` output, which carries only its text. */
+  "bible:recordRecent": {
+    req: { bookId: number; chapter: number; verseFrom: number; verseTo: number };
+    res: BibleBookmark[];
+  };
 
   "library:list": { req: { kind: AssetKind }; res: MediaAsset[] };
   "library:get": { req: { id: number }; res: MediaAsset | null };
@@ -309,11 +331,17 @@ export type IpcContract = {
   "song:usages": { req: { id: number }; res: SongUsage[] };
   /** Title, number, authors and lyrics, without accents (FTS5), best first. */
   "song:search": { req: { query: string; limit?: number }; res: SongSearchHit[] };
-  /** Asks for EasyWorship 6/7's `Databases/Data` folder (or the profile
-   *  above it) and imports its songs; `null` when the operator cancels.
-   *  Refused as `EW_NOT_FOUND` when the folder holds no song database, and
-   *  `EW_UNREADABLE` when it cannot be opened. */
-  "song:importEasyWorship": { req: void; res: SongImportResult | null };
+  /** Asks for another program's songs and imports them; `null` when the
+   *  operator cancels. EasyWorship 6/7: its `Databases/Data` folder (or the
+   *  profile above it), refused as `EW_NOT_FOUND` when the folder holds no song
+   *  database and `EW_UNREADABLE` when it cannot be opened. OpenLP: its
+   *  `songs.sqlite`, refused as `OPENLP_UNREADABLE`. OpenLyrics: one or more
+   *  `.xml` files, a file that is not a song counted as a problem. */
+  "song:import": { req: { from: SongImportSource }; res: SongImportResult | null };
+  /** The CCLI usage report of `[from, to)` (ms): asks where to save it as CSV;
+   *  `null` when the operator cancels, `{ songs: 0 }` — and no question — when
+   *  no song went live in those dates. */
+  "song:usageReport": { req: { from: number; to: number }; res: { songs: number } | null };
   "songTheme:list": { req: void; res: SongThemeRow[] };
   /** Validated whole (`isSongThemeUpsert`). A new theme goes to the bottom. */
   "songTheme:create": { req: SongThemeUpsert; res: SongThemeRow };
@@ -360,6 +388,8 @@ export type Res<K extends IpcChannel> = IpcContract[K]["res"];
 export type IpcEvents = {
   /** -> projection window */
   "display-content": ProjectionOutput;
+  /** -> stage window */
+  "stage-content": StageOutput;
   "media-command": MediaCommand;
   "audio-tracks": AudioTrackPush[];
   /** -> control window */

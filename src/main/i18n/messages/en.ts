@@ -1,7 +1,7 @@
 import type { MainMessages } from "./es";
 
 const en: MainMessages = {
-  window: { projectionTitle: "Lumina Live — Projection" },
+  window: { projectionTitle: "Lumina Live — Projection", stageTitle: "Lumina Live — Stage" },
   menu: {
     about: "About {app}",
     services: "Services",
@@ -103,6 +103,16 @@ const en: MainMessages = {
     ewPickTitle: "Choose EasyWorship's Databases\\Data folder",
     ewNotFound: "That folder holds no EasyWorship song database (Songs.db and SongWords.db). Choose its profile's Databases\\Data folder.",
     ewUnreadable: "EasyWorship's song database couldn't be opened.",
+    openLpPickTitle: "Choose OpenLP's songs.sqlite file",
+    openLpUnreadable: "That file isn't an OpenLP song database (songs.sqlite), or it couldn't be opened.",
+    openLyricsPickTitle: "Choose the OpenLyrics songs (.xml)",
+    usageSaveTitle: "Save the CCLI report",
+    usageFileName: "CCLI report",
+    usageTitle: "Title",
+    usageAuthors: "Authors",
+    usageCcli: "CCLI number",
+    usageCount: "Uses",
+    usageDates: "Dates",
   },
   seed: {
     countdownName: "10-minute countdown",

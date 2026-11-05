@@ -12,6 +12,8 @@ import {
 } from "@playwright/test";
 import type { AssetKind } from "../../../src/shared/constants";
 import type { MediaAsset } from "../../../src/shared/types/media";
+import type { Locale } from "../../../src/shared/types/settings";
+import { translate } from "./locale";
 import { ROOT, fixture } from "./paths";
 
 /**
@@ -24,10 +26,6 @@ const FLAGS = [
   "--disable-backgrounding-occluded-windows",
   "--disable-renderer-backgrounding",
   "--disable-background-timer-throttling",
-  // Every test starts a new profile, and a new profile starts in the OS's
-  // language (`main/i18n/system-locale.ts`): pinned, so the suite reads the
-  // same Spanish on any machine.
-  "--lang=es",
   // Against the packaged app the launch check would reach GitHub in every
   // test. The update suite serves its own feed and asks by hand, or turns it
   // back on with `test.use({ launchCheck: true })`.
@@ -60,6 +58,7 @@ export class WorshipApp {
     /** Electron main's own pid. Not `electron.process().pid`: on Windows Playwright
      *  starts the app through `cmd.exe`, and killing that left the app alive. */
     readonly mainPid: number,
+    readonly locale: Locale,
   ) {
     this.exited = new Promise((resolve) =>
       electron.process().once("exit", () => {
@@ -71,14 +70,17 @@ export class WorshipApp {
 
   /** Starts the built app on `profile`, an empty directory for a first launch
    *  or a previous run's for a relaunch. */
-  static async launch(profile: string, launchCheck = false): Promise<WorshipApp> {
+  static async launch(profile: string, launchCheck = false, locale: Locale = "es"): Promise<WorshipApp> {
     // `WORSHIP_E2E_EXECUTABLE` runs the suite against an INSTALLED build
     // (`release/mac-arm64/Lumina Live.app/Contents/MacOS/Lumina Live`, or
     // `Lumina Live.exe` on the church PC) instead of `electron .` on `out/`:
     // what ships resolves FFmpeg, the migrations and the bibles from the
     // package's own `resources/`, which only a packaged run exercises.
     const executable = process.env["WORSHIP_E2E_EXECUTABLE"];
-    const flags = launchCheck ? FLAGS.filter((flag) => flag !== "--no-update-check") : FLAGS;
+    // Every test starts a new profile, and a new profile starts in the OS's
+    // language (`main/i18n/system-locale.ts`): pinned, so the suite reads the
+    // same Spanish on any machine — or `locale`, for the screenshots.
+    const flags = [...(launchCheck ? FLAGS.filter((flag) => flag !== "--no-update-check") : FLAGS), `--lang=${locale}`];
     const app = await electron.launch({
       cwd: ROOT,
       ...(executable
@@ -93,8 +95,13 @@ export class WorshipApp {
     app.process().stderr?.on("data", collect);
 
     const control = await app.firstWindow();
-    await expect(control.getByRole("button", { name: "EN VIVO", exact: true })).toBeVisible();
-    return new WorshipApp(app, control, profile, log, await app.evaluate(() => process.pid));
+    await expect(control.getByRole("button", { name: translate("EN VIVO", locale), exact: true })).toBeVisible();
+    return new WorshipApp(app, control, profile, log, await app.evaluate(() => process.pid), locale);
+  }
+
+  /** `text`, written as the app's Spanish, in this app's language — see `translate`. */
+  tr(text: string, vars?: Record<string, string>): string {
+    return translate(text, this.locale, vars);
   }
 
   /** An IPC call through the same bridge the UI uses. For SETUP only — what a
@@ -133,21 +140,33 @@ export class WorshipApp {
     }, filePaths);
   }
 
+  /** Answers the NEXT native save dialog with `filePath` (or a cancel, with
+   *  none) — `answerOpenDialog`'s twin, for «Exportar». */
+  async answerSaveDialog(filePath?: string): Promise<void> {
+    await this.electron.evaluate(({ dialog }, file) => {
+      const original = dialog.showSaveDialog.bind(dialog);
+      dialog.showSaveDialog = () => {
+        dialog.showSaveDialog = original;
+        return Promise.resolve({ canceled: !file, filePath: file ?? "" });
+      };
+    }, filePath);
+  }
+
   /** The right-hand column: the LIVE monitor and everything that controls
    *  what is on the projector. */
   liveColumn(): Locator {
-    return this.control.locator("section").filter({ has: this.control.getByRole("heading", { name: "En Vivo" }) });
+    return this.control.locator("section").filter({ has: this.control.getByRole("heading", { name: this.tr("En Vivo") }) });
   }
 
   /** The centre column: PREVIEW and its grid. */
   previewColumn(): Locator {
-    return this.control.locator("section").filter({ has: this.control.getByRole("heading", { name: "Preview" }) });
+    return this.control.locator("section").filter({ has: this.control.getByRole("heading", { name: this.tr("Preview") }) });
   }
 
   /** The top bar's EN VIVO, which every kind of content shares. (A plate's
    *  own row carries a second one, and so does a time scene's.) */
   goLive(): Promise<void> {
-    return this.control.getByRole("button", { name: "EN VIVO", exact: true }).first().click();
+    return this.control.getByRole("button", { name: this.tr("EN VIVO"), exact: true }).first().click();
   }
 
   /** A resource tab, and one of its inner tabs. */
@@ -155,8 +174,8 @@ export class WorshipApp {
     tab: "Biblia" | "Canciones" | "Media" | "Funciones",
     inner?: "Videos" | "Imágenes" | "Audios" | "Presentaciones" | "Utilidades" | "Overlays",
   ): Promise<void> {
-    await this.control.getByRole("tab", { name: tab }).click();
-    if (inner) await this.control.getByRole("tab", { name: inner }).click();
+    await this.control.getByRole("tab", { name: this.tr(tab) }).click();
+    if (inner) await this.control.getByRole("tab", { name: this.tr(inner) }).click();
   }
 
   /** Loads a chapter in the Bible tab the way an operator does — typed, then
@@ -164,8 +183,8 @@ export class WorshipApp {
    *  after the window, and an Enter with nothing to pick is ignored. */
   async openChapter(reference: string): Promise<void> {
     await this.openResources("Biblia");
-    const panel = this.control.getByRole("tabpanel", { name: "Biblia" });
-    await panel.getByRole("textbox", { name: "Buscar libro y capítulo…" }).fill(reference);
+    const panel = this.control.getByRole("tabpanel", { name: this.tr("Biblia") });
+    await panel.getByRole("textbox", { name: this.tr("Buscar libro y capítulo…") }).fill(reference);
     await expect(panel.getByRole("listitem").filter({ hasText: new RegExp(`^${reference}$`) })).toBeVisible();
     await this.control.keyboard.press("Enter");
   }
@@ -205,14 +224,17 @@ export class WorshipApp {
     await this.electron.evaluate(({ app }) => app.quit());
     // Only the close guard's own question: Ajustes or Programas may still be
     // open, and a slow machine shows those before the process is gone.
-    const dialog = this.control.getByRole("dialog", { name: /^¿Cerrar/ });
+    const dialog = this.control
+      .getByRole("dialog", { name: this.tr("¿Cerrar sin guardar?") })
+      .or(this.control.getByRole("dialog", { name: this.tr("¿Cerrar la app?") }))
+      .or(this.control.getByRole("dialog", { name: this.tr("¿Cerrar la app para actualizar?") }));
     const asked = dialog.waitFor({ state: "visible", timeout: 5_000 }).then(
       () => true,
       () => false,
     );
     if (await Promise.race([exited.then(() => false), asked])) {
       if (answer === "cancel") {
-        await dialog.getByRole("button", { name: "Cancelar" }).click();
+        await dialog.getByRole("button", { name: this.tr("Cancelar") }).click();
         await expect(dialog).toBeHidden();
         return;
       }
@@ -220,7 +242,7 @@ export class WorshipApp {
       // click returns («Target page, context or browser has been closed», seen
       // on Linux). A click that failed for any other reason never exits, below.
       await dialog
-        .getByRole("button", { name: "Cerrar igualmente" })
+        .getByRole("button", { name: this.tr("Cerrar igualmente") })
         .click()
         .catch(() => undefined);
     }
@@ -325,11 +347,13 @@ export function audioStates(page: Page) {
   );
 }
 
-type Fixtures = { app: WorshipApp; profileDir: string; launchCheck: boolean };
+type Fixtures = { app: WorshipApp; appLocale: Locale; profileDir: string; launchCheck: boolean };
 
 export const test = base.extend<Fixtures>({
   /** Whether `app` runs main's update check ten seconds after launch. */
   launchCheck: [false, { option: true }],
+  /** The language `app` starts in (`--lang`). Spanish, which the specs are written in. */
+  appLocale: ["es", { option: true }],
   // A fresh profile per test, removed afterwards. Playwright requires the
   // destructuring pattern even for a fixture that needs no other fixture.
   // eslint-disable-next-line no-empty-pattern -- Playwright's fixture signature
@@ -342,8 +366,8 @@ export const test = base.extend<Fixtures>({
     fs.rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
   },
 
-  app: async ({ profileDir, launchCheck }, use, testInfo) => {
-    const app = await WorshipApp.launch(profileDir, launchCheck);
+  app: async ({ appLocale, profileDir, launchCheck }, use, testInfo) => {
+    const app = await WorshipApp.launch(profileDir, launchCheck, appLocale);
     await use(app);
     // Whatever app the test ended with — it may have relaunched — is the one
     // registered last; tests that relaunch call `adopt` below.
@@ -371,7 +395,7 @@ const adopted = new Map<string, WorshipApp>();
 /** For a test that quits and relaunches: makes teardown clean up (and check)
  *  the new instance too. */
 export async function relaunch(app: WorshipApp): Promise<WorshipApp> {
-  const next = await WorshipApp.launch(app.profile);
+  const next = await WorshipApp.launch(app.profile, false, app.locale);
   adopted.set(test.info().testId, next);
   return next;
 }

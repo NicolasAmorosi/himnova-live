@@ -10,6 +10,7 @@ import type {
   ProjectionOutputKind,
   SceneTransition,
   SlideVideo,
+  SongVideo,
   VideoUnderlay,
 } from "@shared/types/projection";
 import type { SlideTransition, TransitionStyle } from "@shared/types/transition";
@@ -24,9 +25,9 @@ import type { SlideTextSettings } from "@shared/types/slide-model";
 import { bibleOutputFor } from "@renderer/lib/bible-output";
 import { timerOutputFor } from "@renderer/lib/utility-output";
 import { plateOutputFor } from "@renderer/lib/plate-output";
-import { footerAt, songOutputFor } from "@renderer/lib/song-output";
-import { linesAt, type SongPosition } from "@shared/song-jump";
-import type { ResolvedSong, SongTheme } from "@shared/types/song";
+import { footerAt, songBackgroundUrl, songBackgroundVideo, songOutputFor } from "@renderer/lib/song-output";
+import { linesAt, translationAt, type SongPosition } from "@shared/song-jump";
+import type { ResolvedSong, SongLanguage, SongTheme } from "@shared/types/song";
 import { defaultMediaVolume } from "@renderer/stores/settings.store";
 
 /** The deck currently loaded for projection — slide urls are durable, DB-backed
@@ -222,6 +223,9 @@ export type ProjectionStoreState = {
   /** Moves within the live song — a slide of the order (1-based, clamped) or
    *  a detour off it. A cut, like a verse, and it shows the lyrics again. */
   setSongPosition: (position: SongPosition) => void;
+  /** The live song in another language, re-resolved and re-measured by the
+   *  caller: same slide, same detour, never a new scene. */
+  setSongLanguage: (language: SongLanguage, song: ResolvedSong, sizeCqw: number) => void;
   /** T: only the theme's background on the projector, or the lyrics back. */
   setLyricsHidden: (hidden: boolean) => void;
 
@@ -419,16 +423,26 @@ export const useProjectionStore = create<ProjectionStoreState>()(
                 returnTo: index,
               }
             : null;
+        // The same video file goes on; another theme's starts.
+        const backgroundVideo = songBackgroundVideo(theme, base.backgroundVideo);
         if (
           base.song === song &&
           base.theme === theme &&
           base.sizeCqw === sizeCqw &&
           base.slideIndex === index &&
+          base.backgroundVideo === backgroundVideo &&
           JSON.stringify(base.detour) === JSON.stringify(detour)
         ) {
           return state;
         }
-        return { base: { ...base, song, theme, sizeCqw, slideIndex: index, detour } };
+        return { base: { ...base, song, theme, sizeCqw, slideIndex: index, detour, backgroundVideo } };
+      }),
+
+    setSongLanguage: (language, song, sizeCqw) =>
+      set((state) => {
+        const { base } = state;
+        if (base?.kind !== "song" || base.songId !== song.id) return state;
+        return { base: { ...base, language, song, sizeCqw } };
       }),
 
     setSongPosition: (position) =>
@@ -649,6 +663,16 @@ function selectSlideVideo(state: ProjectionStoreState): SlideVideo {
   };
 }
 
+/** The live song's video background, kept under BLACK/LOGO like the slide's
+ *  video — see `SongVideo`. */
+function selectSongVideo(state: ProjectionStoreState): SongVideo | null {
+  const { base } = state;
+  if (base?.kind !== "song" || !base.backgroundVideo || base.theme.background.kind !== "video") return null;
+  const posterUrl = songBackgroundUrl(base.theme);
+  if (!posterUrl) return null;
+  return { ...base.backgroundVideo, fit: base.theme.background.fit, posterUrl };
+}
+
 function selectOutputWithoutUnderlay(state: ProjectionStoreState): ProjectionOutputKind {
   if (state.overlay === "black") return { kind: "black" };
   // `logoUrl` is null while no logo has been chosen (`App.tsx` mirrors
@@ -718,6 +742,7 @@ function selectOutputWithoutUnderlay(state: ProjectionStoreState): ProjectionOut
         fade.style === "fade" && fade.durationMs > 0 && base.enterSeq > 0
           ? { style: "crossfade", durationMs: fade.durationMs, seq: base.enterSeq }
           : null,
+        base.lyricsHidden ? null : translationAt(base.song, base),
       );
     }
   }
@@ -741,10 +766,12 @@ function selectPlates(state: ProjectionStoreState): ProjectionOutput["plates"] {
 }
 
 export function selectOutput(state: ProjectionStoreState): ProjectionOutput {
+  const songVideo = selectSongVideo(state);
   return {
     ...selectOutputWithoutUnderlay(state),
     videoUnderlay: selectVideoUnderlay(state),
     slideVideo: selectSlideVideo(state),
+    ...(songVideo ? { songVideo } : {}),
     plates: selectPlates(state),
     transition: selectTransition(state),
   };

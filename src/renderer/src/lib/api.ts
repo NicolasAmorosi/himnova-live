@@ -7,6 +7,7 @@ import type {
   PreviewEngineVideo,
   ProjectionMediaError,
   ProjectionOutput,
+  StageOutput,
 } from "@shared/types/projection";
 import type {
   ProgramDraft,
@@ -17,7 +18,7 @@ import type {
 import type { SettingsMap } from "@shared/types/settings";
 import type { UtilitySceneUpsert } from "@shared/types/utility";
 import type { PlateUpsert } from "@shared/types/overlay";
-import type { SongThemeUpsert, SongUpsert } from "@shared/types/song";
+import type { SongImportSource, SongThemeUpsert, SongUpsert } from "@shared/types/song";
 import type { CloseDecision } from "@shared/types/window";
 import type { DecoderSupport } from "@shared/types/media";
 
@@ -59,6 +60,10 @@ export const api = {
     cacheStats: () => invoke("deck:cacheStats", undefined),
     clearCache: () => invoke("deck:clearCache", undefined),
   },
+  stage: {
+    show: (output: StageOutput) => invoke("stage:show", output),
+    getSnapshot: () => invoke("stage:getSnapshot", undefined),
+  },
   bible: {
     versions: () => invoke("bible:versions", undefined),
     books: (versionId: number) => invoke("bible:books", { versionId }),
@@ -71,6 +76,12 @@ export const api = {
       invoke("bible:delete", { id, ...(force !== undefined ? { force } : {}) }),
     usages: (id: number) => invoke("bible:usages", { id }),
     reorder: (ids: number[]) => invoke("bible:reorder", { ids }),
+    favorites: () => invoke("bible:favorites", undefined),
+    setFavorite: (bookId: number, chapter: number, verse: number, favorite: boolean) =>
+      invoke("bible:setFavorite", { bookId, chapter, verse, favorite }),
+    recents: () => invoke("bible:recents", undefined),
+    recordRecent: (bookId: number, chapter: number, verseFrom: number, verseTo: number) =>
+      invoke("bible:recordRecent", { bookId, chapter, verseFrom, verseTo }),
   },
   engine: {
     assets: () => invoke("engine:assets", undefined),
@@ -141,7 +152,8 @@ export const api = {
     remove: (id: number, force = false) => invoke("song:delete", { id, force }),
     usages: (id: number) => invoke("song:usages", { id }),
     search: (query: string) => invoke("song:search", { query }),
-    importEasyWorship: () => invoke("song:importEasyWorship", undefined),
+    import: (from: SongImportSource) => invoke("song:import", { from }),
+    usageReport: (range: { from: number; to: number }) => invoke("song:usageReport", range),
     themes: () => invoke("songTheme:list", undefined),
     createTheme: (input: SongThemeUpsert) => invoke("songTheme:create", input),
     updateTheme: (input: SongThemeUpsert & { id: number }) => invoke("songTheme:update", input),

@@ -7,12 +7,12 @@
 import type { BibleStyle } from "./bible-style";
 import type { SlideRect } from "./deck";
 import type { PlateKind, PlatePosition, PlateStyle } from "./overlay";
-import type { SceneStyle } from "./scene-style";
+import type { BackgroundFit, SceneStyle } from "./scene-style";
 import type { SlideTextSettings } from "./slide-model";
 import type { TimerClock, TimerFormat } from "./timer";
 import type { SlideTransition, TransitionSpec } from "./transition";
 import type { UtilityScene } from "./utility";
-import type { ResolvedSong, SongTheme } from "./song";
+import type { ResolvedSong, SongLanguage, SongTheme } from "./song";
 import type { SongDetour } from "../song-jump";
 
 /** Which video (if any) is the current *base* content, independent of BLACK/
@@ -169,6 +169,9 @@ export type ProjectionOutputKind =
       songId: number;
       title: string;
       lines: readonly string[];
+      /** The slide in the second language, drawn under `lines` — only when the
+       *  live song shows both (`SongLanguage`). */
+      translation: readonly string[] | null;
       /** The copyright footer, on the slides its theme puts it on; `null` on
        *  the rest (its place is kept anyway — see `SongFooter`). */
       footer: readonly string[] | null;
@@ -242,9 +245,21 @@ export type ProjectionPlate = {
   style: PlateStyle;
 };
 
+/**
+ * A live song theme's video background (plan `2026-11-05-video-de-fondo`).
+ * At the TOP of the output, for `slideVideo`'s reason: under BLACK the `kind`
+ * is "black", and a video inside the song variant would unmount on every
+ * toggle. It is drawn UNDER the song's scene layers, and outside them: a
+ * slide's fade is two layers, and a video inside each would be a new element
+ * on every slide. Always silent; `epoch` is a new GO LIVE of a song.
+ */
+export type SongVideo = { url: string; epoch: number; fit: BackgroundFit; posterUrl: string };
+
 export type ProjectionOutput = ProjectionOutputKind & {
   videoUnderlay: VideoUnderlay;
   slideVideo: SlideVideo;
+  /** Absent when the live content is no song with a video background. */
+  songVideo?: SongVideo;
   /** At most one per kind and one per edge (`platesCollide`), and always empty under BLACK, LOGO and "nothing
    *  live" — `selectOutput` decides, the projector only draws. */
   plates: readonly ProjectionPlate[];
@@ -279,13 +294,15 @@ export function mediaTargetKey(target: MediaTarget): string {
  *  because nothing ever commands it. */
 /** `plate` is a bug's image — the one file an overlay plate can fail to load.
  *  One slot for every plate, like `scene`: at most one bug is up at a time. */
-export type MediaErrorTarget = MediaTarget | { kind: "scene" } | { kind: "plate" };
+export type MediaErrorTarget = MediaTarget | { kind: "scene" } | { kind: "plate" } | { kind: "songVideo" };
 
 /** The key `mediaErrors` is indexed by. Deliberately shares the namespace of
  *  `mediaTargetKey` — "video"/"audio:<id>" mean the same element in both
  *  records, so one prune pass can keep status and error in step. */
 export function mediaErrorKey(target: MediaErrorTarget): string {
-  return target.kind === "scene" || target.kind === "plate" ? target.kind : mediaTargetKey(target);
+  return target.kind === "scene" || target.kind === "plate" || target.kind === "songVideo"
+    ? target.kind
+    : mediaTargetKey(target);
 }
 
 /**
@@ -421,6 +438,32 @@ export type BaseContent =
       enterSeq: number;
       theme: SongTheme;
       sizeCqw: number;
+      /** The theme's video, as the projector plays it (`playableAssetUrl`),
+       *  resolved when the song went live and kept while it is the same file. */
+      backgroundVideo: { url: string; epoch: number } | null;
+      /** Which language `song` was resolved in; the LIVE row switches it. */
+      language: SongLanguage;
     };
 
 export type OverlayState = "none" | "black" | "logo";
+
+/**
+ * What the musicians' screen shows, built by the control window
+ * (`lib/stage-output.ts`) and drawn by `StageApp` — which, like the projector,
+ * resolves nothing. Under BLACK, LOGO or hidden lyrics the stage keeps the
+ * content and says so (`notice`): the band still needs the words the
+ * congregation is not seeing (owner, 2026-11-05).
+ */
+export type StageOutput = {
+  /** What is live, uncovered; `null` when nothing is. */
+  current: ProjectionOutput | null;
+  /** The next slide or verse, the one → would bring; `null` when there is none. */
+  next: ProjectionOutput | null;
+  /** A live full-screen video as its poster (`OutputView`'s `videoStill`):
+   *  the stage decodes no video, a slide's included. */
+  videoStill: { posterUrl: string | null; videoUrl: string | null };
+  /** «NEGRO», «LOGO» or the hidden lyrics, in the operator's language. */
+  notice: string | null;
+  /** The caption over `next`, in the operator's language. */
+  nextLabel: string;
+};

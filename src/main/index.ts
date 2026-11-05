@@ -27,6 +27,7 @@ import { installNavigationGuards } from "./windows/navigation-guards";
 import { installApplicationMenu } from "./windows/app-menu";
 import { holdQuitUntilAnswered, installCloseGuard } from "./windows/close-guard";
 import { watchDisplays } from "./windows/projector-screen";
+import { closeStageWindow, syncStageWindow } from "./windows/stage-window";
 import { projectionState } from "./services/projection-state";
 import {
   dbBackupDir,
@@ -148,7 +149,10 @@ function wireMinimizeRestoreSync(controlWindow: BrowserWindow): void {
     win.restore();
     win.setAlwaysOnTop(true, "screen-saver");
   });
-  controlWindow.on("closed", () => projectionState.getWindow()?.close());
+  controlWindow.on("closed", () => {
+    projectionState.getWindow()?.close();
+    closeStageWindow();
+  });
 }
 
 /** Every window the operator can actually see — i.e. not the offscreen
@@ -169,6 +173,7 @@ function userFacingWindows(): BrowserWindow[] {
 function openControlWindow(): BrowserWindow {
   const win = createControlWindow();
   wireMinimizeRestoreSync(win);
+  syncStageWindow();
   // Vetoes the first close and asks the control window instead — the unsaved
   // schedule is the renderer's to speak for. See `close-guard.ts`.
   installCloseGuard(win);

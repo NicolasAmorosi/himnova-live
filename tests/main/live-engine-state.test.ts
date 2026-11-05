@@ -1,5 +1,13 @@
 import { expect, test } from "vitest";
-import { ENGINE_STALL_MS, liveEngineAudio, liveEngineSlideVideo, liveEngineState, watchStall, type StallWatch } from "../../src/main/media/live-engine-state";
+import {
+  ENGINE_STALL_MS,
+  liveEngineAudio,
+  liveEngineSlideVideo,
+  liveEngineSongVideo,
+  liveEngineState,
+  watchStall,
+  type StallWatch,
+} from "../../src/main/media/live-engine-state";
 import { INSTANT_TRANSITION, type AudioTrackPush, type ProjectionOutput } from "../../src/shared/types/projection";
 import { assetUrl, deckVideoUrl, engineAssetUrl, engineClipUrl } from "../../src/shared/urls";
 
@@ -103,4 +111,16 @@ test("a live session that should play but stops moving is nudged once per stall"
   expect(step(playing(2), 40_000, true)).toBeNull();
   expect(watch).toBeNull();
   expect(watchStall(null, { time: 30, paused: false, ended: true }, false, 0)).toEqual({ next: null, nudge: null });
+});
+
+test("a song's video background: silent, looping, paused under BLACK or with no projector", () => {
+  const songVideo = { url: engineAssetUrl(9), epoch: 2, fit: "cover" as const, posterUrl: "worship://asset/9/thumb?v=" };
+  const base = { videoUnderlay: null, slideVideo: null, songVideo, plates: [], transition: INSTANT_TRANSITION };
+  const song = { kind: "song", songId: 1, title: "t", lines: [], translation: null, footer: null, backgroundUrl: null, sizeCqw: 5, enter: null } as const;
+  const live = { ...song, theme: {} as never, ...base } as ProjectionOutput;
+  expect(liveEngineSongVideo(live, true)).toEqual({ url: engineAssetUrl(9), epoch: 2, startAtSeconds: 0, paused: false, volume: 0, loop: true });
+  expect(liveEngineSongVideo({ kind: "black", ...base }, true)?.paused).toBe(true);
+  expect(liveEngineSongVideo(live, false)?.paused).toBe(true);
+  // One Chromium plays needs no engine.
+  expect(liveEngineSongVideo({ ...live, songVideo: { ...songVideo, url: assetUrl(9) } }, true)).toBeNull();
 });

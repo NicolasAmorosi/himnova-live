@@ -4,6 +4,7 @@ import { IpcError } from "@shared/ipc/result";
 import { SETTINGS_VALIDATORS, isSettingsKey, type SettingsMap } from "@shared/types/settings";
 import { setMainLocale } from "../../i18n";
 import { installApplicationMenu } from "../../windows/app-menu";
+import { syncStageWindow } from "../../windows/stage-window";
 
 /**
  * The IPC contract is a compile-time guarantee, and this is the one channel
@@ -42,5 +43,6 @@ export const settingsHandlers: Pick<Handlers, "settings:get" | "settings:set"> =
       setMainLocale(partial["ui.locale"]);
       installApplicationMenu();
     }
+    if ("stage.displayId" in partial) syncStageWindow();
   },
 };

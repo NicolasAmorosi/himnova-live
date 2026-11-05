@@ -15,17 +15,23 @@ import {
 } from "@renderer/components/ui";
 import { ModalBoundary } from "@renderer/components/shared/modal-boundary";
 import { PanelBody, PanelFooter } from "@renderer/components/shared/panel";
-import { useBibleStore } from "@renderer/stores/bible.store";
+import { bookmarkCovers, useBibleStore } from "@renderer/stores/bible.store";
 import { usePreviewStore } from "@renderer/stores/preview.store";
 import { api } from "@renderer/lib/api";
-import { addVerseToSchedule, buildVerseDrag, previewSearchHit } from "@renderer/lib/actions/bible";
+import { addVerseToSchedule, buildVerseDrag, previewPassage, previewSearchHit } from "@renderer/lib/actions/bible";
 import { previewVerse } from "@renderer/lib/actions/preview";
 import { goLive } from "@renderer/lib/actions/playback";
 import { setBibleVerseDrag } from "@renderer/lib/dnd";
 import { useDebouncedCallback } from "@renderer/lib/hooks/use-debounced-callback";
 import { normalizeForSearch } from "@renderer/lib/utils";
 import { toast } from "@renderer/lib/toast";
-import { parseSnippet, type BibleBookDTO, type BibleSearchHit } from "@shared/types/bible";
+import {
+  parseSnippet,
+  passageReference,
+  type BibleBookDTO,
+  type BibleBookmark,
+  type BibleSearchHit,
+} from "@shared/types/bible";
 import { VerseStyleModal } from "./VerseStyleModal";
 
 const MIN_TEXT_QUERY_LENGTH = 3;
@@ -74,11 +80,18 @@ export function BibleBrowser() {
   const versions = useBibleStore((s) => s.versions);
   const setBookAndChapter = useBibleStore((s) => s.setBookAndChapter);
   const setVersion = useBibleStore((s) => s.setVersion);
+  const loadedBookId = useBibleStore((s) => s.bookId);
+  const loadedChapter = useBibleStore((s) => s.chapter);
+  const favorites = useBibleStore((s) => s.favorites);
+  const recents = useBibleStore((s) => s.recents);
+  const setFavorite = useBibleStore((s) => s.setFavorite);
   const target = usePreviewStore((s) => s.target);
   const [pendingBook, setPendingBook] = useState("");
   const [pendingChapter, setPendingChapter] = useState("");
   const [searchMode, setSearchMode] = useState<SearchMode>("reference");
   const [styleOpen, setStyleOpen] = useState(false);
+  /** The list shows favorites and recent passages instead of the chapter. */
+  const [showBookmarks, setShowBookmarks] = useState(false);
   const [query, setQuery] = useState("");
   const [searchResults, setSearchResults] = useState<BibleSearchHit[]>([]);
   const [highlightedIndex, setHighlightedIndex] = useState(0);
@@ -94,6 +107,14 @@ export function BibleBrowser() {
   );
 
   const resultCount = searchMode === "text" ? searchResults.length : referenceMatches.length;
+
+  const loadedBook = books.find((b) => b.id === loadedBookId);
+  const previewedVerse = previewIndex !== null ? verses[previewIndex] : undefined;
+  const previewedIsFavorite =
+    loadedBook !== undefined &&
+    previewedVerse !== undefined &&
+    loadedChapter !== null &&
+    favorites.some((f) => bookmarkCovers(f, loadedBook.abbrev, loadedChapter, previewedVerse.verse));
 
   // The list content changes on every keystroke — always land back on the
   // top hit rather than keeping a stale index that now points at something
@@ -149,6 +170,47 @@ export function BibleBrowser() {
     setSearchResults([]);
   }
 
+  function toggleBookmarks() {
+    setShowBookmarks((shown) => !shown);
+    setQuery("");
+    setSearchResults([]);
+  }
+
+  /** Opens in the version being browsed: a bookmark names the book by its
+   *  abbrev, which every version shares. */
+  function openBookmark(bookmark: BibleBookmark) {
+    const book = books.find((b) => b.abbrev === bookmark.bookAbbrev);
+    if (!book || bookmark.chapter > book.chapterCount) {
+      toast.danger(t("bible.notInVersion"));
+      return;
+    }
+    setPendingBook(String(book.id));
+    setPendingChapter(String(bookmark.chapter));
+    setShowBookmarks(false);
+    void previewPassage(book.id, bookmark.chapter, bookmark.verseFrom);
+  }
+
+  function bookmarkSection(title: string, items: BibleBookmark[]) {
+    if (items.length === 0) return null;
+    return (
+      <section aria-label={title} className="flex flex-col gap-0.5">
+        <Caption className="px-2 pt-1">{title}</Caption>
+        <ul className="flex flex-col gap-0.5">
+          {items.map((bookmark) => {
+            const book = books.find((b) => b.abbrev === bookmark.bookAbbrev);
+            return (
+              <ListRow key={bookmark.id} onClick={() => openBookmark(bookmark)}>
+                {book
+                  ? passageReference(book.name, bookmark.chapter, bookmark.verseFrom, bookmark.verseTo)
+                  : bookmark.reference}
+              </ListRow>
+            );
+          })}
+        </ul>
+      </section>
+    );
+  }
+
   function selectReferenceMatch(match: ReferenceMatch) {
     setPendingBook(String(match.book.id));
     if (match.chapter !== null) {
@@ -189,6 +251,7 @@ export function BibleBrowser() {
       <div className="flex shrink-0 flex-col gap-1.5 border-b border-border p-1.5">
         <div className="flex items-center gap-1.5">
           <Select
+            aria-label={t("bible.versionLabel")}
             className="min-w-0 flex-[3]"
             onChange={(value) => void setVersion(Number(value))}
             options={versions.map((v) => ({ label: v.name, value: String(v.id) }))}
@@ -196,6 +259,7 @@ export function BibleBrowser() {
             value={versionId !== null ? String(versionId) : ""}
           />
           <Select
+            aria-label={t("bible.bookLabel")}
             className="min-w-0 flex-[3]"
             onChange={(value) => {
               setPendingBook(value);
@@ -207,6 +271,7 @@ export function BibleBrowser() {
             value={pendingBook}
           />
           <Select
+            aria-label={t("bible.chapterLabel")}
             className="min-w-16 flex-1"
             disabled={!selectedBook}
             onChange={(value) => {
@@ -238,6 +303,11 @@ export function BibleBrowser() {
               toggled={searchMode === "text"}
             >
               <Icon name="fileText" />
+            </IconButton>
+          </Tooltip>
+          <Tooltip content={t("bible.bookmarks")} floating>
+            <IconButton aria-label={t("bible.bookmarks")} onClick={toggleBookmarks} size="sm" toggled={showBookmarks}>
+              <Icon name="favorite" />
             </IconButton>
           </Tooltip>
           <div className="min-w-0 flex-1">
@@ -301,6 +371,15 @@ export function BibleBrowser() {
               ))}
             </ul>
           )
+        ) : showBookmarks ? (
+          favorites.length === 0 && recents.length === 0 ? (
+            <EmptyState description={t("bible.bookmarksEmptyHint")} icon="favorite" title={t("bible.bookmarksEmpty")} />
+          ) : (
+            <div className="flex flex-col gap-2">
+              {bookmarkSection(t("bible.favorites"), favorites)}
+              {bookmarkSection(t("bible.recents"), recents)}
+            </div>
+          )
         ) : verses.length === 0 ? (
           <EmptyState description={t("bible.emptyHint")} icon="bible" title={t("bible.empty")} />
         ) : (
@@ -337,7 +416,22 @@ export function BibleBrowser() {
             {t("bible.styleTitle")}
           </Button>
         </Tooltip>
-        <Tooltip className="ml-auto" content={t("resources.addToScheduleHint")} placement="top">
+        <Tooltip
+          className="ml-auto"
+          content={previewedIsFavorite ? t("bible.favoriteRemove") : t("bible.favoriteAdd")}
+          placement="top"
+        >
+          <IconButton
+            aria-label={previewedIsFavorite ? t("bible.favoriteRemove") : t("bible.favoriteAdd")}
+            disabled={previewIndex === null}
+            onClick={() => previewIndex !== null && void setFavorite(previewIndex, !previewedIsFavorite)}
+            size="sm"
+            toggled={previewedIsFavorite}
+          >
+            <Icon name="favorite" />
+          </IconButton>
+        </Tooltip>
+        <Tooltip content={t("resources.addToScheduleHint")} placement="top">
           <Button
             aria-label={t("resources.addToSchedule")}
             disabled={previewIndex === null}

@@ -132,7 +132,7 @@ export function PlateForm({ addingImages, imageAssets, onAddImages, onChange, va
           imageAssets={[]}
           kinds={["solid", "gradient"]}
           onAddImages={() => undefined}
-          onChange={(background) => background.kind !== "image" && patchStyle({ background })}
+          onChange={(background) => patchStyle({ background })}
           value={style.background}
         />
         <FieldRow description={t("plates.bandOpacityHint")} label={t("plates.bandOpacity")}>

@@ -52,6 +52,21 @@ export function liveEngineSlideVideo(output: ProjectionOutput | null, projectorO
   };
 }
 
+/** A live song's video background (`SongVideo`), when the engine plays it: silent, looping, and
+ *  paused — never stopped — under BLACK/LOGO or with no projector, like the slide's clip. */
+export function liveEngineSongVideo(output: ProjectionOutput | null, projectorOpen: boolean): LiveEngineState | null {
+  const video = output?.songVideo;
+  if (!output || !video || !isEngineUrl(video.url)) return null;
+  return {
+    url: video.url,
+    epoch: video.epoch,
+    startAtSeconds: 0,
+    paused: output.kind !== "song" || !projectorOpen,
+    volume: 0,
+    loop: true,
+  };
+}
+
 /**
  * The live audio tracks the engine plays, from the last `AudioTrackPush[]`: only those with an engine
  * url, each paused as well while there is no projector. The control window already folded BLACK/LOGO

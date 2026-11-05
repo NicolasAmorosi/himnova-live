@@ -6,7 +6,17 @@ import { findSong, resolveSong, themeForSong, useSongStore } from "@renderer/sto
 import { useProjectionStore } from "@renderer/stores/projection.store";
 import { usePreviewStore } from "@renderer/stores/preview.store";
 import { useProgramStore } from "@renderer/stores/program.store";
-import type { ResolvedSong, Song, SongTheme, SongThemeRow, SongThemeUpsert, SongUpsert, SongUsage } from "@shared/types/song";
+import type {
+  ResolvedSong,
+  Song,
+  SongImportSource,
+  SongLanguage,
+  SongTheme,
+  SongThemeRow,
+  SongThemeUpsert,
+  SongUpsert,
+  SongUsage,
+} from "@shared/types/song";
 import { useSettingsStore } from "@renderer/stores/settings.store";
 
 /**
@@ -31,12 +41,13 @@ export async function loadSongs(): Promise<void> {
  *  projector's proportion. `null` when the song is gone. */
 export async function prepareSong(
   songId: number,
+  language: SongLanguage = "both",
 ): Promise<{ resolved: ResolvedSong; theme: SongTheme; sizeCqw: number } | null> {
   const { songs, themes } = useSongStore.getState();
   const song = findSong(songs, songId);
   if (!song) return null;
   const theme = themeForSong(song, themes);
-  const resolved = resolveSong(song, theme);
+  const resolved = resolveSong(song, theme, undefined, language);
   const fit = await fitSongSize(resolved, theme, currentMeasureAspect());
   return { resolved, theme, sizeCqw: fit.sizeCqw };
 }
@@ -62,7 +73,7 @@ export function sameSlideIn(previous: ResolvedSong, slideIndex: number, next: Re
 export async function refreshLiveSong(songId: number | null = null): Promise<void> {
   const base = useProjectionStore.getState().base;
   if (base?.kind !== "song" || (songId !== null && base.songId !== songId)) return;
-  const prepared = await prepareSong(base.songId);
+  const prepared = await prepareSong(base.songId, base.language);
   // The operator may have moved on while it was measured.
   const now = useProjectionStore.getState().base;
   if (!prepared || now?.kind !== "song" || now.songId !== base.songId) return;
@@ -74,6 +85,18 @@ export async function refreshLiveSong(songId: number | null = null): Promise<voi
       prepared.sizeCqw,
       sameSlideIn(now.song, now.slideIndex, prepared.resolved),
     );
+}
+
+/** The LIVE row's «Original · Ambos · Traducción»: the live song re-resolved
+ *  in `language` and measured again — each language has its own one size —,
+ *  on the same slide. Never a new scene. */
+export async function setLiveSongLanguage(language: SongLanguage): Promise<void> {
+  const base = useProjectionStore.getState().base;
+  if (base?.kind !== "song" || base.language === language) return;
+  const prepared = await prepareSong(base.songId, language);
+  const now = useProjectionStore.getState().base;
+  if (!prepared || now?.kind !== "song" || now.songId !== base.songId) return;
+  useProjectionStore.getState().setSongLanguage(language, prepared.resolved, prepared.sizeCqw);
 }
 
 export async function saveSong(input: SongUpsert): Promise<Song | null> {
@@ -172,20 +195,41 @@ export async function deleteSongTheme(id: number): Promise<boolean> {
 }
 
 /**
- * EasyWorship 6/7's song database, picked as a folder. Says what it did —
- * written, already there, without a title or lyrics — and, when main refuses
- * (no song database in that folder, or one that will not open), main's own
- * reason, which says which folder to pick.
+ * Another program's songs: EasyWorship 6/7's database (a folder), OpenLP's
+ * `songs.sqlite` or OpenLyrics files. Says what it did — written, already
+ * there, without a title or lyrics — and, when main refuses (no song database
+ * there, or one that will not open), main's own reason, which says what to
+ * pick.
  */
-export async function importEasyWorship(): Promise<void> {
+export async function importSongs(from: SongImportSource): Promise<void> {
   try {
-    const result = await api.songs.importEasyWorship();
+    const result = await api.songs.import(from);
     if (!result) return;
     await loadSongs();
     toast.success(t("songs.importDone", result));
   } catch (error) {
-    console.warn("[songs] EasyWorship import failed", error);
+    console.warn(`[songs] ${from} import failed`, error);
     const message = error instanceof Error ? error.message.trim() : "";
     toast.danger(message || t("songs.importError"));
+  }
+}
+
+/**
+ * The CCLI usage report between two local dates (`YYYY-MM-DD`, both days
+ * included), saved as CSV where the operator says. Nothing used in those
+ * dates says so instead of saving an empty file.
+ */
+export async function exportSongUsage(fromDate: string, toDate: string): Promise<void> {
+  const from = new Date(`${fromDate}T00:00:00`);
+  const to = new Date(`${toDate}T00:00:00`);
+  to.setDate(to.getDate() + 1);
+  try {
+    const result = await api.songs.usageReport({ from: from.getTime(), to: to.getTime() });
+    if (!result) return;
+    if (result.songs === 0) toast.info(t("settings.songs.usageEmpty"));
+    else toast.success(t("settings.songs.usageDone", { songs: result.songs }));
+  } catch (error) {
+    console.warn("[songs] usage report failed", error);
+    toast.danger(t("settings.songs.usageError"));
   }
 }

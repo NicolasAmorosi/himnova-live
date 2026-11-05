@@ -99,6 +99,8 @@ export default defineConfig({
         input: {
           control: resolve("src/renderer/index.html"),
           projection: resolve("src/renderer/projection.html"),
+          // The musicians' screen (`main/windows/stage-window.ts`).
+          stage: resolve("src/renderer/stage.html"),
           // Offscreen worker window: renders PDF pages to images with pdf.js.
           // It's a renderer (not a Node worker) because rasterizing needs a
           // real Canvas2D — see src/main/slides/rasterizer.ts.

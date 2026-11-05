@@ -106,6 +106,16 @@ describe("the song validator", () => {
     expect(isSongTheme(songThemeFromBibleStyle(DEFAULT_BIBLE_STYLE))).toBe(true);
     expect(normalizeSongTheme({ ...DEFAULT_SONG_THEME, minSizeCqw: -1 }).minSizeCqw).toBe(DEFAULT_SONG_THEME.minSizeCqw);
   });
+
+  test("a song theme takes a video background; a broken one falls back to the default", () => {
+    const video = { kind: "video", assetId: 4, fit: "cover" } as const;
+    expect(isSongTheme({ ...DEFAULT_SONG_THEME, background: video })).toBe(true);
+    expect(normalizeSongTheme({ ...DEFAULT_SONG_THEME, background: video }).background).toEqual(video);
+    for (const broken of [{ ...video, assetId: 0 }, { ...video, fit: "stretch" }, { kind: "video" }]) {
+      expect(isSongTheme({ ...DEFAULT_SONG_THEME, background: broken })).toBe(false);
+      expect(normalizeSongTheme({ ...DEFAULT_SONG_THEME, background: broken }).background).toEqual(DEFAULT_SONG_THEME.background);
+    }
+  });
 });
 
 describe("the repo and its search", () => {
@@ -239,6 +249,7 @@ describe("the history", () => {
       songId,
       title: `Canción ${songId}`,
       lines: [line],
+      translation: null,
       footer: null,
       theme: DEFAULT_SONG_THEME,
       backgroundUrl: null,

@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { BibleBookDTO, BibleVerseDTO, BibleVersionDTO } from "@shared/types/bible";
+import type { BibleBookDTO, BibleBookmark, BibleVerseDTO, BibleVersionDTO } from "@shared/types/bible";
 import { api } from "@renderer/lib/api";
 import { useSettingsStore } from "@renderer/stores/settings.store";
 import { usePreviewStore } from "@renderer/stores/preview.store";
@@ -20,8 +20,15 @@ type BibleStoreState = {
   chapter: number | null;
   verses: BibleVerseDTO[];
   currentVerseIndex: number | null;
+  favorites: BibleBookmark[];
+  recents: BibleBookmark[];
 
   loadVersions: () => Promise<void>;
+  loadBookmarks: () => Promise<void>;
+  /** Stars or unstars the verse at `index` of the loaded chapter. */
+  setFavorite: (index: number, favorite: boolean) => Promise<void>;
+  /** A passage went live — from this tab or from a program row. */
+  recordRecent: (bookId: number, chapter: number, verseFrom: number, verseTo: number) => void;
   reorderVersions: (ids: number[]) => Promise<void>;
   setVersion: (versionId: number) => Promise<void>;
   setBookAndChapter: (bookId: number, chapter: number) => Promise<void>;
@@ -36,6 +43,8 @@ export const useBibleStore = create<BibleStoreState>((set, get) => ({
   chapter: null,
   verses: [],
   currentVerseIndex: null,
+  favorites: [],
+  recents: [],
 
   /**
    * Re-reads the installed versions and settles on which one is browsed.
@@ -116,7 +125,38 @@ export const useBibleStore = create<BibleStoreState>((set, get) => ({
   },
 
   setCurrentVerseIndex: (currentVerseIndex) => set({ currentVerseIndex }),
+
+  loadBookmarks: async () => {
+    const [favorites, recents] = await Promise.all([api.bible.favorites(), api.bible.recents()]);
+    set({ favorites, recents });
+  },
+
+  setFavorite: async (index, favorite) => {
+    const { bookId, chapter, verses } = get();
+    const verse = verses[index];
+    if (!verse || bookId === null || chapter === null) return;
+    set({ favorites: await api.bible.setFavorite(bookId, chapter, verse.verse, favorite) });
+  },
+
+  // Fire and forget: going live never waits on it, and a failed write only
+  // costs the list one passage.
+  recordRecent: (bookId, chapter, verseFrom, verseTo) => {
+    api.bible
+      .recordRecent(bookId, chapter, verseFrom, verseTo)
+      .then((recents) => set({ recents }))
+      .catch((error: unknown) => console.error("[bible] recordRecent failed", error));
+  },
 }));
+
+/** Whether `bookmark` covers `verse` of `abbrev` `chapter`. */
+export function bookmarkCovers(bookmark: BibleBookmark, abbrev: string, chapter: number, verse: number): boolean {
+  return (
+    bookmark.bookAbbrev === abbrev &&
+    bookmark.chapter === chapter &&
+    bookmark.verseFrom <= verse &&
+    verse <= bookmark.verseTo
+  );
+}
 
 /**
  * The label a verse coming from `versionId` projects under, or `null` when

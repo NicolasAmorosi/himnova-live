@@ -2,6 +2,7 @@ import { powerSaveBlocker, screen, type BrowserWindow, type Display } from "elec
 import { broadcast } from "../services/broadcast";
 import { getSettingsRepo } from "../services/repos";
 import { chooseProjectorDisplay } from "./projector-display-choice";
+import { syncStageWindow } from "./stage-window";
 
 /**
  * What the projection window needs from the operating system while it exists,
@@ -95,6 +96,7 @@ function onDisplaysChanged(): void {
       }
     }
   }
+  syncStageWindow();
   broadcast("displays-changed", undefined);
 }
 

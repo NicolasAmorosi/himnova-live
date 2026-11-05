@@ -241,6 +241,22 @@ export const bibleFavorites = sqliteTable("bible_favorites", {
   createdAt: integer("created_at").notNull(),
 });
 
+/** The verses that went LIVE lately, one row per chapter, newest first — a
+ *  passage read verse by verse is one row whose range grows. Keyed like
+ *  `bible_favorites`, by book abbrev and never by a version's row ids, so the
+ *  list outlives deleting or re-importing a version. `BibleRepo` keeps it at
+ *  `BIBLE_RECENTS_MAX` rows. */
+export const bibleRecents = sqliteTable("bible_recents", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  versionCode: text("version_code").notNull(),
+  bookAbbrev: text("book_abbrev").notNull(),
+  chapter: integer("chapter").notNull(),
+  verseFrom: integer("verse_from").notNull(),
+  verseTo: integer("verse_to").notNull(),
+  reference: text("reference").notNull(),
+  projectedAt: integer("projected_at").notNull(),
+});
+
 export const projectionHistory = sqliteTable(
   "projection_history",
   {
@@ -567,4 +583,24 @@ export const songs = sqliteTable(
     updatedAt: integer("updated_at").notNull(),
   },
   (t) => [index("ix_songs_title").on(t.title)],
+);
+
+/**
+ * What the CCLI usage report counts (owner, 2026-11-05): one row per song per
+ * day it went live. Never pruned, unlike `projection_history` (5000 rows): a
+ * report covers six months. The title, authors and CCLI number are kept as
+ * they were, for a song deleted since; one still in the library reports with
+ * its current ones (a CCLI number filled in after the fact counts).
+ */
+export const songUses = sqliteTable(
+  "song_uses",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    songId: integer("song_id").references(() => songs.id, { onDelete: "set null" }),
+    usedAt: integer("used_at").notNull(),
+    title: text("title").notNull(),
+    authors: text("authors"),
+    ccliNumber: text("ccli_number"),
+  },
+  (t) => [index("ix_song_uses_time").on(t.usedAt), index("ix_song_uses_song").on(t.songId)],
 );

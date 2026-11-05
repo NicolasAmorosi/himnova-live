@@ -105,7 +105,7 @@ src/
 ├── main/
 │   ├── index.ts                # entry: DB, migrations, seed, IPC, windows
 │   ├── paths.ts                 # dev vs. packaged, ALL paths resolved here
-│   ├── windows/                 # control-window.ts, projection-window.ts
+│   ├── windows/                 # control-window.ts, projection-window.ts, stage-window.ts (the musicians' screen)
 │   ├── db/
 │   │   ├── schema.ts             # Drizzle tables
 │   │   ├── client.ts             # SQLite opening + pragmas
@@ -131,7 +131,8 @@ src/
 │   ├── updates/                   # updater.ts (owns UpdateStatus, wraps electron-updater), mac-dmg.ts
 │   │                              #   (macOS without Squirrel), update-status.ts (PURE, tested)
 │   ├── logging.ts                 # main.log and crash.log, rotated
-│   ├── songs/                     # rtf.ts (RTF → text), easyworship.ts (EasyWorship 6's song database)
+│   ├── songs/                     # rtf.ts (RTF → text), easyworship.ts (EasyWorship 6's song database),
+│   │                              #   openlp.ts (OpenLP's songs.sqlite and OpenLyrics files), usage-report.ts (CCLI CSV)
 │   └── services/                  # repos.ts (registry), projection-state.ts, broadcast.ts
 ├── preload/
 │   ├── index.ts                  # GENERIC invoke/on bridge — never edited when adding channels
@@ -143,6 +144,7 @@ src/
         ├── main.tsx / projection.tsx    # entries
         ├── app/App.tsx                   # control window shell
         ├── projection/ProjectionApp.tsx  # projection window shell (no domain logic)
+        ├── stage/StageApp.tsx            # the musicians' screen: live + next + time, built by lib/stage-output.ts
         ├── components/
         │   ├── ui/          # design system primitives — barrel index.ts
         │   ├── shared/      # cross-feature: modal, editor-screen (the full-screen editor shell), panel,
@@ -344,7 +346,7 @@ npm install              # installs deps — better-sqlite3 ships prebuilt binar
 npm run dev               # electron-vite dev (HMR in the renderer, main restarts on watch)
 npm run typecheck          # tsc --noEmit over node (main+preload+shared) and web (renderer+shared)
 npm run lint                # eslint .
-npm run test                 # vitest run — 584 cases in two projects: `main` (Node: migrations, seed,
+npm run test                 # vitest run — 617 cases in two projects: `main` (Node: migrations, seed,
                               #   FTS5, repos and the library sweep, draft, settings and scene validators, WAL backup,
                               #   zip reader, the legacy-deck reader against an OLE2 file built in the test
                               #   (`tests/fixtures/legacy-ppt.ts`: pictures, master inheritance, what it refuses),
@@ -367,7 +369,7 @@ npm run test                 # vitest run — 584 cases in two projects: `main` 
                               #   frozen frame, toast store, utils). Nothing imports `electron`: that's
                               #   the suite's boundary
 npm run test:watch            # the same suite in watch mode, while working on a module
-npm run test:e2e              # build + Playwright: 157 walkthroughs of the real app (~10 min) with a
+npm run test:e2e              # build + Playwright: 164 walkthroughs of the real app (~10 min) with a
                               #   throwaway profile and media generated on the fly — videos, AVI and WMA with the
                               #   bundled FFmpeg; PDFs, a legacy .pps made of pictures and .pptx with auto-advance, a
                               #   WMA soundtrack and an embedded WMV written in code (`tests/e2e/support/pptx.ts`),
@@ -563,6 +565,12 @@ npm run package:win|mac|linux  # build + electron-builder for that platform
   silently resolves against something else. Diagnosis in
   [`.claude/knowledge/an-overlay-on-a-slide-must-rebuild-the-object-contain-box-and-cqh-needs-container-type-size.md`](.claude/knowledge/an-overlay-on-a-slide-must-rebuild-the-object-contain-box-and-cqh-needs-container-type-size.md).
   The feature is `.pptx`/`.ppsx` only: a legacy `.ppt`/`.pps` loses the video entirely.
+- **A song theme's video background travels as `songVideo`, at the TOP of `ProjectionOutput`, and
+  is drawn UNDER the scene layers, never inside `SongScene`.** The `slideVideo` reason (BLACK makes
+  the kind `"black"`) plus one of its own: a song slide's fade is TWO layers, so a video inside the
+  scene would mount a second element — or a second engine session — on every slide. The song layer
+  turns see-through over it (`videoBehind`); everything that mounts no video draws its still. See
+  «Songs» in `docs/knowledge/04-renderer-state.md`.
 - **BLACK/LOGO pauses what the projector plays and keeps its position; a standalone audio keeps
   playing.** The `<video>` isn't unmounted when covered (`videoUnderlay` in `ProjectionOutput` +
   `LiveVideo` in `output-view.tsx`): it's only hidden and paused, and when uncovered it resumes where

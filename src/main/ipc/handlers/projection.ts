@@ -1,11 +1,12 @@
 import type { Handlers } from "../register";
 import { projectionState } from "../../services/projection-state";
 import { createProjectionWindow } from "../../windows/projection-window";
-import { getHistoryRepo, getSlidesRepo } from "../../services/repos";
+import { getHistoryRepo, getSlidesRepo, getSongsRepo } from "../../services/repos";
 import { broadcast } from "../../services/broadcast";
 import { pinDecks } from "../../slides/deck-service";
 import { commandLiveEngine, redrawEngineFrame, syncLiveEngine } from "../../media/engine-sessions";
 import { IpcError } from "@shared/ipc/result";
+import { showOnStage, stageSnapshot } from "../../windows/stage-window";
 
 let currentProgramId: number | null = null;
 
@@ -34,6 +35,8 @@ export const projectionHandlers: Pick<
   | "projection:reportMediaError"
   | "projection:getSnapshot"
   | "projection:wantVideoFrame"
+  | "stage:show"
+  | "stage:getSnapshot"
 > = {
   "projection:open": ({ displayId }) => {
     const existing = projectionState.getWindow();
@@ -96,6 +99,14 @@ export const projectionHandlers: Pick<
     projectionState.send(output);
     syncLiveEngine();
     getHistoryRepo().record(output, currentProgramId);
+    if (output.kind === "song") {
+      // The CCLI report's count: never in the way of the projector.
+      try {
+        getSongsRepo().recordUse(output.songId);
+      } catch (error) {
+        console.warn("[songs] could not record the use", error);
+      }
+    }
 
     // The deck currently on the projector must never be evicted mid-service —
     // this was silently possible before (see `deck-service.ts`'s `pinDecks`),
@@ -114,6 +125,9 @@ export const projectionHandlers: Pick<
       pinDecks("projected", []);
     }
   },
+
+  "stage:show": (output) => showOnStage(output),
+  "stage:getSnapshot": () => stageSnapshot(),
 
   "projection:getSnapshot": (_req, ev) => {
     mountWaiters.get(ev.sender.id)?.();

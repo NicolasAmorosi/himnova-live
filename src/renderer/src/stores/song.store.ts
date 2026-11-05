@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { songDeckSlides, splitSection } from "@shared/song-text";
+import { sectionsIn, songDeckSlides, splitSection } from "@shared/song-text";
 import { t } from "@renderer/lib/i18n/i18n-provider";
 import { useSettingsStore } from "@renderer/stores/settings.store";
 import {
@@ -7,6 +7,7 @@ import {
   songFooterLines,
   type ResolvedSong,
   type Song,
+  type SongLanguage,
   type SongTheme,
   type SongThemeRow,
 } from "@shared/types/song";
@@ -54,8 +55,13 @@ const resolved = new WeakMap<Song, Map<string, ResolvedSong>>();
 /** The order expanded into slides, split to the theme's lines per slide, with
  *  its footer composed. One object per stored song, theme and licence, so
  *  hooks and memos keyed on it do not run again for nothing. */
-export function resolveSong(song: Song, theme: SongTheme, license: string | null = churchLicense()): ResolvedSong {
-  const key = JSON.stringify([theme.maxLines, theme.footer.fields, license]);
+export function resolveSong(
+  song: Song,
+  theme: SongTheme,
+  license: string | null = churchLicense(),
+  language: SongLanguage = "both",
+): ResolvedSong {
+  const key = JSON.stringify([theme.maxLines, theme.footer.fields, license, language]);
   let byKey = resolved.get(song);
   if (!byKey) {
     byKey = new Map();
@@ -63,7 +69,7 @@ export function resolveSong(song: Song, theme: SongTheme, license: string | null
   }
   let value = byKey.get(key);
   if (!value) {
-    const sections = song.sections.map((section) => splitSection(section, theme.maxLines));
+    const sections = sectionsIn(song.sections, language).map((section) => splitSection(section, theme.maxLines));
     value = {
       id: song.id,
       title: song.title,
