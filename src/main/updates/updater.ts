@@ -78,7 +78,7 @@ export function initUpdates(): void {
     info = next;
     setStatus({ kind: "available", version: next.version });
   });
-  candidate.on("download-progress", (progress) => reportProgress(progress.percent));
+  candidate.on("download-progress", (progress) => reportProgress(progress.percent, progress.transferred, progress.total));
   candidate.on("update-downloaded", () => downloaded());
   // electron-updater has already logged it to `main.log`.
   candidate.on("error", (error) => setStatus(statusForError(error, step, step !== "check" || manualCheck)));
@@ -107,7 +107,7 @@ export function downloadUpdate(): void {
   if (!updater || status.kind !== "available" || !info) return;
   step = "download";
   lastProgressAt = 0;
-  setStatus({ kind: "downloading", version: info.version, percent: 0 });
+  setStatus({ kind: "downloading", version: info.version, percent: 0, transferred: 0, total: 0 });
   if (!OPENS_DMG) {
     updater.downloadUpdate().catch(() => undefined);
     return;
@@ -150,11 +150,11 @@ function downloaded(): void {
   if (info) setStatus({ kind: "downloaded", version: info.version, installOnQuit: false, opensInstaller: OPENS_DMG });
 }
 
-function reportProgress(percent: number): void {
+function reportProgress(percent: number, transferred: number, total: number): void {
   const now = Date.now();
   if (!info || (now - lastProgressAt < PROGRESS_INTERVAL_MS && percent < 100)) return;
   lastProgressAt = now;
-  setStatus({ kind: "downloading", version: info.version, percent: Math.floor(percent) });
+  setStatus({ kind: "downloading", version: info.version, percent: Math.floor(percent), transferred, total });
 }
 
 /** Starts the installer, which on Windows and Linux kills this app within

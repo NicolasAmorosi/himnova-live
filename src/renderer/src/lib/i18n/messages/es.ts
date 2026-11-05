@@ -904,6 +904,7 @@ const es = {
     updatesInstallOnQuit: "Al cerrar la app",
     updatesView: "Ver",
     updatesProgress: "Descarga de la actualización",
+    updatesSize: "{transferred} de {total} MB",
     updatesInstallTitle: "¿Cerrar la app para actualizar?",
     updatesAutoCheck: "Buscar al abrir la app",
     updatesAutoCheckDesc: "Una vez por inicio, en silencio. Nunca descarga nada sin que lo pidas.",
@@ -914,7 +915,7 @@ const es = {
       checking: "Buscando…",
       upToDate: "Tenés la última versión (buscada a las {time}).",
       available: "Lumina Live {version} está disponible.",
-      downloading: "Descargando Lumina Live {version}… {percent} %",
+      downloading: "Descargando Lumina Live {version}…",
       ready:
         "Lumina Live {version} está lista. Al instalarla, la app se cierra y vuelve a abrirse; si la computadora pide permiso, aceptalo.",
       readyOnQuit: "Lumina Live {version} se instala al cerrar la app. Si la computadora pide permiso, aceptalo.",

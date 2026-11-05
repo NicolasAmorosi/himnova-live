@@ -59,7 +59,7 @@ test("a check never starts over one in flight, a download, or a build that canno
   expect(canCheck({ kind: "error", code: "offline", during: "check" })).toBe(true);
   expect(canCheck({ kind: "unsupported" })).toBe(false);
   expect(canCheck({ kind: "checking" })).toBe(false);
-  expect(canCheck({ kind: "downloading", version: "2.2.0-beta.6", percent: 40 })).toBe(false);
+  expect(canCheck({ kind: "downloading", version: "2.2.0-beta.6", percent: 40, transferred: 4, total: 10 })).toBe(false);
   expect(canCheck({ kind: "downloaded", version: "2.2.0-beta.6", installOnQuit: false, opensInstaller: false })).toBe(false);
 });
 

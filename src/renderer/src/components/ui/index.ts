@@ -12,7 +12,7 @@ export { Switch } from "./checkbox";
 export { Slider } from "./slider";
 export { EmptyState } from "./empty-state";
 export { LinearLoader, Skeleton } from "./linear-loader";
-export { ProgressBar } from "./progress-bar";
+export { ProgressBar, ProgressMeter } from "./progress-bar";
 export { LoadingState } from "./loading-state";
 export { MediaScrubber } from "./media-scrubber";
 export { VolumeControl } from "./volume-control";

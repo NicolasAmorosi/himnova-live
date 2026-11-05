@@ -906,6 +906,7 @@ const it: Messages = {
     updatesInstallOnQuit: "Alla chiusura dell'app",
     updatesView: "Vedi",
     updatesProgress: "Download dell'aggiornamento",
+    updatesSize: "{transferred} di {total} MB",
     updatesInstallTitle: "Chiudere l'app per aggiornare?",
     updatesAutoCheck: "Cerca all'apertura dell'app",
     updatesAutoCheckDesc: "Una volta per avvio, in silenzio. Non scarica mai niente senza che tu lo chieda.",
@@ -916,7 +917,7 @@ const it: Messages = {
       checking: "Ricerca…",
       upToDate: "Hai l'ultima versione (controllata alle {time}).",
       available: "Lumina Live {version} è disponibile.",
-      downloading: "Download di Lumina Live {version}… {percent}%",
+      downloading: "Download di Lumina Live {version}…",
       ready:
         "Lumina Live {version} è pronta. Per installarla, l'app si chiude e si riapre; se il computer chiede il permesso, concedilo.",
       readyOnQuit: "Lumina Live {version} si installa alla chiusura dell'app. Se il computer chiede il permesso, concedilo.",

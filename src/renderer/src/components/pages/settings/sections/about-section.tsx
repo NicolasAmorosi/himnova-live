@@ -7,7 +7,7 @@ import {
   Caption,
   FieldGroup,
   FieldRow,
-  ProgressBar,
+  ProgressMeter,
   Switch,
   Wordmark,
 } from "@renderer/components/ui";
@@ -58,7 +58,7 @@ function describe(status: UpdateStatus | null, t: Translate, locale: Locale): st
     case "available":
       return t("settings.updatesState.available", { version: status.version });
     case "downloading":
-      return t("settings.updatesState.downloading", { version: status.version, percent: status.percent });
+      return t("settings.updatesState.downloading", { version: status.version });
     case "downloaded":
       return t(
         status.opensInstaller
@@ -74,6 +74,10 @@ function describe(status: UpdateStatus | null, t: Translate, locale: Locale): st
       return t(`settings.updatesErrors.${status.code}`);
   }
 }
+
+/** Megabytes as the operating system counts them (Finder, Explorer's «MB»). */
+const megabytes = (bytes: number, locale: Locale) =>
+  new Intl.NumberFormat(locale, { maximumFractionDigits: 0 }).format(bytes / 1_000_000);
 
 /** Which build this is, whether a newer one is out — and getting it —, and
  *  where its logs are: the things someone on the phone asks for first, under
@@ -118,7 +122,29 @@ export function AboutSection() {
           <Caption className="select-text">{__APP_VERSION__}</Caption>
         </FieldRow>
         <FieldRow
-          description={describe(status, t, locale)}
+          description={
+            // Under the words, across the row: next to the buttons, a bar fits
+            // only as a sliver (owner, 2026-11-05).
+            status?.kind === "downloading" ? (
+              <ProgressMeter
+                aria-label={t("settings.updatesProgress")}
+                className="mt-2"
+                detail={
+                  status.total > 0
+                    ? t("settings.updatesSize", {
+                        transferred: megabytes(status.transferred, locale),
+                        total: megabytes(status.total, locale),
+                      })
+                    : undefined
+                }
+                label={describe(status, t, locale)}
+                readout={new Intl.NumberFormat(locale, { style: "percent" }).format(status.percent / 100)}
+                value={status.percent / 100}
+              />
+            ) : (
+              describe(status, t, locale)
+            )
+          }
           label={
             <span className="flex items-center gap-2">
               {t("settings.updates")}
@@ -135,9 +161,7 @@ export function AboutSection() {
             <Button onClick={() => void api.updates.download().catch(failed)} size="sm" variant="primary">
               {t("settings.updatesDownload")}
             </Button>
-          ) : status?.kind === "downloading" ? (
-            <ProgressBar aria-label={t("settings.updatesProgress")} className="w-32" value={status.percent / 100} />
-          ) : status?.kind === "downloaded" ? (
+          ) : status?.kind === "downloading" ? null : status?.kind === "downloaded" ? (
             <>
               {status.installOnQuit ? null : (
                 <Button onClick={() => void api.updates.install("onQuit").catch(failed)} size="sm" variant="outline">

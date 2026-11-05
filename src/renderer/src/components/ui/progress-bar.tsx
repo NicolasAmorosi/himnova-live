@@ -1,4 +1,4 @@
-import type { HTMLAttributes } from "react";
+import type { HTMLAttributes, ReactNode } from "react";
 import { cn } from "@renderer/lib/utils";
 
 type Tone = "accent" | "success" | "danger";
@@ -34,6 +34,32 @@ export function ProgressBar({ className, tone = "accent", value, ...props }: Pro
         className={cn("h-full rounded-full transition-[width] duration-150", toneClassName[tone])}
         style={{ width: `${pct}%` }}
       />
+    </div>
+  );
+}
+
+/**
+ * A progress someone waits on: what is happening and the readout on one line,
+ * the bar under them across the whole width, and a detail («41 of 146 MB»)
+ * below. The caller words the readout, because a percentage is written
+ * differently per language («28 %», «28%»).
+ */
+export function ProgressMeter({
+  className,
+  detail,
+  label,
+  readout,
+  value,
+  ...props
+}: ProgressBarProps & { label: ReactNode; readout: string; detail?: ReactNode }) {
+  return (
+    <div className={cn("flex flex-col gap-1.5 text-xs text-muted-foreground", className)}>
+      <div className="flex items-baseline justify-between gap-3">
+        <span className="min-w-0 truncate">{label}</span>
+        <span className="shrink-0 font-medium tabular-nums text-foreground">{readout}</span>
+      </div>
+      <ProgressBar className="h-1.5" value={value} {...props} />
+      {detail ? <span className="tabular-nums text-subtle">{detail}</span> : null}
     </div>
   );
 }
