@@ -5,8 +5,9 @@ import { engineAssetIdOfUrl } from "@shared/urls";
 /**
  * Reads a video/audio file's duration without playing it — a detached element
  * (never mounted, never appended to the DOM) loaded with `preload="metadata"`
- * only. Used by the preview media bar, which must stay silent: the operator
- * hasn't gone live yet.
+ * only. Used by the preview media bar before anything plays: an audio file's
+ * PREVIEW engine starts only on its first play, and its length is shown
+ * before that.
  *
  * Returns `null` while unknown (no url, or metadata not loaded yet). A file the
  * media engine plays cannot be opened here at all, so main answers from its probe.

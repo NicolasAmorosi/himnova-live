@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useT } from "@renderer/lib/i18n/i18n-provider";
-import { Badge, Button, EmptyState, Icon, ListRow, Tooltip } from "@renderer/components/ui";
+import { Button, EmptyState, Icon, ListRow, Tooltip } from "@renderer/components/ui";
 import { PanelBody, PanelFooter } from "@renderer/components/shared/panel";
 import { ModalBoundary } from "@renderer/components/shared/modal-boundary";
 import { toast } from "@renderer/lib/toast";
@@ -80,9 +80,7 @@ export function UtilitiesPanel() {
                 // is projected». See `ListRow`'s `rail`.
                 rail={false}
                 leading={
-                  <Badge className="px-2" variant="neutral">
-                    <Icon className="size-3.5" name={TOOL_ICON[scene.tool]} />
-                  </Badge>
+                  <Icon className="text-subtle" name={TOOL_ICON[scene.tool]} />
                 }
                 draggable
                 onClick={() => previewUtilityScene(scene.id)}
@@ -95,7 +93,8 @@ export function UtilitiesPanel() {
                 trailing={
                   scene.id === liveSceneId || scene.id === startedSceneId ? (
                     <SceneReadout scene={scene} />
-                  ) : (
+                  ) : scene.name === t(TOOL_LABEL[scene.tool]) ? null : (
+                    // The kind, unless the name already says it: «Reloj · Reloj» (2026-11-05 review).
                     <span className="text-xs text-subtle">{t(TOOL_LABEL[scene.tool])}</span>
                   )
                 }

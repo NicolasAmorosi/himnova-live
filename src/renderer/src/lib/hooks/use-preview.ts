@@ -169,6 +169,7 @@ export function usePreviewOutput(content: PreviewContent | null): ProjectionOutp
 function usePreviewOutputWithoutPlates(content: PreviewContent | null): ProjectionOutput | null {
   const slideIndex = usePreviewStore((s) => s.slideIndex);
   const playing = usePreviewStore((s) => s.playing);
+  const volume = usePreviewStore((s) => s.volume);
   const run = useUtilityStore((s) => s.run);
   const liveBase = useProjectionStore((s) => s.base);
   // Off `projection.store` and not `settings.store`: it is the very value the
@@ -243,13 +244,12 @@ function usePreviewOutputWithoutPlates(content: PreviewContent | null): Projecti
         // too: re-applying it as a prop would fight the element's own clock
         // on every re-render, so a scrub goes through `seekPreview` imperatively
         // instead, exactly like the live video's own seek.
-        // `volume: 0` because this output only ever reaches the PREVIEW
-        // monitor, which `OutputView` mutes by construction (every mode but
-        // "live"). The field is here because the shape requires it, not
-        // because anything reads it.
+        // `volume`: PREVIEW's own, 0 to start (owner, 2026-11-05) — heard only
+        // because `PreviewMonitor` passes `audible`; every other view of this
+        // output stays muted.
         const url = playableUrl ?? assetUrl(content.asset.id);
         // PREVIEW plays a video once: what happens at its end is the projector's.
-        const underlay = { url, epoch: 0, paused: !playing, startAtSeconds: 0, volume: 0, loop: false };
+        const underlay = { url, epoch: 0, paused: !playing, startAtSeconds: 0, volume, loop: false };
         return {
           kind: "video",
           url: underlay.url,

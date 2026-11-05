@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useT } from "@renderer/lib/i18n/i18n-provider";
-import { Box, Button, FieldGroup, FieldRow, Icon, Select, Tooltip, VolumeControl } from "@renderer/components/ui";
+import { Button, FieldGroup, FieldRow, Icon, Select, Slider } from "@renderer/components/ui";
 import { ConfirmModal } from "@renderer/components/shared/modal";
 import { transitionDurationOptions, transitionStyleOptions } from "@renderer/lib/transition";
 import { useDisplayStore } from "@renderer/stores/display.store";
@@ -75,11 +75,10 @@ export function ProjectionSection() {
   }
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-8">
       <FieldGroup title={t("settings.groups.screen")}>
         <FieldRow description={t("settings.displayDesc")} label={t("settings.display")}>
           <Select
-            className="min-w-56"
             onChange={(value) => void setDisplayId(Number(value))}
             options={displays.map((d) => ({
               label: `${d.label}${d.primary ? ` ${t("header.primaryDisplay")}` : ""}`,
@@ -102,9 +101,12 @@ export function ProjectionSection() {
           )}
         </FieldRow>
         {/* Open whenever its screen is connected; main places it (`stage-window.ts`). */}
-        <FieldRow description={t("settings.stageDisplayDesc")} label={t("settings.stageDisplay")}>
+        <FieldRow
+          description={t("settings.stageDisplayDesc")}
+          help={t("settings.stageDisplayHelp")}
+          label={t("settings.stageDisplay")}
+        >
           <Select
-            className="min-w-56"
             onChange={(value) =>
               void useSettingsStore.getState().update({ "stage.displayId": value === "none" ? null : Number(value) })
             }
@@ -121,10 +123,7 @@ export function ProjectionSection() {
       </FieldGroup>
 
       <FieldGroup title={t("settings.groups.logo")}>
-        <FieldRow description={t("settings.logoDesc")} label={t("settings.logo")}>
-          <Tooltip content={t("settings.logoFormats")} floating>
-            <Icon className="text-subtle" name="help" />
-          </Tooltip>
+        <FieldRow description={t("settings.logoDesc")} help={t("settings.logoFormats")} label={t("settings.logo")}>
           <Button onClick={() => void changeLogo()} variant="outline">
             {t("settings.chooseFile")}
           </Button>
@@ -132,31 +131,16 @@ export function ProjectionSection() {
               removing it then turns the screen black in front of everybody,
               which is not what "removing a preference" looks like. With
               nothing on air it is a plain setting and gets no dialog. */}
-          <Button
-            disabled={logoPath === null}
-            onClick={handleRemoveLogo}
-            variant="outline"
-          >
-            <Icon name="close" /> {t("settings.logoRemove")}
+          <Button disabled={logoPath === null} onClick={handleRemoveLogo} variant="ghost">
+            {t("settings.logoRemove")}
           </Button>
         </FieldRow>
-        {/* The projector's own proportion, small — the empty 704×256 slab it
-            was took the page over (2026-11-04 review). */}
-        <div className="py-3">
-          <Box className="flex aspect-video w-full max-w-sm flex-col items-center justify-center gap-2 overflow-hidden px-4">
-          {logoUrl ? (
-            <img alt="" className="h-full max-w-full object-contain" src={logoUrl} />
-          ) : (
-            <>
-              <Icon className="text-subtle" name="image" />
-              <span className="text-xs text-subtle">{t("settings.logoEmpty")}</span>
-            </>
-          )}
-          </Box>
-        </div>
+        {/* The name and background LOGO falls back to, and ONE preview of
+            what LOGO shows now — the image when there is one (2026-11-05
+            review: an image box and a scene box were two previews of one
+            button). */}
+        <LogoSceneFields logoUrl={logoUrl} />
       </FieldGroup>
-
-      <LogoSceneFields />
 
       <FieldGroup title={t("settings.groups.liveContent")}>
         <FieldRow description={t("settings.clearLiveDesc")} label={t("settings.clearLive")}>
@@ -164,29 +148,36 @@ export function ProjectionSection() {
             <Icon name="offAir" /> {t("live.takeOffAir")}
           </Button>
         </FieldRow>
-        <FieldRow description={t("settings.videoEndDesc")} label={t("settings.videoEnd")}>
+        <FieldRow
+          description={t("settings.videoEndDesc")}
+          help={t("settings.videoEndHelp")}
+          label={t("settings.videoEnd")}
+        >
           <Select
-            className="min-w-56"
             onChange={(value) => void updateSettings({ "projection.videoEnd": value as VideoEndAction })}
             options={VIDEO_END_ACTIONS.map((action) => ({ label: t(`settings.videoEndOptions.${action}`), value: action }))}
             value={videoEnd}
           />
         </FieldRow>
-      </FieldGroup>
-
-      <FieldGroup title={t("settings.groups.audio")}>
-        <FieldRow description={t("settings.startVolumeDesc")} label={t("settings.startVolume")}>
-          <span className="w-10 text-right text-sm tabular-nums text-muted-foreground">
-            {Math.round(startVolume * 100)}%
-          </span>
-          <VolumeControl
+        {/* With what goes live, not a group of one row (2026-11-05 review); a
+            slider with its readout on the right, like every other one. */}
+        <FieldRow
+          description={t("settings.startVolumeDesc")}
+          help={t("settings.startVolumeHelp")}
+          label={t("settings.startVolume")}
+        >
+          <Slider
+            format={(volume) => `${Math.round(volume * 100)}%`}
             label={t("settings.startVolume")}
-            muteLabel={startVolume === 0 ? t("media.unmute") : t("media.mute")}
-            onChange={(volume) => void updateSettings({ "media.volume": volume })}
+            max={1}
+            min={0}
+            onChange={(volume) => void updateSettings({ "media.volume": Number(volume.toFixed(2)) })}
+            step={0.05}
             value={startVolume}
           />
         </FieldRow>
       </FieldGroup>
+
 
       <ConfirmModal
         confirmLabel={t("settings.logoRemove")}
@@ -200,7 +191,6 @@ export function ProjectionSection() {
       <FieldGroup title={t("settings.groups.transition")}>
         <FieldRow description={t("settings.transitionStyleDesc")} label={t("settings.transitionStyle")}>
           <Select
-            className="min-w-48"
             onChange={(value) => void updateSettings({ "projection.transition.style": value as TransitionStyle })}
             options={transitionStyleOptions(t)}
             value={transitionStyle}
@@ -208,10 +198,9 @@ export function ProjectionSection() {
         </FieldRow>
         <FieldRow description={t("settings.transitionDurationDesc")} label={t("settings.transitionDuration")}>
           <Select
-            className="min-w-40"
             disabled={transitionStyle === "none"}
             onChange={(value) => void updateSettings({ "projection.transition.durationMs": Number(value) })}
-            options={transitionDurationOptions(t)}
+            options={transitionDurationOptions(t, transitionDurationMs)}
             value={String(transitionDurationMs)}
           />
         </FieldRow>

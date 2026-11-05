@@ -84,5 +84,6 @@ test("removing the logo while it is on the projector asks first", async ({ app }
   await settings.getByRole("button", { name: "Quitar", exact: true }).click();
   await confirm.getByRole("button", { name: "Quitar", exact: true }).click();
   await expect(logoOnProjector(projector)).toHaveCount(0);
-  await expect(settings.getByText("No hay ningún logo cargado")).toBeVisible();
+  // The group's one preview now shows the name-over-background LOGO instead.
+  await expect(settings.getByRole("tabpanel", { name: "Proyección" }).locator('img[src^="worship://logo"]')).toHaveCount(0);
 });

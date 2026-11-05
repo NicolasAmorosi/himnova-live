@@ -182,7 +182,7 @@ export function PerformanceDiagnostics() {
 
   return (
     <>
-      <FieldRow description={t("settings.gpuDesc")} label={t("settings.gpu")}>
+      <FieldRow description={t("settings.gpuDesc")} help={t("settings.gpuHelp")} label={t("settings.gpu")}>
         <Caption>{deviceLabel}</Caption>
       </FieldRow>
 
@@ -211,9 +211,8 @@ export function PerformanceDiagnostics() {
         </Button>
       </FieldRow>
 
-      <FieldRow description={t("settings.probeDesc")} label={t("settings.probe")}>
+      <FieldRow description={t("settings.probeDesc")} help={t("settings.probeHelp")} label={t("settings.probe")}>
         <Select
-          className="min-w-48"
           disabled={running || videos.length === 0}
           onChange={(value) => setSelectedId(Number(value))}
           options={videos.map((video) => ({ label: video.name, value: String(video.id) }))}

@@ -34,7 +34,16 @@ export function LiveIndicator() {
       <span className="flex min-w-0 flex-col items-end leading-tight">
         <span className="flex items-center gap-1.5 text-2xs font-semibold tracking-wider text-muted-foreground uppercase">
           <span
-            className={cn("size-2 shrink-0 rounded-full", broadcasting ? "bg-on-air motion-safe:animate-pulse" : "bg-border-light")}
+            className={cn(
+              "size-2 shrink-0 rounded-full",
+              // The work screen's colours (2026-11-05): red on air, amber when
+              // NEGRO or LOGO covers it, grey with nothing projected.
+              broadcasting
+                ? "bg-on-air motion-safe:animate-pulse"
+                : presentationOpen && (output.kind === "black" || output.kind === "logo")
+                  ? "bg-warning"
+                  : "bg-border-light",
+            )}
           />
           {t("live.title")}
         </span>

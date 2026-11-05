@@ -32,9 +32,8 @@ test("hymn 522 finds its song, keeps its timings and advances with the music", a
   const [asset] = await app.invoke<MediaAsset[]>("library:add", { kind: "ppt", paths: [HYMN] });
   await app.previewFile("Presentaciones", "522");
   const preview = app.previewColumn();
-  await expect(preview.getByRole("list", { name: "Presentación" }).getByRole("button", { name: "14", exact: true })).toBeAttached({
-    timeout: 120_000,
-  });
+  // Read whole: the bar's counter says so (the grid mounts only the tiles in view).
+  await expect(preview.getByText("1/14", { exact: true })).toBeVisible({ timeout: 120_000 });
   // The song next to the file, and the timings the .pptx export dropped.
   await expect(preview.getByText("522 Suenen las palabras")).toBeVisible();
   await expect(preview.getByText("Auto-avance", { exact: true })).toBeVisible();

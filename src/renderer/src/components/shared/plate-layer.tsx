@@ -200,6 +200,7 @@ function PlateBox({
               inset: 0,
               background: cssSceneBackground(style.background),
               opacity: style.backgroundOpacity,
+              borderRadius: `${style.cornerRadiusCqw}cqw`,
             }}
           />
         ) : null}
@@ -208,7 +209,12 @@ function PlateBox({
             alt=""
             onError={() => onImageError?.(plate.imageUrl!)}
             src={plate.imageUrl}
-            style={{ position: "relative", width: `${style.image.sizeCqw}cqw`, opacity: style.image.opacity }}
+            style={{
+              position: "relative",
+              width: `${style.image.sizeCqw}cqw`,
+              opacity: style.image.opacity,
+              borderRadius: `${style.cornerRadiusCqw}cqw`,
+            }}
           />
         ) : null}
         {ticker ? (

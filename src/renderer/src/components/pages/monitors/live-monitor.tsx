@@ -59,6 +59,7 @@ export function LiveMonitor() {
   // has one.
   const settingsLoaded = useSettingsStore((s) => s.loaded);
   const overlay = useProjectionStore((s) => s.overlay);
+  const base = useProjectionStore((s) => s.base);
   // A logo scene with a name or a background of its own is something to show
   // (2026-11-05); only a bare black one is "no logo".
   const logoMissing =
@@ -89,7 +90,11 @@ export function LiveMonitor() {
     videoStill !== undefined && (output.kind === "video" || output.slideVideo !== null);
 
   return (
-    <Monitor empty={presentationOpen ? t("live.noSignal") : t("live.disconnected")}>
+    <Monitor
+      className="p-0"
+      empty={presentationOpen ? t("live.noSignal") : t("live.disconnected")}
+      onAir={presentationOpen && overlay === "none" && base !== null}
+    >
       {/* `black` and a logo-less LOGO both render as an empty stage, which is
           exactly right — that IS what the projector is showing. The two cases
           where an empty stage would not be the whole truth get a band over it

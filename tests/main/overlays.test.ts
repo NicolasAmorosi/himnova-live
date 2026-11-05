@@ -102,6 +102,13 @@ describe("the plate validator", () => {
     expect(isPlateStyle({ ...DEFAULT_PLATE_STYLE, autoHide: { enabled: true, afterMs: 500 } })).toBe(false);
   });
 
+  test("a row written before rounded corners existed reads square, and a radius past the cap is refused", () => {
+    const { cornerRadiusCqw: _corners, ...before } = DEFAULT_PLATE_STYLE;
+    expect(normalizePlateStyle(before).cornerRadiusCqw).toBe(0);
+    expect(normalizePlateStyle({ ...before, cornerRadiusCqw: 1.5 }).cornerRadiusCqw).toBe(1.5);
+    expect(isPlateStyle({ ...DEFAULT_PLATE_STYLE, cornerRadiusCqw: 50 })).toBe(false);
+  });
+
   test("a band never holds an image background", () => {
     const style = { ...DEFAULT_PLATE_STYLE, background: { kind: "image", assetId: 1, fit: "cover" } };
     expect(isPlateStyle(style)).toBe(false);

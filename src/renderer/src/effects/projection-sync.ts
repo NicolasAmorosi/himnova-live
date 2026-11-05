@@ -134,8 +134,9 @@ export function startProjectionEffects(): () => void {
     useProjectionStore.getState().setPresentationOpen(false);
     // The header quietly switching to "Projector off" is not a signal an
     // operator sees: mid-service they are looking at the room, not at the
-    // chrome. The toast never auto-dismisses (toast.store gives any toast with
-    // an `action` a `durationMs` of null), and its action reopens onto
+    // chrome. The toast goes after its 10 s like every toast (owner,
+    // 2026-11-05) — the LIVE header keeps a «Sin pantalla» warning with «Abrir
+    // pantalla» beside it for as long as it lasts —, and its action reopens onto
     // whatever was live, replayed from main's snapshot — routing it through
     // `open()` instead would land on BLACK and force a second GO LIVE, which
     // re-sends the PREVIEW target rather than what the congregation was
@@ -224,7 +225,7 @@ export function startProjectionEffects(): () => void {
     if (screenLostToastId !== null) toast.dismiss(screenLostToastId);
     screenLostToastId = null;
     if (connected) toast.success(t("projector.screenBack"));
-    else screenLostToastId = toast.warning(t("projector.screenLost"), { durationMs: null });
+    else screenLostToastId = toast.warning(t("projector.screenLost"));
   });
 
   const stopAutoplay = startDeckAutoplay();

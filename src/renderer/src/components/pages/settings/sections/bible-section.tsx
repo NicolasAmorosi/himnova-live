@@ -237,19 +237,16 @@ export function BibleSection() {
   }
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex flex-col gap-8">
       {/* Two cards, not one: importing is an ACTION and the list below is a
           set of things, and a single group's `divide-y` drew the same line
           between the button and the first bible as between two bibles. */}
       <FieldGroup title={t("settings.groups.versions")}>
-        <FieldRow description={t("settings.bible.importDesc")} label={t("settings.bible.import")}>
-          {/* `floating` on every tooltip in here, without exception: this
-              panel is the `overflow-y-auto` one in `SettingsModal`, so an
-              in-flow bubble is clipped by it — which is why the row actions'
-              tooltips could not be seen at all. */}
-          <Tooltip content={t("settings.bible.importFormats")} floating>
-            <Icon className="text-subtle" name="help" />
-          </Tooltip>
+        <FieldRow
+          description={t("settings.bible.importDesc")}
+          help={t("settings.bible.importFormats")}
+          label={t("settings.bible.import")}
+        >
           <Button
             loading={importing}
             loadingLabel={t("bible.importing")}
@@ -308,7 +305,7 @@ export function BibleSection() {
           {/* Outside the `<ul>` so it is not announced as one more version,
               and only while the gesture is actually available. */}
           {reorderEnabled ? (
-            <p className="py-2 text-xs text-muted-foreground">{t("settings.bible.reorderHint")}</p>
+            <p className="px-4 py-2 text-xs text-muted-foreground">{t("settings.bible.reorderHint")}</p>
           ) : null}
         </FieldGroup>
       ) : null}

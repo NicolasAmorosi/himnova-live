@@ -1,6 +1,8 @@
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { expect, relaunch, test, type WorshipApp } from "./support/app";
+import { fixture } from "./support/paths";
 
 const JUAN_3_16 = "Porque de tal manera amó Dios al mundo";
 const JUAN_3_17 = "Porque no envió Dios á su Hijo al mundo";
@@ -26,7 +28,7 @@ test("a verse found by book and chapter is previewed, projected and stepped thro
 
 test("a word search across the whole Bible finds the verse", async ({ app }) => {
   const { control } = app;
-  await control.getByRole("button", { name: /Cambiar a búsqueda de texto completo/ }).click();
+  await control.getByRole("group", { name: "Modo de búsqueda" }).getByRole("button", { name: "Texto", exact: true }).click();
   await control.getByRole("textbox", { name: "Buscar texto…" }).fill("unigénito para que todo aquel");
   await control.keyboard.press("Enter");
   // Each hit says which verse it is, not just the snippet around the match.
@@ -198,6 +200,18 @@ test("an image background for the verse can be picked: nothing is saved until th
   await app.control.getByRole("option", { name: "photo" }).click();
   await expect(projector.locator(`img[src="worship://asset/${photo?.id}"]`)).toBeVisible();
   await expect(projector.getByText(JUAN_3_16, { exact: false })).toBeVisible();
+
+  // Importing lives inside the picker (owner, 2026-11-05) and leaves the new image chosen.
+  const other = path.join(os.tmpdir(), `worship-e2e-imported-${Date.now()}.png`);
+  fs.copyFileSync(fixture("photo.png"), other);
+  try {
+    await app.answerOpenDialog(other);
+    await picker.getByRole("combobox").click();
+    await app.control.getByRole("option", { name: "Importar imagen…" }).click();
+    await expect(picker.getByRole("combobox")).toHaveText(/worship-e2e-imported/);
+  } finally {
+    fs.rmSync(other, { force: true });
+  }
 });
 
 test("↑/↓ only move PREVIEW; the LIVE transport and grid step the projected passage", async ({ app }) => {

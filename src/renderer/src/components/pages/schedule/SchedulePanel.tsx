@@ -1,7 +1,8 @@
 import { useEffect, useState, type DragEvent } from "react";
 import { useT } from "@renderer/lib/i18n/i18n-provider";
-import { Badge, Button, EmptyState, Icon, IconButton, Menu, Tooltip } from "@renderer/components/ui";
-import { PanelBody, PanelFooter, PanelHeader } from "@renderer/components/shared/panel";
+import { Badge, EmptyState, Icon, IconButton, Tooltip } from "@renderer/components/ui";
+import { PanelBody, PanelHeader } from "@renderer/components/shared/panel";
+import { removeScheduleItem } from "@renderer/lib/actions/remove-selected";
 import { ConfirmModal } from "@renderer/components/shared/modal";
 import { useProgramStore } from "@renderer/stores/program.store";
 import { useLibraryStore } from "@renderer/stores/library.store";
@@ -42,7 +43,6 @@ export function SchedulePanel() {
   const selectedIndex = useProgramStore((s) => s.selectedIndex);
   const moveDown = useProgramStore((s) => s.moveDown);
   const moveUp = useProgramStore((s) => s.moveUp);
-  const removeAt = useProgramStore((s) => s.removeAt);
   const reorder = useProgramStore((s) => s.reorder);
   const addItem = useProgramStore((s) => s.addItem);
   const clear = useProgramStore((s) => s.clear);
@@ -224,101 +224,112 @@ export function SchedulePanel() {
         meta={[dirty ? null : t("schedule.saved")]}
         title={t("schedule.title")}
       />
-      <PanelBody
-        className="p-1.5"
-        onDragLeave={handleDragLeave}
-        onDragOver={handleDragOver}
-        onDrop={(e) => void handleDrop(e)}
-      >
-        {items.length === 0 ? (
-          <EmptyState description={t("schedule.emptyHint")} icon="layers" title={t("schedule.empty")} />
-        ) : (
-          <ul className="flex flex-col gap-0.5">
-            {items.map((item, index) => (
-              <ScheduleRow
-                active={activeIndex === index}
-                deckStatus={item.kind === "ppt" ? deckStatuses[item.mediaAssetId] : undefined}
-                dragOver={dragOverIndex === index}
-                index={index}
-                item={item}
-                key={item.id}
-                onClick={() => previewScheduleItem(index)}
-                onDoubleClick={() => {
-                  previewScheduleItem(index);
-                  void goLive();
-                }}
-                onDragStart={(e) => {
-                  e.dataTransfer.effectAllowed = "move";
-                  e.dataTransfer.setData(SCHEDULE_INDEX_MIME, String(index));
-                  // Same as the saved-programs list: the only drop feedback
-                  // here is a horizontal indicator, so the browser's
-                  // translucent ghost trailing sideways is pure noise.
-                  hideDragGhost(e);
-                }}
-                selected={selectedIndex === index}
-              />
-            ))}
-          </ul>
-        )}
-      </PanelBody>
-      {/* Neutral buttons, no colours (2026-11-04 redesign, P1): the colour
-          was carrying the meaning instead of the words, and four saturated
-          fills competed with GO LIVE. «Clear» is destructive and rare: it
-          lives in «⋯». */}
-      <PanelFooter>
-        <Tooltip align="start" content={t("schedule.addAllHint")} placement="top">
-          <Button onClick={() => void handleAddAll()} size="sm" variant="ghost">
-            <Icon name="add" />
-            {t("schedule.addAll")}
-          </Button>
-        </Tooltip>
-        <Tooltip align="start" content={t("schedule.moveUpHint")} placement="top">
-          <IconButton
-            aria-label={t("schedule.moveUp")}
-            disabled={selectedIndex === null || selectedIndex === 0}
-            onClick={() => selectedIndex !== null && moveUp(selectedIndex)}
-            size="sm"
-            variant="ghost"
-          >
-            <Icon name="chevronUp" />
-          </IconButton>
-        </Tooltip>
-        <Tooltip align="start" content={t("schedule.moveDownHint")} placement="top">
-          <IconButton
-            aria-label={t("schedule.moveDown")}
-            disabled={selectedIndex === null || selectedIndex === items.length - 1}
-            onClick={() => selectedIndex !== null && moveDown(selectedIndex)}
-            size="sm"
-            variant="ghost"
-          >
-            <Icon name="chevronDown" />
-          </IconButton>
-        </Tooltip>
-        <Tooltip align="start" content={t("schedule.removeHint")} placement="top">
-          <IconButton
-            aria-label={t("schedule.remove")}
-            disabled={selectedIndex === null}
-            onClick={() => selectedIndex !== null && removeAt(selectedIndex)}
-            size="sm"
-            variant="ghost"
-          >
-            <Icon name="close" />
-          </IconButton>
-        </Tooltip>
-        <Menu
-          align="end"
-          className="ml-auto"
-          icon="more"
-          label={t("editor.more")}
-          onSelect={(command) => {
-            if (command === "clear") handleClear();
-          }}
-          options={[{ disabled: items.length === 0, label: t("schedule.clear"), tone: "danger", value: "clear" }]}
-          size="sm"
-        />
-      </PanelFooter>
+      {/* The tools in a vertical strip beside the list, icons only, like
+          EasyWorship's (owner, 2026-11-05: «a prueba»): the horizontal bar sat
+          between two lines right on top of the resource tabs and read as
+          theirs. Neutral, no colours (2026-11-04 redesign, P1); «Clear» is
+          destructive and rare, it lives in «⋯». */}
+      <div className="flex min-h-0 flex-1">
+        <div
+          aria-label={t("schedule.title")}
+          className="flex shrink-0 flex-col items-center gap-1 border-r border-border p-1.5"
+          role="toolbar"
+          aria-orientation="vertical"
+        >
+          <Tooltip content={t("schedule.addAllHint")} floating>
+            <IconButton aria-label={t("schedule.addAll")} onClick={() => void handleAddAll()} size="sm" variant="ghost">
+              <Icon name="add" />
+            </IconButton>
+          </Tooltip>
+          <Tooltip content={t("schedule.moveUpHint")} floating>
+            <IconButton
+              aria-label={t("schedule.moveUp")}
+              disabled={selectedIndex === null || selectedIndex === 0}
+              onClick={() => selectedIndex !== null && moveUp(selectedIndex)}
+              size="sm"
+              variant="ghost"
+            >
+              <Icon name="arrowUp" />
+            </IconButton>
+          </Tooltip>
+          <Tooltip content={t("schedule.moveDownHint")} floating>
+            <IconButton
+              aria-label={t("schedule.moveDown")}
+              disabled={selectedIndex === null || selectedIndex === items.length - 1}
+              onClick={() => selectedIndex !== null && moveDown(selectedIndex)}
+              size="sm"
+              variant="ghost"
+            >
+              <Icon name="arrowDown" />
+            </IconButton>
+          </Tooltip>
+          <Tooltip content={t("schedule.removeHint")} floating>
+            <IconButton
+              aria-label={t("schedule.remove")}
+              disabled={selectedIndex === null}
+              onClick={() => selectedIndex !== null && removeScheduleItem(selectedIndex)}
+              size="sm"
+              variant="ghost"
+            >
+              <Icon name="close" />
+            </IconButton>
+          </Tooltip>
+          {/* At the foot, away from the others; destructive, so it asks
+              first. A «⋯» holding this one command was a menu of one. */}
+          <Tooltip content={t("schedule.clear")} floating>
+            <IconButton
+              aria-label={t("schedule.clear")}
+              className="mt-auto"
+              disabled={items.length === 0}
+              onClick={handleClear}
+              size="sm"
+              variant="ghost"
+            >
+              <Icon name="remove" />
+            </IconButton>
+          </Tooltip>
+        </div>
+        <PanelBody
+          className="p-1.5"
+          onDragLeave={handleDragLeave}
+          onDragOver={handleDragOver}
+          onDrop={(e) => void handleDrop(e)}
+        >
+          {items.length === 0 ? (
+            <EmptyState description={t("schedule.emptyHint")} icon="layers" title={t("schedule.empty")} />
+          ) : (
+            <ul className="flex flex-col gap-0.5">
+              {items.map((item, index) => (
+                <ScheduleRow
+                  active={activeIndex === index}
+                  deckStatus={item.kind === "ppt" ? deckStatuses[item.mediaAssetId] : undefined}
+                  dragOver={dragOverIndex === index}
+                  index={index}
+                  item={item}
+                  key={item.id}
+                  onClick={() => previewScheduleItem(index)}
+                  onDoubleClick={() => {
+                    previewScheduleItem(index);
+                    void goLive();
+                  }}
+                  onDragStart={(e) => {
+                    e.dataTransfer.effectAllowed = "move";
+                    e.dataTransfer.setData(SCHEDULE_INDEX_MIME, String(index));
+                    // Same as the saved-programs list: the only drop feedback
+                    // here is a horizontal indicator, so the browser's
+                    // translucent ghost trailing sideways is pure noise.
+                    hideDragGhost(e);
+                  }}
+                  selected={selectedIndex === index}
+                />
+              ))}
+            </ul>
+          )}
+        </PanelBody>
+      </div>
       <ConfirmModal
         confirmLabel={t("schedule.discardAndClear")}
+        danger
         description={t("programs.discardWarning")}
         onConfirm={clear}
         onOpenChange={setConfirmClear}

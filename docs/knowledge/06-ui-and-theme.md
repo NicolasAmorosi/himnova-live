@@ -55,11 +55,10 @@ the orange of the logo's «Live» was kept for the brand and the presentations b
 
 Consequences that matter when touching the palette:
 
-1. **The dark Primary is at 1.31:1 against the background.** A main button without a border is a
-   label floating in the void, so it carries `border-primary-border` (`#384f69`, Primary →
-   Secondary at 25%). In light that token equals the fill and adds nothing. It's understated on
-   purpose —the booth is dark—, and for the same reason the Secondary (light steel) stands out
-   more than the Primary in dark: it's the literal reading of the sheet, accepted as such.
+1. **The dark Primary is the sheet's navy `#2f557f`, the light theme's** (owner, 2026-11-05): the
+   dark theme's own `#203651` sat 1.31:1 from the background and «Guardar» read only by its edge.
+   Now 2.09:1, white on it 7.7:1; it still carries `border-primary-border` (`#3b5f87`, Primary →
+   Secondary at 15%, also its hover). In light that token equals the fill and adds nothing.
 2. **What the sheet doesn't define is MIXED, not invented.** `muted` and `hover` are Dialog →
    Borders at 35% and 65%; the strongest light border is Borders → Secondary text at 20%; the
    selected row (`active`) is Background + 26% accent in dark, which is the most it can take
@@ -224,10 +223,18 @@ of the things of that kind · the canvas · the inspector.
   readout), and the description behind a «?» tooltip — written out, the hints made an inspector twice as long —
   still the row's description for a screen reader. The shared knobs of `style-fields.tsx` render compact in an
   inspector and spread in Settings without a prop. `layout="stacked"` puts the label on top for what is too
-  wide to sit beside one.
+  wide to sit beside one. A row whose only control is a `Switch` is one wide `<label>` instead: the words across
+  the row, the switch at its end, a click anywhere flips it (2026-11-05). Each section remembers whether the
+  operator folded it (`localStorage`, per inspector and title), and the rarely used ones start folded
+  (`defaultOpen={false}`: Traducción, Entre diapositivas, Animación, Ocultar sola, Avisos). Every row is 40 px
+  (`min-h-10`), whatever its control, and a label dims with a control that is off. A section can turn the canvas
+  to what it dresses when a control in it takes focus (`InspectorSection`'s `onFocus`: the footer → a slide that
+  carries it, the translation → «Con traducción», a countdown's end → «Al terminar»).
 - **`EditorStage`** is a look editor's canvas: the 16:9 preview as large as the window allows (capped by height
-  too), its sample controls under it («See how it ends», «Try the way in/out», «See it with a long verse»), and
-  the reason «Save» is off. The previews (`ScenePreview`, `VersePreview`) are only the `OutputView`; the stage
+  too), its sample controls under it, and the reason «Save» is off. A sample is a STATE of the canvas, so it is
+  one `Segmented` in every editor (2026-11-05): Temas «Primera · Última · Con traducción» (the footer follows the
+  theme's own «show on» rule; the sample song has two stanzas and a translation), Escenas «Contando · Al
+  terminar», Versículo «Versículo corto · largo». The plates' «Try the way in/out» stay buttons: they are actions. The previews (`ScenePreview`, `VersePreview`) are only the `OutputView`; the stage
   frames them. `PlatePreview` IS the plates editor's canvas, because its two tests drive the state it draws.
 - **The verse's look is an editor, not a setting** (owner, 2026-11-04): the palette at the foot of the Bible tab
   opens `VerseStyleModal`, the way «Themes» opens from the Songs tab's. It applies at once (a `settings` key, see the
@@ -256,8 +263,20 @@ of the things of that kind · the canvas · the inspector.
 ## Forms: `FieldGroup`/`FieldRow`, and `ColorField`
 
 `FieldGroup` + `FieldRow` (`components/ui/field.tsx`) are the shape of ANY options screen: a
-subtitle, rows between thin lines with no box around them (GitHub's settings, 2026-11-04), and one row per option — label (with an optional description)
-on the left, its control on the right, never wrapping. They were born inside Settings as
+subtitle above (and, optionally, one line of `description` about the whole group), the rows in ONE box (`Box`: 1 px border,
+6 px, the fields' surface, no shadow) between thin lines — Windows 11's and macOS's settings; borderless rows on the canvas
+had «no separation from the background» (owner, 2026-11-05) — and one row per option: label (with an optional description)
+on the left, its control on the right, never wrapping. Anything inside a group that is not a `FieldRow` (a preview, a
+hint under a list) carries the row's `px-4` itself.
+
+**The Settings row is one standard (2026-11-05 review):** its label in regular weight under the group's semibold
+title (two levels, not one), at least 64 px tall (`min-h-16`) with or without a
+description; the description is ONE short line (≤ ~70 characters in every language) and anything longer goes in
+`help`, a «?» after the label with the text in a tooltip — the descriptions ran from 11 to 246 characters and the rows
+were all different heights; every field (`Select`, `Input`) is the same 256 px (`w-64`, set by the row, so call sites
+pass no width) and a button keeps its own; at most two buttons per row (change = `outline`, reset/remove = `ghost`);
+a row that would need more controls than that opens a small dialog instead (the CCLI report's dates). Groups are 32 px
+apart (`gap-8`), a group's title 8 px above its box. They were born inside Settings as
 `SettingsGroup`/`SettingsRow` and moved up to `ui/` when the Timers scene editor became the
 second consumer: it's literally the `CLAUDE.md` reuse rule firing. You add an option to an
 existing group, or open a new group; never a flat list of rows.
@@ -277,11 +296,17 @@ stored in a row and editable by the operator —the same category as a schedule'
 end up in an inline `style` on the projector's stage, which has no theme. An INTERFACE color
 still always comes from a semantic token.
 
-`Slider` (`components/ui/slider.tsx`) is the range with its value next to it. The number's width
-is in **`ch`** and not in pixels (`readoutChars`): with `tabular-nums` one `ch` is exactly one
-digit, so a box as long as the longest string that slider can produce carries no dead space —
-and dead space inside the item adds to the row's `gap`, which is the bug measured in
-[`.claude/knowledge/fixed-width-readout-inflates-flex-gap.md`](../../.claude/knowledge/fixed-width-readout-inflates-flex-gap.md).
+`Slider` (`components/ui/slider.tsx`) is the range with its value next to it, in ONE fixed 48 px box for every slider
+(2026-11-05: a `ch` width per call site ended the tracks of an inspector at different x), set inline because an
+inspector row stretches its children with a class that outranks one; the number shows as many decimals as the step
+(«6.0» beside «2.5»). Sliders live only in inspectors, so the dead-space concern of
+[`.claude/knowledge/fixed-width-readout-inflates-flex-gap.md`](../../.claude/knowledge/fixed-width-readout-inflates-flex-gap.md)
+(transport rows) does not apply here.
+
+`Select` takes an optional `action` — a command at the foot of its list, after a rule («Importar imagen…» under the
+images it adds to): picking it closes the menu and runs it, and the keyboard reaches it like an option. That is how a
+background's image or video is imported (owner, 2026-11-05): a button beside the field did not fit in an inspector
+and read «+ A». In an inspector row (`compact`) every field stretches and a plain button beside one keeps its width.
 
 ### `components/shared/style-fields.tsx` — the knobs for everything that gets DRESSED
 
@@ -396,10 +421,9 @@ Settings is a full-screen `EditorScreen` without `save` (it applies at once: «�
 settings (2026-11-04): `Tabs variant="sidebar"` in the list column (`components/ui/tabs.tsx`, NavList's look) and
 the chosen section as a page in a reading column (`max-w-3xl`) CENTRED in the canvas, like every other screen's canvas
 — left-aligned, all the free space sat on the right and read as broken (owner); one scrollbar at the window's edge
-(`scrollbar-gutter: stable both-edges`) — a `PageHeader` (20 px, a thin line
-under it), then one `sections/<name>-section.tsx` per category. Inside each section, `FieldGroup` + `FieldRow`
-group related rows under a subtitle, separated by space and thin lines, never boxed; each row follows the usual rule: label (+ optional description)
-on the left, control(s) on the right, no wrap. Today's categories: **Projection** (screen,
+(`scrollbar-gutter: stable both-edges`) — a `PageHeader` (20 px, no line under it since 2026-11-05), then one
+`sections/<name>-section.tsx` per category. Inside each section, `FieldGroup` + `FieldRow`: each group a titled box
+of rows (see «Forms» above), 32 px from the next; each row follows the standard there. Today's categories: **Projection** (screen,
 open/close the window, logo, clear live content, transition, starting volume), **Slides** (the slides'
 text fallback face, the cache and PDF rasterizing quality),
 **Bible** (which versions are installed: import, rename, default, delete), **System** (theme,
@@ -474,6 +498,17 @@ cuts/restarts it from Settings, not manually from the TopBar.
   operator looking at a part of the service that has already passed. It's a different component
   from `deck-slides.tsx`, which navigates the deck *in preview*, not the one on air.
 
+### Toasts: every one goes, with its time drawn
+
+Every toast leaves on its own after `TOAST_DURATION_MS` (10 s) — the ones with an action and the «screen lost»
+warning included (owner, 2026-11-05: «no se van a menos que los cierres») — and a 2 px bar along its bottom edge,
+in its tone's fill, empties as the time runs out. The pointer or the focus on a toast holds the count and the bar
+(`pause`/`resume` in `toast.store.ts`, which keeps what was left), so reading it or reaching for «Deshacer» never
+races the clock. What must outlast a toast says so somewhere that stays: the LIVE header keeps «Sin pantalla» with
+«Abrir pantalla» while there is no projector. A message wraps anywhere (`overflow-wrap: anywhere`): a file name or a
+path has no space to break at. An info toast carries the `info` icon, never «!», and its action sits on the
+message's own line.
+
 ### Two-stage flow (strict)
 
 Selecting **never** projects. `lib/actions/preview.ts` moves the preview target and
@@ -483,6 +518,14 @@ slide 3 is still on screen.
 
 The shortcuts follow the same split: ←/→ move **what's live**, ↑/↓ move **the preview**, Enter
 crosses from one to the other.
+
+PREVIEW **sounds** since 2026-11-05 (owner: «todo como en vivo pero con el volumen a 0»): its row has the same
+play, seek and volume as EN VIVO's — a video, an audio file, a deck's music —, at PREVIEW's own `volume`
+(`preview.store`), 0 with every new target, silenced by GO LIVE (`stopPreviewPlayback`). A video plays through the
+monitor's `<video>` (`OutputView`'s `audible`, which ONLY `PreviewMonitor` passes — an editor canvas drawn over the
+live stage must never play the room's video twice) or PREVIEW's engine; a sound through PREVIEW's engine with no
+picture (`usePreviewEngineSound`), started on the first play so a click through the library spins no engine up.
+A deck in PREVIEW gets EN VIVO's transport (◀ ▶, counter, «Auto-avance») but never advances on its own.
 
 ### `OutputView`, the primitive that keeps a monitor from lying
 

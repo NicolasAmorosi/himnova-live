@@ -24,12 +24,12 @@ async function previewSong(app: WorshipApp, title: string, lyrics: string): Prom
 
 test("a new church starts with backgrounds, song themes, a dressed verse and time scenes, and overlays", async ({ app }) => {
   // The backgrounds, in the library under their names.
-  await app.openResources("Media", "Imágenes");
+  await app.openResources("Medios", "Imágenes");
   const images = app.control.getByRole("tabpanel", { name: "Imágenes" });
   for (const name of ["Noche", "Amanecer", "Océano", "Atardecer", "Bosque", "Brasas", "Grafito", "Cielo"]) {
     await expect(images.getByRole("button", { name }).first()).toBeVisible();
   }
-  await app.openResources("Media", "Videos");
+  await app.openResources("Medios", "Videos");
   await expect(app.control.getByRole("tabpanel", { name: "Videos" }).getByRole("button", { name: "Océano" }).first()).toBeVisible();
 
   // A song without a theme of its own sings over the first new one.
@@ -47,7 +47,7 @@ test("a new church starts with backgrounds, song themes, a dressed verse and tim
   await expect(libraryBackground(projector)).toBeVisible();
 
   // The time scenes, and three overlays to fill in.
-  await app.openResources("Funciones", "Overlays");
+  await app.openResources("Funciones", "Placas");
   for (const name of ["Zócalo con nombre", "Banner de anuncios", "Mosca con el nombre"]) {
     await expect(app.control.getByText(name, { exact: true })).toBeVisible();
   }

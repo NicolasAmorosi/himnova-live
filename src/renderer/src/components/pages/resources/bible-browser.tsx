@@ -11,6 +11,7 @@ import {
   Input,
   ListRow,
   Select,
+  Segmented,
   Tooltip,
 } from "@renderer/components/ui";
 import { ModalBoundary } from "@renderer/components/shared/modal-boundary";
@@ -256,11 +257,12 @@ export function BibleBrowser() {
 
   return (
     <>
-      <div className="flex shrink-0 flex-col gap-1.5 border-b border-border p-1.5">
-        <div className="flex items-center gap-1.5">
+      {/* One grid for both rows, so their edges line up (2026-11-05 review):
+          version · book · chapter above, the search mode · the search under. */}
+      <div className="grid shrink-0 grid-cols-[minmax(0,3fr)_minmax(0,3fr)_minmax(8rem,2fr)] gap-1.5 border-b border-border p-1.5">
           <Select
             aria-label={t("bible.versionLabel")}
-            className="min-w-0 flex-[3]"
+            className="min-w-0"
             onChange={(value) => void setVersion(Number(value))}
             options={versions.map((v) => ({ label: v.name, value: String(v.id) }))}
             size="sm"
@@ -268,7 +270,7 @@ export function BibleBrowser() {
           />
           <Select
             aria-label={t("bible.bookLabel")}
-            className="min-w-0 flex-[3]"
+            className="min-w-0"
             onChange={(value) => {
               setPendingBook(value);
               setPendingChapter("");
@@ -280,7 +282,7 @@ export function BibleBrowser() {
           />
           <Select
             aria-label={t("bible.chapterLabel")}
-            className="min-w-16 flex-1"
+            className="min-w-0"
             disabled={!selectedBook}
             onChange={(value) => {
               setPendingChapter(value);
@@ -294,28 +296,26 @@ export function BibleBrowser() {
             size="sm"
             value={pendingChapter}
           />
-        </div>
-        <div className="flex items-center gap-1.5">
-          <Tooltip
-            content={
-              searchMode === "reference" ? t("bible.searchModeToggleHint") : t("bible.searchModeToggleHintReference")
-            }
-            floating
-          >
-            <IconButton
-              aria-label={
-                searchMode === "reference" ? t("bible.searchModeToggleHint") : t("bible.searchModeToggleHintReference")
-              }
-              onClick={toggleSearchMode}
-              size="sm"
-              toggled={searchMode === "text"}
-            >
-              <Icon name="fileText" />
-            </IconButton>
-          </Tooltip>
+          {/* Words, not a document icon nobody could read as «search the text»
+              (2026-11-05 review). */}
+          <Segmented
+            className="w-full"
+            label={t("bible.searchMode")}
+            onChange={(mode) => {
+              if (mode !== searchMode) toggleSearchMode();
+            }}
+            options={[
+              { label: t("bible.modeReference"), value: "reference" },
+              { label: t("bible.modeText"), value: "text" },
+            ]}
+            value={searchMode}
+          />
+          <div className="col-span-2 flex min-w-0 items-center gap-1.5">
           <Tooltip content={t("bible.bookmarks")} floating>
-            <IconButton aria-label={t("bible.bookmarks")} onClick={toggleBookmarks} size="sm" toggled={showBookmarks}>
-              <Icon name="favorite" />
+            <IconButton aria-label={t("bible.bookmarks")} onClick={toggleBookmarks} size="sm" toggled={showBookmarks} variant="ghost">
+              {/* Not the star: the star in the footer MARKS a verse, this shows the
+                  marked ones (2026-11-05 review: one icon, two verbs). */}
+              <Icon name="bookmarks" />
             </IconButton>
           </Tooltip>
           <div className="min-w-0 flex-1">
@@ -435,6 +435,7 @@ export function BibleBrowser() {
             onClick={() => previewIndex !== null && void setFavorite(previewIndex, !previewedIsFavorite)}
             size="sm"
             toggled={previewedIsFavorite}
+            variant="ghost"
           >
             <Icon name="favorite" />
           </IconButton>

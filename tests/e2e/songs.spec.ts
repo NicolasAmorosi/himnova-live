@@ -39,7 +39,12 @@ async function createSong(app: WorshipApp, title: string, lyrics: string, order?
   await tab(app).getByRole("button", { name: "Nueva canción" }).first().click();
   await dialog(app).getByRole("textbox", { name: "Título" }).fill(title);
   await dialog(app).getByRole("textbox", { name: "Letra" }).fill(lyrics);
-  if (order) await dialog(app).getByRole("textbox", { name: "Orden como texto" }).fill(order);
+  if (order) {
+    // The order as text lives in the order's «⋯» (2026-11-05).
+    await dialog(app).getByRole("button", { name: "Más opciones del orden" }).click();
+    await app.control.getByRole("menuitem", { name: "Escribir como texto" }).click();
+    await dialog(app).getByRole("textbox", { name: "Orden como texto" }).fill(order);
+  }
   await dialog(app).getByRole("button", { name: "Guardar", exact: true }).click();
   await expect(toast(app, `Se guardó «${title}»`)).toBeVisible();
   await dialog(app).getByRole("button", { name: "Cerrar" }).first().click();
@@ -381,9 +386,13 @@ test("a song that went live is in the CCLI report, once a day, saved as CSV from
     await app.control.getByRole("button", { name: "Configuración" }).click();
     const settings = app.control.getByRole("dialog", { name: "Configuración" });
     await settings.getByRole("tab", { name: "Canciones" }).click();
+    // The dates live in a dialog of their own (owner, 2026-11-05), which closes once the file is written.
+    await settings.getByRole("button", { name: "Exportar informe…" }).click();
+    const report = app.control.getByRole("dialog", { name: "Exportar informe CCLI" });
     await app.answerSaveDialog(file);
-    await settings.getByRole("button", { name: "Exportar CSV" }).click();
+    await report.getByRole("button", { name: "Exportar CSV" }).click();
     await expect(toast(app, "Se exportó el informe: 1 canción.")).toBeVisible();
+    await expect(report).toHaveCount(0);
     const now = new Date();
     const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
     expect(fs.readFileSync(file, "utf-8").split("\r\n")).toEqual([
@@ -392,11 +401,13 @@ test("a song that went live is in the CCLI report, once a day, saved as CSV from
       "",
     ]);
 
-    // Dates with nothing live say so, and ask nothing.
-    await settings.getByRole("textbox", { name: "Hasta" }).fill("2020-01-31");
-    await settings.getByRole("textbox", { name: "Desde" }).fill("2020-01-01");
-    await settings.getByRole("button", { name: "Exportar CSV" }).click();
-    await expect(toast(app, "Ninguna canción salió en vivo entre esas fechas.")).toBeVisible();
+    // Dates with nothing live say so, ask nothing, and leave the dialog open to change them.
+    await settings.getByRole("button", { name: "Exportar informe…" }).click();
+    await report.getByRole("textbox", { name: "Hasta" }).fill("2020-01-31");
+    await report.getByRole("textbox", { name: "Desde" }).fill("2020-01-01");
+    await report.getByRole("button", { name: "Exportar CSV" }).click();
+    await expect(report.getByText("Ninguna canción salió en vivo entre esas fechas.")).toBeVisible();
+    await expect(report).toBeVisible();
   } finally {
     fs.rmSync(file, { force: true });
   }

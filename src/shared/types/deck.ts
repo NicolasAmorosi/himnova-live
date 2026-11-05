@@ -178,7 +178,7 @@ export type PrewarmProgress = {
 };
 
 /** What the slide cache costs right now, for the one screen that exposes it.
- *  `maxBytes` is `slides.cacheMaxMb` resolved — the budget eviction enforces,
+ *  `maxBytes` is `SLIDES_CACHE_MAX_MB` resolved — the budget eviction enforces,
  *  not a hard ceiling: a single deck larger than the budget is still kept. */
 export type DeckCacheStats = {
   deckCount: number;

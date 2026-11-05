@@ -9,6 +9,8 @@
 import { describe, expect, test } from "vitest";
 import {
   LOGO_URL,
+  linkedAudioAssetIdOfUrl,
+  previewSoundtrackUrl,
   assetThumbUrl,
   assetThumbVersion,
   assetUrl,
@@ -72,4 +74,12 @@ test("an engine url names a library file or a deck clip, and nothing else is one
   expect(engineAssetIdOfUrl(engineClipUrl("audio", 9))).toBeNull();
   expect([engineAssetUrl(1), engineClipUrl("audio", 1), engineClipUrl("video", 1)].every(isEngineUrl)).toBe(true);
   expect([assetUrl(1), deckAudioUrl(1, "1.wma"), linkedAudioUrl(1)].some(isEngineUrl)).toBe(false);
+});
+
+test("a deck's music reaches PREVIEW's engine by its row or its deck, never as a file path", () => {
+  expect(previewSoundtrackUrl(deckAudioUrl(7, "1.mp3"))).toBe(engineClipUrl("audio", 7));
+  expect(previewSoundtrackUrl(engineClipUrl("audio", 7))).toBe(engineClipUrl("audio", 7));
+  expect(previewSoundtrackUrl(linkedAudioUrl(3))).toBe(linkedAudioUrl(3));
+  expect(linkedAudioAssetIdOfUrl(linkedAudioUrl(3))).toBe(3);
+  expect(previewSoundtrackUrl(assetUrl(3))).toBeNull();
 });

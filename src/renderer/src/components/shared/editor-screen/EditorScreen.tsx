@@ -121,7 +121,7 @@ export function EditorScreen<T extends string>({
                 </span>
                 <input
                   aria-label={name.label}
-                  className="h-8 min-w-24 max-w-96 truncate rounded-md field-sizing-content border border-transparent bg-transparent px-2 font-stretch-extra-condensed text-xl font-bold text-foreground hover:border-border placeholder:text-subtle focus-ring focus:border-border focus:bg-surface"
+                  className="h-8 min-w-24 max-w-96 truncate rounded-md field-sizing-content border border-transparent bg-transparent px-2 font-stretch-extra-condensed text-xl font-bold text-foreground placeholder-shown:border-border hover:border-border placeholder:text-subtle focus-ring focus:border-border focus:bg-surface"
                   maxLength={name.maxLength}
                   onChange={(e) => name.onChange(e.target.value)}
                   // Enter in the name saves, as it did in the programs' old

@@ -207,7 +207,7 @@ for (const locale of LOCALES) {
       await slides.getByRole("button", { name: "2", exact: true }).click();
       await app.goLive();
       await slides.getByRole("button", { name: "3", exact: true }).click();
-      await app.openResources("Media", "Videos");
+      await app.openResources("Medios", "Videos");
       await shoot("control");
 
       // Decks as they were made: a hymn that advances by itself, with its music.
@@ -215,7 +215,7 @@ for (const locale of LOCALES) {
         kind: "ppt",
         paths: [`${decks.sermon.name}.pdf`, `${decks.announcements.name}.pptx`, `${fortress.title}.pptx`].map(media),
       });
-      await app.openResources("Media", "Presentaciones");
+      await app.openResources("Medios", "Presentaciones");
       const deckTab = control.getByRole("tabpanel", { name: tr("Presentaciones") });
       // Opened once each, so their tiles draw the first slide: a PDF's as an image, a .pptx from its model.
       const firstSlide = app.previewColumn().getByRole("list", { name: tr("Presentación") }).getByRole("button", { name: "1", exact: true });
@@ -226,7 +226,7 @@ for (const locale of LOCALES) {
       const preview = app.previewColumn();
       await app.answerOpenDialog(media(`${files.track}.mp3`));
       await preview.getByRole("button", { name: tr("Asignar audio"), exact: true }).click();
-      await expect(preview.getByRole("button", { name: tr("Cambiar"), exact: true })).toBeVisible();
+      await expect(preview.getByRole("button", { name: tr("Opciones del audio"), exact: true })).toBeVisible();
       await expect(preview.getByText(tr("Auto-avance"), { exact: true })).toBeVisible();
       await slides.getByRole("button", { name: "2", exact: true }).click();
       await app.goLive();
@@ -280,7 +280,7 @@ for (const locale of LOCALES) {
       await shoot("functions", { x: 533, y: 0, width: 1067, height: 600 });
 
       // The library: a background on air, and an AVI in PREVIEW, played by the media engine.
-      await app.openResources("Media", "Videos");
+      await app.openResources("Medios", "Videos");
       const videos = control.getByRole("tabpanel", { name: tr("Videos") });
       await videos.getByRole("button", { name: LOOK[locale].backgrounds.sunrise }).first().dblclick();
       await app.invoke("library:add", { kind: "video", paths: [media(`${files.testimony}.avi`)] });

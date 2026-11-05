@@ -351,11 +351,13 @@ test("a song assigned to a deck plays under it, and NEGRO pauses the song and th
   await expect(slideTile(app, 3)).toBeVisible({ timeout: 90_000 });
 
   const preview = app.previewColumn();
-  await expect(preview.getByText("Sin audio")).toBeVisible();
+  // No «Sin audio» line any more: a deck without music only offers to assign one (2026-11-05).
+  await expect(preview.getByRole("button", { name: "Asignar audio" })).toBeVisible();
   await app.answerOpenDialog(fixture("song.mp3"));
   await preview.getByRole("button", { name: "Asignar audio" }).click();
   await expect(preview.getByText("song", { exact: false }).first()).toBeVisible();
-  await expect(preview.getByRole("button", { name: "Cambiar", exact: true })).toBeVisible();
+  // Changing or removing a linked file lives in the bar's «⋯» (2026-11-05).
+  await expect(preview.getByRole("button", { name: "Opciones del audio" })).toBeVisible();
 
   await app.goLive();
   const projector = await app.projector();
@@ -376,8 +378,9 @@ test("a song assigned to a deck plays under it, and NEGRO pauses the song and th
   await expect.poll(() => projectedSlide(projector), { timeout: 6_000 }).toBe(expected + 1);
 
   // And it stays assigned: «Quitar» on the strip takes it back off.
-  await preview.getByRole("button", { name: "Quitar", exact: true }).first().click();
-  await expect(preview.getByText("Sin audio")).toBeVisible();
+  await preview.getByRole("button", { name: "Opciones del audio" }).click();
+  await app.control.getByRole("menuitem", { name: "Quitar" }).click();
+  await expect(preview.getByRole("button", { name: "Asignar audio" })).toBeVisible();
 });
 
 test("a deck that cannot be converted says so and can be retried", async ({ app }) => {

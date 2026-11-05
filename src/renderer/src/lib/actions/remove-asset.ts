@@ -66,7 +66,6 @@ function offerForcedRemoval(id: number): void {
       label: t("library.removeAnyway"),
       onClick: () => useUiStore.getState().setRemoveAssetConfirmId(id),
     },
-    durationMs: 6000,
   });
 }
 

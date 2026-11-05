@@ -9,16 +9,19 @@ type MonitorProps = {
    *  not as a caller-side EmptyState) because the stage is always black in
    *  both themes, so its text has to be light in both. */
   empty?: string;
+  /** The LIVE monitor while content IS on the projector (not BLACK, LOGO or
+   *  no screen): a red edge, broadcast tally's «on air» (owner, 2026-11-05). */
+  onAir?: boolean;
 };
 
 /**
  * The EasyWorship-style monitor: a bare 16:9 stage with one neutral border —
- * the same on both panes, never a status colour — the
+ * the same on both panes; the only status colour is `onAir`'s red — the
  * ONE primitive for both the live and the preview pane, which is exactly what
  * keeps the two panes visually identical by construction. Which one is which
  * (label, on-air state) lives in each column's own header, not here.
  */
-export function Monitor({ children, className, empty }: MonitorProps) {
+export function Monitor({ children, className, empty, onAir = false }: MonitorProps) {
   return (
     // `shrink-0`: both columns are flex columns, and `overflow-hidden` drops a
     // flex item's automatic minimum height to 0 — a column with more rows
@@ -37,7 +40,17 @@ export function Monitor({ children, className, empty }: MonitorProps) {
           ratio on the inner one, so the picture inside stays exactly 16:9 —
           a border on the `aspect-video` box itself would eat 2px out of a
           ratio the projector doesn't share. */}
-      <div className="w-full overflow-hidden rounded-md border border-border bg-black">
+      {/* On air, a 2 px red ring drawn OVER the picture (an `::after` above it)
+          plus the border itself: an outline under the picture showed only its
+          border pixel, 1 px of red (2026-11-05 review), and a thicker border
+          would shrink the 16:9 box. */}
+      <div
+        className={cn(
+          "relative w-full overflow-hidden rounded-md border border-border bg-black",
+          onAir &&
+            "border-on-air after:pointer-events-none after:absolute after:inset-0 after:z-10 after:rounded-md after:ring-2 after:ring-on-air after:ring-inset",
+        )}
+      >
         <div className="flex aspect-video w-full items-center justify-center">
           {children ?? (
             <span className="px-4 text-center text-xs text-white/60">{empty}</span>

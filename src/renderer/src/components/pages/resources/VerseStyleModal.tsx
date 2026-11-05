@@ -8,8 +8,8 @@ import {
   InspectorSection,
   Select,
   Slider,
+  Segmented,
   Switch,
-  Tooltip,
 } from "@renderer/components/ui";
 import { ConfirmModal } from "@renderer/components/shared/modal";
 import { EditorScreen, EditorStage } from "@renderer/components/shared/editor-screen";
@@ -186,15 +186,10 @@ export function VerseStyleModal({ onOpenChange, open }: { onOpenChange: (open: b
               />
             </InspectorSection>
 
-            <InspectorSection title={t("style.groups.typography")}>
-              <FontFamilyFields onChange={(fontFamily) => patch({ fontFamily })} value={style.fontFamily} />
-            </InspectorSection>
-
             <InspectorSection title={t("settings.verse.groups.layout")}>
               <VerticalAlignField onChange={(verticalAlign) => patch({ verticalAlign })} value={style.verticalAlign} />
               <FieldRow label={t("settings.verse.textAlign")}>
                 <Select
-                  className="w-52"
                   onChange={(align) => patch({ textAlign: align as TextAlign })}
                   options={TEXT_ALIGNS.map((align) => ({ label: t(ALIGN_LABEL[align]), value: align }))}
                   value={style.textAlign}
@@ -227,7 +222,10 @@ export function VerseStyleModal({ onOpenChange, open }: { onOpenChange: (open: b
               </FieldRow>
             </InspectorSection>
 
+            {/* The font with the text it dresses: a section of its own held
+                that one row (2026-11-05 review). */}
             <InspectorSection title={t("settings.verse.groups.verse")}>
+              <FontFamilyFields onChange={(fontFamily) => patch({ fontFamily })} value={style.fontFamily} />
               <TextStyleFields
                 onChange={(text) => patch({ text })}
                 sizeRange={VERSE_SIZE_RANGE}
@@ -261,7 +259,6 @@ export function VerseStyleModal({ onOpenChange, open }: { onOpenChange: (open: b
                   // against that number, and two controls describing the same
                   // quantity at different resolutions is how the operator ends up
                   // with a floor they cannot actually reach.
-                  readoutChars={5}
                   step={0.1}
                   value={Math.min(style.autoFit.minSizeCqw, style.text.sizeCqw)}
                 />
@@ -279,7 +276,6 @@ export function VerseStyleModal({ onOpenChange, open }: { onOpenChange: (open: b
                 <>
                   <FieldRow label={t("settings.verse.referencePosition")}>
                     <Select
-                      className="w-52"
                       onChange={(position) => patch({ referencePosition: position as ReferencePosition })}
                       options={REFERENCE_POSITIONS.map((position) => ({
                         label: t(POSITION_LABEL[position]),
@@ -290,7 +286,6 @@ export function VerseStyleModal({ onOpenChange, open }: { onOpenChange: (open: b
                   </FieldRow>
                   <FieldRow label={t("settings.verse.referenceCase")}>
                     <Select
-                      className="w-52"
                       onChange={(next) => patch({ referenceCase: next as TextCase })}
                       options={TEXT_CASES.map((next) => ({ label: t(CASE_LABEL[next]), value: next }))}
                       value={style.referenceCase}
@@ -301,7 +296,6 @@ export function VerseStyleModal({ onOpenChange, open }: { onOpenChange: (open: b
                     label={t("settings.verse.versionDisplay")}
                   >
                     <Select
-                      className="w-52"
                       onChange={(next) => patch({ versionDisplay: next as VersionDisplay })}
                       options={VERSION_DISPLAYS.map((next) => ({
                         label: t(VERSION_DISPLAY_LABEL[next]),
@@ -340,15 +334,16 @@ export function VerseStyleModal({ onOpenChange, open }: { onOpenChange: (open: b
       >
         <EditorStage
           below={
-            <>
-              <label className="flex items-center gap-2">
-                {t("settings.verse.preview")}
-                <Switch checked={longPreview} onChange={(e) => setLongPreview(e.target.checked)} />
-              </label>
-              <Tooltip content={t("settings.verse.previewHint")} floating>
-                <Icon className="text-subtle" name="help" />
-              </Tooltip>
-            </>
+            // A long verse is how the automatic fit is checked.
+            <Segmented
+              label={t("settings.verse.sample")}
+              onChange={(sample) => setLongPreview(sample === "long")}
+              options={[
+                { label: t("settings.verse.sampleShortLabel"), value: "short" },
+                { label: t("settings.verse.sampleLongLabel"), value: "long" },
+              ]}
+              value={longPreview ? "long" : "short"}
+            />
           }
         >
           <VersePreview long={longPreview} style={style} />

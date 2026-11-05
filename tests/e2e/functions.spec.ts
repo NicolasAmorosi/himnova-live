@@ -28,14 +28,14 @@ test("a plate made in the editor goes up over what is live", async ({ app }) => 
   await expect(projector.locator(`img[src="worship://asset/${photo?.id}"]`)).toBeVisible();
 
   // «Placas» on an empty Overlays panel opens the editor straight on a new plate.
-  await app.openResources("Funciones", "Overlays");
-  await control.getByRole("tabpanel", { name: "Overlays" }).getByRole("button", { name: "Placas", exact: true }).click();
+  await app.openResources("Funciones", "Placas");
+  await control.getByRole("tabpanel", { name: "Placas" }).getByRole("button", { name: "Editar placas", exact: true }).click();
   const editor = control.getByRole("dialog", { name: "Placas" });
   await editor.getByRole("group", { name: "Título", exact: true }).getByRole("textbox").fill("Pr. Juan Pérez");
   await editor.getByRole("button", { name: "Guardar", exact: true }).click();
   await editor.getByRole("button", { name: "Cerrar" }).click();
 
-  await control.getByRole("tabpanel", { name: "Overlays" }).getByRole("listitem").filter({ hasText: "Placa nueva" }).click();
+  await control.getByRole("tabpanel", { name: "Placas" }).getByRole("listitem").filter({ hasText: "Placa nueva" }).click();
   await app.goLive();
   await expect(projector.getByText("Pr. Juan Pérez")).toBeVisible();
   // Over the image, not instead of it.
@@ -54,12 +54,12 @@ async function sceneLive(app: WorshipApp, name: string) {
 test("a countdown made in the editor runs out on the projector and shows its end message", async ({ app }) => {
   const { control } = app;
   await app.openResources("Funciones", "Utilidades");
-  await control.getByRole("button", { name: "Escenas", exact: true }).click();
+  await control.getByRole("button", { name: "Editar escenas", exact: true }).click();
   const editor = control.getByRole("dialog", { name: "Escenas de tiempo" });
   await editor.getByRole("button", { name: "Nueva escena" }).first().click();
   await editor.getByRole("textbox", { name: "Nombre", exact: true }).fill("Cuenta corta");
   await editor.getByRole("group", { name: "Duración", exact: true }).getByRole("textbox").fill("0:04");
-  await editor.getByRole("group", { name: "Mensaje al terminar", exact: true }).getByRole("textbox").fill("¡Empezamos!");
+  await editor.getByRole("group", { name: "Mensaje final", exact: true }).getByRole("textbox").fill("¡Empezamos!");
   await editor.getByRole("button", { name: "Guardar", exact: true }).click();
   await expect(control.getByRole("status").filter({ hasText: "Se guardó «Cuenta corta»" })).toBeVisible();
   await editor.getByRole("button", { name: "Cerrar" }).first().click();
@@ -122,14 +122,14 @@ async function plateUp(app: WorshipApp, configure?: (editor: Locator) => Promise
   const projector = await app.projector();
   await expect(projector.locator(`img[src="worship://asset/${photo?.id}"]`)).toBeVisible();
 
-  await app.openResources("Funciones", "Overlays");
-  await control.getByRole("tabpanel", { name: "Overlays" }).getByRole("button", { name: "Placas", exact: true }).click();
+  await app.openResources("Funciones", "Placas");
+  await control.getByRole("tabpanel", { name: "Placas" }).getByRole("button", { name: "Editar placas", exact: true }).click();
   const editor = control.getByRole("dialog", { name: "Placas" });
   await editor.getByRole("group", { name: "Título", exact: true }).getByRole("textbox").fill("Pr. Juan Pérez");
   await configure?.(editor);
   await editor.getByRole("button", { name: "Guardar", exact: true }).click();
   await editor.getByRole("button", { name: "Cerrar" }).click();
-  await control.getByRole("tabpanel", { name: "Overlays" }).getByRole("listitem").filter({ hasText: "Placa nueva" }).click();
+  await control.getByRole("tabpanel", { name: "Placas" }).getByRole("listitem").filter({ hasText: "Placa nueva" }).click();
   await app.goLive();
   await expect(projector.getByText("Pr. Juan Pérez")).toBeVisible();
   return { projector, photo };
@@ -154,6 +154,8 @@ test("NEGRO covers a plate too, and uncovering brings it back", async ({ app }) 
 
 test("a plate set to hide by itself goes down after its time", async ({ app }) => {
   const { projector } = await plateUp(app, async (editor) => {
+    // A rarely used section, folded until opened (2026-11-05).
+    await editor.locator("summary").filter({ hasText: "Ocultar sola" }).click();
     await editor.getByRole("group", { name: "Ocultar después de un tiempo" }).getByRole("switch").click();
     await editor.getByRole("slider", { name: "Tiempo en pantalla" }).fill("2");
   });
@@ -163,7 +165,7 @@ test("a plate set to hide by itself goes down after its time", async ({ app }) =
 test("deleting a plate that is up takes it off the projector first", async ({ app }) => {
   const { projector } = await plateUp(app);
   const { control } = app;
-  await control.getByRole("tabpanel", { name: "Overlays" }).getByRole("button", { name: "Placas", exact: true }).click();
+  await control.getByRole("tabpanel", { name: "Placas" }).getByRole("button", { name: "Editar placas", exact: true }).click();
   const editor = control.getByRole("dialog", { name: "Placas" });
   await editor.getByRole("list", { name: "Placas guardadas" }).getByRole("listitem").filter({ hasText: "Placa nueva" }).click();
   await editor.getByRole("button", { name: "Más acciones" }).click();

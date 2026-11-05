@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useT } from "@renderer/lib/i18n/i18n-provider";
-import { Box, FieldGroup, FieldRow, Input } from "@renderer/components/ui";
+import { Box, FieldRow, Input } from "@renderer/components/ui";
 import { OutputView } from "@renderer/components/shared/output-view";
 import { BackgroundFields } from "@renderer/components/shared/style-fields";
 import { selectOutput, useProjectionStore } from "@renderer/stores/projection.store";
@@ -13,10 +13,12 @@ import type { SceneBackground } from "@shared/types/scene-style";
 
 /**
  * LOGO without a logo image (owner, 2026-11-05): the church's name over a
- * background, with a preview drawn by the projector's own `OutputView`.
- * Saved as it changes, like everything in Settings; the name on blur or Enter.
+ * background — rows of the «Logo» group — and the preview of what LOGO shows,
+ * drawn by the projector's own `OutputView` (the image, when `logoUrl` has
+ * one). Saved as it changes, like everything in Settings; the name on blur or
+ * Enter.
  */
-export function LogoSceneFields() {
+export function LogoSceneFields({ logoUrl }: { logoUrl: string | null }) {
   const t = useT();
   const name = useSettingsStore((s) => s.settings["logo.name"]);
   const background = useSettingsStore((s) => s.settings["logo.background"]);
@@ -66,23 +68,23 @@ export function LogoSceneFields() {
     ...useProjectionStore.getState(),
     base: null,
     overlay: "logo",
-    logoUrl: null,
+    logoUrl,
     logoScene: { name, background: pendingImage ?? background },
   });
   const output: ProjectionOutput = { ...logo, transition: INSTANT_TRANSITION };
 
   return (
-    <FieldGroup title={t("settings.groups.logoScene")}>
+    <>
       <FieldRow description={t("settings.logoNameDesc")} label={t("settings.logoName")}>
         <Input
           aria-label={t("settings.logoName")}
-          className="w-64"
           maxLength={LOGO_NAME_MAX_LENGTH}
           onBlur={commitName}
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === "Enter") commitName();
           }}
+          placeholder={t("settings.logoNamePlaceholder")}
           size="sm"
           value={draft}
         />
@@ -98,11 +100,12 @@ export function LogoSceneFields() {
         }}
         value={pendingImage ?? background}
       />
-      <div className="py-3">
-        <Box className="aspect-video w-full max-w-sm overflow-hidden">
+      {/* A row like the others, the picture where a field would be. */}
+      <FieldRow label={t("settings.logoPreview")}>
+        <Box className="aspect-video w-64 overflow-hidden">
           <OutputView mode="preview" output={output} />
         </Box>
-      </div>
-    </FieldGroup>
+      </FieldRow>
+    </>
   );
 }

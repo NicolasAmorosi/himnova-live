@@ -175,8 +175,8 @@ export class WorshipApp {
 
   /** A resource tab, and one of its inner tabs. */
   async openResources(
-    tab: "Biblia" | "Canciones" | "Media" | "Funciones",
-    inner?: "Videos" | "Imágenes" | "Audios" | "Presentaciones" | "Utilidades" | "Overlays",
+    tab: "Biblia" | "Canciones" | "Medios" | "Funciones",
+    inner?: "Videos" | "Imágenes" | "Audios" | "Presentaciones" | "Utilidades" | "Placas",
   ): Promise<void> {
     await this.control.getByRole("tab", { name: this.tr(tab) }).click();
     if (inner) await this.control.getByRole("tab", { name: this.tr(inner) }).click();
@@ -195,7 +195,7 @@ export class WorshipApp {
 
   /** Clicks a library tile: PREVIEW only. */
   async previewFile(inner: "Videos" | "Imágenes" | "Audios" | "Presentaciones", name: string): Promise<void> {
-    await this.openResources("Media", inner);
+    await this.openResources("Medios", inner);
     await this.control.getByRole("tabpanel", { name: inner }).getByRole("button", { name }).first().click();
   }
 

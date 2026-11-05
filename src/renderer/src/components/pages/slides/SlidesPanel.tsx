@@ -138,7 +138,7 @@ export function SlidesPanel() {
   // clears the preview back to empty (`clearPreview`), so an operator can back
   // out of a wrong pick without touching the schedule/library selection by
   // hand. Video/audio keep their own richer bar (scrubber, preview playback),
-  // a deck its soundtrack strip; everything else is a plain `MediaTrackRow`
+  // a deck EN VIVO's own transport with its music; everything else is a plain `MediaTrackRow`
   // with nothing but the close button.
   // Rendered as a sibling of the monitor, never inside `PanelBody`, so it lands
   // on the same pixel as the first row under LIVE instead of picking up an
@@ -146,7 +146,7 @@ export function SlidesPanel() {
   const mediaBar = (() => {
     if (!content) return null;
     if (content.kind === "deck") {
-      return <DeckPreviewBar assetId={content.assetId} missingSince={content.missingSince} />;
+      return <DeckPreviewBar assetId={content.assetId} missingSince={content.missingSince} title={content.title} />;
     }
     if (content.kind === "media") {
       if (content.asset.kind === "image") {

@@ -15,10 +15,9 @@ const manager = (app: WorshipApp) => app.control.getByRole("dialog", { name: "Pr
 const programRow = (app: WorshipApp, name: string) =>
   manager(app).getByRole("listitem").filter({ has: app.control.getByText(name, { exact: true }) });
 
-/** «Vaciar» lives in the schedule's «⋯» menu. */
+/** «Vaciar» is the trash icon at the foot of the schedule's tool strip (2026-11-05). */
 async function clearSchedule(app: WorshipApp) {
-  await scheduleSection(app).getByRole("button", { name: "Más acciones" }).click();
-  await app.control.getByRole("menuitem", { name: "Vaciar" }).click();
+  await scheduleSection(app).getByRole("button", { name: "Vaciar", exact: true }).click();
 }
 
 async function addAll(app: WorshipApp, ...names: string[]) {
@@ -52,7 +51,7 @@ test("a row goes with «Quitar» or the Delete key, and «Vaciar» asks before t
   await app.control.keyboard.press("Delete");
   await expect(rows(app)).toHaveText([/clip/]);
   // The library still has it: removing a row is not removing the file.
-  await app.openResources("Media", "Audios");
+  await app.openResources("Medios", "Audios");
   await expect(app.control.getByRole("tabpanel", { name: "Audios" }).getByRole("button", { name: "song" })).toBeVisible();
 
   // Unsaved: «Vaciar» asks first, the same way «Nuevo programa» does.
@@ -177,7 +176,7 @@ test("«Nuevo programa» over unsaved changes warns, and only starts over when t
 test("a library tile dragged onto the schedule lands where it is dropped", async ({ app }) => {
   await addAll(app, "clip.mp4", "song.mp3");
   await app.addMedia("image", "photo.png");
-  await app.openResources("Media", "Imágenes");
+  await app.openResources("Medios", "Imágenes");
   await app.control.getByRole("tabpanel", { name: "Imágenes" }).getByRole("button", { name: "photo" }).dragTo(rows(app).filter({ hasText: "song" }));
   await expect(rows(app)).toHaveText([/clip/, /photo/, /song/]);
 });

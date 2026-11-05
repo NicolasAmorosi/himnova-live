@@ -1,5 +1,5 @@
 import type { BrowserWindow, WebContents } from "electron";
-import { engineAssetIdOfUrl, engineClipOfUrl, liveEngineFrameKey, previewEngineFrameKey } from "@shared/urls";
+import { engineAssetIdOfUrl, engineClipOfUrl, linkedAudioAssetIdOfUrl, liveEngineFrameKey, previewEngineFrameKey } from "@shared/urls";
 import type { MediaCommand, MediaTarget, PreviewEngineVideo } from "@shared/types/projection";
 import { getMediaRepo, getSlidesRepo } from "../services/repos";
 import { broadcast, controlWindows } from "../services/broadcast";
@@ -61,6 +61,8 @@ function start(
 ): void {
   const assetId = engineAssetIdOfUrl(session.url);
   const clip = engineClipOfUrl(session.url);
+  // A deck's linked music, which only PREVIEW opens here (the projector plays it as an `<audio>`).
+  const linked = linkedAudioAssetIdOfUrl(session.url);
   const file =
     assetId !== null
       ? getMediaRepo().getPathById(assetId)
@@ -68,7 +70,9 @@ function start(
         ? getSlidesRepo().getAudioPath(clip.id)
         : clip?.kind === "video"
           ? getSlidesRepo().getVideoPath(clip.id)
-          : null;
+          : linked !== null
+            ? getMediaRepo().linkedAudioPathById(linked)
+            : null;
   if (!file) {
     events.error?.({ code: "engine-open", detail: `no file for ${session.url}` });
     return;
@@ -200,14 +204,14 @@ export function setPreviewVideo(video: PreviewEngineVideo | null, contents: WebC
   }
   if (!video) return;
   if (preview) {
-    if (video.paused !== preview.paused) preview.engine?.setPaused(video.paused);
-    preview.paused = video.paused;
+    apply(preview, { paused: video.paused, volume: video.volume });
     return;
   }
-  // Muted, and with its audio not even decoded: only the projector is ever audible.
-  const session: Session = { engine: null, url: video.url, epoch: 0, paused: video.paused, volume: 0, loop: false };
+  // Audio decoded at PREVIEW's own volume, 0 to start (owner, 2026-11-05: «todo
+  // como en vivo pero con el volumen a 0; si le suben el volumen se escucha»).
+  const session: Session = { engine: null, url: video.url, epoch: 0, paused: video.paused, volume: video.volume, loop: false };
   preview = session;
-  start(session, { startAtSeconds: video.startAtSeconds, audio: false }, previewEngineFrameKey(video.url), {
+  start(session, { startAtSeconds: video.startAtSeconds, audio: true }, video.picture ? previewEngineFrameKey(video.url) : "", {
     status: (status) =>
       broadcast("preview-video-status", {
         url: session.url,
@@ -222,7 +226,7 @@ export function setPreviewVideo(video: PreviewEngineVideo | null, contents: WebC
       broadcast("preview-video-error", { url: session.url });
     },
   });
-  session.engine?.show(contents);
+  if (video.picture) session.engine?.show(contents);
 }
 
 export function seekPreviewVideo(seconds: number): void {

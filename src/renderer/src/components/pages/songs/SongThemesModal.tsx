@@ -16,6 +16,7 @@ import {
   Inspector,
   InspectorSection,
   ListRow,
+  Segmented,
   Select,
   Slider,
   Switch,
@@ -25,7 +26,7 @@ import { api } from "@renderer/lib/api";
 import { toast } from "@renderer/lib/toast";
 import { transitionDurationOptions } from "@renderer/lib/transition";
 import { useSongFit } from "@renderer/lib/song-fit";
-import { slideLines, slideTranslation, songOutputFor } from "@renderer/lib/song-output";
+import { footerAt, slideLines, slideTranslation, songOutputFor } from "@renderer/lib/song-output";
 import { deleteSongTheme, saveSongTheme } from "@renderer/lib/actions/songs";
 import { findSong, resolveSong, useSongStore } from "@renderer/stores/song.store";
 import { usePreviewStore } from "@renderer/stores/preview.store";
@@ -104,10 +105,17 @@ const SAMPLE: Song = {
   ccliNumber: "22025",
   notes: null,
   // With John Newton's own words as its translation, so the theme's
-  // «Traducción» knobs show what they do.
+  // «Traducción» knobs show what they do; two stanzas, so «Primera» and
+  // «Última» are two slides and the footer's rule shows.
   sections: withTranslation(
-    parseLyrics("[Estrofa 1]\nSublime gracia del Señor\nque a un pecador salvó\nfui ciego mas hoy veo yo\nperdido y él me halló", "es").sections,
-    parseLyrics("[Estrofa 1]\nAmazing grace, how sweet the sound\nthat saved a wretch like me\nI once was lost, but now am found\nwas blind, but now I see", "es").sections,
+    parseLyrics(
+      "[Estrofa 1]\nSublime gracia del Señor\nque a un pecador salvó\nfui ciego mas hoy veo yo\nperdido y él me halló\n\n[Estrofa 2]\nEn los peligros o aflicción\nque yo he tenido aquí,\nsu gracia siempre me libró\ny me guiará feliz.",
+      "es",
+    ).sections,
+    parseLyrics(
+      "[Estrofa 1]\nAmazing grace, how sweet the sound\nthat saved a wretch like me\nI once was lost, but now am found\nwas blind, but now I see\n\n[Estrofa 2]\n'Twas grace that taught my heart to fear,\nand grace my fears relieved;\nhow precious did that grace appear\nthe hour I first believed.",
+      "es",
+    ).sections,
   ),
   order: [],
   themeId: null,
@@ -136,6 +144,9 @@ export function SongThemesModal({ onOpenChange, open }: { onOpenChange: (open: b
   const [addingImages, setAddingImages] = useState(false);
   const [videoAssets, setVideoAssets] = useState<readonly MediaAsset[]>([]);
   const [addingVideos, setAddingVideos] = useState(false);
+  /** Which slide the canvas draws (owner, 2026-11-05): the footer's «first /
+   *  last» rule and the translation only show on the slide they apply to. */
+  const [sample, setSample] = useState<"first" | "last" | "translation">("first");
   /** An image or video background with nothing chosen yet: shown, not saved. */
   const [pendingBackground, setPendingBackground] = useState<SongBackground | null>(null);
 
@@ -164,20 +175,33 @@ export function SongThemesModal({ onOpenChange, open }: { onOpenChange: (open: b
   const savable = editing !== null && isSongThemeUpsert(editing.draft);
   const canSave = savable && (editing.themeId === null || dirty);
 
-  const sung = (target?.kind === "song" ? findSong(songs, target.songId) : null) ?? SAMPLE;
+  const previewed = (target?.kind === "song" ? findSong(songs, target.songId) : null) ?? SAMPLE;
   const style = editing?.draft.style ?? DEFAULT_SONG_THEME;
-  const preview = useMemo(() => resolveSong(sung, style, license), [sung, style, license]);
+  const preview = useMemo(() => {
+    const resolved = resolveSong(previewed, style, license);
+    // «Con traducción» over a song without one sings the sample, which has one.
+    return sample === "translation" && !resolved.slides.some((slide) => slide.translation)
+      ? resolveSong(SAMPLE, style, license)
+      : resolved;
+  }, [previewed, style, license, sample]);
   const fit = useSongFit(preview, style);
+  // «Con traducción» on the first slide that HAS one: a song's translation may start later.
+  const position =
+    sample === "last"
+      ? preview.slides.length
+      : sample === "translation"
+        ? Math.max(1, preview.slides.findIndex((slide) => slide.translation) + 1)
+        : 1;
   const output: ProjectionOutput | null = fit
     ? {
         ...songOutputFor(
           preview,
-          slideLines(preview, 1),
+          slideLines(preview, position),
           style,
           fit.sizeCqw,
-          style.footer.show === "never" ? null : preview.footer,
+          footerAt(preview, style, { slideIndex: position, detour: null }),
           null,
-          slideTranslation(preview, 1),
+          sample === "translation" ? slideTranslation(preview, position) : null,
         ),
         videoUnderlay: null,
         slideVideo: null,
@@ -307,7 +331,6 @@ export function SongThemesModal({ onOpenChange, open }: { onOpenChange: (open: b
                 max={style.text.sizeCqw}
                 min={LYRICS_SIZE_RANGE.min}
                 onChange={(minSizeCqw) => patchStyle({ minSizeCqw: Number(minSizeCqw.toFixed(1)) })}
-                readoutChars={5}
                 step={0.1}
                 value={Math.min(style.minSizeCqw, style.text.sizeCqw)}
               />
@@ -322,7 +345,6 @@ export function SongThemesModal({ onOpenChange, open }: { onOpenChange: (open: b
                 max={SONG_LETTER_SPACING_MAX_EM}
                 min={SONG_LETTER_SPACING_MIN_EM}
                 onChange={(letterSpacingEm) => patchStyle({ letterSpacingEm: Number(letterSpacingEm.toFixed(2)) })}
-                readoutChars={5}
                 step={0.01}
                 value={style.letterSpacingEm}
               />
@@ -349,7 +371,6 @@ export function SongThemesModal({ onOpenChange, open }: { onOpenChange: (open: b
                     max={SONG_OUTLINE_MAX_CQW}
                     min={0.02}
                     onChange={(widthCqw) => patchStyle({ outline: { ...style.outline, widthCqw: Number(widthCqw.toFixed(2)) } })}
-                    readoutChars={5}
                     step={0.02}
                     value={style.outline.widthCqw}
                   />
@@ -362,7 +383,6 @@ export function SongThemesModal({ onOpenChange, open }: { onOpenChange: (open: b
             <VerticalAlignField onChange={(verticalAlign) => patchStyle({ verticalAlign })} value={style.verticalAlign} />
             <FieldRow label={t("settings.verse.textAlign")}>
               <Select
-                className="w-52"
                 onChange={(align) => patchStyle({ textAlign: align as TextAlign })}
                 options={TEXT_ALIGNS.map((align) => ({ label: t(ALIGN_LABEL[align]), value: align }))}
                 value={style.textAlign}
@@ -389,7 +409,6 @@ export function SongThemesModal({ onOpenChange, open }: { onOpenChange: (open: b
                   onChange={(value) =>
                     patchStyle({ margins: { ...style.margins, [side]: Number(value.toFixed(1)) } })
                   }
-                  readoutChars={5}
                   step={0.5}
                   value={style.margins[side]}
                 />
@@ -402,17 +421,19 @@ export function SongThemesModal({ onOpenChange, open }: { onOpenChange: (open: b
                 max={SONG_MAX_LINES_MAX}
                 min={0}
                 onChange={(maxLines) => patchStyle({ maxLines: Math.round(maxLines) })}
-                readoutChars={9}
                 step={1}
                 value={style.maxLines}
               />
             </FieldRow>
           </InspectorSection>
 
-          <InspectorSection title={t("songThemes.groups.footer")}>
+          <InspectorSection
+            // The canvas to a slide that carries the footer by this theme's own rule.
+            onFocus={() => setSample(style.footer.show === "first" ? "first" : "last")}
+            title={t("songThemes.groups.footer")}
+          >
             <FieldRow description={t("songThemes.footerShowHint")} label={t("songThemes.footerShowLabel")}>
               <Select
-                className="w-52"
                 onChange={(show) => patchFooter({ show: show as SongFooterShow })}
                 options={SONG_FOOTER_SHOWS.map((show) => ({ label: t(FOOTER_SHOW_LABEL[show]), value: show }))}
                 value={style.footer.show}
@@ -432,7 +453,6 @@ export function SongThemesModal({ onOpenChange, open }: { onOpenChange: (open: b
                 ))}
                 <FieldRow label={t("settings.verse.textAlign")}>
                   <Select
-                    className="w-52"
                     onChange={(align) => patchFooter({ align: align as SongFooterAlign })}
                     options={SONG_FOOTER_ALIGNS.map((align) => ({ label: t(ALIGN_LABEL[align]), value: align }))}
                     value={style.footer.align}
@@ -448,7 +468,7 @@ export function SongThemesModal({ onOpenChange, open }: { onOpenChange: (open: b
             )}
           </InspectorSection>
 
-          <InspectorSection title={t("songThemes.groups.translation")}>
+          <InspectorSection defaultOpen={false} onFocus={() => setSample("translation")} title={t("songThemes.groups.translation")}>
             <FieldRow description={t("songThemes.translationScaleHint")} label={t("songThemes.translationScale")}>
               <Slider
                 format={(value) => `${Math.round(value * 100)}%`}
@@ -456,7 +476,6 @@ export function SongThemesModal({ onOpenChange, open }: { onOpenChange: (open: b
                 max={SONG_TRANSLATION_SCALE_MAX}
                 min={SONG_TRANSLATION_SCALE_MIN}
                 onChange={(scale) => patchStyle({ translation: { ...style.translation, scale: Number(scale.toFixed(2)) } })}
-                readoutChars={4}
                 step={0.05}
                 value={style.translation.scale}
               />
@@ -476,10 +495,9 @@ export function SongThemesModal({ onOpenChange, open }: { onOpenChange: (open: b
             </FieldRow>
           </InspectorSection>
 
-          <InspectorSection title={t("songThemes.groups.transition")}>
+          <InspectorSection defaultOpen={false} title={t("songThemes.groups.transition")}>
             <FieldRow description={t("songThemes.transitionHint")} label={t("songThemes.transition")}>
               <Select
-                className="w-52"
                 onChange={(value) =>
                   patchStyle({ slideTransition: { ...style.slideTransition, style: value as "cut" | "fade" } })
                 }
@@ -493,11 +511,10 @@ export function SongThemesModal({ onOpenChange, open }: { onOpenChange: (open: b
             {style.slideTransition.style === "fade" ? (
               <FieldRow label={t("songThemes.duration")}>
                 <Select
-                  className="w-52"
                   onChange={(value) =>
                     patchStyle({ slideTransition: { ...style.slideTransition, durationMs: Number(value) } })
                   }
-                  options={transitionDurationOptions(t)}
+                  options={transitionDurationOptions(t, style.slideTransition.durationMs)}
                   value={String(style.slideTransition.durationMs)}
                 />
               </FieldRow>
@@ -563,7 +580,21 @@ export function SongThemesModal({ onOpenChange, open }: { onOpenChange: (open: b
         title={t("songThemes.title")}
       >
         {editing ? (
-          <EditorStage warning={savable ? undefined : t("songThemes.invalidHint")}>
+          <EditorStage
+            below={
+              <Segmented
+                label={t("songThemes.sample")}
+                onChange={setSample}
+                options={[
+                  { label: t("songThemes.sampleFirst"), value: "first" },
+                  { label: t("songThemes.sampleLast"), value: "last" },
+                  { label: t("songThemes.sampleTranslation"), value: "translation" },
+                ]}
+                value={sample}
+              />
+            }
+            warning={savable ? undefined : t("songThemes.invalidHint")}
+          >
             {output ? <OutputView mode="preview" output={output} /> : null}
           </EditorStage>
         ) : null}

@@ -1,10 +1,11 @@
 import { useT } from "@renderer/lib/i18n/i18n-provider";
-import { Button, FieldRow, Icon, Input, InspectorSection, Select, Slider, Switch } from "@renderer/components/ui";
+import { FieldRow, Input, InspectorSection, Select, Slider, Switch } from "@renderer/components/ui";
 import { BackgroundFields, FontFamilyFields, TextStyleFields, type TextSizeRange } from "@renderer/components/shared/style-fields";
 import { transitionDurationOptions } from "@renderer/lib/transition";
 import {
   PLATE_AUTO_HIDE_MAX_MS,
   PLATE_AUTO_HIDE_MIN_MS,
+  PLATE_CORNER_MAX_CQW,
   PLATE_IMAGE_MAX_CQW,
   PLATE_IMAGE_MIN_CQW,
   PLATE_MARGIN_MAX_CQW,
@@ -57,7 +58,6 @@ export function PlateForm({ addingImages, imageAssets, onAddImages, onChange, va
       <InspectorSection title={t("plates.groups.plate")}>
         <FieldRow description={t("plates.kindHint")} label={t("plates.kind")}>
           <Select
-            className="w-52"
             onChange={(kind) => onChange(withKind(value, kind as PlateKind))}
             options={PLATE_KINDS.map((kind) => ({ label: t(PLATE_KIND_LABEL[kind]), value: kind }))}
             value={value.kind}
@@ -68,7 +68,6 @@ export function PlateForm({ addingImages, imageAssets, onAddImages, onChange, va
       <InspectorSection title={t("plates.groups.texts")}>
         <FieldRow description={t("plates.titleHint")} label={t("plates.titleText")}>
           <Input
-            className="w-64"
             maxLength={PLATE_TEXT_MAX_LENGTH}
             onChange={(e) => patch({ title: e.target.value === "" ? null : e.target.value })}
             value={value.title ?? ""}
@@ -76,19 +75,20 @@ export function PlateForm({ addingImages, imageAssets, onAddImages, onChange, va
         </FieldRow>
         <FieldRow description={t("plates.subtitleHint")} label={t("plates.subtitleText")}>
           <Input
-            className="w-64"
             maxLength={PLATE_TEXT_MAX_LENGTH}
             onChange={(e) => patch({ subtitle: e.target.value === "" ? null : e.target.value })}
             value={value.subtitle ?? ""}
           />
         </FieldRow>
+        {/* With the lines it dresses: a section of its own held this one row. */}
+        <FontFamilyFields onChange={(fontFamily) => patchStyle({ fontFamily })} value={style.fontFamily} />
       </InspectorSection>
 
       {value.kind === "bug" ? (
         <InspectorSection title={t("plates.groups.image")}>
           <FieldRow description={t("style.imageHint")} label={t("plates.image")}>
             <Select
-              className="w-52"
+              action={{ disabled: addingImages, label: t("style.importImage"), onSelect: onAddImages }}
               onChange={(id) => patch({ imageAssetId: id === NO_IMAGE ? null : Number(id) })}
               options={[
                 { label: t("plates.imageNone"), value: NO_IMAGE },
@@ -96,13 +96,10 @@ export function PlateForm({ addingImages, imageAssets, onAddImages, onChange, va
               ]}
               value={value.imageAssetId === null ? NO_IMAGE : String(value.imageAssetId)}
             />
-            <Button disabled={addingImages} onClick={onAddImages} variant="outline">
-              <Icon name="add" />
-              {t("style.addImage")}
-            </Button>
           </FieldRow>
           <FieldRow description={t("plates.imageSizeHint")} label={t("plates.imageSize")}>
             <Slider
+              disabled={value.imageAssetId === null}
               label={t("plates.imageSize")}
               max={PLATE_IMAGE_MAX_CQW}
               min={PLATE_IMAGE_MIN_CQW}
@@ -113,12 +110,13 @@ export function PlateForm({ addingImages, imageAssets, onAddImages, onChange, va
           </FieldRow>
           <FieldRow label={t("plates.imageOpacity")}>
             <Slider
+              // Nothing to size or fade without a picture.
+              disabled={value.imageAssetId === null}
               format={percent}
               label={t("plates.imageOpacity")}
               max={1}
               min={0.05}
               onChange={(opacity) => patchStyle({ image: { ...style.image, opacity: Number(opacity.toFixed(2)) } })}
-              readoutChars={4}
               step={0.05}
               value={style.image.opacity}
             />
@@ -142,15 +140,20 @@ export function PlateForm({ addingImages, imageAssets, onAddImages, onChange, va
             max={1}
             min={0}
             onChange={(backgroundOpacity) => patchStyle({ backgroundOpacity: Number(backgroundOpacity.toFixed(2)) })}
-            readoutChars={4}
             step={0.05}
             value={style.backgroundOpacity}
           />
         </FieldRow>
-      </InspectorSection>
-
-      <InspectorSection title={t("style.groups.typography")}>
-        <FontFamilyFields onChange={(fontFamily) => patchStyle({ fontFamily })} value={style.fontFamily} />
+        <FieldRow description={t("plates.cornersHint")} label={t("plates.corners")}>
+          <Slider
+            label={t("plates.corners")}
+            max={PLATE_CORNER_MAX_CQW}
+            min={0}
+            onChange={(cornerRadiusCqw) => patchStyle({ cornerRadiusCqw: Number(cornerRadiusCqw.toFixed(1)) })}
+            step={0.1}
+            value={style.cornerRadiusCqw}
+          />
+        </FieldRow>
       </InspectorSection>
 
       <InspectorSection title={t("plates.groups.titleLine")}>
@@ -176,7 +179,6 @@ export function PlateForm({ addingImages, imageAssets, onAddImages, onChange, va
           label={t("plates.position")}
         >
           <Select
-            className="w-52"
             onChange={(position) => patch({ position: position as PlatePosition })}
             options={PLATE_KIND_POSITIONS[value.kind].map((position) => ({
               label: t(PLATE_POSITION_LABEL[position]),
@@ -219,10 +221,9 @@ export function PlateForm({ addingImages, imageAssets, onAddImages, onChange, va
         </InspectorSection>
       ) : null}
 
-      <InspectorSection title={t("plates.groups.animation")}>
+      <InspectorSection defaultOpen={false} title={t("plates.groups.animation")}>
         <FieldRow label={t("plates.animation")}>
           <Select
-            className="w-52"
             onChange={(next) =>
               patchStyle({ animation: { ...style.animation, style: next as PlateAnimationStyle } })
             }
@@ -235,16 +236,15 @@ export function PlateForm({ addingImages, imageAssets, onAddImages, onChange, va
         </FieldRow>
         <FieldRow description={t("plates.animationDurationHint")} label={t("plates.animationDuration")}>
           <Select
-            className="w-40"
             disabled={style.animation.style === "none"}
             onChange={(durationMs) => patchStyle({ animation: { ...style.animation, durationMs: Number(durationMs) } })}
-            options={transitionDurationOptions(t)}
+            options={transitionDurationOptions(t, style.animation.durationMs)}
             value={String(style.animation.durationMs)}
           />
         </FieldRow>
       </InspectorSection>
 
-      <InspectorSection title={t("plates.groups.autoHide")}>
+      <InspectorSection defaultOpen={false} title={t("plates.groups.autoHide")}>
         <FieldRow description={t("plates.autoHideEnabledHint")} label={t("plates.autoHideEnabled")}>
           <Switch
             checked={style.autoHide.enabled}
@@ -259,7 +259,6 @@ export function PlateForm({ addingImages, imageAssets, onAddImages, onChange, va
             max={PLATE_AUTO_HIDE_MAX_MS / 1000}
             min={PLATE_AUTO_HIDE_MIN_MS / 1000}
             onChange={(value) => patchStyle({ autoHide: { ...style.autoHide, afterMs: value * 1000 } })}
-            readoutChars={5}
             step={1}
             value={style.autoHide.afterMs / 1000}
           />

@@ -29,7 +29,7 @@ const tileNames = (app: WorshipApp, tab: "Videos" | "Imágenes" | "Audios" | "Pr
 const toast = (app: WorshipApp, text: string | RegExp) => app.control.getByRole("status").filter({ hasText: text });
 
 test("«Agregar» imports what the dialog returns, and a cancelled dialog adds nothing", async ({ app }) => {
-  await app.openResources("Media", "Videos");
+  await app.openResources("Medios", "Videos");
   await expect(panel(app, "Videos").getByText("No hay archivos")).toBeVisible();
 
   await app.answerOpenDialog();
@@ -49,7 +49,7 @@ test("«Agregar» imports what the dialog returns, and a cancelled dialog adds n
 test("a file is found by name, and the chosen order survives a restart", async ({ app }) => {
   const paths = ["alba.png", "coro.png", "zeta.png"].map((name) => copyFixture(app, "photo.png", name));
   await app.invoke<MediaAsset[]>("library:add", { kind: "image", paths });
-  await app.openResources("Media", "Imágenes");
+  await app.openResources("Medios", "Imágenes");
 
   await app.control.getByRole("button", { name: "Ordenar" }).click();
   await app.control.getByRole("menuitemradio", { name: "Nombre (A → Z)" }).click();
@@ -68,7 +68,7 @@ test("a file is found by name, and the chosen order survives a restart", async (
 
   await app.quit();
   const again = await relaunch(app);
-  await again.openResources("Media", "Imágenes");
+  await again.openResources("Medios", "Imágenes");
   // The order is durable; the search is not.
   await expect.poll(() => tileNames(again, "Imágenes")).toEqual(["zeta", "coro", "alba"]);
   await expect(panel(again, "Imágenes").getByRole("textbox", { name: "Buscar por nombre…" })).toHaveValue("");
@@ -129,7 +129,7 @@ test("a file moved away is shown missing and relocated without losing its row", 
   fs.renameSync(original, moved);
 
   const again = await relaunch(app);
-  await again.openResources("Media", "Videos");
+  await again.openResources("Medios", "Videos");
   await expect(panel(again, "Videos").getByRole("button", { name: "clip" })).toContainText("No encontrado");
   // The recovered order of service still has it, and PREVIEW says what is wrong.
   await again.control.getByRole("main").getByRole("list").first().getByRole("listitem").filter({ hasText: "clip" }).click();
@@ -166,10 +166,11 @@ test("a linked folder shows what is on disk, plays what Chromium cannot, and unl
   copyFixture(app, "clip-xvid.avi");
   copyFixture(app, "photo.png");
 
-  await app.openResources("Media", "Videos");
+  await app.openResources("Medios", "Videos");
   await app.answerOpenDialog(folder);
   await panel(app, "Videos").getByRole("button", { name: "Vincular carpeta" }).click();
-  await expect(panel(app, "Videos").getByRole("button", { name: folder })).toHaveAttribute("aria-pressed", "true");
+  // The source is a dropdown in the search row, there only once a folder is linked (2026-11-05).
+  await expect(panel(app, "Videos").getByRole("combobox", { name: "Origen" })).toHaveText(path.basename(folder));
   // Only the videos of the folder, in this tab.
   await expect.poll(() => tileNames(app, "Videos")).toEqual(expect.arrayContaining(["clip", "clip-xvid"]));
   expect(await tileNames(app, "Videos")).toHaveLength(2);
@@ -180,11 +181,9 @@ test("a linked folder shows what is on disk, plays what Chromium cannot, and unl
   const projector = await app.projector();
   await expect.poll(async () => (await engineStates(projector))[0]?.width ?? 0).toBe(640);
 
-  // Focus, not hover: on macOS the fullscreen projector is the key window and a
-  // synthetic hover over the control window does not always apply `:hover`.
-  await panel(app, "Videos").getByRole("button", { name: folder }).focus();
   await panel(app, "Videos").getByRole("button", { name: "Desvincular carpeta" }).click();
   await app.control.getByRole("dialog", { name: "¿Desvincular la carpeta?" }).getByRole("button", { name: "Desvincular carpeta" }).click();
-  await expect(panel(app, "Videos").getByRole("button", { name: folder })).toHaveCount(0);
+  // The last folder gone, the dropdown goes with it.
+  await expect(panel(app, "Videos").getByRole("combobox", { name: "Origen" })).toHaveCount(0);
   expect(fs.readdirSync(folder).sort()).toEqual(["clip-xvid.avi", "clip.mp4", "photo.png"]);
 });

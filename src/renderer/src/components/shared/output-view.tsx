@@ -126,10 +126,14 @@ type LiveVideoProps = {
   transition: LayerTransition;
   url: string;
   videoRef?: Ref<HTMLVideoElement> | undefined;
-  /** 0..1, and only ever honored in "live" mode — the monitors are muted by
+  /** 0..1, and only ever honored when `audible` — the monitors are muted by
    *  construction, and a confidence monitor that could make noise is a way to
    *  put two copies of the same soundtrack in the room. */
   volume: number;
+  /** The projector (`mode === "live"`) and PREVIEW's own monitor, at the
+   *  volume the operator set there (owner, 2026-11-05). Nothing else ever
+   *  sounds. */
+  audible: boolean;
   /** `VideoUnderlay.loop`: the element starts over and never ends. */
   loop: boolean;
 };
@@ -164,6 +168,7 @@ type LiveVideoProps = {
  * derive `paused` from the same declarative store field in the same render.
  */
 function LiveVideo({
+  audible,
   covered,
   epoch,
   held,
@@ -228,9 +233,9 @@ function LiveVideo({
     elementRef.current = element;
     if (element) lastElementRef.current = element;
     // Belt-and-suspenders alongside the `muted` attribute below: an explicit
-    // `volume = 0` on every non-"live" mode means a future mode that forgets
-    // to check `muted` still can't make this element audible.
-    if (element && mode !== "live") element.volume = 0;
+    // `volume = 0` on every view that is not `audible` means a future mode
+    // that forgets to check `muted` still can't make this element audible.
+    if (element && !audible) element.volume = 0;
     if (typeof videoRef === "function") videoRef(element);
     else if (videoRef) (videoRef as { current: HTMLVideoElement | null }).current = element;
   }
@@ -247,12 +252,12 @@ function LiveVideo({
 
   // Declarative, like `paused`: re-applied whenever the operator moves the
   // level AND on every remount, so a video that survives a rebuilt projection
-  // window comes back at the level it was playing at. Never in a monitor mode
+  // window comes back at the level it was playing at. Never in a muted view
   // — `attach` pins those to 0 and the element also carries `muted`.
   useEffect(() => {
     const element = elementRef.current;
-    if (element && mode === "live") element.volume = volume;
-  }, [mode, volume]);
+    if (element && audible) element.volume = volume;
+  }, [audible, volume]);
 
   // Resyncs the LIVE monitor's independently decoding video to the
   // projector's real position whenever a fresh `mediaStatus` report arrives
@@ -295,9 +300,10 @@ function LiveVideo({
       // fading in over a scene that holds at full opacity (`incomingCovers`),
       // a 4:3 video's bars would show that scene and then snap to black.
       className="absolute inset-0 size-full bg-black object-contain"
-      // Whitelist, not a check against "monitor": any future mode is muted
-      // by default and only the real projector ever gets sound.
-      muted={mode !== "live"}
+      // Whitelist, not a check against "monitor": any future view is muted
+      // by default; only the real projector and PREVIEW's own monitor (at the
+      // operator's volume, 0 to start) ever get sound.
+      muted={!audible || volume === 0}
       onError={(event) => onError(event.currentTarget.error?.code ?? null)}
       // "auto" wherever this element exists to be played right now: "metadata"
       // stops buffering after the first seek, so the decoder started cold in
@@ -892,23 +898,30 @@ function OutputNotice({ detail, label, tone }: OutputNoticeProps) {
 }
 
 type OutputViewProps = {
+  /** Only PREVIEW's own monitor: its full-screen video sounds at its
+   *  `videoUnderlay.volume` (owner, 2026-11-05: «todo como en vivo pero con el
+   *  volumen a 0»). Every other non-live view stays muted — an editor's canvas
+   *  drawn over the live stage must never play the room's video twice. */
+  audible?: boolean;
   className?: string;
   /** Translated one-line notice to paint over the stage when what's showing
    *  failed to load. Passed in rather than built here so this component stays
    *  free of i18n — it also renders inside the projection window, which has
    *  no provider. Omit it (the projector does) and no notice is ever shown. */
   errorLabel?: string;
-  /**
-   * "live" is the projection window itself: video autoplays and is wired to
-   * the media refs, with sound. "preview" is the operator's preview monitor:
-   * same pixels, muted, but a video CAN play there under the operator's own
-   * play button (see `preview-media-bar.tsx`) — never automatically. "monitor"
-   * is the LIVE confidence monitor — same pixels, muted, and autoplaying in
-   * lockstep with the projector (see `liveVideoStatus`).
-   */
   /** The projector's own video `mediaStatus` — only meaningful (and only ever
    *  passed) for `mode === "monitor"`; drives `LiveVideo`'s drift correction. */
   liveVideoStatus?: MediaStatus | null;
+  /**
+   * "live" is the projection window itself: video autoplays and is wired to
+   * the media refs, with sound. "preview" is the operator's preview monitor
+   * (and an editor's canvas): same pixels, muted unless `audible` — PREVIEW's
+   * own monitor, at PREVIEW's volume —, and a video plays there only under the
+   * operator's own play button (see `preview-media-bar.tsx`), never
+   * automatically. "monitor" is the LIVE confidence monitor — same pixels,
+   * muted, and autoplaying in lockstep with the projector (see
+   * `liveVideoStatus`).
+   */
   mode: OutputViewMode;
   /** Translated one-line notice for a stage that is empty ON PURPOSE and
    *  shouldn't be — today, LOGO with no logo chosen. Passed in the same way
@@ -1078,6 +1091,7 @@ function withoutOutgoing(layers: Layer[], seq: number): Layer[] {
  * moves with every ↑/↓ and would feel laggy if it did.
  */
 export function OutputView({
+  audible = false,
   className,
   errorLabel,
   liveVideoStatus,
@@ -1574,6 +1588,7 @@ export function OutputView({
         />
       ) : output.videoUnderlay && videoMounted ? (
         <LiveVideo
+          audible={mode === "live" || audible}
           covered={output.kind !== "video"}
           epoch={output.videoUnderlay.epoch}
           held={held}

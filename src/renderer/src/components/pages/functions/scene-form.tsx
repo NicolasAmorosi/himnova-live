@@ -24,6 +24,8 @@ import { TOOL_LABEL } from "./tool-display";
 import type { SceneDraft } from "./scene-draft";
 
 type SceneFormProps = {
+  /** Its «when it ends» section took focus: the canvas shows the end. */
+  onEndFocus?: () => void;
   /** The image assets a background can point at, plus the button that adds
    *  more — owned by the modal, which is where the loading state lives. */
   imageAssets: readonly MediaAsset[];
@@ -50,7 +52,7 @@ type SceneFormProps = {
  * half-typed `"1"` on the way to `"10:00"` must not be committed as one
  * minute and must not fight the operator's cursor.
  */
-export function SceneForm({ addingImages, imageAssets, onAddImages, onChange, value }: SceneFormProps) {
+export function SceneForm({ addingImages, imageAssets, onAddImages, onChange, onEndFocus, value }: SceneFormProps) {
   const t = useT();
 
   const patch = (next: Partial<SceneDraft>) => onChange({ ...value, ...next });
@@ -69,7 +71,6 @@ export function SceneForm({ addingImages, imageAssets, onAddImages, onChange, va
       <InspectorSection title={t("scenes.groups.scene")}>
         <FieldRow description={t("scenes.toolHint")} label={t("scenes.tool")}>
           <Select
-            className="w-52"
             onChange={(next) => patch({ tool: next as TimerTool })}
             options={toolOptions}
             value={value.tool}
@@ -141,7 +142,6 @@ export function SceneForm({ addingImages, imageAssets, onAddImages, onChange, va
       <InspectorSection title={t("scenes.groups.texts")}>
         <FieldRow description={t("scenes.titleHint")} label={t("scenes.titleText")}>
           <Input
-            className="w-64"
             maxLength={SCENE_TEXT_MAX_LENGTH}
             onChange={(e) => patch({ title: e.target.value === "" ? null : e.target.value })}
             value={value.title ?? ""}
@@ -149,7 +149,6 @@ export function SceneForm({ addingImages, imageAssets, onAddImages, onChange, va
         </FieldRow>
         <FieldRow description={t("scenes.messageHint")} label={t("scenes.messageText")}>
           <Input
-            className="w-64"
             maxLength={SCENE_TEXT_MAX_LENGTH}
             onChange={(e) => patch({ message: e.target.value === "" ? null : e.target.value })}
             value={value.message ?? ""}
@@ -162,10 +161,9 @@ export function SceneForm({ addingImages, imageAssets, onAddImages, onChange, va
           disappears. Only a countdown has an end, so a clock and a stopwatch
           never see it. */}
       {isCountdownTool(value.tool) ? (
-        <InspectorSection title={t("scenes.groups.end")}>
+        <InspectorSection onFocus={onEndFocus} title={t("scenes.groups.end")}>
           <FieldRow description={t("scenes.endMessageHint")} label={t("scenes.endMessage")}>
             <Input
-              className="w-64"
               maxLength={SCENE_TEXT_MAX_LENGTH}
               onChange={(e) => patchConfig({ endMessage: e.target.value === "" ? null : e.target.value })}
               value={value.config.endMessage ?? ""}
@@ -192,7 +190,6 @@ export function SceneForm({ addingImages, imageAssets, onAddImages, onChange, va
               changes at zero, it is HOW everything above it changes. */}
           <FieldRow description={t("scenes.endTransitionHint")} label={t("scenes.endTransition")}>
             <Select
-              className="w-52"
               onChange={(style) =>
                 patchStyle({
                   end: {
@@ -207,7 +204,6 @@ export function SceneForm({ addingImages, imageAssets, onAddImages, onChange, va
           </FieldRow>
           <FieldRow description={t("scenes.endTransitionDurationHint")} label={t("scenes.endTransitionDuration")}>
             <Select
-              className="w-40"
               disabled={value.style.end.transition.style === "none"}
               onChange={(durationMs) =>
                 patchStyle({
@@ -217,7 +213,7 @@ export function SceneForm({ addingImages, imageAssets, onAddImages, onChange, va
                   },
                 })
               }
-              options={transitionDurationOptions(t)}
+              options={transitionDurationOptions(t, value.style.end.transition.durationMs)}
               value={String(value.style.end.transition.durationMs)}
             />
           </FieldRow>
@@ -225,7 +221,7 @@ export function SceneForm({ addingImages, imageAssets, onAddImages, onChange, va
       ) : null}
 
       {isCountdownTool(value.tool) ? (
-        <InspectorSection title={t("scenes.groups.triggers")}>
+        <InspectorSection defaultOpen={false} title={t("scenes.groups.triggers")}>
           <FieldRow description={t("scenes.triggersHint")} label={t("scenes.triggersEnabled")}>
             <Switch
               checked={value.style.triggers !== null}
@@ -362,7 +358,7 @@ function NumericTextField({
   return (
     <Input
       aria-invalid={invalid || undefined}
-      className="w-24 text-center tabular-nums"
+      className="w-24 tabular-nums"
       onBlur={() => setDraft(null)}
       onChange={(e) => {
         setDraft(e.target.value);

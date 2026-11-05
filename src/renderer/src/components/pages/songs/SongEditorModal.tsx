@@ -94,6 +94,7 @@ export function SongEditorModal({ onOpenChange, onSaved, open, songId }: SongEdi
   const [pending, setPending] = useState<Pending | null>(null);
   const [saving, setSaving] = useState(false);
   const lyricsRef = useRef<HTMLTextAreaElement>(null);
+  const nameRef = useRef<HTMLInputElement>(null);
 
   // Opening loads the song asked for, once — never again under the operator's typing.
   useEffect(() => {
@@ -107,6 +108,10 @@ export function SongEditorModal({ onOpenChange, onSaved, open, songId }: SongEdi
     setCaret(null);
     setTextTab("lyrics");
     setPending(null);
+    // A new song is named first (2026-11-05 review: the caret went to the
+    // lyrics and the empty title read as a heading). On the next frame, so it
+    // lands after the dialog has put its own first focus.
+    if (!song) requestAnimationFrame(() => nameRef.current?.focus());
     // `locale` only shapes the headers of a song being opened.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, songId]);
@@ -149,8 +154,18 @@ export function SongEditorModal({ onOpenChange, onSaved, open, songId }: SongEdi
     caret === null ? null : slideAtCaret(draft.lyrics, caret, locale, theme.maxLines, preview.slides, selected - 1);
   const slideIndex = Math.min(Math.max(1, caretSlide === null ? selected : caretSlide + 1), Math.max(1, preview.slides.length));
   const shownSlide = preview.slides[slideIndex - 1];
+  // With no lyrics yet, the theme's background alone — never a black box.
+  const emptyStage: ProjectionOutput = {
+    ...songOutputFor(preview, [], theme, 1),
+    videoUnderlay: null,
+    slideVideo: null,
+    plates: [],
+    transition: INSTANT_TRANSITION,
+  };
   const output: ProjectionOutput | null =
-    fit && preview.slides.length > 0
+    preview.slides.length === 0
+      ? emptyStage
+      : fit
       ? {
           ...songOutputFor(
             preview,
@@ -245,7 +260,9 @@ export function SongEditorModal({ onOpenChange, onSaved, open, songId }: SongEdi
                     {t("songs.counter", { current: slideIndex, total: preview.slides.length })} ·{" "}
                     {sectionLabel(shownSlide.type, shownSlide.number, locale)}
                   </Caption>
-                ) : null}
+                ) : (
+                  <Caption>{t("songs.previewEmpty")}</Caption>
+                )}
                 <FieldRow description={t("songs.themeHint")} label={t("songs.theme")}>
                   <Select
                     onChange={(value) => patch({ themeId: value === "" ? null : Number(value) })}
@@ -259,27 +276,30 @@ export function SongEditorModal({ onOpenChange, onSaved, open, songId }: SongEdi
               </div>
             </div>
 
-            <InspectorSection title={t("songs.groups.order")}>
-              <SongOrderField
-                custom={draft.order !== null}
-                onChange={(next) => patch({ order: next })}
-                onReset={() => patch({ order: null })}
-                order={order}
-                sections={parsed.sections}
-              />
-              {missing.length > 0 ? (
-                <Callout className="mt-2 py-2" role="status" tone="warning">
-                  {t("songs.orderMissingHint", { sections: missing.map(labelOf).join(", ") })}
-                </Callout>
-              ) : null}
-              {draft.order !== null && unused.length > 0 ? (
-                <Callout className="mt-2 py-2" role="status" tone="info">
-                  {t("songs.orderUnusedHint", {
-                    sections: unused.map((s) => sectionLabel(s.type, s.number, locale)).join(", "),
-                  })}
-                </Callout>
-              ) : null}
-            </InspectorSection>
+            {/* Nothing to order before the first section exists. */}
+            {parsed.sections.length > 0 ? (
+              <InspectorSection title={t("songs.groups.order")}>
+                <SongOrderField
+                  custom={draft.order !== null}
+                  onChange={(next) => patch({ order: next })}
+                  onReset={() => patch({ order: null })}
+                  order={order}
+                  sections={parsed.sections}
+                />
+                {missing.length > 0 ? (
+                  <Callout className="mt-2 py-2" role="status" tone="warning">
+                    {t("songs.orderMissingHint", { sections: missing.map(labelOf).join(", ") })}
+                  </Callout>
+                ) : null}
+                {draft.order !== null && unused.length > 0 ? (
+                  <Callout className="mt-2 py-2" role="status" tone="info">
+                    {t("songs.orderUnusedHint", {
+                      sections: unused.map((s) => sectionLabel(s.type, s.number, locale)).join(", "),
+                    })}
+                  </Callout>
+                ) : null}
+              </InspectorSection>
+            ) : null}
 
             <InspectorSection title={t("songs.groups.data")}>
               <FieldRow description={t("songs.numberHint")} label={t("songs.number")}>
@@ -346,19 +366,25 @@ export function SongEditorModal({ onOpenChange, onSaved, open, songId }: SongEdi
             </div>
           </>
         }
-        menu={{
-          onSelect: (command) => {
-            if (currentId === null) return;
-            if (command === "duplicate") leaveEditing(() => void handleDuplicate());
-            else void askToDelete(currentId);
-          },
-          options: menuOptions,
-        }}
+        // A song not saved yet has nothing to duplicate or delete: no «⋯» of
+        // two greyed commands (2026-11-05 review).
+        menu={
+          currentId === null
+            ? undefined
+            : {
+                onSelect: (command) => {
+                  if (command === "duplicate") leaveEditing(() => void handleDuplicate());
+                  else void askToDelete(currentId);
+                },
+                options: menuOptions,
+              }
+        }
         name={{
           label: t("songs.title"),
           maxLength: SONG_TITLE_MAX_LENGTH,
           onChange: (title) => patch({ title }),
           placeholder: t("songs.newTitle"),
+          ref: nameRef,
           value: draft.title,
         }}
         onClose={() => leaveEditing(() => onOpenChange(false))}
@@ -425,7 +451,8 @@ export function SongEditorModal({ onOpenChange, onSaved, open, songId }: SongEdi
             />
           )}
           <Caption>{textTab === "lyrics" ? t("songs.lyricsHint") : t("songs.translationHint")}</Caption>
-          {!savable ? (
+          {/* Not before anything was typed: a new song opened under a warning. */}
+          {!savable && dirty ? (
             <Callout className="py-2" role="status" tone="warning">
               {t("songs.invalidHint")}
             </Callout>

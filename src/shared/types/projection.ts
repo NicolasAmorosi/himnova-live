@@ -366,10 +366,13 @@ export type MediaStatus = {
   ended: boolean;
 };
 
-/** What the PREVIEW monitor shows through the media engine (`preview:setVideo`),
- *  muted: a library video only the engine plays. `paused` is declarative, like
- *  `VideoUnderlay.paused`; `startAtSeconds` only applies to a new `url`. */
-export type PreviewEngineVideo = { url: string; paused: boolean; startAtSeconds: number };
+/** What PREVIEW plays through the media engine (`preview:setVideo`): a library
+ *  video only the engine plays (`picture`, drawn in the PREVIEW monitor), or —
+ *  with no picture — an audio file or a deck's music, whatever its codec.
+ *  `paused` and `volume` (0..1, PREVIEW's own, 0 to start — owner, 2026-11-05)
+ *  are declarative, like `VideoUnderlay`'s; `startAtSeconds` only applies to a
+ *  new `url`. */
+export type PreviewEngineVideo = { url: string; paused: boolean; startAtSeconds: number; volume: number; picture: boolean };
 
 /** The PREVIEW engine's `MediaStatus`. Its own event and not a `MediaTarget`,
  *  for the reason `use-preview-media-status.ts` gives: the preview's clock must

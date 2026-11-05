@@ -4,13 +4,12 @@ import { ConfirmModal } from "@renderer/components/shared/modal";
 import { EditorScreen, EditorStage } from "@renderer/components/shared/editor-screen";
 import { ProgramUsages } from "@renderer/components/shared/program-usages";
 import {
-  Badge,
   Button,
   EmptyState,
   Icon,
   Inspector,
   ListRow,
-  Switch,
+  Segmented,
   type MenuOption,
 } from "@renderer/components/ui";
 import { api } from "@renderer/lib/api";
@@ -227,6 +226,7 @@ export function ScenesModal({ onOpenChange, open }: { onOpenChange: (open: boole
           editing ? (
             <Inspector key={editing.sceneId ?? "new"} label={t("scenes.title")}>
               <SceneForm
+                onEndFocus={() => setPreviewAtEnd(true)}
                 addingImages={addingImages}
                 imageAssets={imageAssets}
                 onAddImages={() => void handleAddImages()}
@@ -249,10 +249,10 @@ export function ScenesModal({ onOpenChange, open }: { onOpenChange: (open: boole
                   leading={
                     // The kind as an icon only: written out beside the name it
                     // left the name «Cuent…» in a 256 px list.
-                    <Badge className="px-2" title={t(TOOL_LABEL[scene.tool])} variant="neutral">
-                      <Icon className="size-3.5" name={TOOL_ICON[scene.tool]} />
+                    <span className="flex" title={t(TOOL_LABEL[scene.tool])}>
+                      <Icon className="text-subtle" name={TOOL_ICON[scene.tool]} />
                       <span className="sr-only">{t(TOOL_LABEL[scene.tool])}</span>
-                    </Badge>
+                    </span>
                   }
                   onClick={() => select(scene)}
                   onDragEnd={() => setDragOverId(null)}
@@ -335,10 +335,17 @@ export function ScenesModal({ onOpenChange, open }: { onOpenChange: (open: boole
               // Only where there is an end to look at. A clock and a stopwatch
               // never run out, so the switch would toggle nothing.
               isCountdownTool(editing.draft.tool) ? (
-                <label className="flex items-center gap-2" title={t("scenes.endPreviewHint")}>
-                  {t("scenes.endPreview")}
-                  <Switch checked={previewAtEnd} onChange={(e) => setPreviewAtEnd(e.target.checked)} />
-                </label>
+                // The editors' one sample control (2026-11-05): a segmented
+                // choice of what the canvas draws, in Temas and Versículo too.
+                <Segmented
+                  label={t("scenes.sample")}
+                  onChange={(sample) => setPreviewAtEnd(sample === "end")}
+                  options={[
+                    { label: t("scenes.sampleRunning"), value: "running" },
+                    { label: t("scenes.sampleEnd"), value: "end" },
+                  ]}
+                  value={previewAtEnd ? "end" : "running"}
+                />
               ) : undefined
             }
             warning={isDraftSavable(editing.draft) ? undefined : t("scenes.invalidHint")}

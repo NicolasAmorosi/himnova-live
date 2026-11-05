@@ -1,6 +1,19 @@
 import { useEffect, useState } from "react";
 import { useT } from "@renderer/lib/i18n/i18n-provider";
-import { Button, FieldGroup, FieldRow, Icon, Input, Select } from "@renderer/components/ui";
+import {
+  Button,
+  Callout,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  FieldGroup,
+  FieldRow,
+  Icon,
+  Input,
+  Label,
+  Select,
+} from "@renderer/components/ui";
+import { Modal, ModalTitle } from "@renderer/components/shared/modal";
 import { useSettingsStore } from "@renderer/stores/settings.store";
 import { useSongStore } from "@renderer/stores/song.store";
 import { exportSongUsage, refreshLiveSong } from "@renderer/lib/actions/songs";
@@ -31,9 +44,7 @@ export function SongsSection() {
   // Typed, then saved on leaving the field: a licence half typed is not one.
   const [draft, setDraft] = useState(license ?? "");
   useEffect(() => setDraft(license ?? ""), [license]);
-  const [range, setRange] = useState(lastSixMonths);
-  const [exporting, setExporting] = useState(false);
-  const rangeValid = range.from !== "" && range.to !== "" && range.from <= range.to;
+  const [reportOpen, setReportOpen] = useState(false);
 
   const commitLicense = async () => {
     const next = draft.trim() === "" ? null : draft.trim();
@@ -46,7 +57,6 @@ export function SongsSection() {
     <FieldGroup title={t("settings.songs.title")}>
       <FieldRow description={t("settings.songs.defaultThemeHint")} label={t("settings.songs.defaultTheme")}>
         <Select
-          className="w-52"
           onChange={(value) =>
             void update({ "songs.defaultThemeId": Number(value) }).then(() => refreshLiveSong())
           }
@@ -63,48 +73,88 @@ export function SongsSection() {
           onKeyDown={(e) => {
             if (e.key === "Enter") void commitLicense();
           }}
+          placeholder={t("settings.songs.licensePlaceholder")}
           size="sm"
           value={draft}
         />
       </FieldRow>
+      {/* A dialog, not three controls in the row: it is used twice a year
+          (owner, 2026-11-05: the dates and the button piled up there). */}
       <FieldRow description={t("settings.songs.usageHint")} label={t("settings.songs.usage")}>
-        <div className="flex flex-wrap items-center justify-end gap-2">
-          <label className="flex items-center gap-1.5 text-sm text-muted-foreground">
-            {t("settings.songs.usageFrom")}
-            <Input
-              className="w-36"
-              max={range.to}
-              onChange={(e) => setRange((r) => ({ ...r, from: e.target.value }))}
-              size="sm"
-              type="date"
-              value={range.from}
-            />
-          </label>
-          <label className="flex items-center gap-1.5 text-sm text-muted-foreground">
-            {t("settings.songs.usageTo")}
-            <Input
-              className="w-36"
-              min={range.from}
-              onChange={(e) => setRange((r) => ({ ...r, to: e.target.value }))}
-              size="sm"
-              type="date"
-              value={range.to}
-            />
-          </label>
-          <Button
-            disabled={!rangeValid || exporting}
-            onClick={() => {
-              setExporting(true);
-              void exportSongUsage(range.from, range.to).finally(() => setExporting(false));
-            }}
-            size="sm"
-            variant="outline"
-          >
-            <Icon name="download" />
-            {t("settings.songs.usageExport")}
-          </Button>
-        </div>
+        <Button onClick={() => setReportOpen(true)} variant="outline">
+          <Icon name="download" />
+          {t("settings.songs.usageOpen")}
+        </Button>
       </FieldRow>
+      <UsageReportDialog onOpenChange={setReportOpen} open={reportOpen} />
     </FieldGroup>
+  );
+}
+
+/** The CCLI report's dates, the last six months to start with, and the
+ *  export. Closes once a file is written; with nothing in the range it stays,
+ *  so the dates can be changed. */
+function UsageReportDialog({ onOpenChange, open }: { onOpenChange: (open: boolean) => void; open: boolean }) {
+  const t = useT();
+  const [range, setRange] = useState(lastSixMonths);
+  const [exporting, setExporting] = useState(false);
+  /** The dates last tried held no song: said here, where the dates are. */
+  const [empty, setEmpty] = useState(false);
+  const valid = range.from !== "" && range.to !== "" && range.from <= range.to;
+
+  async function exportReport() {
+    setExporting(true);
+    const outcome = await exportSongUsage(range.from, range.to);
+    setExporting(false);
+    setEmpty(outcome === "empty");
+    if (outcome === "written") onOpenChange(false);
+  }
+
+  return (
+    <Modal onOpenChange={onOpenChange} open={open} size="sm">
+      <DialogHeader>
+        <ModalTitle>{t("settings.songs.usageTitle")}</ModalTitle>
+      </DialogHeader>
+      <DialogContent className="grid grid-cols-2 gap-3">
+        <Label className="flex flex-col gap-1.5">
+          {t("settings.songs.usageFrom")}
+          <Input
+            max={range.to}
+            onChange={(e) => {
+              setRange((r) => ({ ...r, from: e.target.value }));
+              setEmpty(false);
+            }}
+            type="date"
+            value={range.from}
+          />
+        </Label>
+        <Label className="flex flex-col gap-1.5">
+          {t("settings.songs.usageTo")}
+          <Input
+            aria-invalid={!valid || undefined}
+            min={range.from}
+            onChange={(e) => {
+              setRange((r) => ({ ...r, to: e.target.value }));
+              setEmpty(false);
+            }}
+            type="date"
+            value={range.to}
+          />
+        </Label>
+        {empty ? (
+          <Callout className="col-span-2 py-2" role="status" tone="info">
+            {t("settings.songs.usageEmpty")}
+          </Callout>
+        ) : null}
+      </DialogContent>
+      <DialogFooter>
+        <Button onClick={() => onOpenChange(false)} variant="ghost">
+          {t("common.cancel")}
+        </Button>
+        <Button disabled={!valid} loading={exporting} onClick={() => void exportReport()} variant="primary">
+          {t("settings.songs.usageExport")}
+        </Button>
+      </DialogFooter>
+    </Modal>
   );
 }

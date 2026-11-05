@@ -102,10 +102,16 @@ export const MEDIA_THUMB_MAX_AGE_MS = 60 * 24 * 60 * 60 * 1000;
  *  directory only grows. At ~12 KB a thumbnail this is roughly 20.000 of
  *  them — far more than any real library shows in two months. */
 export const MEDIA_THUMB_MAX_BYTES = 256 * 1024 * 1024;
-export const SLIDES_DEFAULT_RENDER_WIDTH = 1920;
+/** A PDF page is drawn at the projector's own width, held between these two:
+ *  up to a 4K screen, no knob (owner, 2026-11-05 — the setting only ever
+ *  mattered for 4K). Before the screens are known, the 1080p width. */
+export const SLIDES_FALLBACK_RENDER_WIDTH = 1920;
 export const SLIDES_MIN_RENDER_WIDTH = 1280;
-export const SLIDES_MAX_RENDER_WIDTH = 2560;
-export const SLIDES_DEFAULT_CACHE_MB = 4096;
+export const SLIDES_MAX_RENDER_WIDTH = 3840;
+/** What the slide cache — the audio and video taken out of a `.pptx` — may
+ *  hold before the oldest decks go. Fixed since 2026-11-05: a church's real
+ *  use is a few megabytes, and the cap was a setting nobody reached. */
+export const SLIDES_CACHE_MAX_MB = 4096;
 /** PowerPoint permits a 0 ms auto-advance; without a floor a whole deck would
  *  fly past in a single frame. */
 export const SLIDES_MIN_ADVANCE_MS = 250;

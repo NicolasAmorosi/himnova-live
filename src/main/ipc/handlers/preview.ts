@@ -1,6 +1,6 @@
 import type { Handlers } from "../register";
 import { IpcError } from "@shared/ipc/result";
-import { engineAssetIdOfUrl } from "@shared/urls";
+import { engineAssetIdOfUrl, engineClipOfUrl, linkedAudioAssetIdOfUrl } from "@shared/urls";
 import { seekPreviewVideo, setPreviewVideo } from "../../media/engine-sessions";
 
 function invalid(message: string): IpcError {
@@ -12,9 +12,15 @@ export const previewHandlers: Pick<Handlers, "preview:setVideo" | "preview:seekV
     if (
       req !== null &&
       (typeof req?.url !== "string" ||
-        engineAssetIdOfUrl(req.url) === null ||
+        // A library file, or a deck's own music (embedded or linked) — never a path.
+        (engineAssetIdOfUrl(req.url) === null &&
+          engineClipOfUrl(req.url) === null &&
+          linkedAudioAssetIdOfUrl(req.url) === null) ||
         typeof req.paused !== "boolean" ||
-        !Number.isFinite(req.startAtSeconds))
+        !Number.isFinite(req.startAtSeconds) ||
+        typeof req.volume !== "number" ||
+        !(req.volume >= 0 && req.volume <= 1) ||
+        typeof req.picture !== "boolean")
     ) {
       throw invalid("Invalid preview video.");
     }

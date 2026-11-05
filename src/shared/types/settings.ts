@@ -1,9 +1,5 @@
 import type { AssetKind } from "../constants";
-import {
-  ASSET_KINDS,
-  SLIDES_DEFAULT_CACHE_MB,
-  SLIDES_DEFAULT_RENDER_WIDTH,
-} from "../constants";
+import { ASSET_KINDS } from "../constants";
 import { isBibleStyle, normalizeBibleStyle } from "../bible-style-validators";
 import { DEFAULT_BIBLE_STYLE, type BibleStyle } from "./bible-style";
 import { MEDIA_SORT_ORDERS, type MediaSortOrder } from "./media";
@@ -17,9 +13,6 @@ export type Theme = (typeof THEMES)[number];
 
 export const LOCALES = ["es", "en", "it", "pt"] as const;
 export type Locale = (typeof LOCALES)[number];
-
-export const SLIDE_IMAGE_FORMATS = ["webp", "png"] as const;
-export type SlideImageFormat = (typeof SLIDE_IMAGE_FORMATS)[number];
 
 /** The faces a slide can fall back to when it names one this machine lacks:
  *  the open ones Lumina ships (`assets/fonts/slides/`), so the choice looks
@@ -71,15 +64,11 @@ export type SettingsMap = {
    *  full-screen one and a slide's). Off, it shows the video's thumbnail and
    *  the control window decodes nothing — the projector is never affected. */
   "monitors.liveVideoMotion": boolean;
-  /** The format a PDF's pages are drawn to, when a window asks for one. */
-  "slides.imageFormat": SlideImageFormat;
   /** The face a `.pptx` drawn from its model falls back to when it names one
    *  this machine lacks (after its metric twins); `null` is the operating
    *  system's own sans-serif. One for every face, serif or not (owner,
    *  2026-10-28). */
   "slides.fallbackFont": SlideFallbackFont | null;
-  "slides.cacheMaxMb": number;
-  "slides.maxRenderWidth": number;
   /** Folders the operator has linked per asset kind, so a resource tab can
    *  offer "this folder's files" as an alternative to the added-to-library
    *  list. Files inside are registered like any other asset (so preview/
@@ -158,10 +147,7 @@ export const DEFAULT_SETTINGS: SettingsMap = {
   "projection.transition.style": "crossfade",
   "projection.videoEnd": "logo",
   "projection.transition.durationMs": 300,
-  "slides.imageFormat": "webp",
   "slides.fallbackFont": null,
-  "slides.cacheMaxMb": SLIDES_DEFAULT_CACHE_MB,
-  "slides.maxRenderWidth": SLIDES_DEFAULT_RENDER_WIDTH,
   "monitors.liveVideoMotion": true,
   "library.linkedFolders": { video: [], image: [], audio: [], ppt: [] },
   "library.activeView": { video: "recent", image: "recent", audio: "recent", ppt: "recent" },
@@ -245,10 +231,7 @@ export const SETTINGS_VALIDATORS: Record<keyof SettingsMap, (value: unknown) => 
   "projection.transition.style": isOneOf(TRANSITION_STYLES),
   "projection.videoEnd": isOneOf(VIDEO_END_ACTIONS),
   "projection.transition.durationMs": isNumberIn(0, TRANSITION_MAX_DURATION_MS),
-  "slides.imageFormat": isOneOf(SLIDE_IMAGE_FORMATS),
   "slides.fallbackFont": isNullOr(isOneOf(SLIDE_FALLBACK_FONTS)),
-  "slides.cacheMaxMb": isNumberIn(1, 1_000_000),
-  "slides.maxRenderWidth": isNumberIn(320, 16_384),
   "monitors.liveVideoMotion": isBoolean,
   "library.linkedFolders": isRecordOfKinds(isStringArray),
   "library.activeView": isRecordOfKinds(isString),

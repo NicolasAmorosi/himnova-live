@@ -94,9 +94,8 @@ high and medium findings. This was left open, each item with its reason:
 - **The clickable `ListRow` rows can't be reached with the keyboard** (Scenes, Plates, Timers,
   Overlays). Making them focusable clashes with Enter = GO LIVE: it's an interaction decision,
   not a fix.
-- **Style violations in `pages/`** (the UI review's table): the hand-written buttons of
-  `media-source-bar.tsx` and of the theme selector (the rebrand to Lumina Live only changed their
-  shape and focus; they're still hand-written), about 25 hand-written typography classes in
+- **Style violations in `pages/`** (the UI review's table): since 2026-11-05 the theme selector and the
+  Bible's search mode are the `Segmented` primitive and the media source chips a `Select`; left: about 25 hand-written typography classes in
   `pages/`, and two copies of the `FieldGroup` box. They're cosmetic and each one needs a visual pass.
 - **The units `s`, `px` and `%` are still written in the code.** They're typography, not words;
   the neutral color names did go through i18n.

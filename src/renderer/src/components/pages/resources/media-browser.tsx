@@ -31,7 +31,6 @@ import { useDebouncedCallback } from "@renderer/lib/hooks/use-debounced-callback
 import { filterAssetsByName, sortAssets } from "@renderer/lib/media-view";
 import { AssetTile } from "./asset-tile";
 import { MediaFilterBar } from "./media-filter-bar";
-import { MediaSourceBar } from "./media-source-bar";
 import { PanelProgressRow } from "./panel-progress-row";
 import { PrewarmConfirmModal } from "./prewarm-confirm-modal";
 import { PREWARM_VISIBLE_MAX, type AssetKind } from "@shared/constants";
@@ -68,7 +67,7 @@ const EMPTY_ASSETS: MediaAsset[] = [];
  * in the schedule to be shown, which is what EasyWorship's resource area does.
  *
  * Two sources feed the grid: the added-to-library list ("recent"), or one of
- * this kind's linked folders, browsed live from disk (`MediaSourceBar`).
+ * this kind's linked folders, browsed live from disk (the source dropdown in `MediaFilterBar`).
  */
 export function MediaBrowser({ active, kind }: { active: boolean; kind: AssetKind }) {
   const t = useT();
@@ -306,19 +305,15 @@ export function MediaBrowser({ active, kind }: { active: boolean; kind: AssetKin
 
   return (
     <>
-      <MediaSourceBar
+      <MediaFilterBar
         activeView={activeView}
         folders={folders}
         onAddFolder={() => void addLinkedFolder(kind)}
-        // Asked first: the button is a 12px × next to the folder's name, it
-        // sits inside the row that SELECTS that folder, and the result — the
-        // view the operator had open disappearing — looks exactly like data
-        // loss even though no file is touched.
+        onQueryChange={setQuery}
+        // Asked first: the view the operator had open disappearing looks
+        // exactly like data loss even though no file is touched.
         onRemoveFolder={(folderPath) => setConfirmRemoveFolder(folderPath)}
         onSelectView={(view) => selectMediaSourceView(kind, view)}
-      />
-      <MediaFilterBar
-        onQueryChange={setQuery}
         onSortChange={(order) => setMediaSortOrder(kind, order)}
         query={query}
         sort={sortOrder}

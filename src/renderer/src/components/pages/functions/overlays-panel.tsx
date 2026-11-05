@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useT } from "@renderer/lib/i18n/i18n-provider";
-import { Badge, Button, EmptyState, Icon, ListRow, Tooltip } from "@renderer/components/ui";
+import { Button, EmptyState, Icon, ListRow, Tooltip } from "@renderer/components/ui";
 import { PanelBody, PanelFooter } from "@renderer/components/shared/panel";
 import { ModalBoundary } from "@renderer/components/shared/modal-boundary";
 import { PlateAirStatus } from "@renderer/components/shared/plate-air-status";
@@ -60,9 +60,7 @@ export function OverlaysPanel() {
                 // apart. Same call as the Utilities list — see `ListRow`'s `rail`.
                 rail={false}
                 leading={
-                  <Badge className="px-2" variant="neutral">
-                    <Icon className="size-3.5" name={PLATE_KIND_ICON[plate.kind]} />
-                  </Badge>
+                  <Icon className="text-subtle" name={PLATE_KIND_ICON[plate.kind]} />
                 }
                 onClick={() => previewPlate(plate.id)}
                 onDoubleClick={() => {
@@ -74,7 +72,7 @@ export function OverlaysPanel() {
                 trailing={
                   livePlates.some((live) => live.id === plate.id) ? (
                     <PlateAirStatus plateId={plate.id} />
-                  ) : (
+                  ) : plate.name === t(PLATE_KIND_LABEL[plate.kind]) ? null : (
                     <span className="text-xs text-subtle">{t(PLATE_KIND_LABEL[plate.kind])}</span>
                   )
                 }

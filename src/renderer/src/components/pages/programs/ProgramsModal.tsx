@@ -601,7 +601,16 @@ export function ProgramsModal({ initialMode, onOpenChange, open }: ProgramsModal
       >
         {editing === null ? (
           <div className="relative flex-1">
-            {loading || loadError ? null : <EmptyState icon="folderOpen" title={t("programs.empty")} />}
+            {loading || loadError ? null : (
+              // With nothing saved yet the list still shows the unsaved
+              // schedule: say it is the way to save it (2026-11-05 review: the
+              // canvas said «nothing saved» beside a row, with no next step).
+              <EmptyState
+                {...(showDraftRow ? { description: t("programs.emptyDraftHint", { name: t("programs.untitled") }) } : {})}
+                icon="folderOpen"
+                title={t("programs.empty")}
+              />
+            )}
           </div>
         ) : (
           // The items in a framed box down to the bottom, under a header —

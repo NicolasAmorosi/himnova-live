@@ -10,7 +10,18 @@ type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   ref?: Ref<HTMLButtonElement>;
   size?: ButtonSize;
   toggled?: boolean;
+  /** What a pressed toggle says. `accent` (teal) is «on», as everywhere;
+   *  `warning` (amber) is «the room is not seeing the content» — NEGRO and
+   *  LOGO while they cover it (owner, 2026-11-05). */
+  toggledTone?: ToggledTone;
   variant?: ButtonVariant;
+};
+
+type ToggledTone = "accent" | "warning";
+
+const toggledTones: Record<ToggledTone, string> = {
+  accent: "border-accent bg-accent text-accent-foreground hover:bg-accent active:bg-accent",
+  warning: "border-warning bg-warning text-warning-foreground hover:bg-warning active:bg-warning",
 };
 
 const variants: Record<ButtonVariant, string> = {
@@ -42,7 +53,10 @@ const disabledVariants: Record<ButtonVariant, string> = {
   // No fill at all: in the dark theme the navy primary and a grey fill were
   // two dark rectangles 0.1 apart in lightness — enabled and disabled read the
   // same (2026-11-04 review).
-  primary: "disabled:border-border disabled:bg-transparent disabled:text-subtle",
+  // …and no border either: a bordered box with grey text read as an enabled
+  // outline button — «Guardar» looked clickable with nothing to save
+  // (2026-11-05 review). Text only, until there is something to do.
+  primary: "disabled:border-transparent disabled:bg-transparent disabled:text-subtle",
   outline: "disabled:opacity-50",
   ghost: "disabled:opacity-50",
   danger: "disabled:bg-muted disabled:text-subtle",
@@ -96,6 +110,7 @@ export function Button({
   ref,
   size = "sm",
   toggled = false,
+  toggledTone = "accent",
   type = "button",
   variant = "primary",
   ...props
@@ -116,7 +131,7 @@ export function Button({
         // A pressed toggle is FILLED with the accent, whatever its variant.
         // It used to be a ring in the focus ring's own colour, so "this one is
         // on" and "this one has the keyboard" looked the same.
-        toggled && "border-accent bg-accent text-accent-foreground hover:bg-accent active:bg-accent",
+        toggled && toggledTones[toggledTone],
         className,
       )}
       disabled={disabledEffective}

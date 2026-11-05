@@ -219,7 +219,7 @@ This is the core rule of the component system:
 | `bg-surface` / `bg-card` | panels / cards |
 | `bg-muted` / `text-muted-foreground` | secondary backgrounds and text |
 | `text-subtle` | tertiary text (hints, placeholders) |
-| `bg-primary` / `bg-primary-hover` / `border-primary-border` | the primary button (the sheet's Primary). In dark it's navy at 1.31:1 against the background: the border isn't optional |
+| `bg-primary` / `bg-primary-hover` / `border-primary-border` | the primary button (the sheet's Primary navy `#2f557f` in both themes since 2026-11-05). In dark it's only 2.09:1 against the background: the border isn't optional |
 | `bg-secondary` / `bg-secondary-hover` | the secondary button (the sheet's Secondary: navy in light, steel `#8299b2` with dark text in dark) |
 | `bg-accent` / `ring-accent` / `bg-active` | the teal: **selected / focused / on** — selection, focus ring, switch, slider, progress, active tab, pressed toggle. Never decoration |
 | `bg-danger` / `bg-success` | states |
@@ -629,7 +629,9 @@ npm run package:win|mac|linux  # build + electron-builder for that platform
   `worship://asset/<id>` (always the original) for the rest. `OutputView` draws the engine's frames
   in a canvas instead of a `<video>` — the same frame in the projector and the monitors. Main drives
   the live session from the `ProjectionOutput` it already forwards (`media/engine-sessions.ts`), never
-  from a record of its own; PREVIEW has a muted engine of its own (`preview:setVideo`). A library
+  from a record of its own; PREVIEW has an engine of its own (`preview:setVideo`) — since 2026-11-05 it SOUNDS, at
+  PREVIEW's own volume, 0 with every new item and silenced by GO LIVE (owner), and it also plays a previewed audio file or
+  a deck's music, started on the first play; `OutputView` only lets PREVIEW's monitor (`audible`) and the projector make sound. A library
   AUDIO: one engine per live track, driven from the `AudioTrackPush[]` main already keeps; the
   projector mounts no `<audio>` for it, and closing the projector pauses it as it silenced an
   `<audio>` (owner). A deck's clips and sounds: `deck-clips.ts` marks such a clip for the engine in

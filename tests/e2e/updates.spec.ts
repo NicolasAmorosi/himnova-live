@@ -73,7 +73,7 @@ test("a build that cannot update itself says so and offers no check", async ({ a
   test.skip(!!process.env["WORSHIP_E2E_EXECUTABLE"], "only `out/` is a build without updates");
   const about = await openAbout(app);
   const row = updatesRow(about);
-  await expect(row).toContainText("Esta instalación no se actualiza desde la app");
+  await expect(row).toContainText("Esta versión se actualiza desde la página de Lumina Live");
   await expect(row.getByRole("button", { name: "Buscar actualizaciones" })).toBeDisabled();
   // Nor does it offer to look on its own.
   await expect(about.getByRole("group", { name: "Buscar al abrir la app" })).toHaveCount(0);

@@ -126,7 +126,7 @@ test("an audio that plays to its end leaves the LIVE panel", async ({ app }) => 
 
 test("the start volume set in Ajustes is the level a new video starts at", async ({ app }) => {
   const settings = await openSettings(app, "Proyección");
-  await settings.getByRole("slider", { name: "Volumen inicial" }).fill("40");
+  await settings.getByRole("slider", { name: "Volumen inicial" }).fill("0.4");
   await expect(settings.getByText("40%", { exact: true })).toBeVisible();
   await settings.getByRole("button", { name: "Volver" }).click();
 

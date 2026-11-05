@@ -106,13 +106,14 @@ export function AboutSection() {
   }
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-8">
       <div className="flex items-center gap-5 py-2">
         <BrandMark className="size-20" />
         <div className="flex flex-col gap-2">
           <Wordmark className="text-5xl" />
           <Caption className="select-text">
-            {t("settings.aboutTagline")} · {t("settings.version")} {__APP_VERSION__}
+            {/* The version is the row below, once (2026-11-05 review). */}
+            {t("settings.aboutTagline")}
           </Caption>
         </div>
       </div>

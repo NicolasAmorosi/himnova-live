@@ -3,7 +3,7 @@ import { useT } from "@renderer/lib/i18n/i18n-provider";
 import { ConfirmModal } from "@renderer/components/shared/modal";
 import { EditorScreen } from "@renderer/components/shared/editor-screen";
 import { ProgramUsages } from "@renderer/components/shared/program-usages";
-import { Badge, Button, EmptyState, Icon, Inspector, ListRow, type MenuOption } from "@renderer/components/ui";
+import { Button, EmptyState, Icon, Inspector, ListRow, type MenuOption } from "@renderer/components/ui";
 import { api } from "@renderer/lib/api";
 import { toast } from "@renderer/lib/toast";
 import { hideDragGhost, OVERLAY_PLATE_MIME } from "@renderer/lib/dnd";
@@ -205,10 +205,10 @@ export function PlatesModal({ onOpenChange, open }: { onOpenChange: (open: boole
                   leading={
                     // The kind as an icon only: written out beside the name it
                     // left the name «Cuent…» in a 256 px list.
-                    <Badge className="px-2" title={t(PLATE_KIND_LABEL[plate.kind])} variant="neutral">
-                      <Icon className="size-3.5" name={PLATE_KIND_ICON[plate.kind]} />
+                    <span className="flex" title={t(PLATE_KIND_LABEL[plate.kind])}>
+                      <Icon className="text-subtle" name={PLATE_KIND_ICON[plate.kind]} />
                       <span className="sr-only">{t(PLATE_KIND_LABEL[plate.kind])}</span>
-                    </Badge>
+                    </span>
                   }
                   onClick={() => select(plate)}
                   onDragEnd={() => setDragOverId(null)}
