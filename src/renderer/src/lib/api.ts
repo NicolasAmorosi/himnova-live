@@ -71,6 +71,12 @@ export const api = {
       invoke("bible:delete", { id, ...(force !== undefined ? { force } : {}) }),
     usages: (id: number) => invoke("bible:usages", { id }),
     reorder: (ids: number[]) => invoke("bible:reorder", { ids }),
+    favorites: () => invoke("bible:favorites", undefined),
+    setFavorite: (bookId: number, chapter: number, verse: number, favorite: boolean) =>
+      invoke("bible:setFavorite", { bookId, chapter, verse, favorite }),
+    recents: () => invoke("bible:recents", undefined),
+    recordRecent: (bookId: number, chapter: number, verseFrom: number, verseTo: number) =>
+      invoke("bible:recordRecent", { bookId, chapter, verseFrom, verseTo }),
   },
   engine: {
     assets: () => invoke("engine:assets", undefined),

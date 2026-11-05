@@ -123,6 +123,7 @@ export function App() {
       // why the Bible tab no longer loads them on its own mount — two
       // unordered callers is exactly how that race was won by the wrong one.
       void useBibleStore.getState().loadVersions();
+      void useBibleStore.getState().loadBookmarks();
       // The saved time scenes. Not awaited before the draft restore below and
       // not blocking it either: nothing in the schedule references a scene
       // yet (that is F3), and the Utilities panel is perfectly able to paint

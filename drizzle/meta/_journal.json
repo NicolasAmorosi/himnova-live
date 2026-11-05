@@ -141,6 +141,13 @@
       "when": 1793819080025,
       "tag": "0019_songs",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "6",
+      "when": 1793878029026,
+      "tag": "0020_bible_recents",
+      "breakpoints": true
     }
   ]
 }

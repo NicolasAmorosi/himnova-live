@@ -27,11 +27,21 @@ export const bibleHandlers: Pick<
   | "bible:delete"
   | "bible:usages"
   | "bible:reorder"
+  | "bible:favorites"
+  | "bible:setFavorite"
+  | "bible:recents"
+  | "bible:recordRecent"
 > = {
   "bible:versions": () => getBibleRepo().listVersions(),
   "bible:books": ({ versionId }) => getBibleRepo().listBooks(versionId),
   "bible:chapter": ({ bookId, chapter }) => getBibleRepo().getChapter(bookId, chapter),
   "bible:search": ({ versionId, query, limit }) => getBibleRepo().search(versionId, query, limit),
+  "bible:favorites": () => getBibleRepo().listFavorites(),
+  "bible:setFavorite": ({ bookId, chapter, verse, favorite }) =>
+    getBibleRepo().setFavorite(bookId, chapter, verse, favorite),
+  "bible:recents": () => getBibleRepo().listRecents(),
+  "bible:recordRecent": ({ bookId, chapter, verseFrom, verseTo }) =>
+    getBibleRepo().recordRecent(bookId, chapter, verseFrom, verseTo),
 
   "bible:import": async (_req, ev) => {
     const result = await showOpenDialogFor(ev.sender, {

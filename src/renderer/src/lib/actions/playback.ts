@@ -407,6 +407,10 @@ async function goLiveWithScheduleItem(
         versionLabel: bibleVersionLabel(useBibleStore.getState().versions, item.bibleVersionId),
       });
       useProjectionStore.getState().setOverlay("none");
+      const { bibleBookId, chapter, verseFrom, verseTo } = item;
+      if (bibleBookId !== null && chapter !== null && verseFrom !== null) {
+        useBibleStore.getState().recordRecent(bibleBookId, chapter, verseFrom, verseTo ?? verseFrom);
+      }
       return;
     }
     case "utility": {

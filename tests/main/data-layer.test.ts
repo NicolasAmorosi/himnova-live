@@ -33,7 +33,7 @@ import { UtilityRepo } from "../../src/main/db/repositories/utility.repo";
 import { seedUtilityScenes } from "../../src/main/db/seed/seed-utility-scenes";
 import { getOverlaysRepo, initRepos } from "../../src/main/services/repos";
 import { readBinarySlideTimings } from "../../src/main/slides/ppt-binary";
-import { SNIPPET_MARK_END, SNIPPET_MARK_START, parseSnippet } from "../../src/shared/types/bible";
+import { BIBLE_RECENTS_MAX, SNIPPET_MARK_END, SNIPPET_MARK_START, parseSnippet } from "../../src/shared/types/bible";
 import { DEFAULT_SETTINGS, SETTINGS_VALIDATORS, isSettingsKey } from "../../src/shared/types/settings";
 import { BUILTIN_BIBLE_CODE, SLIDES_CONVERTER_VERSION, SLIDES_MODEL_VERSION, SLIDES_NATIVE_VERSION } from "../../src/shared/constants";
 import { defaultUtilityScenes } from "../../src/shared/types/utility";
@@ -1305,5 +1305,55 @@ describe("a deck's sounds", () => {
     const dto = deckWith("wma-engine", audio, (kind) => kind === "audio");
     expect(dto.soundtrack?.url).toMatch(/^worship:\/\/engine\/deck-audio\/\d+$/);
     expect(dto.sounds[0]?.url).toMatch(/^worship:\/\/engine\/deck-audio\/\d+$/);
+  });
+});
+
+describe("Bible favorites and recent passages", () => {
+  const bookId = (name: string) => {
+    const version = bibleRepo.listVersions().find((v) => v.code === BUILTIN_BIBLE_CODE)!;
+    const book = bibleRepo.listBooks(version.id).find((b) => b.name === name);
+    assert(book, `expected the bundled bible to have «${name}»`);
+    return book.id;
+  };
+  const refs = (list: { reference: string }[]) => list.map((b) => b.reference).join(" | ");
+
+  test("starring keeps one row per verse, in Bible order, and unstarring removes it", () => {
+    bibleRepo.setFavorite(bookId("Juan"), 3, 16, true);
+    bibleRepo.setFavorite(bookId("Juan"), 3, 16, true);
+    const list = bibleRepo.setFavorite(bookId("Génesis"), 1, 1, true);
+    assert(refs(list) === "Génesis 1:1 | Juan 3:16", `got ${refs(list)}`);
+    const after = bibleRepo.setFavorite(bookId("Juan"), 3, 16, false);
+    assert(refs(after) === "Génesis 1:1", `unstar must remove it, got ${refs(after)}`);
+  });
+
+  test("reading on through the top chapter widens it; another chapter goes on top", () => {
+    const psalms = bookId("Salmos");
+    bibleRepo.recordRecent(psalms, 23, 1, 1);
+    bibleRepo.recordRecent(psalms, 23, 2, 2);
+    let list = bibleRepo.recordRecent(psalms, 23, 3, 3);
+    assert(refs(list) === "Salmos 23:1-3", `got ${refs(list)}`);
+    list = bibleRepo.recordRecent(bookId("Juan"), 3, 16, 16);
+    assert(refs(list) === "Juan 3:16 | Salmos 23:1-3", `got ${refs(list)}`);
+    // Back to Psalm 23 later: a fresh passage on top, not a second row for it.
+    list = bibleRepo.recordRecent(psalms, 23, 6, 6);
+    assert(refs(list) === "Salmos 23:6 | Juan 3:16", `got ${refs(list)}`);
+  });
+
+  test("keeps only the newest BIBLE_RECENTS_MAX passages", () => {
+    const genesis = bookId("Génesis");
+    for (let chapter = 1; chapter <= BIBLE_RECENTS_MAX + 5; chapter += 1) bibleRepo.recordRecent(genesis, chapter, 1, 1);
+    const list = bibleRepo.listRecents();
+    assert(list.length === BIBLE_RECENTS_MAX, `expected ${BIBLE_RECENTS_MAX}, got ${list.length}`);
+    assert(list[0]!.reference === `Génesis ${BIBLE_RECENTS_MAX + 5}:1`, `newest first, got ${list[0]!.reference}`);
+    const stored = sqlite.prepare("SELECT COUNT(*) AS n FROM bible_recents").get() as { n: number };
+    assert(stored.n === BIBLE_RECENTS_MAX, `the table itself must be pruned, has ${stored.n}`);
+  });
+
+  test("both lists survive re-seeding the version they were made in", () => {
+    const version = bibleRepo.listVersions().find((v) => v.code === BUILTIN_BIBLE_CODE)!;
+    db.update(bibleVersions).set({ sourceHash: null }).where(eq(bibleVersions.id, version.id)).run();
+    seedBuiltinBibles(db, sqlite, biblesDir, settingsRepo);
+    assert(refs(bibleRepo.listFavorites()) === "Génesis 1:1", "favorites are keyed by abbrev, not by row id");
+    assert(bibleRepo.listRecents().length === BIBLE_RECENTS_MAX, "recents are keyed by abbrev, not by row id");
   });
 });

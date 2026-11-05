@@ -9,6 +9,7 @@ import type {
 } from "../types/media";
 import type {
   BibleBookDTO,
+  BibleBookmark,
   BibleSearchHit,
   BibleVerseDTO,
   BibleVersionDTO,
@@ -176,6 +177,20 @@ export type IpcContract = {
    *  with the re-sorted list, so the caller replaces its state with what was
    *  actually persisted instead of trusting its optimistic guess. */
   "bible:reorder": { req: { ids: number[] }; res: BibleVersionDTO[] };
+  /** Favorites and the passages that went live lately — see `BibleBookmark`.
+   *  Each write answers with the whole list, so the caller never keeps a guess. */
+  "bible:favorites": { req: void; res: BibleBookmark[] };
+  "bible:setFavorite": {
+    req: { bookId: number; chapter: number; verse: number; favorite: boolean };
+    res: BibleBookmark[];
+  };
+  "bible:recents": { req: void; res: BibleBookmark[] };
+  /** Sent by the control window when a verse goes live: main cannot tell a
+   *  verse's book from the `bible` output, which carries only its text. */
+  "bible:recordRecent": {
+    req: { bookId: number; chapter: number; verseFrom: number; verseTo: number };
+    res: BibleBookmark[];
+  };
 
   "library:list": { req: { kind: AssetKind }; res: MediaAsset[] };
   "library:get": { req: { id: number }; res: MediaAsset | null };

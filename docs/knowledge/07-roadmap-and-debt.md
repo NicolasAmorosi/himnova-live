@@ -38,9 +38,9 @@ configurable keys, and checking the importer against a real EasyWorship 7 databa
   converted deck, until they can be served from the `.pptx` by range. And the slide grids mount a
   whole `SlideView` per visible tile: fine on the decks tested, not measured on a very long deck
   full of large pictures.
-- **Bible favorites and history UI**: the `bible_favorites` and `projection_history` tables and
-  their repos exist and work (`HistoryRepo.record()` is already called on every
-  `projection:show`), but there's no screen that lists them yet.
+- ~~**Bible favorites and history UI**~~: **implemented on 2026-11-05** as the Bible tab's ⭐ list
+  (favorites + recent passages, see «Favorites and recent passages» in `05-data-and-persistence.md`).
+  `projection_history` (every `projection:show`, all kinds) still has no screen.
 - ~~**Video embedded inside a slide**~~: **implemented on 2026-09-20** as a positioned overlay.
   One hard limit remains that isn't debt but format: legacy `.ppt`/`.pps` files lose the video
   entirely, so the feature is only for `.pptx`/`.ppsx` — measured in
@@ -58,9 +58,6 @@ configurable keys, and checking the importer against a real EasyWorship 7 databa
   preview drawn by the same `OutputView` as the projector, and it's saved instantly: `App`
   mirrors it to `projection.store`, which recomputes `selectOutput` **without** touching
   `sceneEpoch`, so editing what's LIVE is an in-place patch and not a transition.
-- **Bible favorites UI**: `bible_favorites` still has no screen. Watch out for a decision already
-  made: deleting a version does **not** delete its favorites (they're keyed by code, not by FK)
-  precisely so that delete-and-reimport isn't destructive.
 - **Settings screen**: six categories (Projection, Slides, Verses, Bible, System, About) with theme,
   language, `media.volume`, the per-type folders (`files.defaultFolders`) and the `slides.*` keys
   already exposed.

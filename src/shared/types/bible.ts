@@ -114,17 +114,26 @@ export function parseSnippet(snippet: string): SnippetSegment[] {
   return segments;
 }
 
-export type BibleFavorite = {
+/** A favorite or a recent passage. Version-free on purpose: it names the book
+ *  by its abbrev (the same in every version, see `canon.ts`) and opens in
+ *  whichever version is being browsed. `reference` is how it read when saved,
+ *  shown only when the browsed version lacks that book. */
+export type BibleBookmark = {
   id: number;
-  versionId: number;
-  bookId: number;
+  bookAbbrev: string;
   chapter: number;
   verseFrom: number;
   verseTo: number;
   reference: string;
-  label: string | null;
-  createdAt: number;
 };
+
+/** How many passages «Recientes» keeps. */
+export const BIBLE_RECENTS_MAX = 20;
+
+/** «Juan 3:16» or «Juan 3:16-18». */
+export function passageReference(bookName: string, chapter: number, verseFrom: number, verseTo: number): string {
+  return `${bookName} ${chapter}:${verseFrom}${verseTo > verseFrom ? `-${verseTo}` : ""}`;
+}
 
 /** Raw shape of the bundled/importable Bible JSON files. */
 export type BibleSourceBook = {

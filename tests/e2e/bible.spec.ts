@@ -246,4 +246,41 @@ test("a verse put in the order of service is projected from the saved program", 
   await programs.getByRole("button", { name: "Abrir" }).click();
   await again.control.getByRole("main").getByRole("list").first().getByRole("listitem").filter({ hasText: "Juan 3:16" }).dblclick();
   await expect((await again.projector()).getByText(JUAN_3_16, { exact: false })).toBeVisible();
+
+  // Projected from the program, never from the Bible tab: a recent passage all the same.
+  await again.openResources("Biblia");
+  const tab = again.control.getByRole("tabpanel", { name: "Biblia" });
+  await tab.getByRole("button", { name: "Favoritos y recientes" }).click();
+  await expect(tab.getByRole("region", { name: "Recientes" }).getByRole("listitem")).toHaveText(["Juan 3:16"]);
+});
+
+test("a starred verse and the passage read live come back from Favoritos y recientes, after a restart too", async ({
+  app,
+}) => {
+  const { control } = app;
+  const panel = control.getByRole("tabpanel", { name: "Biblia" });
+  await app.openChapter("Juan 3");
+  await panel.getByRole("listitem").filter({ hasText: JUAN_3_16 }).click();
+  await panel.getByRole("button", { name: "Marcar como favorito" }).click();
+  await expect(panel.getByRole("button", { name: "Quitar de favoritos" })).toHaveAttribute("aria-pressed", "true");
+
+  // Read on through the chapter: one recent passage, not two.
+  await app.goLive();
+  const projector = await app.projector();
+  await expect(projector.getByText(JUAN_3_16, { exact: false })).toBeVisible();
+  await control.keyboard.press("ArrowRight");
+  await expect(projector.getByText(JUAN_3_17, { exact: false })).toBeVisible();
+  await app.quit();
+
+  const again = await relaunch(app);
+  const tab = again.control.getByRole("tabpanel", { name: "Biblia" });
+  await again.openChapter("Salmos 23");
+  await tab.getByRole("button", { name: "Favoritos y recientes" }).click();
+  await expect(tab.getByRole("region", { name: "Favoritos" }).getByRole("listitem")).toHaveText(["Juan 3:16"]);
+  await expect(tab.getByRole("region", { name: "Recientes" }).getByRole("listitem")).toHaveText(["Juan 3:16-17"]);
+
+  // A click opens the chapter with that verse in PREVIEW, starred.
+  await tab.getByRole("region", { name: "Favoritos" }).getByRole("listitem").click();
+  await expect(tab.getByRole("listitem").filter({ hasText: JUAN_3_16 })).toHaveAttribute("aria-current", "true");
+  await expect(tab.getByRole("button", { name: "Quitar de favoritos" })).toBeVisible();
 });

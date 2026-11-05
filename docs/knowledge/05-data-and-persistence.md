@@ -28,7 +28,8 @@ share the same "the user moved the file" problem), `programs`+`program_items`
 (saved playlists, polymorphic with a `CHECK` over five item kinds; renamed from `services`/`service_items` in
 migration `0004_rename_programs.sql` with `ALTER TABLE ... RENAME` — a table recreate would have
 lost the `CHECK`, which Drizzle doesn't materialize in the snapshot), `bible_versions`+`bible_books`+`bible_verses`+
-`bible_verses_fts` (FTS5 external-content), `bible_favorites`, `projection_history`,
+`bible_verses_fts` (FTS5 external-content), `bible_favorites` + `bible_recents` (`0020`, see «Favorites and
+recent passages» below), `projection_history`,
 `slide_decks`+`deck_slides`+`deck_audio`+`deck_videos` (persistent record of every deck read,
 addressed by content hash — see `03-slides.md`: a PDF's page sizes, its pages drawn on request
 (until 2026-11-03 its rasterized pages, in a folder); since `0018` also the
@@ -287,9 +288,25 @@ point to, so editing it would orphan favorites and duplicate the version on the 
 
 Deleting cascades to `bible_books`/`bible_verses` (and to the FTS5 indexes via trigger) and
 deliberately does **not** touch two things: the `program_items` rows, whose FK is `set null` —the
-saved program keeps the text and the reference and loses only the link—, and the `bible_favorites`
-rows, which are keyed by CODE precisely to survive a delete-and-reimport. `force` here is informed
+saved program keeps the text and the reference and loses only the link—, and the `bible_favorites`/`bible_recents`
+rows, which are keyed by CODE and abbrev precisely to survive a delete-and-reimport. `force` here is informed
 consent and nothing more: unlike a timer scene's, this delete can't fail on an FK.
+
+## Favorites and recent passages
+
+The Bible tab's ⭐ list (2026-11-05). Both tables name a passage by **book abbrev** + chapter + verses,
+never by a version's row ids, and the renderer opens it in whichever version is being browsed: the
+abbrev is the same in every version (`canon.ts`). `reference` is how it read when saved, shown only
+when the browsed version lacks that book. `version_code` records where it was made and nothing reads it.
+
+- **Favorites** (`bible:favorites`, `bible:setFavorite`): one verse each, starred from the tab's
+  footer on the verse in PREVIEW, listed in Bible order. Unstarring removes every row that contains
+  the verse.
+- **Recents** (`bible:recents`, `bible:recordRecent`): what went LIVE, newest first, at most
+  `BIBLE_RECENTS_MAX` (20) rows. One row per chapter: reading on through the chapter at the top
+  widens its range (`Juan 3:16-18`); another chapter goes on top, replacing an older row of itself.
+  The control window records it — `projectVerse` and a program row's verse —, because the `bible`
+  output carries only text: `projection_history` cannot tell which book a verse came from.
 
 ## `SETTINGS_NORMALIZERS` — the first `settings` key that is a STRUCTURE
 
