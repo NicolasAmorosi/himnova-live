@@ -140,6 +140,18 @@ export class WorshipApp {
     }, filePaths);
   }
 
+  /** Answers the NEXT native save dialog with `filePath` (or a cancel, with
+   *  none) — `answerOpenDialog`'s twin, for «Exportar». */
+  async answerSaveDialog(filePath?: string): Promise<void> {
+    await this.electron.evaluate(({ dialog }, file) => {
+      const original = dialog.showSaveDialog.bind(dialog);
+      dialog.showSaveDialog = () => {
+        dialog.showSaveDialog = original;
+        return Promise.resolve({ canceled: !file, filePath: file ?? "" });
+      };
+    }, filePath);
+  }
+
   /** The right-hand column: the LIVE monitor and everything that controls
    *  what is on the projector. */
   liveColumn(): Locator {

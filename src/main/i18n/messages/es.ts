@@ -108,6 +108,13 @@ const es = {
     openLpPickTitle: "Elegí el archivo songs.sqlite de OpenLP",
     openLpUnreadable: "Ese archivo no es una base de canciones de OpenLP (songs.sqlite) o no se pudo abrir.",
     openLyricsPickTitle: "Elegí las canciones OpenLyrics (.xml)",
+    usageSaveTitle: "Guardar el informe CCLI",
+    usageFileName: "Informe CCLI",
+    usageTitle: "Título",
+    usageAuthors: "Autores",
+    usageCcli: "Número CCLI",
+    usageCount: "Usos",
+    usageDates: "Fechas",
   },
   /** The four time scenes a new install starts with (`DEFAULT_UTILITY_SCENES`),
    *  written once, in the language of that first launch. */

@@ -1,12 +1,12 @@
-import { eq, max } from "drizzle-orm";
+import { and, eq, gte, lt, max } from "drizzle-orm";
 import Database from "better-sqlite3";
 import type { Db } from "../client";
-import { songs, songThemes } from "../schema";
+import { songs, songThemes, songUses } from "../schema";
 import { toFtsQuery } from "../fts-query";
 import { IpcError } from "@shared/ipc/result";
 import { normalizeOrder, normalizeSections, normalizeSongTheme } from "@shared/song-validators";
 import { songLyricsText } from "@shared/song-text";
-import type { Song, SongSearchHit, SongTheme, SongThemeRow, SongUpsert } from "@shared/types/song";
+import type { Song, SongSearchHit, SongTheme, SongThemeRow, SongUpsert, SongUse } from "@shared/types/song";
 
 function parseJson(raw: string): unknown {
   try {
@@ -118,6 +118,57 @@ export class SongsRepo {
       }
       throw error;
     }
+  }
+
+  /** `songId` went live at `at`: written once per song per local day — what
+   *  the CCLI report counts (owner, 2026-11-05). */
+  recordUse(songId: number, at = Date.now()): void {
+    const dayStart = new Date(at);
+    dayStart.setHours(0, 0, 0, 0);
+    const today = this.db
+      .select({ id: songUses.id })
+      .from(songUses)
+      .where(and(eq(songUses.songId, songId), gte(songUses.usedAt, dayStart.getTime())))
+      .get();
+    if (today) return;
+    const song = this.get(songId);
+    if (!song) return;
+    this.db
+      .insert(songUses)
+      .values({ songId, usedAt: at, title: song.title, authors: song.authors, ccliNumber: song.ccliNumber })
+      .run();
+  }
+
+  /** The songs used in `[from, to)`, each with the days it was used — a song
+   *  still in the library under its current title, authors and CCLI number. */
+  usesBetween(from: number, to: number): SongUse[] {
+    const rows = this.db
+      .select({
+        songId: songUses.songId,
+        usedAt: songUses.usedAt,
+        title: songUses.title,
+        authors: songUses.authors,
+        ccliNumber: songUses.ccliNumber,
+        currentTitle: songs.title,
+        currentAuthors: songs.authors,
+        currentCcli: songs.ccliNumber,
+      })
+      .from(songUses)
+      .leftJoin(songs, eq(songs.id, songUses.songId))
+      .where(and(gte(songUses.usedAt, from), lt(songUses.usedAt, to)))
+      .orderBy(songUses.usedAt)
+      .all();
+    const byKey = new Map<string, SongUse>();
+    for (const row of rows) {
+      const current = row.currentTitle !== null;
+      const title = current ? row.currentTitle! : row.title;
+      const ccliNumber = current ? row.currentCcli : row.ccliNumber;
+      const key = row.songId !== null && current ? `song:${row.songId}` : `gone:${title}\n${ccliNumber ?? ""}`;
+      const use = byKey.get(key) ?? { title, authors: current ? row.currentAuthors : row.authors, ccliNumber, days: [] };
+      use.days.push(row.usedAt);
+      byKey.set(key, use);
+    }
+    return [...byKey.values()];
   }
 
   /**

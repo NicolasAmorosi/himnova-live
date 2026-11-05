@@ -338,6 +338,10 @@ export type IpcContract = {
    *  `songs.sqlite`, refused as `OPENLP_UNREADABLE`. OpenLyrics: one or more
    *  `.xml` files, a file that is not a song counted as a problem. */
   "song:import": { req: { from: SongImportSource }; res: SongImportResult | null };
+  /** The CCLI usage report of `[from, to)` (ms): asks where to save it as CSV;
+   *  `null` when the operator cancels, `{ songs: 0 }` — and no question — when
+   *  no song went live in those dates. */
+  "song:usageReport": { req: { from: number; to: number }; res: { songs: number } | null };
   "songTheme:list": { req: void; res: SongThemeRow[] };
   /** Validated whole (`isSongThemeUpsert`). A new theme goes to the bottom. */
   "songTheme:create": { req: SongThemeUpsert; res: SongThemeRow };

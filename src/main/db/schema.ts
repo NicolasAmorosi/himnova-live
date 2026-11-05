@@ -584,3 +584,23 @@ export const songs = sqliteTable(
   },
   (t) => [index("ix_songs_title").on(t.title)],
 );
+
+/**
+ * What the CCLI usage report counts (owner, 2026-11-05): one row per song per
+ * day it went live. Never pruned, unlike `projection_history` (5000 rows): a
+ * report covers six months. The title, authors and CCLI number are kept as
+ * they were, for a song deleted since; one still in the library reports with
+ * its current ones (a CCLI number filled in after the fact counts).
+ */
+export const songUses = sqliteTable(
+  "song_uses",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    songId: integer("song_id").references(() => songs.id, { onDelete: "set null" }),
+    usedAt: integer("used_at").notNull(),
+    title: text("title").notNull(),
+    authors: text("authors"),
+    ccliNumber: text("ccli_number"),
+  },
+  (t) => [index("ix_song_uses_time").on(t.usedAt), index("ix_song_uses_song").on(t.songId)],
+);

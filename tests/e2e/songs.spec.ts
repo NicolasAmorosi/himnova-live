@@ -340,6 +340,43 @@ test("OpenLyrics files come in from «Importar», a second language as the trans
   }
 });
 
+test("a song that went live is in the CCLI report, once a day, saved as CSV from Ajustes ▸ Canciones", async ({ app }) => {
+  await createSong(app, "Sublime gracia", GRACIA);
+  await songRows(app).first().click();
+  await app.goLive();
+  const projector = await app.projector();
+  await expect(projector.getByText("Sublime gracia del Señor")).toBeVisible();
+  // Live again the same day: still one use.
+  await app.control.getByRole("button", { name: "NEGRO", exact: true }).click();
+  await app.control.getByRole("button", { name: "VIVO", exact: true }).click();
+  await app.goLive();
+
+  const file = path.join(os.tmpdir(), `worship-e2e-ccli-${Date.now()}.csv`);
+  try {
+    await app.control.getByRole("button", { name: "Configuración" }).click();
+    const settings = app.control.getByRole("dialog", { name: "Configuración" });
+    await settings.getByRole("tab", { name: "Canciones" }).click();
+    await app.answerSaveDialog(file);
+    await settings.getByRole("button", { name: "Exportar CSV" }).click();
+    await expect(toast(app, "Se exportó el informe: 1 canción.")).toBeVisible();
+    const now = new Date();
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+    expect(fs.readFileSync(file, "utf-8").split("\r\n")).toEqual([
+      "\uFEFFTítulo;Autores;Número CCLI;Usos;Fechas",
+      `Sublime gracia;;;1;${today}`,
+      "",
+    ]);
+
+    // Dates with nothing live say so, and ask nothing.
+    await settings.getByRole("textbox", { name: "Hasta" }).fill("2020-01-31");
+    await settings.getByRole("textbox", { name: "Desde" }).fill("2020-01-01");
+    await settings.getByRole("button", { name: "Exportar CSV" }).click();
+    await expect(toast(app, "Ninguna canción salió en vivo entre esas fechas.")).toBeVisible();
+  } finally {
+    fs.rmSync(file, { force: true });
+  }
+});
+
 test("a translation written in its own tab goes live stacked, and the LIVE row switches the language", async ({ app }) => {
   await app.openResources("Canciones");
   await tab(app).getByRole("button", { name: "Nueva canción" }).first().click();

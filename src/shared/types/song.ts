@@ -87,6 +87,9 @@ export type SongUsage = { programId: number; programName: string; itemCount: num
 export const SONG_IMPORT_SOURCES = ["easyworship", "openlp", "openlyrics"] as const;
 export type SongImportSource = (typeof SONG_IMPORT_SOURCES)[number];
 
+/** One song in the CCLI usage report: the days it went live (one per day). */
+export type SongUse = { title: string; authors: string | null; ccliNumber: string | null; days: number[] };
+
 /** What an import did: written, skipped as already there (same title, same
  *  words), and not written because the song had no title or no lyrics. */
 export type SongImportResult = { imported: number; repeated: number; problems: number };

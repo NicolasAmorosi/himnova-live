@@ -2,6 +2,7 @@ import type { Handlers } from "../register";
 import { getProgramsRepo, getSettingsRepo, getSongsRepo } from "../../services/repos";
 import { removeSong } from "../../services/song-removal";
 import { importEasyWorshipFolder, importOpenLpDatabase, importOpenLyricsFiles } from "../../services/song-import";
+import { exportSongUsage } from "../../services/song-usage";
 import { showOpenDialogFor } from "../open-dialog";
 import fs from "node:fs";
 import os from "node:os";
@@ -50,6 +51,7 @@ export const songsHandlers: Pick<
   | "song:usages"
   | "song:search"
   | "song:import"
+  | "song:usageReport"
   | "songTheme:list"
   | "songTheme:create"
   | "songTheme:update"
@@ -96,6 +98,7 @@ export const songsHandlers: Pick<
     });
     return result.canceled || result.filePaths.length === 0 ? null : importOpenLyricsFiles(result.filePaths);
   },
+  "song:usageReport": (req, ev) => exportSongUsage(ev.sender, Number(req?.from), Number(req?.to)),
   "songTheme:list": () => getSongsRepo().listThemes(),
   "songTheme:create": (input) => {
     const { name, style } = assertValidTheme(input);

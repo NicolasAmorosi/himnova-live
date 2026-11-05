@@ -213,3 +213,23 @@ export async function importSongs(from: SongImportSource): Promise<void> {
     toast.danger(message || t("songs.importError"));
   }
 }
+
+/**
+ * The CCLI usage report between two local dates (`YYYY-MM-DD`, both days
+ * included), saved as CSV where the operator says. Nothing used in those
+ * dates says so instead of saving an empty file.
+ */
+export async function exportSongUsage(fromDate: string, toDate: string): Promise<void> {
+  const from = new Date(`${fromDate}T00:00:00`);
+  const to = new Date(`${toDate}T00:00:00`);
+  to.setDate(to.getDate() + 1);
+  try {
+    const result = await api.songs.usageReport({ from: from.getTime(), to: to.getTime() });
+    if (!result) return;
+    if (result.songs === 0) toast.info(t("settings.songs.usageEmpty"));
+    else toast.success(t("settings.songs.usageDone", { songs: result.songs }));
+  } catch (error) {
+    console.warn("[songs] usage report failed", error);
+    toast.danger(t("settings.songs.usageError"));
+  }
+}
