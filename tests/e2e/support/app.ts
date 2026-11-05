@@ -152,7 +152,7 @@ export class WorshipApp {
 
   /** A resource tab, and one of its inner tabs. */
   async openResources(
-    tab: "Biblia" | "Media" | "Funciones",
+    tab: "Biblia" | "Canciones" | "Media" | "Funciones",
     inner?: "Videos" | "Imágenes" | "Audios" | "Presentaciones" | "Utilidades" | "Overlays",
   ): Promise<void> {
     await this.control.getByRole("tab", { name: tab }).click();

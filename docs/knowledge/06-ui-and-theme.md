@@ -205,6 +205,18 @@ its rows.
 The labels moved with them, from `scenes.*` to **`style.*`**. Two features spelling «Background
 type» from two dictionary entries is exactly how the two spellings start to drift apart.
 
+## A song — `SongScene`, drawn tiles and section colours
+
+`SongScene` (`components/shared/song-scene.tsx`) is `BibleScene`'s sibling but measures nothing: it
+draws one slide at the `sizeCqw` the output carries (see «Songs» in `04-renderer-state.md`). The same
+component draws the PREVIEW and LIVE grids' tiles (owner: drawn miniatures, not text tiles), a
+schedule row's picture and the measurer's off-screen stages. Margins, outline and footer are all in
+`cqw`; the footer keeps its place on every slide while the theme shows it.
+
+Each section type has a colour token (`--color-section-*`, the sheet's hues the content badges already
+use): verse steel/navy, pre-chorus amber, chorus orange, bridge green, the rest neutral — a bar under
+each tile, a dot on the order's chips and on the section buttons.
+
 ## The Bible verse — `BibleScene` and auto-fit
 
 `components/shared/bible-scene.tsx` draws the `bible` variant of `ProjectionOutput`, which now

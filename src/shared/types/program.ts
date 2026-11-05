@@ -38,7 +38,10 @@ export type ProgramItemDTO =
    *  (`overlay_plate_id`, `ON DELETE restrict`). Going live on it puts the
    *  plate UP over whatever is projected — it never replaces `base`, so it
    *  never claims the schedule's on-air rail either. */
-  | { id: number; position: number; kind: "plate"; overlayPlateId: number; title: string | null };
+  | { id: number; position: number; kind: "plate"; overlayPlateId: number; title: string | null }
+  /** A song, held by reference (`song_id`, `ON DELETE restrict`): a word
+   *  corrected in the library is corrected in every program that sings it. */
+  | { id: number; position: number; kind: "song"; songId: number; title: string | null };
 
 export type ProgramDTO = ProgramSummary & {
   items: ProgramItemDTO[];
@@ -62,7 +65,8 @@ export type ProgramItemUpsert =
       text: string;
     }
   | { id?: number; kind: "utility"; utilitySceneId: number; title: string | null }
-  | { id?: number; kind: "plate"; overlayPlateId: number; title: string | null };
+  | { id?: number; kind: "plate"; overlayPlateId: number; title: string | null }
+  | { id?: number; kind: "song"; songId: number; title: string | null };
 
 export type ProgramUpsert = {
   id?: number;

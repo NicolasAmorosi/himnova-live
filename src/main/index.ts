@@ -6,8 +6,10 @@ import { openDatabase } from "./db/client";
 import { backupBeforeMigrate, runMigrations } from "./db/migrate";
 import { seedBuiltinBibles } from "./db/seed/seed-bible";
 import { seedUtilityScenes } from "./db/seed/seed-utility-scenes";
+import { seedSongThemes } from "./db/seed/seed-song-themes";
 import {
   initRepos,
+  getSongsRepo,
   closeDatabase,
   getHistoryRepo,
   getMediaRepo,
@@ -132,6 +134,8 @@ function initDatabase(): void {
   // repositories rather than a raw handle, and the flag it reads lives in
   // `settings`.
   seedUtilityScenes(getUtilityRepo(), getSettingsRepo());
+  // After the legacy settings: the theme copies the verse's style.
+  seedSongThemes(getSongsRepo(), getSettingsRepo());
 }
 
 function wireMinimizeRestoreSync(controlWindow: BrowserWindow): void {

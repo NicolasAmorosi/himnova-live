@@ -164,13 +164,39 @@ EasyWorship's two-stage flow:
 - `bible.ts` — `projectVerse`/`advanceVerse` (live), `previewSearchHit` and
   `addVerseToSchedule`.
 
+## Songs
+
+A song goes live RESOLVED in `base` (`{ kind: "song", song: ResolvedSong, slideIndex, detour,
+lyricsHidden, enterSeq, theme, sizeCqw }`): its order expanded into slides and split to the theme's
+lines per slide (`resolveSong`, `stores/song.store.ts`), its theme, and its **one size**.
+
+- **The size is measured once, in the control window, and travels in the output.** `lib/song-fit.tsx`
+  draws every distinct slide off screen through the very `SongScene` the projector uses, at the
+  projector's proportion — or 16:9 when the monitors are the shorter stage, so what fits the projector
+  never overflows a monitor —, and bisects the largest size at which all of them fit (floor: the
+  theme's minimum). Cached per (slides, theme, proportion). `SongScene` itself measures nothing: the
+  projector, the monitors and every tile draw `sizeCqw` as given, so they cannot disagree and the
+  letters never change size between slides. `goLiveWithSong` measures BEFORE `base` changes, under
+  the live intent like a deck.
+- **Moving inside the song is a cut or the theme's fade, never a new scene.** `setSongPosition` bumps
+  `enterSeq`, which `selectOutput` turns into the output's `enter` (the `slide` variant's mechanism);
+  T (`setLyricsHidden`) is a cut and any move shows the lyrics again.
+- **Jumps** are `shared/song-jump.ts` (pure): the next time a section is sung, Shift the previous one;
+  a section not ahead (or behind) is a **detour** whose last slide → leaves at the slide after the one
+  it left. During a detour no slide of the order is on air.
+- **Saving the live song, its theme, or a song setting re-dresses it in place** (`refreshLiveSong` →
+  `setLiveSong`): re-resolved, re-measured, on the same pass and slide when it still exists
+  (`sameSlideIn`); `sceneEpoch` never moves.
+
 ## Keyboard
 
 `use-global-shortcuts.ts`, with the split that lets you press them without looking:
 
 | Key | What it moves |
 |---|---|
-| ←/→, PageUp/PageDown | **what is live** — the slide or verse on screen, derived from `base` and not from the focused panel. PageUp/PageDown are what a presentation remote sends for back/next |
+| ←/→, PageUp/PageDown | **what is live** — the slide, verse or song slide on screen, derived from `base` and not from the focused panel. PageUp/PageDown are what a presentation remote sends for back/next |
+| 1–9, C, P, F (Shift) | **only with a song live:** verse N, chorus, bridge, ending — the next time it is sung, Shift the previous one. Digits are read by `code`, so Shift+2 is still a 2; the projector forwards `shift` and `code` too |
+| T | **only with a song live:** hide or show its lyrics, the theme's background stays |
 | ↑/↓ | **the preview cursor** — nothing reaches the projector |
 | Enter | sends the preview to the projector (`goLive()`) |
 | Space | pauses/resumes an auto-advancing deck — the shortcut you need to stop dead a PPT that advances by itself |

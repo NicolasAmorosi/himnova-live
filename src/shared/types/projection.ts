@@ -12,6 +12,8 @@ import type { SlideTextSettings } from "./slide-model";
 import type { TimerClock, TimerFormat } from "./timer";
 import type { SlideTransition, TransitionSpec } from "./transition";
 import type { UtilityScene } from "./utility";
+import type { ResolvedSong, SongTheme } from "./song";
+import type { SongDetour } from "../song-jump";
 
 /** Which video (if any) is the current *base* content, independent of BLACK/
  *  LOGO. Present on every `ProjectionOutput` variant (including "black" and
@@ -152,6 +154,32 @@ export type ProjectionOutputKind =
    * while the count runs, which is what keeps `sceneContentKey` stable and
    * the scene from re-animating once per second.
    */
+  /**
+   * One slide of a song, dressed — `bible`'s rule: the theme and the
+   * background url travel inside, so the projector resolves nothing and a
+   * replayed snapshot is complete.
+   *
+   * `sizeCqw` is the song's ONE size, measured in the control window against
+   * the projector's proportion (`fitSongSize`). The projector and the monitors
+   * never measure, so they cannot disagree, and the letters never change size
+   * from one slide to the next. `songId` lets the history count a song once.
+   */
+  | {
+      kind: "song";
+      songId: number;
+      title: string;
+      lines: readonly string[];
+      /** The copyright footer, on the slides its theme puts it on; `null` on
+       *  the rest (its place is kept anyway — see `SongFooter`). */
+      footer: readonly string[] | null;
+      theme: SongTheme;
+      backgroundUrl: string | null;
+      sizeCqw: number;
+      /** The theme's fade between two slides of the song — the `slide`
+       *  variant's `enter`, with the same `seq` rule: a push re-sending the
+       *  same slide animates nothing. */
+      enter: SlideEnter | null;
+    }
   | {
       kind: "timer";
       clock: TimerClock;
@@ -371,6 +399,28 @@ export type BaseContent =
    * without beginning a new scene, and editing the scene while it is live
    * rewrites `scene` the same way.
    */
-  | { kind: "utility"; sceneId: number; scene: UtilityScene; clock: TimerClock };
+  | { kind: "utility"; sceneId: number; scene: UtilityScene; clock: TimerClock }
+  /**
+   * A song on the projector, RESOLVED — its order expanded into slides, its
+   * theme and its measured size — for `utility`'s reason: `selectOutput`
+   * cannot reach into the songs store. Saving the song while it is live
+   * rewrites all three in place (`setLiveSong`), never a new scene.
+   * `slideIndex` is 1-based, like a deck's; `detour` is a section sung off
+   * the order (`song-jump.ts`); `lyricsHidden` leaves only the theme's
+   * background on the projector (T), until the operator moves.
+   */
+  | {
+      kind: "song";
+      songId: number;
+      song: ResolvedSong;
+      slideIndex: number;
+      detour: SongDetour | null;
+      lyricsHidden: boolean;
+      /** Advances with every move inside the song — the identity of its
+       *  `enter`. */
+      enterSeq: number;
+      theme: SongTheme;
+      sizeCqw: number;
+    };
 
 export type OverlayState = "none" | "black" | "logo";

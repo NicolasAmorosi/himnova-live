@@ -19,6 +19,15 @@ Windows, macOS and Linux · English, Spanish, Italian and Portuguese
   never touched.
 - **Bible** with full-text search (accent-insensitive). Ships with the Reina-Valera 1909; import other
   versions in JSON, Zefania, USFX, OSIS or MyBible/MySword modules.
+- **Songs:** type or paste the lyrics — with headers like `[Verse 1]` or `[Chorus]` in English, Spanish,
+  Italian or Portuguese, or none, and the block that repeats becomes the chorus — and the app builds the
+  slides. One order per song, as chips you drag or a line like `V1 C V2 C B C`. **Every slide of a song is
+  drawn at the same size**: the largest at which all of them fit. Search by title, number, author or a
+  word of the lyrics (accent-insensitive). Live, the keys jump to a section (1–9 a verse, C the chorus,
+  P the bridge, F the ending; Shift the previous time) and T hides the lyrics. Named themes (background,
+  font, sizes, colours, outline, margins, lines per slide, a copyright footer with your church's CCLI
+  licence, a fade between slides), and import from **EasyWorship 6**'s song database (version 7 should
+  read the same; not yet tested with one).
 - **Timers** (countdown, clock, stopwatch) and **overlays** on top of what is projected (a lower third
   with the preacher's name, the church logo).
 - **BLACK and LOGO** pause whatever is playing and resume it where it was.

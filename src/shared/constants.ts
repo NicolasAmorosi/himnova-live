@@ -42,7 +42,7 @@ export const ASSET_EXTENSIONS: Record<AssetKind, readonly string[]> = {
 // service like any other. `plate` (a saved overlay plate) followed on
 // 2026-09-24: not base content, but the operator plans «the pastor's name
 // before the sermon» into the order of service like everything else.
-export const PROGRAM_ITEM_KINDS = ["media", "ppt", "bible", "utility", "plate"] as const;
+export const PROGRAM_ITEM_KINDS = ["media", "ppt", "bible", "utility", "plate", "song"] as const;
 export type ProgramItemKind = (typeof PROGRAM_ITEM_KINDS)[number];
 
 /** Bump to read every PDF deck again (its page sizes) when the way its pages

@@ -10,8 +10,13 @@ declarative projection window, and a working control UI for the 6 audited areas
 (playlist, library, bible, PPT, black/logo, display) plus the new
 saved-services module.
 
-**Not implemented** (explicitly out of scope for this task, agreed with the user):
-songs/lyrics with projectable sections.
+~~**Not implemented:** songs/lyrics with projectable sections.~~ **Implemented (2026-11-04,
+branch `feat/songs`):** the song library, one size per song, live jumps, named themes and the
+EasyWorship 6 import — see «Songs» in `04-renderer-state.md` and `05-data-and-persistence.md`.
+Left for later, by the owner's plan: two languages at once (the `translation` slot of a slide is
+reserved and never written), a video behind the lyrics, a stage display, other importers
+(OpenLP, OpenLyrics, ProPresenter, FreeShow, SongSelect, ChordPro), the CCLI usage report, chords,
+configurable keys, and checking the importer against a real EasyWorship 7 database.
 
 ## Debt consciously left for a later session
 

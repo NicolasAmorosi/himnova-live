@@ -11,6 +11,8 @@ export class HistoryRepo {
   /** Last deck recorded, so a 60-slide auto-advancing deck writes one row
    *  instead of 60 and doesn't burn through MAX_ROWS in a few programs. */
   private lastDeckAssetId: number | null = null;
+  /** The same for a song: one row per song, not one per slide. */
+  private lastSongId: number | null = null;
   /** The last recorded output, minus its plates — see `record`. */
   private lastRecordedKey: string | null = null;
 
@@ -30,6 +32,25 @@ export class HistoryRepo {
     const key = JSON.stringify({ ...output, plates: undefined, transition: undefined, videoUnderlay: undefined });
     if (key === this.lastRecordedKey) return;
     this.lastRecordedKey = key;
+
+    if (output.kind === "song") {
+      this.lastDeckAssetId = null;
+      if (this.lastSongId === output.songId) return;
+      this.lastSongId = output.songId;
+      this.db
+        .insert(projectionHistory)
+        .values({
+          projectedAt: Date.now(),
+          kind: "song",
+          mediaAssetId: null,
+          programId,
+          reference: output.title,
+          snapshotJson: JSON.stringify({ kind: "song", songId: output.songId, title: output.title }),
+        })
+        .run();
+      return;
+    }
+    this.lastSongId = null;
 
     if (output.kind === "slide") {
       if (this.lastDeckAssetId === output.deckAssetId) return;

@@ -10,6 +10,7 @@ import { LiveContentGrid } from "./live-content-grid";
 import { LiveMediaPanel } from "./live-media-panel";
 import { DeckTransport } from "./deck-transport";
 import { VerseTransport } from "./verse-transport";
+import { SongTransport } from "./song-transport";
 
 /**
  * EasyWorship's right-hand column: a header matching the other two columns'
@@ -103,6 +104,7 @@ export function MonitorsColumn() {
         <LiveMonitor />
         <DeckTransport />
         <VerseTransport />
+        <SongTransport />
         <LiveMediaPanel />
         <PanelBody className="p-1.5">
           <div className={cn("flex flex-1 flex-col", base === null && "items-center justify-center")}>

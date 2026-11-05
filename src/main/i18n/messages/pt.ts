@@ -96,6 +96,14 @@ const pt: MainMessages = {
     invalid: "O overlay tem campos inválidos.",
     invalidName: "O nome do overlay não é válido.",
   },
+  songs: {
+    invalid: "A música tem campos inválidos.",
+    invalidTitle: "O título da música não é válido.",
+    invalidTheme: "O tema tem campos inválidos.",
+    ewPickTitle: "Escolha a pasta Databases\\Data do EasyWorship",
+    ewNotFound: "Essa pasta não tem um banco de músicas do EasyWorship (Songs.db e SongWords.db). Escolha a pasta Databases\\Data do perfil dele.",
+    ewUnreadable: "Não foi possível abrir o banco de músicas do EasyWorship.",
+  },
   seed: {
     countdownName: "Contagem de 10 minutos",
     countdownTitle: "O culto começa em",
@@ -104,6 +112,7 @@ const pt: MainMessages = {
     clockName: "Relógio",
     stopwatchName: "Cronômetro",
     endMessage: "Sejam bem-vindos!",
+    songThemeName: "Padrão",
   },
 };
 

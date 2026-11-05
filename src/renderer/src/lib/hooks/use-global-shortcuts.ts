@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { useProjectionStore } from "@renderer/stores/projection.store";
-import { advanceSlide, goLive, toggleOverlay } from "@renderer/lib/actions/playback";
+import { advanceSlide, advanceSong, goLive, jumpSong, toggleOverlay, toggleSongLyrics } from "@renderer/lib/actions/playback";
+import type { SongJumpTarget } from "@shared/song-jump";
 import { advancePreview } from "@renderer/lib/actions/preview";
 import { toggleAutoplay } from "@renderer/effects/deck-autoplay";
 import { advanceVerse } from "@renderer/lib/actions/bible";
@@ -126,20 +127,45 @@ const ACTIONS: Record<string, () => void> = {
   Enter: () => void goLive(),
 };
 
+/** The sections a letter jumps to while a song is live (owner, 2026-11-04):
+ *  C chorus, P bridge (puente), F ending (final). B is BLACK, so no B. */
+const SONG_SECTION_LETTERS: Record<string, SongJumpTarget["type"]> = { c: "chorus", p: "bridge", f: "ending" };
+
+/** What a key does to a live song: a jump (1–9 = verse N, by the physical
+ *  key, so Shift+2 is still a 2), T to hide or show the lyrics, or nothing. */
+function songKey(key: string, code: string): SongJumpTarget | "lyrics" | null {
+  const digit = /^(?:Digit|Numpad)([1-9])$/.exec(code)?.[1] ?? (/^[1-9]$/.test(key) ? key : undefined);
+  if (digit) return { type: "verse", number: Number(digit) };
+  const letter = key.toLowerCase();
+  if (letter === "t") return "lyrics";
+  const type = SONG_SECTION_LETTERS[letter];
+  return type ? { type, number: null } : null;
+}
+
 /** Runs the shortcut `key` stands for, if any, and says whether it was one.
  *  Shared by the control window's own keys and the ones the projector forwards
  *  (`projector-key`), so a key means the same thing in either window. */
-function runShortcut(key: string, repeat: boolean): boolean {
+function runShortcut(key: string, repeat: boolean, shift = false, code = ""): boolean {
   const step = LIVE_STEP[key];
   if (step !== undefined) {
     const { base } = useProjectionStore.getState();
     if (base?.kind === "deck") advanceSlide(step);
     else if (base?.kind === "bible") advanceVerse(step);
+    else if (base?.kind === "song") advanceSong(step);
     else return false;
     return true;
   }
   if (key === "ArrowUp" || key === "ArrowDown") {
     advancePreview(key === "ArrowDown" ? 1 : -1);
+    return true;
+  }
+  // Only with a song live: anywhere else these keys are nobody's.
+  const song = useProjectionStore.getState().base?.kind === "song" ? songKey(key, code) : null;
+  if (song) {
+    if (!repeat) {
+      if (song === "lyrics") toggleSongLyrics();
+      else jumpSong(song, shift ? -1 : 1);
+    }
     return true;
   }
   const action = ACTIONS[key];
@@ -156,12 +182,14 @@ function runShortcut(key: string, repeat: boolean): boolean {
  * the two-stage flow, which is what makes them safe to press blind:
  *
  * - ←/→ and a remote's PageUp/PageDown: navigate what is LIVE — the deck on the
- *   projector, or the verse on it. Derived from `base`, not from which panel
+ *   projector, the verse or the song on it. Derived from `base`, not from which panel
  *   has focus, so they always mean the same thing.
  * - ↑/↓: navigate the PREVIEW cursor. Nothing reaches the projector.
  * - Enter: send the preview to the projector (the GO LIVE button), also right
  *   after clicking a button with the mouse — see `lib/focus-modality.ts`.
  * - Space: pause/resume a self-advancing deck.
+ * - With a song live: 1–9 verse N, C chorus, P bridge, F ending — the next
+ *   time it is sung, Shift the previous one — and T hides or shows the lyrics.
  * - B (or a remote's «.»)/L: toggle BLACK/LOGO overlay.
  * - Delete/Backspace: remove the selected library or schedule item.
  * - Escape in a text field gives the keys back: it leaves the field.
@@ -192,12 +220,12 @@ export function useGlobalShortcuts(suspended: boolean): void {
         return;
       }
       if (suppressesKey(e.target, e.key)) return;
-      if (runShortcut(e.key, e.repeat)) e.preventDefault();
+      if (runShortcut(e.key, e.repeat, e.shiftKey, e.code)) e.preventDefault();
     }
 
     window.addEventListener("keydown", onKeyDown);
-    const stopProjectorKeys = onIpc("projector-key", ({ key, repeat }) => {
-      runShortcut(key, repeat);
+    const stopProjectorKeys = onIpc("projector-key", ({ code, key, repeat, shift }) => {
+      runShortcut(key, repeat, shift, code);
     });
     return () => {
       window.removeEventListener("keydown", onKeyDown);

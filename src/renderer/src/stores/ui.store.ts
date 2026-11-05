@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-export type SettingsSection = "projection" | "slides" | "verse" | "bible" | "system" | "about";
+export type SettingsSection = "projection" | "slides" | "verse" | "bible" | "songs" | "system" | "about";
 
 /**
  * App-level chrome that something outside React has to be able to open.

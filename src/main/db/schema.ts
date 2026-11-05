@@ -130,7 +130,7 @@ export const programItems = sqliteTable(
       .notNull()
       .references(() => programs.id, { onDelete: "cascade" }),
     position: integer("position").notNull(),
-    kind: text("kind", { enum: ["media", "ppt", "bible", "utility", "plate"] }).notNull(),
+    kind: text("kind", { enum: ["media", "ppt", "bible", "utility", "plate", "song"] }).notNull(),
 
     mediaAssetId: integer("media_asset_id").references(() => mediaAssets.id, {
       onDelete: "restrict",
@@ -150,6 +150,11 @@ export const programItems = sqliteTable(
     overlayPlateId: integer("overlay_plate_id").references(() => overlayPlates.id, {
       onDelete: "restrict",
     }),
+
+    /** The song a `song` row projects. `restrict` for the same reason as
+     *  `utility_scene_id`: deleting a song a saved program uses is the
+     *  operator's decision (`song:usages`). */
+    songId: integer("song_id").references(() => songs.id, { onDelete: "restrict" }),
 
     bibleVersionId: integer("bible_version_id").references(() => bibleVersions.id, {
       onDelete: "set null",
@@ -513,4 +518,53 @@ export const overlayPlates = sqliteTable(
     updatedAt: integer("updated_at").notNull(),
   },
   (t) => [index("ix_overlay_plates_order").on(t.sortOrder)],
+);
+
+/**
+ * The looks a song can be dressed in — see `SongTheme`. JSON for the same
+ * reason as every style here: a change of shape is a branch in
+ * `shared/song-validators.ts`, not a migration.
+ */
+export const songThemes = sqliteTable(
+  "song_themes",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    name: text("name").notNull(),
+    /** JSON: `SongTheme`. */
+    styleJson: text("style_json").notNull(),
+    sortOrder: integer("sort_order").notNull().default(0),
+    createdAt: integer("created_at").notNull(),
+    updatedAt: integer("updated_at").notNull(),
+  },
+  (t) => [index("ix_song_themes_order").on(t.sortOrder)],
+);
+
+/**
+ * The song library. The structure (`sections_json`, `order_json`) is JSON;
+ * `lyrics_text` is every line flattened, only for `songs_fts` (FTS5,
+ * external content, written by hand in `0019` like the Bible's).
+ *
+ * `theme_id` is `set null`: deleting a theme leaves its songs on the default
+ * one, never without their words.
+ */
+export const songs = sqliteTable(
+  "songs",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    title: text("title").notNull(),
+    number: text("number"),
+    authors: text("authors"),
+    copyright: text("copyright"),
+    ccliNumber: text("ccli_number"),
+    notes: text("notes"),
+    /** JSON: `SongSection[]`. */
+    sectionsJson: text("sections_json").notNull(),
+    /** JSON: section keys, with repetitions; `[]` = the sections as written. */
+    orderJson: text("order_json").notNull(),
+    themeId: integer("theme_id").references(() => songThemes.id, { onDelete: "set null" }),
+    lyricsText: text("lyrics_text").notNull(),
+    createdAt: integer("created_at").notNull(),
+    updatedAt: integer("updated_at").notNull(),
+  },
+  (t) => [index("ix_songs_title").on(t.title)],
 );

@@ -8,8 +8,8 @@ WorshipApp — the product has been called **Lumina Live** since 2026-10-22 and 
 Vite + Tailwind**, with **embedded SQLite** as its backend, meant as a replacement for EasyWorship.
 It drives two windows — control and projection — to show presentations (PowerPoint old and new,
 `.odp` and PDF, every one read and drawn by the app itself, with nothing else to install), video,
-images, audio and Bible verses (it ships the RV1909, in the public domain; any other version is
-imported) during a service. Visual identity: Lumina Live's (navy + teal accent +
+images, audio, Bible verses (it ships the RV1909, in the public domain; any other version is
+imported) and songs (lyrics with sections, an order and named themes) during a service. Visual identity: Lumina Live's (navy + teal accent +
 the flame, identity sheet of 2026-10-22), with a switchable light/dark theme (dark by default, meant
 to be operated from a dark booth).
 
@@ -97,6 +97,8 @@ src/
 │   ├── ipc/result.ts          # Result<T> / IpcError
 │   ├── style-validators.ts    # what ALL styles share (color, SceneTextStyle, background)
 │   ├── scene-validators.ts    # what is specific to a timer scene; bible-style-validators.ts, the verse's
+│   ├── song-text.ts           # the lyrics text format (headers in 4 languages) ↔ sections, the order line
+│   ├── song-jump.ts           # live jumps to a section and detours off the order (pure); song-validators.ts
 │   ├── types/                 # DTOs: display, media, bible, bible-style, projection, program, settings
 │   ├── constants.ts           # AssetKind, extensions, PPT timeouts
 │   └── urls.ts                # assetUrl()/slideUrl() — capability tokens, not paths
@@ -129,6 +131,7 @@ src/
 │   ├── updates/                   # updater.ts (owns UpdateStatus, wraps electron-updater), mac-dmg.ts
 │   │                              #   (macOS without Squirrel), update-status.ts (PURE, tested)
 │   ├── logging.ts                 # main.log and crash.log, rotated
+│   ├── songs/                     # rtf.ts (RTF → text), easyworship.ts (EasyWorship 6's song database)
 │   └── services/                  # repos.ts (registry), projection-state.ts, broadcast.ts
 ├── preload/
 │   ├── index.ts                  # GENERIC invoke/on bridge — never edited when adding channels
@@ -147,7 +150,8 @@ src/
         │   └── pages/       # one folder per feature:
         │       ├── layout/     # AppShell (EasyWorship-style grid), TopBar
         │       ├── schedule/   # the order of service (left column, top)
-        │       ├── resources/  # tabbed browser: Bible | Media (videos, images, audio, presentations) | Functions
+        │       ├── resources/  # tabbed browser: Bible | Songs | Media (videos, images, audio, presentations) | Functions
+        │       ├── songs/      # the Songs tab, the song editor (one song at a time) and the «Temas» editor
         │       ├── slides/     # center: PREVIEW monitor + grid of slides/verses of the item in preview
         │       ├── monitors/   # right column: LIVE monitor, live grid, deck transport
         │       ├── settings/   # Settings; sections/bible/ = verse style + version manager
@@ -325,7 +329,7 @@ npm install              # installs deps — better-sqlite3 ships prebuilt binar
 npm run dev               # electron-vite dev (HMR in the renderer, main restarts on watch)
 npm run typecheck          # tsc --noEmit over node (main+preload+shared) and web (renderer+shared)
 npm run lint                # eslint .
-npm run test                 # vitest run — 509 cases in two projects: `main` (Node: migrations, seed,
+npm run test                 # vitest run — 574 cases in two projects: `main` (Node: migrations, seed,
                               #   FTS5, repos and the library sweep, draft, settings and scene validators, WAL backup,
                               #   zip reader, the legacy-deck reader against an OLE2 file built in the test
                               #   (`tests/fixtures/legacy-ppt.ts`: pictures, master inheritance, what it refuses),
@@ -348,12 +352,12 @@ npm run test                 # vitest run — 509 cases in two projects: `main` 
                               #   frozen frame, toast store, utils). Nothing imports `electron`: that's
                               #   the suite's boundary
 npm run test:watch            # the same suite in watch mode, while working on a module
-npm run test:e2e              # build + Playwright: 140 walkthroughs of the real app (~10 min) with a
+npm run test:e2e              # build + Playwright: 155 walkthroughs of the real app (~10 min) with a
                               #   throwaway profile and media generated on the fly — videos, AVI and WMA with the
                               #   bundled FFmpeg; PDFs, a legacy .pps made of pictures and .pptx with auto-advance, a
                               #   WMA soundtrack and an embedded WMV written in code (`tests/e2e/support/pptx.ts`),
                               #   nothing else installed:
-                              #   live, library, LOGO, decks, Bible, Functions, programs, keyboard, Settings,
+                              #   live, library, LOGO, decks, Bible, songs, Functions, programs, keyboard, Settings,
                               #   updates against a local fake of GitHub, robustness and an entire service
                               #   (`service.spec.ts`). Native dialogs are
                               #   answered with `answerOpenDialog`. With WORSHIP_E2E_EXECUTABLE=<path to the installed
@@ -575,6 +579,13 @@ npm run package:win|mac|linux  # build + electron-builder for that platform
   confidence monitor is the whole control window. It has already bitten twice (a slide's video
   overlay, and `TimerScene`'s vertical margin). If the vertical axis is really needed,
   it goes inside a wrapper of its own with `container-type: size`.
+- **A song is drawn at ONE size, measured once in the control window and carried in the output.**
+  `fitSongSize` (`lib/song-fit.tsx`) draws all of its slides off screen through the same `SongScene`
+  the projector uses, at the projector's proportion (16:9 when the monitors are shorter), and the
+  `song` output carries `sizeCqw`; `SongScene` never measures. A size computed anywhere else — the
+  projector, a monitor, a tile — is a monitor that can disagree with the room and letters that change
+  size from one slide to the next, which is the complaint this feature exists to end. Saving the live
+  song, its theme or a song setting re-dresses it in place (`setLiveSong`), never a new scene.
 - **`selectOutput` (`src/renderer/src/stores/projection.store.ts`) is the only source of what gets
   projected.** It's an exhaustive `switch` over `BaseContent` — adding a new content type
   without handling it there is a compile error, not a runtime bug like the legacy

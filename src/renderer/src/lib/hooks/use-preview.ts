@@ -11,6 +11,11 @@ import { timerOutputFor } from "@renderer/lib/utility-output";
 import { platePreviewOutput } from "@renderer/lib/plate-output";
 import { useLiveVideoPoster } from "@renderer/lib/hooks/use-live-video-poster";
 import { findPlate, useOverlayStore } from "@renderer/stores/overlay.store";
+import { findSong, resolveSong, themeForSong, useSongStore } from "@renderer/stores/song.store";
+import { footerAt, slideLines, songOutputFor } from "@renderer/lib/song-output";
+import { useSongFit } from "@renderer/lib/song-fit";
+import { useSettingsStore } from "@renderer/stores/settings.store";
+import type { ResolvedSong, Song, SongTheme } from "@shared/types/song";
 import { assetUrl } from "@shared/urls";
 import type { MediaAsset } from "@shared/types/media";
 import type { UtilityScene } from "@shared/types/utility";
@@ -28,7 +33,8 @@ export type PreviewContent =
   | { kind: "media"; asset: MediaAsset }
   | { kind: "bible"; reference: string; text: string; versionLabel: string | null; verseIndex: number | null }
   | { kind: "utility"; scene: UtilityScene }
-  | { kind: "plate"; plate: Plate };
+  | { kind: "plate"; plate: Plate }
+  | { kind: "song"; song: Song; resolved: ResolvedSong; theme: SongTheme };
 
 export function usePreviewContent(): PreviewContent | null {
   const target = usePreviewStore((s) => s.target);
@@ -38,6 +44,16 @@ export function usePreviewContent(): PreviewContent | null {
   const versions = useBibleStore((s) => s.versions);
   const scenes = useUtilityStore((s) => s.scenes);
   const plates = useOverlayStore((s) => s.plates);
+  const songs = useSongStore((s) => s.songs);
+  const themes = useSongStore((s) => s.themes);
+  const defaultThemeId = useSettingsStore((s) => s.settings["songs.defaultThemeId"]);
+  const license = useSettingsStore((s) => s.settings["songs.ccliLicense"]);
+  const songContent = (id: number): PreviewContent | null => {
+    const song = findSong(songs, id);
+    if (!song) return null;
+    const theme = themeForSong(song, themes, defaultThemeId);
+    return { kind: "song", song, resolved: resolveSong(song, theme, license), theme };
+  };
 
   const selectedIndex = useProgramStore((s) => s.selectedIndex);
   const scheduleItem = target?.kind === "scheduleItem" && selectedIndex !== null ? items[selectedIndex] : undefined;
@@ -73,6 +89,8 @@ export function usePreviewContent(): PreviewContent | null {
     const plate = findPlate(plates, target.plateId);
     return plate ? { kind: "plate", plate } : null;
   }
+
+  if (target.kind === "song") return songContent(target.songId);
 
   if (target.kind === "asset") {
     if (!directAsset) return null;
@@ -124,6 +142,8 @@ export function usePreviewContent(): PreviewContent | null {
       const plate = findPlate(plates, scheduleItem.overlayPlateId);
       return plate ? { kind: "plate", plate } : null;
     }
+    case "song":
+      return songContent(scheduleItem.songId);
   }
 }
 
@@ -158,6 +178,11 @@ function usePreviewOutputWithoutPlates(content: PreviewContent | null): Projecti
   const slideText = useProjectionStore((s) => s.slideText);
   const deckEntry = useDeckStore((s) => (content?.kind === "deck" ? s.byAssetId[content.assetId] : undefined));
   const playableUrl = usePlayableAssetUrl(content?.kind === "media" ? content.asset.id : null);
+  // The size the projector will get: the same measurement, the same cache.
+  const songFit = useSongFit(
+    content?.kind === "song" ? content.resolved : null,
+    content?.kind === "song" ? content.theme : null,
+  );
 
   if (!content) return null;
 
@@ -249,6 +274,23 @@ function usePreviewOutputWithoutPlates(content: PreviewContent | null): Projecti
     case "plate":
       // Drawn over the live stage by `usePreviewOutput`, never from here.
       return null;
+    case "song":
+      // Nothing until the song is measured — a frame, the first time — so the
+      // monitor never shows it at a size the projector will not use.
+      if (!songFit) return null;
+      return {
+        ...songOutputFor(
+          content.resolved,
+          slideLines(content.resolved, slideIndex),
+          content.theme,
+          songFit.sizeCqw,
+          footerAt(content.resolved, content.theme, { slideIndex, detour: null }),
+        ),
+        videoUnderlay: null,
+        slideVideo: null,
+        plates: [],
+        transition: INSTANT_TRANSITION,
+      };
     case "utility":
       // The SAME clock the row below shows, so an operator who started the
       // countdown sees it running here before deciding to send it — and the

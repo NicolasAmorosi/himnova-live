@@ -4,6 +4,7 @@ import { findScene, useUtilityStore } from "@renderer/stores/utility.store";
 import { TOOL_ICON } from "@renderer/components/pages/functions/tool-display";
 import { findPlate, useOverlayStore } from "@renderer/stores/overlay.store";
 import { PLATE_KIND_ICON } from "@renderer/components/pages/functions/plate-display";
+import { findSong, useSongStore } from "@renderer/stores/song.store";
 import { useMediaAsset } from "./use-media-asset";
 
 const ICON_BY_KIND: Record<ProgramItemDTO["kind"], IconName> = {
@@ -12,6 +13,7 @@ const ICON_BY_KIND: Record<ProgramItemDTO["kind"], IconName> = {
   bible: "bible",
   utility: "clock",
   plate: "overlay",
+  song: "song",
 };
 
 const BADGE_BY_KIND: Record<ProgramItemDTO["kind"], BadgeVariant> = {
@@ -25,6 +27,8 @@ const BADGE_BY_KIND: Record<ProgramItemDTO["kind"], BadgeVariant> = {
   utility: "neutral",
   // Same reasoning as `utility`; the kind's own icon tells them apart.
   plate: "neutral",
+  // Same again; a song's row shows its first slide anyway.
+  song: "neutral",
 };
 
 /** The scene a `utility` item points at, or `null` for anything else. Its own
@@ -51,6 +55,8 @@ export function useItemLabel(item: ProgramItemDTO): string {
   const asset = useMediaAsset(item.kind === "media" || item.kind === "ppt" ? item.mediaAssetId : null);
   const scene = useItemScene(item);
   const plate = useItemPlate(item);
+  const songs = useSongStore((s) => s.songs);
+  if (item.kind === "song") return item.title ?? findSong(songs, item.songId)?.title ?? "…";
   if (item.kind === "media" || item.kind === "ppt") return item.title ?? asset?.name ?? "…";
   if (item.kind === "utility") return item.title ?? scene?.name ?? "…";
   if (item.kind === "plate") return item.title ?? plate?.name ?? "…";

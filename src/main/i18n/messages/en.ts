@@ -96,6 +96,14 @@ const en: MainMessages = {
     invalid: "The overlay has invalid fields.",
     invalidName: "The overlay name isn't valid.",
   },
+  songs: {
+    invalid: "The song has invalid fields.",
+    invalidTitle: "The song title isn't valid.",
+    invalidTheme: "The theme has invalid fields.",
+    ewPickTitle: "Choose EasyWorship's Databases\\Data folder",
+    ewNotFound: "That folder holds no EasyWorship song database (Songs.db and SongWords.db). Choose its profile's Databases\\Data folder.",
+    ewUnreadable: "EasyWorship's song database couldn't be opened.",
+  },
   seed: {
     countdownName: "10-minute countdown",
     countdownTitle: "Service begins in",
@@ -104,6 +112,7 @@ const en: MainMessages = {
     clockName: "Clock",
     stopwatchName: "Stopwatch",
     endMessage: "Welcome!",
+    songThemeName: "Default",
   },
 };
 

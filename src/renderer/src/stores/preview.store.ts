@@ -26,7 +26,10 @@ export type PreviewTarget =
   /** A saved overlay plate, re-resolved on every render for the same reason.
    *  The preview monitor draws it over what is LIVE, not over black: what
    *  the operator checks is how it will look in the room. */
-  | { kind: "plate"; plateId: number };
+  | { kind: "plate"; plateId: number }
+  /** A song of the library, re-resolved on every render like a scene. Its
+   *  slides are walked with `slideIndex`, like a deck's. */
+  | { kind: "song"; songId: number };
 
 type PreviewStoreState = {
   /** 1-based cursor inside the previewed deck, independent of the live one. */

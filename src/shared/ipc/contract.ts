@@ -42,6 +42,15 @@ import type { SettingsMap } from "../types/settings";
 import type { GpuStatus, InternalsPage, VideoDecoderReport } from "../types/system";
 import type { UtilityScene, UtilitySceneUpsert, UtilitySceneUsage } from "../types/utility";
 import type { Plate, PlateUpsert, PlateUsage } from "../types/overlay";
+import type {
+  Song,
+  SongImportResult,
+  SongSearchHit,
+  SongThemeRow,
+  SongThemeUpsert,
+  SongUpsert,
+  SongUsage,
+} from "../types/song";
 import type { CloseDecision } from "../types/window";
 import type { UpdateStatus } from "../types/updates";
 
@@ -288,6 +297,31 @@ export type IpcContract = {
   "overlay:usages": { req: { id: number }; res: PlateUsage[] };
   "overlay:reorder": { req: { ids: number[] }; res: Plate[] };
 
+  /** The whole song library, read at boot and after every write — the
+   *  renderer previews and projects from it without a round trip. Every
+   *  write is validated whole (`isSongUpsert`). Deleting a song a saved
+   *  program uses is refused with `SONG_IN_USE` unless `force`, like a plate. */
+  "song:list": { req: void; res: Song[] };
+  "song:create": { req: SongUpsert; res: Song };
+  "song:update": { req: SongUpsert & { id: number }; res: Song };
+  "song:duplicate": { req: { id: number; title: string }; res: Song };
+  "song:delete": { req: { id: number; force?: boolean }; res: void };
+  "song:usages": { req: { id: number }; res: SongUsage[] };
+  /** Title, number, authors and lyrics, without accents (FTS5), best first. */
+  "song:search": { req: { query: string; limit?: number }; res: SongSearchHit[] };
+  /** Asks for EasyWorship 6/7's `Databases/Data` folder (or the profile
+   *  above it) and imports its songs; `null` when the operator cancels.
+   *  Refused as `EW_NOT_FOUND` when the folder holds no song database, and
+   *  `EW_UNREADABLE` when it cannot be opened. */
+  "song:importEasyWorship": { req: void; res: SongImportResult | null };
+  "songTheme:list": { req: void; res: SongThemeRow[] };
+  /** Validated whole (`isSongThemeUpsert`). A new theme goes to the bottom. */
+  "songTheme:create": { req: SongThemeUpsert; res: SongThemeRow };
+  "songTheme:update": { req: SongThemeUpsert & { id: number }; res: SongThemeRow };
+  /** Refused as `SONG_THEME_LAST` for the last one. Its songs go back to the
+   *  default theme, and a default that named it goes back to the first. */
+  "songTheme:delete": { req: { id: number }; res: void };
+
   "settings:get": { req: void; res: SettingsMap };
   "settings:set": { req: Partial<SettingsMap>; res: void };
 
@@ -372,7 +406,7 @@ export type IpcEvents = {
    *  it when it opens, and a click on its screen does on any system. Forwarded
    *  by `windows/projection-window.ts` so the shortcuts answer from either
    *  window; only keys without Ctrl/⌘/Alt, so the menu's own still work there. */
-  "projector-key": { key: string; repeat: boolean };
+  "projector-key": { key: string; repeat: boolean; shift: boolean; code: string };
   /** The operator asked to close the control window and the schedule has
    *  unsaved changes. Main has already vetoed the close and is asking the
    *  control window what to do; the answer comes back as
