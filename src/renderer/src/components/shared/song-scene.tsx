@@ -42,13 +42,20 @@ const VERTICAL_ALIGN: Record<SceneVerticalAlign, string> = {
 export function SongScene({
   content,
   onImageError,
+  videoBehind = false,
 }: {
   content: SongSlideContent;
   onImageError?: ((url: string) => void) | undefined;
+  /** The theme's video plays under this scene: its still is not drawn here. */
+  videoBehind?: boolean;
 }) {
   const { backgroundUrl, footer, lines, sizeCqw, theme } = content;
-  const background = cssSceneBackground(theme.background);
-  const imageBackground = theme.background.kind === "image" ? theme.background : null;
+  // A video background paints no colour of its own: the live video is under
+  // this scene (`OutputView`'s `SongVideoLayer`), and everywhere else its still
+  // is the picture (`backgroundUrl`, `songBackgroundUrl`).
+  const background = theme.background.kind === "video" ? null : cssSceneBackground(theme.background);
+  const imageBackground =
+    theme.background.kind === "image" || (theme.background.kind === "video" && !videoBehind) ? theme.background : null;
   const { bottom, left, right, top } = theme.margins;
   const reserve = footerReserveCqw(theme);
   const { outline } = theme;

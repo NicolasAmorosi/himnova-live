@@ -8,6 +8,7 @@ import { takeEngine, type EngineEvents, type MediaEngine } from "./media-engine"
 import {
   liveEngineAudio,
   liveEngineSlideVideo,
+  liveEngineSongVideo,
   liveEngineState,
   watchStall,
   type LiveEngineState,
@@ -41,11 +42,11 @@ type Session = {
   stall?: StallWatch | null;
 };
 
-type VideoTarget = "video" | "slideVideo";
+type VideoTarget = "video" | "slideVideo" | "songVideo";
 
 /** The full-screen video and the live slide's clip: never both live, but two elements, as they are
- *  in the projector (`OutputView`). */
-const videos: Record<VideoTarget, Session | null> = { video: null, slideVideo: null };
+ *  in the projector (`OutputView`). The song's video background is a third, and silent. */
+const videos: Record<VideoTarget, Session | null> = { video: null, slideVideo: null, songVideo: null };
 /** By `trackId`. Audio has no picture, so no window is shown its frames. */
 const audio = new Map<string, Session>();
 let preview: Session | null = null;
@@ -150,8 +151,20 @@ function syncVideo(target: VideoTarget, want: LiveEngineState | null, windows: (
   if (!session) {
     const fresh: Session = { engine: null, url: want.url, epoch: want.epoch, paused: want.paused, volume: want.volume, loop: want.loop };
     session = videos[target] = fresh;
-    const events = liveEvents(fresh, { kind: target }, () => videos[target] === fresh);
-    start(fresh, { startAtSeconds: want.startAtSeconds, audio: true }, liveEngineFrameKey(target, want.epoch), events);
+    const isCurrent = () => videos[target] === fresh;
+    // A background reports no position (nothing in the control window follows it), only a failure;
+    // and its audio is never even decoded, like PREVIEW's.
+    const events: EngineEvents =
+      target === "songVideo"
+        ? {
+            error: (error) => {
+              if (!isCurrent()) return;
+              console.warn("[engine] live songVideo", error.code, error.detail);
+              broadcast("media-error", { target: { kind: "songVideo" }, url: fresh.url, code: null });
+            },
+          }
+        : liveEvents(fresh, { kind: target }, isCurrent);
+    start(fresh, { startAtSeconds: want.startAtSeconds, audio: target !== "songVideo" }, liveEngineFrameKey(target, want.epoch), events);
   } else {
     apply(session, want);
   }
@@ -167,6 +180,7 @@ export function syncLiveEngine(): void {
   syncAudio(projector !== null);
   syncVideo("video", liveEngineState(output, projector !== null), windows);
   syncVideo("slideVideo", liveEngineSlideVideo(output, projector !== null), windows);
+  syncVideo("songVideo", liveEngineSongVideo(output, projector !== null), windows);
 }
 
 /** A seek from the media panel, when its target is one of the engine's. `restart` is a seek to 0 as
@@ -217,7 +231,7 @@ export function seekPreviewVideo(seconds: number): void {
 
 /** `projection:wantVideoFrame`: a canvas for these frames just mounted. */
 export function redrawEngineFrame(key: string): void {
-  for (const target of ["video", "slideVideo"] as const) {
+  for (const target of ["video", "slideVideo", "songVideo"] as const) {
     const session = videos[target];
     if (session && key === liveEngineFrameKey(target, session.epoch)) session.engine?.redraw();
   }

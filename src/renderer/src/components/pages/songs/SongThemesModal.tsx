@@ -35,7 +35,7 @@ import { parseLyrics } from "@shared/song-text";
 import { BIBLE_LINE_HEIGHT_MAX, BIBLE_LINE_HEIGHT_MIN, TEXT_ALIGNS, type TextAlign } from "@shared/types/bible-style";
 import { INSTANT_TRANSITION, type ProjectionOutput } from "@shared/types/projection";
 import type { MediaAsset } from "@shared/types/media";
-import type { SceneBackground } from "@shared/types/scene-style";
+import type { SongBackground } from "@shared/types/song";
 import {
   DEFAULT_SONG_THEME,
   SONG_FOOTER_ALIGNS,
@@ -127,7 +127,10 @@ export function SongThemesModal({ onOpenChange, open }: { onOpenChange: (open: b
   const [saving, setSaving] = useState(false);
   const [imageAssets, setImageAssets] = useState<readonly MediaAsset[]>([]);
   const [addingImages, setAddingImages] = useState(false);
-  const [pendingImage, setPendingImage] = useState<Extract<SceneBackground, { kind: "image" }> | null>(null);
+  const [videoAssets, setVideoAssets] = useState<readonly MediaAsset[]>([]);
+  const [addingVideos, setAddingVideos] = useState(false);
+  /** An image or video background with nothing chosen yet: shown, not saved. */
+  const [pendingBackground, setPendingBackground] = useState<SongBackground | null>(null);
 
   useEffect(() => {
     if (!open) {
@@ -139,6 +142,10 @@ export function SongThemesModal({ onOpenChange, open }: { onOpenChange: (open: b
       .list("image")
       .then(setImageAssets)
       .catch((error: unknown) => console.warn("[songThemes] could not list the image library", error));
+    void api.library
+      .list("video")
+      .then(setVideoAssets)
+      .catch((error: unknown) => console.warn("[songThemes] could not list the video library", error));
     setEditing((current) => {
       if (current) return current;
       const first = themes[0];
@@ -216,7 +223,7 @@ export function SongThemesModal({ onOpenChange, open }: { onOpenChange: (open: b
       setImageAssets(await api.library.list("image"));
       const first = added[0];
       if (first) {
-        setPendingImage(null);
+        setPendingBackground(null);
         patchStyle({ background: { kind: "image", assetId: first.id, fit: "cover" } });
       }
     } catch (error) {
@@ -224,6 +231,26 @@ export function SongThemesModal({ onOpenChange, open }: { onOpenChange: (open: b
       toast.danger(t("style.addImageError"));
     } finally {
       setAddingImages(false);
+    }
+  }
+
+  async function handleAddVideos() {
+    setAddingVideos(true);
+    try {
+      const paths = await api.files.pick("video", true);
+      if (paths.length === 0) return;
+      const added = await api.library.add(paths, "video");
+      setVideoAssets(await api.library.list("video"));
+      const first = added[0];
+      if (first) {
+        setPendingBackground(null);
+        patchStyle({ background: { kind: "video", assetId: first.id, fit: "cover" } });
+      }
+    } catch (error) {
+      console.warn("[songThemes] could not add videos", error);
+      toast.danger(t("style.addVideoError"));
+    } finally {
+      setAddingVideos(false);
     }
   }
 
@@ -240,16 +267,20 @@ export function SongThemesModal({ onOpenChange, open }: { onOpenChange: (open: b
           editing ? (
             <Inspector key={editing.themeId ?? "new"} label={t("songThemes.title")}>
           <InspectorSection title={t("style.groups.background")}>
-            <BackgroundFields
+            <BackgroundFields<SongBackground>
               addingImages={addingImages}
+              addingVideos={addingVideos}
               imageAssets={imageAssets}
+              kinds={["solid", "gradient", "image", "video"]}
               onAddImages={() => void handleAddImages()}
+              onAddVideos={() => void handleAddVideos()}
               onChange={(background) => {
-                const noImageYet = background.kind === "image" && background.assetId === 0;
-                setPendingImage(noImageYet ? background : null);
-                if (!noImageYet) patchStyle({ background });
+                const nothingYet = (background.kind === "image" || background.kind === "video") && background.assetId === 0;
+                setPendingBackground(nothingYet ? background : null);
+                if (!nothingYet) patchStyle({ background });
               }}
-              value={pendingImage ?? style.background}
+              value={pendingBackground ?? style.background}
+              videoAssets={videoAssets}
             />
           </InspectorSection>
 

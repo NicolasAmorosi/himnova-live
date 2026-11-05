@@ -45,7 +45,7 @@ export function isEngineUrl(url: string): boolean {
 /** The key main sends a live video's frames under — the full-screen one or the
  *  live slide's: by epoch, so a frame of the previous video still in flight
  *  never lands on the next one's canvas. */
-export function liveEngineFrameKey(target: "video" | "slideVideo", epoch: number): string {
+export function liveEngineFrameKey(target: "video" | "slideVideo" | "songVideo", epoch: number): string {
   return `${target}:${epoch}`;
 }
 

@@ -24,6 +24,7 @@ import { playableAssetUrl } from "@renderer/stores/engine-assets.store";
 import { getCachedMediaAsset } from "@renderer/lib/hooks/use-media-asset";
 import type { AssetKind } from "@shared/constants";
 import { prepareSong } from "@renderer/lib/actions/songs";
+import { songBackgroundVideo } from "@renderer/lib/song-output";
 import { jumpTo, stepSong, type SongJumpTarget } from "@shared/song-jump";
 
 let videoEpoch = 0;
@@ -281,6 +282,7 @@ async function goLiveWithSong(songId: number, startSlideIndex: number, intent: n
     enterSeq: 0,
     theme: prepared.theme,
     sizeCqw: prepared.sizeCqw,
+    backgroundVideo: songBackgroundVideo(prepared.theme, null),
   });
   store.setOverlay("none");
   return true;

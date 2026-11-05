@@ -19,6 +19,7 @@ import {
   matchesAll,
   normalizeTextStyle,
 } from "./style-validators";
+import { BACKGROUND_FITS } from "./types/scene-style";
 import { TRANSITION_MAX_DURATION_MS } from "./types/transition";
 import { BIBLE_LINE_HEIGHT_MAX, BIBLE_LINE_HEIGHT_MIN, TEXT_ALIGNS } from "./types/bible-style";
 import { isSafeFontFamily, SCENE_VERTICAL_ALIGNS } from "./types/scene-style";
@@ -98,9 +99,17 @@ const TRANSITION_VALIDATORS: Record<keyof SongSlideTransition, (v: unknown) => b
   durationMs: isNumberIn(0, TRANSITION_MAX_DURATION_MS),
 };
 
+/** A video background's asset is a row id, like an image's; whether the row
+ *  still exists is the projector's to report, not a shape question. */
+const VIDEO_BACKGROUND_VALIDATORS = {
+  kind: (v: unknown) => v === "video",
+  assetId: isIntegerIn(1, Number.MAX_SAFE_INTEGER),
+  fit: isOneOf(BACKGROUND_FITS),
+};
+
 export const SONG_THEME_VALIDATORS: Record<keyof SongTheme, (v: unknown) => boolean> = {
   version: (v) => v === SONG_THEME_VERSION,
-  background: isSceneBackground,
+  background: (v) => isSceneBackground(v) || matchesAll(v, VIDEO_BACKGROUND_VALIDATORS),
   fontFamily: (v) => (v === null || typeof v === "string") && isSafeFontFamily(v),
   text: (v) => isTextStyle(v) && isRecord(v) && isSize(v.sizeCqw),
   minSizeCqw: isSize,

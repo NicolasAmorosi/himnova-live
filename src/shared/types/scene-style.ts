@@ -42,11 +42,11 @@ export const SCENE_FONT_WEIGHTS = [300, 400, 600, 700, 900] as const;
 export type SceneFontWeight = (typeof SCENE_FONT_WEIGHTS)[number];
 
 /**
- * A video background is deliberately absent: it would put a second `<video>`
- * in the projection window alongside `videoUnderlay`, and element churn there
- * is what produces `PIPELINE_ERROR_DECODE (-12909)` (see
- * `.claude/knowledge/worship-protocol-range-and-video-lifecycle.md`). It needs
- * its own lifecycle design, not a fourth variant here.
+ * A video background is deliberately absent HERE: element churn in the
+ * projection window is what produces `PIPELINE_ERROR_DECODE (-12909)` (see
+ * `.claude/knowledge/worship-protocol-range-and-video-lifecycle.md`), so it got
+ * its own lifecycle instead of a fourth variant — for songs only
+ * (`SongBackground`, drawn through the output's `songVideo`).
  *
  * `assetId` and not a url: a scene is stored, and a `worship://asset/<id>` url
  * is derived from it by `selectOutput` exactly like a video's or an image's.

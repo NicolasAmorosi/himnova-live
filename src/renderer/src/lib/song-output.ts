@@ -1,13 +1,37 @@
-import { assetUrl } from "@shared/urls";
+import { assetThumbUrl, assetUrl } from "@shared/urls";
+import { playableAssetUrl } from "@renderer/stores/engine-assets.store";
 import type { ProjectionOutputKind, SlideEnter } from "@shared/types/projection";
 import type { SongPosition } from "@shared/song-jump";
 import type { ResolvedSong, SongFooterShow, SongTheme } from "@shared/types/song";
 
 /** The theme's background as a url, when it is an image with a file —
- *  `timerOutputFor`'s sentinel: an image background without one yet is none. */
+ *  `timerOutputFor`'s sentinel: an image background without one yet is none.
+ *  A video's is its still: what every tile, PREVIEW, the theme editor and the
+ *  stage show, and what the projector shows until the video's first frame. */
 export function songBackgroundUrl(theme: SongTheme): string | null {
   const { background } = theme;
-  return background.kind === "image" && background.assetId > 0 ? assetUrl(background.assetId) : null;
+  if (background.kind !== "image" && background.kind !== "video") return null;
+  if (background.assetId <= 0) return null;
+  // ponytail: an unversioned still — a file replaced under the same row keeps
+  // its old still until the cache is cleared; version it if that ever bites.
+  return background.kind === "video" ? assetThumbUrl(background.assetId, "") : assetUrl(background.assetId);
+}
+
+let songVideoEpoch = 0;
+
+/** The theme's video as the projector plays it — through the media engine
+ *  when Chromium cannot — keeping `current` (and its epoch, so the video goes
+ *  on) while it is the same file. `null` without a video background. */
+export function songBackgroundVideo(
+  theme: SongTheme,
+  current: { url: string; epoch: number } | null,
+): { url: string; epoch: number } | null {
+  const { background } = theme;
+  if (background.kind !== "video" || background.assetId <= 0) return null;
+  const url = playableAssetUrl(background.assetId);
+  if (current?.url === url) return current;
+  songVideoEpoch += 1;
+  return { url, epoch: songVideoEpoch };
 }
 
 /** The lines of the order's slide `slideIndex` (1-based, clamped: a song

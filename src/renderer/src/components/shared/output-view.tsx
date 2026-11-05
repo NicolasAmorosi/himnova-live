@@ -26,6 +26,7 @@ import type {
   ProjectionOutput,
   SlideEnter,
   SlideVideo,
+  SongVideo,
 } from "@shared/types/projection";
 
 /** Above this drift (seconds) the LIVE monitor's own video is resynced to the
@@ -540,6 +541,57 @@ function SlideVideoLayer({
 }
 
 /**
+ * A song theme's video background (`SongVideo`), UNDER every scene layer —
+ * whose song scene is then transparent (`videoBehind`) — and outside all of
+ * them, so a slide's fade, which is two layers, never builds a second one.
+ * Its still sits under the picture until the first frame. BLACK and LOGO only
+ * pause it: their scene is opaque and on top, so nothing here has to hide.
+ * Silent always; the engine's frames, when the media engine plays it.
+ */
+function SongVideoLayer({
+  covered,
+  onError,
+  songVideo,
+}: {
+  covered: boolean;
+  onError: (code: number | null) => void;
+  songVideo: SongVideo;
+}) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  useEffect(() => {
+    const element = videoRef.current;
+    if (!element) return;
+    if (covered) element.pause();
+    else element.play().catch(() => undefined);
+  }, [covered]);
+  const fit = { objectFit: songVideo.fit } as const;
+  return (
+    <div className="absolute inset-0" data-song-video="">
+      <img alt="" className="absolute inset-0 size-full" src={songVideo.posterUrl} style={fit} />
+      {isEngineUrl(songVideo.url) ? (
+        <EngineVideo
+          className="absolute inset-0 size-full"
+          frameKey={liveEngineFrameKey("songVideo", songVideo.epoch)}
+          style={fit}
+        />
+      ) : (
+        <video
+          autoPlay={!covered}
+          className="absolute inset-0 size-full"
+          loop
+          muted
+          onError={(event) => onError(event.currentTarget.error?.code ?? null)}
+          playsInline
+          ref={videoRef}
+          src={songVideo.url}
+          style={fit}
+        />
+      )}
+    </div>
+  );
+}
+
+/**
  * The last frame of a video that has already been torn down, mounted as the
  * canvas node it was drawn into.
  *
@@ -571,6 +623,9 @@ type OutputSceneProps = {
    *  out describes content nobody is looking at any more. */
   onImageError?: ((url: string) => void) | undefined;
   output: ProjectionOutput;
+  /** The song's video background plays under this layer (`SongVideoLayer`):
+   *  the song scene paints no background of its own. */
+  videoBehind?: boolean;
   /** A still standing in for a video that is deliberately not mounted — see
    *  `OutputView`'s `videoStill`. */
   posterUrl: string | null;
@@ -584,7 +639,7 @@ type OutputSceneProps = {
  * background — see `SceneLayer` — and video is the persistent element
  * `OutputView` renders outside every layer).
  */
-function OutputScene({ frozenFrame, mode, onImageError, output, posterUrl }: OutputSceneProps) {
+function OutputScene({ frozenFrame, mode, onImageError, output, posterUrl, videoBehind = false }: OutputSceneProps) {
   return (
     <>
       {output.kind === "video" && frozenFrame ? <FrozenFrame canvas={frozenFrame} /> : null}
@@ -636,7 +691,9 @@ function OutputScene({ frozenFrame, mode, onImageError, output, posterUrl }: Out
       {output.kind === "bible" ? <BibleScene onImageError={onImageError} output={output} /> : null}
 
       {/* Measures nothing: the song's one size travels in the output. */}
-      {output.kind === "song" ? <SongScene content={output} onImageError={onImageError} /> : null}
+      {output.kind === "song" ? (
+        <SongScene content={output} onImageError={onImageError} videoBehind={videoBehind} />
+      ) : null}
     </>
   );
 }
@@ -652,6 +709,7 @@ type SceneLayerProps = {
   output: ProjectionOutput;
   role: LayerRole;
   transition: LayerTransition;
+  videoBehind: boolean;
 };
 
 /** One stacked scene — `OutputView` mounts up to two at once (the outgoing
@@ -672,15 +730,24 @@ function SceneLayer({
   posterUrl,
   role,
   transition,
+  videoBehind,
 }: SceneLayerProps) {
   // A video layer normally paints nothing and must stay transparent so the
   // persistent <video> shows through. One holding a frozen frame is the
   // opposite case: it IS the picture now, and it needs black behind it for the
   // letterboxing `object-contain` leaves.
   // A poster (`videoStill`) is the same case: the layer is the picture.
-  const opaque = output.kind !== "video" || frozenFrame != null || posterUrl !== null;
+  // A song over its video background is the same: the video is the picture.
+  const opaque = (output.kind !== "video" || frozenFrame != null || posterUrl !== null) && !videoBehind;
   const scene = (errors: typeof onImageError) => (
-    <OutputScene frozenFrame={frozenFrame} mode={mode} onImageError={errors} output={output} posterUrl={posterUrl} />
+    <OutputScene
+      frozenFrame={frozenFrame}
+      mode={mode}
+      onImageError={errors}
+      output={output}
+      posterUrl={posterUrl}
+      videoBehind={videoBehind}
+    />
   );
   // A slide entering by random bars is drawn once per bar, each bar clipped to
   // itself; the layer stays transparent so the slide leaving shows through
@@ -1272,6 +1339,7 @@ export function OutputView({
   const [failedSceneUrl, setFailedSceneUrl] = useState<string | null>(null);
   const [failedVideoUrl, setFailedVideoUrl] = useState<string | null>(null);
   const [failedSlideVideoUrl, setFailedSlideVideoUrl] = useState<string | null>(null);
+  const [failedSongVideoUrl, setFailedSongVideoUrl] = useState<string | null>(null);
   const [failedPlateUrl, setFailedPlateUrl] = useState<string | null>(null);
   // ...except when the SAME url comes back working. A USB drive unplugged and
   // plugged in again, or a file relocated, keeps its `worship://asset/<id>`:
@@ -1283,6 +1351,7 @@ export function OutputView({
     setFailedSceneUrl(null);
     setFailedVideoUrl(null);
     setFailedSlideVideoUrl(null);
+    setFailedSongVideoUrl(null);
     setFailedPlateUrl(null);
   }, [sceneEpoch]);
 
@@ -1329,6 +1398,13 @@ export function OutputView({
     onMediaError?.({ target: { kind: "slideVideo" }, url, code });
   }
 
+  function handleSongVideoError(code: number | null) {
+    const url = output.songVideo?.url;
+    if (!url) return;
+    setFailedSongVideoUrl(url);
+    onMediaError?.({ target: { kind: "songVideo" }, url, code });
+  }
+
   /** A failure is only worth showing while the thing that failed is still the
    *  thing on screen — which is what keeps a warning from outliving its
    *  content without any explicit clearing (see `ProjectionMediaError.url`). */
@@ -1338,6 +1414,7 @@ export function OutputView({
       failedSceneUrl === url ||
       failedVideoUrl === url ||
       failedSlideVideoUrl === url ||
+      failedSongVideoUrl === url ||
       failedPlateUrl === url ||
       (reportedErrorUrls?.includes(url) ?? false)
     );
@@ -1348,6 +1425,7 @@ export function OutputView({
   // overlay itself is fine and is about to come off.
   const videoUnderlayUrl = output.videoUnderlay?.url ?? null;
   const slideVideoUrl = output.slideVideo?.url ?? null;
+  const songVideoUrl = output.songVideo?.url ?? null;
   // A timer scene's own url is its background image, when it has one — the
   // only file a generated scene can fail to load.
   const sceneUrl =
@@ -1366,6 +1444,7 @@ export function OutputView({
     errorLabel &&
     (hasFailed(videoUnderlayUrl) ||
       hasFailed(slideVideoUrl) ||
+      hasFailed(songVideoUrl) ||
       hasFailed(sceneUrl) ||
       output.plates.some((plate) => hasFailed(plate.imageUrl)))
       ? errorLabel
@@ -1418,9 +1497,21 @@ export function OutputView({
       : liveEngineFrameKey("video", output.videoUnderlay.epoch)
     : "";
 
+  /** The song's video background plays here — not in PREVIEW, which never
+   *  starts a video on its own, nor where the still stands in, nor once it
+   *  failed: then each song layer paints its still instead. */
+  const songVideo = output.songVideo ?? null;
+  const songVideoMounted =
+    songVideo !== null && videoMounted && mode !== "preview" && !hasFailed(songVideo.url);
+  const videoBehind = (layer: Layer) => songVideoMounted && layer.output.kind === "song";
+
   const incoming = layers[1];
+  // A song over its video is see-through: what it replaces fades out instead
+  // of holding under it, or the video would only appear when that ends.
   const incomingCovers =
-    incoming !== undefined && (incoming.output.kind !== "video" || videoMounted || posterFor(incoming) !== null);
+    incoming !== undefined &&
+    !videoBehind(incoming) &&
+    (incoming.output.kind !== "video" || videoMounted || posterFor(incoming) !== null);
 
   return (
     <div
@@ -1429,6 +1520,17 @@ export function OutputView({
         className,
       )}
     >
+      {/* First of all: under every scene layer. Keyed by its epoch, so a new
+          song's video is a new element and the same song's slides are not. */}
+      {songVideo && songVideoMounted ? (
+        <SongVideoLayer
+          covered={output.kind !== "song"}
+          key={songVideo.epoch}
+          onError={handleSongVideoError}
+          songVideo={songVideo}
+        />
+      ) : null}
+
       {layers.map((layer, i) => (
         <SceneLayer
           key={layer.seq}
@@ -1445,6 +1547,7 @@ export function OutputView({
           posterUrl={posterFor(layer)}
           role={layers.length < 2 ? "steady" : i === 0 ? "leaving" : "entering"}
           transition={transition}
+          videoBehind={videoBehind(layer)}
         />
       ))}
 

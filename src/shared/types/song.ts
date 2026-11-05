@@ -13,7 +13,13 @@
  * tokens.
  */
 import type { BibleStyle, TextAlign } from "./bible-style";
-import { DEFAULT_SHADOW_STRENGTH, type SceneBackground, type SceneTextStyle, type SceneVerticalAlign } from "./scene-style";
+import {
+  DEFAULT_SHADOW_STRENGTH,
+  type BackgroundFit,
+  type SceneBackground,
+  type SceneTextStyle,
+  type SceneVerticalAlign,
+} from "./scene-style";
 
 export const SONG_SECTION_TYPES = ["verse", "prechorus", "chorus", "bridge", "ending", "intro", "other"] as const;
 export type SongSectionType = (typeof SONG_SECTION_TYPES)[number];
@@ -152,6 +158,13 @@ export const SONG_FOOTER_LINES = 2;
 
 export const SONG_THEME_VERSION = 1;
 
+/** A looping video behind the lyrics, never heard — songs only: the verse,
+ *  the time scenes and the plates keep `SceneBackground` (owner, 2026-11-05;
+ *  plan `2026-11-05-video-de-fondo`). Any video the library takes: one the
+ *  projector cannot play goes through the media engine, like a live video. */
+export type SongVideoBackground = { kind: "video"; assetId: number; fit: BackgroundFit };
+export type SongBackground = SceneBackground | SongVideoBackground;
+
 /**
  * How a song looks — every knob of the theme editor (owner: «que se puedan
  * editar espacios, tamaños, colores»). A field added later is a branch in
@@ -159,7 +172,7 @@ export const SONG_THEME_VERSION = 1;
  */
 export type SongTheme = {
   version: typeof SONG_THEME_VERSION;
-  background: SceneBackground;
+  background: SongBackground;
   fontFamily: string | null;
   /** `sizeCqw` is the CEILING: a song is drawn at the largest size at or
    *  below it at which all of its slides fit. */

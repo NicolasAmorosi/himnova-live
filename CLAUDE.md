@@ -345,7 +345,7 @@ npm install              # installs deps — better-sqlite3 ships prebuilt binar
 npm run dev               # electron-vite dev (HMR in the renderer, main restarts on watch)
 npm run typecheck          # tsc --noEmit over node (main+preload+shared) and web (renderer+shared)
 npm run lint                # eslint .
-npm run test                 # vitest run — 595 cases in two projects: `main` (Node: migrations, seed,
+npm run test                 # vitest run — 601 cases in two projects: `main` (Node: migrations, seed,
                               #   FTS5, repos and the library sweep, draft, settings and scene validators, WAL backup,
                               #   zip reader, the legacy-deck reader against an OLE2 file built in the test
                               #   (`tests/fixtures/legacy-ppt.ts`: pictures, master inheritance, what it refuses),
@@ -368,7 +368,7 @@ npm run test                 # vitest run — 595 cases in two projects: `main` 
                               #   frozen frame, toast store, utils). Nothing imports `electron`: that's
                               #   the suite's boundary
 npm run test:watch            # the same suite in watch mode, while working on a module
-npm run test:e2e              # build + Playwright: 159 walkthroughs of the real app (~10 min) with a
+npm run test:e2e              # build + Playwright: 161 walkthroughs of the real app (~10 min) with a
                               #   throwaway profile and media generated on the fly — videos, AVI and WMA with the
                               #   bundled FFmpeg; PDFs, a legacy .pps made of pictures and .pptx with auto-advance, a
                               #   WMA soundtrack and an embedded WMV written in code (`tests/e2e/support/pptx.ts`),
@@ -564,6 +564,12 @@ npm run package:win|mac|linux  # build + electron-builder for that platform
   silently resolves against something else. Diagnosis in
   [`.claude/knowledge/an-overlay-on-a-slide-must-rebuild-the-object-contain-box-and-cqh-needs-container-type-size.md`](.claude/knowledge/an-overlay-on-a-slide-must-rebuild-the-object-contain-box-and-cqh-needs-container-type-size.md).
   The feature is `.pptx`/`.ppsx` only: a legacy `.ppt`/`.pps` loses the video entirely.
+- **A song theme's video background travels as `songVideo`, at the TOP of `ProjectionOutput`, and
+  is drawn UNDER the scene layers, never inside `SongScene`.** The `slideVideo` reason (BLACK makes
+  the kind `"black"`) plus one of its own: a song slide's fade is TWO layers, so a video inside the
+  scene would mount a second element — or a second engine session — on every slide. The song layer
+  turns see-through over it (`videoBehind`); everything that mounts no video draws its still. See
+  «Songs» in `docs/knowledge/04-renderer-state.md`.
 - **BLACK/LOGO pauses what the projector plays and keeps its position; a standalone audio keeps
   playing.** The `<video>` isn't unmounted when covered (`videoUnderlay` in `ProjectionOutput` +
   `LiveVideo` in `output-view.tsx`): it's only hidden and paused, and when uncovered it resumes where

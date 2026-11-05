@@ -183,6 +183,10 @@ const es = {
     imagePlaceholder: "Elegí una imagen…",
     addImage: "Agregar…",
     addImageError: "No se pudieron agregar las imágenes",
+    video: "Video",
+    videoHint: "Sale de la biblioteca de videos. Se repite sin sonido detrás de la letra; con NEGRO o LOGO se pausa.",
+    videoPlaceholder: "Elegí un video…",
+    addVideoError: "No se pudieron agregar los videos",
     fit: "Ajuste",
     font: "Fuente",
     fontHint: "Cualquier fuente instalada en esta computadora.",
@@ -200,6 +204,7 @@ const es = {
       solid: "Color sólido",
       gradient: "Degradado",
       image: "Imagen",
+      video: "Video",
     },
     gradient: {
       toBottom: "Hacia abajo",

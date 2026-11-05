@@ -194,6 +194,17 @@ lines per slide (`resolveSong`, `stores/song.store.ts`), its theme, and its **on
 - **Saving the live song, its theme, or a song setting re-dresses it in place** (`refreshLiveSong` →
   `setLiveSong`): re-resolved, re-measured, on the same pass and slide when it still exists
   (`sameSlideIn`); `sceneEpoch` never moves.
+- **A theme's video background** (2026-11-05, `SongBackground`'s `video`, songs only) goes live as
+  `base.backgroundVideo` (`songBackgroundVideo`: the url `playableAssetUrl` gives, resolved when the
+  song goes live and kept, epoch and all, while the re-dressed theme names the same file) and reaches
+  the projector as the output's `songVideo`, at its TOP like `slideVideo`, so BLACK/LOGO only cover
+  and pause it. `OutputView` draws it under every scene layer (`SongVideoLayer`: its still, then a
+  `<video loop muted>` or the engine's canvas) and the song layer turns see-through over it
+  (`videoBehind`) — never inside `SongScene`, because a slide's fade is two layers and the video
+  would be a new element on every slide. An incoming song over its video does not "cover", so what
+  it replaces fades out instead of holding under it. Everywhere no video is mounted — PREVIEW, the
+  tiles, the theme editor, the stage, a monitor with motion off — the theme's `backgroundUrl` is the
+  video's still. Main plays an engine one as a third, silent video session (`songVideo`).
 
 ## Keyboard
 

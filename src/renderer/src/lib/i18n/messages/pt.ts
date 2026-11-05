@@ -178,6 +178,10 @@ const pt: Messages = {
     imagePlaceholder: "Escolha uma imagem…",
     addImage: "Adicionar…",
     addImageError: "Não foi possível adicionar as imagens",
+    video: "Vídeo",
+    videoHint: "Vem da biblioteca de vídeos. Repete sem som atrás da letra; PRETO ou LOGO o pausam.",
+    videoPlaceholder: "Escolha um vídeo…",
+    addVideoError: "Não foi possível adicionar os vídeos",
     fit: "Ajuste",
     font: "Fonte",
     fontHint: "Qualquer fonte instalada neste computador.",
@@ -195,6 +199,7 @@ const pt: Messages = {
       solid: "Cor sólida",
       gradient: "Degradê",
       image: "Imagem",
+      video: "Vídeo",
     },
     gradient: {
       toBottom: "Para baixo",

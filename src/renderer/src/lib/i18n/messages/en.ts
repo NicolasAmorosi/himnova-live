@@ -178,6 +178,10 @@ const en: Messages = {
     imagePlaceholder: "Choose an image…",
     addImage: "Add…",
     addImageError: "Couldn't add the images",
+    video: "Video",
+    videoHint: "Picked from the video library. It loops, silent, behind the lyrics; BLACK or LOGO pauses it.",
+    videoPlaceholder: "Choose a video…",
+    addVideoError: "Couldn't add the videos",
     fit: "Fit",
     font: "Font",
     fontHint: "Any font installed on this computer.",
@@ -194,6 +198,7 @@ const en: Messages = {
       solid: "Solid color",
       gradient: "Gradient",
       image: "Image",
+      video: "Video",
     },
     gradient: {
       toBottom: "Top to bottom",

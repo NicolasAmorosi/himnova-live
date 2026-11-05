@@ -23,6 +23,7 @@ import {
   type SceneVerticalAlign,
 } from "@shared/types/scene-style";
 import type { MediaAsset } from "@shared/types/media";
+import type { SongBackground } from "@shared/types/song";
 
 /**
  * The field rows every editor that DRESSES something reuses.
@@ -61,10 +62,11 @@ const WEIGHT_LABEL: Record<SceneFontWeight, MessageKey> = {
   900: "style.weights.black",
 };
 
-const BACKGROUND_LABEL: Record<SceneBackground["kind"], MessageKey> = {
+const BACKGROUND_LABEL: Record<SongBackground["kind"], MessageKey> = {
   solid: "style.background.solid",
   gradient: "style.background.gradient",
   image: "style.background.image",
+  video: "style.background.video",
 };
 
 const GRADIENT_LABEL: Record<(typeof GRADIENT_DIRECTIONS)[number], MessageKey> = {
@@ -87,7 +89,7 @@ const APP_FONT = "__app__";
  *  solid to a gradient and back does not lose the colour the operator picked.
  *  Module-private: it is `BackgroundFields`' own behaviour, and exporting it
  *  would also cost this file its fast-refresh boundary. */
-function backgroundOfKind(kind: SceneBackground["kind"], current: SceneBackground): SceneBackground {
+function backgroundOfKind(kind: SongBackground["kind"], current: SongBackground): SongBackground {
   if (kind === current.kind) return current;
   switch (kind) {
     case "solid":
@@ -105,38 +107,51 @@ function backgroundOfKind(kind: SceneBackground["kind"], current: SceneBackgroun
       // placeholder until one is chosen. A form with a save button refuses it
       // there; the verse style, saved on every change, holds it unsaved.
       return { kind: "image", assetId: 0, fit: "cover" };
+    case "video":
+      // The same sentinel as an image's: nothing chosen yet.
+      return { kind: "video", assetId: 0, fit: "cover" };
   }
 }
 
-type BackgroundFieldsProps = {
+type BackgroundFieldsProps<B extends SongBackground> = {
   /** The image assets a background can point at, plus the button that adds
    *  more — owned by the caller, which is where the loading state lives. */
   addingImages: boolean;
   imageAssets: readonly MediaAsset[];
   /** Which kinds the operator may pick. An overlay plate's band offers no
-   *  image — a bug's picture is its content, not its dressing. */
-  kinds?: readonly SceneBackground["kind"][];
+   *  image — a bug's picture is its content, not its dressing — and only a
+   *  song's theme offers a video. */
+  kinds?: readonly NoInfer<B>["kind"][];
   onAddImages: () => void;
-  onChange: (next: SceneBackground) => void;
-  value: SceneBackground;
+  onChange: (next: B) => void;
+  value: B;
+  /** The same for a video, when `kinds` offers one. */
+  addingVideos?: boolean;
+  onAddVideos?: () => void;
+  videoAssets?: readonly MediaAsset[];
 };
 
-/** Kind, plus whichever rows that kind needs. */
-export function BackgroundFields({
+/** Kind, plus whichever rows that kind needs. Generic over the kinds a caller
+ *  stores: every `onChange` below is one of `kinds`, so the casts hold. */
+export function BackgroundFields<B extends SongBackground = SceneBackground>({
   addingImages,
+  addingVideos = false,
   imageAssets,
   kinds = ["solid", "gradient", "image"],
   onAddImages,
-  onChange,
+  onAddVideos,
+  onChange: emit,
   value,
-}: BackgroundFieldsProps) {
+  videoAssets = [],
+}: BackgroundFieldsProps<B>) {
   const t = useT();
+  const onChange = (next: SongBackground) => emit(next as B);
   return (
     <>
       <FieldRow label={t("style.backgroundKind")}>
         <Select
           className="w-52"
-          onChange={(next) => onChange(backgroundOfKind(next as SceneBackground["kind"], value))}
+          onChange={(next) => onChange(backgroundOfKind(next as SongBackground["kind"], value))}
           options={kinds.map((kind) => ({
             label: t(BACKGROUND_LABEL[kind]),
             value: kind,
@@ -198,6 +213,32 @@ export function BackgroundFields({
               value={String(value.assetId)}
             />
             <Button disabled={addingImages} onClick={onAddImages} variant="outline">
+              <Icon name="add" />
+              {t("style.addImage")}
+            </Button>
+          </FieldRow>
+          <FieldRow label={t("style.fit")}>
+            <Select
+              className="w-52"
+              onChange={(fit) => onChange({ ...value, fit: fit as (typeof BACKGROUND_FITS)[number] })}
+              options={BACKGROUND_FITS.map((fit) => ({ label: t(FIT_LABEL[fit]), value: fit }))}
+              value={value.fit}
+            />
+          </FieldRow>
+        </>
+      ) : null}
+
+      {value.kind === "video" ? (
+        <>
+          <FieldRow description={t("style.videoHint")} label={t("style.video")}>
+            <Select
+              className="w-52"
+              onChange={(assetId) => onChange({ ...value, assetId: Number(assetId) })}
+              options={videoAssets.map((asset) => ({ label: asset.name, value: String(asset.id) }))}
+              placeholder={t("style.videoPlaceholder")}
+              value={String(value.assetId)}
+            />
+            <Button disabled={addingVideos} onClick={onAddVideos} variant="outline">
               <Icon name="add" />
               {t("style.addImage")}
             </Button>

@@ -178,6 +178,10 @@ const it: Messages = {
     imagePlaceholder: "Scegli un'immagine…",
     addImage: "Aggiungi…",
     addImageError: "Impossibile aggiungere le immagini",
+    video: "Video",
+    videoHint: "Viene dalla libreria dei video. Si ripete senza audio dietro il testo; NERO o LOGO lo mettono in pausa.",
+    videoPlaceholder: "Scegli un video…",
+    addVideoError: "Impossibile aggiungere i video",
     fit: "Adattamento",
     font: "Carattere",
     fontHint: "Qualsiasi carattere installato su questo computer.",
@@ -195,6 +199,7 @@ const it: Messages = {
       solid: "Tinta unita",
       gradient: "Sfumatura",
       image: "Immagine",
+      video: "Video",
     },
     gradient: {
       toBottom: "Verso il basso",
