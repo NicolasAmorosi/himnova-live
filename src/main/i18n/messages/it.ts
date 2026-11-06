@@ -103,6 +103,7 @@ const it: MainMessages = {
     invalidTheme: "Il tema ha dei campi non validi.",
     ewNotFound: "Lì non c'è un database dei canti di EasyWorship. Scegli il suo Songs.db, nella cartella Databases\\Data del suo profilo.",
     ewUnreadable: "Non è stato possibile aprire il database dei canti di EasyWorship.",
+    ewOld: "Quello è il database dei canti di un EasyWorship vecchio (2009 o precedente), che Lumina non legge. Da EasyWorship 6 o 7 sì che si importano.",
     importPickTitle: "Scegli i canti da importare",
     importFilter: "Canti (OpenLyrics, SongSelect, ChordPro, OpenLP, EasyWorship)",
     fileMissing: "Il file di questo canto non si trova: è stato spostato o eliminato.",

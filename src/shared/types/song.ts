@@ -115,8 +115,10 @@ export const SONG_FILE_EXTENSIONS = ["xml", "txt", "cho", "chordpro", "chopro", 
 export type SongUse = { title: string; authors: string | null; ccliNumber: string | null; days: number[] };
 
 /** What an import did: written, skipped as already there (same title, same
- *  words), and not written because the song had no title or no lyrics. */
-export type SongImportResult = { imported: number; repeated: number; problems: number };
+ *  words), not written because the song had no title or no lyrics, and files
+ *  that were no song file the app reads (another program's, broken, or
+ *  unreadable). */
+export type SongImportResult = { imported: number; repeated: number; problems: number; unsupported: number };
 
 export type SongSearchHit = {
   songId: number;

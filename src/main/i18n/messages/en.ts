@@ -103,6 +103,7 @@ const en: MainMessages = {
     invalidTheme: "The theme has invalid fields.",
     ewNotFound: "There is no EasyWorship song database there. Choose its Songs.db, in its profile's Databases\\Data folder.",
     ewUnreadable: "EasyWorship's song database couldn't be opened.",
+    ewOld: "That is the song database of an old EasyWorship (2009 or earlier), which Lumina can't read. Songs from EasyWorship 6 or 7 can be imported.",
     importPickTitle: "Import songs",
     importFilter: "Songs (OpenLyrics, SongSelect, ChordPro, OpenLP, EasyWorship)",
     fileMissing: "This song's file can't be found: it was moved or deleted.",

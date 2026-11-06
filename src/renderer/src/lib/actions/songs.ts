@@ -53,19 +53,25 @@ export async function prepareSong(
   return { resolved, theme, sizeCqw: fit.sizeCqw };
 }
 
-/** Where the operator was, in the song as it is now: the same slide of the
- *  same pass when it still exists, else that section's slide, else the
- *  start of that pass, else the same number. 1-based. */
+/** Where the operator was, in the song as it is now — after an edit, or in
+ *  another language, cut into other slides: the same slide of the same pass,
+ *  clamped to the slides that pass has now, else the start of the pass at the
+ *  same place in the order, else the same number. 1-based. The same pass is
+ *  the same time its section is sung (the second chorus stays the second when
+ *  an intro is added before it), else its last time. */
 export function sameSlideIn(previous: ResolvedSong, slideIndex: number, next: ResolvedSong): number {
   const was = previous.slides[slideIndex - 1];
   if (!was) return slideIndex;
-  const at = (predicate: (slide: ResolvedSong["slides"][number]) => boolean) =>
-    next.slides.findIndex(predicate) + 1;
+  const passesOf = (song: ResolvedSong) => [
+    ...new Set(song.slides.filter((s) => s.sectionKey === was.sectionKey).map((s) => s.pass)),
+  ];
+  const passes = passesOf(next);
+  const pass = passes[Math.min(passesOf(previous).indexOf(was.pass), passes.length - 1)];
+  // That pass's slides, in order: its section's, one by one.
+  const ofPass = next.slides.flatMap((s, i) => (s.pass === pass ? [i + 1] : []));
   return (
-    at((s) => s.pass === was.pass && s.sectionKey === was.sectionKey && s.indexInSection === was.indexInSection) ||
-    at((s) => s.sectionKey === was.sectionKey && s.indexInSection === was.indexInSection) ||
-    at((s) => s.pass === was.pass) ||
-    slideIndex
+    ofPass[Math.min(was.indexInSection, ofPass.length - 1)] ??
+    (next.slides.findIndex((s) => s.pass === was.pass) + 1 || slideIndex)
   );
 }
 
@@ -97,7 +103,17 @@ export async function setLiveSongLanguage(language: SongLanguage): Promise<void>
   const prepared = await prepareSong(base.songId, language);
   const now = useProjectionStore.getState().base;
   if (!prepared || now?.kind !== "song" || now.songId !== base.songId) return;
-  useProjectionStore.getState().setSongLanguage(language, prepared.resolved, prepared.sizeCqw);
+  // A language can cut a section into more slides or fewer: the same slide,
+  // never the same number.
+  useProjectionStore
+    .getState()
+    .setLiveSong(
+      prepared.resolved,
+      prepared.theme,
+      prepared.sizeCqw,
+      sameSlideIn(now.song, now.slideIndex, prepared.resolved),
+      language,
+    );
 }
 
 export async function saveSong(input: SongUpsert): Promise<Song | null> {
@@ -122,12 +138,20 @@ export async function saveSong(input: SongUpsert): Promise<Song | null> {
   }
 }
 
-/** What «Eliminar» asks about a song (`DeleteSongConfirm`). */
-export type SongDeleteTarget = { songId: number; live: boolean; usages: SongUsage[]; file: string | null };
+/** What «Eliminar» asks about a song (`DeleteSongConfirm`). `inSchedule`: the
+ *  order of service being built sings it, and `deleteSong` takes it out. */
+export type SongDeleteTarget = {
+  songId: number;
+  live: boolean;
+  usages: SongUsage[];
+  file: string | null;
+  inSchedule: boolean;
+};
 
 export async function songDeleteTarget(id: number): Promise<SongDeleteTarget> {
   const file = findSong(useSongStore.getState().songs, id)?.file ?? null;
-  return { songId: id, live: isSongLive(id), usages: await songUsages(id), file };
+  const inSchedule = useProgramStore.getState().items.some((item) => item.kind === "song" && item.songId === id);
+  return { songId: id, live: isSongLive(id), usages: await songUsages(id), file, inSchedule };
 }
 
 export async function duplicateSong(id: number, title: string): Promise<Song | null> {

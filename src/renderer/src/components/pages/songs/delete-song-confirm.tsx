@@ -11,9 +11,10 @@ type DeleteSongConfirmProps = {
 };
 
 /** «Eliminar» a library song, asked first: the saved programs that sing it,
- *  whether it is live, and that its file — when it is tied to one — stays on
- *  disk (the app never deletes a file of the operator's). The editor's «⋯»
- *  and the Songs tab's ✕ (owner, 2026-11-05) ask the same question. */
+ *  the order of service being built when it does (2026-11-06), whether it is
+ *  live, and that its file — when it is tied to one — stays on disk (the app
+ *  never deletes a file of the operator's). The editor's «⋯» and the Songs
+ *  tab's ✕ (owner, 2026-11-05) ask the same question. */
 export function DeleteSongConfirm({ target, onOpenChange, onDeleted }: DeleteSongConfirmProps) {
   const t = useT();
   const inUse = (target?.usages.length ?? 0) > 0;
@@ -28,15 +29,21 @@ export function DeleteSongConfirm({ target, onOpenChange, onDeleted }: DeleteSon
   ) : (
     t("songs.deleteBody")
   );
+  const notes = [
+    target?.inSchedule ? t("songs.deleteInScheduleWarning") : null,
+    target?.file ? t("songs.deleteKeepsFile") : null,
+  ].filter((note) => note !== null);
   return (
     <ConfirmModal
       confirmLabel={inUse ? t("songs.deleteAnyway") : t("common.delete")}
       danger
       description={
-        target?.file ? (
+        notes.length > 0 ? (
           <div className="flex flex-col gap-2">
             <div>{body}</div>
-            <p>{t("songs.deleteKeepsFile")}</p>
+            {notes.map((note) => (
+              <p key={note}>{note}</p>
+            ))}
           </div>
         ) : (
           body

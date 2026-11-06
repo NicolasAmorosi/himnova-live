@@ -221,18 +221,22 @@ export type ProjectionStoreState = {
    *  not restart. A no-op unless this exact scene is the one that is live. */
   setLiveScene: (scene: UtilityScene) => void;
 
-  /** Re-dresses the live song after it, or its theme, was saved — the
+  /** Re-dresses the live song after it, or its theme, was saved — or in
+   *  another `language`, re-resolved and re-measured by the caller — the
    *  `setLiveScene` of a song: `base` patched in place, no new scene, the
    *  projector cuts to the new words. `slideIndex` is where it lands (the
-   *  caller keeps the operator on the same section and slide when it still
-   *  exists). A no-op unless this song is the one live. */
-  setLiveSong: (song: ResolvedSong, theme: SongTheme, sizeCqw: number, slideIndex: number) => void;
+   *  caller keeps the operator on the same section and slide, `sameSlideIn`).
+   *  A no-op unless this song is the one live. */
+  setLiveSong: (
+    song: ResolvedSong,
+    theme: SongTheme,
+    sizeCqw: number,
+    slideIndex: number,
+    language?: SongLanguage,
+  ) => void;
   /** Moves within the live song — a slide of the order (1-based, clamped) or
    *  a detour off it. A cut, like a verse, and it shows the lyrics again. */
   setSongPosition: (position: SongPosition) => void;
-  /** The live song in another language, re-resolved and re-measured by the
-   *  caller: same slide, same detour, never a new scene. */
-  setSongLanguage: (language: SongLanguage, song: ResolvedSong, sizeCqw: number) => void;
   /** T: only the theme's background on the projector, or the lyrics back. */
   setLyricsHidden: (hidden: boolean) => void;
 
@@ -419,10 +423,11 @@ export const useProjectionStore = create<ProjectionStoreState>()(
         return { base: { ...base, scene } };
       }),
 
-    setLiveSong: (song, theme, sizeCqw, slideIndex) =>
+    setLiveSong: (song, theme, sizeCqw, slideIndex, language) =>
       set((state) => {
         const { base } = state;
         if (base?.kind !== "song" || base.songId !== song.id) return state;
+        const lang = language ?? base.language;
         const index = clamp(slideIndex, 1, Math.max(1, song.slides.length));
         // A detour survives while its section does, on a slide it still has.
         const section = base.detour && song.sections.find((s) => s.key === base.detour?.sectionKey);
@@ -442,18 +447,12 @@ export const useProjectionStore = create<ProjectionStoreState>()(
           base.sizeCqw === sizeCqw &&
           base.slideIndex === index &&
           base.backgroundVideo === backgroundVideo &&
+          base.language === lang &&
           JSON.stringify(base.detour) === JSON.stringify(detour)
         ) {
           return state;
         }
-        return { base: { ...base, song, theme, sizeCqw, slideIndex: index, detour, backgroundVideo } };
-      }),
-
-    setSongLanguage: (language, song, sizeCqw) =>
-      set((state) => {
-        const { base } = state;
-        if (base?.kind !== "song" || base.songId !== song.id) return state;
-        return { base: { ...base, language, song, sizeCqw } };
+        return { base: { ...base, song, theme, sizeCqw, slideIndex: index, detour, backgroundVideo, language: lang } };
       }),
 
     setSongPosition: (position) =>

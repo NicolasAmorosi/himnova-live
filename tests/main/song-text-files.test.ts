@@ -75,10 +75,33 @@ describe("SongSelect", () => {
   test("text without a CCLI footer is not SongSelect", () => {
     expect(readSongSelect("A title\n\nVerse 1\nA line\n", "es")).toBeNull();
   });
+
+  test("a copyright on two lines keeps both (OpenLP's TestSong.txt)", () => {
+    const read = readSongSelect(
+      "Test Song\r\n\r\n\r\nVerse 1\r\nLine One\r\n\r\nCCLI Song # 0000000\r\nAuthor One | Author Two\r\n© 2011 OpenLP Programmer One (Admin. by OpenLP One)\r\nOpenLP Programmer Two (Admin. by OpenLP Two)\r\nFor use solely with the OpenLP Song Test Suite.  All rights reserved. http://openlp.org\r\nCCLI License # 00000\r\n",
+      "en",
+    );
+    expect(read).toMatchObject({
+      authors: "Author One, Author Two",
+      copyright: "© 2011 OpenLP Programmer One (Admin. by OpenLP One) OpenLP Programmer Two (Admin. by OpenLP Two)",
+    });
+  });
+
+  test("a block whose first line is words, not a label, keeps that line: a slide of the section above", () => {
+    const read = readSongSelect(
+      "Grace\r\n\r\nVerse 1\r\nAmazing grace\r\n\r\nHow sweet the sound\r\nThat saved\r\n\r\nCCLI Song # 22025\r\nJohn Newton\r\n",
+      "en",
+    );
+    expect(outline(read?.sections)).toEqual([["v1", [["Amazing grace"], ["How sweet the sound", "That saved"]]]]);
+  });
+
+  test("a title of dashes only is another program's text (Lyrix), not a song", () => {
+    expect(readSongSelect("\r\n-------------\r\nA002\r\nAMAZING GRACE\r\n-------------\r\n\r\n1. AMAZING GRACE\r\n\r\nCCLI no.: 22025\r\n", "en")).toBeNull();
+  });
 });
 
 describe("ChordPro", () => {
-  test("sections, repeats and the song's fields; chords kept apart; tabs and remarks dropped", () => {
+  test("sections, repeats and the song's fields; chords kept apart, a line of them alone too; tabs and remarks dropped", () => {
     const text = `{title: Morning Hymn}
 {artist: Ann Writer}
 {composer: Ben Writer}
@@ -114,9 +137,15 @@ Mine is the sunlight`;
     });
     expect(outline(song?.sections)).toEqual([
       ["v1", [["Morning has broken", "Like the first morning"]]],
-      ["c1", [["Praise for the singing"], ["Praise for the morning"]]],
+      ["c1", [["Praise for the singing", ""], ["Praise for the morning"]]],
       ["v2", [["Sweet the rain's new fall"]]],
       ["b1", [["Mine is the sunlight"]]],
+    ]);
+    // «[G] [C] [D]»: a line of chords alone, for the musicians' screen (owner, 2026-11-06).
+    expect(song?.sections[1]?.slides[0]?.chords?.[1]).toEqual([
+      { at: 0, name: "G" },
+      { at: 0, name: "C" },
+      { at: 0, name: "D" },
     ]);
     expect(song?.sections[0]?.slides[0]?.chords).toEqual([
       [
@@ -139,6 +168,50 @@ Mine is the sunlight`;
       ["v3", [["Another"]]],
       ["c1", [["Chorus"]]],
     ]);
+  });
+
+  test("{c: Chorus} with a blank line under it repeats the chorus there, never starts one (OpenLP's swing-low)", () => {
+    const [read] = readChordPro(
+      "{title: Swing}\n{start_of_chorus}\nSwing low, sweet chariot\n{end_of_chorus}\n\nI looked over Jordan\n\n{c:Chorus}\n\nIf you get there before I do\n\n{c:Chorus}",
+      "file",
+      "es",
+    );
+    expect(outline(read?.sections)).toEqual([
+      ["c1", [["Swing low, sweet chariot"]]],
+      ["v1", [["I looked over Jordan"]]],
+      ["v2", [["If you get there before I do"]]],
+    ]);
+    expect(read?.order).toEqual(["c1", "v1", "c1", "v2", "c1"]);
+  });
+
+  test("a line naming a section where a block starts is its label («Verse 1», «Bridge 2:»), with its colon on a section's first line", () => {
+    const [read] = readChordPro(
+      "{title: Our Father}\n{sov}\nVerse:\nOur Father in Heaven\n{eov}\n\n{soc}\nChorus:\nOn Earth as it is in Heaven\n{eoc}\n\nBridge 2:\nYours is the Kingdom\n\nVerse 2\nHallowed be Your name\n\n{sov}\nCoro\nis a word here\n{eov}",
+      "file",
+      "en",
+    );
+    expect(outline(read?.sections)).toEqual([
+      ["v1", [["Our Father in Heaven"]]],
+      ["c1", [["On Earth as it is in Heaven"]]],
+      ["b2", [["Yours is the Kingdom"]]],
+      ["v2", [["Hallowed be Your name"]]],
+      ["v3", [["Coro", "is a word here"]]],
+    ]);
+  });
+
+  test("a lone «\\» is an empty line inside the slide; a lone chord is a chord, never a section's name (review 2026-11-06)", () => {
+    // In Spanish «[C]» alone in the editor's text is the chorus, «[E]» verse 1:
+    // read from ChordPro, both stay the chords they are.
+    const [song] = readChordPro("{title: T}\n{start_of_verse}\nUno\n\\\ndos\n[C]\n[E]\n{end_of_verse}", "f", "es");
+    expect(outline(song?.sections)).toEqual([["v1", [["Uno", "", "dos", "", ""]]]]);
+    expect(song?.sections[0]?.slides[0]?.chords?.slice(3)).toEqual([[{ at: 0, name: "C" }], [{ at: 0, name: "E" }]]);
+  });
+
+  test("a setting ({+settings.transcode: roman}) is a directive, not a lyric; Latin chords come in", () => {
+    const [read] = readChordPro("{+settings.transcode:roman}\n{title: Sublime gracia}\n[Do]Sublime [Sol]gracia del [Lam]Señor", "file", "es");
+    expect(read?.title).toBe("Sublime gracia");
+    expect(outline(read?.sections)).toEqual([["v1", [["Sublime gracia del Señor"]]]]);
+    expect(read?.sections[0]?.slides[0]?.chords?.[0]?.map((chord) => chord.name)).toEqual(["Do", "Sol", "Lam"]);
   });
 
   test("{new_song} starts another; a song without a title takes the file's name; one without words is a problem", () => {
@@ -169,6 +242,20 @@ describe("files", () => {
     expect(read.songs.map((song) => song.title)).toEqual(["Grace Above", "Señor", "Oh Señor", "Dios"]);
     expect(read.songs[2]?.sections[0]?.slides[0]?.lines).toEqual(["Canción"]);
     expect(read.songs[3]?.sections[0]?.slides[0]?.lines).toEqual(["Él vive"]);
-    expect(read.problems).toBe(1);
+    // Text that is neither format is no song file at all, not a song without words.
+    expect(read.problems).toBe(0);
+    expect(read.unsupported).toBe(1);
+  });
+});
+
+const SWING_LOW = "/Users/nicolasamorosi/Downloads/hasdlp-master/pruebas-formatos/chordpro/chordpro/swing-low-openlp.chordpro";
+
+describe.skipIf(!fs.existsSync(SWING_LOW))("real files", () => {
+  test("OpenLP's swing-low: verses 2 and 3 are verses, the chorus comes back after each", () => {
+    const [read] = readChordPro(fs.readFileSync(SWING_LOW, "utf8"), "swing-low", "es");
+    expect(read?.sections.filter((section) => section.type === "chorus").map((section) => section.slides[0]?.lines[0])).toEqual([
+      "Swing low, sweet chariot,",
+    ]);
+    expect(read?.order).toEqual(["c1", "v1", "c1", "v2", "c1", "v3", "c1"]);
   });
 });

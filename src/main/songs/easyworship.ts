@@ -35,11 +35,16 @@ type SongRow = {
   vendor_id: number | string | null;
 };
 
-/** What a reader of another program's songs gives: the songs that can be
- *  written, and how many it found without a title or without lyrics. */
-/** What a reader found. A song read from a song file carries `origin`: an
- *  import keeps it tied to that file (owner, 2026-11-05). */
-export type SongsRead = { songs: (Omit<SongUpsert, "id"> & { origin?: SongFileOrigin })[]; problems: number };
+/** What a reader found: the songs that can be written, how many it found
+ *  without a title or without lyrics (`problems`), and how many files were no
+ *  song file it reads at all (`unsupported`: another program's, broken, or
+ *  unreadable). A song read from a song file carries `origin`: an import keeps
+ *  it tied to that file (owner, 2026-11-05). */
+export type SongsRead = {
+  songs: (Omit<SongUpsert, "id"> & { origin?: SongFileOrigin })[];
+  problems: number;
+  unsupported?: number;
+};
 
 /** Where the two files are: the folder picked, its `Data`, its
  *  `Databases/Data`, or the profile's (`Default/v6.1/Databases/Data`) — the

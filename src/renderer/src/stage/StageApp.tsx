@@ -30,7 +30,7 @@ function Frame({ output, videoStill }: { output: ProjectionOutput | null; videoS
  * The musicians' screen: what is live (large), what comes next and the time.
  * A pure function of the last `StageOutput`, like the projector: the control
  * window decides everything (`lib/stage-output.ts`). It plays nothing — a
- * video is its poster — so it never needs `next`'s video either.
+ * video is its poster, a song's video background its still —, `next` included.
  */
 export function StageApp() {
   const [stage, setStage] = useState<StageOutput | null>(null);
@@ -60,7 +60,7 @@ export function StageApp() {
           ) : null}
         </div>
         <p className="text-[1.6vw] font-medium tracking-wide text-white/60 uppercase">{stage?.nextLabel}</p>
-        <Frame output={stage?.next ?? null} />
+        <Frame output={stage?.next ?? null} videoStill={stage?.videoStill} />
       </aside>
     </main>
   );

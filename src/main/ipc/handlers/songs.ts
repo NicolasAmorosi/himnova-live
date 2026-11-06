@@ -62,11 +62,19 @@ export const songsHandlers: Pick<
   | "songTheme:update"
   | "songTheme:delete"
 > = {
-  "song:list": () => getSongsRepo().list(),
+  // The songs of a folder no longer linked go first (the tab only lets go of
+  // the setting): a saved program's, or the unsaved order of service's, become
+  // library songs.
+  "song:list": () => {
+    getSongsRepo().forgetFolders(getSettingsRepo().get("songs.linkedFolders"));
+    return getSongsRepo().list();
+  },
   "song:create": (input) => getSongsRepo().create(assertValid(input)),
   // A song tied to a file writes the file first: refused there, nothing changes.
   "song:update": (input) => {
     const song = assertValid(input);
+    // `isSongUpsert` lets a missing id through (it is `song:create`'s shape).
+    if (typeof input.id !== "number") throw new IpcError({ code: "INVALID_SONG", message: mt("songs.invalid") });
     writeSongFile(input.id, song);
     return getSongsRepo().update(input.id, song);
   },

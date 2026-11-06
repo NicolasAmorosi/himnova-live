@@ -105,6 +105,7 @@ const es = {
     invalidTheme: "El tema tiene campos inválidos.",
     ewNotFound: "Ahí no hay una base de canciones de EasyWorship. Elegí su Songs.db, en la carpeta Databases\\Data de su perfil.",
     ewUnreadable: "No se pudo abrir la base de canciones de EasyWorship.",
+    ewOld: "Esa es la base de canciones de un EasyWorship viejo (2009 o anterior), que Lumina no lee. Desde EasyWorship 6 o 7 sí se importan.",
     importPickTitle: "Elegí las canciones para importar",
     importFilter: "Canciones (OpenLyrics, SongSelect, ChordPro, OpenLP, EasyWorship)",
     fileMissing: "No se encuentra el archivo de esta canción: se movió o se borró.",

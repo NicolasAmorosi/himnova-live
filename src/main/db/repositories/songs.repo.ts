@@ -1,12 +1,14 @@
 import path from "node:path";
-import { and, eq, gte, gt, isNull, lt, max } from "drizzle-orm";
+import { and, eq, gte, inArray, isNotNull, isNull, lt, max, or } from "drizzle-orm";
 import Database from "better-sqlite3";
 import type { Db } from "../client";
 import { songs, songThemes, songUses } from "../schema";
+import { DraftRepo } from "./draft.repo";
 import { toFtsQuery } from "../fts-query";
 import { IpcError } from "@shared/ipc/result";
 import { normalizeOrder, normalizeSections, normalizeSongTheme } from "@shared/song-validators";
-import { songLyricsText } from "@shared/song-text";
+import { songLyricsText, translationByLine, translationSections, withTranslation } from "@shared/song-text";
+import { SONG_FILE_LIMITS, type SongFileFormat } from "@shared/song-file-limits";
 import type { Song, SongSearchHit, SongTheme, SongThemeRow, SongUpsert, SongUse } from "@shared/types/song";
 
 function parseJson(raw: string): unknown {
@@ -64,10 +66,72 @@ function toThemeRow(row: typeof songThemes.$inferSelect): SongThemeRow {
 }
 
 /** A song file an imported song came from: its whole path, which song of
- *  it (a ChordPro file may hold several), and its mtime when read. */
-export type SongFileOrigin = { path: string; index: number; mtime: number };
+ *  it (a ChordPro file may hold several: `{new_song}` counted), its mtime when
+ *  read, and its format. */
+export type SongFileOrigin = { path: string; index: number; mtime: number; format: SongFileFormat };
 
 const fileColumns = (file: SongFileOrigin) => ({ filePath: file.path, sourceIndex: file.index, sourceMtime: file.mtime });
+
+/** A song read from a file, and which song of the file it is. */
+export type FileSong = { song: Omit<SongUpsert, "id">; index: number };
+
+/**
+ * Which row each song read from a file goes into (`undefined` = a new one):
+ * the row with its title AND its place, then its title anywhere — a song
+ * removed above it outside the app must not shift the others, nor a saved
+ * program's song —, then its place among the rows left (a title edited
+ * outside the app).
+ */
+export function matchRows(
+  rows: readonly { id: number; title: string; sourceIndex: number | null }[],
+  read: readonly FileSong[],
+): (number | undefined)[] {
+  const ids: (number | undefined)[] = read.map(() => undefined);
+  const taken = new Set<number>();
+  const pass = (fits: (row: (typeof rows)[number], song: FileSong) => boolean) =>
+    read.forEach((song, i) => {
+      if (ids[i] !== undefined) return;
+      const row = rows.find((candidate) => !taken.has(candidate.id) && fits(candidate, song));
+      if (row) {
+        taken.add(row.id);
+        ids[i] = row.id;
+      }
+    });
+  const sameTitle = (row: (typeof rows)[number], { song }: FileSong) => row.title === song.title.trim();
+  pass((row, song) => sameTitle(row, song) && (row.sourceIndex ?? 0) === song.index);
+  pass(sameTitle);
+  pass((row, song) => (row.sourceIndex ?? 0) === song.index);
+  return ids;
+}
+
+/**
+ * A song read from its file again, onto the row that holds it: the fields the
+ * file holds come from it, the others (`SONG_FILE_LIMITS`: a ChordPro file
+ * has no notes, a SongSelect one no chords) stay the app's — reading the file
+ * again must never take them away. The theme is always the app's.
+ */
+export function fromFile(row: Song, file: Omit<SongUpsert, "id">, format: SongFileFormat): Omit<SongUpsert, "id"> {
+  const cannot = new Set(SONG_FILE_LIMITS[format]);
+  const sameWords = songLyricsText(row.sections) === songLyricsText(file.sections);
+  // A SongSelect file has the words only: while they are the same, the
+  // app's slides and chords stand.
+  const sections = (cannot.has("slides") || cannot.has("chords")) && sameWords ? row.sections : file.sections;
+  return {
+    ...file,
+    number: cannot.has("number") ? row.number : file.number,
+    notes: cannot.has("notes") ? row.notes : file.notes,
+    order: cannot.has("order") ? row.order : file.order,
+    // The same words: the translation line by line, however the file cuts
+    // them; words edited outside the app: by section and slide, the best guess.
+    sections:
+      cannot.has("translation") && sections !== row.sections
+        ? sameWords
+          ? translationByLine(sections, row.sections)
+          : withTranslation(sections, translationSections(row.sections))
+        : sections,
+    themeId: row.themeId,
+  };
+}
 
 /** `songs` and `song_themes`. Knows nothing about what is live. */
 export class SongsRepo {
@@ -244,15 +308,45 @@ export class SongsRepo {
     this.db.update(songs).set(fileColumns(file)).where(eq(songs.id, id)).run();
   }
 
-  /** A library song whose file is gone: it lives only in the app from now on. */
+  /** A song that lives only in the app from now on: a library song whose file
+   *  is gone, or a linked folder's song a saved program holds after its file
+   *  let it go (owner, 2026-11-06: it becomes a library song, saveable). */
   untieFile(id: number): void {
-    this.db.update(songs).set({ filePath: null, sourceIndex: null, sourceMtime: null }).where(eq(songs.id, id)).run();
+    this.db
+      .update(songs)
+      .set({ sourceFolder: null, sourceFile: null, filePath: null, sourceIndex: null, sourceMtime: null })
+      .where(eq(songs.id, id))
+      .run();
   }
 
-  /** The library songs tied to `file` take what it holds now (each its own
-   *  song of the file, its theme kept) and its `mtime`: the file changed
-   *  outside the app. A song past the file's end keeps its words. */
-  syncLibraryFile(file: string, mtime: number, read: readonly Omit<SongUpsert, "id">[]): void {
+  /** The songs the unsaved order of service sings (`program_draft`): no
+   *  foreign key guards them, as one guards a saved program's. */
+  private drafted(): ReadonlySet<number> {
+    return new DraftRepo(this.db).songIds();
+  }
+
+  /** A linked folder's song its file no longer holds: gone, unless a saved
+   *  program or the unsaved order of service (`drafted`) sings it — then a
+   *  library song (`untieFile`), never a dangling id in the draft. */
+  private release(id: number, drafted: ReadonlySet<number>): void {
+    if (drafted.has(id)) {
+      this.untieFile(id);
+      return;
+    }
+    try {
+      this.delete(id);
+    } catch (error) {
+      if (!(error instanceof IpcError && error.code === "SONG_IN_USE")) throw error;
+      this.untieFile(id);
+    }
+  }
+
+  /** The library songs tied to `file` take what it holds now (`fromFile`:
+   *  their theme, and what the format cannot hold, stay) and its `mtime`: the
+   *  file changed outside the app. Each finds its song by title, then by
+   *  position (`matchRows`); one the file no longer holds lives on in the app,
+   *  untied. */
+  syncLibraryFile(file: string, mtime: number, read: readonly FileSong[], format: SongFileFormat): void {
     const now = Date.now();
     this.sqlite.transaction(() => {
       const rows = this.db
@@ -260,15 +354,17 @@ export class SongsRepo {
         .from(songs)
         .where(and(isNull(songs.sourceFolder), eq(songs.filePath, file)))
         .all();
-      for (const row of rows) {
-        const song = read[row.sourceIndex ?? 0];
-        const values = song ? { ...toRow({ ...song, themeId: row.themeId }), updatedAt: now } : {};
+      const ids = matchRows(rows, read);
+      read.forEach(({ song, index }, i) => {
+        const row = rows.find((candidate) => candidate.id === ids[i]);
+        if (!row) return;
         this.db
           .update(songs)
-          .set({ ...values, sourceMtime: mtime })
+          .set({ ...toRow(fromFile(toSong(row), song, format)), sourceIndex: index, sourceMtime: mtime, updatedAt: now })
           .where(eq(songs.id, row.id))
           .run();
-      }
+      });
+      for (const row of rows) if (!ids.includes(row.id)) this.untieFile(row.id);
     })();
   }
 
@@ -287,54 +383,113 @@ export class SongsRepo {
   /**
    * What `file` (in `folder`) holds now, as its songs: each song of the file
    * keeps its row — and with it its id, its theme and the programs that use it
-   * — so a file edited outside the app updates in place. Songs past the file's
-   * end go, unless a saved program holds them.
+   * — so a file edited outside the app updates in place. A song finds its row
+   * by its title first, then by its position (`matchRows`): a song removed
+   * above it must not shift the others. A row the file no longer holds goes
+   * (`release`).
    */
-  syncFile(folder: string, file: string, mtime: number, read: readonly Omit<SongUpsert, "id">[]): Song[] {
-    const where = (index: number) =>
-      and(eq(songs.sourceFolder, folder), eq(songs.sourceFile, file), eq(songs.sourceIndex, index));
+  syncFile(folder: string, file: string, mtime: number, read: readonly FileSong[], format: SongFileFormat): Song[] {
     const now = Date.now();
     const out: Song[] = [];
     this.sqlite.transaction(() => {
-      read.forEach((song, index) => {
-        const existing = this.db.select({ id: songs.id, themeId: songs.themeId }).from(songs).where(where(index)).get();
-        // The theme is the app's, not the file's.
-        const values = { ...toRow({ ...song, themeId: existing?.themeId ?? null }), sourceMtime: mtime, updatedAt: now };
-        let id = existing?.id;
+      const rows = this.db
+        .select()
+        .from(songs)
+        .where(and(eq(songs.sourceFolder, folder), eq(songs.sourceFile, file)))
+        .all();
+      const ids = matchRows(rows, read);
+      read.forEach(({ song, index }, i) => {
+        const row = rows.find((candidate) => candidate.id === ids[i]);
+        const values = {
+          ...toRow(row ? fromFile(toSong(row), song, format) : song),
+          sourceIndex: index,
+          sourceMtime: mtime,
+          updatedAt: now,
+        };
+        let id = row?.id;
         if (id !== undefined) this.db.update(songs).set(values).where(eq(songs.id, id)).run();
         else {
           id = this.db
             .insert(songs)
-            .values({ ...values, sourceFolder: folder, sourceFile: file, sourceIndex: index, createdAt: now })
+            .values({ ...values, sourceFolder: folder, sourceFile: file, createdAt: now })
             .run().lastInsertRowid as number;
         }
         out.push(this.get(id)!);
       });
-      const gone = this.db
-        .select({ id: songs.id })
-        .from(songs)
-        .where(and(eq(songs.sourceFolder, folder), eq(songs.sourceFile, file), gt(songs.sourceIndex, read.length - 1)))
-        .all();
-      for (const { id } of gone) {
-        try {
-          this.delete(id);
-        } catch {
-          // A saved program holds it: kept, out of the folder's listing.
-        }
-      }
+      const drafted = this.drafted();
+      for (const row of rows) if (!ids.includes(row.id)) this.release(row.id, drafted);
     })();
     return out;
   }
 
-  /** `file` was written: every song of it now matches `mtime` — the linked
-   *  folder's rows, or the library's, never both: the other side's rows hold
-   *  what they read before and must read it again. */
-  setFileMtime(file: string, folder: string | null, mtime: number): void {
-    const where =
-      folder === null
-        ? and(isNull(songs.sourceFolder), eq(songs.filePath, file))
-        : and(eq(songs.sourceFolder, folder), eq(songs.sourceFile, path.relative(folder, file)));
-    this.db.update(songs).set({ sourceMtime: mtime }).where(where).run();
+  /** `folder`'s songs whose file is no longer there (deleted, renamed, no
+   *  longer a song file): gone, or library songs (`release`). */
+  forgetFiles(folder: string, present: ReadonlySet<string>): void {
+    const rows = this.db.select({ id: songs.id, file: songs.sourceFile }).from(songs).where(eq(songs.sourceFolder, folder)).all();
+    this.sqlite.transaction(() => {
+      const drafted = this.drafted();
+      for (const row of rows) if (!present.has(row.file ?? "")) this.release(row.id, drafted);
+    })();
+  }
+
+  /** The songs of folders no longer linked (the Songs tab let one go): gone,
+   *  or library songs (`release`). */
+  forgetFolders(linked: readonly string[]): void {
+    const rows = this.db.select({ id: songs.id, folder: songs.sourceFolder }).from(songs).where(isNotNull(songs.sourceFolder)).all();
+    this.sqlite.transaction(() => {
+      const drafted = this.drafted();
+      for (const row of rows) if (!linked.includes(row.folder!)) this.release(row.id, drafted);
+    })();
+  }
+
+  /**
+   * `file` (any of `paths`: the path as tied, and the one it resolves to) was
+   * written, `saved`'s song in it now at `index` and reading as `written`.
+   * Every row tied to it that was read when the saved one was (`readAt`)
+   * matches its new `mtime`; one read at another time may hold words the file
+   * no longer has, and keeps its own to read the file again. The same song tied
+   * the OTHER way — the file imported into the library and in a linked folder —
+   * takes its words (`fromFile`), so saving from one side never reads as
+   * «changed outside Lumina» on the other: found by its block (`index`), its
+   * old title as a check — never by the title alone, two songs of a file may
+   * share one (a file's name is the title of every song without `{title}`),
+   * nor among the saved row's own file's rows, which are other songs. The
+   * saved row's own words are the caller's to write.
+   */
+  wroteFile(
+    paths: readonly string[],
+    saved: { id: number; title: string; index: number; readAt: number },
+    mtime: number,
+    written: Omit<SongUpsert, "id"> | null,
+    format: SongFileFormat,
+  ): void {
+    const tied = or(
+      and(isNull(songs.sourceFolder), inArray(songs.filePath, [...paths])),
+      ...paths.map((file) => and(eq(songs.sourceFolder, path.dirname(file)), eq(songs.sourceFile, path.basename(file)))),
+    );
+    this.sqlite.transaction(() => {
+      const rows = this.db.select().from(songs).where(tied).all();
+      const own = rows.find((row) => row.id === saved.id);
+      // No saved row to tell the sides apart by: no twin at all.
+      const sameTie = (row: (typeof rows)[number]) =>
+        own === undefined ||
+        (row.sourceFolder === own.sourceFolder &&
+          row.sourceFile === own.sourceFile &&
+          row.filePath === own.filePath);
+      const isTwin = (row: (typeof rows)[number]) =>
+        written !== null && !sameTie(row) && (row.sourceIndex ?? 0) === saved.index && row.title === saved.title;
+      for (const row of rows) {
+        const values =
+          row.id === saved.id
+            ? { sourceIndex: saved.index, sourceMtime: mtime }
+            : isTwin(row) && written
+              ? { ...toRow(fromFile(toSong(row), written, format)), sourceIndex: saved.index, sourceMtime: mtime, updatedAt: Date.now() }
+              : row.sourceMtime === saved.readAt
+                ? { sourceMtime: mtime }
+                : null;
+        if (values) this.db.update(songs).set(values).where(eq(songs.id, row.id)).run();
+      }
+    })();
   }
 
   listThemes(): SongThemeRow[] {

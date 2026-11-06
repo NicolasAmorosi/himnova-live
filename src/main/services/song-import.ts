@@ -1,14 +1,37 @@
+import fs from "node:fs";
 import path from "node:path";
 import { IpcError } from "@shared/ipc/result";
-import type { SongImportResult } from "@shared/types/song";
+import type { SongFileFormat } from "@shared/song-file-limits";
+import { translationByLine } from "@shared/song-text";
+import type { Song, SongImportResult, SongSection, SongUpsert } from "@shared/types/song";
 import { mt } from "../i18n";
 import { findEasyWorshipData, readEasyWorship, songIdentity, type SongsRead } from "../songs/easyworship";
 import { readOpenLpDatabase, readOpenLyricsFiles } from "../songs/openlp";
 import { readSongTextFiles } from "../songs/text-files";
+import { fromFile } from "../db/repositories/songs.repo";
 import { getDbHandle, getSettingsRepo, getSongsRepo } from "./repos";
 
-/** EasyWorship's songs from its `Databases/Data` folder (or a folder above it). */
-function readEasyWorshipFolder(folder: string): SongsRead {
+/** SQLite's own first bytes: EasyWorship 2009 and older kept their songs in
+ *  Paradox tables (`Songs.DB` + `Songs.MB`), another format altogether. */
+function isSqlite(file: string): boolean {
+  try {
+    const head = Buffer.alloc(16);
+    const fd = fs.openSync(file, "r");
+    try {
+      fs.readSync(fd, head, 0, 16, 0);
+    } finally {
+      fs.closeSync(fd);
+    }
+    return head.toString("latin1") === "SQLite format 3\0";
+  } catch {
+    return false;
+  }
+}
+
+/** EasyWorship's songs from its `Databases/Data` folder (or a folder above
+ *  it); `picked`, the database the operator chose in it. */
+function readEasyWorshipFolder(folder: string, picked?: string): SongsRead {
+  if (picked && !isSqlite(picked)) throw new IpcError({ code: "EW_OLD", message: mt("songs.ewOld") });
   const data = findEasyWorshipData(folder);
   if (!data) throw new IpcError({ code: "EW_NOT_FOUND", message: mt("songs.ewNotFound") });
   try {
@@ -36,7 +59,7 @@ export const importSongTextFiles = (files: readonly string[]): SongImportResult 
   writeSongs(readSongTextFiles(files, getSettingsRepo().get("ui.locale")));
 
 /** EasyWorship's two databases: picking either one means its folder. */
-const EASYWORSHIP_FILE = /^songs(words)?\.db$/i;
+const EASYWORSHIP_FILE = /^song(s|words)\.db$/i;
 
 /**
  * Whatever «Importar» was given, in one pick (owner, 2026-11-05: no menu of
@@ -50,11 +73,11 @@ export function importSongFiles(files: readonly string[]): SongImportResult {
   let failure: IpcError | null = null;
   const extension = (file: string) => path.extname(file).slice(1).toLowerCase();
   const databases = files.filter((file) => ["sqlite", "db"].includes(extension(file)));
-  const easyWorship = new Set(
-    databases.filter((file) => EASYWORSHIP_FILE.test(path.basename(file))).map((file) => path.dirname(file)),
+  const easyWorship = new Map(
+    databases.filter((file) => EASYWORSHIP_FILE.test(path.basename(file))).map((file) => [path.dirname(file), file]),
   );
   const sources: (() => SongsRead)[] = [
-    ...[...easyWorship].map((folder) => () => readEasyWorshipFolder(folder)),
+    ...[...easyWorship].map(([folder, picked]) => () => readEasyWorshipFolder(folder, picked)),
     ...databases.filter((file) => !EASYWORSHIP_FILE.test(path.basename(file))).map((file) => () => readOpenLp(file)),
   ];
   for (const read of sources) {
@@ -62,7 +85,7 @@ export function importSongFiles(files: readonly string[]): SongImportResult {
       reads.push(read());
     } catch (error) {
       if (error instanceof IpcError) failure ??= error;
-      reads.push({ songs: [], problems: 1 });
+      reads.push({ songs: [], problems: 0, unsupported: 1 });
     }
   }
   reads.push(readOpenLyricsFiles(files.filter((file) => extension(file) === "xml")));
@@ -71,9 +94,58 @@ export function importSongFiles(files: readonly string[]): SongImportResult {
   const read: SongsRead = {
     songs: reads.flatMap((r) => r.songs),
     problems: reads.reduce((sum, r) => sum + r.problems, 0),
+    unsupported: reads.reduce((sum, r) => sum + (r.unsupported ?? 0), 0),
   };
   if (failure && read.songs.length === 0) throw failure;
   return writeSongs(read);
+}
+
+/**
+ * The library's copy of a song refreshed from a file of the same song (an
+ * import's repeat: same title, same words line for line): what the file holds
+ * wins, and what it does not — its format has no place for it (`fromFile`), or
+ * this file simply has none: no number, notes, authors, order, chords or
+ * translation — stays the copy's (owner, 2026-11-06: never lose anything). The
+ * next save writes them into the file, where its format holds them.
+ */
+function refreshedFrom(copy: Song, file: Omit<SongUpsert, "id">, format: SongFileFormat): Omit<SongUpsert, "id"> {
+  const read = fromFile(copy, file, format);
+  const has = (sections: readonly SongSection[], field: "chords" | "translation") =>
+    sections.some((section) => section.slides.some((slide) => slide[field] !== undefined));
+  let { sections } = read;
+  if (!has(sections, "chords") && has(copy.sections, "chords")) {
+    // The same lines in the same sequence (`songIdentity`): each line takes
+    // the copy's chords, whatever the file's slides and sections.
+    const chords = copy.sections.flatMap((section) =>
+      section.slides.flatMap((slide) => slide.lines.map((_, index) => slide.chords?.[index] ?? [])),
+    );
+    let line = 0;
+    sections = sections.map((section) => ({
+      ...section,
+      slides: section.slides.map((slide) => {
+        const own = slide.lines.map(() => chords[line++] ?? []);
+        return own.some((chord) => chord.length > 0) ? { ...slide, chords: own } : slide;
+      }),
+    }));
+  }
+  if (!has(sections, "translation") && has(copy.sections, "translation")) {
+    sections = translationByLine(sections, copy.sections);
+  }
+  const or = (value: string | null, kept: string | null) => (value?.trim() ? value : kept);
+  return {
+    ...read,
+    number: or(read.number, copy.number),
+    authors: or(read.authors, copy.authors),
+    copyright: or(read.copyright, copy.copyright),
+    ccliNumber: or(read.ccliNumber, copy.ccliNumber),
+    notes: or(read.notes, copy.notes),
+    sections,
+    // The copy's own order while every section it sings is still there.
+    order:
+      read.order.length === 0 && copy.order.every((key) => sections.some((section) => section.key === key))
+        ? copy.order
+        : read.order,
+  };
 }
 
 /**
@@ -83,8 +155,11 @@ export function importSongFiles(files: readonly string[]): SongImportResult {
  * of its own (owner, 2026-11-04: it may be another version). A song of a
  * linked folder is not the library's: the same song there is no repeat. A
  * song read from a song file stays tied to it (owner, 2026-11-05), and so does
- * the library's repeat of it when that one had no file yet. One transaction:
- * an import that fails halfway leaves the library as it was.
+ * the library's repeat of it when that one had no file yet — which first
+ * takes what the file holds (owner, 2026-11-06: its chords, authors, CCLI
+ * number…; `refreshedFrom` keeps its theme and what the file does not hold),
+ * or saving it would write them out of the file. One transaction: an import
+ * that fails halfway leaves the library as it was.
  */
 function writeSongs(read: SongsRead): SongImportResult {
   const repo = getSongsRepo();
@@ -97,8 +172,9 @@ function writeSongs(read: SongsRead): SongImportResult {
       const existing = known.get(identity);
       if (existing) {
         if (song.origin && existing.file === null) {
+          const refreshed = repo.update(existing.id, refreshedFrom(existing, song, song.origin.format));
           repo.tieToFile(existing.id, song.origin);
-          known.set(identity, { ...existing, file: song.origin.path });
+          known.set(identity, { ...refreshed, file: song.origin.path });
         }
         repeated += 1;
         continue;
@@ -107,5 +183,5 @@ function writeSongs(read: SongsRead): SongImportResult {
       imported += 1;
     }
   })();
-  return { imported, repeated, problems: read.problems };
+  return { imported, repeated, problems: read.problems, unsupported: read.unsupported ?? 0 };
 }

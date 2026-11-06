@@ -103,6 +103,7 @@ const pt: MainMessages = {
     invalidTheme: "O tema tem campos inválidos.",
     ewNotFound: "Ali não há um banco de músicas do EasyWorship. Escolha o Songs.db dele, na pasta Databases\\Data do perfil dele.",
     ewUnreadable: "Não foi possível abrir o banco de músicas do EasyWorship.",
+    ewOld: "Esse é o banco de músicas de um EasyWorship antigo (2009 ou anterior), que o Lumina não lê. Do EasyWorship 6 ou 7, sim, dá para importar.",
     importPickTitle: "Escolha as músicas para importar",
     importFilter: "Músicas (OpenLyrics, SongSelect, ChordPro, OpenLP, EasyWorship)",
     fileMissing: "O arquivo desta música não foi encontrado: foi movido ou apagado.",

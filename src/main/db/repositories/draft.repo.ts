@@ -57,6 +57,21 @@ export class DraftRepo {
     this.db.delete(programDraft).where(eq(programDraft.id, ROW_ID)).run();
   }
 
+  /** The songs the draft sings, as stored — what a linked folder's song must
+   *  outlive like a saved program's (`SongsRepo.release`): no foreign key
+   *  reaches into this blob. */
+  songIds(): Set<number> {
+    const row = this.db.select({ items: programDraft.items }).from(programDraft).where(eq(programDraft.id, ROW_ID)).get();
+    try {
+      const items: unknown = JSON.parse(row?.items ?? "[]");
+      return new Set(
+        (Array.isArray(items) ? items.filter(isKnownKind) : []).flatMap((item) => (item.kind === "song" ? [item.songId] : [])),
+      );
+    } catch {
+      return new Set();
+    }
+  }
+
   /**
    * The draft as it can still be honoured today, or `null` when there is none.
    *

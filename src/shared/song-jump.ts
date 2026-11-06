@@ -8,7 +8,7 @@
  * chorus once more after the last one — is sung as a DETOUR: its slides, and
  * after its last one → returns to the slide after the one the operator was on.
  */
-import type { ResolvedSong, SongSectionType } from "./types/song";
+import type { ResolvedSong, SongSectionType, SongSlide } from "./types/song";
 
 /** A detour: section `sectionKey`, at its `slideIndex` (1-based), to go back
  *  to the order's `returnTo` (1-based) once it is over. */
@@ -79,9 +79,8 @@ export function stepSong(song: ResolvedSong, position: SongPosition, direction: 
   return next >= 1 && next <= song.slides.length ? { slideIndex: next, detour: null } : null;
 }
 
-/** The lines on screen at `position`. */
 /** The slide at `position` — of the order, or of a detour's section. */
-function slideAt(song: ResolvedSong, position: SongPosition): { lines: readonly string[]; translation?: readonly string[] } | undefined {
+export function slideAt(song: ResolvedSong, position: SongPosition): SongSlide | undefined {
   const { detour } = position;
   if (detour) return song.sections.find((section) => section.key === detour.sectionKey)?.slides[detour.slideIndex - 1];
   return song.slides[position.slideIndex - 1];
@@ -92,6 +91,7 @@ export function translationAt(song: ResolvedSong, position: SongPosition): reado
   return slideAt(song, position)?.translation ?? null;
 }
 
+/** The lines on screen at `position`. */
 export function linesAt(song: ResolvedSong, position: SongPosition): readonly string[] {
   const { detour } = position;
   if (detour) {

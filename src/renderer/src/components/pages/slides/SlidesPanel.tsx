@@ -24,6 +24,7 @@ import { useProjectionStore } from "@renderer/stores/projection.store";
 import { usePreviewContent } from "@renderer/lib/hooks/use-preview";
 import { clearPreview, previewVerse, setPreviewSlide } from "@renderer/lib/actions/preview";
 import { goLive, gotoSongSlide } from "@renderer/lib/actions/playback";
+import { sameSlideIn } from "@renderer/lib/actions/songs";
 import { SongSlideGrid } from "@renderer/components/shared/song-slide-grid";
 import { SongSectionButtons } from "@renderer/components/shared/song-section-buttons";
 import { jumpTo } from "@shared/song-jump";
@@ -114,13 +115,15 @@ export function SlidesPanel() {
     // from that slide — or, already live, moves the projector there.
     if (content.kind === "song") {
       const live = base?.kind === "song" && base.songId === content.song.id ? base : null;
+      // PREVIEW shows both languages; the live song may be in one, cut into
+      // other slides — the same slide there, never the same number.
       return (
         <SongSlideGrid
           // On a detour no slide of the order is on air.
-          liveIndex={live && !live.detour ? live.slideIndex : null}
+          liveIndex={live && !live.detour ? sameSlideIn(live.song, live.slideIndex, content.resolved) : null}
           onActivate={(index) => {
             setPreviewSlide(index);
-            if (live) gotoSongSlide(index);
+            if (live) gotoSongSlide(sameSlideIn(content.resolved, index, live.song));
             else void goLive();
           }}
           onSelect={setPreviewSlide}

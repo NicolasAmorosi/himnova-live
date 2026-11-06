@@ -29,21 +29,28 @@ import { INSTANT_TRANSITION, type ProjectionOutput } from "@shared/types/project
 import {
   caretAtSlide,
   missingOrderKeys,
-  parseLyrics,
   parseSectionKey,
   sectionLabel,
   serializeLyrics,
   slideAtCaret,
+  translationFor,
 } from "@shared/song-text";
-import { SONG_FIELD_MAX_LENGTH, SONG_NOTES_MAX_LENGTH, SONG_TITLE_MAX_LENGTH } from "@shared/song-validators";
+import {
+  SONG_FIELD_MAX_LENGTH,
+  SONG_NOTES_MAX_LENGTH,
+  SONG_TITLE_MAX_LENGTH,
+  type SongProblem,
+} from "@shared/song-validators";
+import { songFileLimits } from "@shared/song-file-limits";
 import type { Song } from "@shared/types/song";
 import {
   emptySongDraft,
-  isSongDraftSavable,
   parseDraft,
   shownOrder,
+  songDraftProblem,
   toSongDraft,
   toSongUpsert,
+  withHeadersWritten,
   type SongDraft,
 } from "./song-draft";
 import { DeleteSongConfirm } from "./delete-song-confirm";
@@ -92,6 +99,9 @@ export function SongEditorModal({ onOpenChange, onSaved, open, songId }: SongEdi
   const [pendingDiscard, setPendingDiscard] = useState<(() => void) | null>(null);
   const [deleting, setDeleting] = useState<SongDeleteTarget | null>(null);
   const [saving, setSaving] = useState(false);
+  /** The save in flight: ⌘S and a click — or the leave dialog's «Guardar y
+   *  salir» — at once share it, never creating the song twice. */
+  const savingRef = useRef<Promise<boolean> | null>(null);
   const lyricsRef = useRef<HTMLTextAreaElement>(null);
   const nameRef = useRef<HTMLInputElement>(null);
 
@@ -131,22 +141,35 @@ export function SongEditorModal({ onOpenChange, onSaved, open, songId }: SongEdi
 
   const upsert = toSongUpsert(draft, parsed, null);
   const dirty = JSON.stringify(upsert) !== JSON.stringify(toSongUpsert(baseline, baselineParsed, null));
-  const savable = isSongDraftSavable(draft, parsed);
-  const canSave = savable && (currentId === null || dirty);
+  const problem = songDraftProblem(draft, parsed);
+  const canSave = problem === null && (currentId === null || dirty);
 
   const missing = missingOrderKeys(parsed.sections, order);
-  const unused = parsed.sections.filter((section) => !order.includes(section.key));
+  // What is really projected: an empty order, or one naming only sections
+  // that are gone, is the song as written (`songDeckSlides`).
+  const projected = new Set(preview.slides.map((slide) => slide.sectionKey));
+  const unused = parsed.sections.filter((section) => !projected.has(section.key));
   const overflowing = new Set(fit?.overflowing ?? []);
-  const overflowingLabels = [
-    ...new Set(
-      preview.slides
-        .filter((slide) => overflowing.has(slide.lines.join("\n")))
-        .map((slide) => sectionLabel(slide.type, slide.number, locale)),
-    ),
-  ];
+  // Every section, not only the order's: a detour is drawn at the same size.
+  const overflowingLabels = preview.sections
+    .filter((section) => section.slides.some((slide) => overflowing.has(slide.lines.join("\n"))))
+    .map((section) => sectionLabel(section.type, section.number, locale));
   const labelOf = (key: string) => {
     const section = parseSectionKey(key);
     return section ? sectionLabel(section.type, section.number, locale) : key;
+  };
+  /** Why «Guardar» is off, naming the limit (2026-11-06). */
+  const problemText = (found: SongProblem) => {
+    switch (found.kind) {
+      case "basic":
+      case "shape":
+        return t("songs.invalidHint");
+      case "sections":
+      case "order":
+        return t(`songs.limits.${found.kind}`, { max: found.max });
+      default:
+        return t(`songs.limits.${found.kind}`, { max: found.max, section: labelOf(found.section) });
+    }
   };
 
   // The caret's slide when it is on one that is projected, else the one clicked.
@@ -195,11 +218,13 @@ export function SongEditorModal({ onOpenChange, onSaved, open, songId }: SongEdi
     setSelected(index);
     const slide = preview.slides[index - 1];
     const offset = slide ? caretAtSlide(draft.lyrics, locale, theme.maxLines, slide) : null;
+    // Moved even when the lyrics are not mounted to focus («Traducción» on
+    // top): a caret left on another slide would keep choosing that one.
+    setCaret(offset);
     const lyrics = lyricsRef.current;
     if (offset === null || !lyrics) return;
     lyrics.focus();
     lyrics.setSelectionRange(offset, offset);
-    setCaret(offset);
   }
 
   function leaveEditing(go: () => void) {
@@ -210,11 +235,21 @@ export function SongEditorModal({ onOpenChange, onSaved, open, songId }: SongEdi
   function show(song: Song) {
     const loaded = toSongDraft(song, locale);
     setCurrentId(song.id);
-    replaceDraft(loaded);
+    // Saved as it was typed: the caret stays where it was. Written back
+    // otherwise (numbered headers…), its offset means nothing any more.
+    if (loaded.lyrics === draft.lyrics) setDraft(loaded);
+    else replaceDraft(loaded);
     setBaseline(loaded);
   }
 
-  async function handleSave(): Promise<boolean> {
+  function handleSave(): Promise<boolean> {
+    savingRef.current ??= save().finally(() => {
+      savingRef.current = null;
+    });
+    return savingRef.current;
+  }
+
+  async function save(): Promise<boolean> {
     if (!canSave) return false;
     setSaving(true);
     try {
@@ -230,7 +265,8 @@ export function SongEditorModal({ onOpenChange, onSaved, open, songId }: SongEdi
   }
 
   async function handleDuplicate() {
-    const source = findSong(songs, currentId);
+    // The store now, not this render's: «Guardar y salir» may have just renamed it.
+    const source = findSong(useSongStore.getState().songs, currentId);
     if (!source) return;
     const copy = await duplicateSong(source.id, t("songs.copyName", { title: source.title }));
     if (copy) {
@@ -248,6 +284,8 @@ export function SongEditorModal({ onOpenChange, onSaved, open, songId }: SongEdi
    *  never deletes a file of the operator's. A duplicate is a library song. */
   const current = findSong(songs, currentId);
   const sourceFolder = current?.sourceFolder ?? null;
+  // What saving never puts in the file (owner, 2026-11-06: «keep + warn»).
+  const fileLimits = current?.file ? songFileLimits(current.file) : [];
   const menuOptions: MenuOption<"duplicate" | "delete">[] = [
     { disabled: currentId === null, label: t("common.duplicate"), value: "duplicate" },
     ...(sourceFolder === null
@@ -296,7 +334,9 @@ export function SongEditorModal({ onOpenChange, onSaved, open, songId }: SongEdi
                 />
                 {missing.length > 0 ? (
                   <Callout className="mt-2 py-2" role="status" tone="warning">
-                    {t("songs.orderMissingHint", { sections: missing.map(labelOf).join(", ") })}
+                    {t(order.every((key) => missing.includes(key)) ? "songs.orderNoneHint" : "songs.orderMissingHint", {
+                      sections: missing.map(labelOf).join(", "),
+                    })}
                   </Callout>
                 ) : null}
                 {draft.order !== null && unused.length > 0 ? (
@@ -313,6 +353,13 @@ export function SongEditorModal({ onOpenChange, onSaved, open, songId }: SongEdi
               {current?.file ? (
                 <Callout className="py-2 break-all" role="note" tone="info">
                   {t("songs.fileSaveHint", { file: current.file })}
+                  {fileLimits.length > 0
+                    ? ` ${t("songs.fileLimits", {
+                        fields: new Intl.ListFormat(locale, { type: "conjunction" }).format(
+                          fileLimits.map((field) => t(`songs.fileFields.${field}`)),
+                        ),
+                      })}`
+                    : null}
                 </Callout>
               ) : null}
               <FieldRow description={t("songs.numberHint")} label={t("songs.number")}>
@@ -415,6 +462,8 @@ export function SongEditorModal({ onOpenChange, onSaved, open, songId }: SongEdi
           <div className="flex items-center gap-2">
             <div className="flex-1">
               <Tabs
+                // Not a bar of the main window: as tall as the button beside it.
+                className="h-auto py-0.5"
                 onChange={setTextTab}
                 tabs={[
                   { label: t("songs.groups.lyrics"), value: "lyrics" },
@@ -428,8 +477,9 @@ export function SongEditorModal({ onOpenChange, onSaved, open, songId }: SongEdi
               disabled={textTab === "lyrics" ? parsed.sections.length === 0 : draft.translation.trim() === ""}
               onClick={() =>
                 textTab === "lyrics"
-                  ? replaceDraft({ ...draft, lyrics: serializeLyrics(parsed.sections, locale) })
-                  : patch({ translation: serializeLyrics(parseLyrics(draft.translation, locale).sections, locale) })
+                  ? replaceDraft(withHeadersWritten(draft, parsed, locale))
+                  : // Pasted without headers, it gets the lyrics' own: paired as before.
+                    patch({ translation: serializeLyrics(translationFor(draft.lyrics, draft.translation, locale), locale) })
               }
               size="xs"
               title={t("songs.writeHeadersHint")}
@@ -465,9 +515,9 @@ export function SongEditorModal({ onOpenChange, onSaved, open, songId }: SongEdi
           )}
           <Caption>{textTab === "lyrics" ? t("songs.lyricsHint") : t("songs.translationHint")}</Caption>
           {/* Not before anything was typed: a new song opened under a warning. */}
-          {!savable && dirty ? (
+          {problem && dirty ? (
             <Callout className="py-2" role="status" tone="warning">
-              {t("songs.invalidHint")}
+              {problemText(problem)}
             </Callout>
           ) : null}
           {overflowingLabels.length > 0 ? (

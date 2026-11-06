@@ -110,6 +110,12 @@ describe("the stage display", () => {
     expect(selectOutput(useProjectionStore.getState())).not.toHaveProperty("chords");
   });
 
+  test("a section sung off the order (a detour) brings its chords too", () => {
+    liveSong(1, false, "[Estrofa 1]\n[G]uno\n\n[Coro]\n[C]coro\n\n[Puente]\n[Em]puente");
+    useProjectionStore.getState().setSongPosition({ slideIndex: 1, detour: { sectionKey: "b1", slideIndex: 1, returnTo: 1 } });
+    expect(stage().current).toMatchObject({ kind: "song", lines: ["puente"], chords: [[{ at: 0, name: "Em" }]] });
+  });
+
   test("BLACK and LOGO keep the content and name the cover", () => {
     liveSong(1);
     useProjectionStore.getState().setOverlay("black");

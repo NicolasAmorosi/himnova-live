@@ -132,7 +132,8 @@ export function SongsBrowser() {
       .catch((error: unknown) => console.warn("[songs] search failed", error));
   }, SEARCH_DEBOUNCE_MS);
 
-  // Searched again when the view changes too: the search is inside it.
+  // Searched again when the view changes too: the search is inside it. And
+  // when the songs do: one created, edited or deleted may match now, or not.
   useEffect(() => {
     if (query.trim() === "") {
       requestRef.current += 1;
@@ -140,7 +141,7 @@ export function SongsBrowser() {
     } else {
       search(query, folder);
     }
-  }, [folder, query, search]);
+  }, [folder, query, search, songs]);
 
   const searching = query.trim() !== "";
   const rows: Row[] = searching

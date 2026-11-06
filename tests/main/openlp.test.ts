@@ -68,6 +68,15 @@ describe("OpenLP's lyrics", () => {
     expect(sections[1]?.slides[0]?.chords).toBeUndefined();
   });
 
+  test("a line of chords alone is kept: an instrumental verse is one (review 2026-11-06)", () => {
+    const sections = readOpenLpLyrics(lyricsXml(verse("i", "1", "[G] [D] [Em] [C]") + verse("v", "1", "[G]Uno\n[C] [G]\ndos")));
+    expect(slidesOf(sections)).toEqual([
+      ["i1", [[""]]],
+      ["v1", [["Uno", "", "dos"]]],
+    ]);
+    expect(sections[1]?.slides[0]?.chords?.[1]).toEqual([{ at: 0, name: "C" }, { at: 0, name: "G" }]);
+  });
+
   test("a second language is the translation, paired by verse and slide; a third is dropped", () => {
     const sections = readOpenLpLyrics(
       lyricsXml(
@@ -155,8 +164,8 @@ describe("OpenLP's database", () => {
   test("importing twice skips what is there; a file that is not OpenLP's says so", () => {
     const file = path.join(tmpDir, "songs-import.sqlite");
     writeOpenLp24(file);
-    expect(importOpenLpDatabase(file)).toEqual({ imported: 2, repeated: 0, problems: 1 });
-    expect(importOpenLpDatabase(file)).toEqual({ imported: 0, repeated: 2, problems: 1 });
+    expect(importOpenLpDatabase(file)).toEqual({ imported: 2, repeated: 0, problems: 1, unsupported: 0 });
+    expect(importOpenLpDatabase(file)).toEqual({ imported: 0, repeated: 2, problems: 1, unsupported: 0 });
 
     const other = path.join(tmpDir, "not-openlp.sqlite");
     new Database(other).exec("CREATE TABLE song (title TEXT)").close();
@@ -242,15 +251,15 @@ describe("OpenLyrics", () => {
     ]);
   });
 
-  test("files: one without lyrics or not XML is a problem; the rest come in once", () => {
+  test("files: one without lyrics is a problem, one not XML no song file at all; the rest come in once", () => {
     const good = path.join(tmpDir, "gracia.xml");
     const empty = path.join(tmpDir, "empty.xml");
     const broken = path.join(tmpDir, "broken.xml");
     fs.writeFileSync(good, openLyrics(`<verse name="v1"><lines>Sublime gracia del Señor</lines></verse>`));
     fs.writeFileSync(empty, openLyrics(""));
     fs.writeFileSync(broken, "<song><lyrics><verse");
-    expect(importOpenLyricsFiles([good, empty, broken])).toEqual({ imported: 1, repeated: 0, problems: 2 });
-    expect(importOpenLyricsFiles([good])).toEqual({ imported: 0, repeated: 1, problems: 0 });
+    expect(importOpenLyricsFiles([good, empty, broken])).toEqual({ imported: 1, repeated: 0, problems: 1, unsupported: 1 });
+    expect(importOpenLyricsFiles([good])).toEqual({ imported: 0, repeated: 1, problems: 0, unsupported: 0 });
   });
 
   test("0.9 chords keep their kind: shortcode or formula, bass included; an unknown one keeps its root", () => {
@@ -293,5 +302,67 @@ describe("OpenLyrics", () => {
       ["Ἀμήν", "Ἀλληλούια"],
       ["Canción", "Señor"],
     ]);
+  });
+});
+
+describe("OpenLyrics: languages and text kept as written (2026-11-06)", () => {
+  const xml = (verses: string) =>
+    `<?xml version="1.0" encoding="UTF-8"?><song xmlns="http://openlyrics.info/namespace/2009/song" version="0.8"><properties><titles><title>T</title></titles></properties><lyrics>${verses}</lyrics></song>`;
+  const lines = (sections: readonly { slides: { lines: string[] }[] }[] | undefined) =>
+    (sections ?? []).flatMap((section) => section.slides.flatMap((slide) => slide.lines));
+
+  test("a verse without `lang` is the lyrics', not a third language dropped", () => {
+    const read = readOpenLyrics(
+      xml(`<verse name="v1" lang="es"><lines>Primera estrofa</lines></verse><verse name="c1"><lines>El coro sin idioma</lines></verse><verse name="v2" lang="es"><lines>Segunda estrofa</lines></verse>`),
+    );
+    expect(lines(read?.sections)).toEqual(["Primera estrofa", "El coro sin idioma", "Segunda estrofa"]);
+  });
+
+  test("`en` and `en-US` are one language", () => {
+    const read = readOpenLyrics(xml(`<verse name="v1" lang="en"><lines>Verse one</lines></verse><verse name="v2" lang="en-US"><lines>Verse two</lines></verse>`));
+    expect(lines(read?.sections)).toEqual(["Verse one", "Verse two"]);
+  });
+
+  test("a transliteration is never projected; a section only the translation has comes in as lyrics", () => {
+    const read = readOpenLyrics(
+      xml(
+        `<verse name="v1" lang="he"><lines>הבה נגילה</lines></verse><verse name="v1" lang="he" translit="en"><lines>Hava nagila</lines></verse>` +
+          `<verse name="v1" lang="en"><lines>Let's rejoice</lines></verse><verse name="e" lang="en"><lines>The end</lines></verse>`,
+      ),
+    );
+    expect(read?.sections.map((section) => [section.key, section.slides])).toEqual([
+      ["v1", [{ lines: ["הבה נגילה"], translation: ["Let's rejoice"] }]],
+      ["e1", [{ lines: ["The end"] }]],
+    ]);
+  });
+
+  test("a <br/> ends a line: OpenLP's after the last one is no line, two in a row an empty line; chords alone are a line (review 2026-11-06)", () => {
+    const read = readOpenLyrics(
+      xml(
+        `<verse name="i1"><lines><chord name="G"/> <chord name="D"/></lines></verse>` +
+          `<verse name="v1"><lines>\n  Uno<br/>\n  <br/>\n  dos<br/>\n</lines><lines>Tres<br/></lines></verse>`,
+      ),
+    );
+    expect(read?.sections.map((section) => [section.key, section.slides.map((slide) => slide.lines)])).toEqual([
+      ["i1", [[""]]],
+      ["v1", [["Uno", "", "dos"], ["Tres"]]],
+    ]);
+    expect(read?.sections[0]?.slides[0]?.chords).toEqual([[{ at: 0, name: "G" }, { at: 0, name: "D" }]]);
+  });
+
+  test("a <comment> alone on its line is no line, not an empty one (review 2026-11-06)", () => {
+    const read = readOpenLyrics(
+      xml(`<verse name="c"><lines><comment>any comment</comment><br/>Line content.</lines></verse>` +
+        `<verse name="v1"><lines>Uno<br/><comment>softly</comment><br/>dos<br/><br/></lines></verse>`),
+    );
+    expect(read?.sections.map((section) => section.slides.map((slide) => slide.lines))).toEqual([
+      [["Line content."]],
+      [["Uno", "dos", ""]],
+    ]);
+  });
+
+  test("an ideographic space inside a line stays; a chord written the Central-European way ([Ami]) is a chord", () => {
+    const read = readOpenLyrics(xml(`<verse name="v1"><lines>いつくしみ深き\u3000友なるイエスは<br/>Všemoh[Ami]úci [G]Boh</lines></verse>`));
+    expect(read?.sections[0]?.slides[0]?.lines).toEqual(["いつくしみ深き　友なるイエスは", "Všemohúci Boh"]);
   });
 });
