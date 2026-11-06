@@ -123,7 +123,7 @@ export function SongEditorModal({ onOpenChange, onSaved, open, songId }: SongEdi
   // The draft as a song, so the preview is resolved — split, footer and all —
   // exactly as the projector will resolve it once saved.
   const draftSong: Song = useMemo(
-    () => ({ ...toSongUpsert(draft, parsed, null), id: currentId ?? 0, updatedAt: 0 }),
+    () => ({ ...toSongUpsert(draft, parsed, null), id: currentId ?? 0, updatedAt: 0, sourceFolder: null }),
     [currentId, draft, parsed],
   );
   const preview = resolveSong(draftSong, theme, license);
@@ -242,9 +242,15 @@ export function SongEditorModal({ onOpenChange, onSaved, open, songId }: SongEdi
     setPending({ kind: "delete", songId: id, live: isSongLive(id), usages: await songUsages(id) });
   }
 
+  /** A song read from a linked folder's file: saving writes the file too, and
+   *  it is never deleted from here — its file would bring it back, and the app
+   *  never deletes a file of the operator's. A duplicate is a library song. */
+  const sourceFolder = findSong(songs, currentId)?.sourceFolder ?? null;
   const menuOptions: MenuOption<"duplicate" | "delete">[] = [
     { disabled: currentId === null, label: t("common.duplicate"), value: "duplicate" },
-    { disabled: currentId === null, label: t("common.delete"), tone: "danger", value: "delete" },
+    ...(sourceFolder === null
+      ? [{ disabled: currentId === null, label: t("common.delete"), tone: "danger" as const, value: "delete" as const }]
+      : []),
   ];
 
   return (
@@ -302,6 +308,11 @@ export function SongEditorModal({ onOpenChange, onSaved, open, songId }: SongEdi
             ) : null}
 
             <InspectorSection title={t("songs.groups.data")}>
+              {sourceFolder ? (
+                <Callout className="py-2" role="note" tone="info">
+                  {t("songs.fileSaveHint", { folder: sourceFolder })}
+                </Callout>
+              ) : null}
               <FieldRow description={t("songs.numberHint")} label={t("songs.number")}>
                 <Input
                   aria-label={t("songs.number")}

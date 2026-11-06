@@ -1,5 +1,5 @@
-import { useMemo, useRef, useState, type KeyboardEvent } from "react";
-import { useI18n } from "@renderer/lib/i18n/i18n-provider";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useI18n, type MessageKey } from "@renderer/lib/i18n/i18n-provider";
 import {
   Button,
   Caption,
@@ -7,26 +7,36 @@ import {
   HighlightedText,
   Icon,
   IconButton,
-  Input,
   ListRow,
-  Menu,
+  LoadingState,
   Tooltip,
 } from "@renderer/components/ui";
 import { PanelBody, PanelFooter } from "@renderer/components/shared/panel";
+import { LibraryFilterBar } from "@renderer/components/shared/library-filter-bar";
+import { ConfirmModal } from "@renderer/components/shared/modal";
 import { ModalBoundary } from "@renderer/components/shared/modal-boundary";
 import { api } from "@renderer/lib/api";
 import { toast } from "@renderer/lib/toast";
 import { setSongDrag } from "@renderer/lib/dnd";
 import { previewSong } from "@renderer/lib/actions/preview";
-import { importSongs } from "@renderer/lib/actions/songs";
+import {
+  importSongs,
+  linkSongFolder,
+  refreshSongFolder,
+  selectSongView,
+  setSongSort,
+  songView,
+  unlinkSongFolder,
+} from "@renderer/lib/actions/songs";
 import { goLive } from "@renderer/lib/actions/playback";
 import { useDebouncedCallback } from "@renderer/lib/hooks/use-debounced-callback";
-import { findSong, useSongStore } from "@renderer/stores/song.store";
+import { findSong, sortSongs, useSongStore } from "@renderer/stores/song.store";
+import { useSettingsStore } from "@renderer/stores/settings.store";
 import { usePreviewStore } from "@renderer/stores/preview.store";
 import { useProgramStore } from "@renderer/stores/program.store";
 import { useProjectionStore } from "@renderer/stores/projection.store";
 import { parseSnippet } from "@shared/types/bible";
-import type { Song, SongImportSource, SongSearchHit } from "@shared/types/song";
+import { SONG_SORT_ORDERS, type Song, type SongSearchHit, type SongSortOrder } from "@shared/types/song";
 import { SongEditorModal } from "./SongEditorModal";
 import { SongThemesModal } from "./SongThemesModal";
 
@@ -35,16 +45,40 @@ const SEARCH_DEBOUNCE_MS = 150;
 
 type Row = { song: Song; snippet: string | null };
 
+/** Explicit, because a message key can never be built from a runtime value. */
+const SORT_LABEL_KEY: Record<SongSortOrder, MessageKey> = {
+  "title-asc": "songs.sortOrders.title-asc",
+  "title-desc": "songs.sortOrders.title-desc",
+  "number-asc": "songs.sortOrders.number-asc",
+  "date-desc": "songs.sortOrders.date-desc",
+  "date-asc": "songs.sortOrders.date-asc",
+};
+
+/** The view of the library itself; any other is a linked folder's path. */
+const LIBRARY = "library";
+
+/** A folder's own name: its tail is what tells two folders apart. */
+const folderName = (folderPath: string) => folderPath.split(/[\\/]/).filter(Boolean).pop() ?? folderPath;
+
 /**
- * The Songs tab: the library, searched by title, number, author and lyrics
- * without accents. The two-stage flow like every list: a click previews, a
- * double click (or Enter on the PREVIEW) goes live; a row is dragged onto the
- * order of service or added from the footer. The editor edits one song at a
- * time (owner, 2026-11-04): «New», or «Edit» on the previewed one.
+ * The Songs tab: the library, or one of the computer's folders linked to it,
+ * like Media's (owner, 2026-11-05) — its song files read from disk, and saved
+ * back into them —, in an order, searched by title, number, author and lyrics
+ * without accents inside what it shows. The two-stage flow like every list: a click
+ * previews, a double click (or Enter on the PREVIEW) goes live; a row is
+ * dragged onto the order of service or added from the footer. The editor edits
+ * one song at a time (owner, 2026-11-04): «New», or «Edit» on the previewed one.
  */
 export function SongsBrowser() {
   const { locale, t } = useI18n();
   const songs = useSongStore((s) => s.songs);
+  const listings = useSongStore((s) => s.folderListings);
+  const sort = useSettingsStore((s) => s.settings["songs.sort"]);
+  const linked = useSettingsStore((s) => s.settings["songs.linkedFolders"]);
+  // Read again whenever the settings change, which is what `songView` reads.
+  const view = useSettingsStore(() => songView());
+  const folder = view === LIBRARY ? null : view;
+  const listing = folder === null ? undefined : listings[folder];
   const target = usePreviewStore((s) => s.target);
   const liveSongId = useProjectionStore((s) => (s.base?.kind === "song" ? s.base.songId : null));
   const addItem = useProgramStore((s) => s.addItem);
@@ -53,25 +87,37 @@ export function SongsBrowser() {
   const [editing, setEditing] = useState<{ songId: number | null } | null>(null);
   const [themesOpen, setThemesOpen] = useState(false);
   const [importing, setImporting] = useState(false);
-  const runImport = (from: SongImportSource) => {
+  const [confirmUnlink, setConfirmUnlink] = useState<string | null>(null);
+  const runImport = () => {
     setImporting(true);
-    void importSongs(from).finally(() => setImporting(false));
+    void importSongs().finally(() => setImporting(false));
   };
   const requestRef = useRef(0);
 
   const previewedId = target?.kind === "song" ? target.songId : null;
   const previewed = findSong(songs, previewedId);
 
-  // ponytail: every row rendered; virtualize when a church's library makes typing lag.
-  const sorted = useMemo(() => {
-    const collator = new Intl.Collator(locale, { numeric: true, sensitivity: "base" });
-    return [...songs].sort((a, b) => collator.compare(a.title, b.title));
-  }, [locale, songs]);
+  // A folder is read from disk each time it is opened: its files may have
+  // changed since, outside the app.
+  useEffect(() => {
+    if (folder !== null) void refreshSongFolder(folder);
+  }, [folder]);
 
-  const search = useDebouncedCallback((value: string) => {
+  /** What the view shows: the library's songs, or the folder's as last read. */
+  const inView = useMemo(() => {
+    if (folder === null) return songs.filter((song) => song.sourceFolder === null);
+    const ids = new Set(Array.isArray(listing) ? listing : []);
+    return songs.filter((song) => ids.has(song.id));
+  }, [folder, listing, songs]);
+  const inViewIds = useMemo(() => new Set(inView.map((song) => song.id)), [inView]);
+
+  // ponytail: every row rendered; virtualize when a church's library makes typing lag.
+  const sorted = useMemo(() => sortSongs(inView, sort, locale), [inView, locale, sort]);
+
+  const search = useDebouncedCallback((value: string, scope: string | null) => {
     const request = (requestRef.current += 1);
     api.songs
-      .search(value)
+      .search(value, scope)
       .then((result) => {
         // An answer to an older query must not replace a newer one's.
         if (request === requestRef.current) setHits(result);
@@ -79,53 +125,89 @@ export function SongsBrowser() {
       .catch((error: unknown) => console.warn("[songs] search failed", error));
   }, SEARCH_DEBOUNCE_MS);
 
+  // Searched again when the view changes too: the search is inside it.
+  useEffect(() => {
+    if (query.trim() === "") {
+      requestRef.current += 1;
+      setHits(null);
+    } else {
+      search(query, folder);
+    }
+  }, [folder, query, search]);
+
   const searching = query.trim() !== "";
   const rows: Row[] = searching
     ? (hits ?? []).flatMap((hit) => {
         const song = findSong(songs, hit.songId);
-        return song ? [{ song, snippet: hit.snippet }] : [];
+        // An answer for the view open a moment ago is not this one's.
+        return song && inViewIds.has(song.id) ? [{ song, snippet: hit.snippet }] : [];
       })
     : sorted.map((song) => ({ song, snippet: null }));
 
-  function handleKeyDown(e: KeyboardEvent<HTMLInputElement>) {
-    // Enter previews the best match; Escape then Enter sends it live.
-    if (e.key !== "Enter") return;
-    const first = rows[0];
-    if (first) previewSong(first.song.id);
-  }
-
   return (
     <>
-      <div className="flex shrink-0 flex-col gap-1.5 border-b border-border p-1.5">
-        <Input
-          aria-label={t("songs.search")}
-          icon="search"
-          onChange={(e) => {
-            const value = e.target.value;
-            setQuery(value);
-            if (value.trim() === "") {
-              requestRef.current += 1;
-              setHits(null);
-            } else {
-              search(value);
-            }
-          }}
-          onKeyDown={handleKeyDown}
-          placeholder={t("songs.search")}
-          value={query}
-        />
-      </div>
+      <LibraryFilterBar
+        activeView={view}
+        addFolder={{ hint: t("songs.linkFolderHint"), label: t("resources.addFolder"), onClick: () => void linkSongFolder() }}
+        folderActions={
+          <Tooltip content={t("resources.removeFolderHint")} floating>
+            <IconButton
+              aria-label={t("resources.removeFolder")}
+              onClick={() => setConfirmUnlink(view)}
+              size="sm"
+              variant="ghost"
+            >
+              <Icon name="folderMinus" />
+            </IconButton>
+          </Tooltip>
+        }
+        onQueryChange={setQuery}
+        // Enter previews the best match; Escape then Enter sends it live.
+        onSearchEnter={() => {
+          const first = rows[0];
+          if (first) previewSong(first.song.id);
+        }}
+        onSelectView={selectSongView}
+        onSortChange={setSongSort}
+        query={query}
+        searchLabel={t("songs.search")}
+        sort={sort}
+        sortHint={t("songs.sortHint")}
+        sortOptions={SONG_SORT_ORDERS.map((order) => ({ label: t(SORT_LABEL_KEY[order]), value: order }))}
+        views={[
+          { label: t("resources.recentTab"), value: LIBRARY },
+          ...linked.map((path) => ({ label: folderName(path), value: path })),
+        ]}
+        viewsLabel={t("resources.source")}
+      />
 
       <PanelBody className="p-1.5">
-        {songs.length === 0 ? (
+        {/* Media's own two states: a folder that is gone says so and can be
+            tried again, never reads as an empty folder. */}
+        {folder !== null && listing === "missing" ? (
+          <LoadingState
+            action={
+              <Button onClick={() => void refreshSongFolder(folder)} size="sm" variant="outline">
+                {t("common.retry")}
+              </Button>
+            }
+            hint={t("library.folderMissing")}
+            icon="alert"
+            surface="panel"
+            title={t("library.loadFailed")}
+            tone="failed"
+          />
+        ) : folder !== null && listing === undefined ? (
+          <LoadingState progress={null} surface="panel" title={t("library.loading")} />
+        ) : rows.length === 0 && !searching ? (
           // No buttons in an empty state (2026-11-04 review): «+» and «Importar»
           // are in the footer right below, and some empty states had a button
           // while others did not.
-          <EmptyState
-            description={t("songs.emptyHint")}
-            icon="song"
-            title={t("songs.empty")}
-          />
+          folder === null ? (
+            <EmptyState description={t("songs.emptyHint")} icon="song" title={t("songs.empty")} />
+          ) : (
+            <EmptyState description={t("songs.folderEmptyHint")} icon="folder" title={t("songs.folderEmpty")} />
+          )
         ) : rows.length === 0 ? (
           <EmptyState icon="search" title={hits === null ? t("songs.searching") : t("songs.noResults")} />
         ) : (
@@ -165,11 +247,15 @@ export function SongsBrowser() {
       </PanelBody>
 
       <PanelFooter>
-        <Tooltip content={t("songs.newHint")} floating>
-          <IconButton aria-label={t("songs.new")} onClick={() => setEditing({ songId: null })} size="sm" variant="ghost">
-            <Icon name="add" />
-          </IconButton>
-        </Tooltip>
+        {/* A new or imported song goes into the library: in a folder's view,
+            where it would not show, neither is offered (Media's add, too). */}
+        {folder === null ? (
+          <Tooltip content={t("songs.newHint")} floating>
+            <IconButton aria-label={t("songs.new")} onClick={() => setEditing({ songId: null })} size="sm" variant="ghost">
+              <Icon name="add" />
+            </IconButton>
+          </Tooltip>
+        ) : null}
         <Tooltip content={t("songs.editHint")} floating>
           <IconButton
             aria-label={t("songs.edit")}
@@ -181,30 +267,21 @@ export function SongsBrowser() {
             <Icon name="pencil" />
           </IconButton>
         </Tooltip>
-        {/* With words, not icons alone (2026-11-04 redesign, P2): nobody finds
-            «Themes» behind a palette. «+» and the pencil are universal. */}
-        <Tooltip content={t("songs.importHint")} floating>
-          <Menu
-            disabled={importing}
-            icon="import"
-            label={t("songs.import")}
-            onSelect={runImport}
-            options={[
-              { label: t("songs.importEasyWorship"), value: "easyworship" },
-              { label: t("songs.importOpenLp"), value: "openlp" },
-              { label: t("songs.importOpenLyrics"), value: "openlyrics" },
-              { label: t("songs.importSongSelect"), value: "songselect" },
-              { label: t("songs.importChordPro"), value: "chordpro" },
-            ]}
-            size="sm"
-            text={t("songs.import")}
-          />
-        </Tooltip>
+        {/* The tab's own tools are icons with a tooltip; only «Agregar», what
+            the footer is for, keeps its word (owner, 2026-11-05, reversing the
+            2026-11-04 redesign's P2: «me gustan solo los íconos»). */}
+        {/* One picker for every format (owner, 2026-11-05: no menu of programs). */}
+        {folder === null ? (
+          <Tooltip content={t("songs.importHint")} floating>
+            <IconButton aria-label={t("songs.import")} disabled={importing} onClick={runImport} size="sm" variant="ghost">
+              <Icon name="import" />
+            </IconButton>
+          </Tooltip>
+        ) : null}
         <Tooltip content={t("songThemes.manageHint")} floating>
-          <Button onClick={() => setThemesOpen(true)} size="sm" variant="ghost">
+          <IconButton aria-label={t("songThemes.title")} onClick={() => setThemesOpen(true)} size="sm" variant="ghost">
             <Icon name="palette" />
-            {t("songThemes.title")}
-          </Button>
+          </IconButton>
         </Tooltip>
         <Tooltip className="ml-auto" content={t("resources.addToScheduleHint")} placement="top">
           <Button
@@ -246,6 +323,19 @@ export function SongsBrowser() {
       >
         <SongThemesModal onOpenChange={setThemesOpen} open={themesOpen} />
       </ModalBoundary>
+
+      {/* Asked first, like Media's: the view the operator had open
+          disappearing looks like data loss even though no file is touched. */}
+      <ConfirmModal
+        confirmLabel={t("resources.removeFolder")}
+        description={t("resources.removeFolderConfirmBody", { folder: confirmUnlink ? folderName(confirmUnlink) : "" })}
+        onConfirm={() => (confirmUnlink ? unlinkSongFolder(confirmUnlink) : undefined)}
+        onOpenChange={(open) => {
+          if (!open) setConfirmUnlink(null);
+        }}
+        open={confirmUnlink !== null}
+        title={t("resources.removeFolderConfirmTitle")}
+      />
     </>
   );
 }

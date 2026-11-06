@@ -28,7 +28,14 @@ export function Segmented<T extends string>({ className, label, onChange, option
   return (
     <div
       aria-label={label}
-      className={cn("inline-flex shrink-0 items-stretch gap-0.5 rounded-md border border-border p-0.5", heights[size], className)}
+      // A grid of equal columns: every choice as wide as the widest, so the
+      // chosen fill does not jump in size from one to the other (owner,
+      // 2026-11-05: «Referencia | Texto», each the same space).
+      className={cn(
+        "inline-grid shrink-0 auto-cols-fr grid-flow-col gap-0.5 rounded-md border border-border p-0.5",
+        heights[size],
+        className,
+      )}
       role="group"
     >
       {options.map((option) => {
@@ -37,7 +44,7 @@ export function Segmented<T extends string>({ className, label, onChange, option
           <button
             aria-pressed={chosen}
             className={cn(
-              "focus-ring inline-flex min-w-0 grow items-center justify-center gap-1.5 rounded-sm px-2.5 text-xs font-medium transition-colors",
+              "focus-ring inline-flex min-w-0 items-center justify-center gap-1.5 rounded-sm px-2.5 text-xs font-medium transition-colors",
               // The chosen look of `Tabs`' segments, so the app has one.
               chosen ? "bg-active text-foreground ring-1 ring-accent/40 ring-inset" : "text-muted-foreground hover:bg-hover hover:text-foreground",
             )}

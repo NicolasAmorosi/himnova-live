@@ -82,17 +82,30 @@ export type Song = {
   order: string[];
   /** `null` = the default theme. */
   themeId: number | null;
+  /** The linked folder whose file it was read from, `null` = a library song.
+   *  Saving such a song writes its file too, in the file's own format (owner,
+   *  2026-11-05). Main's to set: never part of a write. */
+  sourceFolder: string | null;
   updatedAt: number;
 };
 
-export type SongUpsert = Omit<Song, "id" | "updatedAt"> & { id?: number };
+/** How the Songs tab lists the library when nothing is searched, persisted in
+ *  `settings["songs.sort"]`. `date` is when the song came in (its row id). */
+export const SONG_SORT_ORDERS = ["title-asc", "title-desc", "number-asc", "date-desc", "date-asc"] as const;
+export type SongSortOrder = (typeof SONG_SORT_ORDERS)[number];
+
+export type SongUpsert = Omit<Song, "id" | "updatedAt" | "sourceFolder"> & { id?: number };
 
 export type SongUsage = { programId: number; programName: string; itemCount: number };
 
-/** The programs whose songs the app reads (owner, 2026-11-05: «Importar» is a
- *  menu of them). */
-export const SONG_IMPORT_SOURCES = ["easyworship", "openlp", "openlyrics", "songselect", "chordpro"] as const;
-export type SongImportSource = (typeof SONG_IMPORT_SOURCES)[number];
+/** What «Importar» opens in one picker (owner, 2026-11-05: any supported
+ *  format, no menu): OpenLyrics, SongSelect and ChordPro files, OpenLP's
+ *  `songs.sqlite` and EasyWorship's `Songs.db`. */
+export const SONG_IMPORT_EXTENSIONS = ["xml", "txt", "cho", "chordpro", "chopro", "crd", "pro", "sqlite", "db"] as const;
+
+/** The song files a linked folder shows: the importable ones that are one
+ *  file, not a database. */
+export const SONG_FILE_EXTENSIONS = ["xml", "txt", "cho", "chordpro", "chopro", "crd", "pro"] as const;
 
 /** One song in the CCLI usage report: the days it went live (one per day). */
 export type SongUse = { title: string; authors: string | null; ccliNumber: string | null; days: number[] };

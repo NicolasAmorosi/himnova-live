@@ -256,7 +256,9 @@ export function BibleScene({
           }}
         >
           {style.referencePosition === "above" ? <ReferenceLines lines={referenceLines} style={style} /> : null}
-          <p ref={textRef} style={{ ...textStyle(style.text), fontSize: `${sizeCqw}cqw` }}>
+          {/* `dir="auto"`, like a song's lines: an Arabic or Hebrew version
+              reads right to left, punctuation included. */}
+          <p dir="auto" ref={textRef} style={{ ...textStyle(style.text), fontSize: `${sizeCqw}cqw` }}>
             {text}
           </p>
           {style.referencePosition === "below" ? <ReferenceLines lines={referenceLines} style={style} /> : null}

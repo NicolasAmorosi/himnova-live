@@ -43,12 +43,17 @@ export function Monitor({ children, className, empty, onAir = false }: MonitorPr
       {/* On air, a 2 px red ring drawn OVER the picture (an `::after` above it)
           plus the border itself: an outline under the picture showed only its
           border pixel, 1 px of red (2026-11-05 review), and a thicker border
-          would shrink the 16:9 box. */}
+          would shrink the 16:9 box. The ring has no radius of its own: the
+          box's `overflow-hidden` rounds it to the inner edge (6 − 1 px). With
+          `rounded-md` its 6 px corner sat inside that 5 px clip and left a
+          sliver of the black stage at each corner (owner, 2026-11-05); and the
+          black stops at the border (`bg-clip-padding`), so the curved border's
+          soft pixels blend with the panel and not with black. */}
       <div
         className={cn(
-          "relative w-full overflow-hidden rounded-md border border-border bg-black",
+          "relative w-full overflow-hidden rounded-md border border-border bg-black bg-clip-padding",
           onAir &&
-            "border-on-air after:pointer-events-none after:absolute after:inset-0 after:z-10 after:rounded-md after:ring-2 after:ring-on-air after:ring-inset",
+            "border-on-air after:pointer-events-none after:absolute after:inset-0 after:z-10 after:ring-2 after:ring-on-air after:ring-inset",
         )}
       >
         <div className="flex aspect-video w-full items-center justify-center">

@@ -26,7 +26,7 @@ const CHORD_STYLE = { color: "#ffc960", fontSize: "0.6em", fontWeight: 700, line
  *  position to the next one's. Spaces are kept (`pre`) so a cut between
  *  two words keeps the space between them. */
 function ChordedLine({ chords, line }: { chords: readonly SongChord[]; line: string }) {
-  if (chords.length === 0) return <p>{line}</p>;
+  if (chords.length === 0) return <p dir="auto">{line}</p>;
   const cuts = chords.map((chord) => Math.min(chord.at, line.length));
   const head = line.slice(0, cuts[0]);
   return (
@@ -136,8 +136,9 @@ export function SongScene({
           }}
         >
           {lines.map((line, index) =>
-            // Positional on purpose: the same words twice are two lines.
-            chorded ? <ChordedLine chords={chords?.[index] ?? []} key={index} line={line} /> : <p key={index}>{line}</p>,
+            // Positional on purpose: the same words twice are two lines. Each
+            // line `dir="auto"`: an Arabic or Hebrew one reads right to left.
+            chorded ? <ChordedLine chords={chords?.[index] ?? []} key={index} line={line} /> : <p dir="auto" key={index}>{line}</p>,
           )}
           {/* Inside the measured block, so the song's one size fits both
               languages; in `em`, so it scales with that size. */}
@@ -152,7 +153,7 @@ export function SongScene({
               }}
             >
               {translation.map((line, index) => (
-                <p key={index}>{line}</p>
+                <p dir="auto" key={index}>{line}</p>
               ))}
             </div>
           ) : null}

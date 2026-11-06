@@ -3,7 +3,6 @@ import { useI18n } from "@renderer/lib/i18n/i18n-provider";
 import { Caption, Icon, IconButton, Input, Menu, Token } from "@renderer/components/ui";
 import { SECTION_FILL } from "@renderer/components/shared/song-section-fill";
 import { cn } from "@renderer/lib/utils";
-import { hideDragGhost } from "@renderer/lib/dnd";
 import { formatOrder, parseOrder, parseSectionKey, sectionLabel } from "@shared/song-text";
 import type { SongSection } from "@shared/types/song";
 
@@ -34,7 +33,10 @@ export function SongOrderField({ custom, onChange, onReset, order, sections }: S
   const formatted = formatOrder(order, locale);
   const [text, setText] = useState(formatted);
   const [invalid, setInvalid] = useState<string[]>([]);
+  /** Where the dragged chip would land: before the chip at this index
+   *  (`order.length` = after the last one). */
   const [dropAt, setDropAt] = useState<number | null>(null);
+  const [dragging, setDragging] = useState<number | null>(null);
   const [typing, setTyping] = useState(false);
   const known = new Set(sections.map((section) => section.key));
 
@@ -48,11 +50,20 @@ export function SongOrderField({ custom, onChange, onReset, order, sections }: S
     return parsed ? sectionLabel(parsed.type, parsed.number, locale) : key;
   };
 
-  function handleDrop(e: DragEvent, at: number) {
-    e.preventDefault();
+  /** A landing that would leave the chip where it is shows no guide. */
+  const landing = (at: number) => (dragging !== null && (at === dragging || at === dragging + 1) ? null : at);
+
+  function endDrag() {
+    setDragging(null);
     setDropAt(null);
+  }
+
+  function handleDrop(e: DragEvent) {
+    e.preventDefault();
+    const at = dropAt;
+    endDrag();
     const raw = e.dataTransfer.getData(ORDER_CHIP_MIME);
-    if (raw === "") return;
+    if (raw === "" || at === null) return;
     const from = Number(raw);
     const next = [...order];
     const [moved] = next.splice(from, 1);
@@ -66,34 +77,55 @@ export function SongOrderField({ custom, onChange, onReset, order, sections }: S
       <ul
         aria-label={t("songs.orderLabel")}
         className="flex min-h-9 flex-wrap items-center gap-1.5"
-        onDragOver={(e) => {
-          e.preventDefault();
-          setDropAt(order.length);
+        onDragLeave={(e) => {
+          if (!(e.relatedTarget instanceof Node && e.currentTarget.contains(e.relatedTarget))) setDropAt(null);
         }}
-        onDrop={(e) => handleDrop(e, order.length)}
+        onDragOver={(e) => {
+          if (!e.dataTransfer.types.includes(ORDER_CHIP_MIME)) return;
+          e.preventDefault();
+          setDropAt(landing(order.length));
+        }}
+        onDrop={handleDrop}
       >
         {order.map((key, index) => {
           const parsed = parseSectionKey(key);
           return (
             <li
-              className={cn("flex items-center", dropAt === index && "rounded-md ring-2 ring-accent")}
+              // The guide: a bar in the gap where the chip would land, before
+              // this chip or — for the last one — after it. The chip itself
+              // flies with the pointer (the browser's own picture of it), and
+              // the one left behind fades (owner, 2026-11-05: «no se ve el item
+              // volando… no hay guías»).
+              className={cn(
+                "relative flex items-center",
+                dragging === index && "opacity-40",
+                dropAt === index &&
+                  "before:absolute before:inset-y-0.5 before:-left-1 before:w-0.5 before:rounded-full before:bg-accent",
+                dropAt === order.length &&
+                  index === order.length - 1 &&
+                  "after:absolute after:inset-y-0.5 after:-right-1 after:w-0.5 after:rounded-full after:bg-accent",
+              )}
               draggable
               // Position, not key: the same section is in the order many times.
               key={`${key}-${index}`}
               onDragOver={(e) => {
+                if (!e.dataTransfer.types.includes(ORDER_CHIP_MIME)) return;
                 e.preventDefault();
                 e.stopPropagation();
-                setDropAt(index);
+                // Which half: the left one lands before this chip, the right
+                // one after it — dropping on the next chip moves it one place.
+                const box = e.currentTarget.getBoundingClientRect();
+                setDropAt(landing(e.clientX < box.left + box.width / 2 ? index : index + 1));
               }}
               onDragStart={(e) => {
                 e.dataTransfer.effectAllowed = "move";
                 e.dataTransfer.setData(ORDER_CHIP_MIME, String(index));
-                hideDragGhost(e);
+                setDragging(index);
               }}
-              onDragEnd={() => setDropAt(null)}
+              onDragEnd={endDrag}
               onDrop={(e) => {
                 e.stopPropagation();
-                handleDrop(e, index);
+                handleDrop(e);
               }}
               title={labelOf(key)}
             >

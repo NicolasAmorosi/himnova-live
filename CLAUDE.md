@@ -134,7 +134,8 @@ src/
 │   ├── updates/                   # updater.ts (owns UpdateStatus, wraps electron-updater), mac-dmg.ts
 │   │                              #   (macOS without Squirrel), update-status.ts (PURE, tested)
 │   ├── logging.ts                 # main.log and crash.log, rotated
-│   ├── songs/                     # rtf.ts (RTF → text), easyworship.ts (EasyWorship 6's song database),
+│   ├── songs/                     # song-writers.ts (OpenLyrics, ChordPro, SongSelect written back: a linked folder's
+│   │                              #   song saved into its own file — services/song-files.ts), rtf.ts (RTF → text), easyworship.ts (EasyWorship 6's song database),
 │   │                              #   openlp.ts (OpenLP's songs.sqlite and OpenLyrics files), text-files.ts (SongSelect .txt and
 │   │                              #   ChordPro, told apart by their words), usage-report.ts (CCLI CSV)
 │   └── services/                  # repos.ts (registry), projection-state.ts, broadcast.ts

@@ -153,6 +153,20 @@ only for `songs_fts` (FTS5 external content over title, number, authors and lyri
 2`, kept by triggers like the Bible's; `bm25` weighs the title most). `theme_id` is `set null`;
 `program_items.song_id` is `restrict`, answered by `song:usages` and «Delete anyway».
 
+**Linked folders** (`0022`, owner 2026-11-05: «las carpetas de la computadora, como en Media»): a song read from
+a file of a folder linked in the Songs tab is a row of `songs` with `source_folder`, `source_file`, `source_index`
+(a ChordPro file can hold several songs) and `source_mtime` — `NULL` for a library song. `song:listFolder`
+(`services/song-files.ts`) reads the folder's top level; a file whose mtime did not change keeps its rows, one that
+changed is read again INTO THE SAME ROWS (`SongsRepo.syncFile`), so its id, theme and the programs using it
+survive. Saving such a song writes its file first, in its own format (`songs/song-writers.ts`, the readers'
+inverse; owner: «se edita el archivo real, siempre»), through a sibling renamed over it; a file changed outside
+the app since it was read is refused (`SONG_FILE_CHANGED`), never overwritten. The app never deletes a file: the
+editor offers no «Eliminar» for such a song, and a song a file no longer holds goes only if no program uses it.
+The library view is `source_folder IS NULL`; the search is inside the view (`song:search`'s `folder`, filtered
+before the `LIMIT`); an import checks repeats against the library only. Settings: `songs.linkedFolders`,
+`songs.activeView`, `songs.sort`. An unreleased `0022_song_folders` (folders of the app's own) ran on the
+owner's profile the same day and was replaced: its `song_folders` table and `songs.folder_id` stay there, unused.
+
 A theme is one `SongTheme` JSON per row; every knob added after F1 (outline, footer, fade…) reads its
 default from a stored row that predates it. The default theme is seeded ONCE (`songs.seeded`) from the
 operator's verse style at a singer's size (6 / 2.5 cqw); the last theme cannot be deleted
@@ -209,8 +223,13 @@ file is comes from its words (a directive line = ChordPro; a `CCLI` footer = Son
 extension. SongSelect's footer changed order in 2023 (authors above «CCLI Song #»); both orders are read.
 In ChordPro, `{start_of_…}`/`{end_of_…}` and a `{comment}` that names a section are labels, `{chorus}`
 repeats the last chorus, a paragraph outside any section is a verse of its own, and chords, tabs and grids
-are dropped. A file that is not UTF-8 is read as Windows-1252. All the importers write through `writeSongs` (`services/song-import.ts`): one transaction, the same title with
-the same words skipped as repeated.
+are dropped. Every text file — SongSelect, ChordPro, OpenLyrics, and a bible module too — goes through
+`decodeText` (`main/decode-text.ts`): its byte-order mark, else its XML `encoding`, else UTF-8 when the bytes
+are valid UTF-8, else Windows-1252 (OpenLP 2.0 wrote OpenLyrics as `windows-1252`: read as UTF-8 every accent
+was a «�»). «Importar» is one picker for every format (`importSongFiles`): each file read by what it is —
+`.xml` OpenLyrics, EasyWorship's `Songs.db`/`SongWords.db` (their folder), any other `.db`/`.sqlite` as OpenLP's,
+SongSelect or ChordPro text for the rest. All of it goes through `writeSongs` (`services/song-import.ts`): one
+transaction, the same title with the same words skipped as repeated.
 
 `song_uses` (`0021`) is what the CCLI usage report counts (owner, 2026-11-05): `projection:show` writes a
 row when a song goes live, ONE per song per local day (`SongsRepo.recordUse`), never pruned — unlike

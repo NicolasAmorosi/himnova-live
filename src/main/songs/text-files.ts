@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { TextDecoder } from "node:util";
+import { decodeText } from "../decode-text";
 import { hasWords, isSectionLabel, isWrittenChord, parseLyrics, textOrder } from "@shared/song-text";
 import { isSongUpsert, SONG_FIELD_MAX_LENGTH, SONG_TITLE_MAX_LENGTH } from "@shared/song-validators";
 import type { Locale } from "@shared/types/settings";
@@ -42,9 +42,9 @@ const lines = (text: string) => text.split(/\r\n?|\n/).map((line) => line.trim()
  * ------------------------------------------------------------------------ */
 
 const CCLI_LINE = /^CCLI\b/i;
-const COPYRIGHT_LINE = /^(©|\(c\)|copyright\b)/i;
+export const COPYRIGHT_LINE = /^(©|\(c\)|copyright\b)/i;
 /** The licence words under every SongSelect song, never the song's own. */
-const LICENCE_LINE = /for use solely|all rights reserved|ccli\.com|songselect/i;
+export const LICENCE_LINE = /for use solely|all rights reserved|ccli\.com|songselect/i;
 
 /**
  * SongSelect's lyrics (`.txt`): the title, then blocks whose first line names
@@ -203,14 +203,10 @@ export function readChordPro(text: string, fallbackTitle: string, locale: Locale
  * Files
  * ------------------------------------------------------------------------ */
 
-/** UTF-8, UTF-16 with its mark, or — an old file written on Windows — Windows-1252. */
-function decode(bytes: Buffer): string {
-  if (bytes[0] === 0xff && bytes[1] === 0xfe) return bytes.toString("utf16le").replace(/^\uFEFF/, "");
-  try {
-    return new TextDecoder("utf-8", { fatal: true }).decode(bytes).replace(/^\uFEFF/, "");
-  } catch {
-    return new TextDecoder("windows-1252").decode(bytes);
-  }
+/** A SongSelect or ChordPro text, told apart by its words: its songs, `null`
+ *  for one with no title or no words. */
+export function readSongText(text: string, fallbackTitle: string, locale: Locale): (ReadSong | null)[] {
+  return isChordPro(text) ? readChordPro(text, fallbackTitle, locale) : [readSongSelect(text, locale)];
 }
 
 /** SongSelect and ChordPro files, each read on its own: one that cannot be
@@ -222,10 +218,7 @@ export function readSongTextFiles(files: readonly string[], locale: Locale): Son
   for (const file of files) {
     let read: (ReadSong | null)[] = [null];
     try {
-      const text = decode(fs.readFileSync(file));
-      read = isChordPro(text)
-        ? readChordPro(text, path.basename(file, path.extname(file)), locale)
-        : [readSongSelect(text, locale)];
+      read = readSongText(decodeText(fs.readFileSync(file)), path.basename(file, path.extname(file)), locale);
     } catch (error) {
       console.warn("[songs] song file unreadable", file, error);
     }

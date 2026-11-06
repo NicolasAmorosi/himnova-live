@@ -224,15 +224,52 @@ export function SchedulePanel() {
         meta={[dirty ? null : t("schedule.saved")]}
         title={t("schedule.title")}
       />
-      {/* The tools in a vertical strip beside the list, icons only, like
-          EasyWorship's (owner, 2026-11-05: «a prueba»): the horizontal bar sat
-          between two lines right on top of the resource tabs and read as
-          theirs. Neutral, no colours (2026-11-04 redesign, P1); «Clear» is
-          destructive and rare, it lives in «⋯». */}
+      {/* The tools in a vertical strip on the list's right, icons only, like
+          EasyWorship's (owner, 2026-11-05: vertical «a prueba», then «on the
+          right, not the left»): the horizontal bar sat between two lines right
+          on top of the resource tabs and read as theirs. Neutral, no colours
+          (2026-11-04 redesign, P1). */}
       <div className="flex min-h-0 flex-1">
+        <PanelBody
+          className="p-1.5"
+          onDragLeave={handleDragLeave}
+          onDragOver={handleDragOver}
+          onDrop={(e) => void handleDrop(e)}
+        >
+          {items.length === 0 ? (
+            <EmptyState description={t("schedule.emptyHint")} icon="layers" title={t("schedule.empty")} />
+          ) : (
+            <ul className="flex flex-col gap-0.5">
+              {items.map((item, index) => (
+                <ScheduleRow
+                  active={activeIndex === index}
+                  deckStatus={item.kind === "ppt" ? deckStatuses[item.mediaAssetId] : undefined}
+                  dragOver={dragOverIndex === index}
+                  index={index}
+                  item={item}
+                  key={item.id}
+                  onClick={() => previewScheduleItem(index)}
+                  onDoubleClick={() => {
+                    previewScheduleItem(index);
+                    void goLive();
+                  }}
+                  onDragStart={(e) => {
+                    e.dataTransfer.effectAllowed = "move";
+                    e.dataTransfer.setData(SCHEDULE_INDEX_MIME, String(index));
+                    // Same as the saved-programs list: the only drop feedback
+                    // here is a horizontal indicator, so the browser's
+                    // translucent ghost trailing sideways is pure noise.
+                    hideDragGhost(e);
+                  }}
+                  selected={selectedIndex === index}
+                />
+              ))}
+            </ul>
+          )}
+        </PanelBody>
         <div
           aria-label={t("schedule.title")}
-          className="flex shrink-0 flex-col items-center gap-1 border-r border-border p-1.5"
+          className="flex shrink-0 flex-col items-center gap-1 border-l border-border p-1.5"
           role="toolbar"
           aria-orientation="vertical"
         >
@@ -289,43 +326,6 @@ export function SchedulePanel() {
             </IconButton>
           </Tooltip>
         </div>
-        <PanelBody
-          className="p-1.5"
-          onDragLeave={handleDragLeave}
-          onDragOver={handleDragOver}
-          onDrop={(e) => void handleDrop(e)}
-        >
-          {items.length === 0 ? (
-            <EmptyState description={t("schedule.emptyHint")} icon="layers" title={t("schedule.empty")} />
-          ) : (
-            <ul className="flex flex-col gap-0.5">
-              {items.map((item, index) => (
-                <ScheduleRow
-                  active={activeIndex === index}
-                  deckStatus={item.kind === "ppt" ? deckStatuses[item.mediaAssetId] : undefined}
-                  dragOver={dragOverIndex === index}
-                  index={index}
-                  item={item}
-                  key={item.id}
-                  onClick={() => previewScheduleItem(index)}
-                  onDoubleClick={() => {
-                    previewScheduleItem(index);
-                    void goLive();
-                  }}
-                  onDragStart={(e) => {
-                    e.dataTransfer.effectAllowed = "move";
-                    e.dataTransfer.setData(SCHEDULE_INDEX_MIME, String(index));
-                    // Same as the saved-programs list: the only drop feedback
-                    // here is a horizontal indicator, so the browser's
-                    // translucent ghost trailing sideways is pure noise.
-                    hideDragGhost(e);
-                  }}
-                  selected={selectedIndex === index}
-                />
-              ))}
-            </ul>
-          )}
-        </PanelBody>
       </div>
       <ConfirmModal
         confirmLabel={t("schedule.discardAndClear")}

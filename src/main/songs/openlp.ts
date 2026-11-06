@@ -6,6 +6,7 @@ import { isSongUpsert, SONG_FIELD_MAX_LENGTH, SONG_NOTES_MAX_LENGTH, SONG_TITLE_
 import { SONG_SECTION_NUMBER_MAX, type SongSection, type SongSectionType, type SongUpsert } from "@shared/types/song";
 import { walkXml } from "../db/seed/bible-formats/xml-ordered";
 import { ccliNumber, clip, type SongsRead } from "./easyworship";
+import { decodeText } from "../decode-text";
 
 /**
  * OpenLP's song database (`songs.sqlite`) and OpenLyrics, the XML it exports
@@ -307,7 +308,7 @@ export function readOpenLyricsFiles(files: readonly string[]): SongsRead {
   for (const file of files) {
     let song: Omit<SongUpsert, "id"> | null = null;
     try {
-      song = readOpenLyrics(fs.readFileSync(file, "utf-8"));
+      song = readOpenLyrics(decodeText(fs.readFileSync(file)));
     } catch (error) {
       console.warn("[songs] OpenLyrics file unreadable", file, error);
     }

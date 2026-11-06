@@ -24,6 +24,7 @@ function liveSong(theme: SongTheme) {
     sections: parseLyrics("[Estrofa 1]\nuno\n\ndos", "es").sections,
     order: [],
     themeId: null,
+    sourceFolder: null,
     updatedAt: 1,
   };
   const store = useProjectionStore.getState();

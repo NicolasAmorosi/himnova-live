@@ -13,7 +13,7 @@ import { openDatabase } from "../../src/main/db/client";
 import { runMigrations } from "../../src/main/db/migrate";
 import { initRepos } from "../../src/main/services/repos";
 import { importOpenLpDatabase, importOpenLyricsFiles } from "../../src/main/services/song-import";
-import { readOpenLpDatabase, readOpenLpLyrics, readOpenLyrics } from "../../src/main/songs/openlp";
+import { readOpenLpDatabase, readOpenLpLyrics, readOpenLyrics, readOpenLyricsFiles } from "../../src/main/songs/openlp";
 import { IpcError } from "../../src/shared/ipc/result";
 
 const drizzleDir = path.join(process.cwd(), "drizzle");
@@ -251,5 +251,37 @@ describe("OpenLyrics", () => {
     fs.writeFileSync(broken, "<song><lyrics><verse");
     expect(importOpenLyricsFiles([good, empty, broken])).toEqual({ imported: 1, repeated: 0, problems: 2 });
     expect(importOpenLyricsFiles([good])).toEqual({ imported: 0, repeated: 1, problems: 0 });
+  });
+
+  test("files read in the encoding they declare or carry, never as � (the HASD hymnal, 2026-11-05)", () => {
+    const song = (title: string, line: string, encoding: string) =>
+      `<?xml version='1.0' encoding='${encoding}'?><song xmlns="http://openlyrics.info/namespace/2009/song" version="0.8">` +
+      `<properties><titles><title>${title}</title></titles></properties>` +
+      `<lyrics><verse name="v1"><lines>${line}</lines></verse></lyrics></song>`;
+    // Windows-1251 by hand: А..я are 0xC0..0xFF, ASCII is itself.
+    const cp1251 = (text: string) =>
+      Buffer.from([...text].map((c) => (c.charCodeAt(0) >= 0x410 ? 0xc0 + c.charCodeAt(0) - 0x410 : c.charCodeAt(0))));
+    const files = Object.entries({
+      // OpenLP 2.0's own export: declared and written as Windows-1252.
+      "hasd.xml": Buffer.from(song("1 - Ó Deus de Amor", "vimos nós", "windows-1252"), "latin1"),
+      "russian.xml": cp1251(song("Аминь", "Слава Богу", "windows-1251")),
+      "chinese.xml": Buffer.from(song("奇异恩典", "何等甘甜 🙏", "utf-8"), "utf8"),
+      "greek.xml": Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from(song("Ἀμήν", "Ἀλληλούια", "utf-16"), "utf16le")]),
+      // Says UTF-8 and is not: an editor saved Latin-1 and kept the declaration.
+      "lying.xml": Buffer.from(song("Canción", "Señor", "utf-8"), "latin1"),
+    }).map(([name, bytes]) => {
+      const file = path.join(tmpDir, name);
+      fs.writeFileSync(file, bytes);
+      return file;
+    });
+    const read = readOpenLyricsFiles(files);
+    expect(read.problems).toBe(0);
+    expect(read.songs.map((s) => [s.title, s.sections[0]?.slides[0]?.lines[0]])).toEqual([
+      ["1 - Ó Deus de Amor", "vimos nós"],
+      ["Аминь", "Слава Богу"],
+      ["奇异恩典", "何等甘甜 🙏"],
+      ["Ἀμήν", "Ἀλληλούια"],
+      ["Canción", "Señor"],
+    ]);
   });
 });

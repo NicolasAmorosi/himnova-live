@@ -3,6 +3,7 @@ import { ASSET_KINDS } from "../constants";
 import { isBibleStyle, normalizeBibleStyle } from "../bible-style-validators";
 import { DEFAULT_BIBLE_STYLE, type BibleStyle } from "./bible-style";
 import { MEDIA_SORT_ORDERS, type MediaSortOrder } from "./media";
+import { SONG_SORT_ORDERS, type SongSortOrder } from "./song";
 import { TRANSITION_MAX_DURATION_MS, TRANSITION_STYLES, type TransitionStyle } from "./transition";
 import { LOGO_NAME_MAX_LENGTH, VIDEO_END_ACTIONS, type VideoEndAction } from "./projection";
 import type { SceneBackground } from "./scene-style";
@@ -100,6 +101,13 @@ export type SettingsMap = {
   "songs.defaultThemeId": number | null;
   /** The church's CCLI licence number, for the copyright footer. */
   "songs.ccliLicense": string | null;
+  /** The Songs tab's order, linked folders and open view («library» or one of
+   *  the folders), kept like Media's `library.sort`, `library.linkedFolders`
+   *  and `library.activeView`. A view whose folder was unlinked reads as the
+   *  library. */
+  "songs.sort": SongSortOrder;
+  "songs.linkedFolders": string[];
+  "songs.activeView": string;
   /** How a scripture verse is drawn on the projector — see `BibleStyle`.
    *  A JSON column in all but name, so it is the one settings key with a
    *  normalizer as well as a validator (`SETTINGS_NORMALIZERS`). */
@@ -157,6 +165,9 @@ export const DEFAULT_SETTINGS: SettingsMap = {
   "look.seeded": 0,
   "songs.defaultThemeId": null,
   "songs.ccliLicense": null,
+  "songs.sort": "title-asc",
+  "songs.linkedFolders": [],
+  "songs.activeView": "library",
   "bible.style": DEFAULT_BIBLE_STYLE,
   "bible.defaultVersionId": null,
   "bible.builtinSeeded": false,
@@ -241,6 +252,9 @@ export const SETTINGS_VALIDATORS: Record<keyof SettingsMap, (value: unknown) => 
   "look.seeded": (v) => typeof v === "number" && Number.isInteger(v) && v >= 0,
   "songs.defaultThemeId": (v) => v === null || (typeof v === "number" && Number.isInteger(v) && v > 0),
   "songs.ccliLicense": (v) => v === null || (typeof v === "string" && v.length <= 100),
+  "songs.sort": isOneOf(SONG_SORT_ORDERS),
+  "songs.linkedFolders": isStringArray,
+  "songs.activeView": isString,
   "bible.style": isBibleStyle,
   "bible.defaultVersionId": (v) => v === null || (typeof v === "number" && Number.isInteger(v) && v > 0),
   "bible.builtinSeeded": isBoolean,

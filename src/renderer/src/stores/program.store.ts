@@ -20,7 +20,8 @@ type ProgramStoreState = {
   selectedIndex: number | null;
   activeIndex: number | null;
   /** True once the schedule diverges from what's on disk — new/removed/
-   *  reordered items, or a name/notes/date edit, since the last load or save.
+   *  reordered items since the last load or save. The name and notes are
+   *  saved the moment they are edited (`setProgramMeta`).
    *  Selection/live cursors don't count: they don't change what a save would
    *  persist. */
   dirty: boolean;
@@ -31,6 +32,7 @@ type ProgramStoreState = {
    *  definition work that was never saved. */
   restoreDraft: (draft: ProgramDraft) => void;
   newProgram: () => void;
+  /** The name and notes main has just saved: the loaded program's mirror, not an edit. */
   setProgramMeta: (meta: ProgramMeta) => void;
   /** `insertAt` places the item before that position; omitted (or past the end)
    *  appends — the default every non-drop caller wants. */
@@ -178,11 +180,13 @@ export const useProgramStore = create<ProgramStoreState>((set, get) => ({
       dirty: true,
     }),
 
+  // Its only caller writes the meta to disk first (`updateProgramMeta`), so it
+  // is never a pending change: marking the schedule dirty here made «Abrir» ask
+  // about unsaved changes right after the notes were saved (owner, 2026-11-05).
   setProgramMeta: ({ name, notes }) =>
     set({
       currentProgramName: name,
       currentProgramNotes: notes,
-      dirty: true,
     }),
 
   addItem: (item, insertAt) => {

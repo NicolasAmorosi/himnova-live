@@ -1,4 +1,4 @@
-import { and, eq, gte, lt, max } from "drizzle-orm";
+import { and, eq, gte, gt, isNull, lt, max } from "drizzle-orm";
 import Database from "better-sqlite3";
 import type { Db } from "../client";
 import { songs, songThemes, songUses } from "../schema";
@@ -30,6 +30,7 @@ function toSong(row: typeof songs.$inferSelect): Song {
     sections: normalizeSections(parseJson(row.sectionsJson)),
     order: normalizeOrder(parseJson(row.orderJson)),
     themeId: row.themeId,
+    sourceFolder: row.sourceFolder,
     updatedAt: row.updatedAt,
   };
 }
@@ -177,19 +178,27 @@ export class SongsRepo {
    * characters `parseSnippet` reads — never markup; `null` when the lyrics
    * did not match at all.
    */
-  search(query: string, limit = 200): SongSearchHit[] {
+  search(query: string, limit = 200, folder: string | null = null): SongSearchHit[] {
     const ftsQuery = toFtsQuery(query);
     if (!ftsQuery) return [];
+    // Inside what the tab shows (owner, 2026-11-05): the library, or one
+    // linked folder — filtered before the LIMIT, so its matches are never
+    // crowded out by the rest.
     const stmt = this.sqlite.prepare(`
-      SELECT rowid AS songId,
+      SELECT songs_fts.rowid AS songId,
              snippet(songs_fts, 3, char(1), char(2), '…', 10) AS snippet
       FROM songs_fts
-      WHERE songs_fts MATCH ?
+      JOIN songs ON songs.id = songs_fts.rowid
+       AND ${folder === null ? "songs.source_folder IS NULL" : "songs.source_folder = @folder"}
+      WHERE songs_fts MATCH @query
       ORDER BY bm25(songs_fts, 10.0, 8.0, 3.0, 1.0)
-      LIMIT ?
+      LIMIT @limit
     `);
     try {
-      const rows = stmt.all(ftsQuery, limit) as { songId: number; snippet: string | null }[];
+      const rows = stmt.all({ query: ftsQuery, limit, ...(folder === null ? {} : { folder }) }) as {
+        songId: number;
+        snippet: string | null;
+      }[];
       return rows.map((row) => ({
         songId: row.songId,
         snippet: row.snippet?.includes("\u0001") ? row.snippet : null,
@@ -198,6 +207,81 @@ export class SongsRepo {
       // A pathological query that still slipped through `toFtsQuery`.
       return [];
     }
+  }
+
+  /** The library's songs — what an import checks for repeats against. */
+  listLibrary(): Song[] {
+    return this.db.select().from(songs).where(isNull(songs.sourceFolder)).all().map(toSong);
+  }
+
+  /** Where a song read from a file came from; `null` for a library song. */
+  source(id: number): { folder: string; file: string; index: number; mtime: number } | null {
+    const row = this.db.select().from(songs).where(eq(songs.id, id)).get();
+    if (!row || row.sourceFolder === null || row.sourceFile === null) return null;
+    return { folder: row.sourceFolder, file: row.sourceFile, index: row.sourceIndex ?? 0, mtime: row.sourceMtime ?? 0 };
+  }
+
+  /** The songs read from `folder`'s files, keyed by file name. */
+  fromFolder(folder: string): Map<string, { song: Song; mtime: number }[]> {
+    const byFile = new Map<string, { song: Song; mtime: number }[]>();
+    const rows = this.db.select().from(songs).where(eq(songs.sourceFolder, folder)).orderBy(songs.sourceIndex).all();
+    for (const row of rows) {
+      const list = byFile.get(row.sourceFile ?? "") ?? [];
+      list.push({ song: toSong(row), mtime: row.sourceMtime ?? 0 });
+      byFile.set(row.sourceFile ?? "", list);
+    }
+    return byFile;
+  }
+
+  /**
+   * What `file` (in `folder`) holds now, as its songs: each song of the file
+   * keeps its row — and with it its id, its theme and the programs that use it
+   * — so a file edited outside the app updates in place. Songs past the file's
+   * end go, unless a saved program holds them.
+   */
+  syncFile(folder: string, file: string, mtime: number, read: readonly Omit<SongUpsert, "id">[]): Song[] {
+    const where = (index: number) =>
+      and(eq(songs.sourceFolder, folder), eq(songs.sourceFile, file), eq(songs.sourceIndex, index));
+    const now = Date.now();
+    const out: Song[] = [];
+    this.sqlite.transaction(() => {
+      read.forEach((song, index) => {
+        const existing = this.db.select({ id: songs.id, themeId: songs.themeId }).from(songs).where(where(index)).get();
+        // The theme is the app's, not the file's.
+        const values = { ...toRow({ ...song, themeId: existing?.themeId ?? null }), sourceMtime: mtime, updatedAt: now };
+        let id = existing?.id;
+        if (id !== undefined) this.db.update(songs).set(values).where(eq(songs.id, id)).run();
+        else {
+          id = this.db
+            .insert(songs)
+            .values({ ...values, sourceFolder: folder, sourceFile: file, sourceIndex: index, createdAt: now })
+            .run().lastInsertRowid as number;
+        }
+        out.push(this.get(id)!);
+      });
+      const gone = this.db
+        .select({ id: songs.id })
+        .from(songs)
+        .where(and(eq(songs.sourceFolder, folder), eq(songs.sourceFile, file), gt(songs.sourceIndex, read.length - 1)))
+        .all();
+      for (const { id } of gone) {
+        try {
+          this.delete(id);
+        } catch {
+          // A saved program holds it: kept, out of the folder's listing.
+        }
+      }
+    })();
+    return out;
+  }
+
+  /** The file was written: every song of it now matches `mtime`. */
+  setFileMtime(folder: string, file: string, mtime: number): void {
+    this.db
+      .update(songs)
+      .set({ sourceMtime: mtime })
+      .where(and(eq(songs.sourceFolder, folder), eq(songs.sourceFile, file)))
+      .run();
   }
 
   listThemes(): SongThemeRow[] {

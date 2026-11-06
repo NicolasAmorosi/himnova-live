@@ -6,7 +6,7 @@
  */
 import { beforeEach, describe, expect, test } from "vitest";
 import { selectOutput, selectOutputMemo, useProjectionStore } from "@renderer/stores/projection.store";
-import { resolveSong, themeForSong } from "@renderer/stores/song.store";
+import { resolveSong, sortSongs, themeForSong } from "@renderer/stores/song.store";
 import { sameSlideIn } from "@renderer/lib/actions/songs";
 import { measureAspect } from "@renderer/lib/song-fit";
 import {
@@ -34,6 +34,7 @@ function song(lyrics: string, order: string[] = [], id = 7): Song {
     sections: parseLyrics(lyrics, "es").sections,
     order,
     themeId: null,
+    sourceFolder: null,
     updatedAt: 1,
   };
 }
@@ -249,5 +250,22 @@ describe("measuring", () => {
     expect(themeForSong({ themeId: null }, [])).toBe(DEFAULT_SONG_THEME);
     const theme = { ...DEFAULT_SONG_THEME, lineHeight: 1 };
     expect(themeForSong({ themeId: 99 }, [{ id: 1, name: "A", style: theme }])).toBe(theme);
+  });
+});
+
+describe("the Songs tab's orders (owner, 2026-11-05)", () => {
+  const named = (id: number, title: string, number: string | null = null) => ({ ...song("x", [], id), title, number });
+  const library = [named(1, "Himno 10", "10"), named(2, "Himno 9", "9"), named(3, "Amén"), named(4, "Ábside", "2a")];
+  const titles = (order: Parameters<typeof sortSongs>[1]) => sortSongs(library, order, "es").map((s) => s.title);
+
+  test("titles read numbers as numbers and ignore accents", () => {
+    expect(titles("title-asc")).toEqual(["Ábside", "Amén", "Himno 9", "Himno 10"]);
+    expect(titles("title-desc")).toEqual(["Himno 10", "Himno 9", "Amén", "Ábside"]);
+  });
+
+  test("by number, the songs without one go last; by date, the order they came in", () => {
+    expect(titles("number-asc")).toEqual(["Ábside", "Himno 9", "Himno 10", "Amén"]);
+    expect(titles("date-desc")).toEqual(["Ábside", "Amén", "Himno 9", "Himno 10"]);
+    expect(titles("date-asc")).toEqual(["Himno 10", "Himno 9", "Amén", "Ábside"]);
   });
 });

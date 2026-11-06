@@ -297,9 +297,10 @@ export function BibleBrowser() {
             value={pendingChapter}
           />
           {/* Words, not a document icon nobody could read as «search the text»
-              (2026-11-05 review). */}
+              (2026-11-05 review), as wide as its longer word in each half
+              (owner, 2026-11-05): in the first column it cut «Referencia». */}
+          <div className="col-span-3 flex min-w-0 items-center gap-1.5">
           <Segmented
-            className="w-full"
             label={t("bible.searchMode")}
             onChange={(mode) => {
               if (mode !== searchMode) toggleSearchMode();
@@ -310,7 +311,6 @@ export function BibleBrowser() {
             ]}
             value={searchMode}
           />
-          <div className="col-span-2 flex min-w-0 items-center gap-1.5">
           <Tooltip content={t("bible.bookmarks")} floating>
             <IconButton aria-label={t("bible.bookmarks")} onClick={toggleBookmarks} size="sm" toggled={showBookmarks} variant="ghost">
               {/* Not the star: the star in the footer MARKS a verse, this shows the
@@ -417,12 +417,12 @@ export function BibleBrowser() {
       </PanelBody>
 
       <PanelFooter>
-        {/* Bottom left, like the Songs tab's «Themes»: the tab's own tools. */}
+        {/* Bottom left, like the Songs tab's «Themes»: the tab's own tools, an
+            icon with a tooltip (owner, 2026-11-05). */}
         <Tooltip content={t("bible.styleHint")} floating>
-          <Button onClick={() => setStyleOpen(true)} size="sm" variant="ghost">
+          <IconButton aria-label={t("bible.styleTitle")} onClick={() => setStyleOpen(true)} size="sm" variant="ghost">
             <Icon name="palette" />
-            {t("bible.styleTitle")}
-          </Button>
+          </IconButton>
         </Tooltip>
         <Tooltip
           className="ml-auto"

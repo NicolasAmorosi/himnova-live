@@ -134,7 +134,7 @@ export function startProjectionEffects(): () => void {
     useProjectionStore.getState().setPresentationOpen(false);
     // The header quietly switching to "Projector off" is not a signal an
     // operator sees: mid-service they are looking at the room, not at the
-    // chrome. The toast goes after its 10 s like every toast (owner,
+    // chrome. The toast goes after its 5 s like every toast (owner,
     // 2026-11-05) — the LIVE header keeps a «Sin pantalla» warning with «Abrir
     // pantalla» beside it for as long as it lasts —, and its action reopens onto
     // whatever was live, replayed from main's snapshot — routing it through

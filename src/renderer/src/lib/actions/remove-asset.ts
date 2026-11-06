@@ -12,11 +12,11 @@ import { useProgramStore } from "@renderer/stores/program.store";
 import { useUiStore } from "@renderer/stores/ui.store";
 import { clearBaseContent } from "./playback";
 import { clearPreview } from "./preview";
+import { TOAST_DURATION_MS } from "@renderer/stores/toast.store";
 
-/** How long the operator has to take a removal back. Long enough to read the
- *  toast and react after realizing Delete hit the wrong panel, short enough
- *  that the library isn't lying about its contents for any length of time. */
-const UNDO_WINDOW_MS = 7000;
+/** How long the operator has to take a removal back: the toast's own life, so
+ *  every toast lasts the same (owner, 2026-11-05). */
+const UNDO_WINDOW_MS = TOAST_DURATION_MS;
 
 /**
  * A deleted asset can be referenced by five independent stores (the open
@@ -170,6 +170,9 @@ export async function removeAsset(id: number): Promise<void> {
     },
   );
   const timer = window.setTimeout(() => {
+    // A pointer resting on the toast holds its count, not this timer: once the
+    // file is gone, a «Deshacer» left on screen would undo nothing.
+    toast.dismiss(toastId);
     void commitRemoval(id);
   }, UNDO_WINDOW_MS);
   pending.set(id, { timer, toastId });

@@ -9,8 +9,8 @@ import { useProgramStore } from "@renderer/stores/program.store";
 import type {
   ResolvedSong,
   Song,
-  SongImportSource,
   SongLanguage,
+  SongSortOrder,
   SongTheme,
   SongThemeRow,
   SongThemeUpsert,
@@ -18,6 +18,7 @@ import type {
   SongUsage,
 } from "@shared/types/song";
 import { useSettingsStore } from "@renderer/stores/settings.store";
+import { IpcError } from "@shared/ipc/result";
 
 /**
  * The song library's writes, and keeping a live song in step with them.
@@ -108,7 +109,12 @@ export async function saveSong(input: SongUpsert): Promise<Song | null> {
     return song;
   } catch (error) {
     console.warn("[songs] could not save the song", error);
-    toast.danger(t("songs.saveError"));
+    // A song of a linked folder whose file is gone, read-only or changed
+    // outside the app: main says which, in the operator's language.
+    const fileError = error instanceof IpcError && error.code.startsWith("SONG_FILE_");
+    toast.danger(fileError ? error.message : t("songs.saveError"));
+    const folder = findSong(useSongStore.getState().songs, input.id ?? null)?.sourceFolder;
+    if (fileError && folder) void refreshSongFolder(folder);
     return null;
   }
 }
@@ -201,14 +207,62 @@ export async function deleteSongTheme(id: number): Promise<boolean> {
  * there, or one that will not open), main's own reason, which says what to
  * pick.
  */
-export async function importSongs(from: SongImportSource): Promise<void> {
+/** The view the Songs tab shows: «library», or a linked folder while it is linked. */
+export function songView(): string {
+  const { settings } = useSettingsStore.getState();
+  const saved = settings["songs.activeView"];
+  return settings["songs.linkedFolders"].includes(saved) ? saved : "library";
+}
+
+export function selectSongView(view: string): void {
+  void useSettingsStore.getState().update({ "songs.activeView": view });
+}
+
+export function setSongSort(order: SongSortOrder): void {
+  void useSettingsStore.getState().update({ "songs.sort": order });
+}
+
+/** A linked folder read again from disk (owner, 2026-11-05: the computer's
+ *  folders, like Media's). Gone is `"missing"`, never an empty folder. */
+export async function refreshSongFolder(folder: string): Promise<void> {
   try {
-    const result = await api.songs.import(from);
+    useSongStore.getState().setFolderListing(folder, await api.songs.listFolder(folder));
+  } catch (error) {
+    if (error instanceof IpcError && error.code === "FOLDER_MISSING") {
+      useSongStore.getState().setFolderListing(folder, "missing");
+      return;
+    }
+    console.warn("[songs] could not read the folder", folder, error);
+    toast.danger(t("songs.loadError"));
+  }
+}
+
+/** Links a folder of song files and opens it. */
+export async function linkSongFolder(): Promise<void> {
+  const chosen = await api.files.pickFolder();
+  if (chosen === null) return;
+  const linked = useSettingsStore.getState().settings["songs.linkedFolders"];
+  if (!linked.includes(chosen)) await useSettingsStore.getState().update({ "songs.linkedFolders": [...linked, chosen] });
+  selectSongView(chosen);
+  await refreshSongFolder(chosen);
+}
+
+/** Stops showing a folder; its files are not touched. */
+export async function unlinkSongFolder(folder: string): Promise<void> {
+  const linked = useSettingsStore.getState().settings["songs.linkedFolders"];
+  await useSettingsStore.getState().update({ "songs.linkedFolders": linked.filter((path) => path !== folder) });
+  if (songView() === "library") selectSongView("library");
+}
+
+/** Any supported format, in one picker, into the library (owner, 2026-11-05). */
+export async function importSongs(): Promise<void> {
+  try {
+    const result = await api.songs.import();
     if (!result) return;
     await loadSongs();
     toast.success(t("songs.importDone", result));
   } catch (error) {
-    console.warn(`[songs] ${from} import failed`, error);
+    console.warn("[songs] import failed", error);
     const message = error instanceof Error ? error.message.trim() : "";
     toast.danger(message || t("songs.importError"));
   }

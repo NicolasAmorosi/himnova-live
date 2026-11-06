@@ -3,7 +3,6 @@ import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { isPointerFocused } from "@renderer/lib/focus-modality";
 import { cn } from "@renderer/lib/utils";
-import { Button } from "./button";
 import { computeMenuPosition, useFollowTrigger, type MenuPosition } from "./floating-menu";
 import { Icon, type IconName } from "./icon";
 import { IconButton } from "./icon-button";
@@ -31,9 +30,6 @@ type MenuProps<T extends string> = {
   onSelect: (value: T) => void;
   options: readonly MenuOption<T>[];
   size?: MenuSize;
-  /** Written beside the icon: the trigger is then a `Button` with words, for
-   *  a footer that names its commands («Importar», 2026-11-04 redesign P2). */
-  text?: string;
   /** The option in effect, rendered checked (`menuitemradio`). Left out, the
    *  menu is a list of COMMANDS (`menuitem`, nothing checked): an editor's
    *  «⋯» with Duplicate and Delete. */
@@ -74,7 +70,6 @@ export function Menu<T extends string>({
   onSelect,
   options,
   size = "xs",
-  text,
   value,
 }: MenuProps<T>) {
   const id = useId();
@@ -186,12 +181,7 @@ export function Menu<T extends string>({
     onKeyDown: handleTriggerKeyDown,
     ref: triggerRef,
   };
-  const trigger = text ? (
-    <Button {...triggerProps} className={cn(open && "border-accent bg-muted", className)} size={size} variant="ghost">
-      <Icon name={icon} />
-      {text}
-    </Button>
-  ) : (
+  const trigger = (
     <IconButton
       {...triggerProps}
       aria-label={label}

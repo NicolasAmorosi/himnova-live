@@ -47,7 +47,6 @@ import type { Plate, PlateUpsert, PlateUsage } from "../types/overlay";
 import type {
   Song,
   SongImportResult,
-  SongImportSource,
   SongSearchHit,
   SongThemeRow,
   SongThemeUpsert,
@@ -329,15 +328,20 @@ export type IpcContract = {
   "song:duplicate": { req: { id: number; title: string }; res: Song };
   "song:delete": { req: { id: number; force?: boolean }; res: void };
   "song:usages": { req: { id: number }; res: SongUsage[] };
-  /** Title, number, authors and lyrics, without accents (FTS5), best first. */
-  "song:search": { req: { query: string; limit?: number }; res: SongSearchHit[] };
-  /** Asks for another program's songs and imports them; `null` when the
-   *  operator cancels. EasyWorship 6/7: its `Databases/Data` folder (or the
-   *  profile above it), refused as `EW_NOT_FOUND` when the folder holds no song
-   *  database and `EW_UNREADABLE` when it cannot be opened. OpenLP: its
-   *  `songs.sqlite`, refused as `OPENLP_UNREADABLE`. OpenLyrics: one or more
-   *  `.xml` files, a file that is not a song counted as a problem. */
-  "song:import": { req: { from: SongImportSource }; res: SongImportResult | null };
+  /** Title, number, authors and lyrics, without accents (FTS5), best first —
+   *  in the library (`folder: null`) or in one linked folder. */
+  "song:search": { req: { query: string; limit?: number; folder: string | null }; res: SongSearchHit[] };
+  /** A linked folder's song files (its top level), read into songs — a file
+   *  unchanged since the last read keeps its rows. Throws `FOLDER_MISSING`
+   *  when the folder is gone. Saving one of them (`song:update`) writes its
+   *  file too, in its format; refused as `SONG_FILE_CHANGED` when the file
+   *  changed outside the app, `SONG_FILE_MISSING`, `SONG_FILE_UNWRITABLE`. */
+  "song:listFolder": { req: { path: string }; res: Song[] };
+  /** Asks for song files of any supported format in one picker and imports
+   *  them into the library; `null` when the operator cancels. A database that
+   *  cannot be read is a problem among the rest — or, when nothing came in,
+   *  its own error: `EW_NOT_FOUND`, `EW_UNREADABLE`, `OPENLP_UNREADABLE`. */
+  "song:import": { req: void; res: SongImportResult | null };
   /** The CCLI usage report of `[from, to)` (ms): asks where to save it as CSV;
    *  `null` when the operator cancels, `{ songs: 0 }` — and no question — when
    *  no song went live in those dates. */

@@ -456,11 +456,16 @@ cuts/restarts it from Settings, not manually from the TopBar.
 - **The work screen's chrome (2026-11-04 redesign, F4):** a column header is the title plus its data in
   quiet text (`PanelHeader`'s `meta`), never a pill — only what asks the operator to act stays a
   badge (the schedule's «Not saved», a damaged slide). The panel footers are neutral (`ghost`):
-  colour no longer carries meaning, and an action whose icon is not universal has its word
-  («Agregar medios», «Importar», «Temas», «Estilo del versículo», «Escenas», «Placas»); a
-  destructive and rare one goes in «⋯» (the schedule's «Vaciar»). «Agregar» (add to schedule) is
-  an `outline` button with its word at the right of each resource footer — neutral, so GO LIVE is
-  the one strong button of the work screen (owner's D13). Empty states carry no buttons. The transport boxes (`MediaPanel`) have no border
+  colour no longer carries meaning, and a tab's own tools — «Importar», «Temas», the verse's
+  «Estilo», «Escenas», «Placas» — are icons with a tooltip (owner, 2026-11-05: «me gustan solo los
+  íconos», reversing the redesign's words). «Agregar» (add to schedule) is the one with its word: an
+  `outline` button at the right of each resource footer — neutral, so GO LIVE is the one strong
+  button of the work screen (owner's D13). The schedule's tools are a vertical strip of icons on the
+  list's right, like EasyWorship's (owner's D19, then «a la derecha»). Media and Songs share one
+  filter bar (`shared/library-filter-bar.tsx`): order, folder, search, add a folder. A tooltip goes
+  the moment its trigger is pressed and stays away until the pointer leaves, never shows over the menu its
+  trigger opened (`aria-expanded`), and goes when the window loses focus — a native picker took the pointer
+  without a `pointerleave` and left the bubble stuck (owner, 2026-11-05). Empty states carry no buttons. The transport boxes (`MediaPanel`) have no border
   of their own — the card's fill sets them apart —, an `EmptyState` shows its icon without a disc,
   everything that takes content off the projector — the transports' button, the LIVE panel's rows,
   Settings' button — is «Sacar del aire» with the `offAir` icon (owner's D12), never the ✕ that
@@ -500,8 +505,8 @@ cuts/restarts it from Settings, not manually from the TopBar.
 
 ### Toasts: every one goes, with its time drawn
 
-Every toast leaves on its own after `TOAST_DURATION_MS` (10 s) — the ones with an action and the «screen lost»
-warning included (owner, 2026-11-05: «no se van a menos que los cierres») — and a 2 px bar along its bottom edge,
+Every toast leaves on its own after `TOAST_DURATION_MS` (5 s; owner, 2026-11-05: first 10, then «10 es mucho») —
+the ones with an action and the «screen lost» warning included («no se van a menos que los cierres») — and a 2 px bar along its bottom edge,
 in its tone's fill, empties as the time runs out. The pointer or the focus on a toast holds the count and the bar
 (`pause`/`resume` in `toast.store.ts`, which keeps what was left), so reading it or reaching for «Deshacer» never
 races the clock. What must outlast a toast says so somewhere that stays: the LIVE header keeps «Sin pantalla» with

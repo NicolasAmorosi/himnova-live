@@ -37,8 +37,9 @@ type ToastStoreState = {
   resume: (id: string) => void;
 };
 
-/** Long enough to read a sentence and press «Deshacer» (owner, 2026-11-05: «unos 10 segundos»). */
-export const TOAST_DURATION_MS = 10_000;
+/** Long enough to read a sentence and press «Deshacer» (owner, 2026-11-05: first «unos 10 segundos», the same
+ *  evening «5 segundos, 10 es mucho»). */
+export const TOAST_DURATION_MS = 5_000;
 
 /** Must match the `toast-exit` animation in `styles/globals.css`: the item is
  *  removed from the store when the animation ends, so a shorter value here

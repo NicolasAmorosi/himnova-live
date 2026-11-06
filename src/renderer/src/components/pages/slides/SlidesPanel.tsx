@@ -183,16 +183,21 @@ export function SlidesPanel() {
       return (
         <MediaPanel className="w-full">
           <MediaTrackRow kind="song" label={content.song.title} onDelete={clearPreview} />
-          <div className="px-2 pb-1.5">
+          {/* Padding on both sides: the panel draws a line between its rows,
+              and the chips touched it (owner, 2026-11-05). */}
+          <div className="px-2 py-1.5">
             <SongSectionButtons
               activeKey={resolved.slides[previewSlideIndex - 1]?.sectionKey ?? null}
               onPick={(section, shift) => {
-                const next = jumpTo(
-                  resolved,
-                  { slideIndex: previewSlideIndex, detour: null },
-                  { type: section.type, number: section.number },
-                  shift ? -1 : 1,
-                );
+                // Its next time in the order (Shift: the previous), else the
+                // other way: PREVIEW has no detour, and a section already
+                // behind used to do nothing (owner, 2026-11-05: «que se pueda
+                // mover como quiera»).
+                const here = { slideIndex: previewSlideIndex, detour: null };
+                const target = { type: section.type, number: section.number };
+                const direction = shift ? -1 : 1;
+                const ahead = jumpTo(resolved, here, target, direction);
+                const next = ahead && !ahead.detour ? ahead : jumpTo(resolved, here, target, direction === 1 ? -1 : 1);
                 if (next && !next.detour) setPreviewSlide(next.slideIndex);
               }}
               sections={resolved.sections}

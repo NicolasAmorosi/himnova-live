@@ -363,3 +363,52 @@ describe("themes (F3)", () => {
     }
   });
 });
+
+describe("a linked folder of song files (owner, 2026-11-05)", () => {
+  test("its files read into songs; the library and the folder are searched apart; a changed file updates in place", async () => {
+    const { listSongFolder } = await import("../../src/main/services/song-files");
+    const { importSongFiles } = await import("../../src/main/services/song-import");
+    const folder = fs.mkdtempSync(path.join(tmpDir, "linked-"));
+    fs.writeFileSync(path.join(folder, "uno.cho"), "{title: Roca eterna}\n{start_of_verse}\nRoca de la eternidad\n{end_of_verse}\n");
+    fs.writeFileSync(
+      path.join(folder, "dos.txt"),
+      "Santo santo santo\n\nVerse 1\nSanto santo santo\n\nReginald Heber\nCCLI Song # 1156\n© Public Domain\n",
+    );
+    fs.writeFileSync(path.join(folder, "notas.md"), "not a song");
+
+    const listed = await listSongFolder(folder);
+    expect(listed.map((song) => song.title).sort()).toEqual(["Roca eterna", "Santo santo santo"]);
+    expect(listed.every((song) => song.sourceFolder === folder)).toBe(true);
+    const roca = listed.find((song) => song.title === "Roca eterna")!;
+    expect(repo.search("roca", 200, folder).map((hit) => hit.songId)).toEqual([roca.id]);
+    expect(repo.search("roca").map((hit) => hit.songId)).not.toContain(roca.id);
+
+    // Imported into the library, the same song is not a repeat of the folder's.
+    expect(importSongFiles([path.join(folder, "uno.cho")])).toEqual({ imported: 1, repeated: 0, problems: 0 });
+
+    // Edited outside the app: read again, same row.
+    const file = path.join(folder, "uno.cho");
+    fs.writeFileSync(file, "{title: Roca de los siglos}\n{start_of_verse}\nRoca de la eternidad\n{end_of_verse}\n");
+    fs.utimesSync(file, new Date(), new Date(Date.now() + 5000));
+    const again = await listSongFolder(folder);
+    expect(again.find((song) => song.id === roca.id)?.title).toBe("Roca de los siglos");
+  });
+
+  test("a song of a file is saved into its file, and a file changed since is not overwritten", async () => {
+    const { listSongFolder, writeSongFile } = await import("../../src/main/services/song-files");
+    const folder = fs.mkdtempSync(path.join(tmpDir, "linked-"));
+    const file = path.join(folder, "gracia.cho");
+    fs.writeFileSync(file, "{title: Sublime gracia}\n{start_of_verse}\nSublime gracia del Señor\n{end_of_verse}\n");
+    const [gracia] = await listSongFolder(folder);
+    const { id, updatedAt: _u, sourceFolder: _s, ...edited } = { ...gracia!, title: "Sublime gracia (2)" };
+    // What `song:update` does: the file first, then the row.
+    expect(writeSongFile(id, edited)).toBe(true);
+    repo.update(id, edited);
+    expect(fs.readFileSync(file, "utf8")).toContain("Sublime gracia (2)");
+    expect((await listSongFolder(folder))[0]?.title).toBe("Sublime gracia (2)");
+
+    fs.utimesSync(file, new Date(), new Date(Date.now() + 10_000));
+    expect(() => writeSongFile(id, edited)).toThrow(expect.objectContaining({ code: "SONG_FILE_CHANGED" }));
+    expect(writeSongFile(repo.create(song("Biblioteca", "[Estrofa 1]\nuna línea")).id, edited)).toBe(false);
+  });
+});

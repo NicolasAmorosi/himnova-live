@@ -77,15 +77,15 @@ describe("toast store exit animation", () => {
     // The evicted toast's exit timer must not fire into a store that has
     // moved on: it would be a no-op filter here, but a pending timer is what
     // the cap's own `cancelTimer` exists to prevent. What is left is the four
-    // live toasts' own 10 s.
+    // live toasts' own lifetime.
     expect(vi.getTimerCount()).toBe(4);
   });
 });
 
-/** Every toast goes on its own after 10 s, the ones with an action too
+/** Every toast goes on its own after `TOAST_DURATION_MS`, the ones with an action too
  *  (owner, 2026-11-05), and the pointer on it holds the count. */
 describe("toast store lifetime", () => {
-  test("a toast with an action goes after 10 s like any other", () => {
+  test("a toast with an action goes after the same time as any other", () => {
     useToastStore.getState().push({ tone: "danger", message: "x", action: { label: "Reabrir", onClick: () => undefined } });
     vi.advanceTimersByTime(TOAST_DURATION_MS - 1);
     expect(toasts()[0]?.exiting).toBeFalsy();
@@ -95,13 +95,13 @@ describe("toast store lifetime", () => {
 
   test("a paused toast keeps what it had left, and goes that much after resuming", () => {
     const id = useToastStore.getState().push({ tone: "info", message: "x" });
-    vi.advanceTimersByTime(4000);
+    vi.advanceTimersByTime(2000);
     useToastStore.getState().pause(id);
     expect(toasts()[0]?.paused).toBe(true);
     vi.advanceTimersByTime(60_000);
     expect(toasts()[0]?.exiting).toBeFalsy();
     useToastStore.getState().resume(id);
-    vi.advanceTimersByTime(TOAST_DURATION_MS - 4000 - 1);
+    vi.advanceTimersByTime(TOAST_DURATION_MS - 2000 - 1);
     expect(toasts()[0]?.exiting).toBeFalsy();
     vi.advanceTimersByTime(1);
     expect(toasts()[0]?.exiting).toBe(true);

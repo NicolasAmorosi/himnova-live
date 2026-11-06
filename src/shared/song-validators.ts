@@ -55,6 +55,7 @@ import {
 export const SONG_TITLE_MAX_LENGTH = 200;
 export const SONG_FIELD_MAX_LENGTH = 500;
 export const SONG_NOTES_MAX_LENGTH = 4_000;
+
 export const SONG_LINE_MAX_LENGTH = 500;
 /** Far past any real song; a ceiling so one row cannot hold a novel. */
 export const SONG_MAX_SECTIONS = 60;

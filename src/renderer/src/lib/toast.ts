@@ -2,7 +2,7 @@ import { useToastStore, type ToastAction } from "@renderer/stores/toast.store";
 
 /** Facade over the toast store for calling from `lib/actions/*` — plain
  *  functions outside React, not components — the same way `api` wraps `invoke`. */
-/** Every toast goes after `TOAST_DURATION_MS` (10 s) unless told otherwise;
+/** Every toast goes after `TOAST_DURATION_MS` (5 s) unless told otherwise;
  *  one that announces a state can still be retired early (`toast.dismiss`). */
 type ToastOpts = { action?: ToastAction; durationMs?: number };
 

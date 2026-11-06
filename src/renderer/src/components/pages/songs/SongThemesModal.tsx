@@ -119,6 +119,7 @@ const SAMPLE: Song = {
   ),
   order: [],
   themeId: null,
+  sourceFolder: null,
   updatedAt: 0,
 };
 

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type DragEvent } from "react";
-import { useT } from "@renderer/lib/i18n/i18n-provider";
+import { useT, type MessageKey } from "@renderer/lib/i18n/i18n-provider";
 import {
   Button,
   EmptyState,
@@ -30,12 +30,26 @@ import {
 import { useDebouncedCallback } from "@renderer/lib/hooks/use-debounced-callback";
 import { filterAssetsByName, sortAssets } from "@renderer/lib/media-view";
 import { AssetTile } from "./asset-tile";
-import { MediaFilterBar } from "./media-filter-bar";
+import { LibraryFilterBar } from "@renderer/components/shared/library-filter-bar";
 import { PanelProgressRow } from "./panel-progress-row";
 import { PrewarmConfirmModal } from "./prewarm-confirm-modal";
 import { PREWARM_VISIBLE_MAX, type AssetKind } from "@shared/constants";
 import type { DeckStatusSummary } from "@shared/types/deck";
-import type { MediaAsset } from "@shared/types/media";
+import { MEDIA_SORT_ORDERS, type MediaAsset, type MediaSortOrder } from "@shared/types/media";
+
+/** Explicit, because a message key can never be built from a runtime value —
+ *  see the note on `MessageKey` in `i18n-provider.tsx`. */
+const SORT_LABEL_KEY: Record<MediaSortOrder, MessageKey> = {
+  "name-asc": "resources.sortOrders.name-asc",
+  "name-desc": "resources.sortOrders.name-desc",
+  "date-desc": "resources.sortOrders.date-desc",
+  "date-asc": "resources.sortOrders.date-asc",
+  "size-desc": "resources.sortOrders.size-desc",
+  "size-asc": "resources.sortOrders.size-asc",
+};
+
+/** A folder's own name: its tail is what tells two folders apart. */
+const folderName = (folderPath: string) => folderPath.split(/[\\/]/).filter(Boolean).pop() ?? folderPath;
 
 /** Rough estimate for the "this can take about N minutes" warning: a flat,
  *  slightly conservative per-deck figure. Reading a real deck took 0.2–0.5 s on
@@ -67,7 +81,7 @@ const EMPTY_ASSETS: MediaAsset[] = [];
  * in the schedule to be shown, which is what EasyWorship's resource area does.
  *
  * Two sources feed the grid: the added-to-library list ("recent"), or one of
- * this kind's linked folders, browsed live from disk (the source dropdown in `MediaFilterBar`).
+ * this kind's linked folders, browsed live from disk (the source dropdown in `LibraryFilterBar`).
  */
 export function MediaBrowser({ active, kind }: { active: boolean; kind: AssetKind }) {
   const t = useT();
@@ -305,18 +319,38 @@ export function MediaBrowser({ active, kind }: { active: boolean; kind: AssetKin
 
   return (
     <>
-      <MediaFilterBar
+      <LibraryFilterBar
         activeView={activeView}
-        folders={folders}
-        onAddFolder={() => void addLinkedFolder(kind)}
+        addFolder={{ hint: t("resources.addFolderHint"), label: t("resources.addFolder"), onClick: () => void addLinkedFolder(kind) }}
+        folderActions={
+          <Tooltip content={t("resources.removeFolderHint")} floating>
+            {/* Its own icon: a bare ✕ after a dropdown read as «clear the
+                choice». Asked first: the view the operator had open
+                disappearing looks exactly like data loss even though no file
+                is touched. */}
+            <IconButton
+              aria-label={t("resources.removeFolder")}
+              onClick={() => setConfirmRemoveFolder(activeView)}
+              size="sm"
+              variant="ghost"
+            >
+              <Icon name="folderMinus" />
+            </IconButton>
+          </Tooltip>
+        }
         onQueryChange={setQuery}
-        // Asked first: the view the operator had open disappearing looks
-        // exactly like data loss even though no file is touched.
-        onRemoveFolder={(folderPath) => setConfirmRemoveFolder(folderPath)}
         onSelectView={(view) => selectMediaSourceView(kind, view)}
         onSortChange={(order) => setMediaSortOrder(kind, order)}
         query={query}
+        searchLabel={t("resources.search")}
         sort={sortOrder}
+        sortHint={t("resources.sortHint")}
+        sortOptions={MEDIA_SORT_ORDERS.map((order) => ({ label: t(SORT_LABEL_KEY[order]), value: order }))}
+        views={[
+          { label: t("resources.recentTab"), value: "recent" },
+          ...folders.map((folderPath) => ({ label: folderName(folderPath), value: folderPath })),
+        ]}
+        viewsLabel={t("resources.source")}
       />
       <PanelBody
         className="p-1.5"

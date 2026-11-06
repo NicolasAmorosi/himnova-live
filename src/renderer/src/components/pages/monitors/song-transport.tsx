@@ -82,7 +82,7 @@ export function SongTransport() {
           <Icon name="offAir" />
         </IconButton>
       </div>
-      <div className="flex items-center gap-2 px-2 pb-1.5">
+      <div className="flex items-center gap-2 px-2 py-1.5">
         <div className="min-w-0 flex-1">
           <SongSectionButtons
             activeKey={activeKey}

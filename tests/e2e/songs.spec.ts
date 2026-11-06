@@ -51,6 +51,60 @@ async function createSong(app: WorshipApp, title: string, lyrics: string, order?
   await expect(app.control.getByRole("dialog")).toHaveCount(0);
 }
 
+test("a linked folder shows its song files, and editing one of them writes the file", async ({ app }) => {
+  const folder = fs.mkdtempSync(path.join(os.tmpdir(), "worship-e2e-songs-"));
+  const file = path.join(folder, "roca.cho");
+  fs.writeFileSync(file, "{title: Roca eterna}\n{start_of_verse}\nRoca de la eternidad\n{end_of_verse}\n");
+  try {
+    await createSong(app, "Cristo me ama", "[Estrofa 1]\nCristo me ama");
+    await app.answerOpenDialog(folder);
+    await tab(app).getByRole("button", { name: "Vincular carpeta" }).click();
+    // Its songs only: the library's are in «Biblioteca».
+    await expect(tab(app).getByRole("combobox", { name: "Origen" })).toHaveText(new RegExp(path.basename(folder)));
+    await expect(songRows(app)).toHaveText([/Roca eterna/]);
+    // A new song or an import goes to the library: not offered here.
+    await expect(tab(app).getByRole("button", { name: "Nueva canción" })).toHaveCount(0);
+
+    await songRows(app).first().click();
+    await tab(app).getByRole("button", { name: "Editar canción" }).click();
+    await expect(dialog(app)).toContainText("guardar también escribe ese archivo");
+    await dialog(app).getByRole("textbox", { name: "Título" }).fill("Roca de los siglos");
+    await dialog(app).getByRole("button", { name: "Guardar", exact: true }).click();
+    await expect(toast(app, "Se guardó «Roca de los siglos»")).toBeVisible();
+    await expect.poll(() => fs.readFileSync(file, "utf8")).toContain("Roca de los siglos");
+    await dialog(app).getByRole("button", { name: "Cerrar" }).first().click();
+
+    await tab(app).getByRole("button", { name: "Desvincular carpeta" }).click();
+    await dialog(app).getByRole("button", { name: "Desvincular carpeta" }).click();
+    await expect(songRows(app)).toHaveText([/Cristo me ama/]);
+    expect(fs.existsSync(file)).toBe(true);
+  } finally {
+    fs.rmSync(folder, { recursive: true, force: true });
+  }
+});
+
+test("an order chip dragged past the middle of the next one lands after it (owner, 2026-11-05)", async ({ app }) => {
+  await createSong(app, "Tres estrofas", "[Estrofa 1]\nUno\n\n[Estrofa 2]\nDos\n\n[Estrofa 3]\nTres", "E1 E2 E3");
+  await songRows(app).first().click();
+  await tab(app).getByRole("button", { name: "Editar canción" }).click();
+  const chips = dialog(app).getByRole("list", { name: "Orden de la canción" }).getByRole("listitem").filter({ hasText: /E\d/ });
+  const box = (await chips.nth(1).boundingBox())!;
+  await chips.nth(0).dragTo(chips.nth(1), { targetPosition: { x: box.width - 6, y: box.height / 2 } });
+  await expect(chips).toHaveText([/E2/, /E1/, /E3/]);
+});
+
+test("a button's tooltip goes when it is pressed and stays away while the pointer rests on it (owner, 2026-11-05)", async ({ app }) => {
+  await app.openResources("Canciones");
+  const button = tab(app).getByRole("button", { name: "Importar", exact: true });
+  const bubble = app.control.getByRole("tooltip").filter({ hasText: "Importar canciones a la biblioteca" });
+  await button.hover();
+  await expect(bubble).toBeVisible();
+  await app.answerOpenDialog();
+  await button.click();
+  await app.control.waitForTimeout(300);
+  await expect(bubble).toHaveCount(0);
+});
+
 /** The font size the projector draws the song's letters at, in px. */
 function projectedSize(projector: Page): Promise<string> {
   return projector.locator("[data-song-block]").last().evaluate((el) => getComputedStyle(el).fontSize);
@@ -278,28 +332,26 @@ function easyWorshipProfile(songs: { title: string; author: string; lyrics: stri
   return profile;
 }
 
-/** «Importar» in the Songs footer is a menu of the programs it reads. */
-async function importFrom(app: WorshipApp, program: string): Promise<void> {
+/** «Importar» in the Songs footer: one picker for every format (owner, 2026-11-05). */
+async function importSongs(app: WorshipApp, ...files: string[]): Promise<void> {
+  await app.answerOpenDialog(...files);
   await tab(app).getByRole("button", { name: "Importar", exact: true }).click();
-  await app.control.getByRole("menuitem", { name: program }).click();
 }
 
-test("EasyWorship's songs come in from its profile folder, and a second import skips them", async ({ app }) => {
+test("EasyWorship's songs come in from its Songs.db, and a second import skips them", async ({ app }) => {
   const profile = easyWorshipProfile([
     { title: "Amazing Grace", author: "John Newton", lyrics: "Verse 1\nAmazing grace how sweet the sound\n\nChorus\nMy chains are gone\n\nVerse 2\nT'was grace\n\nChorus\nMy chains are gone" },
     { title: "Sin letra", author: "", lyrics: "" },
   ]);
   try {
     await app.openResources("Canciones");
-    await app.answerOpenDialog(profile);
-    await importFrom(app, "EasyWorship 6 o 7");
+    await importSongs(app, path.join(profile, "v6.1", "Databases", "Data", "Songs.db"));
     await expect(toast(app, "Se importó 1 canción · 0 repetidas · 1 sin letra")).toBeVisible();
     await songRows(app).filter({ hasText: "Amazing Grace" }).click();
     const grid = app.previewColumn().getByRole("list", { name: "Diapositivas de «Amazing Grace»" });
     await expect(grid.getByRole("listitem")).toHaveText([/Estrofa 1/, /Coro/, /Estrofa 2/, /Coro/]);
 
-    await app.answerOpenDialog(profile);
-    await importFrom(app, "EasyWorship 6 o 7");
+    await importSongs(app, path.join(profile, "v6.1", "Databases", "Data", "Songs.db"));
     await expect(toast(app, "No se importó ninguna canción · 1 repetidas · 1 sin letra")).toBeVisible();
     await expect(songRows(app)).toHaveCount(1);
   } finally {
@@ -329,8 +381,7 @@ test("OpenLyrics files come in from «Importar», a second language as the trans
   const amigo = file("amigo.xml", "Oh qué amigo", `<verse name="v1"><lines>Oh qué amigo nos es Cristo</lines></verse>`);
   try {
     await app.openResources("Canciones");
-    await app.answerOpenDialog(gracia, amigo);
-    await importFrom(app, "OpenLyrics (.xml)");
+    await importSongs(app, gracia, amigo);
     await expect(toast(app, "Se importaron 2 canciones · 0 repetidas · 0 sin letra")).toBeVisible();
     await expect(songRows(app)).toHaveCount(2);
     await songRows(app).filter({ hasText: "Sublime gracia" }).click();
@@ -356,11 +407,9 @@ test("SongSelect and ChordPro files come in from «Importar», labels into secti
   fs.writeFileSync(chordPro, "{title: Oh qué amigo}\n{c: Verse 1}\n[F]Oh qué amigo [Bb]nos es Cristo\n\n{soc}\n[C]Él llevó\n{eoc}\n");
   try {
     await app.openResources("Canciones");
-    await app.answerOpenDialog(songSelect);
-    await importFrom(app, "SongSelect (.txt)");
+    await importSongs(app, songSelect);
     await expect(toast(app, "Se importó 1 canción · 0 repetidas · 0 sin letra")).toBeVisible();
-    await app.answerOpenDialog(chordPro);
-    await importFrom(app, "ChordPro");
+    await importSongs(app, chordPro);
     await expect(songRows(app)).toHaveCount(2);
     await songRows(app).filter({ hasText: "Oh qué amigo" }).click();
     const grid = app.previewColumn().getByRole("list", { name: "Diapositivas de «Oh qué amigo»" });

@@ -31,6 +31,7 @@ function song(): Song {
     sections: sections(),
     order: [],
     themeId: null,
+    sourceFolder: null,
     updatedAt: 1,
   };
 }
