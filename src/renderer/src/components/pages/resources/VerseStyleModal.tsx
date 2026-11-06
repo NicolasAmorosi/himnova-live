@@ -141,9 +141,16 @@ export function VerseStyleModal({ onOpenChange, open }: { onOpenChange: (open: b
 
   // Off the store at the moment of writing, not off this render: an image
   // import resolves seconds later, and spreading the style it closed over
-  // reverted whatever was changed meanwhile.
+  // reverted whatever was changed meanwhile. A style main refuses has already
+  // snapped back (`update` re-reads the settings); the operator is told which
+  // change did not take, not the generic «unexpected error».
   const patch = (next: Partial<BibleStyle>) =>
-    void update({ "bible.style": { ...useSettingsStore.getState().settings["bible.style"], ...next } });
+    void update({ "bible.style": { ...useSettingsStore.getState().settings["bible.style"], ...next } }).catch(
+      (error: unknown) => {
+        console.warn("[bible] could not save the verse style", error);
+        toast.danger(t("settings.verse.saveError"));
+      },
+    );
 
   async function handleAddImages() {
     setAddingImages(true);

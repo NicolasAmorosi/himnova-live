@@ -7,9 +7,11 @@ import { Button, EmptyState, Icon, Inspector, ListRow, type MenuOption } from "@
 import { api } from "@renderer/lib/api";
 import { toast } from "@renderer/lib/toast";
 import { hideDragGhost, OVERLAY_PLATE_MIME } from "@renderer/lib/dnd";
+import { copyName } from "@renderer/lib/named-list";
 import {
   deletePlate,
   duplicatePlate,
+  isPlateInSchedule,
   isPlateUp,
   plateUsages,
   reorderPlates,
@@ -28,7 +30,7 @@ type Editing = { plateId: number | null; draft: PlateDraft; baseline: PlateDraft
 
 type Pending =
   | { kind: "discard"; go: () => void }
-  | { kind: "delete"; plateId: number; up: boolean; usages: PlateUsage[] };
+  | { kind: "delete"; plateId: number; up: boolean; usages: PlateUsage[]; inSchedule: boolean };
 
 /**
  * The plate editor — the same full-screen layout and the same EXPLICIT save as
@@ -111,18 +113,27 @@ export function PlatesModal({ onOpenChange, open }: { onOpenChange: (open: boole
     }
   }
 
-  async function handleDuplicate() {
-    if (editing?.plateId == null) return;
-    const source = plates.find((plate) => plate.id === editing.plateId);
+  /** Named off the store when it runs (see the same in `ScenesModal`). */
+  async function handleDuplicate(plateId: number) {
+    const source = useOverlayStore.getState().plates.find((plate) => plate.id === plateId);
     if (!source) return;
-    const copy = await duplicatePlate(source.id, t("plates.copyName", { name: source.name }));
-    if (copy) setEditing({ plateId: copy.id, draft: toPlateDraft(copy), baseline: toPlateDraft(copy) });
+    const name = copyName(source.name, PLATE_NAME_MAX_LENGTH, (base) => t("plates.copyName", { name: base }));
+    const copy = await duplicatePlate(source.id, name);
+    if (!copy) return;
+    setEditing({ plateId: copy.id, draft: toPlateDraft(copy), baseline: toPlateDraft(copy) });
+    toast.success(t("plates.saved", { name: copy.name }));
   }
 
   /** The usages are read BEFORE the dialog opens, like `ScenesModal`'s: they
    *  are what turns a plain "are you sure" into the forced delete. */
   async function askToDelete(plateId: number) {
-    setPending({ kind: "delete", plateId, up: isPlateUp(plateId), usages: await plateUsages(plateId) });
+    setPending({
+      kind: "delete",
+      plateId,
+      up: isPlateUp(plateId),
+      usages: await plateUsages(plateId),
+      inSchedule: isPlateInSchedule(plateId),
+    });
   }
 
   async function handleDelete(plateId: number, force: boolean) {
@@ -238,10 +249,11 @@ export function PlatesModal({ onOpenChange, open }: { onOpenChange: (open: boole
         menu={{
           onSelect: (command) => {
             if (editing?.plateId == null) return;
+            const plateId = editing.plateId;
             // Through the guard like every other exit from the form: the copy
             // is made of the SAVED plate and replaces the open form.
-            if (command === "duplicate") leaveEditing(() => void handleDuplicate());
-            else void askToDelete(editing.plateId);
+            if (command === "duplicate") leaveEditing(() => void handleDuplicate(plateId));
+            else void askToDelete(plateId);
           },
           options: menuOptions,
         }}
@@ -305,16 +317,20 @@ export function PlatesModal({ onOpenChange, open }: { onOpenChange: (open: boole
         description={
           pending?.kind !== "delete" ? (
             t("plates.discardBody")
-          ) : pending.usages.length > 0 ? (
-            <ProgramUsages
-              intro={t("plates.deleteInUseIntro")}
-              usages={pending.usages}
-              warning={pending.up ? t("plates.deleteInUseUpWarning") : t("plates.deleteInUseWarning")}
-            />
-          ) : pending.up ? (
-            t("plates.deleteUpBody")
           ) : (
-            t("plates.deleteBody")
+            <div className="flex flex-col gap-3">
+              {pending.usages.length > 0 ? (
+                <ProgramUsages
+                  intro={t("plates.deleteInUseIntro")}
+                  usages={pending.usages}
+                  warning={pending.up ? t("plates.deleteInUseUpWarning") : t("plates.deleteInUseWarning")}
+                />
+              ) : (
+                <p>{pending.up ? t("plates.deleteUpBody") : t("plates.deleteBody")}</p>
+              )}
+              {/* The open order of service is no saved program: said apart. */}
+              {pending.inSchedule ? <p>{t("schedule.inOpenSchedule")}</p> : null}
+            </div>
           )
         }
         onConfirm={async () => {

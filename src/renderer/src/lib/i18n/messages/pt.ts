@@ -31,6 +31,7 @@ const pt: Messages = {
     remove: "Remover",
     removeHint: "Remover do roteiro o item selecionado",
     removed: "Removido do roteiro",
+    inOpenSchedule: "Também está no roteiro aberto: sai de lá também.",
     cleared: "Roteiro esvaziado",
     clear: "Esvaziar",
     discardAndClear: "Descartar e esvaziar",
@@ -44,6 +45,8 @@ const pt: Messages = {
     closeAnyway: "Fechar mesmo assim",
     closeOnAirTitle: "Fechar o app?",
     closeOnAirBody: "Há conteúdo no projetor. Ao fechar, a tela de projeção desliga.",
+    closeEditorBody:
+      "Há um editor aberto com alterações não salvas: ao fechar o app, elas se perdem.",
   },
   resources: {
     empty: "Nenhum arquivo",
@@ -884,6 +887,7 @@ const pt: Messages = {
       resetBody:
         "Todas as alterações desta seção são perdidas e o versículo volta a aparecer como veio de fábrica. Se houver um versículo AO VIVO, a mudança aparece no projetor na hora.",
       resetDone: "O estilo original foi restaurado",
+      saveError: "Não foi possível salvar o estilo do versículo.",
     },
     bible: {
       import: "Importar versão",
@@ -981,7 +985,7 @@ const pt: Messages = {
     chooseFile: "Escolher arquivo…",
     clearLive: "O que está sendo projetado agora",
     logoMode: "Mostrar",
-    logoModeDesc: "O que aparece com LOGO: uma imagem, ou o nome da igreja sobre um fundo.",
+    logoModeDesc: "LOGO mostra uma imagem ou o nome da igreja sobre um fundo.",
     logoModes: { image: "Imagem", name: "Nome sobre fundo" },
     logoName: "Nome da igreja",
     logoNameDesc: "Aparece centralizado sobre o fundo.",

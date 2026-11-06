@@ -94,6 +94,11 @@ export async function deletePlate(id: number, force = false): Promise<boolean> {
   }
 }
 
+/** `isSceneInSchedule`, for a plate. */
+export function isPlateInSchedule(id: number): boolean {
+  return useProgramStore.getState().items.some((item) => item.kind === "plate" && item.overlayPlateId === id);
+}
+
 /** Which saved programs a plate appears in. Never throws — `sceneUsages`'s
  *  contract. */
 export async function plateUsages(id: number): Promise<PlateUsage[]> {

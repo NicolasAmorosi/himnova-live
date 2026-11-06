@@ -63,13 +63,16 @@ function isOnAir(): boolean {
 
 /** Why quitting right now needs the operator's OK, or `null` when nothing is
  *  at risk. Whatever is still debounced goes to disk first, so "close anyway"
- *  really does mean "it will be there next time". Asked by main's
- *  `close-requested` and by «Restart and update», which quits the same way. */
+ *  really does mean "it will be there next time" — for the schedule; an open
+ *  editor's unsaved changes (`unsavedEditors`) have no draft and are lost.
+ *  Asked by main's `close-requested` and by «Restart and update», which quits
+ *  the same way. */
 export function quitRisks(): CloseGuardReasons | null {
   flushDraft();
   const unsaved = hasUnsavedChanges();
+  const editor = useUiStore.getState().unsavedEditors > 0;
   const onAir = isOnAir();
-  return unsaved || onAir ? { unsaved, onAir } : null;
+  return unsaved || editor || onAir ? { unsaved, editor, onAir } : null;
 }
 
 /**

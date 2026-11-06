@@ -336,6 +336,7 @@ export function App() {
           danger
           description={[
             closeGuard?.unsaved ? t("schedule.closeConfirmBody") : null,
+            closeGuard?.editor ? t("schedule.closeEditorBody") : null,
             closeGuard?.onAir ? t("schedule.closeOnAirBody") : null,
           ]
             .filter(Boolean)
@@ -346,14 +347,8 @@ export function App() {
           }}
           // «Guardar y salir» only for a program that already has its row: a
           // never-saved one needs a name first, which is the programs screen's.
-          onSave={
-            closeGuard?.unsaved && savedProgram
-              ? async () => {
-                  await saveCurrentProgram();
-                  return !useProgramStore.getState().dirty;
-                }
-              : undefined
-          }
+          // Not with an editor's changes too: it would save only the program.
+          onSave={closeGuard?.unsaved && !closeGuard.editor && savedProgram ? saveCurrentProgram : undefined}
           onOpenChange={(open) => {
             if (open) return;
             setCloseGuard(null);
@@ -362,7 +357,11 @@ export function App() {
             if (!confirmed) void api.window.closeDecision("cancel");
           }}
           open={closeGuard !== null}
-          title={closeGuard?.unsaved === false ? t("schedule.closeOnAirTitle") : t("schedule.closeConfirmTitle")}
+          title={
+            closeGuard?.unsaved === false && !closeGuard.editor
+              ? t("schedule.closeOnAirTitle")
+              : t("schedule.closeConfirmTitle")
+          }
         />
       </ModalBoundary>
       <ToastHost />

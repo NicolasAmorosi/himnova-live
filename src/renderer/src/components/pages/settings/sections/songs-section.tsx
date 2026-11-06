@@ -16,6 +16,7 @@ import {
 import { Modal, ModalTitle } from "@renderer/components/shared/modal";
 import { useSettingsStore } from "@renderer/stores/settings.store";
 import { useSongStore } from "@renderer/stores/song.store";
+import { useCommitOnUnmount } from "@renderer/lib/hooks/use-commit-on-unmount";
 import { exportSongUsage, refreshLiveSong } from "@renderer/lib/actions/songs";
 
 const pad = (n: number) => String(n).padStart(2, "0");
@@ -41,7 +42,8 @@ export function SongsSection() {
   const defaultThemeId = useSettingsStore((s) => s.settings["songs.defaultThemeId"]);
   const license = useSettingsStore((s) => s.settings["songs.ccliLicense"]);
   const update = useSettingsStore((s) => s.update);
-  // Typed, then saved on leaving the field: a licence half typed is not one.
+  // Typed, then saved on leaving the field — or Settings, however it is left
+  // (`useCommitOnUnmount`): a licence half typed is not one.
   const [draft, setDraft] = useState(license ?? "");
   useEffect(() => setDraft(license ?? ""), [license]);
   const [reportOpen, setReportOpen] = useState(false);
@@ -52,6 +54,7 @@ export function SongsSection() {
     await update({ "songs.ccliLicense": next });
     await refreshLiveSong();
   };
+  useCommitOnUnmount(() => void commitLicense());
 
   return (
     <FieldGroup title={t("settings.songs.title")}>

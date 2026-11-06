@@ -26,6 +26,7 @@ import {
 import { api } from "@renderer/lib/api";
 import { toast } from "@renderer/lib/toast";
 import { transitionDurationOptions } from "@renderer/lib/transition";
+import { copyName } from "@renderer/lib/named-list";
 import { useSongFit } from "@renderer/lib/song-fit";
 import { footerAt, slideLines, slideTranslation, songOutputFor } from "@renderer/lib/song-output";
 import { deleteSongTheme, saveSongTheme } from "@renderer/lib/actions/songs";
@@ -157,6 +158,7 @@ export function SongThemesModal({ onOpenChange, open }: { onOpenChange: (open: b
     if (!open) {
       setEditing(null);
       setPending(null);
+      setPendingBackground(null);
       return;
     }
     void api.library
@@ -214,8 +216,14 @@ export function SongThemesModal({ onOpenChange, open }: { onOpenChange: (open: b
     : null;
 
   function leaveEditing(go: () => void) {
-    if (dirty) setPending({ kind: "discard", go });
-    else go();
+    // A background picked with nothing chosen yet stays with the theme it was
+    // picked on: another theme, a new one or a copy start without it.
+    const leave = () => {
+      setPendingBackground(null);
+      go();
+    };
+    if (dirty) setPending({ kind: "discard", go: leave });
+    else leave();
   }
 
   const patchStyle = (next: Partial<SongTheme>) =>
@@ -243,9 +251,14 @@ export function SongThemesModal({ onOpenChange, open }: { onOpenChange: (open: b
   }
 
   /** A copy of what is SAVED, saved at once and chosen — the other editors'
-   *  «Duplicate» (it used to copy the draft, discarded changes included). */
-  async function handleDuplicate(source: Draft) {
-    const copy = await saveSongTheme({ name: t("songThemes.copyName", { name: source.name }), style: source.style });
+   *  «Duplicate» (it used to copy the draft, discarded changes included). Read
+   *  off the store when it runs: through «Save and leave» the theme was saved
+   *  after «Duplicate» was chosen, and the copy is of that. */
+  async function handleDuplicate(themeId: number) {
+    const source = useSongStore.getState().themes.find((theme) => theme.id === themeId);
+    if (!source) return;
+    const name = copyName(source.name, SONG_THEME_NAME_MAX_LENGTH, (base) => t("songThemes.copyName", { name: base }));
+    const copy = await saveSongTheme({ name, style: source.style });
     if (!copy) return;
     setEditing({ themeId: copy.id, draft: toDraft(copy), baseline: toDraft(copy) });
     toast.success(t("songThemes.saved", { name: copy.name }));
@@ -549,8 +562,8 @@ export function SongThemesModal({ onOpenChange, open }: { onOpenChange: (open: b
           onSelect: (command) => {
             if (!editing || editing.themeId === null) return;
             if (command === "duplicate") {
-              const source = themes.find((theme) => theme.id === editing.themeId);
-              if (source) leaveEditing(() => void handleDuplicate(source));
+              const themeId = editing.themeId;
+              leaveEditing(() => void handleDuplicate(themeId));
             } else if (themes.length > 1) {
               setPending({ kind: "delete", themeId: editing.themeId });
             }
@@ -574,7 +587,10 @@ export function SongThemesModal({ onOpenChange, open }: { onOpenChange: (open: b
             ? {
                 canSave,
                 dirty,
-                onDiscard: () => setEditing({ ...editing, draft: editing.baseline }),
+                onDiscard: () => {
+                  setPendingBackground(null);
+                  setEditing({ ...editing, draft: editing.baseline });
+                },
                 onSave: () => void handleSave(),
                 saving,
               }
@@ -615,6 +631,7 @@ export function SongThemesModal({ onOpenChange, open }: { onOpenChange: (open: b
             return;
           }
           if (!(await deleteSongTheme(pending.themeId))) return;
+          setPendingBackground(null);
           const next = useSongStore.getState().themes[0];
           setEditing(next ? { themeId: next.id, draft: toDraft(next), baseline: toDraft(next) } : null);
         }}

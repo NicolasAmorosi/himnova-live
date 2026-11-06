@@ -31,11 +31,16 @@ type UiStoreState = {
    *  question to ask. `null` when closed; otherwise why it is asking. */
   closeGuard: CloseGuardReasons | null;
   setCloseGuard: (reasons: CloseGuardReasons | null) => void;
+  /** How many full-screen editors are open with unsaved changes: each
+   *  `EditorScreen` counts itself in (`holdUnsavedEditor`), so a quit asks
+   *  about them like it asks about the schedule (2026-11-06). */
+  unsavedEditors: number;
 };
 
-/** Why closing needs a confirmation: work that is not saved, and/or something
- *  the congregation is looking at right now. */
-export type CloseGuardReasons = { unsaved: boolean; onAir: boolean };
+/** Why closing needs a confirmation: work that is not saved — the schedule
+ *  (`unsaved`) or an open editor's (`editor`) —, and/or something the
+ *  congregation is looking at right now. */
+export type CloseGuardReasons = { unsaved: boolean; editor: boolean; onAir: boolean };
 
 export const useUiStore = create<UiStoreState>((set) => ({
   settingsSection: null,
@@ -45,4 +50,11 @@ export const useUiStore = create<UiStoreState>((set) => ({
   setRemoveAssetConfirmId: (removeAssetConfirmId) => set({ removeAssetConfirmId }),
   closeGuard: null,
   setCloseGuard: (closeGuard) => set({ closeGuard }),
+  unsavedEditors: 0,
 }));
+
+/** An editor with unsaved changes counts itself in; the returned function counts it out. */
+export function holdUnsavedEditor(): () => void {
+  useUiStore.setState((state) => ({ unsavedEditors: state.unsavedEditors + 1 }));
+  return () => useUiStore.setState((state) => ({ unsavedEditors: state.unsavedEditors - 1 }));
+}

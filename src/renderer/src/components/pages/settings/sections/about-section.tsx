@@ -222,6 +222,7 @@ export function AboutSection() {
         danger
         description={[
           risks?.unsaved ? t("schedule.closeConfirmBody") : null,
+          risks?.editor ? t("schedule.closeEditorBody") : null,
           risks?.onAir ? t("schedule.closeOnAirBody") : null,
         ]
           .filter(Boolean)

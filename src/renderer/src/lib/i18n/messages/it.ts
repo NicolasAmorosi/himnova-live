@@ -31,6 +31,7 @@ const it: Messages = {
     remove: "Rimuovi",
     removeHint: "Rimuovi dalla scaletta l'elemento selezionato",
     removed: "Tolto dalla scaletta",
+    inOpenSchedule: "Compare anche nella scaletta aperta: si toglie anche da lì.",
     cleared: "Scaletta svuotata",
     clear: "Svuota",
     discardAndClear: "Scarta e svuota",
@@ -44,6 +45,8 @@ const it: Messages = {
     closeAnyway: "Chiudi comunque",
     closeOnAirTitle: "Chiudere l'app?",
     closeOnAirBody: "C'è qualcosa sul proiettore. Chiudendo l'app, lo schermo di proiezione si spegne.",
+    closeEditorBody:
+      "C'è un editor aperto con modifiche non salvate: chiudendo l'app, si perdono.",
   },
   resources: {
     empty: "Nessun file",
@@ -887,6 +890,7 @@ const it: Messages = {
       resetBody:
         "Si perdono tutte le modifiche di questa sezione e il versetto torna all'aspetto predefinito. Se c'è un versetto IN ONDA, la modifica si vede subito sul proiettore.",
       resetDone: "Stile originale ripristinato",
+      saveError: "Impossibile salvare lo stile del versetto.",
     },
     bible: {
       import: "Importa versione",
@@ -984,7 +988,7 @@ const it: Messages = {
     chooseFile: "Scegli file…",
     clearLive: "Ciò che è proiettato ora",
     logoMode: "Mostra",
-    logoModeDesc: "Cosa si vede con LOGO: un'immagine, o il nome della chiesa su uno sfondo.",
+    logoModeDesc: "LOGO mostra un'immagine o il nome della chiesa su uno sfondo.",
     logoModes: { image: "Immagine", name: "Nome su sfondo" },
     logoName: "Nome della chiesa",
     logoNameDesc: "Appare al centro, sopra lo sfondo.",

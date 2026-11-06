@@ -5,6 +5,7 @@ import { OutputView } from "@renderer/components/shared/output-view";
 import { BackgroundFields } from "@renderer/components/shared/style-fields";
 import { selectOutput, useProjectionStore } from "@renderer/stores/projection.store";
 import { useSettingsStore } from "@renderer/stores/settings.store";
+import { useCommitOnUnmount } from "@renderer/lib/hooks/use-commit-on-unmount";
 import { api } from "@renderer/lib/api";
 import { toast } from "@renderer/lib/toast";
 import { INSTANT_TRANSITION, LOGO_NAME_MAX_LENGTH, type ProjectionOutput } from "@shared/types/projection";
@@ -17,9 +18,10 @@ import type { SceneBackground } from "@shared/types/scene-style";
  * and the background — rows of the «Logo» group, shown only in that mode —, and
  * in either mode the preview of what LOGO shows, drawn by the projector's own
  * `OutputView` from the same `logoLook` the projector gets. Saved as it
- * changes, like everything in Settings; the name on blur or Enter. The
- * background offers the image library — the backgrounds the app ships
- * included — through the same `BackgroundFields` every style editor uses.
+ * changes, like everything in Settings; the name on blur, Enter or leaving
+ * Settings however it is left (`useCommitOnUnmount`). The background offers
+ * the image library — the backgrounds the app ships included — through the
+ * same `BackgroundFields` every style editor uses.
  */
 export function LogoSceneFields() {
   const t = useT();
@@ -47,6 +49,7 @@ export function LogoSceneFields() {
     const next = draft.trim() === "" ? null : draft.trim();
     if (next !== name) void update({ "logo.name": next });
   }
+  useCommitOnUnmount(commitName);
 
   async function addImages() {
     setAddingImages(true);

@@ -31,6 +31,7 @@ const es = {
     remove: "Quitar",
     removeHint: "Quitar del programa el elemento seleccionado",
     removed: "Se quitó del programa",
+    inOpenSchedule: "También está en el programa abierto: se quita de ahí también.",
     cleared: "Se vació el programa",
     clear: "Vaciar",
     discardAndClear: "Descartar y vaciar",
@@ -43,6 +44,8 @@ const es = {
     closeAnyway: "Cerrar igualmente",
     closeOnAirTitle: "¿Cerrar la app?",
     closeOnAirBody: "Hay contenido en el proyector. Al cerrar, la pantalla de proyección se apaga.",
+    closeEditorBody:
+      "Hay un editor abierto con cambios sin guardar: al cerrar, se pierden.",
   },
   resources: {
     empty: "No hay archivos",
@@ -887,6 +890,7 @@ const es = {
       resetBody:
         "Se pierden todos los cambios de esta sección y el versículo vuelve a dibujarse como venía de fábrica. Si hay un versículo EN VIVO, el cambio se ve en el proyector al instante.",
       resetDone: "Se restauró el estilo original",
+      saveError: "No se pudo guardar el estilo del versículo.",
     },
     /** «Biblia» is now only the installed versions: importar, renombrar,
      *  elegir la de por defecto y borrar. */
@@ -986,7 +990,7 @@ const es = {
     chooseFile: "Elegir archivo…",
     clearLive: "Lo que se proyecta ahora",
     logoMode: "Mostrar",
-    logoModeDesc: "Lo que se ve con LOGO: una imagen, o el nombre de la iglesia sobre un fondo.",
+    logoModeDesc: "LOGO muestra una imagen o el nombre de la iglesia sobre un fondo.",
     logoModes: { image: "Imagen", name: "Nombre sobre fondo" },
     logoName: "Nombre de la iglesia",
     logoNameDesc: "Se muestra centrado sobre el fondo.",

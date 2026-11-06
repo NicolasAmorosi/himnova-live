@@ -31,6 +31,7 @@ const en: Messages = {
     remove: "Remove",
     removeHint: "Remove the selected item from the schedule",
     removed: "Removed from the schedule",
+    inOpenSchedule: "It is also in the open schedule: it comes out of it too.",
     cleared: "Schedule cleared",
     clear: "Clear",
     discardAndClear: "Discard and clear",
@@ -44,6 +45,8 @@ const en: Messages = {
     closeAnyway: "Close anyway",
     closeOnAirTitle: "Close the app?",
     closeOnAirBody: "Something is on the projector. If you close the app, the projector screen goes dark.",
+    closeEditorBody:
+      "An editor is open with unsaved changes: closing the app loses them.",
   },
   resources: {
     empty: "No files",
@@ -883,6 +886,7 @@ const en: Messages = {
       resetBody:
         "Every change in this section is lost and the verse is drawn the way it came out of the box. If a verse is live, the change shows on the projector instantly.",
       resetDone: "Original style restored",
+      saveError: "Could not save the verse style.",
     },
     bible: {
       import: "Import version",

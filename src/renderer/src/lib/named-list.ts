@@ -26,3 +26,16 @@ export function viewNamed<T extends { id: number; name: string }>(
   };
   return [...shown].sort(compare[order]);
 }
+
+/**
+ * «Duplicate»'s name — `fill` is the language's «{name} (copy)» — cut to fit
+ * `max`, the limit main checks the copy's name against: a name typed up to its
+ * field's own limit had no room left for the suffix, and main refused the
+ * copy. The name is what gets cut, never the suffix — and never half an
+ * emoji: a cut through a surrogate pair drops its first half too.
+ */
+export function copyName(name: string, max: number, fill: (name: string) => string): string {
+  const overflow = fill(name).length - max;
+  if (overflow <= 0) return fill(name);
+  return fill(name.slice(0, Math.max(0, name.length - overflow)).replace(/[\uD800-\uDBFF]$/, "").trimEnd());
+}
