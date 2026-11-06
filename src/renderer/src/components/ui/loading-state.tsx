@@ -68,7 +68,9 @@ export function LoadingState({
     <div
       aria-live="polite"
       className={cn(
-        "flex w-full max-w-xs flex-col items-center gap-2 px-4 text-center",
+        // `m-auto`: centred in whatever holds it, like `EmptyState` — in a
+        // panel's flex column it sat in the top-left corner (owner, 2026-11-05).
+        "m-auto flex w-full max-w-xs flex-col items-center gap-2 px-4 text-center",
         surfaceTextClassName[surface],
         className,
       )}

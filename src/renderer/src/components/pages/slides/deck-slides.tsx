@@ -231,7 +231,8 @@ export function DeckSlides({ assetId, missingSince }: { assetId: number; missing
       (entry.status === "stale" && entry.deck === null))
   ) {
     return (
-      <div className="self-center py-6">
+      // Centred in the panel, where its `EmptyState` below sits too.
+      <div className="absolute inset-0 flex items-center justify-center">
         <DeckConversionStatus assetId={assetId} onRetry={reconvert} />
       </div>
     );
