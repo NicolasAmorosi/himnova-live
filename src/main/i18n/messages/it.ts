@@ -105,7 +105,7 @@ const it: MainMessages = {
     importPickTitle: "Scegli i canti da importare",
     importFilter: "Canti (OpenLyrics, SongSelect, ChordPro, OpenLP, EasyWorship)",
     fileMissing: "Il file di questo canto non si trova: è stato spostato o eliminato.",
-    fileChanged: "Il file di questo canto è cambiato fuori da Lumina. È stato riletto: controlla il canto e salva di nuovo.",
+    fileChanged: "Il file di questo canto è cambiato fuori da Lumina. Se salvi di nuovo, lo sostituisce ciò che stai modificando; se chiudi senza salvare, resta quello sul disco.",
     fileUnwritable: "Non è stato possibile scrivere il file di questo canto (sola lettura o senza permesso?).",
     openLpUnreadable: "Quel file non è un database dei canti di OpenLP (songs.sqlite) o non è stato possibile aprirlo.",
     usageSaveTitle: "Salva il rapporto CCLI",

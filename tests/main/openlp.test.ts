@@ -214,7 +214,7 @@ describe("OpenLyrics", () => {
       ],
       [],
     ]);
-    expect(song!.sections[1]?.slides[0]?.chords).toEqual([[{ at: 0, name: "G" }]]);
+    expect(song!.sections[1]?.slides[0]?.chords).toEqual([[{ at: 0, name: "G7" }]]);
     expect(song).toMatchObject({
       title: "Sublime gracia",
       authors: "John Newton",
@@ -251,6 +251,16 @@ describe("OpenLyrics", () => {
     fs.writeFileSync(broken, "<song><lyrics><verse");
     expect(importOpenLyricsFiles([good, empty, broken])).toEqual({ imported: 1, repeated: 0, problems: 2 });
     expect(importOpenLyricsFiles([good])).toEqual({ imported: 0, repeated: 1, problems: 0 });
+  });
+
+  test("0.9 chords keep their kind: shortcode or formula, bass included; an unknown one keeps its root", () => {
+    const song = readOpenLyrics(
+      `<song xmlns="http://openlyrics.info/namespace/2009/song" version="0.9"><properties><titles><title>Acordes</title></titles></properties>` +
+        `<lyrics><verse name="v1"><lines><chord root="A" structure="min7"/>Uno <chord root="D" structure="dom7" bass="F#"/>dos ` +
+        `<chord root="E" structure="m3-5"/>tres <chord root="G" structure="sus4"/>cuatro <chord root="C" structure="m3-5-7-9-a11-13"/>cinco` +
+        `</lines></verse></lyrics></song>`,
+    );
+    expect(song?.sections[0]?.slides[0]?.chords?.[0]?.map((chord) => chord.name)).toEqual(["Am7", "D7/F#", "Em", "Gsus4", "C"]);
   });
 
   test("files read in the encoding they declare or carry, never as � (the HASD hymnal, 2026-11-05)", () => {

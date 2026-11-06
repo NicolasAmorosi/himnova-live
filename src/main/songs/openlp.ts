@@ -224,6 +224,47 @@ export function readOpenLpDatabase(file: string): SongsRead {
  * ------------------------------------------------------------------------ */
 
 /**
+ * OpenLyrics 0.9's chord `structure`, as the suffix a musician writes: its
+ * shortcodes (the format's own table) and the interval formulas common enough
+ * to meet. A structure it does not know keeps the root alone — a wrong chord
+ * on the musicians' screen is worse than a plain one. Without this, «A min7»
+ * read as «A».
+ */
+const CHORD_STRUCTURE: Record<string, string> = {
+  maj: "", "3-5": "",
+  power: "5", "5": "5",
+  min: "m", "m3-5": "m",
+  aug: "aug", "3-a5": "aug",
+  dim: "dim", "m3-d5": "dim",
+  dom7: "7", "3-5-m7": "7",
+  maj7: "maj7", "3-5-7": "maj7",
+  min7: "m7", "m3-5-m7": "m7",
+  dim7: "dim7", "m3-d5-d7": "dim7",
+  halfdim7: "m7b5", "m3-d5-m7": "m7b5",
+  minmaj7: "m(maj7)", "m3-5-7": "m(maj7)",
+  augmaj7: "maj7#5",
+  aug7: "7#5",
+  maj6: "6", "3-5-6": "6",
+  maj6b: "b6",
+  min6: "m6", "m3-5-6": "m6",
+  min6b: "mb6",
+  dom9: "9", "3-5-m7-9": "9",
+  dom9b: "7b9",
+  maj9: "maj9", "3-5-7-9": "maj9",
+  min9: "m9", "m3-5-m7-9": "m9",
+  minmaj9: "m(maj9)",
+  aug9: "9#5",
+  halfdim9: "m9b5",
+  sus4: "sus4", "4-5": "sus4",
+  sus2: "sus2", "2-5": "sus2",
+  add9: "add9", "3-5-9": "add9",
+};
+
+function chordSuffix(structure: string | undefined): string {
+  return structure ? (CHORD_STRUCTURE[structure.trim()] ?? "") : "";
+}
+
+/**
  * One OpenLyrics file (0.8, what OpenLP writes, and 0.9) → a song, or `null`
  * when it has no title or no lyrics. Read in document order: inside `<lines>`
  * the text, `<br/>` and `<chord/>` are siblings, and the indentation around
@@ -254,9 +295,11 @@ export function readOpenLyrics(xml: string): Omit<SongUpsert, "id"> | null {
       }
       if (tag === "lines" && verse) slide = "";
       if (tag === "br" && slide !== null) slide += "\n";
-      // 0.8 names it (what OpenLP writes); 0.9 gives a root and a bass.
+      // 0.8 names it (what OpenLP writes); 0.9 gives a root, a structure and a bass.
       if (tag === "chord" && slide !== null) {
-        const name = attrs.name ?? (attrs.root ? `${attrs.root}${attrs.bass ? `/${attrs.bass}` : ""}` : "");
+        const name =
+          attrs.name ??
+          (attrs.root ? `${attrs.root}${chordSuffix(attrs.structure)}${attrs.bass ? `/${attrs.bass}` : ""}` : "");
         if (isWrittenChord(`[${name}]`)) slide += `[${name}]`;
       }
       return true;

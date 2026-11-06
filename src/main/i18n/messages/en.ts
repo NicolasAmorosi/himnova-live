@@ -105,7 +105,7 @@ const en: MainMessages = {
     importPickTitle: "Import songs",
     importFilter: "Songs (OpenLyrics, SongSelect, ChordPro, OpenLP, EasyWorship)",
     fileMissing: "This song's file can't be found: it was moved or deleted.",
-    fileChanged: "This song's file changed outside Lumina. It was read again: check the song and save again.",
+    fileChanged: "This song's file changed outside Lumina. Saving again replaces it with what you are editing; closing without saving keeps the one on disk.",
     fileUnwritable: "This song's file couldn't be written (read-only, or no permission?).",
     openLpUnreadable: "That file isn't an OpenLP song database (songs.sqlite), or it couldn't be opened.",
     usageSaveTitle: "Save the CCLI report",
