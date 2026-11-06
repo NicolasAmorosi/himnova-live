@@ -56,9 +56,9 @@ export function LibraryFilterBar<S extends string>({
 }: LibraryFilterBarProps<S>) {
   const t = useT();
   return (
-    // 32 px controls, like the Bible tab's search row: the box does not change
-    // size from one tab to the next (2026-11-05 review).
-    <div className="flex shrink-0 items-center gap-1.5 border-b border-border p-1.5">
+    // 32 px controls in a strip, like the Bible tab's rows: the box does not
+    // change size from one tab to the next (2026-11-05 review).
+    <div className="flex h-strip shrink-0 items-center gap-1.5 border-b border-border px-1.5">
       <Tooltip align="start" content={sortHint} placement="bottom">
         <Menu icon="sort" label={t("resources.sort")} onSelect={onSortChange} options={sortOptions} size="sm" value={sort} />
       </Tooltip>

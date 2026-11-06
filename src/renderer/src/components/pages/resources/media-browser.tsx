@@ -125,8 +125,8 @@ export function MediaBrowser({ active, kind }: { active: boolean; kind: AssetKin
    *  thousand presentations — for a map the tiles look up by id anyway, and
    *  which filtering cannot change a single entry of. */
   const assets = useMemo(
-    () => sortAssets(filterAssetsByName(viewAssets, query), sortOrder),
-    [query, sortOrder, viewAssets],
+    () => sortAssets(filterAssetsByName(viewAssets, query), sortOrder, isFolderView ? "file" : "library"),
+    [isFolderView, query, sortOrder, viewAssets],
   );
   // A new order, filter or view starts from its first file. The grid used to
   // keep its scroll offset, so an operator scrolled to the bottom of A → Z who

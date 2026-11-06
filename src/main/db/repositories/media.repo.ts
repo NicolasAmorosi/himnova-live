@@ -66,10 +66,15 @@ export class MediaRepo {
 
     if (existing) {
       const mtimeMs = Math.trunc(stat.mtimeMs);
+      // `createdAt` is when the asset joined the library — the media tabs'
+      // «newest first» (`lib/media-view.ts`). A linked folder's or a program's
+      // file that is added now is new to the library now.
+      const createdAt = inLibrary && existing.inLibrary === 0 ? now : existing.createdAt;
       this.db
         .update(mediaAssets)
         .set({
           inLibrary: inLibrary || existing.inLibrary === 1 ? 1 : 0,
+          createdAt,
           missingSince: null,
           lastSeenAt: now,
           sizeBytes: stat.size,
@@ -86,6 +91,7 @@ export class MediaRepo {
       return toDTO({
         ...existing,
         inLibrary: inLibrary ? 1 : existing.inLibrary,
+        createdAt,
         missingSince: null,
         sizeBytes: stat.size,
         mtimeMs,
@@ -205,6 +211,11 @@ export class MediaRepo {
               inLibrary: inLibrary
                 ? sql`1`
                 : sql`CASE WHEN ${mediaAssets.inLibrary} = 1 THEN 1 ELSE 0 END`,
+              // Joining the library now is «newest» now (see `upsertFromPath`).
+              // SQLite reads every column of the SET from the row as it was.
+              ...(inLibrary
+                ? { createdAt: sql`CASE WHEN ${mediaAssets.inLibrary} = 1 THEN ${mediaAssets.createdAt} ELSE ${now} END` }
+                : {}),
               missingSince: null,
               lastSeenAt: now,
               sizeBytes,
@@ -569,6 +580,8 @@ export class MediaRepo {
     const inLibrary = this.sqlite.transaction(() => {
       const duplicate = this.db.select().from(mediaAssets).where(eq(mediaAssets.pathKey, pathKey)).get();
       let keepInLibrary = row.inLibrary;
+      // When it joined the library («newest first»): the one of the two that did.
+      let createdAt = row.createdAt;
       if (duplicate && duplicate.id !== id) {
         for (const statement of [
           "UPDATE program_items SET media_asset_id = ? WHERE media_asset_id = ?",
@@ -580,6 +593,7 @@ export class MediaRepo {
         }
         // Shown in the library if either one was.
         keepInLibrary = Math.max(row.inLibrary, duplicate.inLibrary);
+        if (row.inLibrary === 0 && duplicate.inLibrary === 1) createdAt = duplicate.createdAt;
         this.db.delete(mediaAssets).where(eq(mediaAssets.id, duplicate.id)).run();
       }
       this.db
@@ -590,6 +604,7 @@ export class MediaRepo {
           sizeBytes: stat.size,
           mtimeMs,
           inLibrary: keepInLibrary,
+          createdAt,
           missingSince: null,
           lastSeenAt: now,
           updatedAt: now,

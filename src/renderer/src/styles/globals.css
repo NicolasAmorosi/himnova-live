@@ -290,6 +290,12 @@
 }
 
 @theme inline {
+  /* `h-strip`: the ONE height of every bar of the main window — the top bar,
+   * the columns' headers, both rows of tabs, a tab's search row, a panel's
+   * footer (owner, 2026-11-06: «todas las líneas a un mismo tamaño»). Its 1 px
+   * line included, so 40 inside: a 32 px control sits 4 / 4, a 28 px one 6 / 6
+   * — at a round 40 they were 3.5, rounded up in some bars and down in others. */
+  --spacing-strip: calc(2.5rem + 1px);
   --color-background: var(--wa-bg-primary);
   --color-foreground: var(--wa-text-primary);
   --color-surface: var(--wa-bg-secondary);

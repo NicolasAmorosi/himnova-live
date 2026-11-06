@@ -257,9 +257,9 @@ export function BibleBrowser() {
 
   return (
     <>
-      {/* One grid for both rows, so their edges line up (2026-11-05 review):
+      {/* Two strips, like every bar of the main window (owner, 2026-11-06):
           version · book · chapter above, the search mode · the search under. */}
-      <div className="grid shrink-0 grid-cols-[minmax(0,3fr)_minmax(0,3fr)_minmax(8rem,2fr)] gap-1.5 border-b border-border p-1.5">
+      <div className="grid h-strip shrink-0 grid-cols-[minmax(0,3fr)_minmax(0,3fr)_minmax(8rem,2fr)] items-center gap-1.5 border-b border-border px-1.5">
           <Select
             aria-label={t("bible.versionLabel")}
             className="min-w-0"
@@ -296,10 +296,11 @@ export function BibleBrowser() {
             size="sm"
             value={pendingChapter}
           />
+      </div>
+      <div className="flex h-strip min-w-0 shrink-0 items-center gap-1.5 border-b border-border px-1.5">
           {/* Words, not a document icon nobody could read as «search the text»
               (2026-11-05 review), as wide as its longer word in each half
               (owner, 2026-11-05): in the first column it cut «Referencia». */}
-          <div className="col-span-3 flex min-w-0 items-center gap-1.5">
           <Segmented
             label={t("bible.searchMode")}
             onChange={(mode) => {
@@ -331,7 +332,6 @@ export function BibleBrowser() {
               value={query}
             />
           </div>
-        </div>
       </div>
 
       <PanelBody className="p-1.5">

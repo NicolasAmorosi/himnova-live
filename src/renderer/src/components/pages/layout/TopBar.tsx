@@ -66,12 +66,14 @@ export function TopBar({ onOpenPrograms, onOpenSettings }: TopBarProps) {
 
   return (
     <>
-      <Toolbar className="grid grid-cols-3 items-center">
+      {/* The columns' own grid (`AppShell`: thirds, 1 px apart) and their
+          headers' 12 px edges, so each group ends where its column does. */}
+      <Toolbar className="grid grid-cols-3 items-center gap-px px-0">
         {/* The program's name as plain text, and «Save» with its word
             (2026-11-04 redesign, P7): saving Saturday's program was a 16 px
             icon, and the name floated in a capsule. */}
-        <div className="flex min-w-0 items-center gap-1.5">
-          <BrandMark className="mx-1 size-7 shrink-0 rounded-md" />
+        <div className="flex min-w-0 items-center gap-1.5 px-3">
+          <BrandMark className="mr-1 size-7 shrink-0 rounded-md" />
           <Tooltip content={t("settings.title")} floating>
             <IconButton aria-label={t("settings.title")} onClick={onOpenSettings} variant="ghost">
               <Icon name="settings" />
@@ -108,20 +110,23 @@ export function TopBar({ onOpenPrograms, onOpenSettings }: TopBarProps) {
           </Tooltip>
         </div>
 
-        <div className="flex items-center justify-end">
+        {/* 32 px like every control of a bar, not the 40 of what is pressed
+            during a service: the bar is a strip tall like all the others
+            (owner, 2026-11-06). They keep their width and their words. */}
+        <div className="flex items-center justify-end px-3">
           <Tooltip content={<>{t("footerHints.goLive")}<Kbd>Enter</Kbd></>} floating>
-            <Button disabled={previewContent === null} onClick={() => void goLive()} size="md" variant="live">
+            <Button disabled={previewContent === null} onClick={() => void goLive()} size="sm" variant="live">
               <Icon name="play" /> {t("actions.goLive")}
             </Button>
           </Tooltip>
         </div>
 
-        <div className="flex items-center justify-end gap-1.5">
+        <div className="flex items-center justify-end gap-1.5 px-3">
           <Tooltip content={<>{t("footerHints.logo")}<Kbd>L</Kbd></>} floating>
             <Button
               className="w-24 px-2"
               onClick={() => void setOverlayDirect("logo")}
-              size="md"
+              size="sm"
               toggled={outputKind === "logo"}
               toggledTone="warning"
               variant="outline"
@@ -133,7 +138,7 @@ export function TopBar({ onOpenPrograms, onOpenSettings }: TopBarProps) {
             <Button
               className="w-24 px-2"
               onClick={() => void setOverlayDirect("black")}
-              size="md"
+              size="sm"
               toggled={outputKind === "black"}
               toggledTone="warning"
               variant="outline"
@@ -146,7 +151,7 @@ export function TopBar({ onOpenPrograms, onOpenSettings }: TopBarProps) {
               className="w-24 px-2"
               disabled={base === null}
               onClick={() => void setOverlayDirect("none")}
-              size="md"
+              size="sm"
               // Lit only while content IS on the projector, and with its own
               // icon: the ▷ of GO LIVE beside it read as a second GO LIVE, lit
               // all service long — even with nothing live (2026-11-05 review;

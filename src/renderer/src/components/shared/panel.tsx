@@ -33,7 +33,7 @@ export function PanelHeader({
   const shownMeta = meta?.filter((piece) => piece !== null && piece !== undefined && piece !== "") ?? [];
   return (
     // A fixed height: the three columns' headers line up whatever each one holds.
-    <div className="flex h-10 shrink-0 items-center gap-3 border-b border-border px-3">
+    <div className="flex h-strip shrink-0 items-center gap-3 border-b border-border px-3">
       <Title as="h2" className="shrink-0">
         {title}
       </Title>
@@ -70,11 +70,13 @@ export function PanelBody({ children, className, ...props }: PanelProps) {
   );
 }
 
-/** Bottom action strip of a panel (move/remove, add, counters…). */
+/** Bottom action strip of a panel (move/remove, add, counters…). A strip tall
+ *  (`min-`: in a window too narrow for one line it wraps rather than clips),
+ *  with the 6 px edges of the search row above it, so the two mirror. */
 export function PanelFooter({ children, className, ...props }: PanelProps) {
   return (
     <div
-      className={cn("flex shrink-0 flex-wrap items-center gap-2 border-t border-border px-3 py-2", className)}
+      className={cn("flex min-h-strip shrink-0 flex-wrap items-center gap-1.5 border-t border-border px-1.5 py-0.5", className)}
       {...props}
     >
       {children}

@@ -41,8 +41,11 @@ const isVertical: Record<TabsVariant, boolean> = {
 };
 
 const listVariants: Record<TabsVariant, string> = {
-  underline: "flex items-center gap-1 border-b border-border px-2",
-  segment: "flex items-center gap-0.5 border-b border-border px-1 py-1",
+  // Both a strip tall, like every bar of the main window (`h-strip`), on the
+  // 6 px edge of every strip with boxes, and with the same gap: the four
+  // resource tabs sit right over the four segments under them.
+  underline: "flex h-strip items-stretch gap-1 border-b border-border px-1.5",
+  segment: "flex h-strip items-center gap-1 border-b border-border px-1.5",
   sidebar: "flex w-56 shrink-0 flex-col items-stretch gap-1 overflow-y-auto border-r border-border p-2",
 };
 
@@ -50,11 +53,13 @@ const tabVariants: Record<TabsVariant, string> = {
   // `-mb-px`: the active tab's line sits ON the list's own bottom border.
   // `flex-1`: every tab takes the same share of the row and together they fill
   // it, whatever the length of each label (owner, 2026-11-04).
-  underline: "-mb-px min-w-0 flex-1 justify-center gap-1.5 border-b-2 px-1 py-2 text-sm",
+  // Stretched to the list's height, so the line lands on its border whatever
+  // that height is.
+  underline: "-mb-px min-w-0 flex-1 justify-center gap-1.5 border-b-2 px-1 text-sm",
   // No tab-shaped border, on purpose: a second row of tabs under the first
   // reads as two competing levels of the same thing. This one is a segmented
   // control — a filled segment inside the panel the first row opened.
-  segment: "min-w-0 flex-1 justify-center gap-1 rounded-md px-2 py-1 text-xs",
+  segment: "h-7 min-w-0 flex-1 justify-center gap-1 rounded-md px-2 text-xs",
   // GitHub's NavList: a 32 px row, and the chosen one marked by a 4 px bar of
   // the accent on its left over a quiet fill — not a filled pill.
   sidebar:

@@ -44,25 +44,49 @@ describe("sortAssets", () => {
     expect(names(sortAssets(list, "name-asc"))).toEqual(["Ángeles", "Biblia", "culto"]);
   });
 
-  test("date uses the file's mtime, and falls back to the row's createdAt", () => {
+  test("date is when the file joined the library, not the file's own mtime", () => {
     const list = [
-      asset({ name: "viejo", mtimeMs: 100 }),
-      asset({ name: "nuevo", mtimeMs: 300 }),
-      // Never stat'd: without the fallback this would sort as 1970 and end up
-      // under everything else rather than where it belongs.
-      asset({ name: "sin-mtime", mtimeMs: null, createdAt: 200 }),
+      asset({ id: 1, name: "viejo", mtimeMs: 900, createdAt: 100 }),
+      asset({ id: 2, name: "nuevo", mtimeMs: 100, createdAt: 300 }),
+      asset({ id: 3, name: "medio", mtimeMs: null, createdAt: 200 }),
     ];
-    expect(names(sortAssets(list, "date-desc"))).toEqual(["nuevo", "sin-mtime", "viejo"]);
-    expect(names(sortAssets(list, "date-asc"))).toEqual(["viejo", "sin-mtime", "nuevo"]);
+    expect(names(sortAssets(list, "date-desc"))).toEqual(["nuevo", "medio", "viejo"]);
+    expect(names(sortAssets(list, "date-asc"))).toEqual(["viejo", "medio", "nuevo"]);
   });
 
-  test("a tie falls back to the name, so a folder copied in one go has an order", () => {
+  test("one import shares a timestamp: the id keeps the order they came in", () => {
     const list = [
-      asset({ name: "c", mtimeMs: 500 }),
-      asset({ name: "a", mtimeMs: 500 }),
-      asset({ name: "b", mtimeMs: 500 }),
+      asset({ id: 3, name: "a", createdAt: 500 }),
+      asset({ id: 1, name: "c", createdAt: 500 }),
+      asset({ id: 2, name: "b", createdAt: 500 }),
     ];
+    expect(names(sortAssets(list, "date-asc"))).toEqual(["c", "b", "a"]);
     expect(names(sortAssets(list, "date-desc"))).toEqual(["a", "b", "c"]);
+  });
+
+  test("a linked folder goes by the files' own dates: nothing in it was added", () => {
+    const list = [
+      asset({ id: 1, name: "viejo", mtimeMs: 100, createdAt: 900 }),
+      asset({ id: 2, name: "nuevo", mtimeMs: 300, createdAt: 900 }),
+      // Never stat'd: the row's date rather than 1970.
+      asset({ id: 3, name: "sin-mtime", mtimeMs: null, createdAt: 200 }),
+    ];
+    expect(names(sortAssets(list, "date-desc", "file"))).toEqual(["nuevo", "sin-mtime", "viejo"]);
+    expect(names(sortAssets(list, "date-asc", "file"))).toEqual(["viejo", "sin-mtime", "nuevo"]);
+  });
+
+  test("a folder copied in one go ties by name A → Z in BOTH date orders, as the size orders do", () => {
+    const folder = [
+      asset({ id: 3, name: "Himno 2", mtimeMs: 5000 }),
+      asset({ id: 1, name: "Himno 10", mtimeMs: 5000 }),
+      asset({ id: 2, name: "Himno 1", mtimeMs: 5000 }),
+    ];
+    expect(names(sortAssets(folder, "date-desc", "file"))).toEqual(["Himno 1", "Himno 2", "Himno 10"]);
+    expect(names(sortAssets(folder, "date-asc", "file"))).toEqual(["Himno 1", "Himno 2", "Himno 10"]);
+  });
+
+  test("a size tie falls back to the name", () => {
+    const list = [asset({ name: "c" }), asset({ name: "a" }), asset({ name: "b" })];
     expect(names(sortAssets(list, "size-desc"))).toEqual(["a", "b", "c"]);
   });
 
