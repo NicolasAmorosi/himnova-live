@@ -62,6 +62,7 @@ export class WorshipApp {
      *  starts the app through `cmd.exe`, and killing that left the app alive. */
     readonly mainPid: number,
     readonly locale: Locale,
+    readonly starterLook: boolean,
   ) {
     this.exited = new Promise((resolve) =>
       electron.process().once("exit", () => {
@@ -100,7 +101,7 @@ export class WorshipApp {
 
     const control = await app.firstWindow();
     await expect(control.getByRole("button", { name: translate("EN VIVO", locale), exact: true })).toBeVisible();
-    return new WorshipApp(app, control, profile, log, await app.evaluate(() => process.pid), locale);
+    return new WorshipApp(app, control, profile, log, await app.evaluate(() => process.pid), locale, starterLook);
   }
 
   /** `text`, written as the app's Spanish, in this app's language — see `translate`. */
@@ -399,9 +400,10 @@ export const test = base.extend<Fixtures>({
 const adopted = new Map<string, WorshipApp>();
 
 /** For a test that quits and relaunches: makes teardown clean up (and check)
- *  the new instance too. */
+ *  the new instance too. The new one starts like the old one — with the
+ *  starter look if that one had it, as a church's next morning would. */
 export async function relaunch(app: WorshipApp): Promise<WorshipApp> {
-  const next = await WorshipApp.launch(app.profile, false, app.locale);
+  const next = await WorshipApp.launch(app.profile, false, app.locale, app.starterLook);
   adopted.set(test.info().testId, next);
   return next;
 }

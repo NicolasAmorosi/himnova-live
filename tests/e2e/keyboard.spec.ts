@@ -189,3 +189,16 @@ test("held down, B toggles NEGRO once", async ({ app }) => {
   await app.control.waitForTimeout(500);
   await expect(blackButton(app)).toHaveAttribute("aria-pressed", "true");
 });
+
+test("a remote's F5 and Esc, on either window, change nothing on the projector (owner, 2026-11-03)", async ({ app }) => {
+  // A remote's «start/end slideshow»: there is no slideshow to start or end here.
+  const projector = await deckLive(app);
+  for (const key of ["F5", "Escape"]) {
+    await app.control.locator("body").press(key);
+    await pressOnProjector(app, key);
+  }
+  await app.control.waitForTimeout(600);
+  expect(await projectedSlide(projector)).toBe(1);
+  await expect(blackButton(app)).not.toHaveAttribute("aria-pressed", "true");
+  expect(app.hasProjector()).toBe(true);
+});

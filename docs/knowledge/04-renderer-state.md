@@ -129,7 +129,7 @@ the media engine takes afterwards only reaches the deck store (`deck-updated`).
 `src/renderer/src/effects/stage-sync.ts` builds the musicians' screen (`stageOutputFor`,
 `lib/stage-output.ts`) while one is chosen: the live content with nothing covering it, the slide or
 verse → would bring (`stepSong` for a song, the Bible tab's cursor for a verse — a program's verse
-has none), and BLACK, LOGO or hidden lyrics named as a `notice` rather than shown (owner,
+hands its chapter to the tab as it goes live, `handLiveItemToTab`), and BLACK, LOGO or hidden lyrics named as a `notice` rather than shown (owner,
 2026-11-05: the band still needs the words). It rebuilds only when an input changes by reference,
 like `selectOutputMemo`.
 
@@ -143,12 +143,13 @@ No manual deck (without `advanceAfterMs`) ever clears itself.
 
 A video's end is the operator's choice since 2026-11-05 (`projection.videoEnd`, Settings ▸ Projection,
 mirrored into `projection.store` by `App.tsx` like the transition): «logo» clears as above, «black» clears
-under BLACK (`clearBaseContentUnder`), «hold» does nothing — the element, or mpv's `keep-open`, holds the
-last frame — and «loop» never ends at all: `VideoUnderlay.loop` travels in the output, so the `<video>`
-and the engine session (`setLoop`) start over by themselves, seamlessly, and a rebuilt projector loops
-too. «next» (`goLiveWithNextScheduleItem`) sends the schedule's next row that changes the picture — a plate
-or an audio is skipped — from the row on the rail; a video that was not a schedule row, or the last one,
-falls back to «logo». A deck still clears.
+under BLACK (`clearBaseContentUnder`), «hold» only marks it paused (`setVideoPaused`) — the element, or
+mpv's `keep-open`, holds the last frame, the LIVE row offers «Reproducir», and lifting BLACK/LOGO does not
+replay it (`LiveVideo` never calls `play()` on an ended element it uncovers) — and «loop» never ends at all:
+`VideoUnderlay.loop` travels in the output, so the `<video>` and the engine session (`setLoop`) start over
+by themselves, seamlessly, and a rebuilt projector loops too. «next» (`goLiveWithNextScheduleItem`) sends the schedule's next row that changes the picture — a plate
+or an audio is skipped — from the row on the rail; a video that was not a schedule row, the last one, or a
+next row that cannot go live (a deck that won't open) falls back to «logo». A deck still clears.
 
 The point to respect when touching this file: `MediaStatus.ended` is *sticky* on the DOM
 element and is re-emitted on mount (`use-media-status-reporter.ts` calls `report()` without
@@ -186,8 +187,17 @@ A song goes live RESOLVED in `base` (`{ kind: "song", song: ResolvedSong, slideI
 lyricsHidden, enterSeq, theme, sizeCqw }`): its order expanded into slides and split to the theme's
 lines per slide (`resolveSong`, `stores/song.store.ts`), its theme, and its **one size**.
 
+- **What is projected is never nothing** (owner, 2026-11-06, `songDeckSlides`): an empty order, or one
+  that names only sections that are gone, sings the sections as written — the editor's callouts say so
+  from the same slides (what `preview.slides` projects, never the chips alone). A block pasted with no
+  blank line is stored whole and drawn in pieces (`splitSection`/`linesPerSlide`): the theme's «lines
+  per slide», or 4 by 4 past 40 lines when the theme sets none; the editor's caret ↔ slide link cuts it
+  the same way. A slide of chords alone (an instrumental intro) is a slide: the projector draws the
+  theme's background with no words, the stage its chords — found by position (`slideAt`), not by words.
+
 - **The size is measured once, in the control window, and travels in the output.** `lib/song-fit.tsx`
-  draws every distinct slide off screen through the very `SongScene` the projector uses, at the
+  draws every distinct slide of its sections — not only the order's: a detour is drawn at the same
+  size — off screen through the very `SongScene` the projector uses, at the
   projector's proportion — or 16:9 when the monitors are the shorter stage, so what fits the projector
   never overflows a monitor —, and bisects the largest size at which all of them fit (floor: the
   theme's minimum). Cached per (slides, theme, proportion). `SongScene` itself measures nothing: the
@@ -201,20 +211,24 @@ lines per slide (`resolveSong`, `stores/song.store.ts`), its theme, and its **on
   a section not ahead (or behind) is a **detour** whose last slide → leaves at the slide after the one
   it left. During a detour no slide of the order is on air.
 - **Saving the live song, its theme, or a song setting re-dresses it in place** (`refreshLiveSong` →
-  `setLiveSong`): re-resolved, re-measured, on the same pass and slide when it still exists
+  `setLiveSong`): re-resolved, re-measured, on the same slide of the same pass — the same time its
+  section is sung, not the same position in the order — clamped to the slides it has now
   (`sameSlideIn`); `sceneEpoch` never moves.
 - **Two languages at once** (2026-11-05, owner's choices: a second text, stacked, a LIVE switch). A
   slide's `translation` comes from the editor's «Traducción» text, written like the lyrics and
   paired with them by section key and slide index (`withTranslation`, in `parseDraft`; written back
-  by `translationSections`). A song is RESOLVED per language (`resolveSong`'s `language`,
+  by `translationSections`, an untranslated slide before a translated one as an empty `\` line) —
+  or, pasted with no header at all, block by block in order with the lyrics' slides that have words
+  (`translationFor`, owner 2026-11-06). A song is RESOLVED per language (`resolveSong`'s `language`,
   `sectionsIn`): «original» drops the translation, «translation» puts it in the lines, «both»
-  keeps it on each `SongDeckSlide`, cut with the theme's lines into as many pieces
-  (`splitSection`). So the measuring, the tiles, the jumps and the projector need nothing new:
+  keeps it on each `SongDeckSlide`, cut with the theme's lines — where the lyrics are cut when it has
+  as many lines, else into as many pieces, evenly (`splitSection`). So the measuring, the tiles, the jumps and the projector need nothing new:
   `SongScene` draws `translation` under the lines, inside the measured block, in
   `SongTheme.translation` (scale of the lyrics' `em`, colour, italic) — the one size fits both. The
   live `base.language` starts at «both»; the LIVE row's «Original · Ambos · Traducción»
-  (`setLiveSongLanguage`) re-resolves and re-measures the song in place, same slide, no new scene —
-  each language has its own one size.
+  (`setLiveSongLanguage`) re-resolves and re-measures the song in place, same slide (`sameSlideIn`:
+  each language cuts the theme's lines its own way, so never the same number), no new scene —
+  each language has its own one size. PREVIEW, always in «both», maps the live slide the same way.
 - **A theme's video background** (2026-11-05, `SongBackground`'s `video`, songs only) goes live as
   `base.backgroundVideo` (`songBackgroundVideo`: the url `playableAssetUrl` gives, resolved when the
   song goes live and kept, epoch and all, while the re-dressed theme names the same file) and reaches

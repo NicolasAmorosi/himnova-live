@@ -74,9 +74,12 @@ test("a file is found by name, and the chosen order survives a restart", async (
   await expect(panel(again, "Imágenes").getByRole("textbox", { name: "Buscar por nombre…" })).toHaveValue("");
 });
 
-test("removing a file can be undone, and otherwise it is gone for good", async ({ app }) => {
+test("removing a file can be undone, and otherwise it is gone for good — off the projector too", async ({ app }) => {
   await app.addMedia("image", "photo.png");
   await app.previewFile("Imágenes", "photo");
+  await app.goLive();
+  const projector = await app.projector();
+  await expect(projector.locator('img[src^="worship://asset/"]')).toBeVisible();
   await panel(app, "Imágenes").getByRole("button", { name: "Quitar", exact: true }).click();
   await expect(panel(app, "Imágenes").getByRole("button", { name: "photo" })).toHaveCount(0);
 
@@ -89,6 +92,8 @@ test("removing a file can be undone, and otherwise it is gone for good", async (
   await expect(panel(app, "Imágenes").getByRole("button", { name: "photo" })).toHaveCount(0);
   // Once the undo window closes, main has really dropped it.
   await expect.poll(() => app.invoke<MediaAsset[]>("library:list", { kind: "image" }), { timeout: 12_000 }).toEqual([]);
+  // A file that is gone is not left on the projector, pointing at nothing.
+  await expect(projector.locator('img[src^="worship://asset/"]')).toHaveCount(0);
 });
 
 test("a file used in a saved program is only removed after a warning naming it", async ({ app }) => {
@@ -186,4 +191,115 @@ test("a linked folder shows what is on disk, plays what Chromium cannot, and unl
   // The last folder gone, the dropdown goes with it.
   await expect(panel(app, "Videos").getByRole("combobox", { name: "Origen" })).toHaveCount(0);
   expect(fs.readdirSync(folder).sort()).toEqual(["clip-xvid.avi", "clip.mp4", "photo.png"]);
+});
+
+test("«Agregar» with files of every kind sends each to its own tab, and counts the ones no tab takes (2026-11-06)", async ({ app }) => {
+  const notes = path.join(app.profile, "notas.txt");
+  fs.writeFileSync(notes, "hola");
+  const bare = copyFixture(app, "clip.mp4", "sin-extension");
+  await app.openResources("Medios", "Videos");
+  await app.answerOpenDialog(fixture("clip.mp4"), fixture("photo.png"), fixture("song.mp3"), notes, bare);
+  await panel(app, "Videos").getByRole("button", { name: "Agregar", exact: true }).click();
+  await expect(panel(app, "Videos").getByRole("button", { name: "clip" })).toBeVisible();
+  await expect(toast(app, "No se agregaron 2 archivos")).toBeVisible();
+  const names = async (kind: "image" | "audio") => (await app.invoke<MediaAsset[]>("library:list", { kind })).map((asset) => asset.name);
+  await expect.poll(() => names("image")).toEqual(["photo"]);
+  await expect.poll(() => names("audio")).toEqual(["song"]);
+});
+
+test("names with accents, decomposed accents, emoji or great length are added once, found and projected", async ({ app }) => {
+  const paths = [
+    copyFixture(app, "photo.png", "Canción ñandú.png"),
+    // As macOS hands some names over: «ó» as an «o» and a combining accent.
+    copyFixture(app, "photo.png", "Bendición.png".normalize("NFD")),
+    copyFixture(app, "photo.png", "Alabanza 🎵 日本.png"),
+    copyFixture(app, "photo.png", `${"Himno muy largo ".repeat(14).trim()}.png`),
+  ];
+  await app.invoke<MediaAsset[]>("library:add", { kind: "image", paths });
+  // The same file again, and through a path with a `.` segment: still four.
+  await app.invoke<MediaAsset[]>("library:add", { kind: "image", paths: [paths[0]!, path.join(path.dirname(paths[0]!), ".", path.basename(paths[0]!))] });
+  const listed = await app.invoke<MediaAsset[]>("library:list", { kind: "image" });
+  expect(listed).toHaveLength(4);
+
+  await app.openResources("Medios", "Imágenes");
+  const search = panel(app, "Imágenes").getByRole("textbox", { name: "Buscar por nombre…" });
+  for (const typed of ["bendicion", "canción", "🎵"]) {
+    await search.fill(typed);
+    await expect.poll(() => tileNames(app, "Imágenes"), typed).toHaveLength(1);
+  }
+  await search.fill("");
+
+  for (const asset of listed) {
+    await panel(app, "Imágenes").getByRole("list").getByRole("button").filter({ hasText: asset.name.slice(0, 12) }).first().dblclick();
+    const projector = await app.projector();
+    await expect
+      .poll(() =>
+        projector.evaluate(
+          (id) => [...document.querySelectorAll("img")].some((img) => img.src === `worship://asset/${id}` && img.naturalWidth > 0),
+          asset.id,
+        ),
+      )
+      .toBe(true);
+  }
+});
+
+test("Delete does nothing in a linked folder's view, and a folder's file in a program still saves", async ({ app }) => {
+  const folder = path.dirname(copyFixture(app, "photo.png", "linked/carpeta-foto.png"));
+  copyFixture(app, "photo.png", "linked/otra.png");
+  await app.openResources("Medios", "Imágenes");
+  await app.answerOpenDialog(folder);
+  await panel(app, "Imágenes").getByRole("button", { name: "Vincular carpeta" }).click();
+  await expect.poll(() => tileNames(app, "Imágenes")).toEqual(expect.arrayContaining(["carpeta-foto", "otra"]));
+  // A folder's files are the computer's: no «Quitar» in its footer, and no Delete either — removing
+  // one's library row left a dead tile that then failed a program's save.
+  await expect(panel(app, "Imágenes").getByRole("button", { name: "Quitar", exact: true })).toHaveCount(0);
+  const tile = panel(app, "Imágenes").getByRole("button", { name: "carpeta-foto" });
+  await tile.click();
+  await app.control.keyboard.press("Delete");
+  await app.control.waitForTimeout(500);
+  await expect(toast(app, "Se quitó")).toHaveCount(0);
+  await expect(tile).toBeVisible();
+
+  await tile.click();
+  await panel(app, "Imágenes").getByRole("button", { name: "Agregar al programa" }).click();
+  await app.control.getByRole("button", { name: "Guardar", exact: true }).click();
+  const programs = app.control.getByRole("dialog", { name: "Programas" });
+  await programs.getByRole("textbox", { name: "Nombre" }).fill("Con foto de carpeta");
+  await programs.getByRole("button", { name: "Guardar", exact: true }).last().click();
+  await expect(toast(app, '"Con foto de carpeta" guardado')).toBeVisible();
+});
+
+test("a file copied into a linked folder shows up when the operator comes back, and «Actualizar carpeta» drops one taken away (owner, 2026-11-06)", async ({
+  app,
+}) => {
+  const folder = path.dirname(copyFixture(app, "photo.png", "linked/primera.png"));
+  await app.openResources("Medios", "Imágenes");
+  await app.answerOpenDialog(folder);
+  await panel(app, "Imágenes").getByRole("button", { name: "Vincular carpeta" }).click();
+  await expect.poll(() => tileNames(app, "Imágenes")).toEqual(["primera"]);
+
+  copyFixture(app, "photo.png", "linked/segunda.png");
+  // Away to Finder and back. The OS focus change cannot be staged under a fullscreen projector, so the
+  // window gets the `focus` event Chromium fires when the operator comes back.
+  await app.control.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await expect.poll(() => tileNames(app, "Imágenes"), { timeout: 8_000 }).toEqual(["primera", "segunda"]);
+
+  fs.rmSync(path.join(folder, "primera.png"));
+  await panel(app, "Imágenes").getByRole("button", { name: "Actualizar carpeta" }).click();
+  await expect.poll(() => tileNames(app, "Imágenes")).toEqual(["segunda"]);
+});
+
+test("a linked folder gone from disk says so instead of looking empty", async ({ app }) => {
+  const folder = path.dirname(copyFixture(app, "photo.png", "gone/a.png"));
+  await app.openResources("Medios", "Imágenes");
+  await app.answerOpenDialog(folder);
+  await panel(app, "Imágenes").getByRole("button", { name: "Vincular carpeta" }).click();
+  await expect.poll(() => tileNames(app, "Imágenes")).toEqual(["a"]);
+  fs.rmSync(folder, { recursive: true, force: true });
+  const source = panel(app, "Imágenes").getByRole("combobox", { name: "Origen" });
+  await source.click();
+  await app.control.getByRole("option", { name: "Biblioteca", exact: true }).click();
+  await source.click();
+  await app.control.getByRole("option", { name: "gone", exact: true }).click();
+  await expect(panel(app, "Imágenes").getByText("La carpeta no está disponible", { exact: false })).toBeVisible();
 });

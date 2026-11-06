@@ -107,3 +107,72 @@ test("the pointer leaving the window from a button with a tooltip raises no erro
   await app.control.waitForTimeout(500);
   await expect(app.control.getByText("Ocurrió un error inesperado")).toHaveCount(0);
 });
+
+test("empty files of every kind are added, previewed and sent live without an error", async ({ app }) => {
+  const zero = path.join(app.profile, "zero");
+  fs.mkdirSync(zero);
+  for (const [kind, name] of [["video", "vacio.mp4"], ["image", "vacio.png"], ["audio", "vacio.mp3"], ["ppt", "vacio.pptx"], ["ppt", "vacio.pdf"]]) {
+    fs.writeFileSync(path.join(zero, name!), "");
+    await app.invoke("library:add", { kind, paths: [path.join(zero, name!)] });
+  }
+  // Each sent live, given the time to fail where it would.
+  await app.previewFile("Imágenes", "vacio");
+  await app.goLive();
+  await app.projector();
+  await app.control.waitForTimeout(1000);
+  await app.previewFile("Videos", "vacio");
+  await app.goLive();
+  await app.control.waitForTimeout(1500);
+  await app.previewFile("Audios", "vacio");
+  await app.goLive();
+  await app.control.waitForTimeout(1500);
+  // The two empty decks say they cannot be opened.
+  const decks = app.control.getByRole("tabpanel", { name: "Presentaciones" }).getByRole("button", { name: "vacio" });
+  await app.previewFile("Presentaciones", "vacio");
+  await expect(app.previewColumn()).toContainText(/no se puede|No se pudo|no es una presentación|vac/i);
+  await decks.nth(1).click();
+  await expect(app.previewColumn()).toContainText(/no se puede|No se pudo|no es una presentación|vac/i);
+  await expect(app.control.getByRole("status").filter({ hasText: "error inesperado" })).toHaveCount(0);
+});
+
+test("with a full-screen editor open, no key drives the projector — typed in its fields or pressed on its canvas", async ({ app }) => {
+  const { control } = app;
+  await app.openResources("Canciones");
+  const songs = control.getByRole("tabpanel", { name: "Canciones" });
+  await songs.getByRole("button", { name: "Nueva canción" }).first().click();
+  const editor = control.getByRole("dialog").first();
+  await editor.getByRole("textbox", { name: "Título" }).fill("Teclas");
+  await editor.getByRole("textbox", { name: "Letra" }).fill("[Estrofa 1]\nprimera\n\n[Coro]\nel coro");
+  await editor.getByRole("button", { name: "Guardar", exact: true }).click();
+  await editor.getByRole("button", { name: "Cerrar" }).first().click();
+  await songs.getByRole("list", { name: "Canciones" }).getByRole("listitem").first().click();
+  await app.goLive();
+  const projector = await app.projector();
+  await expect(projector.getByText("primera")).toBeVisible();
+  const untouched = async () => {
+    await expect(projector.getByText("primera")).toBeVisible();
+    await expect(app.liveColumn().getByText("1/2")).toHaveCount(1);
+    await expect(control.getByRole("button", { name: "NEGRO", exact: true }).first()).not.toHaveAttribute("aria-pressed", "true");
+  };
+
+  // The song editor: a song's jump keys, digits, the arrows and a remote's PageDown, typed into a note.
+  await songs.getByRole("button", { name: "Editar canción" }).click();
+  const notes = editor.getByRole("textbox", { name: "Notas", exact: true });
+  await notes.click();
+  await control.keyboard.type("c t 2 b ");
+  await control.keyboard.press("ArrowRight");
+  await control.keyboard.press("PageDown");
+  await expect(notes).toHaveValue("c t 2 b ");
+  await untouched();
+  await editor.getByRole("button", { name: "Cerrar" }).first().click();
+  await control.getByRole("dialog", { name: "Hay cambios sin guardar" }).getByRole("button", { name: "Descartar cambios" }).click();
+
+  // The themes editor, the focus on its canvas and not in a field.
+  await songs.getByRole("button", { name: "Temas" }).click();
+  const themes = control.getByRole("dialog", { name: "Temas" });
+  await themes.getByText("Última", { exact: true }).last().click();
+  for (const key of ["b", "l", "ArrowRight", "ArrowDown", "Enter", "PageDown", "."]) await control.keyboard.press(key);
+  await control.waitForTimeout(500);
+  await untouched();
+  await expect(themes).toBeVisible();
+});

@@ -44,7 +44,10 @@ asset, `0016`).
 is building and hasn't saved yet. It was the only user data without a backup: it lived only in the
 renderer's `program.store`, so a reload, a close, a crash or a power cut took 15–40 minutes of work
 with it. `effects/draft-autosave.ts` writes it with a 600 ms debounce and `App` recovers it at
-startup.
+startup. A SAVED program left open unedited has no draft — there is nothing unsaved to mirror —, so
+the control window keeps which one is open in `settings["programs.openId"]` (`startOpenProgramMemory`; not
+main's current program, which a «+» in the programs list moves too) and `App`, finding no draft, opens it again (`reopenProgram`; owner, 2026-11-06: a
+restart mid-service left the schedule empty).
 
 Its items are a **JSON blob**, not `program_items` rows, and that's deliberate: a draft has to be
 able to reference an asset the operator is about to delete, which is exactly what that table's FK
@@ -69,6 +72,13 @@ kind. The full diagnosis is in
 that a saved program uses is the operator's decision (`utility:usages` names the programs and
 «Delete anyway» deletes the items and the scene in one transaction), never a row that disappears on
 its own. `overlay_plate_id` repeats the same deal with `overlay:usages`.
+
+A library file can also be drawn by a look no FK protects — the LOGO's and the verse's backgrounds
+(settings), a song theme's, a time scene's (`style_json`), a bug plate's picture (`image_asset_id`,
+`set null`) —, so `library:usages` (`ProgramsRepo.findUsages`) answers those too, as `looks` beside
+`programs`, and removing the file asks first, naming them (owner, 2026-11-06). A confirmed removal leaves
+the look pointing at the gone file, reported by the projector like any missing picture. Deleting a time
+scene or a plate that is in the OPEN schedule (a draft: no FK) says so in its confirmation too.
 
 ## `utility_scenes` — `tool` in a column, the rest in JSON, and a seed that happens ONCE
 
@@ -148,20 +158,56 @@ in `load()` but no longer sorts anything. Rules for the field:
 
 A song's structure is JSON — `sections_json` (`SongSection[]`: key `v1`/`c1`/`pc1`…, type, number,
 slides of lines) and `order_json` (keys with repetitions, `[]` = as written) — validated whole on write
-(`isSongUpsert`) and normalized section by section on read. `lyrics_text` is every line flattened,
+(`isSongUpsert`; `songProblem` names the limit broken, for the editor) and normalized section by section on read.
+A slide holds up to 200 lines (2026-11-06: a whole song pasted as one block is stored as it came and drawn in
+pieces, see «Songs» in `04-renderer-state.md`). `lyrics_text` is every line flattened,
 only for `songs_fts` (FTS5 external content over title, number, authors and lyrics, `remove_diacritics
 2`, kept by triggers like the Bible's; `bm25` weighs the title most). `theme_id` is `set null`;
 `program_items.song_id` is `restrict`, answered by `song:usages` and «Delete anyway».
 
 **Linked folders** (`0022`, owner 2026-11-05: «las carpetas de la computadora, como en Media»): a song read from
 a file of a folder linked in the Songs tab is a row of `songs` with `source_folder`, `source_file`, `source_index`
-(a ChordPro file can hold several songs) and `source_mtime` — `NULL` for a library song. `song:listFolder`
-(`services/song-files.ts`) reads the folder's top level; a file whose mtime did not change keeps its rows, one that
-changed is read again INTO THE SAME ROWS (`SongsRepo.syncFile`), so its id, theme and the programs using it
-survive. Saving such a song writes its file first, in its own format (`songs/song-writers.ts`, the readers'
-inverse; owner: «se edita el archivo real, siempre»), through a sibling renamed over it; a file changed outside
-the app since it was read is refused (`SONG_FILE_CHANGED`), never overwritten. The app never deletes a file: the
-editor offers no «Eliminar» for such a song, and a song a file no longer holds goes only if no program uses it.
+(which song of a ChordPro file: its `{new_song}` blocks counted, an empty or wordless one too) and `source_mtime` —
+`NULL` for a library song. `song:listFolder` (`services/song-files.ts`) reads the folder's top level (a symbolic
+link to a song file is that file); a file whose mtime did not change keeps its rows, one that changed is read again
+INTO THE SAME ROWS (`SongsRepo.syncFile`), each song finding its row by title and place, then title, then place
+(`matchRows`: a song removed above it outside the app must not shift the others, nor a saved program's song), so
+its id, theme and the programs using it survive — and what the file's format cannot hold (`fromFile`: a ChordPro
+file's notes) stays the app's. A file that reads as no song for a moment (emptied by an editor before it writes, a
+broken XML) keeps its rows; the rows of a file no longer there go, and so do a folder's once it is unlinked (on the
+next `song:list`). A row its file let go but a saved program sings becomes a library song, untied and saveable
+(owner, 2026-11-06), never «changed outside» forever — and so does one the unsaved order of service sings
+(`DraftRepo.songIds`: no foreign key reaches into the draft's JSON, review 2026-11-06). A text that is no song this app reads (Lyrix's dashes for a
+title, another program's XML) is never listed — nor overwritten.
+
+Saving such a song writes its file first (owner: «se edita el archivo real, siempre»), and only when the edit
+changes something the file holds (owner, 2026-11-06): a theme, or notes a ChordPro file has no place for, never
+touch it — asked of the file's REAL format (a `.txt` may be either kind) before anything can refuse, so such an
+edit never fails because of the file (read-only, changed outside). The file is rewritten IN PLACE (`songs/song-writers.ts`, `rewrite…`): of a ChordPro file only the song's
+own block is replaced — the other songs stay byte for byte, a wordless one too — and of that song what stands above
+and below its words stays (`{key}`, `{capo}`, `{tempo}`, `{subtitle}`, `{meta: …}`, any other directive, remarks,
+a tab or a grid after the lyrics) but for the fields the edit changed; of an OpenLyrics file every `<properties>`
+child the writer does not make (alternate titles, songbooks' names, key, tempo, themes…), the authors' types while
+the authors are the same, the verses of a third language or a transliteration, the languages' own codes, and all
+outside `<properties>` and `<lyrics>`; of a SongSelect file the church's licence lines. A ChordPro edit that
+leaves the words alone (a title, an author) leaves their lines byte for byte but for a changed field's directive.
+What is still lost when the words change: what sits AMONG them — a remark, a tab or a column break between two
+sections, an OpenLyrics formatting tag. The block is found by the song's title, then its place, and appended when
+neither is there: a place an older build counted another way never writes over another song, and the row is tied
+to the block just written — never to another song of the file, even one that reads back as no song. The file keeps the encoding it was read in
+(`readText`/`encodeText`, `main/decode-text.ts`: single-byte encoders built by inverting the decoder), so untouched
+text stays the same bytes and a wrong guess (a Windows-1251 file read as Windows-1252) never breaks it; only an
+edit with a character that encoding cannot hold writes UTF-8 — with a byte-order mark for a text file, and an XML
+declaration that names it (`withXmlEncoding`). A symbolic link's target is written (the link stays a link), through
+a sibling with the file's permissions (where its file system keeps any: a share or exFAT failing to take them never
+fails the save) renamed over it; a read-only file is refused (`SONG_FILE_UNWRITABLE`), a file changed outside the
+app since it was read too (`SONG_FILE_CHANGED`), never overwritten. A file tied to both a library song and a linked
+folder's: the save refreshes the other side's row of that song — by its block, its old title as a check, never the
+title alone (two songs of a file may share one: a file's name is every untitled song's title) nor among the saved
+row's own file's rows — and the mtime of every row read when the saved one was (`SongsRepo.wroteFile`), so the
+other side never reads it as changed outside; a row read at another time keeps its mtime and reads the file again. What each format cannot keep is one
+table, `SONG_FILE_LIMITS` (`shared/song-file-limits.ts`, by the file's name for the editor's warning). The app never
+deletes a file: the editor offers no «Eliminar» for such a song.
 The library view is `source_folder IS NULL`; the search is inside the view (`song:search`'s `folder`, filtered
 before the `LIMIT`); an import checks repeats against the library only. Settings: `songs.linkedFolders`,
 `songs.activeView`, `songs.sort`. An unreleased `0022_song_folders` (folders of the app's own) ran on the
@@ -198,9 +244,28 @@ operator deleted stays deleted. Each version runs once, in order, in the same tr
 a word in brackets is not one), and stored APART: `SongSlide.chords`, one list of `{ at, name }` per line, so
 `lines` stay the bare words everything else reads — the projector, the fit, the search, the translation.
 `slideFromWritten`/`writtenLines` go between the two; a header is ONE pair of brackets around the whole
-line, so `[G]Cuán grande es [D]` is a line. They survive `splitSection`, `withTranslation` and `sectionsIn`
+line, so `[G]Cuán grande es [D]` is a line. Since 2026-11-06 (owner) the Latin names are chords too (`[Do]`
+… `[Si]`, with `m`, `7`, `maj7`, `sus`, `dim`, `aug`, `add`, `°`, a bass in either notation), `♭`/`♯` are
+accidentals in both, and `[N.C.]` is one; a line of chords alone (`[G]`, `[G] [D] [Em]`) is a line of chords with
+no words — a slide of only such lines is a valid instrumental slide, and every reader keeps them (ChordPro,
+OpenLyrics, OpenLP), so what the app writes reads back — never a header, unless the one chord is a
+section's name or short form in the INTERFACE's language (Spanish `[C]` is still the chorus, `[E1]` verse 1;
+English `[E7]` ending 7). A line's chords are stored left to right (`isSongUpsert` refuses others: written back
+they repeated the words between them). They survive `splitSection`, `withTranslation` and `sectionsIn`
 (never over a translation), and only `stageOutputFor` puts them in an output: the musicians' screen draws
 them, at 0.66 of the song's size so the measured block still fits; the projector cannot.
+
+**The editor's text reads back to the very sections it was written from** (2026-11-06: opening a song and saving it
+never changes it — the HASD hymnal's «Coro» printed at the top of a verse's slide became a section). Three rules in
+`serializeLyrics`/`parseLyrics`: once a text has a bracketed header naming a known section, a bare label («Coro»,
+«Verse 2:») is lyrics — bare labels are headers only in a text with no such header (EasyWorship's); a lyric line
+the parser would misread — a header («[Repeat x2]»), a lone chord that names a section, a blank or a line starting
+with `\` — is written after a `\`, which the parser drops; and a header carries its number («[Coro 1]») whenever
+the bare name would read as another section, and always under an order of the operator's own — a numbered header
+keeps its number even when a bare one is typed above it, so a new «[Puente]» never takes over that order. An order
+the text can say (`followsText`: every section in written order, one sung again) is written into it as the header
+once more with nothing under it, so it still follows the lyrics once reopened. Spaces at the END of a line are the
+one thing the text cannot carry; the editor keeps the stored sections while the text is untouched anyway.
 
 The lyrics text format (`shared/song-text.ts`) is shared by the editor and the EasyWorship importer
 (`main/songs/`): EasyWorship's RTF (`SongWords.db`) becomes plain text whose blocks start with a label
@@ -210,26 +275,45 @@ collation SQLite lacks.
 
 OpenLP (`songs.sqlite`, 2.0 on) and OpenLyrics (its export, one `.xml` per song) need no text format:
 both name each verse (`v1`, `c`, `v1a` a part of verse 1) and `main/songs/openlp.ts` builds the sections
-straight from them — `[---]`, `[--}{--]` and each `<lines>` a slide, chords and formatting tags dropped
-(no chords yet), the verse order into `order`. A verse in a second language is the translation, paired by
+straight from them — `[---]`, `[--}{--]` and each `<lines>` a slide, chords apart (`SongSlide.chords`) and
+formatting tags dropped, the verse order into `order`. A `<br/>` ENDS a line: the one OpenLP writes after a
+slide's last line is no line, one with nothing before it is an empty line the slide has (`cutLines`). A verse in a second language is the translation, paired by
 section and slide (`withTranslation`; owner, 2026-11-05: the FIRST language met is the lyrics, a third is
-dropped). OpenLP's hymn number is the first `songs_songbooks.entry` (2.4) or `songs.song_number` (2.2),
-its `comments` the notes, and a `temporary` song (kept only for a service) is not imported.
+dropped). A language is its primary subtag (`en-US` is `en`), a verse with no `lang` is the lyrics', a
+transliteration (`translit`) is never projected, and a section only the translation has comes in as lyrics — no
+words dropped (2026-11-06). Text keeps its own spaces but XML's (an ideographic space stays), and the notes
+(`<comment>`) are kept as written, one `<comment>` when written back. OpenLP's hymn number is the first
+`songs_songbooks.entry` (2.4) or `songs.song_number` (2.2), its `comments` the notes, and a `temporary` song (kept
+only for a service) is not imported.
 
 SongSelect's lyrics (`.txt`) and ChordPro (`main/songs/text-files.ts`) DO go through the text format: each
 is rewritten as the editor's text — a bracketed label over each block — and parsed by `parseLyrics`, so a
 label the app has no word for («Interlude») is a section of its own instead of a lyric line. Which one a
-file is comes from its words (a directive line = ChordPro; a `CCLI` footer = SongSelect), never its
-extension. SongSelect's footer changed order in 2023 (authors above «CCLI Song #»); both orders are read.
-In ChordPro, `{start_of_…}`/`{end_of_…}` and a `{comment}` that names a section are labels, `{chorus}`
-repeats the last chorus, a paragraph outside any section is a verse of its own, and chords, tabs and grids
-are dropped. Every text file — SongSelect, ChordPro, OpenLyrics, and a bible module too — goes through
-`decodeText` (`main/decode-text.ts`): its byte-order mark, else its XML `encoding`, else UTF-8 when the bytes
-are valid UTF-8, else Windows-1252 (OpenLP 2.0 wrote OpenLyrics as `windows-1252`: read as UTF-8 every accent
-was a «�»). «Importar» is one picker for every format (`importSongFiles`): each file read by what it is —
-`.xml` OpenLyrics, EasyWorship's `Songs.db`/`SongWords.db` (their folder), any other `.db`/`.sqlite` as OpenLP's,
-SongSelect or ChordPro text for the rest. All of it goes through `writeSongs` (`services/song-import.ts`): one
-transaction, the same title with the same words skipped as repeated.
+file is comes from its words (a directive line = ChordPro, unless a plain title line opens a text with a `CCLI`
+footer: SongSelect, whatever braces a lyric holds — «{bis}»), never its extension. SongSelect's footer changed
+order in 2023 (authors above «CCLI Song #»); both orders are read: the authors are the footer's first line without
+«©», the copyright every other line (two in OpenLP's `TestSong.txt`), the licence words never. A SongSelect
+block's first line is its label when it names a section, looks like one (a word, maybe a number) or has two blank
+lines above it; otherwise it is words, a slide of the section above. In ChordPro, `{start_of_…}`/`{end_of_…}` and
+a `{comment}` that names a section are labels — unless a blank line follows the comment: then it repeats that
+section there (OpenLP's swing-low), like `{chorus}`, which repeats the last chorus; a line naming a section where
+a paragraph starts («Verse 1», «Bridge 2:»), or with its colon on a section's first line («Verse:»), is that
+block's label; a paragraph outside any section is a verse of its own; `{+settings…}` is a directive; chords come
+in apart, tabs and grids are dropped, and `\[`, `\#`, `\{`, `\\` are words the writer escaped (a bracket that is
+no chord, a line that would be a remark or a directive); a line of chords alone comes in, and a lone `\` is an empty
+line inside a slide (a blank line starts another). Every text file — SongSelect, ChordPro, OpenLyrics, and
+a bible module too — goes through `decodeText` (`main/decode-text.ts`): its byte-order mark, else its XML
+`encoding`, else UTF-8 when the bytes are valid UTF-8, else Windows-1252 (OpenLP 2.0 wrote OpenLyrics as
+`windows-1252`: read as UTF-8 every accent was a «�»). «Importar» is one picker for every format
+(`importSongFiles`): each file read by what it is — `.xml` OpenLyrics, EasyWorship's `Songs.db`/`SongWords.db`
+(their folder; EasyWorship 2009's Paradox `Songs.DB` is refused as too old, `EW_OLD`), any other
+`.db`/`.sqlite` as OpenLP's, SongSelect or ChordPro text for the rest. All of it goes through `writeSongs`
+(`services/song-import.ts`): one transaction, the same title with the same words skipped as repeated — and when
+that library copy had no file yet it is tied to this one, first taking what the file holds (chords, authors,
+CCLI…), or its next save would write them out of the file (owner, 2026-11-06); `refreshedFrom` keeps its theme
+and what the file does not hold — its format has no place for it, or this file simply has none (a number, notes,
+an order, a translation, chords: review 2026-11-06). The result counts apart the songs without a title or words (`problems`) and the files
+that were no song file at all — another program's, broken or unreadable (`unsupported`).
 
 `song_uses` (`0021`) is what the CCLI usage report counts (owner, 2026-11-05): `projection:show` writes a
 row when a song goes live, ONE per song per local day (`SongsRepo.recordUse`), never pruned — unlike
@@ -303,8 +387,10 @@ inserts rows. **It never writes a file inside the app directory** — the legacy
 `import-bible` writing to `data/bible/` (broken in a packaged install because of permissions) does
 not exist in this design.
 
-Idempotency by `sourceHash` (sha256 of the file) in `bible_versions` — reimporting the same file
-doesn't seed anything again. A reseed **keeps the name the row already has**: the version can be
+Idempotency by `sourceHash` (sha256 of the file, `bibleFileHash`) in `bible_versions` — the bundled
+RV1909 is re-seeded only when its file changed, and `bible:import` refuses a file whose hash an installed
+version already has (`BIBLE_ALREADY_INSTALLED`, naming that version; owner, 2026-11-06): every import
+gets a new random `code`, so the same file twice used to be two identical versions. A reseed **keeps the name the row already has**: the version can be
 renamed from Settings (it's what the projector writes below the verse), and a corrected
 `rv1909.json` in a later build can't undo that rename.
 
@@ -364,7 +450,9 @@ point to, so editing it would orphan favorites and duplicate the version on the 
 
 Deleting cascades to `bible_books`/`bible_verses` (and to the FTS5 indexes via trigger) and
 deliberately does **not** touch two things: the `program_items` rows, whose FK is `set null` —the
-saved program keeps the text and the reference and loses only the link—, and the `bible_favorites`/`bible_recents`
+saved program keeps the text and the reference and loses only the link; the open schedule and its draft
+lose the same ids (`forgetBibleVersion`, and `withLiveBibleIds` on every save and draft load, so a dead id
+can never fail a save on that FK)—, and the `bible_favorites`/`bible_recents`
 rows, which are keyed by CODE and abbrev precisely to survive a delete-and-reimport. `force` here is informed
 consent and nothing more: unlike a timer scene's, this delete can't fail on an FK.
 

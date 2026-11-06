@@ -165,3 +165,42 @@ test("«Sacar del aire» in Ajustes empties the projector", async ({ app }) => {
   await expect.poll(async () => (await videoStates(projector)).length).toBe(0);
   await expect(settings.getByRole("button", { name: "Sacar del aire" })).toBeDisabled();
 });
+
+test("NEGRO and LOGO cover an image, a verse and a countdown, and uncover them as they were", async ({ app }) => {
+  const { control } = app;
+  await app.addMedia("image", "photo.png");
+  await app.previewFile("Imágenes", "photo");
+  await app.goLive();
+  const projector = await app.projector();
+  const image = projector.locator('img[src^="worship://asset/"]');
+  await expect(image).toBeVisible();
+  // The red LIVE edge: on while the image is out, off under NEGRO.
+  const edge = app.liveColumn().locator(".border-on-air");
+  await expect(edge).toHaveCount(1);
+  await control.locator("body").press("b");
+  await expect(image).toHaveCount(0);
+  await expect(edge).toHaveCount(0);
+  await control.locator("body").press("l");
+  await expect(control.getByRole("button", { name: "LOGO", exact: true }).first()).toHaveAttribute("aria-pressed", "true");
+  await control.locator("body").press("l");
+  await expect(image).toBeVisible();
+
+  const verse = projector.getByText("Porque de tal manera amó Dios al mundo", { exact: false });
+  await app.openChapter("Juan 3");
+  await control.getByRole("tabpanel", { name: "Biblia" }).getByRole("listitem").filter({ hasText: "Porque de tal manera amó Dios al mundo" }).dblclick();
+  await expect(verse).toBeVisible();
+  // A remote's blank-screen key.
+  await control.locator("body").press(".");
+  await expect(verse).toHaveCount(0);
+  await control.locator("body").press(".");
+  await expect(verse).toBeVisible();
+
+  const clock = projector.locator("p.tabular-nums");
+  await app.openResources("Funciones", "Utilidades");
+  await control.getByRole("list", { name: "Escenas de tiempo" }).getByRole("listitem").filter({ hasText: "Cuenta 10 minutos" }).dblclick();
+  await expect(clock).toBeVisible();
+  await control.locator("body").press("b");
+  await expect(clock).toHaveCount(0);
+  await control.locator("body").press("b");
+  await expect(clock).toBeVisible();
+});

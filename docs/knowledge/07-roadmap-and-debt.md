@@ -22,9 +22,11 @@ configurable keys, and checking the importer against a real EasyWorship 7 databa
 ## Debt consciously left for a later session
 
 - ~~**Real drag & drop of OS files**~~ into the playlist/library: **implemented** — files dropped
-  from the OS onto the schedule or the media browser go through `readOsFilesDrag` (`lib/dnd.ts`,
+  from the OS onto the schedule go through `readOsFilesDrag` (`lib/dnd.ts`,
   `webUtils.getPathForFile` in the preload), and the internal library→schedule drag has its
-  `onDrop` (`SchedulePanel.tsx`).
+  `onDrop` (`SchedulePanel.tsx`). Onto the media browser — and its «Agregar», which takes every kind
+  since 2026-11-06 — they go through `sortPathsByKind`: each file to its own tab, and a toast counts
+  what no tab takes.
 
 - **A `.pptx` drawn from its model (2026-10-26) — what was knowingly left.** The switch is total
   and what the model can't draw exactly is approximated (see «Model decks» in

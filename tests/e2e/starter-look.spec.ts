@@ -1,5 +1,5 @@
-import type { Page } from "@playwright/test";
-import { expect, test, type WorshipApp } from "./support/app";
+import type { Locator, Page } from "@playwright/test";
+import { expect, relaunch, test, type WorshipApp } from "./support/app";
 
 // The one spec that starts like a church's first launch: with the look.
 test.use({ starterLook: true });
@@ -51,4 +51,68 @@ test("a new church starts with backgrounds, song themes, a dressed verse and tim
   for (const name of ["Zócalo con nombre", "Banner de anuncios", "Mosca con el nombre"]) {
     await expect(app.control.getByText(name, { exact: true })).toBeVisible();
   }
+});
+
+test("a factory theme edited and another deleted stay that way after a restart, which brings the look again", async ({ app }) => {
+  const openThemes = async (on: WorshipApp) => {
+    await on.openResources("Canciones");
+    await on.control.getByRole("tabpanel", { name: "Canciones" }).getByRole("button", { name: "Temas" }).click();
+    const editor = on.control.getByRole("dialog", { name: "Temas" });
+    return { editor, rows: editor.getByRole("list", { name: "Temas guardados" }).getByRole("listitem") };
+  };
+  const capitals = (editor: Locator) =>
+    editor.getByRole("group", { name: "Mayúsculas", exact: true }).getByRole("switch");
+
+  const { editor, rows } = await openThemes(app);
+  const count = await rows.count();
+  expect(count).toBeGreaterThanOrEqual(2);
+  await rows.first().click();
+  await capitals(editor).click();
+  await editor.getByRole("button", { name: "Guardar", exact: true }).click();
+  await rows.last().click();
+  const deleted = await editor.getByRole("textbox", { name: "Nombre", exact: true }).inputValue();
+  await editor.getByRole("button", { name: "Más acciones" }).click();
+  await app.control.getByRole("menuitem", { name: "Eliminar", exact: true }).click();
+  await app.control.getByRole("dialog", { name: "¿Eliminar este tema?" }).getByRole("button", { name: "Eliminar", exact: true }).click();
+  await expect(rows).toHaveCount(count - 1);
+  await editor.getByRole("button", { name: "Cerrar" }).first().click();
+  await app.quit();
+
+  // Every launch brings the look to what is still factory: never back to what the church changed or took away.
+  const again = await openThemes(await relaunch(app));
+  await expect(again.rows).toHaveCount(count - 1);
+  await expect(again.rows.filter({ hasText: deleted })).toHaveCount(0);
+  await again.rows.first().click();
+  await expect(capitals(again.editor)).toBeChecked();
+});
+
+test("the «Noche» image LOGO and the verse are drawn over goes only after a warning naming them, and leaves nothing broken (owner, 2026-11-06)", async ({
+  app,
+}) => {
+  await app.openResources("Medios", "Imágenes");
+  const images = app.control.getByRole("tabpanel", { name: "Imágenes" });
+  await images.getByRole("button", { name: "Noche" }).first().click();
+  await images.getByRole("button", { name: "Quitar", exact: true }).click();
+  // In use as a background: refused, with a way through whose question names the looks drawn over it.
+  await app.control.getByRole("status").filter({ hasText: "se usa como fondo" }).getByRole("button", { name: "Quitar igualmente" }).click();
+  const confirm = app.control.getByRole("dialog", { name: "¿Quitar igualmente?" });
+  await expect(confirm.getByText("Fondo del LOGO")).toBeVisible();
+  await expect(confirm.getByText("Fondo del versículo")).toBeVisible();
+  await confirm.getByRole("button", { name: "Quitar igualmente" }).click();
+  await expect(images.getByRole("button", { name: "Noche" })).toHaveCount(0);
+
+  // LOGO and the verse go on without it, never drawing a picture that is gone.
+  const broken = (projector: Page) =>
+    projector.evaluate(() => [...document.images].filter((img) => img.complete && img.naturalWidth === 0).map((img) => img.src));
+  await app.control.getByRole("button", { name: "LOGO", exact: true }).first().click();
+  const projector = await app.projector();
+  await projector.waitForTimeout(800);
+  expect(await broken(projector)).toEqual([]);
+
+  await app.openChapter("Juan 3");
+  await app.control.getByRole("listitem").filter({ hasText: /de tal manera amó Dios al mundo/ }).click();
+  await app.goLive();
+  await expect(projector.getByText(/Porque de tal manera amó Dios al mundo/)).toBeVisible();
+  await projector.waitForTimeout(800);
+  expect(await broken(projector)).toEqual([]);
 });

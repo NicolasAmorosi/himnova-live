@@ -1,5 +1,7 @@
 import type { Page } from "@playwright/test";
-import { expect, test, type WorshipApp } from "./support/app";
+import { parseLyrics } from "../../src/shared/song-text";
+import { DEFAULT_SONG_THEME } from "../../src/shared/types/song";
+import { expect, relaunch, test, type WorshipApp } from "./support/app";
 
 const JUAN_3_16 = "Porque de tal manera amó Dios al mundo";
 const JUAN_3_17 = "Porque no envió Dios á su Hijo al mundo";
@@ -66,4 +68,42 @@ test("a song's chords show on the stage screen, over its words, and never on the
   // The live slide's chords, and the next slide's.
   await expect(stage.locator("[data-song-chord]")).toHaveText(["G ", "C ", "D "]);
   await stage.screenshot({ path: process.env["STAGE_SHOT"] ?? test.info().outputPath("stage.png") });
+});
+
+test("a song's video background is drawn on the stage screen as its still, never as a second copy of the video", async ({
+  app: first,
+}) => {
+  const [clip] = await first.addMedia("video", "clip.mp4");
+  if (!clip) throw new Error("import failed");
+  // A song on a theme over the video, written through IPC: the window loads songs and themes when it starts.
+  const theme = await first.invoke<{ id: number }>("songTheme:create", {
+    name: "Con video",
+    style: { ...DEFAULT_SONG_THEME, background: { kind: "video", assetId: clip.id, fit: "cover" } },
+  });
+  await first.invoke("song:create", {
+    title: "Fondo",
+    number: null,
+    authors: null,
+    copyright: null,
+    ccliNumber: null,
+    notes: null,
+    sections: parseLyrics("[Estrofa 1]\nuno\n\n[Coro]\ncoro", "es").sections,
+    order: [],
+    themeId: theme.id,
+  });
+  await first.quit();
+  const app = await relaunch(first);
+
+  const opened = app.electron.waitForEvent("window", { predicate: isStage });
+  await chooseStageScreen(app, 1);
+  const stage = await opened;
+  await stage.waitForLoadState("domcontentloaded");
+  await app.openResources("Canciones");
+  await app.control.getByRole("tabpanel", { name: "Canciones" }).getByRole("listitem").first().click();
+  await app.goLive();
+  await expect(stage.getByText("uno", { exact: true })).toBeVisible();
+  await expect(stage.getByText("coro", { exact: true })).toBeVisible();
+  // The stage plays nothing: a second decoder of the same file for a screen the musicians read.
+  await app.control.waitForTimeout(1000);
+  await expect(stage.locator("[data-song-video] video")).toHaveCount(0);
 });

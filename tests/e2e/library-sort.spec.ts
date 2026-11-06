@@ -29,7 +29,8 @@ const TABS: { tab: Tab; kind: AssetKind }[] = [
 const day = (iso: string): Date => new Date(`${iso}T12:00:00Z`);
 
 /** A = «Ángel» (accented, must not sort past Z), B = «Himno 2», C = «Himno 10»
- *  (numeric collation: 2 before 10). Date: A newest, C middle, B oldest. Size:
+ *  (numeric collation: 2 before 10). Date — when each joined the library, not
+ *  the file's own (owner, 2026-11-06): A newest, C middle, B oldest. Size:
  *  B biggest, A middle, C smallest. Six orders, six different permutations. */
 const EXPECTED: Record<Order, string[]> = {
   "Nombre (A → Z)": ["Ángel", "Himno 2", "Himno 10"],
@@ -80,21 +81,22 @@ function writeSeed(app: WorshipApp, kind: AssetKind, seed: Seed): string {
 }
 
 function seedsFor(kind: AssetKind): Seed[] {
-  // Added C, B, A: the database's own order is Z → A, so a grid that ignored
-  // the setting would already fail the default A → Z.
+  // Added B, C, A — the date order — and not in name order, so a grid that
+  // ignored the setting would already fail the default A → Z. The files' own
+  // dates run the other way: a grid sorting by them fails both date orders.
   if (kind === "ppt") {
     return [
+      { name: "Himno 2", from: "clipdeck.pptx", mtime: day("2026-03-01") }, // 200 KB
       { name: "Himno 10", from: "deck.pdf", mtime: day("2025-06-01") }, // 1 KB
-      { name: "Himno 2", from: "clipdeck.pptx", mtime: day("2019-01-01") }, // 200 KB
-      { name: "Ángel", from: "hymn.pptx", mtime: day("2026-03-01") }, // 11 KB
+      { name: "Ángel", from: "hymn.pptx", mtime: day("2019-01-01") }, // 11 KB
     ];
   }
   const from = { video: "clip.mp4", image: "photo.png", audio: "song.mp3" }[kind];
   const base = fs.statSync(fixture(from)).size;
   return [
+    { name: "Himno 2", from, size: base + 300_000, mtime: day("2026-03-01") },
     { name: "Himno 10", from, mtime: day("2025-06-01") },
-    { name: "Himno 2", from, size: base + 300_000, mtime: day("2019-01-01") },
-    { name: "Ángel", from, size: base + 100_000, mtime: day("2026-03-01") },
+    { name: "Ángel", from, size: base + 100_000, mtime: day("2019-01-01") },
   ];
 }
 
@@ -218,40 +220,45 @@ test("a file added after an order was chosen lands in its sorted place", async (
   await panel(app, "Imágenes").getByRole("button", { name: "Agregar", exact: true }).click();
   await expect.poll(() => tileNames(app, "Imágenes")).toEqual(["Bautismo", ...EXPECTED["Más nuevo primero"]]);
 
+  // An old file, but the newest in the library.
   const oldest = writeSeed(app, "image", { name: "Antiguo", from: "photo.png", mtime: day("2001-01-01") });
   await app.answerOpenDialog(oldest);
   await panel(app, "Imágenes").getByRole("button", { name: "Agregar", exact: true }).click();
-  await expect.poll(() => tileNames(app, "Imágenes")).toEqual(["Bautismo", ...EXPECTED["Más nuevo primero"], "Antiguo"]);
+  await expect.poll(() => tileNames(app, "Imágenes")).toEqual(["Antiguo", "Bautismo", ...EXPECTED["Más nuevo primero"]]);
 
   await pickOrder(app, "Imágenes", "Nombre (A → Z)");
   await expect.poll(() => tileNames(app, "Imágenes")).toEqual(["Ángel", "Antiguo", "Bautismo", "Himno 2", "Himno 10"]);
 });
 
-test("«Más nuevo primero» goes by the file's own date, not by when it was added", async ({ app }) => {
+test("«Más nuevo primero» goes by when it was added to the library, not by the file's own date", async ({ app }) => {
   await seedKind(app, "image");
   // Added last of all, but its file is from 2010 — a hymn copied off an old
-  // pendrive, which Explorer and Finder both copy keeping its date.
+  // pendrive, which Explorer and Finder both copy keeping its date. New to
+  // Lumina all the same (owner, 2026-11-06).
   const copiedToday = writeSeed(app, "image", { name: "Recién agregado", from: "photo.png", mtime: day("2010-05-05") });
   await app.invoke<MediaAsset[]>("library:add", { kind: "image", paths: [copiedToday] });
   await app.openResources("Medios", "Imágenes");
   await pickOrder(app, "Imágenes", "Más nuevo primero");
-  await expect.poll(() => tileNames(app, "Imágenes")).toEqual([...EXPECTED["Más nuevo primero"], "Recién agregado"]);
+  await expect.poll(() => tileNames(app, "Imágenes")).toEqual(["Recién agregado", ...EXPECTED["Más nuevo primero"]]);
 });
 
-test("a file edited on disk moves to its new place once the library is swept", async ({ app }) => {
+test("a file edited on disk keeps its place: it was not added again", async ({ app }) => {
   await seedKind(app, "image");
   await app.openResources("Medios", "Imágenes");
   await pickOrder(app, "Imágenes", "Más nuevo primero");
   await expect.poll(() => tileNames(app, "Imágenes")).toEqual(EXPECTED["Más nuevo primero"]);
   await app.quit();
 
-  // Edited while the app was closed: the oldest file becomes the newest.
+  // Edited while the app was closed: the oldest in the library, now the newest file.
   const edited = path.join(app.profile, "media-src", "image", "Himno 2.png");
   fs.utimesSync(edited, day("2026-10-20"), day("2026-10-20"));
 
   const again = await relaunch(app);
   await again.openResources("Medios", "Imágenes");
-  await expect.poll(() => tileNames(again, "Imágenes"), { timeout: 15_000 }).toEqual(["Himno 2", "Ángel", "Himno 10"]);
+  await expect.poll(() => tileNames(again, "Imágenes")).toEqual(EXPECTED["Más nuevo primero"]);
+  // Long enough for the startup sweep to have re-read the file.
+  await again.control.waitForTimeout(3000);
+  expect(await tileNames(again, "Imágenes")).toEqual(EXPECTED["Más nuevo primero"]);
 });
 
 test("the menu works from the keyboard and never sends anything live", async ({ app }) => {
@@ -302,10 +309,10 @@ test("the selected file stays selected, and is the one added to the program, aft
 });
 
 /** 150 images, «Himno 1» … «Himno 150»; name order and date order are
- *  opposite — «Himno 1» is the newest file. */
+ *  opposite — «Himno 1» is the last one added. */
 async function seedHymnal(app: WorshipApp): Promise<void> {
   const paths: string[] = [];
-  for (let n = 1; n <= 150; n += 1) {
+  for (let n = 150; n >= 1; n -= 1) {
     paths.push(writeSeed(app, "image", { name: `Himno ${n}`, from: "photo.png", mtime: new Date(Date.UTC(2026, 0, 1) - n * 86_400_000) }));
   }
   await app.invoke<MediaAsset[]>("library:add", { kind: "image", paths });
@@ -377,7 +384,7 @@ test("scrolled to the bottom, a new order or a new search starts at its first fi
   await expect.poll(() => firstVisible(app, "Imágenes")).toBe("Himno 150");
 });
 
-test("a linked folder and «Biblioteca» share the tab's order", async ({ app }) => {
+test("a linked folder and «Biblioteca» share the tab's order; a folder's dates are its files'", async ({ app }) => {
   await seedKind(app, "image");
   const folder = path.join(app.profile, "media-src", "image");
   await app.openResources("Medios", "Imágenes");
@@ -388,29 +395,31 @@ test("a linked folder and «Biblioteca» share the tab's order", async ({ app })
   await expect(panel(app, "Imágenes").getByRole("combobox", { name: "Origen" })).toHaveText(path.basename(folder));
   await expect.poll(() => tileNames(app, "Imágenes")).toEqual(EXPECTED["Más grande primero"]);
 
+  // A folder is the computer's: its dates are the files' own (owner,
+  // 2026-11-06: only «Biblioteca» goes by when a file was added). The seeds'
+  // file dates run against the order they were added in.
   await pickOrder(app, "Imágenes", "Más viejo primero");
-  await expect.poll(() => tileNames(app, "Imágenes")).toEqual(EXPECTED["Más viejo primero"]);
+  await expect.poll(() => tileNames(app, "Imágenes")).toEqual([...EXPECTED["Más viejo primero"]].reverse());
   await panel(app, "Imágenes").getByRole("combobox", { name: "Origen" }).click();
   await app.control.getByRole("option", { name: "Biblioteca", exact: true }).click();
   await expectRecentView(app, "Imágenes");
   await expect.poll(() => tileNames(app, "Imágenes")).toEqual(EXPECTED["Más viejo primero"]);
 });
 
-test("names sort ignoring case and accents, and files sharing a date fall back to the name", async ({ app }) => {
-  // A folder copied in one go: every file with the same date.
+test("names sort ignoring case and accents, and one import keeps the order its files came in", async ({ app }) => {
+  // A folder added in one go: every file joins the library at the same moment.
   const same = day("2024-04-04");
-  const paths = ["zeta", "Alba", "éxodo", "beta", "Coro"].map((name) =>
-    writeSeed(app, "image", { name, from: "photo.png", mtime: same }),
-  );
+  const added = ["zeta", "Alba", "éxodo", "beta", "Coro"];
+  const paths = added.map((name) => writeSeed(app, "image", { name, from: "photo.png", mtime: same }));
   await app.invoke<MediaAsset[]>("library:add", { kind: "image", paths });
   await app.openResources("Medios", "Imágenes");
 
   const byName = ["Alba", "beta", "Coro", "éxodo", "zeta"];
   await expect.poll(() => tileNames(app, "Imágenes")).toEqual(byName);
   await pickOrder(app, "Imágenes", "Más nuevo primero");
-  await expect.poll(() => tileNames(app, "Imágenes")).toEqual(byName);
+  await expect.poll(() => tileNames(app, "Imágenes")).toEqual([...added].reverse());
   await pickOrder(app, "Imágenes", "Más viejo primero");
-  await expect.poll(() => tileNames(app, "Imágenes")).toEqual(byName);
+  await expect.poll(() => tileNames(app, "Imágenes")).toEqual(added);
   await pickOrder(app, "Imágenes", "Nombre (Z → A)");
   await expect.poll(() => tileNames(app, "Imágenes")).toEqual([...byName].reverse());
 });

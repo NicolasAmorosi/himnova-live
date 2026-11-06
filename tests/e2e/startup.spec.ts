@@ -6,6 +6,9 @@ import { expect, test } from "./support/app";
 test("a first launch on an empty profile opens clean", async ({ app }) => {
   const { control } = app;
   await expect(control.getByText("Programa vacío")).toBeVisible();
+  // Nothing to save either: a fresh launch is not «No guardado».
+  await expect(control.getByRole("button", { name: "Guardar", exact: true })).toBeDisabled();
+  await expect(control.getByText("No guardado")).toHaveCount(0);
   // Nothing is in PREVIEW, so there is nothing to send live.
   await expect(control.getByRole("button", { name: "EN VIVO", exact: true })).toBeDisabled();
   // The projector is opened by the first EN VIVO/NEGRO/LOGO, never at launch.

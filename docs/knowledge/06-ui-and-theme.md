@@ -184,8 +184,16 @@ the condensed uppercase `Title h2` is kept for the three column headers and, at 
 2026-11-04). Spacing is Tailwind's 4 px step as a rule (4–8 inside a control, 8 between controls, 12–16 at a
 panel's edge, 24 between groups); separate with space before boxes, and a box is a 1 px border + 6 px, no
 shadow. Control heights, GitHub's: 24 (an icon inside a row), 28 (`xs`, a compact bar), **32 (`sm`, the default
-of `Button`, `IconButton`, `Input`, `Select`, `ColorField`)**, 40 (`md`, `Button` only: GO LIVE and LOGO / BLACK /
-LIVE — what is pressed during a service). Fields have no 40 any more. The transports under the monitors (deck,
+of `Button`, `IconButton`, `Input`, `Select`, `ColorField`)**; 40 (`md`, `Button` only) was GO LIVE and LOGO / BLACK /
+LIVE until 2026-11-06, when they went to 32 so the top bar could be a strip like the rest. Fields have no 40 any more.
+**Every bar of the main window is one height, `h-strip`** (`--spacing-strip` in `globals.css`, taught to
+tailwind-merge in `lib/utils.ts`): the top bar, the three columns' headers, the resource tabs and the segments under
+them, a tab's search rows (the Bible tab's are two strips), a panel's footer (`min-h-strip`, it may wrap). 41 px with
+its 1 px line, so a 32 px control sits 4 / 4 and a 28 px one 6 / 6; at a round 40 the 3.5 px were rounded up in some
+bars and down in others (owner, 2026-11-06: «todas las líneas a un mismo tamaño»). Side edges, two values: 6 px
+(`px-1.5`) for a strip of boxes (tabs, segments, search rows, footers — and panel bodies' `p-1.5`), 12 (`px-3`) for a
+strip of text (the headers, and the top bar's three groups, each over its column). The cards under the monitors
+(transports, `MediaTrackRow`) are content, not bars, and keep their own height. The transports under the monitors (deck,
 song, verse) and the rows of `MediaTrackRow` are 32 too, both sides at once: the row under each monitor must land
 on the same pixel as its twin across, so a control taller on one side misaligns both grids. A disabled FILLED button turns grey
 (`disabledVariants` in `button.tsx`) instead of fading: at 60 % opacity the light theme's navy read as a
@@ -245,7 +253,13 @@ of the things of that kind · the canvas · the inspector.
   (owner, 2026-11-04): the caret picks its slide on both sides and a click on a slide puts the caret at the start
   of its words. Both directions are pure (`slideAtCaret` / `caretAtSlide` in `shared/song-text.ts`, tested); the
   editor only holds the caret's offset, reported by the textarea's `onSelect` — which React fires on keys and the
-  mouse, NOT on a synthetic `select` event, so a test moves the caret with a real key.
+  mouse, NOT on a synthetic `select` event, so a test moves the caret with a real key. Opened, a song's text is
+  written so it reads back to the very same sections (`serializeLyrics`, see «Chords» and the text format in
+  `05-data-and-persistence.md`), and while it is not touched the save keeps the stored sections (`SongDraft.stored`).
+  «Save» off says WHICH limit (`songProblem` → `songs.limits.*`), never a generic «title and lyrics».
+- **An editor with unsaved changes counts itself in** (`EditorScreen` → `holdUnsavedEditor`, `ui.store`'s
+  `unsavedEditors`), so ⌘Q or closing the window asks first like the schedule does (`quitRisks`'s `editor`) — one
+  place for the song, theme, scene, plate and program editors, none wiring it on its own.
 - **`onNew`** puts «+ New …» at the top of the list column, one look in every editor; a new, unsaved thing is a
   plain selected row at the end of the list. «Duplicate» always saves a copy of what is SAVED and chooses it (it
   copied the draft in two editors, discarded changes included).
@@ -462,7 +476,9 @@ cuts/restarts it from Settings, not manually from the TopBar.
   `outline` button at the right of each resource footer — neutral, so GO LIVE is the one strong
   button of the work screen (owner's D13). The schedule's tools are a vertical strip of icons on the
   list's right, like EasyWorship's (owner's D19, then «a la derecha»). Media and Songs share one
-  filter bar (`shared/library-filter-bar.tsx`): order, folder, search, add a folder. A tooltip goes
+  filter bar (`shared/library-filter-bar.tsx`): order, folder, search, add a folder; and a folder view's
+  footer starts with its refresh (`FolderRefreshButton`, owner 2026-11-06), which also reads the folder on
+  screen again when the window comes back to the front — nothing watches the disk. A tooltip goes
   the moment its trigger is pressed and stays away until the pointer leaves, never shows over the menu its
   trigger opened (`aria-expanded`), and goes when the window loses focus — a native picker took the pointer
   without a `pointerleave` and left the bubble stuck (owner, 2026-11-05). Empty states carry no buttons. The transport boxes (`MediaPanel`) have no border
@@ -509,7 +525,9 @@ Every toast leaves on its own after `TOAST_DURATION_MS` (5 s; owner, 2026-11-05:
 the ones with an action and the «screen lost» warning included («no se van a menos que los cierres») — and a 2 px bar along its bottom edge,
 in its tone's fill, empties as the time runs out. The pointer or the focus on a toast holds the count and the bar
 (`pause`/`resume` in `toast.store.ts`, which keeps what was left), so reading it or reaching for «Deshacer» never
-races the clock. What must outlast a toast says so somewhere that stays: the LIVE header keeps «Sin pantalla» with
+races the clock. A schedule's «Deshacer» («Quitar», «Vaciar») lives only while nothing else has changed the
+schedule: the next edit takes its toast down (`offerScheduleUndo`; owner, 2026-11-06), since its undo would land in
+another list. What must outlast a toast says so somewhere that stays: the LIVE header keeps «Sin pantalla» with
 «Abrir pantalla» while there is no projector. A message wraps anywhere (`overflow-wrap: anywhere`): a file name or a
 path has no space to break at. An info toast carries the `info` icon, never «!», and its action sits on the
 message's own line.
