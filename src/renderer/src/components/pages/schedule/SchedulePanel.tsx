@@ -2,7 +2,7 @@ import { useEffect, useState, type DragEvent } from "react";
 import { useT } from "@renderer/lib/i18n/i18n-provider";
 import { Badge, EmptyState, Icon, IconButton, Tooltip } from "@renderer/components/ui";
 import { PanelBody, PanelHeader } from "@renderer/components/shared/panel";
-import { removeScheduleItem } from "@renderer/lib/actions/remove-selected";
+import { clearSchedule, removeScheduleItem } from "@renderer/lib/actions/remove-selected";
 import { ConfirmModal } from "@renderer/components/shared/modal";
 import { useProgramStore } from "@renderer/stores/program.store";
 import { useLibraryStore } from "@renderer/stores/library.store";
@@ -11,7 +11,6 @@ import type { DeckStatusSummary } from "@shared/types/deck";
 import { api } from "@renderer/lib/api";
 import {
   SCHEDULE_INDEX_MIME,
-  classifyExt,
   hideDragGhost,
   readBibleVerseDrag,
   readMediaAssetDrag,
@@ -19,6 +18,7 @@ import {
   readOverlayPlateDrag,
   readSongDrag,
   readUtilitySceneDrag,
+  sortPathsByKind,
 } from "@renderer/lib/dnd";
 import { toast } from "@renderer/lib/toast";
 import { previewScheduleItem } from "@renderer/lib/actions/preview";
@@ -45,7 +45,6 @@ export function SchedulePanel() {
   const moveUp = useProgramStore((s) => s.moveUp);
   const reorder = useProgramStore((s) => s.reorder);
   const addItem = useProgramStore((s) => s.addItem);
-  const clear = useProgramStore((s) => s.clear);
   const dirty = useProgramStore((s) => s.dirty);
   const refreshLibrary = useLibraryStore((s) => s.refresh);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
@@ -104,24 +103,21 @@ export function SchedulePanel() {
    *  uses, so a single selection can mix PPTs, videos, images and audio. */
   /** Same guard as «New schedule» beside it: unsaved work is only thrown
    *  away when the operator says so. A saved program empties at once — it is
-   *  still in «Saved schedules». */
+   *  still in «Saved schedules», and the schedule becomes a new one
+   *  (`clearSchedule`), with «Deshacer». */
   const [confirmClear, setConfirmClear] = useState(false);
   function handleClear() {
     if (hasUnsavedChanges()) setConfirmClear(true);
-    else clear();
+    else clearSchedule();
   }
 
   async function handleAddAll() {
     try {
       const paths = await api.files.pick("all", true);
       if (paths.length === 0) return;
-      const byKind = new Map<AssetKind, string[]>();
-      for (const filePath of paths) {
-        const ext = filePath.slice(filePath.lastIndexOf(".") + 1);
-        const kind = classifyExt(ext);
-        if (kind) byKind.set(kind, [...(byKind.get(kind) ?? []), filePath]);
-      }
+      const { byKind, unsupported } = sortPathsByKind(paths);
       for (const [kind, kindPaths] of byKind) await addPaths(kindPaths, kind);
+      if (unsupported > 0) toast.warning(t("library.addUnsupported", { count: unsupported }));
     } catch (error) {
       // An unreadable drive, a file removed between the dialog and the import,
       // a database write that failed: the schedule is the operator's running
@@ -331,7 +327,7 @@ export function SchedulePanel() {
         confirmLabel={t("schedule.discardAndClear")}
         danger
         description={t("programs.discardWarning")}
-        onConfirm={clear}
+        onConfirm={clearSchedule}
         onOpenChange={setConfirmClear}
         open={confirmClear}
         title={t("programs.discardTitle")}

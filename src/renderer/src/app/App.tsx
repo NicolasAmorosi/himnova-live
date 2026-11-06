@@ -14,7 +14,12 @@ import { useT } from "@renderer/lib/i18n/i18n-provider";
 import { installGlobalErrorHandlers } from "@renderer/lib/global-error-handlers";
 import { api } from "@renderer/lib/api";
 import { toast } from "@renderer/lib/toast";
-import { restoreDraft, saveCurrentProgram } from "@renderer/lib/actions/programs";
+import {
+  reopenProgram,
+  restoreDraft,
+  saveCurrentProgram,
+  startOpenProgramMemory,
+} from "@renderer/lib/actions/programs";
 import { loadScenes } from "@renderer/lib/actions/utility";
 import { loadPlates } from "@renderer/lib/actions/overlays";
 import { loadSongs, refreshLiveSong } from "@renderer/lib/actions/songs";
@@ -158,6 +163,8 @@ export function App() {
         // the hook's `t`, or the whole boot (every `start*Effects()` included)
         // would re-run the moment `loadSettings` changed the locale.
         if (draft) await restoreDraft(draft);
+        // No draft: nothing unsaved, but a saved program may have been open.
+        else if (settings["programs.openId"] !== null) await reopenProgram(settings["programs.openId"]);
       } catch (error) {
         console.warn("[draft] restore failed", error);
       }
@@ -170,6 +177,7 @@ export function App() {
     // Started BEFORE the restore above can finish: its first write is
     // debounced, and the restore itself only ever rewrites the same draft.
     const stopDraftAutosave = startDraftAutosave();
+    const stopOpenProgramMemory = startOpenProgramMemory();
     // Main's launch check comes ten seconds after the window, long after the
     // settings it reads have loaded.
     const stopUpdateAnnouncement = startUpdateAnnouncement();
@@ -179,6 +187,7 @@ export function App() {
       stopLibrarySync();
       stopEngineAssetsSync();
       stopDraftAutosave();
+      stopOpenProgramMemory();
       stopUpdateAnnouncement();
     };
   }, [loadSettings]);

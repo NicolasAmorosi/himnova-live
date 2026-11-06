@@ -33,6 +33,7 @@ import {
   hasUnsavedChanges,
   openProgram,
   reorderPrograms,
+  saveCurrentProgram,
   setProgramFavorite,
   updateProgramMeta,
   type ProgramMetaInput,
@@ -691,7 +692,12 @@ export function ProgramsModal({ initialMode, onOpenChange, open }: ProgramsModal
           const shown = pending;
           if (!next) setPending((current) => (current === shown ? null : current));
         }}
+        // The schedule's changes can be saved first when the open program has
+        // its row, like closing the app (owner, 2026-11-06); a never-saved
+        // one needs a name, which is this screen's «Guardar».
+        onSave={pending?.kind === "schedule" && currentProgramId !== null ? saveCurrentProgram : undefined}
         open={pending !== null}
+        saveLabel={t("programs.saveAndOpen")}
         title={
           pending?.kind === "delete"
             ? t("programs.deleteTitle")

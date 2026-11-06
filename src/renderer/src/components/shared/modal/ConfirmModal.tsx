@@ -16,6 +16,9 @@ type ConfirmModalProps = {
    *  outline. It saves, then does what the confirm does (leave, close). `false`
    *  (the save failed, and said so) keeps the dialog open. */
   onSave?: (() => Promise<boolean>) | undefined;
+  /** The save button's words when what follows is not leaving: «Guardar y
+   *  abrir», «Guardar y empezar». */
+  saveLabel?: string | undefined;
   open: boolean;
   title: string;
 };
@@ -27,6 +30,7 @@ export function ConfirmModal({
   onConfirm,
   onOpenChange,
   onSave,
+  saveLabel,
   open,
   title,
 }: ConfirmModalProps) {
@@ -76,7 +80,7 @@ export function ConfirmModal({
             onClick={() => void run("save")}
             variant="primary"
           >
-            {t("common.saveAndExit")}
+            {saveLabel ?? t("common.saveAndExit")}
           </Button>
         ) : null}
       </DialogFooter>

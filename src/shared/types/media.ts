@@ -28,6 +28,16 @@ export type MediaAssetUsage = {
   itemCount: number;
 };
 
+/** A look an asset dresses: the LOGO's or the verse's background (one each,
+ *  so no name), a song theme's, a time scene's, or a bug plate's picture. */
+export type AssetLookUsage = { kind: "logo" | "verse" | "songTheme" | "scene" | "plate"; name: string | null };
+
+/** Everything that would lose an asset removed from the library: the saved
+ *  programs that list it (their FK refuses the delete) and the looks drawn
+ *  over it (no FK reaches a JSON style, so only this warning does) — owner,
+ *  2026-11-06. */
+export type MediaAssetUsages = { programs: MediaAssetUsage[]; looks: AssetLookUsage[] };
+
 /** Progress of a chunked `library:add`/`library:listFolder` import, pushed
  *  only for batches large enough that the UI needs it (`library-import.ts`).
  *  `status: "done"` is the authoritative end-of-import signal — the renderer

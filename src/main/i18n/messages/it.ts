@@ -77,6 +77,7 @@ const it: MainMessages = {
     notOsis: "L'XML non è una Bibbia OSIS: manca l'elemento <osis>.",
     noVerses: "«{file}» è stato letto correttamente ma non contiene nessun versetto.",
     invalidName: "Il nome della versione non è valido.",
+    alreadyInstalled: "Quel file è già installato: è «{name}».",
   },
   library: {
     relocateKindMismatch: "Il file scelto non è dello stesso tipo dell'originale.",

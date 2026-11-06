@@ -36,6 +36,13 @@ export function ProjectionSection() {
   const updateSettings = useSettingsStore((s) => s.update);
 
   const logoOnAir = presentationOpen && output.kind === "logo";
+  // Never the projector's screen: fullscreen and on top, the stage would cover
+  // it — except the operator's own, where both are movable windows. A saved
+  // choice off this list (the projector's now, or unplugged) reads «Ninguna»,
+  // which is what is on (`chooseStageDisplay` in main); the setting stays, so
+  // the stage comes back once the projector moves or the screen returns.
+  const stageDisplays = displays.filter((d) => d.primary || d.id !== displayId);
+  const stageValue = stageDisplays.some((d) => d.id === stageDisplayId) ? String(stageDisplayId) : "none";
   const [confirmRemove, setConfirmRemove] = useState(false);
 
   async function changeLogo() {
@@ -95,7 +102,7 @@ export function ProjectionSection() {
             </Button>
           )}
         </FieldRow>
-        {/* Open whenever its screen is connected; main places it (`stage-window.ts`). */}
+        {/* Open whenever its screen is connected and is not the projector's; main places it (`stage-window.ts`). */}
         <FieldRow
           description={t("settings.stageDisplayDesc")}
           help={t("settings.stageDisplayHelp")}
@@ -107,12 +114,12 @@ export function ProjectionSection() {
             }
             options={[
               { label: t("settings.stageNone"), value: "none" },
-              ...displays.map((d) => ({
+              ...stageDisplays.map((d) => ({
                 label: `${d.label}${d.primary ? ` ${t("header.primaryDisplay")}` : ""}`,
                 value: String(d.id),
               })),
             ]}
-            value={stageDisplayId !== null ? String(stageDisplayId) : "none"}
+            value={stageValue}
           />
         </FieldRow>
       </FieldGroup>

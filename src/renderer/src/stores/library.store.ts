@@ -167,9 +167,14 @@ export const useLibraryStore = create<LibraryStoreState>((set, get) => ({
       if (!isCurrent(key, seq)) return;
       const message =
         error instanceof IpcError && error.code === "FOLDER_MISSING" ? t("library.folderMissing") : messageOf(error);
-      set((state) => ({
-        viewStatus: { ...state.viewStatus, [key]: { error: message, loading: false } },
-      }));
+      // The old listing goes with the failed read: kept, a folder gone from
+      // the disk went on showing its files — pickable, sendable, savable into
+      // a program — and the grid, which says why only when it has nothing to
+      // show, never said it.
+      set((state) => {
+        const { [key]: _stale, ...folderAssets } = state.folderAssets;
+        return { folderAssets, viewStatus: { ...state.viewStatus, [key]: { error: message, loading: false } } };
+      });
     }
   },
 

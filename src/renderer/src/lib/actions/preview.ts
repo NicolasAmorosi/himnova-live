@@ -6,6 +6,7 @@ import { useProgramStore } from "@renderer/stores/program.store";
 import type { AssetKind } from "@shared/constants";
 import type { ProgramItemDTO } from "@shared/types/program";
 import { findSong, resolveSong, themeForSong, useSongStore } from "@renderer/stores/song.store";
+import { previewItemVerse } from "@renderer/lib/actions/bible";
 
 /**
  * Selecting something only ever previews it — nothing here touches
@@ -103,6 +104,14 @@ export function advancePreview(direction: 1 | -1): void {
     const next = target.verseIndex + direction;
     if (next < 0 || next >= useBibleStore.getState().verses.length) return;
     previewVerse(next);
+    return;
+  }
+
+  // A Bible row walks out of itself into its chapter, as the Bible tab does.
+  const item = target.kind === "scheduleItem" ? previewedScheduleItem() : undefined;
+  if (item?.kind === "bible" && item.verseFrom !== null) {
+    const verse = direction === 1 ? (item.verseTo ?? item.verseFrom) + 1 : item.verseFrom - 1;
+    if (verse >= 1) void previewItemVerse(item, verse);
     return;
   }
 

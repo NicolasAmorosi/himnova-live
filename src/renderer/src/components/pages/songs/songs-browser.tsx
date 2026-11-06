@@ -12,7 +12,7 @@ import {
   Tooltip,
 } from "@renderer/components/ui";
 import { PanelBody, PanelFooter } from "@renderer/components/shared/panel";
-import { LibraryFilterBar } from "@renderer/components/shared/library-filter-bar";
+import { FolderRefreshButton, LibraryFilterBar } from "@renderer/components/shared/library-filter-bar";
 import { ConfirmModal } from "@renderer/components/shared/modal";
 import { ModalBoundary } from "@renderer/components/shared/modal-boundary";
 import { api } from "@renderer/lib/api";
@@ -254,6 +254,7 @@ export function SongsBrowser() {
       </PanelBody>
 
       <PanelFooter>
+        {folder !== null ? <FolderRefreshButton onRefresh={() => void refreshSongFolder(folder)} /> : null}
         {/* A new or imported song goes into the library: in a folder's view,
             where it would not show, neither is offered (Media's add, too). */}
         {folder === null ? (

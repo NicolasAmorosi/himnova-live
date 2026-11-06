@@ -51,8 +51,12 @@ export function startEndOfPlaybackEffects(): () => void {
     if (finished === "deck") clearBaseContent();
     if (finished !== "video") return;
     // The operator's choice (`projection.videoEnd`). A looping video never
-    // ends; one held on its last frame stays until the operator moves on.
-    const { videoEnd } = useProjectionStore.getState();
+    // ends; one held on its last frame stays until the operator moves on —
+    // stopped, and the store says so: `videoPaused` still false left the LIVE
+    // row offering «Pausar» over a still picture, and its first press paused
+    // nothing. Paused, «Reproducir» plays it again from the top.
+    const { setVideoPaused, videoEnd } = useProjectionStore.getState();
+    if (videoEnd === "hold") setVideoPaused(true);
     if (videoEnd === "logo" || videoEnd === "black") clearBaseContentUnder(videoEnd);
     // Nothing after it in the schedule (or not from the schedule): the logo.
     if (videoEnd === "next") void goLiveWithNextScheduleItem().then((moved) => moved || clearBaseContent());

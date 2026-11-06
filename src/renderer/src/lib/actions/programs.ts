@@ -2,6 +2,7 @@ import { api } from "@renderer/lib/api";
 import { t } from "@renderer/lib/i18n/i18n-provider";
 import { toast } from "@renderer/lib/toast";
 import { useProgramStore } from "@renderer/stores/program.store";
+import { useSettingsStore } from "@renderer/stores/settings.store";
 import type {
   ProgramDraft,
   ProgramDTO,
@@ -79,8 +80,14 @@ function draftItems(): { sent: ProgramItemDTO[]; items: ProgramItemUpsert[] } {
  * an open. Before a PREVIEW of a schedule row read the selection, a save
  * already dropped the rail; after it, a save would also have blanked PREVIEW.
  */
-function adoptSaved(full: ProgramDTO, sent: ProgramItemDTO[]): void {
-  const { items, selectedIndex, activeIndex } = useProgramStore.getState();
+function adoptSaved(full: ProgramDTO, sent: ProgramItemDTO[], savedFrom: number | null): void {
+  const { currentProgramId, items, selectedIndex, activeIndex } = useProgramStore.getState();
+  // Another program opened, or a new one started («Vaciar», «Nuevo programa»)
+  // during the round trip: the save landed, but the schedule on screen is not
+  // that program and must not take its id — the next «Guardar» would write
+  // over it. ponytail: an unsaved schedule replaced by another unsaved one
+  // still looks the same (both `null`); a store generation counter if it matters.
+  if (currentProgramId !== savedFrom) return;
   if (items !== sent) {
     // Edited during the round trip (a row dropped in, a reorder). Adopting
     // the saved rows would throw that edit away AND mark the schedule saved,
@@ -101,10 +108,13 @@ function adoptSaved(full: ProgramDTO, sent: ProgramItemDTO[]): void {
 /** Overwrites the currently loaded program with the schedule as it stands —
  *  requires a program to already be loaded (see `createProgramFromCurrent`
  *  for a brand new one). Re-hydrates the store from the saved row afterwards
- *  so item ids and `dirty` reflect what's actually on disk. */
-export async function saveCurrentProgram(): Promise<void> {
+ *  so item ids and `dirty` reflect what's actually on disk. Says whether
+ *  nothing is left unsaved — what a «Guardar y…» prompt (`ConfirmModal`'s
+ *  `onSave`) needs before it goes on: a failure, or an edit made during the
+ *  round trip, keeps the prompt open. */
+export async function saveCurrentProgram(): Promise<boolean> {
   const { currentProgramId, currentProgramName, currentProgramNotes } = useProgramStore.getState();
-  if (currentProgramId === null) return;
+  if (currentProgramId === null) return false;
   try {
     const { sent, items } = draftItems();
     const summary = await api.programs.save({
@@ -116,10 +126,12 @@ export async function saveCurrentProgram(): Promise<void> {
       // so the star set from the programs modal survives a quick save.
       items,
     });
-    adoptSaved(await api.programs.load(summary.id), sent);
+    adoptSaved(await api.programs.load(summary.id), sent, currentProgramId);
     toast.success(t("programs.saved", { name: summary.name }));
+    return !useProgramStore.getState().dirty;
   } catch {
     toast.danger(t("programs.saveError"));
+    return false;
   }
 }
 
@@ -128,9 +140,10 @@ export async function saveCurrentProgram(): Promise<void> {
  *  «Save» of a program that was never saved lands. */
 export async function createProgramFromCurrent(meta: ProgramMetaInput): Promise<ProgramSummary | null> {
   try {
+    const savedFrom = useProgramStore.getState().currentProgramId;
     const { sent, items } = draftItems();
     const summary = await api.programs.save({ ...meta, items });
-    adoptSaved(await api.programs.load(summary.id), sent);
+    adoptSaved(await api.programs.load(summary.id), sent, savedFrom);
     toast.success(t("programs.saved", { name: summary.name }));
     return summary;
   } catch {
@@ -256,6 +269,31 @@ export async function restoreDraft(draft: ProgramDraft): Promise<void> {
   // removal toast: a message belongs with the action that earns it, not with
   // whichever component happened to call it.
   toast.info(t("schedule.draftRestored"));
+}
+
+/**
+ * Opens again, at launch, the saved program the schedule held when the app
+ * last went away with nothing unsaved — so no draft to restore (owner,
+ * 2026-11-06: a restart mid-service left the schedule empty). Silent: the
+ * schedule's header names it. A program deleted since leaves the schedule
+ * empty and is forgotten, or every launch would try again.
+ */
+export async function reopenProgram(id: number): Promise<void> {
+  try {
+    useProgramStore.getState().loadProgram(await api.programs.load(id));
+  } catch (error) {
+    console.warn("[programs] reopen failed", error);
+    void useSettingsStore.getState().update({ "programs.openId": null }).catch(() => undefined);
+  }
+}
+
+/** Keeps `programs.openId` on the program the schedule holds, for
+ *  `reopenProgram` at the next launch. */
+export function startOpenProgramMemory(): () => void {
+  return useProgramStore.subscribe((state, previous) => {
+    if (state.currentProgramId === previous.currentProgramId) return;
+    void useSettingsStore.getState().update({ "programs.openId": state.currentProgramId }).catch(() => undefined);
+  });
 }
 
 /** Starts a brand new, unsaved program. Callers must check

@@ -18,6 +18,7 @@ import { DamagedSlideBadge } from "@renderer/components/shared/damaged-slide";
 import { useDeckStore } from "@renderer/stores/deck.store";
 import { PreviewMonitor } from "@renderer/components/pages/monitors/preview-monitor";
 import { useBibleStore } from "@renderer/stores/bible.store";
+import { useProgramStore } from "@renderer/stores/program.store";
 import { usePreviewStore } from "@renderer/stores/preview.store";
 import { useProjectionStore } from "@renderer/stores/projection.store";
 import { usePreviewContent } from "@renderer/lib/hooks/use-preview";
@@ -26,6 +27,10 @@ import { goLive, gotoSongSlide } from "@renderer/lib/actions/playback";
 import { SongSlideGrid } from "@renderer/components/shared/song-slide-grid";
 import { SongSectionButtons } from "@renderer/components/shared/song-section-buttons";
 import { jumpTo } from "@shared/song-jump";
+import type { BibleVerseDTO } from "@shared/types/bible";
+import { api } from "@renderer/lib/api";
+import { type BibleScheduleItem, previewItemVerse } from "@renderer/lib/actions/bible";
+import { type ReactNode, useEffect, useState } from "react";
 import { DeckPreviewBar, DeckSlides } from "./deck-slides";
 import { PreviewMediaBar } from "./preview-media-bar";
 
@@ -43,6 +48,9 @@ export function SlidesPanel() {
   const verses = useBibleStore((s) => s.verses);
   const liveVerseIndex = useBibleStore((s) => s.currentVerseIndex);
   const target = usePreviewStore((s) => s.target);
+  const scheduleItem = useProgramStore((s) =>
+    target?.kind === "scheduleItem" && s.selectedIndex !== null ? s.items[s.selectedIndex] : undefined,
+  );
   const base = useProjectionStore((s) => s.base);
   // The slide the PREVIEW monitor draws — the same pick `usePreviewOutput`
   // makes.
@@ -94,11 +102,12 @@ export function SlidesPanel() {
     }
 
     if (content.kind === "bible") {
-      return (
+      const single = (
         <SlideGrid>
           <ThumbTile label={content.reference} selected text={content.text} />
         </SlideGrid>
       );
+      return scheduleItem?.kind === "bible" ? <ScheduleChapterGrid fallback={single} item={scheduleItem} /> : single;
     }
 
     // The song's slides, the order expanded. A double click sends it live
@@ -246,5 +255,72 @@ export function SlidesPanel() {
         <PanelBody className="p-1.5">{body()}</PanelBody>
       </div>
     </>
+  );
+}
+
+/**
+ * A Bible row of the schedule previews its whole chapter, its own verses
+ * selected (owner, 2026-11-06: «que se vea todo el capítulo»). Read here, not
+ * through the Bible tab's store: loading it there would move what the tab —
+ * and ←/→ on a verse already live — is walking just because a row was
+ * selected. Picking another verse (`previewItemVerse`), or the row going live
+ * (`handLiveItemToTab`), is what hands the chapter to the tab, and from there
+ * it is the Bible tab's own flow.
+ */
+function ScheduleChapterGrid({ fallback, item }: { fallback: ReactNode; item: BibleScheduleItem }) {
+  const t = useT();
+  const { bibleBookId, chapter } = item;
+  const key = `${bibleBookId}:${chapter}`;
+  const [loaded, setLoaded] = useState<{ key: string; verses: BibleVerseDTO[] } | null>(null);
+  const onAir = useProgramStore((s) => s.activeIndex !== null && s.items[s.activeIndex] === item);
+  const bibleLive = useProjectionStore((s) => s.base?.kind === "bible");
+
+  useEffect(() => {
+    if (bibleBookId === null || chapter === null) return;
+    let current = true;
+    api.bible.chapter(bibleBookId, chapter).then(
+      (verses) => {
+        if (current) setLoaded({ key, verses });
+      },
+      (error: unknown) => console.error("[preview] chapter failed", error),
+    );
+    return () => {
+      current = false;
+    };
+  }, [bibleBookId, chapter, key]);
+
+  const verses = loaded?.key === key ? loaded.verses : null;
+  const from = item.verseFrom;
+  if (!verses || verses.length === 0 || from === null) return fallback;
+  const to = item.verseTo ?? from;
+  const own = (verse: BibleVerseDTO) => verse.verse >= from && verse.verse <= to;
+
+  return (
+    <VirtualGrid
+      aria-label={t("bible.title")}
+      gap={SLIDE_GRID_GAP_PX}
+      itemHeight={(columnWidth) => thumbTileHeight(columnWidth, { label: false })}
+      itemKey={(verse) => verse.id}
+      items={verses}
+      minItemWidth={VERSE_TILE_MIN_WIDTH_PX}
+      renderItem={(verse, _index, { tabIndex }) => (
+        <ThumbTile
+          index={verse.verse}
+          live={onAir && bibleLive && own(verse)}
+          // The row's own verses are what PREVIEW already holds.
+          onClick={() => {
+            if (!own(verse)) void previewItemVerse(item, verse.verse);
+          }}
+          onDoubleClick={() => {
+            if (own(verse)) void goLive();
+            else void previewItemVerse(item, verse.verse).then(goLive);
+          }}
+          selected={own(verse)}
+          tabIndex={tabIndex}
+          text={verse.text}
+        />
+      )}
+      scrollToIndex={Math.max(0, verses.findIndex((verse) => verse.verse === from))}
+    />
   );
 }

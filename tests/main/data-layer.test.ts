@@ -21,8 +21,8 @@ import { eq } from "drizzle-orm";
 import Database from "better-sqlite3";
 import { openDatabase } from "../../src/main/db/client";
 import { backupBeforeMigrate, runMigrations } from "../../src/main/db/migrate";
-import { seedBuiltinBibles } from "../../src/main/db/seed/seed-bible";
-import { bibleVersions, mediaAssets } from "../../src/main/db/schema";
+import { bibleFileHash, seedBuiltinBibles } from "../../src/main/db/seed/seed-bible";
+import { bibleBooks, bibleVersions, mediaAssets } from "../../src/main/db/schema";
 import { BibleRepo } from "../../src/main/db/repositories/bible.repo";
 import { SettingsRepo } from "../../src/main/db/repositories/settings.repo";
 import { ProgramsRepo } from "../../src/main/db/repositories/programs.repo";
@@ -156,6 +156,12 @@ describe("Bible seed", () => {
       "parseSnippet must preserve every character except the markers",
     );
   });
+
+  test("the bundled file is known by its bytes, so importing it again can be refused", () => {
+    const [builtin] = bibleRepo.listVersions();
+    expect(bibleRepo.findVersionBySourceHash(bibleFileHash(path.join(biblesDir, "rv1909.json")))?.id).toBe(builtin?.id);
+    expect(bibleRepo.findVersionBySourceHash("0".repeat(64))).toBeNull();
+  });
 });
 
 describe("Settings and programs", () => {
@@ -286,13 +292,17 @@ describe("Media library", () => {
   test("reactivation is OR, not overwrite", () => {
     // Deactivate one row directly (simulating "no longer in the library, but
     // still on disk") before re-importing the same files.
-    db.update(mediaAssets).set({ inLibrary: 0 }).where(eq(mediaAssets.id, firstAsset.id)).run();
+    db.update(mediaAssets).set({ inLibrary: 0, createdAt: 1 }).where(eq(mediaAssets.id, firstAsset.id)).run();
 
     const { assets: reimported, mutated: reimportedMutated } = mediaRepo.upsertBatch(statted, "ppt", true);
     assert(reimported.length === 25, "re-import must return the same count");
     assert(reimportedMutated === 1, `only the deactivated row should count as mutated, got ${reimportedMutated}`);
     const reactivated = reimported.find((a) => a.id === firstAsset.id);
     assert(reactivated?.inLibrary === true, "re-importing with inLibrary:true must reactivate a deactivated row");
+    // The media tabs' «newest first» is the order things joined the library.
+    assert((reactivated?.createdAt ?? 0) > 1, "joining the library must move createdAt to now");
+    const untouched = reimported.find((a) => a.id !== firstAsset.id);
+    assert(untouched?.createdAt === inserted[1]?.createdAt, "a row already in the library keeps its createdAt");
   });
 
   test("re-importing a CHANGED file returns the new size and mtime", () => {
@@ -768,6 +778,45 @@ describe("Unsaved-schedule draft", () => {
     assert(second?.name === "Otro" && second.programId === 1, "the draft row must be replaced, not appended");
     draftRepo.clear();
     assert(draftRepo.load() === null, "clearing the draft must leave nothing behind");
+  });
+});
+
+describe("A verse whose Bible version was deleted", () => {
+  test("keeps its text, and the open schedule's dead ids neither fail a save nor come back in a draft", () => {
+    const deletedVersionId = db
+      .insert(bibleVersions)
+      .values({ code: "deleted", name: "Borrable", installedAt: Date.now() })
+      .run().lastInsertRowid as number;
+    const deletedBookId = db
+      .insert(bibleBooks)
+      .values({ versionId: deletedVersionId, position: 43, abbrev: "Jn", name: "Juan", testament: "NT", chapterCount: 21 })
+      .run().lastInsertRowid as number;
+    // The row exactly as the control window holds it (`buildVerseDrag`).
+    const verse = {
+      kind: "bible" as const,
+      bibleVersionId: deletedVersionId,
+      bibleBookId: deletedBookId,
+      chapter: 3,
+      verseFrom: 16,
+      verseTo: 16,
+      reference: "Juan 3:16",
+      text: "Uno.",
+    };
+    const first = programsRepo.save({ name: "Culto con versículo", notes: null, items: [verse] });
+    bibleRepo.deleteVersion(deletedVersionId);
+
+    // «Guardar» again with the ids the open schedule (or its draft) still
+    // carries: the FK used to fail the whole save.
+    programsRepo.save({ id: first.id, name: "Culto con versículo", notes: null, items: [verse] });
+    expect(programsRepo.load(first.id).items).toMatchObject([
+      { kind: "bible", bibleVersionId: null, bibleBookId: null, reference: "Juan 3:16", text: "Uno." },
+    ]);
+
+    const draftRepo = new DraftRepo(db);
+    draftRepo.save({ programId: null, name: "Borrador", notes: null, items: [verse], updatedAt: Date.now() });
+    expect(draftRepo.load()?.items).toMatchObject([{ bibleVersionId: null, bibleBookId: null, text: "Uno." }]);
+    draftRepo.clear();
+    programsRepo.delete(first.id);
   });
 });
 

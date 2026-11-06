@@ -31,7 +31,9 @@ export function TopBar({ onOpenPrograms, onOpenSettings }: TopBarProps) {
   // Lit by what the projector SHOWS, read off the same output the monitor
   // draws: with nothing live the room sees the logo, and LOGO said nothing
   // (2026-11-05 review; `useLiveStatus` warns against re-deriving it by hand).
-  const outputKind = useProjectionStore((s) => selectOutputMemo(s).kind);
+  // With no projector open the room sees nothing: lit, LOGO claimed it at
+  // every launch (QA, 2026-11-06).
+  const outputKind = useProjectionStore((s) => (s.presentationOpen ? selectOutputMemo(s).kind : null));
   const base = useProjectionStore((s) => s.base);
   const previewContent = usePreviewContent();
   const currentProgramId = useProgramStore((s) => s.currentProgramId);
@@ -57,7 +59,8 @@ export function TopBar({ onOpenPrograms, onOpenSettings }: TopBarProps) {
 
   // Unsaved work is only thrown away when the operator says so, with the same
   // small dialog every other «discard?» uses (2026-11-04 review: it was a toast
-  // with an action here and a dialog everywhere else).
+  // with an action here and a dialog everywhere else) — or saved first, for a
+  // program that has its row, like closing the app (owner, 2026-11-06).
   const [confirmNew, setConfirmNew] = useState(false);
   function handleNewProgram() {
     if (hasUnsavedChanges()) setConfirmNew(true);
@@ -171,7 +174,9 @@ export function TopBar({ onOpenPrograms, onOpenSettings }: TopBarProps) {
         description={t("programs.discardWarning")}
         onConfirm={newProgram}
         onOpenChange={setConfirmNew}
+        onSave={currentProgramId !== null ? saveCurrentProgram : undefined}
         open={confirmNew}
+        saveLabel={t("programs.saveAndNew")}
         title={t("programs.discardTitle")}
       />
     </>

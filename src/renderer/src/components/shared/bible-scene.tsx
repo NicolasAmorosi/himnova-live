@@ -1,6 +1,7 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import { cn } from "@renderer/lib/utils";
 import { sceneTextCss as textStyle } from "./scene-text";
+import { StageImage } from "./stage-image";
 import { bibleReferenceLines, type BibleStyle } from "@shared/types/bible-style";
 import { cssFontFamily, cssSceneBackground, type SceneVerticalAlign } from "@shared/types/scene-style";
 import type { ProjectionOutput } from "@shared/types/projection";
@@ -225,8 +226,7 @@ export function BibleScene({
       {background ? <div className="absolute inset-0" style={{ background }} /> : null}
 
       {imageBackground && backgroundUrl ? (
-        <img
-          alt=""
+        <StageImage
           className="absolute inset-0 size-full"
           onError={() => onImageError?.(backgroundUrl)}
           src={backgroundUrl}

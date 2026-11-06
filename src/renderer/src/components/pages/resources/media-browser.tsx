@@ -17,7 +17,8 @@ import { useProgramStore } from "@renderer/stores/program.store";
 import { useSettingsStore } from "@renderer/stores/settings.store";
 import { useDeckStore } from "@renderer/stores/deck.store";
 import { api } from "@renderer/lib/api";
-import { readOsFilesDrag, setMediaAssetDrag } from "@renderer/lib/dnd";
+import { setMediaAssetDrag, sortPathsByKind } from "@renderer/lib/dnd";
+import { toast } from "@renderer/lib/toast";
 import { previewAsset } from "@renderer/lib/actions/preview";
 import { goLive } from "@renderer/lib/actions/playback";
 import { removeAsset } from "@renderer/lib/actions/remove-asset";
@@ -30,7 +31,7 @@ import {
 import { useDebouncedCallback } from "@renderer/lib/hooks/use-debounced-callback";
 import { filterAssetsByName, sortAssets } from "@renderer/lib/media-view";
 import { AssetTile } from "./asset-tile";
-import { LibraryFilterBar } from "@renderer/components/shared/library-filter-bar";
+import { FolderRefreshButton, LibraryFilterBar } from "@renderer/components/shared/library-filter-bar";
 import { PanelProgressRow } from "./panel-progress-row";
 import { PrewarmConfirmModal } from "./prewarm-confirm-modal";
 import { PREWARM_VISIBLE_MAX, type AssetKind } from "@shared/constants";
@@ -167,9 +168,12 @@ export function MediaBrowser({ active, kind }: { active: boolean; kind: AssetKin
     if (!isFolderView) void refresh(kind);
   }, [isFolderView, kind, refresh]);
 
+  // Opening a folder reads it; its footer's refresh, and the window coming
+  // back to the front, read it again (`FolderRefreshButton`).
+  const refreshView = useCallback(() => void refreshFolder(kind, activeView), [kind, activeView, refreshFolder]);
   useEffect(() => {
-    if (isFolderView) void refreshFolder(kind, activeView);
-  }, [kind, activeView, isFolderView, refreshFolder]);
+    if (isFolderView) refreshView();
+  }, [isFolderView, refreshView]);
 
   // Identity-stable so `VirtualGrid`'s notification effect doesn't re-fire on
   // every render of this component.
@@ -303,18 +307,23 @@ export function MediaBrowser({ active, kind }: { active: boolean; kind: AssetKin
   );
   const pendingDeckCount = pendingDeckAssetIds.length;
 
+  /** «Agregar» and a drop onto the grid share one path: each file goes to its
+   *  own tab, by extension, and what no tab takes is said (owner, 2026-11-06 —
+   *  «Agregar» used to keep only this tab's kind, in silence). */
+  async function addSorted(paths: readonly string[]) {
+    const { byKind, unsupported } = sortPathsByKind(paths);
+    for (const [fileKind, kindPaths] of byKind) await addFiles(kindPaths, fileKind);
+    if (unsupported > 0) toast.warning(t("library.addUnsupported", { count: unsupported }));
+  }
+
   async function handleAdd() {
-    const paths = await api.files.pick(kind, true);
-    if (paths.length > 0) await addFiles(paths, kind);
+    // Every kind in one dialog, opened where this tab's files live.
+    await addSorted(await api.files.pick("all", true, kind));
   }
 
   async function handleDrop(e: DragEvent<HTMLDivElement>) {
     e.preventDefault();
-    const byKind = new Map<AssetKind, string[]>();
-    for (const file of readOsFilesDrag(e)) {
-      byKind.set(file.kind, [...(byKind.get(file.kind) ?? []), file.path]);
-    }
-    for (const [dropped, paths] of byKind) await addFiles(paths, dropped);
+    await addSorted(Array.from(e.dataTransfer.files, (file) => window.worship.getPathForFile(file)));
   }
 
   return (
@@ -442,6 +451,7 @@ export function MediaBrowser({ active, kind }: { active: boolean; kind: AssetKin
         open={confirmPrewarmOpen}
       />
       <PanelFooter>
+        {isFolderView ? <FolderRefreshButton onRefresh={refreshView} /> : null}
         {imports && imports.kind === kind ? (
           <PanelProgressRow
             label={t("library.importing", { done: imports.done, total: imports.total })}

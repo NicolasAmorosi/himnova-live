@@ -8,7 +8,7 @@ import { bibleVersionLabel, useBibleStore } from "@renderer/stores/bible.store";
 import { useAudioStore, nextAssetTrack } from "@renderer/stores/audio.store";
 import { findScene, useUtilityStore } from "@renderer/stores/utility.store";
 import { notifyManualNavigation } from "@renderer/effects/deck-autoplay";
-import { projectVerse } from "@renderer/lib/actions/bible";
+import { handLiveItemToTab, projectVerse } from "@renderer/lib/actions/bible";
 import { stopPreviewPlayback } from "@renderer/lib/actions/preview-playback";
 import { previewedScheduleItem } from "@renderer/lib/actions/preview";
 import { defaultMediaVolume } from "@renderer/stores/settings.store";
@@ -363,15 +363,18 @@ function previewedPlateId(target: PreviewTarget): number | null {
   return item?.kind === "plate" ? item.overlayPlateId : null;
 }
 
+/** Says whether the row changed what is on the projector — a deck that
+ *  won't open, a missing file, a scene or a song deleted since, or a plate
+ *  (which only goes up over it) did not. */
 async function goLiveWithScheduleItem(
   index: number,
   startSlideIndex: number,
   startAtSeconds: number,
   intent: number,
-): Promise<void> {
+): Promise<boolean> {
   const { items, setActive } = useProgramStore.getState();
   const item = items[index];
-  if (!item) return;
+  if (!item) return false;
   /** Where that row is NOW: a deck can take seconds to convert, and a row
    *  dropped above it or deleted meanwhile used to put the on-air rail on
    *  whatever row ended up at the old position. */
@@ -382,8 +385,9 @@ async function goLiveWithScheduleItem(
 
   switch (item.kind) {
     case "ppt": {
-      if (await goLiveWithDeck(item.mediaAssetId, startSlideIndex, intent)) settleRail();
-      return;
+      const live = await goLiveWithDeck(item.mediaAssetId, startSlideIndex, intent);
+      if (live) settleRail();
+      return live;
     }
     case "media": {
       // Audio never claims the on-air rail — that rail means "this is what's
@@ -391,14 +395,15 @@ async function goLiveWithScheduleItem(
       // (schedule-row.tsx) is driven by the audio store instead.
       const result = await goLiveWithMediaAsset(item.mediaAssetId, startAtSeconds, intent);
       if (result === "base") settleRail();
-      return;
+      return result === "base";
     }
     case "bible": {
       setActive(index);
       useAudioStore.getState().setDeckTrack(null);
       // Not driven by projectVerse() — this reference doesn't necessarily
       // belong to the chapter currently loaded in the Bible browser, so any
-      // stale live-verse cursor from earlier browsing must not linger.
+      // stale live-verse cursor from earlier browsing must not linger until
+      // `handLiveItemToTab` (below) loads the row's own chapter there.
       useBibleStore.getState().setCurrentVerseIndex(null);
       useProjectionStore.getState().beginScene();
       useProjectionStore.getState().setBase({
@@ -415,7 +420,8 @@ async function goLiveWithScheduleItem(
       if (bibleBookId !== null && chapter !== null && verseFrom !== null) {
         useBibleStore.getState().recordRecent(bibleBookId, chapter, verseFrom, verseTo ?? verseFrom);
       }
-      return;
+      void handLiveItemToTab(item);
+      return true;
     }
     case "utility": {
       // The same commit the Utilities panel uses, with the row claiming the
@@ -423,15 +429,16 @@ async function goLiveWithScheduleItem(
       // be gone — a program saved months ago whose scene was force-deleted
       // since — and a rail lit on a projector that never changed is the kind
       // of lie the monitors exist to prevent.
-      goLiveWithUtilityScene(item.utilitySceneId, index);
-      return;
+      return goLiveWithUtilityScene(item.utilitySceneId, index);
     }
-    case "song":
-      if (await goLiveWithSong(item.songId, startSlideIndex, intent)) settleRail();
-      return;
+    case "song": {
+      const live = await goLiveWithSong(item.songId, startSlideIndex, intent);
+      if (live) settleRail();
+      return live;
+    }
     case "plate":
       // Handled before the live intent is claimed — see `goLive()`.
-      return;
+      return false;
   }
 }
 
@@ -457,8 +464,10 @@ async function goLiveWithAsset(
  * projector: a video's end set to «next» (`projection.videoEnd`, owner
  * 2026-11-05). A plate or an audio never changes the picture, so it is
  * skipped. False when the live video was not a schedule row (nothing claims
- * the rail) or nothing after it shows anything. PREVIEW stays where the
- * operator left it.
+ * the rail), nothing after it shows anything, or that row could not go live
+ * (a deck that won't open): the caller's logo, rather than the ended video
+ * frozen under a rail. True as well when the operator acted meanwhile — what
+ * they did wins over the logo too. PREVIEW stays where the operator left it.
  */
 export async function goLiveWithNextScheduleItem(): Promise<boolean> {
   const { activeIndex, items } = useProgramStore.getState();
@@ -470,8 +479,8 @@ export async function goLiveWithNextScheduleItem(): Promise<boolean> {
       !(item.kind === "media" && getCachedMediaAsset(item.mediaAssetId)?.kind === "audio"),
   );
   if (next < 0) return false;
-  await goLiveWithScheduleItem(next, 1, 0, claimLiveIntent());
-  return true;
+  const intent = claimLiveIntent();
+  return (await goLiveWithScheduleItem(next, 1, 0, intent)) || !isCurrentLiveIntent(intent);
 }
 
 /** Whether a preview target is a standalone audio, which goes live without

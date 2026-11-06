@@ -79,6 +79,7 @@ const es = {
     notOsis: "El XML no es una Biblia OSIS: falta el elemento <osis>.",
     noVerses: "«{file}» se leyó correctamente pero no contiene ningún versículo.",
     invalidName: "El nombre de la versión no es válido.",
+    alreadyInstalled: "Ese archivo ya está instalado: es «{name}».",
   },
   library: {
     relocateKindMismatch: "El archivo elegido no es del mismo tipo que el original.",

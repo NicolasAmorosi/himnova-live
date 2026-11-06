@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import { useT } from "@renderer/lib/i18n/i18n-provider";
 import { Icon, IconButton, Input, Menu, Select, Tooltip, type MenuOption } from "@renderer/components/ui";
 
@@ -110,5 +110,37 @@ export function LibraryFilterBar<S extends string>({
         </Tooltip>
       ) : null}
     </div>
+  );
+}
+
+/**
+ * Reads the open linked folder again — the first thing in the footer of every
+ * folder view, Media's and Songs' (owner, 2026-11-06: «un botón de actualizar
+ * abajo a la izquierda … en todas las carpetas»). A folder is the computer's:
+ * files land in it from Finder or Explorer while the app runs, and nothing
+ * watches the disk. The window coming back to the front reads it again too —
+ * the moment an operator who has just copied a file in returns.
+ *
+ * Rendered only while a folder view is open, so the library view never
+ * listens. A visited tab stays mounted, hidden (`TabPanel`): only the folder on
+ * screen is read on focus, or every alt-tab would re-read a share nobody is
+ * looking at.
+ */
+export function FolderRefreshButton({ onRefresh }: { onRefresh: () => void }) {
+  const t = useT();
+  const ref = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    const onFocus = () => {
+      if (ref.current?.checkVisibility({ visibilityProperty: true })) onRefresh();
+    };
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, [onRefresh]);
+  return (
+    <Tooltip content={t("resources.refreshFolderHint")} floating>
+      <IconButton aria-label={t("resources.refreshFolder")} onClick={onRefresh} ref={ref} size="sm" variant="ghost">
+        <Icon name="refresh" />
+      </IconButton>
+    </Tooltip>
   );
 }

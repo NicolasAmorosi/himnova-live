@@ -21,6 +21,7 @@ import { LogoScene } from "./logo-scene";
 import { TimerScene } from "./timer-scene";
 import { SongScene } from "./song-scene";
 import { PlateLayer } from "./plate-layer";
+import { StageImage } from "./stage-image";
 import type {
   MediaStatus,
   ProjectionMediaError,
@@ -243,12 +244,22 @@ function LiveVideo({
   // `autoPlay` only applies to a freshly loaded element, so every transition —
   // BLACK/LOGO, and an operator pause/resume from the media panel — has to be
   // driven imperatively.
+  //
+  // Except lifting BLACK/LOGO off a video that had already ended: «hold»
+  // (`projection.videoEnd`) keeps it on air on its last frame, and so does
+  // «next» while the next row is still being read. `play()` on an ended
+  // element restarts it from 0 by spec — the whole clip again, sound included,
+  // just because the operator uncovered it. An explicit resume from the media
+  // panel still replays it.
+  const wasCovered = useRef(covered);
   useEffect(() => {
     const element = elementRef.current;
+    const uncovered = wasCovered.current && !covered;
+    wasCovered.current = covered;
     if (!element) return;
-    if (shouldPlay) element.play().catch(() => undefined);
+    if (shouldPlay && !(uncovered && element.ended)) element.play().catch(() => undefined);
     else element.pause();
-  }, [shouldPlay]);
+  }, [shouldPlay, covered]);
 
   // Declarative, like `paused`: re-applied whenever the operator moves the
   // level AND on every remount, so a video that survives a rebuilt projection
@@ -465,12 +476,11 @@ function SlideVideoLayer({
   // `autoPlay` only applies to a freshly loaded element, so every later
   // transition — an overlay, an operator pause — is driven imperatively.
   //
-  // Except one: lifting BLACK/LOGO off a clip that had already ended. Unlike
-  // `LiveVideo`, whose ended video leaves the air on its own
-  // (`end-of-playback.ts`), this one stays on its slide, and `play()` on an
-  // ended element restarts it from 0 by spec — the whole clip again, sound
-  // included, just because the operator uncovered the slide. An explicit
-  // resume from the media panel still replays it.
+  // Except one: lifting BLACK/LOGO off a clip that had already ended — it
+  // stays on its slide, and `play()` on an ended element restarts it from 0 by
+  // spec, the whole clip again, sound included, just because the operator
+  // uncovered the slide. `LiveVideo` has the same guard for a video held on
+  // its last frame. An explicit resume from the media panel still replays it.
   const wasCovered = useRef(covered);
   useEffect(() => {
     const element = elementRef.current;
@@ -578,7 +588,7 @@ function SongVideoLayer({
   const fit = { objectFit: songVideo.fit } as const;
   return (
     <div className="absolute inset-0" data-song-video="">
-      <img alt="" className="absolute inset-0 size-full" src={songVideo.posterUrl} style={fit} />
+      <StageImage className="absolute inset-0 size-full" src={songVideo.posterUrl} style={fit} />
       {isEngineUrl(songVideo.url) ? (
         <EngineVideo
           className="absolute inset-0 size-full"
@@ -659,19 +669,18 @@ function OutputScene({ frozenFrame, mode, onImageError, output, posterUrl, video
           broken video, and the notice on this stage already says why it is
           still. */}
       {output.kind === "video" && !frozenFrame && posterUrl ? (
-        <img alt="" className="size-full object-contain" src={posterUrl} />
+        <StageImage className="size-full object-contain" src={posterUrl} />
       ) : null}
 
       {output.kind === "logo" && !output.url ? <LogoScene onImageError={onImageError} output={output} /> : null}
 
       {(output.kind === "logo" && output.url) || output.kind === "image" ? (
-        <img
-          alt=""
+        <StageImage
           className="size-full object-contain"
           onError={() => {
             if (output.url) onImageError?.(output.url);
           }}
-          src={output.url ?? undefined}
+          src={output.url ?? ""}
         />
       ) : null}
 
@@ -682,8 +691,7 @@ function OutputScene({ frozenFrame, mode, onImageError, output, posterUrl, video
         <ModelSlide onError={() => onImageError?.(output.modelUrl ?? output.url)} text={output.text} url={output.modelUrl} />
       ) : null}
       {output.kind === "slide" && !output.modelUrl ? (
-        <img
-          alt=""
+        <StageImage
           className="size-full object-contain"
           decoding={mode === "live" ? "sync" : "async"}
           onError={() => onImageError?.(output.url)}

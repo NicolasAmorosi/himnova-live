@@ -159,6 +159,13 @@ export type SettingsMap = {
   /** The last version the launch toast announced, so each one is announced
    *  once and not every morning until it is installed. */
   "updates.announcedVersion": string | null;
+  /** The saved program open in the schedule, written by the control window
+   *  whenever that changes (`App`). A relaunch with no draft — the program was
+   *  open unedited, so there was nothing to mirror — opens it again (owner,
+   *  2026-11-06: a restart mid-service left the schedule empty). `null`: a
+   *  new, unsaved schedule. Not main's own current program: «programs:save»
+   *  adopts a new program the list's «+» only creates. */
+  "programs.openId": number | null;
 };
 
 export const DEFAULT_SETTINGS: SettingsMap = {
@@ -199,6 +206,7 @@ export const DEFAULT_SETTINGS: SettingsMap = {
   "bible.builtinSeeded": false,
   "updates.autoCheck": true,
   "updates.announcedVersion": null,
+  "programs.openId": null,
 };
 
 /** What LOGO draws, from its settings: the image in «image» mode — its path is
@@ -307,6 +315,7 @@ export const SETTINGS_VALIDATORS: Record<keyof SettingsMap, (value: unknown) => 
   "bible.builtinSeeded": isBoolean,
   "updates.autoCheck": isBoolean,
   "updates.announcedVersion": isNullOr(isString),
+  "programs.openId": (v) => v === null || (typeof v === "number" && Number.isInteger(v) && v > 0),
 };
 
 export function isSettingsKey(key: string): key is keyof SettingsMap {

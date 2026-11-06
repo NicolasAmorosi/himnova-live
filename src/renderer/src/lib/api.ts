@@ -44,7 +44,8 @@ export const api = {
     seekVideo: (seconds: number) => invoke("preview:seekVideo", { seconds }),
   },
   files: {
-    pick: (kind: AssetKind | "all", multiple: boolean) => invoke("files:pick", { kind, multiple }),
+    pick: (kind: AssetKind | "all", multiple: boolean, startIn?: AssetKind) =>
+      invoke("files:pick", { kind, multiple, startIn }),
     setLogo: () => invoke("files:setLogo", undefined),
     pickFolder: (defaultPath?: string) => invoke("files:pickFolder", { defaultPath }),
     systemFolders: () => invoke("files:systemFolders", undefined),

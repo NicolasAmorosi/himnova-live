@@ -138,6 +138,22 @@ export function classifyExt(ext: string): AssetKind | null {
   return ASSET_KINDS.find((kind) => ASSET_EXTENSIONS[kind].includes(lower)) ?? null;
 }
 
+/** Picked or dropped files, each under the library tab its extension belongs
+ *  to; what no tab takes (a `.txt`, a file without an extension) is counted, so
+ *  the operator can be told rather than seeing it vanish (owner, 2026-11-06). */
+export function sortPathsByKind(paths: readonly string[]): { byKind: Map<AssetKind, string[]>; unsupported: number } {
+  const byKind = new Map<AssetKind, string[]>();
+  let unsupported = 0;
+  for (const path of paths) {
+    const name = path.slice(Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\")) + 1);
+    const dot = name.lastIndexOf(".");
+    const kind = dot === -1 ? null : classifyExt(name.slice(dot + 1));
+    if (kind) byKind.set(kind, [...(byKind.get(kind) ?? []), path]);
+    else unsupported += 1;
+  }
+  return { byKind, unsupported };
+}
+
 /** Resolves OS files dropped from Finder/Explorer to {path, kind}, skipping
  *  extensions we don't recognize — mirrors the legacy `setupDragDrop` filter. */
 export function readOsFilesDrag(e: DragEvent): { path: string; kind: AssetKind }[] {

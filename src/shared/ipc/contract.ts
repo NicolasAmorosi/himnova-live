@@ -5,7 +5,7 @@ import type {
   EngineAssetUpdate,
   ImportProgress,
   MediaAsset,
-  MediaAssetUsage,
+  MediaAssetUsages,
 } from "../types/media";
 import type {
   BibleBookDTO,
@@ -110,8 +110,10 @@ export type IpcContract = {
 
   /** `kind: "all"` combines every `AssetKind`'s extensions into one filter, for
    *  a single file dialog that accepts any supported media at once — the
-   *  caller then classifies each returned path by its own extension. */
-  "files:pick": { req: { kind: AssetKind | "all"; multiple: boolean }; res: string[] };
+   *  caller then classifies each returned path by its own extension.
+   *  `startIn` is the kind whose folder that dialog opens in (a Media tab's
+   *  «Agregar»); without it, wherever the OS decides. */
+  "files:pick": { req: { kind: AssetKind | "all"; multiple: boolean; startIn?: AssetKind | undefined }; res: string[] };
   "files:setLogo": { req: void; res: string | null };
   /** Opens a native directory picker. `null` means the user canceled.
    *  `defaultPath` is where it opens — the folder being replaced, when there
@@ -206,9 +208,10 @@ export type IpcContract = {
    *  the asset itself. Without it, an asset still in use throws
    *  `MEDIA_ASSET_IN_USE` (see `MediaRepo.remove`). */
   "library:remove": { req: { id: number; force?: boolean }; res: void };
-  /** Which saved programs (if any) still reference this asset — used to show
-   *  the operator what a forced delete would remove before they confirm it. */
-  "library:usages": { req: { id: number }; res: MediaAssetUsage[] };
+  /** Which saved programs still reference this asset, and which looks are
+   *  drawn over it — shown to the operator before a removal, so a forced
+   *  delete never takes away something they were not told about. */
+  "library:usages": { req: { id: number }; res: MediaAssetUsages };
   "library:relocate": { req: { id: number }; res: MediaAsset | null };
   /** Manual override for a `ppt` asset's linked soundtrack — `path: null`
    *  clears it back to automatic resolution (`linked-audio.ts`). Never

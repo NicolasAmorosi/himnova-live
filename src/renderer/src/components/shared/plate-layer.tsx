@@ -3,6 +3,7 @@ import { cssFontFamily, cssSceneBackground } from "@shared/types/scene-style";
 import { plateEdge, type PlateEdge, type PlatePosition } from "@shared/types/overlay";
 import type { ProjectionPlate } from "@shared/types/projection";
 import { sceneTextCss } from "./scene-text";
+import { StageImage } from "./stage-image";
 
 type Phase = "enter" | "leave";
 
@@ -205,8 +206,7 @@ function PlateBox({
           />
         ) : null}
         {plate.imageUrl ? (
-          <img
-            alt=""
+          <StageImage
             onError={() => onImageError?.(plate.imageUrl!)}
             src={plate.imageUrl}
             style={{

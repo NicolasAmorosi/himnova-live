@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import path from "node:path";
 import type { Handlers } from "../register";
 import { getBibleRepo, getProgramsRepo, getSettingsRepo } from "../../services/repos";
-import { seedBibleFromFile } from "../../db/seed/seed-bible";
+import { bibleFileHash, seedBibleFromFile } from "../../db/seed/seed-bible";
 import { bibleImportFilters } from "../../db/seed/bible-formats";
 import { IpcError } from "@shared/ipc/result";
 import { isBibleVersionName } from "@shared/types/bible";
@@ -52,6 +52,13 @@ export const bibleHandlers: Pick<
 
     const filePath = result.filePaths[0]!;
     const fallbackName = path.basename(filePath, path.extname(filePath));
+    // The same bytes again would be a second, identical version under a new
+    // random code (owner, 2026-11-06): refused by the hash every version
+    // already stores, the bundled RV1909's included.
+    const installed = getBibleRepo().findVersionBySourceHash(bibleFileHash(filePath));
+    if (installed) {
+      throw new IpcError({ code: "BIBLE_ALREADY_INSTALLED", message: mt("bible.alreadyInstalled", { name: installed.name }) });
+    }
     // Unlike the legacy import-bible, this NEVER writes into the app bundle —
     // the file is parsed in memory and only SQL rows land on disk, in userData.
     const code = `custom-${randomUUID().slice(0, 8)}`;

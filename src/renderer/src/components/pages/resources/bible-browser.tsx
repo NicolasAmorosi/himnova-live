@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { KeyboardEvent } from "react";
-import { useT } from "@renderer/lib/i18n/i18n-provider";
+import { useI18n } from "@renderer/lib/i18n/i18n-provider";
 import {
   Caption,
   EmptyState,
@@ -24,12 +24,11 @@ import { previewVerse } from "@renderer/lib/actions/preview";
 import { goLive } from "@renderer/lib/actions/playback";
 import { setBibleVerseDrag } from "@renderer/lib/dnd";
 import { useDebouncedCallback } from "@renderer/lib/hooks/use-debounced-callback";
-import { normalizeForSearch } from "@renderer/lib/utils";
+import { matchReference, type ReferenceMatch } from "@renderer/lib/bible-reference";
 import { toast } from "@renderer/lib/toast";
 import {
   parseSnippet,
   passageReference,
-  type BibleBookDTO,
   type BibleBookmark,
   type BibleSearchHit,
 } from "@shared/types/bible";
@@ -42,35 +41,11 @@ const TEXT_SEARCH_DEBOUNCE_MS = 200;
 
 type SearchMode = "reference" | "text";
 
-type ReferenceMatch = { book: BibleBookDTO; chapter: number | null };
-
-/** Splits "juan 3" into name="juan"/chapter=3, or "juan" into name="juan"/chapter=null. */
-function parseReferenceQuery(query: string): { chapter: number | null; name: string } {
-  const match = /^(.+?)\s+(\d+)$/.exec(query.trim());
-  if (!match?.[1] || !match[2]) return { chapter: null, name: query };
-  return { chapter: Number(match[2]), name: match[1] };
-}
-
-function matchReference(books: BibleBookDTO[], query: string): ReferenceMatch[] {
-  const { chapter, name } = parseReferenceQuery(query);
-  const normalizedName = normalizeForSearch(name);
-  if (!normalizedName) return [];
-
-  const matchingBooks = books.filter(
-    (b) =>
-      normalizeForSearch(b.name).includes(normalizedName) ||
-      normalizeForSearch(b.abbrev).includes(normalizedName),
-  );
-
-  if (chapter === null) return matchingBooks.map((book) => ({ book, chapter: null }));
-  return matchingBooks.filter((b) => chapter >= 1 && chapter <= b.chapterCount).map((book) => ({ book, chapter }));
-}
-
 /** Scripture as one more resource tab: browse or search, click to preview,
  *  double-click to go live. Search defaults to a quick book/chapter finder;
  *  a toggle switches it to full-text verse search. */
 export function BibleBrowser() {
-  const t = useT();
+  const { locale, t } = useI18n();
   // Field-by-field, not `useBibleStore()` bare — the whole-store subscription
   // re-rendered this panel (and its list of up to 500 verse rows) on every
   // write, including ones it never reads.
@@ -89,6 +64,14 @@ export function BibleBrowser() {
   const target = usePreviewStore((s) => s.target);
   const [pendingBook, setPendingBook] = useState("");
   const [pendingChapter, setPendingChapter] = useState("");
+  // The pickers follow the chapter the tab holds, wherever it was loaded from:
+  // a search hit, a bookmark, a verse picked in PREVIEW from a schedule row.
+  // Not while the operator is choosing a book and has no chapter yet.
+  useEffect(() => {
+    if (loadedBookId === null || loadedChapter === null) return;
+    setPendingBook(String(loadedBookId));
+    setPendingChapter(String(loadedChapter));
+  }, [loadedBookId, loadedChapter]);
   const [searchMode, setSearchMode] = useState<SearchMode>("reference");
   const [styleOpen, setStyleOpen] = useState(false);
   /** The list shows favorites and recent passages instead of the chapter. */
@@ -103,8 +86,8 @@ export function BibleBrowser() {
   const searching = searchMode === "text" ? query.trim().length >= MIN_TEXT_QUERY_LENGTH : query.trim().length > 0;
 
   const referenceMatches = useMemo(
-    () => (searchMode === "reference" ? matchReference(books, query) : []),
-    [books, query, searchMode],
+    () => (searchMode === "reference" ? matchReference(books, query, locale) : []),
+    [books, locale, query, searchMode],
   );
 
   const resultCount = searchMode === "text" ? searchResults.length : referenceMatches.length;
@@ -220,11 +203,18 @@ export function BibleBrowser() {
     );
   }
 
+  /** A book, a chapter, or a verse (owner, 2026-11-06: «Juan 3:16» puts
+   *  that verse — the first of a range — in PREVIEW). A verse past the
+   *  chapter's end says so, like a bookmark the version lacks. */
   function selectReferenceMatch(match: ReferenceMatch) {
     setPendingBook(String(match.book.id));
     if (match.chapter !== null) {
       setPendingChapter(String(match.chapter));
-      void setBookAndChapter(match.book.id, match.chapter);
+      if (match.verseFrom === null) void setBookAndChapter(match.book.id, match.chapter);
+      else
+        void previewPassage(match.book.id, match.chapter, match.verseFrom).then((found) => {
+          if (!found) toast.danger(t("bible.notInVersion"));
+        });
     } else {
       setPendingChapter("");
     }
@@ -366,7 +356,7 @@ export function BibleBrowser() {
             <ul className="flex flex-col gap-0.5">
               {referenceMatches.map((match, index) => (
                 <ListRow
-                  key={`${match.book.id}-${match.chapter ?? "book"}`}
+                  key={match.book.id}
                   onClick={() => selectReferenceMatch(match)}
                   onMouseEnter={() => setHighlightedIndex(index)}
                   ref={(el) => {
@@ -374,7 +364,11 @@ export function BibleBrowser() {
                   }}
                   selected={highlightedIndex === index}
                 >
-                  {match.chapter !== null ? `${match.book.name} ${match.chapter}` : match.book.name}
+                  {match.chapter === null
+                    ? match.book.name
+                    : match.verseFrom === null
+                      ? `${match.book.name} ${match.chapter}`
+                      : passageReference(match.book.name, match.chapter, match.verseFrom, match.verseTo ?? match.verseFrom)}
                 </ListRow>
               ))}
             </ul>

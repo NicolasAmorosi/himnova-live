@@ -5,6 +5,7 @@
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { startEndOfPlaybackEffects } from "@renderer/effects/end-of-playback";
 import { useProgramStore } from "@renderer/stores/program.store";
+import { useDeckStore } from "@renderer/stores/deck.store";
 import { selectOutput, useProjectionStore } from "@renderer/stores/projection.store";
 import type { VideoEndAction } from "@shared/types/projection";
 import { assetUrl } from "@shared/urls";
@@ -39,10 +40,12 @@ test("«Pantalla en negro» clears it under BLACK", () => {
   expect(state.overlay).toBe("black");
 });
 
-test("«Quedarse en el último cuadro» leaves the video where it ended", () => {
+test("«Quedarse en el último cuadro» leaves the video where it ended, and stopped", () => {
   const state = playToTheEnd("hold");
   expect(state.base?.kind).toBe("video");
   expect(state.overlay).toBe("none");
+  // The LIVE row offers «Reproducir», not «Pausar», over the held frame.
+  expect(state.videoPaused).toBe(true);
 });
 
 test("«Repetir en bucle» travels in the output, so the element loops instead of ending", () => {
@@ -80,4 +83,24 @@ test("a video that is not a schedule row has no next: the logo", async () => {
   await vi.waitFor(() => expect(useProjectionStore.getState().overlay).toBe("logo"));
   expect(state.base?.kind).toBe("video");
   expect(useProjectionStore.getState().base).toBeNull();
+});
+
+test("a next row that cannot go live — a deck that will not open — falls back to the logo, not the frozen video", async () => {
+  // Adding a deck row asks main to read it in the background.
+  (window as unknown as { worship: unknown }).worship = { invoke: () => Promise.resolve({ ok: true, data: null }) };
+  const ensure = useDeckStore.getState().ensure;
+  useDeckStore.setState({ ensure: () => Promise.resolve(null) });
+  try {
+    const program = useProgramStore.getState();
+    program.clear();
+    program.addItem({ kind: "media", mediaAssetId: 5, title: "Video" });
+    program.addItem({ kind: "ppt", mediaAssetId: 9, title: "Himno roto" });
+    program.setActive(0);
+    playToTheEnd("next");
+    await vi.waitFor(() => expect(useProjectionStore.getState().base).toBeNull());
+    expect(useProjectionStore.getState().overlay).toBe("logo");
+    expect(useProgramStore.getState().activeIndex).toBeNull();
+  } finally {
+    useDeckStore.setState({ ensure });
+  }
 });

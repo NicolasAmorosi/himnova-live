@@ -77,6 +77,7 @@ const en: MainMessages = {
     notOsis: "The XML isn't an OSIS Bible: the <osis> element is missing.",
     noVerses: "“{file}” was read correctly but doesn't contain any verses.",
     invalidName: "The version name isn't valid.",
+    alreadyInstalled: "That file is already installed: it's “{name}”.",
   },
   library: {
     relocateKindMismatch: "The chosen file isn't the same type as the original.",

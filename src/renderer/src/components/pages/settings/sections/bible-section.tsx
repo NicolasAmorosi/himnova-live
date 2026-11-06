@@ -17,6 +17,7 @@ import { cn } from "@renderer/lib/utils";
 import { BIBLE_VERSION_MIME, hideDragGhost } from "@renderer/lib/dnd";
 import { toast } from "@renderer/lib/toast";
 import { useBibleStore } from "@renderer/stores/bible.store";
+import { useProgramStore } from "@renderer/stores/program.store";
 import { useSettingsStore } from "@renderer/stores/settings.store";
 import { BIBLE_VERSION_NAME_MAX_LENGTH, isBibleVersionName } from "@shared/types/bible";
 import type { BibleVersionDTO, BibleVersionUsage } from "@shared/types/bible";
@@ -174,6 +175,9 @@ export function BibleSection() {
       // `force` is exactly "the operator has just read which programs this
       // affects and said yes anyway" — never a flag the UI sets on its own.
       await api.bible.delete(version.id, usages.length > 0);
+      // The open schedule is not a saved row the FK can reach: its verses of
+      // this version lose the ids here, or «Guardar» sends them back dead.
+      useProgramStore.getState().forgetBibleVersion(version.id);
       await loadVersions();
       toast.success(t("settings.bible.deleteDone", { name: version.name }));
     } catch (error) {

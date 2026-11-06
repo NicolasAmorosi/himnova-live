@@ -5,6 +5,7 @@ import { mt } from "../i18n";
 import { trustWindow } from "../ipc/trusted-senders";
 import { getSettingsRepo } from "../services/repos";
 import { forwardKeysToControl } from "./projection-window";
+import { chooseStageDisplay } from "./projector-display-choice";
 
 const PRELOAD = path.join(__dirname, "../preload/index.js");
 
@@ -16,9 +17,10 @@ const PRELOAD = path.join(__dirname, "../preload/index.js");
  * poster, so there is no media, no audio and no engine to keep in step.
  *
  * `syncStageWindow` is the one place that decides whether it exists and where:
- * called when the control window opens, when the setting changes and when a
- * screen comes or goes. A screen that disappears closes it (there is nothing in
- * it to lose, unlike the projector's audio); one that comes back reopens it.
+ * called when the control window opens, when its setting or the projector's
+ * changes and when a screen comes or goes. A screen that disappears closes it
+ * (there is nothing in it to lose, unlike the projector's audio); one that
+ * comes back reopens it. Never on the projector's screen (`chooseStageDisplay`).
  */
 let current: { win: BrowserWindow; displayId: number } | null = null;
 let lastOutput: StageOutput | null = null;
@@ -26,7 +28,14 @@ let lastOutput: StageOutput | null = null;
 export function syncStageWindow(): void {
   let displayId: number | null = null;
   try {
-    displayId = getSettingsRepo().get("stage.displayId");
+    const settings = getSettingsRepo();
+    const displays = screen.getAllDisplays().map((candidate) => candidate.id);
+    displayId = chooseStageDisplay(
+      displays,
+      screen.getPrimaryDisplay().id,
+      settings.get("stage.displayId"),
+      settings.get("projection.displayId"),
+    );
   } catch {
     // Settings not ready: nothing to show yet.
   }

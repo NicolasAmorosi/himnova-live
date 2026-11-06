@@ -43,6 +43,7 @@ export const settingsHandlers: Pick<Handlers, "settings:get" | "settings:set"> =
       setMainLocale(partial["ui.locale"]);
       installApplicationMenu();
     }
-    if ("stage.displayId" in partial) syncStageWindow();
+    // The projector's screen counts too: the stage never shares it.
+    if ("stage.displayId" in partial || "projection.displayId" in partial) syncStageWindow();
   },
 };

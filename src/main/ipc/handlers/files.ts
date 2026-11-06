@@ -58,12 +58,15 @@ export const filesHandlers: Pick<
   Handlers,
   "files:pick" | "files:setLogo" | "files:pickFolder" | "files:systemFolders"
 > = {
-  "files:pick": async ({ kind, multiple }, ev) => {
+  "files:pick": async ({ kind, multiple, startIn }, ev) => {
     // `"all"` accepts video, image, audio and presentations at once (the
     // order of service's own "+"), so there is no one folder it belongs in:
     // it opens wherever the OS decides rather than anchoring five kinds to
-    // whichever one happened to win.
-    const defaultPath = kind === "all" ? undefined : defaultFolderFor(kind);
+    // whichever one happened to win — unless the caller names one: a Media
+    // tab's «Agregar» takes every kind (each file goes to its own tab) but
+    // still opens where that tab's files live.
+    const folderKind = kind === "all" ? startIn : kind;
+    const defaultPath = folderKind ? defaultFolderFor(folderKind) : undefined;
     const result = await showOpenDialogFor(ev.sender, {
       properties: multiple ? ["openFile", "multiSelections"] : ["openFile"],
       filters: filtersFor(kind),

@@ -1,4 +1,5 @@
 import { sceneTextCss } from "./scene-text";
+import { StageImage } from "./stage-image";
 import { cssSceneBackground, DEFAULT_SHADOW_STRENGTH, type SceneTextStyle } from "@shared/types/scene-style";
 import type { ProjectionOutput } from "@shared/types/projection";
 
@@ -19,8 +20,7 @@ export function LogoScene({ onImageError, output }: { onImageError?: ((url: stri
     <>
       {background ? <div className="absolute inset-0" style={{ background }} /> : null}
       {image && backgroundUrl ? (
-        <img
-          alt=""
+        <StageImage
           className="absolute inset-0 size-full"
           onError={() => onImageError?.(backgroundUrl)}
           src={backgroundUrl}

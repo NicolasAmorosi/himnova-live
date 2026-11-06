@@ -11,9 +11,10 @@ import { clearBaseContent } from "@renderer/lib/actions/playback";
  * of `DeckTransport`, styled as the same kind of row so a verse in flight
  * reads as one more media player under the LIVE monitor instead of a
  * one-off. Previous/next only move the projector while the live verse
- * belongs to the chapter loaded in the Bible browser (`advanceVerse`); a
- * verse sent live straight from a saved program item has no chapter to walk,
- * so both arrows stay disabled instead of the whole row disappearing.
+ * belongs to the chapter loaded in the Bible browser (`advanceVerse`) — a
+ * program row's verse hands its chapter there as it goes live
+ * (`handLiveItemToTab`) —; until then, or with the tab browsed elsewhere, both
+ * arrows stay disabled instead of the whole row disappearing.
  */
 export function VerseTransport() {
   const t = useT();

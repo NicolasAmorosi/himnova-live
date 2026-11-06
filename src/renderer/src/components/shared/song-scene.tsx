@@ -1,5 +1,6 @@
 import { cn } from "@renderer/lib/utils";
 import { sceneTextCss } from "./scene-text";
+import { StageImage } from "./stage-image";
 import { cssFontFamily, cssSceneBackground, type SceneVerticalAlign } from "@shared/types/scene-style";
 import type { ProjectionOutput } from "@shared/types/projection";
 import { SONG_FOOTER_LINES, type SongChord, type SongTheme } from "@shared/types/song";
@@ -102,8 +103,7 @@ export function SongScene({
       {background ? <div className="absolute inset-0" style={{ background }} /> : null}
 
       {imageBackground && backgroundUrl ? (
-        <img
-          alt=""
+        <StageImage
           className="absolute inset-0 size-full"
           onError={() => onImageError?.(backgroundUrl)}
           src={backgroundUrl}
