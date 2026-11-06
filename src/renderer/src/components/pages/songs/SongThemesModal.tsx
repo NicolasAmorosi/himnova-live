@@ -20,6 +20,7 @@ import {
   Select,
   Slider,
   Switch,
+  DependentFields,
   type MenuOption,
 } from "@renderer/components/ui";
 import { api } from "@renderer/lib/api";
@@ -225,16 +226,17 @@ export function SongThemesModal({ onOpenChange, open }: { onOpenChange: (open: b
     leaveEditing(() => setEditing({ themeId: null, draft: from, baseline: from }));
   }
 
-  async function handleSave() {
-    if (!editing || !canSave) return;
+  async function handleSave(): Promise<boolean> {
+    if (!editing || !canSave) return false;
     setSaving(true);
     try {
       const saved = await saveSongTheme(
         editing.themeId === null ? editing.draft : { ...editing.draft, id: editing.themeId },
       );
-      if (!saved) return;
+      if (!saved) return false;
       setEditing({ themeId: saved.id, draft: toDraft(saved), baseline: toDraft(saved) });
       toast.success(t("songThemes.saved", { name: saved.name }));
+      return true;
     } finally {
       setSaving(false);
     }
@@ -334,6 +336,7 @@ export function SongThemesModal({ onOpenChange, open }: { onOpenChange: (open: b
                 min={LYRICS_SIZE_RANGE.min}
                 onChange={(minSizeCqw) => patchStyle({ minSizeCqw: Number(minSizeCqw.toFixed(1)) })}
                 step={0.1}
+                unit="%"
                 value={Math.min(style.minSizeCqw, style.text.sizeCqw)}
               />
             </FieldRow>
@@ -357,28 +360,26 @@ export function SongThemesModal({ onOpenChange, open }: { onOpenChange: (open: b
                 onChange={(e) => patchStyle({ outline: { ...style.outline, enabled: e.target.checked } })}
               />
             </FieldRow>
-            {style.outline.enabled ? (
-              <>
-                <FieldRow label={t("songThemes.outlineColor")}>
-                  <ColorField
-                    label={t("songThemes.outlineColor")}
-                    onChange={(color) => patchStyle({ outline: { ...style.outline, color } })}
-                    value={style.outline.color}
-                  />
-                </FieldRow>
-                <FieldRow label={t("songThemes.outlineWidth")}>
-                  <Slider
-                    format={(value) => value.toFixed(2)}
-                    label={t("songThemes.outlineWidth")}
-                    max={SONG_OUTLINE_MAX_CQW}
-                    min={0.02}
-                    onChange={(widthCqw) => patchStyle({ outline: { ...style.outline, widthCqw: Number(widthCqw.toFixed(2)) } })}
-                    step={0.02}
-                    value={style.outline.widthCqw}
-                  />
-                </FieldRow>
-              </>
-            ) : null}
+            <DependentFields enabled={style.outline.enabled}>
+              <FieldRow label={t("songThemes.outlineColor")}>
+                <ColorField
+                  label={t("songThemes.outlineColor")}
+                  onChange={(color) => patchStyle({ outline: { ...style.outline, color } })}
+                  value={style.outline.color}
+                />
+              </FieldRow>
+              <FieldRow label={t("songThemes.outlineWidth")}>
+                <Slider
+                  label={t("songThemes.outlineWidth")}
+                  max={SONG_OUTLINE_MAX_CQW}
+                  min={0.02}
+                  onChange={(widthCqw) => patchStyle({ outline: { ...style.outline, widthCqw: Number(widthCqw.toFixed(2)) } })}
+                  step={0.02}
+                  unit="%"
+                  value={style.outline.widthCqw}
+                />
+              </FieldRow>
+            </DependentFields>
           </InspectorSection>
 
           <InspectorSection title={t("songThemes.groups.spacing")}>
@@ -404,7 +405,6 @@ export function SongThemesModal({ onOpenChange, open }: { onOpenChange: (open: b
             {(Object.keys(MARGIN_LABEL) as (keyof SongMargins)[]).map((side) => (
               <FieldRow key={side} label={t(MARGIN_LABEL[side])}>
                 <Slider
-                  format={(value) => value.toFixed(1)}
                   label={t(MARGIN_LABEL[side])}
                   max={SONG_MARGIN_MAX_CQW}
                   min={0}
@@ -412,6 +412,7 @@ export function SongThemesModal({ onOpenChange, open }: { onOpenChange: (open: b
                     patchStyle({ margins: { ...style.margins, [side]: Number(value.toFixed(1)) } })
                   }
                   step={0.5}
+                  unit="%"
                   value={style.margins[side]}
                 />
               </FieldRow>
@@ -606,6 +607,7 @@ export function SongThemesModal({ onOpenChange, open }: { onOpenChange: (open: b
         confirmLabel={pending?.kind === "delete" ? t("common.delete") : t("songThemes.discard")}
         danger={pending?.kind === "delete"}
         description={pending?.kind === "delete" ? t("songThemes.deleteBody") : t("songThemes.discardBody")}
+        onSave={pending?.kind === "discard" && canSave ? handleSave : undefined}
         onConfirm={async () => {
           if (!pending) return;
           if (pending.kind === "discard") {

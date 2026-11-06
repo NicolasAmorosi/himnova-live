@@ -111,7 +111,7 @@ test("a Bible imported in Ajustes becomes the default and projects its own text"
   await expect(toast(app, "Se importó Prueba (3 versículos)")).toBeVisible();
 
   const row = settings.getByRole("list", { name: "Versiones instaladas" }).getByRole("group", { name: "Prueba" });
-  await row.getByRole("button", { name: "Usar por defecto" }).click();
+  await row.getByRole("button", { name: "Usar como predeterminada" }).click();
   await expect(toast(app, "La pestaña Biblia va a abrir en Prueba")).toBeVisible();
   await app.quit();
 

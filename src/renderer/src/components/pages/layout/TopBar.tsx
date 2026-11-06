@@ -152,6 +152,7 @@ export function TopBar({ onOpenPrograms, onOpenSettings }: TopBarProps) {
               // all service long — even with nothing live (2026-11-05 review;
               // the owner kept its word, VIVO).
               toggled={presentationOpen && overlay === "none" && base !== null}
+              toggledTone="onAir"
               variant="outline"
             >
               <Icon name="display" /> {t("footer.live")}

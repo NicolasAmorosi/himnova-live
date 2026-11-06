@@ -23,7 +23,7 @@ import { installerFile, loopbackFeedUrl, shouldCheckOnLaunch, statusForError } f
  * The feed is the GitHub release marked Latest, the same one the landing
  * offers: `app-update.yml`, which electron-builder writes from `repository`.
  */
-const REPO_URL = "https://github.com/NicolasAmorosi/lumina-live";
+export const REPO_URL = "https://github.com/NicolasAmorosi/lumina-live";
 
 /** Past the control window's first paint, like the other launch chores. */
 const LAUNCH_CHECK_DELAY_MS = 10_000;

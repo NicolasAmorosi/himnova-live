@@ -97,14 +97,15 @@ export function PlatesModal({ onOpenChange, open }: { onOpenChange: (open: boole
     });
   }
 
-  async function handleSave() {
-    if (!canSave || !editing) return;
+  async function handleSave(): Promise<boolean> {
+    if (!canSave || !editing) return false;
     setSaving(true);
     try {
       const saved = await savePlate(toPlateUpsert(editing.draft, editing.plateId));
-      if (!saved) return;
+      if (!saved) return false;
       setEditing({ plateId: saved.id, draft: toPlateDraft(saved), baseline: toPlateDraft(saved) });
       toast.success(t("plates.saved", { name: saved.name }));
+      return true;
     } finally {
       setSaving(false);
     }
@@ -300,6 +301,7 @@ export function PlatesModal({ onOpenChange, open }: { onOpenChange: (open: boole
               : t("common.delete")
         }
         danger={pending?.kind === "delete"}
+        onSave={pending?.kind === "discard" && canSave ? handleSave : undefined}
         description={
           pending?.kind !== "delete" ? (
             t("plates.discardBody")

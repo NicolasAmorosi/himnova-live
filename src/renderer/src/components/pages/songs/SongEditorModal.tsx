@@ -214,15 +214,16 @@ export function SongEditorModal({ onOpenChange, onSaved, open, songId }: SongEdi
     setBaseline(loaded);
   }
 
-  async function handleSave() {
-    if (!canSave) return;
+  async function handleSave(): Promise<boolean> {
+    if (!canSave) return false;
     setSaving(true);
     try {
       const saved = await saveSong(toSongUpsert(draft, parsed, currentId));
-      if (!saved) return;
+      if (!saved) return false;
       show(saved);
       onSaved(saved);
       toast.success(t("songs.saved", { title: saved.title }));
+      return true;
     } finally {
       setSaving(false);
     }
@@ -481,6 +482,7 @@ export function SongEditorModal({ onOpenChange, onSaved, open, songId }: SongEdi
         confirmLabel={t("songs.discard")}
         description={t("songs.discardBody")}
         onConfirm={() => pendingDiscard?.()}
+        onSave={canSave ? handleSave : undefined}
         onOpenChange={(next) => {
           if (!next) setPendingDiscard(null);
         }}

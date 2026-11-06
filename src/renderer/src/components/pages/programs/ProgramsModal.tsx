@@ -517,7 +517,7 @@ export function ProgramsModal({ initialMode, onOpenChange, open }: ProgramsModal
                       onClick={() => leaveEditing(() => setEditing({ kind: "create", draft: EMPTY, baseline: EMPTY }))}
                       selected={editing?.kind === "create"}
                     >
-                      {t("programs.untitled")}
+                      {t("header.untitled")}
                     </ListRow>
                   ) : null}
                   {filtered.map((program) => (
@@ -606,7 +606,7 @@ export function ProgramsModal({ initialMode, onOpenChange, open }: ProgramsModal
               // schedule: say it is the way to save it (2026-11-05 review: the
               // canvas said «nothing saved» beside a row, with no next step).
               <EmptyState
-                {...(showDraftRow ? { description: t("programs.emptyDraftHint", { name: t("programs.untitled") }) } : {})}
+                {...(showDraftRow ? { description: t("programs.emptyDraftHint", { name: t("header.untitled") }) } : {})}
                 icon="folderOpen"
                 title={t("programs.empty")}
               />

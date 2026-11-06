@@ -12,16 +12,19 @@ type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   toggled?: boolean;
   /** What a pressed toggle says. `accent` (teal) is «on», as everywhere;
    *  `warning` (amber) is «the room is not seeing the content» — NEGRO and
-   *  LOGO while they cover it (owner, 2026-11-05). */
+   *  LOGO while they cover it; `onAir` (red) is «the room sees it now» — VIVO
+   *  (owner, 2026-11-05: the tally, red on air and amber covered). */
   toggledTone?: ToggledTone;
   variant?: ButtonVariant;
 };
 
-type ToggledTone = "accent" | "warning";
+type ToggledTone = "accent" | "warning" | "onAir";
 
 const toggledTones: Record<ToggledTone, string> = {
   accent: "border-accent bg-accent text-accent-foreground hover:bg-accent active:bg-accent",
   warning: "border-warning bg-warning text-warning-foreground hover:bg-warning active:bg-warning",
+  // White on the on-air red is 4.9:1 in both themes (the token is the same).
+  onAir: "border-on-air bg-on-air text-on-air-foreground hover:bg-on-air active:bg-on-air",
 };
 
 const variants: Record<ButtonVariant, string> = {

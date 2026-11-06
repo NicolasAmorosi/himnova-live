@@ -115,7 +115,7 @@ test("deleting the program in use empties the schedule with it, after saying so"
   await expect(confirm).toContainText('Se va a eliminar "Culto A" y todos sus elementos.');
   await confirm.getByRole("button", { name: "Eliminar", exact: true }).click();
   await expect(toast(app, "Programa eliminado")).toBeVisible();
-  await expect(manager(app).getByText("No hay programas guardados").or(manager(app).getByText("Programa sin guardar"))).toBeVisible();
+  await expect(manager(app).getByText("No hay programas guardados").or(manager(app).getByText("Sin título"))).toBeVisible();
   await manager(app).getByRole("button", { name: "Cerrar" }).click();
 
   await expect(app.control.getByText("Programa vacío")).toBeVisible();

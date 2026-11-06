@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useT, type MessageKey } from "@renderer/lib/i18n/i18n-provider";
 import {
   Button,
+  DependentFields,
   FieldRow,
   Icon,
   Inspector,
@@ -211,12 +212,12 @@ export function VerseStyleModal({ onOpenChange, open }: { onOpenChange: (open: b
               </FieldRow>
               <FieldRow description={t("settings.verse.maxWidthHint")} label={t("settings.verse.maxWidth")}>
                 <Slider
-                  format={(value) => `${value}%`}
                   label={t("settings.verse.maxWidth")}
                   max={BIBLE_MAX_WIDTH_MAX_CQW}
                   min={BIBLE_MAX_WIDTH_MIN_CQW}
                   onChange={(maxWidthCqw) => patch({ maxWidthCqw })}
                   step={1}
+                  unit="%"
                   value={style.maxWidthCqw}
                 />
               </FieldRow>
@@ -260,6 +261,7 @@ export function VerseStyleModal({ onOpenChange, open }: { onOpenChange: (open: b
                   // quantity at different resolutions is how the operator ends up
                   // with a floor they cannot actually reach.
                   step={0.1}
+                  unit="%"
                   value={Math.min(style.autoFit.minSizeCqw, style.text.sizeCqw)}
                 />
               </FieldRow>
@@ -269,49 +271,46 @@ export function VerseStyleModal({ onOpenChange, open }: { onOpenChange: (open: b
               <FieldRow description={t("settings.verse.showReferenceHint")} label={t("settings.verse.showReference")}>
                 <Switch checked={style.showReference} onChange={(e) => patch({ showReference: e.target.checked })} />
               </FieldRow>
-              {/* Everything below describes a line that is not being drawn when the
-                  switch above is off. Hidden rather than disabled: a group of six
-                  dead controls reads as something broken. */}
-              {style.showReference ? (
-                <>
-                  <FieldRow label={t("settings.verse.referencePosition")}>
-                    <Select
-                      onChange={(position) => patch({ referencePosition: position as ReferencePosition })}
-                      options={REFERENCE_POSITIONS.map((position) => ({
-                        label: t(POSITION_LABEL[position]),
-                        value: position,
-                      }))}
-                      value={style.referencePosition}
-                    />
-                  </FieldRow>
-                  <FieldRow label={t("settings.verse.referenceCase")}>
-                    <Select
-                      onChange={(next) => patch({ referenceCase: next as TextCase })}
-                      options={TEXT_CASES.map((next) => ({ label: t(CASE_LABEL[next]), value: next }))}
-                      value={style.referenceCase}
-                    />
-                  </FieldRow>
-                  <FieldRow
-                    description={t("settings.verse.versionDisplayHint")}
-                    label={t("settings.verse.versionDisplay")}
-                  >
-                    <Select
-                      onChange={(next) => patch({ versionDisplay: next as VersionDisplay })}
-                      options={VERSION_DISPLAYS.map((next) => ({
-                        label: t(VERSION_DISPLAY_LABEL[next]),
-                        value: next,
-                      }))}
-                      value={style.versionDisplay}
-                    />
-                  </FieldRow>
-                  <TextStyleFields
-                    onChange={(reference) => patch({ reference })}
-                    sizeRange={REFERENCE_SIZE_RANGE}
-                    t={t}
-                    value={style.reference}
+              {/* Everything below describes a line that is not drawn while the
+                  switch above is off: dimmed, never hidden (owner, 2026-11-05). */}
+              <DependentFields enabled={style.showReference}>
+                <FieldRow label={t("settings.verse.referencePosition")}>
+                  <Select
+                    onChange={(position) => patch({ referencePosition: position as ReferencePosition })}
+                    options={REFERENCE_POSITIONS.map((position) => ({
+                      label: t(POSITION_LABEL[position]),
+                      value: position,
+                    }))}
+                    value={style.referencePosition}
                   />
-                </>
-              ) : null}
+                </FieldRow>
+                <FieldRow label={t("settings.verse.referenceCase")}>
+                  <Select
+                    onChange={(next) => patch({ referenceCase: next as TextCase })}
+                    options={TEXT_CASES.map((next) => ({ label: t(CASE_LABEL[next]), value: next }))}
+                    value={style.referenceCase}
+                  />
+                </FieldRow>
+                <FieldRow
+                  description={t("settings.verse.versionDisplayHint")}
+                  label={t("settings.verse.versionDisplay")}
+                >
+                  <Select
+                    onChange={(next) => patch({ versionDisplay: next as VersionDisplay })}
+                    options={VERSION_DISPLAYS.map((next) => ({
+                      label: t(VERSION_DISPLAY_LABEL[next]),
+                      value: next,
+                    }))}
+                    value={style.versionDisplay}
+                  />
+                </FieldRow>
+                <TextStyleFields
+                  onChange={(reference) => patch({ reference })}
+                  sizeRange={REFERENCE_SIZE_RANGE}
+                  t={t}
+                  value={style.reference}
+                />
+              </DependentFields>
             </InspectorSection>
 
             {/* Not a section: one button, last, away from every knob above. */}

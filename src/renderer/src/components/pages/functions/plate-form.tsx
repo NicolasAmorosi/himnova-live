@@ -105,6 +105,7 @@ export function PlateForm({ addingImages, imageAssets, onAddImages, onChange, va
               min={PLATE_IMAGE_MIN_CQW}
               onChange={(sizeCqw) => patchStyle({ image: { ...style.image, sizeCqw } })}
               step={0.5}
+              unit="%"
               value={style.image.sizeCqw}
             />
           </FieldRow>
@@ -151,6 +152,7 @@ export function PlateForm({ addingImages, imageAssets, onAddImages, onChange, va
             min={0}
             onChange={(cornerRadiusCqw) => patchStyle({ cornerRadiusCqw: Number(cornerRadiusCqw.toFixed(1)) })}
             step={0.1}
+            unit="%"
             value={style.cornerRadiusCqw}
           />
         </FieldRow>
@@ -194,6 +196,7 @@ export function PlateForm({ addingImages, imageAssets, onAddImages, onChange, va
             min={0}
             onChange={(marginCqw) => patchStyle({ marginCqw })}
             step={0.5}
+            unit="%"
             value={style.marginCqw}
           />
         </FieldRow>
@@ -215,6 +218,7 @@ export function PlateForm({ addingImages, imageAssets, onAddImages, onChange, va
               min={PLATE_TICKER_MIN_CQW}
               onChange={(speedCqw) => patchStyle({ ticker: { ...style.ticker, speedCqw } })}
               step={1}
+              unit="%/s"
               value={style.ticker.speedCqw}
             />
           </FieldRow>

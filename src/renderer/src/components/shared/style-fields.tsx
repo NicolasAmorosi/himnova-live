@@ -374,6 +374,7 @@ export function TextStyleFields({
           // `3.5000000000000004` would reach both the row and the projector.
           onChange={(sizeCqw) => onChange({ ...value, sizeCqw: Number(sizeCqw.toFixed(decimals)) })}
           step={sizeRange.step}
+          unit="%"
           value={value.sizeCqw}
         />
       </FieldRow>

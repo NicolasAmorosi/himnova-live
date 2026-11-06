@@ -3,15 +3,17 @@ import { useI18n } from "@renderer/lib/i18n/i18n-provider";
 import { cn } from "@renderer/lib/utils";
 
 type SliderProps = Omit<InputHTMLAttributes<HTMLInputElement>, "onChange" | "type" | "value"> & {
-  /** How the current value reads beside the track. The default is the number
-   *  itself, which is what a percentage or a `cqw` wants; a multiplier
-   *  (`1.375`) or a unit belongs here. */
+  /** How the current value reads beside the track, when the number plus
+   *  `unit` is not enough (a multiplier, «No limit», a percentage of 0–1). */
   format?: (value: number) => string;
   /** Accessible name. The visible label lives in the `FieldRow` this sits in,
    *  which is not associated with the input — so without this the control is
    *  announced as an unnamed slider. */
   label: string;
   onChange: (value: number) => void;
+  /** After the number. Every `cqw` reads `%` — a `cqw` IS a percent of the
+   *  stage's width, and nobody knows the CSS unit (owner, 2026-11-05). */
+  unit?: string;
   value: number;
 };
 
@@ -38,23 +40,24 @@ function decimalsOf(step: SliderProps["step"]): number {
  * a width per call site made a ragged right edge). 48 px fits «10.25»,
  * «100%» and «120 s».
  */
-export function Slider({ className, format, label, onChange, value, ...rest }: SliderProps) {
+export function Slider({ className, format, label, onChange, unit = "", value, ...rest }: SliderProps) {
   const { locale } = useI18n();
   const decimals = decimalsOf(rest.step);
   return (
     <>
       <input
         aria-label={label}
-        className={cn("w-40 accent-accent disabled:opacity-50", className)}
+        className={cn("peer w-40 accent-accent disabled:opacity-50", className)}
         onChange={(e) => onChange(Number(e.target.value))}
         type="range"
         value={value}
         {...rest}
       />
-      {/* Dimmed with the track: a bright number beside a faded track reads as
+      {/* Dimmed with the track — by `:disabled`, so a disabled `<fieldset>`
+          around it counts too: a bright number beside a faded track reads as
           a setting that still applies. */}
       <span
-        className={cn("shrink-0 text-right text-xs tabular-nums text-muted-foreground", rest.disabled && "opacity-50")}
+        className="shrink-0 text-right text-xs tabular-nums text-muted-foreground peer-disabled:opacity-50"
         // Inline, not `w-12`: an inspector row stretches every child with a
         // class that outranks one here, and the readout took the whole row.
         style={{ width: "3rem" }}
@@ -62,7 +65,8 @@ export function Slider({ className, format, label, onChange, value, ...rest }: S
         {format
           ? format(value)
           : // The language's own decimal mark, like every other number in the app («1,38»).
-            new Intl.NumberFormat(locale, { minimumFractionDigits: decimals, maximumFractionDigits: decimals }).format(value)}
+            new Intl.NumberFormat(locale, { minimumFractionDigits: decimals, maximumFractionDigits: decimals }).format(value) +
+            unit}
       </span>
     </>
   );

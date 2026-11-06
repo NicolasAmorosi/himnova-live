@@ -114,7 +114,10 @@ function Toast({
 
 /**
  * Mounted once in `App.tsx`. `--z-toast` is the top of the stacking scale so a
- * toast fired from inside a modal is still visible.
+ * toast fired from inside a modal is still visible. Bottom left, just above
+ * the Resources panel's footer (owner, 2026-11-05): bottom centre covered
+ * PREVIEW's thumbnails. `bottom-14` clears that footer's one row (49 px), whose
+ * buttons — «Importar» right after an import — stay pressable.
  *
  * Portaled to `document.body`, like the modals and for the same reason: a
  * modal marks `#root` `inert` (see `shared/modal/modal-stack.ts`), and a toast
@@ -135,7 +138,7 @@ export function ToastHost() {
   return createPortal(
     <div
       aria-live="polite"
-      className="pointer-events-none fixed bottom-4 left-1/2 z-[var(--z-toast)] flex w-full max-w-sm -translate-x-1/2 flex-col gap-2 px-4"
+      className="pointer-events-none fixed bottom-14 left-0 z-[var(--z-toast)] flex w-full max-w-sm flex-col gap-2 px-4"
     >
       {toasts.map((item) => (
         <Toast

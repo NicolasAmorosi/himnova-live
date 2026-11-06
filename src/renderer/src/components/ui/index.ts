@@ -17,7 +17,7 @@ export { LoadingState } from "./loading-state";
 export { MediaScrubber } from "./media-scrubber";
 export { VolumeControl } from "./volume-control";
 export { Title, Label, Caption, PageHeader } from "./title";
-export { FieldGroup, FieldRow } from "./field";
+export { DependentFields, FieldGroup, FieldRow } from "./field";
 export { FieldLayoutContext, type FieldLayout } from "./field-layout";
 export { Inspector, InspectorSection } from "./inspector";
 export { ColorField } from "./color-field";

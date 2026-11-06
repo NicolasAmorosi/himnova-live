@@ -170,6 +170,7 @@ export const api = {
     probeBegin: () => invoke("system:probeBegin", undefined),
     probeEnd: (src: string) => invoke("system:probeEnd", { src }),
     openLogsFolder: () => invoke("system:openLogsFolder", undefined),
+    openSourceCode: () => invoke("system:openSourceCode", undefined),
   },
   updates: {
     getStatus: () => invoke("updates:getStatus", undefined),

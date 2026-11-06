@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useT } from "@renderer/lib/i18n/i18n-provider";
-import { Button, FieldGroup, FieldRow, Icon, Select, Slider } from "@renderer/components/ui";
+import { Button, FieldGroup, FieldRow, Icon, Segmented, Select, Slider } from "@renderer/components/ui";
 import { ConfirmModal } from "@renderer/components/shared/modal";
 import { transitionDurationOptions, transitionStyleOptions } from "@renderer/lib/transition";
 import { useDisplayStore } from "@renderer/stores/display.store";
@@ -10,7 +10,7 @@ import { clearLive } from "@renderer/lib/actions/playback";
 import { api } from "@renderer/lib/api";
 import { toast } from "@renderer/lib/toast";
 import { IpcError } from "@shared/ipc/result";
-import { LOGO_URL } from "@shared/urls";
+import { logoModeOf } from "@shared/types/settings";
 import type { TransitionStyle } from "@shared/types/transition";
 import { LogoSceneFields } from "./logo-scene-fields";
 import { VIDEO_END_ACTIONS, type VideoEndAction } from "@shared/types/projection";
@@ -27,6 +27,7 @@ export function ProjectionSection() {
   // is about to blank a screen the congregation is looking at.
   const output = useProjectionStore(selectOutputMemo);
   const logoPath = useSettingsStore((s) => s.settings["logo.path"]);
+  const logoMode = logoModeOf(useSettingsStore((s) => s.settings["logo.mode"]), logoPath);
   const stageDisplayId = useSettingsStore((s) => s.settings["stage.displayId"]);
   const transitionStyle = useSettingsStore((s) => s.settings["projection.transition.style"]);
   const transitionDurationMs = useSettingsStore((s) => s.settings["projection.transition.durationMs"]);
@@ -34,12 +35,6 @@ export function ProjectionSection() {
   const videoEnd = useSettingsStore((s) => s.settings["projection.videoEnd"]);
   const updateSettings = useSettingsStore((s) => s.update);
 
-  // The URL carries the logo's own path as a cache-buster: it's the same
-  // "worship://logo" host for every logo, so without something in the URL
-  // that actually changes when the file changes, the <img> keeps showing the
-  // previous image after picking a new one (React sees an unchanged `src`
-  // and never re-fetches).
-  const logoUrl = logoPath ? `${LOGO_URL}?p=${encodeURIComponent(logoPath)}` : null;
   const logoOnAir = presentationOpen && output.kind === "logo";
   const [confirmRemove, setConfirmRemove] = useState(false);
 
@@ -123,23 +118,37 @@ export function ProjectionSection() {
       </FieldGroup>
 
       <FieldGroup title={t("settings.groups.logo")}>
-        <FieldRow description={t("settings.logoDesc")} help={t("settings.logoFormats")} label={t("settings.logo")}>
-          <Button onClick={() => void changeLogo()} variant="outline">
-            {t("settings.chooseFile")}
-          </Button>
-          {/* Asked first only when the logo IS the picture on the projector:
-              removing it then turns the screen black in front of everybody,
-              which is not what "removing a preference" looks like. With
-              nothing on air it is a plain setting and gets no dialog. */}
-          <Button disabled={logoPath === null} onClick={handleRemoveLogo} variant="ghost">
-            {t("settings.logoRemove")}
-          </Button>
+        {/* One of two, chosen (owner, 2026-11-05): before, a loaded image
+            silently won and the name rows below it stopped applying. */}
+        <FieldRow description={t("settings.logoModeDesc")} label={t("settings.logoMode")}>
+          <Segmented
+            label={t("settings.logoMode")}
+            onChange={(mode) => void updateSettings({ "logo.mode": mode })}
+            options={[
+              { icon: "image", label: t("settings.logoModes.image"), value: "image" },
+              { icon: "text", label: t("settings.logoModes.name"), value: "name" },
+            ]}
+            value={logoMode}
+          />
         </FieldRow>
-        {/* The name and background LOGO falls back to, and ONE preview of
-            what LOGO shows now — the image when there is one (2026-11-05
-            review: an image box and a scene box were two previews of one
-            button). */}
-        <LogoSceneFields logoUrl={logoUrl} />
+        {logoMode === "image" ? (
+          <FieldRow description={t("settings.logoDesc")} help={t("settings.logoFormats")} label={t("settings.logo")}>
+            <Button onClick={() => void changeLogo()} variant="outline">
+              {t("settings.chooseFile")}
+            </Button>
+            {/* Asked first only when the logo IS the picture on the projector:
+                removing it then turns the screen black in front of everybody,
+                which is not what "removing a preference" looks like. With
+                nothing on air it is a plain setting and gets no dialog. */}
+            <Button disabled={logoPath === null} onClick={handleRemoveLogo} variant="ghost">
+              {t("settings.logoRemove")}
+            </Button>
+          </FieldRow>
+        ) : null}
+        {/* The name and background in «name» mode, and ONE preview of what
+            LOGO shows now (2026-11-05 review: an image box and a scene box
+            were two previews of one button). */}
+        <LogoSceneFields />
       </FieldGroup>
 
       <FieldGroup title={t("settings.groups.liveContent")}>

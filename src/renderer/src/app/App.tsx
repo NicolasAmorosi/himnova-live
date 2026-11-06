@@ -14,12 +14,13 @@ import { useT } from "@renderer/lib/i18n/i18n-provider";
 import { installGlobalErrorHandlers } from "@renderer/lib/global-error-handlers";
 import { api } from "@renderer/lib/api";
 import { toast } from "@renderer/lib/toast";
-import { restoreDraft } from "@renderer/lib/actions/programs";
+import { restoreDraft, saveCurrentProgram } from "@renderer/lib/actions/programs";
 import { loadScenes } from "@renderer/lib/actions/utility";
 import { loadPlates } from "@renderer/lib/actions/overlays";
 import { loadSongs, refreshLiveSong } from "@renderer/lib/actions/songs";
 import { useProjectionStore } from "@renderer/stores/projection.store";
-import { LOGO_URL } from "@shared/urls";
+import { useProgramStore } from "@renderer/stores/program.store";
+import { logoLook } from "@shared/types/settings";
 import { useSettingsStore } from "@renderer/stores/settings.store";
 import { useBibleStore } from "@renderer/stores/bible.store";
 import { useDisplayStore } from "@renderer/stores/display.store";
@@ -67,6 +68,7 @@ export function App() {
   const setRemoveAssetConfirmId = useUiStore((s) => s.setRemoveAssetConfirmId);
   const closeGuard = useUiStore((s) => s.closeGuard);
   const setCloseGuard = useUiStore((s) => s.setCloseGuard);
+  const savedProgram = useProgramStore((s) => s.currentProgramId !== null);
   /** `ConfirmModal` reports the close the same way whether the operator
    *  confirmed or backed out, and the two mean opposite things to main: one
    *  resumes the quit, the other has to release it so the NEXT close asks
@@ -74,6 +76,7 @@ export function App() {
   const closeConfirmedRef = useRef(false);
   const loadSettings = useSettingsStore((s) => s.load);
   const logoPath = useSettingsStore((s) => s.settings["logo.path"]);
+  const logoMode = useSettingsStore((s) => s.settings["logo.mode"]);
   const setLogoUrl = useProjectionStore((s) => s.setLogoUrl);
   const logoName = useSettingsStore((s) => s.settings["logo.name"]);
   const logoBackground = useSettingsStore((s) => s.settings["logo.background"]);
@@ -180,20 +183,18 @@ export function App() {
     };
   }, [loadSettings]);
 
+  // The image or the name over its background, whichever mode LOGO is in:
+  // edited in Settings, it reaches the projector in place, like the verse's style.
   useEffect(() => {
-    // The path itself is the cache-buster: `worship://logo` is always the
-    // same host, so without something in the URL that changes along with the
-    // file, the projector's <img> would keep the previous logo cached.
-    setLogoUrl(
-      logoPath ? `${LOGO_URL}?p=${encodeURIComponent(logoPath)}` : null,
-    );
-  }, [logoPath, setLogoUrl]);
-
-  // LOGO without an image: edited in Settings, it reaches the projector in
-  // place, like the verse's style.
-  useEffect(() => {
-    setLogoScene({ name: logoName, background: logoBackground });
-  }, [logoName, logoBackground, setLogoScene]);
+    const look = logoLook({
+      "logo.path": logoPath,
+      "logo.mode": logoMode,
+      "logo.name": logoName,
+      "logo.background": logoBackground,
+    });
+    setLogoUrl(look.url);
+    setLogoScene(look.scene);
+  }, [logoPath, logoMode, logoName, logoBackground, setLogoUrl, setLogoScene]);
 
   // Mirrors the projection settings into the store the same way the logo
   // does above — `selectOutput` reads them off `projection.store`, not
@@ -334,6 +335,16 @@ export function App() {
             closeConfirmedRef.current = true;
             await api.window.closeDecision("close");
           }}
+          // «Guardar y salir» only for a program that already has its row: a
+          // never-saved one needs a name first, which is the programs screen's.
+          onSave={
+            closeGuard?.unsaved && savedProgram
+              ? async () => {
+                  await saveCurrentProgram();
+                  return !useProgramStore.getState().dirty;
+                }
+              : undefined
+          }
           onOpenChange={(open) => {
             if (open) return;
             setCloseGuard(null);

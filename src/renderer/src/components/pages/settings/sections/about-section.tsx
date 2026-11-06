@@ -202,6 +202,19 @@ export function AboutSection() {
             {t("settings.logsOpen")}
           </Button>
         </FieldRow>
+        <FieldRow description={t("settings.licenseDesc")} label={t("settings.license")}>
+          {/* The license's own identifier, like the version: not translated. */}
+          <Caption className="select-text">GPL-3.0</Caption>
+          <Button
+            onClick={() =>
+              void api.system.openSourceCode().catch((error: unknown) => console.warn("[about] could not open the repo", error))
+            }
+            size="sm"
+            variant="outline"
+          >
+            {t("settings.sourceCode")}
+          </Button>
+        </FieldRow>
       </FieldGroup>
 
       <ConfirmModal

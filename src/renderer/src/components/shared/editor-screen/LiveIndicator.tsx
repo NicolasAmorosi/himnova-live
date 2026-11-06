@@ -39,7 +39,7 @@ export function LiveIndicator() {
               // The work screen's colours (2026-11-05): red on air, amber when
               // NEGRO or LOGO covers it, grey with nothing projected.
               broadcasting
-                ? "bg-on-air motion-safe:animate-pulse"
+                ? "bg-on-air"
                 : presentationOpen && (output.kind === "black" || output.kind === "logo")
                   ? "bg-warning"
                   : "bg-border-light",

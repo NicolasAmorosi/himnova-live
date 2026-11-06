@@ -23,6 +23,7 @@ import { LOGO_URL, assetUrl, slideUrl } from "@shared/urls";
 import type { DeckSlide, DeckSlideVideo } from "@shared/types/deck";
 import { DEFAULT_BIBLE_STYLE } from "@shared/types/bible-style";
 import { DEFAULT_SCENE_STYLE } from "@shared/types/scene-style";
+import { DEFAULT_SETTINGS, logoLook } from "@shared/types/settings";
 import { DEFAULT_TIMER_FORMAT } from "@shared/types/timer";
 import type { UtilityScene } from "@shared/types/utility";
 
@@ -118,6 +119,25 @@ describe("the overlay wins over the base", () => {
       scene: { name: "Iglesia Central" },
       backgroundUrl: assetUrl(9),
     });
+  });
+
+  test("logoLook: the chosen mode decides, and an install that never chose shows its image when it has one", () => {
+    const base = {
+      "logo.path": "/logo.png",
+      "logo.mode": null,
+      "logo.name": "Iglesia Central",
+      "logo.background": { kind: "solid", color: "#123456" },
+    } as const;
+    const bare = { name: null, background: DEFAULT_SETTINGS["logo.background"] };
+    expect(logoLook(base)).toEqual({ url: `${LOGO_URL}?p=%2Flogo.png`, scene: bare });
+    expect(logoLook({ ...base, "logo.path": null }).scene.name).toBe("Iglesia Central");
+    // «Nombre sobre fondo» with an image loaded: the image is not shown.
+    expect(logoLook({ ...base, "logo.mode": "name" })).toEqual({
+      url: null,
+      scene: { name: "Iglesia Central", background: base["logo.background"] },
+    });
+    // «Imagen» with no image yet: a bare black LOGO, never the name.
+    expect(logoLook({ ...base, "logo.mode": "image", "logo.path": null })).toEqual({ url: null, scene: bare });
   });
 
   test("turning «loop» on with a video live rebuilds the memoized output; another end action does not", () => {

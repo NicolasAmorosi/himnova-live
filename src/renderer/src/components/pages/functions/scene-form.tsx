@@ -1,6 +1,15 @@
 import { useState } from "react";
 import { useT, type Translate } from "@renderer/lib/i18n/i18n-provider";
-import { ColorField, FieldRow, Input, InspectorSection, Select, Switch, type SelectOption } from "@renderer/components/ui";
+import {
+  ColorField,
+  DependentFields,
+  FieldRow,
+  Input,
+  InspectorSection,
+  Select,
+  Switch,
+  type SelectOption,
+} from "@renderer/components/ui";
 import {
   BackgroundFields,
   FontFamilyFields,
@@ -35,10 +44,14 @@ type SceneFormProps = {
   value: SceneDraft;
 };
 
+/** What a countdown's colour triggers start from when switched on. */
+const DEFAULT_TRIGGERS: NonNullable<SceneStyle["triggers"]> = { warningAtMs: 60_000, warningColor: "#ffa92d", endColor: "#dd1f1f" };
+
 /**
  * Everything about one scene but its name (which is the editor's title), as the
  * sections of the editor's inspector: what the scene IS first (its tool, its
- * clock, its texts, what happens at zero), then how it looks.
+ * clock, its texts), then how it looks, then what happens at zero (owner,
+ * 2026-11-05: the look right after the content it dresses).
  *
  * The rows that edit the parts of `SceneStyle` the Bible verse style ALSO has
  * — the background, the typeface, the vertical alignment, a text role's four
@@ -60,6 +73,7 @@ export function SceneForm({ addingImages, imageAssets, onAddImages, onChange, on
   const patchConfig = (next: Partial<SceneDraft["config"]>) => patch({ config: { ...value.config, ...next } });
   const patchFormat = (next: Partial<SceneDraft["config"]["format"]>) =>
     patchConfig({ format: { ...value.config.format, ...next } });
+  const triggers = value.style.triggers ?? DEFAULT_TRIGGERS;
 
   const toolOptions: SelectOption[] = TIMER_TOOLS.map((tool) => ({
     label: t(TOOL_LABEL[tool]),
@@ -156,6 +170,46 @@ export function SceneForm({ addingImages, imageAssets, onAddImages, onChange, on
         </FieldRow>
       </InspectorSection>
 
+      <InspectorSection title={t("style.groups.background")}>
+        <BackgroundFields
+          addingImages={addingImages}
+          imageAssets={imageAssets}
+          onAddImages={onAddImages}
+          onChange={(background) => patchStyle({ background })}
+          value={value.style.background}
+        />
+      </InspectorSection>
+
+      <InspectorSection title={t("style.groups.typography")}>
+        <FontFamilyFields
+          onChange={(fontFamily) => patchStyle({ fontFamily })}
+          value={value.style.fontFamily}
+        />
+        <VerticalAlignField
+          onChange={(verticalAlign) => patchStyle({ verticalAlign })}
+          value={value.style.verticalAlign}
+        />
+      </InspectorSection>
+
+      <TextStyleGroup
+        onChange={(next) => patchStyle({ value: next })}
+        t={t}
+        title={t("scenes.groups.number")}
+        value={value.style.value}
+      />
+      <TextStyleGroup
+        onChange={(next) => patchStyle({ title: next })}
+        t={t}
+        title={t("scenes.groups.titleLine")}
+        value={value.style.title}
+      />
+      <TextStyleGroup
+        onChange={(next) => patchStyle({ message: next })}
+        t={t}
+        title={t("scenes.groups.messageLine")}
+        value={value.style.message}
+      />
+
       {/* Everything that happens when the count runs out, in one group: the
           text that replaces the line below, how that text is drawn, and what
           disappears. Only a countdown has an end, so a clock and a stopwatch
@@ -227,85 +281,41 @@ export function SceneForm({ addingImages, imageAssets, onAddImages, onChange, on
               checked={value.style.triggers !== null}
               onChange={(e) =>
                 patchStyle({
-                  triggers: e.target.checked
-                    ? { warningAtMs: 60_000, warningColor: "#ffa92d", endColor: "#dd1f1f" }
-                    : null,
+                  triggers: e.target.checked ? DEFAULT_TRIGGERS : null,
                 })
               }
             />
           </FieldRow>
-          {value.style.triggers !== null ? (
-            <>
-              <FieldRow description={t("scenes.warningAtHint")} label={t("scenes.warningAt")}>
-                <NumericTextField
-                  format={formatDuration}
-                  onCommit={(warningAtMs) =>
-                    patchStyle({ triggers: { ...value.style.triggers!, warningAtMs } })
-                  }
-                  parse={(text) => {
-                    const ms = parseDuration(text);
-                    return ms !== null && ms >= 0 && ms <= 3_600_000 ? ms : null;
-                  }}
-                  value={value.style.triggers.warningAtMs}
-                />
-              </FieldRow>
-              <FieldRow label={t("scenes.warningColor")}>
-                <ColorField
-                  label={t("scenes.warningColor")}
-                  onChange={(warningColor) => patchStyle({ triggers: { ...value.style.triggers!, warningColor } })}
-                  value={value.style.triggers.warningColor}
-                />
-              </FieldRow>
-              <FieldRow label={t("scenes.endColor")}>
-                <ColorField
-                  label={t("scenes.endColor")}
-                  onChange={(endColor) => patchStyle({ triggers: { ...value.style.triggers!, endColor } })}
-                  value={value.style.triggers.endColor}
-                />
-              </FieldRow>
-            </>
-          ) : null}
+          {/* Off, the rows show what turning it on would start from. */}
+          <DependentFields enabled={value.style.triggers !== null}>
+            <FieldRow description={t("scenes.warningAtHint")} label={t("scenes.warningAt")}>
+              <NumericTextField
+                format={formatDuration}
+                onCommit={(warningAtMs) => patchStyle({ triggers: { ...triggers, warningAtMs } })}
+                parse={(text) => {
+                  const ms = parseDuration(text);
+                  return ms !== null && ms >= 0 && ms <= 3_600_000 ? ms : null;
+                }}
+                value={triggers.warningAtMs}
+              />
+            </FieldRow>
+            <FieldRow label={t("scenes.warningColor")}>
+              <ColorField
+                label={t("scenes.warningColor")}
+                onChange={(warningColor) => patchStyle({ triggers: { ...triggers, warningColor } })}
+                value={triggers.warningColor}
+              />
+            </FieldRow>
+            <FieldRow label={t("scenes.endColor")}>
+              <ColorField
+                label={t("scenes.endColor")}
+                onChange={(endColor) => patchStyle({ triggers: { ...triggers, endColor } })}
+                value={triggers.endColor}
+              />
+            </FieldRow>
+          </DependentFields>
         </InspectorSection>
       ) : null}
-      <InspectorSection title={t("style.groups.background")}>
-        <BackgroundFields
-          addingImages={addingImages}
-          imageAssets={imageAssets}
-          onAddImages={onAddImages}
-          onChange={(background) => patchStyle({ background })}
-          value={value.style.background}
-        />
-      </InspectorSection>
-
-      <InspectorSection title={t("style.groups.typography")}>
-        <FontFamilyFields
-          onChange={(fontFamily) => patchStyle({ fontFamily })}
-          value={value.style.fontFamily}
-        />
-        <VerticalAlignField
-          onChange={(verticalAlign) => patchStyle({ verticalAlign })}
-          value={value.style.verticalAlign}
-        />
-      </InspectorSection>
-
-      <TextStyleGroup
-        onChange={(next) => patchStyle({ value: next })}
-        t={t}
-        title={t("scenes.groups.number")}
-        value={value.style.value}
-      />
-      <TextStyleGroup
-        onChange={(next) => patchStyle({ title: next })}
-        t={t}
-        title={t("scenes.groups.titleLine")}
-        value={value.style.title}
-      />
-      <TextStyleGroup
-        onChange={(next) => patchStyle({ message: next })}
-        t={t}
-        title={t("scenes.groups.messageLine")}
-        value={value.style.message}
-      />
 
     </>
   );

@@ -74,7 +74,7 @@ function reasonText(t: Translate, reason: VideoProbeReason): string {
 }
 
 /**
- * The rows under «Performance» that describe the machine rather than set a
+ * The rows of «Diagnostics», at the foot of System: what describes the machine rather than sets a
  * preference: which GPU draws the app, whether Chromium is decoding video on
  * it, the two `chrome://` pages that say more, and «Test video».
  *

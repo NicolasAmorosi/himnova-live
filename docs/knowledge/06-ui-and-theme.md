@@ -129,7 +129,7 @@ operated in a dark projection booth.
 - **Motion**: `--ease-enter`/`--ease-exit`; the modal and its scrim enter in 150 ms
   (`wa-modal-enter`/`wa-backdrop-enter`), with no exit animation on purpose — a dialog that's
   closing shouldn't keep taking focus or clicks. Everything decorative goes through
-  `motion-safe:` (the pulse of the LIVE dot, the linked audio's pulse, the skeleton, the
+  `motion-safe:` (the linked audio's pulse, the skeleton, the
   spinner). The PROJECTOR's transitions don't: those are content, not interface (see the note in
   `globals.css`).
 - A modal's scrim is `bg-scrim`: black at 60% in dark, navy at 40% in light.

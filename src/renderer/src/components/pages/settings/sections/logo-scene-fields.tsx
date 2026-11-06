@@ -8,18 +8,23 @@ import { useSettingsStore } from "@renderer/stores/settings.store";
 import { api } from "@renderer/lib/api";
 import { toast } from "@renderer/lib/toast";
 import { INSTANT_TRANSITION, LOGO_NAME_MAX_LENGTH, type ProjectionOutput } from "@shared/types/projection";
+import { logoLook, logoModeOf } from "@shared/types/settings";
 import type { MediaAsset } from "@shared/types/media";
 import type { SceneBackground } from "@shared/types/scene-style";
 
 /**
- * LOGO without a logo image (owner, 2026-11-05): the church's name over a
- * background — rows of the «Logo» group — and the preview of what LOGO shows,
- * drawn by the projector's own `OutputView` (the image, when `logoUrl` has
- * one). Saved as it changes, like everything in Settings; the name on blur or
- * Enter.
+ * LOGO's «name over a background» mode (owner, 2026-11-05): the church's name
+ * and the background — rows of the «Logo» group, shown only in that mode —, and
+ * in either mode the preview of what LOGO shows, drawn by the projector's own
+ * `OutputView` from the same `logoLook` the projector gets. Saved as it
+ * changes, like everything in Settings; the name on blur or Enter. The
+ * background offers the image library — the backgrounds the app ships
+ * included — through the same `BackgroundFields` every style editor uses.
  */
-export function LogoSceneFields({ logoUrl }: { logoUrl: string | null }) {
+export function LogoSceneFields() {
   const t = useT();
+  const path = useSettingsStore((s) => s.settings["logo.path"]);
+  const mode = useSettingsStore((s) => s.settings["logo.mode"]);
   const name = useSettingsStore((s) => s.settings["logo.name"]);
   const background = useSettingsStore((s) => s.settings["logo.background"]);
   const update = useSettingsStore((s) => s.update);
@@ -64,42 +69,53 @@ export function LogoSceneFields({ logoUrl }: { logoUrl: string | null }) {
 
   // The projector's own builder, fed this group's values: the preview cannot
   // draw what the projector would not.
+  const look = logoLook({
+    "logo.path": path,
+    "logo.mode": mode,
+    "logo.name": name,
+    "logo.background": pendingImage ?? background,
+  });
   const logo = selectOutput({
     ...useProjectionStore.getState(),
     base: null,
     overlay: "logo",
-    logoUrl,
-    logoScene: { name, background: pendingImage ?? background },
+    logoUrl: look.url,
+    logoScene: look.scene,
   });
   const output: ProjectionOutput = { ...logo, transition: INSTANT_TRANSITION };
 
   return (
     <>
-      <FieldRow description={t("settings.logoNameDesc")} label={t("settings.logoName")}>
-        <Input
-          aria-label={t("settings.logoName")}
-          maxLength={LOGO_NAME_MAX_LENGTH}
-          onBlur={commitName}
-          onChange={(e) => setDraft(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") commitName();
-          }}
-          placeholder={t("settings.logoNamePlaceholder")}
-          size="sm"
-          value={draft}
-        />
-      </FieldRow>
-      <BackgroundFields
-        addingImages={addingImages}
-        imageAssets={imageAssets}
-        onAddImages={() => void addImages()}
-        onChange={(next) => {
-          const noImageYet = next.kind === "image" && next.assetId === 0;
-          setPendingImage(noImageYet ? next : null);
-          if (!noImageYet) void update({ "logo.background": next });
-        }}
-        value={pendingImage ?? background}
-      />
+      {/* In «image» mode the name and background would not apply: not shown. */}
+      {logoModeOf(mode, path) === "name" ? (
+        <>
+          <FieldRow description={t("settings.logoNameDesc")} label={t("settings.logoName")}>
+            <Input
+              aria-label={t("settings.logoName")}
+              maxLength={LOGO_NAME_MAX_LENGTH}
+              onBlur={commitName}
+              onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") commitName();
+              }}
+              placeholder={t("settings.logoNamePlaceholder")}
+              size="sm"
+              value={draft}
+            />
+          </FieldRow>
+          <BackgroundFields
+            addingImages={addingImages}
+            imageAssets={imageAssets}
+            onAddImages={() => void addImages()}
+            onChange={(next) => {
+              const noImageYet = next.kind === "image" && next.assetId === 0;
+              setPendingImage(noImageYet ? next : null);
+              if (!noImageYet) void update({ "logo.background": next });
+            }}
+            value={pendingImage ?? background}
+          />
+        </>
+      ) : null}
       {/* A row like the others, the picture where a field would be. */}
       <FieldRow label={t("settings.logoPreview")}>
         <Box className="aspect-video w-64 overflow-hidden">

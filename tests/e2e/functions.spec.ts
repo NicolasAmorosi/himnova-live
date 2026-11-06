@@ -42,6 +42,20 @@ test("a plate made in the editor goes up over what is live", async ({ app }) => 
   await expect(projector.locator(`img[src="worship://asset/${photo?.id}"]`)).toBeVisible();
 });
 
+test("leaving an editor with unsaved changes can save and leave in one go", async ({ app }) => {
+  const { control } = app;
+  await app.openResources("Funciones", "Placas");
+  await control.getByRole("tabpanel", { name: "Placas" }).getByRole("button", { name: "Editar placas", exact: true }).click();
+  const editor = control.getByRole("dialog", { name: "Placas" });
+  await editor.getByRole("group", { name: "Título", exact: true }).getByRole("textbox").fill("Pr. Ana Gómez");
+  await editor.getByRole("button", { name: "Cerrar" }).click();
+  // «Guardar y salir» (owner, 2026-11-05): saved, then gone — no second step.
+  await control.getByRole("dialog", { name: "Hay cambios sin guardar" }).getByRole("button", { name: "Guardar y salir" }).click();
+  await expect(control.getByRole("status").filter({ hasText: "Se guardó «Placa nueva»" })).toBeVisible();
+  await expect(editor).toBeHidden();
+  await expect(control.getByRole("tabpanel", { name: "Placas" }).getByRole("listitem").filter({ hasText: "Placa nueva" })).toBeVisible();
+});
+
 const scenes = (app: WorshipApp) => app.control.getByRole("list", { name: "Escenas de tiempo" }).getByRole("listitem");
 
 async function sceneLive(app: WorshipApp, name: string) {

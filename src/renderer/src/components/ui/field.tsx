@@ -50,6 +50,19 @@ export function FieldGroup({
   );
 }
 
+/** The rows that only apply while a switch above them is on: always shown,
+ *  dimmed and inert while it is off (owner, 2026-11-05 — hidden in some
+ *  editors and dimmed in others before). A native disabled `<fieldset>` turns
+ *  off every control inside, and each `FieldRow` dims its own label beside a
+ *  disabled control; `contents` keeps the rows in the section's own column. */
+export function DependentFields({ children, enabled }: { children: ReactNode; enabled: boolean }) {
+  return (
+    <fieldset className="contents" disabled={!enabled}>
+      {children}
+    </fieldset>
+  );
+}
+
 /** The «?» after a label: the hint in a tooltip, on hover or focus. Inside a
  *  switch row's `<label>` a click on it would flip the switch, hence the
  *  `preventDefault`. */

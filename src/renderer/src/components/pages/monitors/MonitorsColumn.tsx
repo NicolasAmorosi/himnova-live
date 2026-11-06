@@ -70,7 +70,7 @@ export function MonitorsColumn() {
         title={
           <span className="flex items-center gap-1.5">
             {broadcasting ? (
-              <span className="size-2 shrink-0 rounded-full bg-on-air motion-safe:animate-pulse" />
+              <span className="size-2 shrink-0 rounded-full bg-on-air" />
             ) : null}
             {t("live.title")}
           </span>

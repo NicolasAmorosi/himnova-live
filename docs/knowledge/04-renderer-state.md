@@ -7,7 +7,7 @@ their place, **Zustand** in per-domain slices (`src/renderer/src/stores/`):
 |---|---|
 | `program.store.ts` | current program (`items`, name, notes, date), `selectedIndex` (highlight), `activeIndex` (live), `dirty` |
 | `preview.store.ts` | **what is being looked at** (`target`: program item \| verse \| library asset) + `slideIndex`, the preview cursor, independent of the projection one |
-| `projection.store.ts` | `base` (what was chosen to project) + `overlay` ('none'\|'black'\|'logo') + `logoUrl` + `logoScene` (LOGO without an image: `logo.name` over `logo.background`, mirrored by `App.tsx` and carried dressed in the `logo` output, drawn by `LogoScene`) + `presentationOpen` |
+| `projection.store.ts` | `base` (what was chosen to project) + `overlay` ('none'\|'black'\|'logo') + `logoUrl` + `logoScene` (LOGO's two modes, `logo.mode` «image» \| «name» — unset: the image when there is one —, resolved by `logoLook` in `shared/types/settings.ts` for `App.tsx` and the Settings preview alike: the image's url, or `logo.name` over `logo.background` carried dressed in the `logo` output and drawn by `LogoScene`) + `presentationOpen` |
 | `bible.store.ts` | active version/book/chapter, loaded verses, current verse index |
 | `library.store.ts` | media library by type, active tab, selection |
 | `settings.store.ts` | in-memory mirror of the `settings` table, applies `data-theme` to `<html>` |

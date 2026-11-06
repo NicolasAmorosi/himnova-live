@@ -22,7 +22,8 @@ const KIND_LABEL_KEYS: Record<AssetKind, MessageKey> = {
 };
 
 /** App-wide preferences that aren't about projection: theme, language, how
- *  hard the control window works, and where the file picker opens. */
+ *  hard the control window works, where the file picker opens — and, at the
+ *  foot, the machine's own diagnostics. */
 export function SystemSection() {
   const t = useT();
   const theme = useSettingsStore((s) => s.settings["ui.theme"]);
@@ -100,7 +101,6 @@ export function SystemSection() {
             onChange={(e) => void updateSettings({ "monitors.liveVideoMotion": e.target.checked })}
           />
         </FieldRow>
-        <PerformanceDiagnostics />
       </FieldGroup>
 
       {/* One row per kind, in `ASSET_KINDS` order, so this group cannot fall
@@ -134,6 +134,11 @@ export function SystemSection() {
         })}
       </FieldGroup>
 
+      {/* What describes the machine rather than sets a preference, last on the
+          page (owner, 2026-11-05: «dejalo donde está pero al fondo»). */}
+      <FieldGroup title={t("settings.groups.diagnostics")}>
+        <PerformanceDiagnostics />
+      </FieldGroup>
     </div>
   );
 }

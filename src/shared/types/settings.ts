@@ -5,15 +5,26 @@ import { DEFAULT_BIBLE_STYLE, type BibleStyle } from "./bible-style";
 import { MEDIA_SORT_ORDERS, type MediaSortOrder } from "./media";
 import { SONG_SORT_ORDERS, type SongSortOrder } from "./song";
 import { TRANSITION_MAX_DURATION_MS, TRANSITION_STYLES, type TransitionStyle } from "./transition";
-import { LOGO_NAME_MAX_LENGTH, VIDEO_END_ACTIONS, type VideoEndAction } from "./projection";
+import { LOGO_NAME_MAX_LENGTH, VIDEO_END_ACTIONS, type LogoScene, type VideoEndAction } from "./projection";
 import type { SceneBackground } from "./scene-style";
 import { isSceneBackground } from "../style-validators";
+import { LOGO_URL } from "../urls";
 
 export const THEMES = ["dark", "light"] as const;
 export type Theme = (typeof THEMES)[number];
 
 export const LOCALES = ["es", "en", "it", "pt"] as const;
 export type Locale = (typeof LOCALES)[number];
+
+/** What LOGO shows: the logo image, or the church's name over a background
+ *  (owner, 2026-11-05: «Imagen | Nombre sobre fondo»). */
+export const LOGO_MODES = ["image", "name"] as const;
+export type LogoMode = (typeof LOGO_MODES)[number];
+
+/** The LOGO an install shows: the one the operator chose, else — never chosen,
+ *  every install before the choice existed — the image when there is one, as
+ *  LOGO always did. */
+export const logoModeOf = (mode: LogoMode | null, path: string | null): LogoMode => mode ?? (path ? "image" : "name");
 
 /** The faces a slide can fall back to when it names one this machine lacks:
  *  the open ones Lumina ships (`assets/fonts/slides/`), so the choice looks
@@ -32,10 +43,13 @@ export type SlideFallbackFont = (typeof SLIDE_FALLBACK_FONTS)[number];
 
 export type SettingsMap = {
   "logo.path": string | null;
-  /** The church's name, on LOGO when there is no logo image. */
+  /** Which of the two LOGO shows; `null` until the operator picks — see
+   *  `logoModeOf`. */
+  "logo.mode": LogoMode | null;
+  /** The church's name, on LOGO in «name» mode. */
   "logo.name": string | null;
-  /** What LOGO is drawn over when there is no logo image. Black, as LOGO
-   *  always was, until the starter look dresses it. */
+  /** What LOGO is drawn over in «name» mode. Black, as LOGO always was, until
+   *  the starter look dresses it. */
   "logo.background": SceneBackground;
   /** Where the file picker opens for each kind of asset. `null` means "the
    *  operating system's own folder for this kind" (`systemMediaFolder` in
@@ -140,6 +154,7 @@ export type SettingsMap = {
 
 export const DEFAULT_SETTINGS: SettingsMap = {
   "logo.path": null,
+  "logo.mode": null,
   "logo.name": null,
   "logo.background": { kind: "solid", color: "#000000" },
   "files.defaultFolders": { video: null, image: null, audio: null, ppt: null },
@@ -174,6 +189,24 @@ export const DEFAULT_SETTINGS: SettingsMap = {
   "updates.autoCheck": true,
   "updates.announcedVersion": null,
 };
+
+/** What LOGO draws, from its settings: the image in «image» mode — its path is
+ *  the cache-buster, `worship://logo` being one host for every logo —, the
+ *  name over its background in «name» mode, and nothing of the other mode in
+ *  either. One function for the projector (`App`) and the Settings preview, so
+ *  the two cannot disagree. «image» with no image chosen is a bare black LOGO. */
+export function logoLook(
+  settings: Pick<SettingsMap, "logo.path" | "logo.mode" | "logo.name" | "logo.background">,
+): { url: string | null; scene: LogoScene } {
+  const path = settings["logo.path"];
+  if (logoModeOf(settings["logo.mode"], path) === "name") {
+    return { url: null, scene: { name: settings["logo.name"], background: settings["logo.background"] } };
+  }
+  return {
+    url: path ? `${LOGO_URL}?p=${encodeURIComponent(path)}` : null,
+    scene: { name: null, background: DEFAULT_SETTINGS["logo.background"] },
+  };
+}
 
 /* -------------------------------------------------------------------------
  * Runtime validation
@@ -231,6 +264,7 @@ const isStringArray = (v: unknown): boolean => Array.isArray(v) && v.every(isStr
 
 export const SETTINGS_VALIDATORS: Record<keyof SettingsMap, (value: unknown) => boolean> = {
   "logo.path": isNullOr(isString),
+  "logo.mode": isNullOr(isOneOf(LOGO_MODES)),
   "logo.name": (v) => v === null || (typeof v === "string" && v.length <= LOGO_NAME_MAX_LENGTH),
   "logo.background": isSceneBackground,
   "files.defaultFolders": isRecordOfKinds(isNullOr(isString)),
