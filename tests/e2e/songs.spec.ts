@@ -67,7 +67,7 @@ test("a linked folder shows its song files, and editing one of them writes the f
 
     await songRows(app).first().click();
     await tab(app).getByRole("button", { name: "Editar canción" }).click();
-    await expect(dialog(app)).toContainText("guardar también escribe ese archivo");
+    await expect(dialog(app)).toContainText(`guardar también escribe «${file}»`);
     await dialog(app).getByRole("textbox", { name: "Título" }).fill("Roca de los siglos");
     await dialog(app).getByRole("button", { name: "Guardar", exact: true }).click();
     await expect(toast(app, "Se guardó «Roca de los siglos»")).toBeVisible();
@@ -77,6 +77,43 @@ test("a linked folder shows its song files, and editing one of them writes the f
     await tab(app).getByRole("button", { name: "Desvincular carpeta" }).click();
     await dialog(app).getByRole("button", { name: "Desvincular carpeta" }).click();
     await expect(songRows(app)).toHaveText([/Cristo me ama/]);
+    expect(fs.existsSync(file)).toBe(true);
+  } finally {
+    fs.rmSync(folder, { recursive: true, force: true });
+  }
+});
+
+test("a song imported from a file is saved into that file, and ✕ deletes it but never the file (owner, 2026-11-05)", async ({
+  app,
+}) => {
+  const folder = fs.mkdtempSync(path.join(os.tmpdir(), "worship-e2e-tied-"));
+  const file = path.join(folder, "5.xml");
+  // Like the HASD hymnal's: Windows-1252, declared in the XML.
+  const xml = `<?xml version='1.0' encoding='windows-1252'?>
+<song xmlns="http://openlyrics.info/namespace/2009/song" version="0.8">
+  <properties><titles><title>5 - Jubilosos Te Adoramos</title></titles></properties>
+  <lyrics><verse name="v1"><lines>Jubilosos Te adoramos<br/>Deus da glória, Deus do amor</lines></verse></lyrics>
+</song>`;
+  fs.writeFileSync(file, Buffer.from(xml, "latin1"));
+  try {
+    await app.openResources("Canciones");
+    await app.answerOpenDialog(file);
+    await tab(app).getByRole("button", { name: "Importar", exact: true }).click();
+    await expect(toast(app, "Se importó 1 canción · 0 repetidas · 0 sin letra")).toBeVisible();
+    await songRows(app).filter({ hasText: "Jubilosos" }).click();
+    await tab(app).getByRole("button", { name: "Editar canción" }).click();
+    await expect(dialog(app)).toContainText(`guardar también escribe «${file}»`);
+    await dialog(app).getByRole("textbox", { name: "Título" }).fill("5 - Jubilosos (editado)");
+    await dialog(app).getByRole("button", { name: "Guardar", exact: true }).click();
+    await expect(toast(app, "Se guardó «5 - Jubilosos (editado)»")).toBeVisible();
+    await expect.poll(() => fs.readFileSync(file, "utf8")).toContain("5 - Jubilosos (editado)");
+    expect(fs.readFileSync(file, "utf8")).toContain("Deus da glória");
+    await dialog(app).getByRole("button", { name: "Cerrar" }).first().click();
+
+    await tab(app).getByRole("button", { name: "Eliminar canción" }).click();
+    await expect(dialog(app)).toContainText("Su archivo queda en el disco");
+    await dialog(app).getByRole("button", { name: "Eliminar", exact: true }).click();
+    await expect(songRows(app)).toHaveCount(0);
     expect(fs.existsSync(file)).toBe(true);
   } finally {
     fs.rmSync(folder, { recursive: true, force: true });

@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useI18n } from "@renderer/lib/i18n/i18n-provider";
 import { ConfirmModal } from "@renderer/components/shared/modal";
 import { EditorScreen } from "@renderer/components/shared/editor-screen";
-import { ProgramUsages } from "@renderer/components/shared/program-usages";
 import { OutputView } from "@renderer/components/shared/output-view";
 import { SongSlideGrid } from "@renderer/components/shared/song-slide-grid";
 import {
@@ -23,7 +22,7 @@ import {
 import { toast } from "@renderer/lib/toast";
 import { useSongFit } from "@renderer/lib/song-fit";
 import { footerAt, slideLines, slideTranslation, songOutputFor } from "@renderer/lib/song-output";
-import { deleteSong, duplicateSong, isSongLive, saveSong, songUsages } from "@renderer/lib/actions/songs";
+import { duplicateSong, saveSong, songDeleteTarget, type SongDeleteTarget } from "@renderer/lib/actions/songs";
 import { findSong, resolveSong, themeForSong, useSongStore } from "@renderer/stores/song.store";
 import { useSettingsStore } from "@renderer/stores/settings.store";
 import { INSTANT_TRANSITION, type ProjectionOutput } from "@shared/types/projection";
@@ -37,7 +36,7 @@ import {
   slideAtCaret,
 } from "@shared/song-text";
 import { SONG_FIELD_MAX_LENGTH, SONG_NOTES_MAX_LENGTH, SONG_TITLE_MAX_LENGTH } from "@shared/song-validators";
-import type { Song, SongUsage } from "@shared/types/song";
+import type { Song } from "@shared/types/song";
 import {
   emptySongDraft,
   isSongDraftSavable,
@@ -47,11 +46,9 @@ import {
   toSongUpsert,
   type SongDraft,
 } from "./song-draft";
+import { DeleteSongConfirm } from "./delete-song-confirm";
 import { SongOrderField } from "./song-order-field";
 
-type Pending =
-  | { kind: "discard"; go: () => void }
-  | { kind: "delete"; songId: number; live: boolean; usages: SongUsage[] };
 
 type SongEditorModalProps = {
   onOpenChange: (open: boolean) => void;
@@ -91,7 +88,9 @@ export function SongEditorModal({ onOpenChange, onSaved, open, songId }: SongEdi
   const [caret, setCaret] = useState<number | null>(null);
   /** Which text the lyrics zone shows: the lyrics, or their translation. */
   const [textTab, setTextTab] = useState<"lyrics" | "translation">("lyrics");
-  const [pending, setPending] = useState<Pending | null>(null);
+  /** Leaving with unsaved changes: what to do once the operator discards them. */
+  const [pendingDiscard, setPendingDiscard] = useState<(() => void) | null>(null);
+  const [deleting, setDeleting] = useState<SongDeleteTarget | null>(null);
   const [saving, setSaving] = useState(false);
   const lyricsRef = useRef<HTMLTextAreaElement>(null);
   const nameRef = useRef<HTMLInputElement>(null);
@@ -107,7 +106,8 @@ export function SongEditorModal({ onOpenChange, onSaved, open, songId }: SongEdi
     setSelected(1);
     setCaret(null);
     setTextTab("lyrics");
-    setPending(null);
+    setPendingDiscard(null);
+    setDeleting(null);
     // A new song is named first (2026-11-05 review: the caret went to the
     // lyrics and the empty title read as a heading). On the next frame, so it
     // lands after the dialog has put its own first focus.
@@ -123,7 +123,7 @@ export function SongEditorModal({ onOpenChange, onSaved, open, songId }: SongEdi
   // The draft as a song, so the preview is resolved — split, footer and all —
   // exactly as the projector will resolve it once saved.
   const draftSong: Song = useMemo(
-    () => ({ ...toSongUpsert(draft, parsed, null), id: currentId ?? 0, updatedAt: 0, sourceFolder: null }),
+    () => ({ ...toSongUpsert(draft, parsed, null), id: currentId ?? 0, updatedAt: 0, sourceFolder: null, file: null }),
     [currentId, draft, parsed],
   );
   const preview = resolveSong(draftSong, theme, license);
@@ -203,7 +203,7 @@ export function SongEditorModal({ onOpenChange, onSaved, open, songId }: SongEdi
   }
 
   function leaveEditing(go: () => void) {
-    if (dirty) setPending({ kind: "discard", go });
+    if (dirty) setPendingDiscard(() => go);
     else go();
   }
 
@@ -239,13 +239,14 @@ export function SongEditorModal({ onOpenChange, onSaved, open, songId }: SongEdi
   }
 
   async function askToDelete(id: number) {
-    setPending({ kind: "delete", songId: id, live: isSongLive(id), usages: await songUsages(id) });
+    setDeleting(await songDeleteTarget(id));
   }
 
   /** A song read from a linked folder's file: saving writes the file too, and
    *  it is never deleted from here — its file would bring it back, and the app
    *  never deletes a file of the operator's. A duplicate is a library song. */
-  const sourceFolder = findSong(songs, currentId)?.sourceFolder ?? null;
+  const current = findSong(songs, currentId);
+  const sourceFolder = current?.sourceFolder ?? null;
   const menuOptions: MenuOption<"duplicate" | "delete">[] = [
     { disabled: currentId === null, label: t("common.duplicate"), value: "duplicate" },
     ...(sourceFolder === null
@@ -308,9 +309,9 @@ export function SongEditorModal({ onOpenChange, onSaved, open, songId }: SongEdi
             ) : null}
 
             <InspectorSection title={t("songs.groups.data")}>
-              {sourceFolder ? (
-                <Callout className="py-2" role="note" tone="info">
-                  {t("songs.fileSaveHint", { folder: sourceFolder })}
+              {current?.file ? (
+                <Callout className="py-2 break-all" role="note" tone="info">
+                  {t("songs.fileSaveHint", { file: current.file })}
                 </Callout>
               ) : null}
               <FieldRow description={t("songs.numberHint")} label={t("songs.number")}>
@@ -477,42 +478,21 @@ export function SongEditorModal({ onOpenChange, onSaved, open, songId }: SongEdi
       </EditorScreen>
 
       <ConfirmModal
-        confirmLabel={
-          pending?.kind !== "delete"
-            ? t("songs.discard")
-            : pending.usages.length > 0
-              ? t("songs.deleteAnyway")
-              : t("common.delete")
-        }
-        danger={pending?.kind === "delete"}
-        description={
-          pending?.kind !== "delete" ? (
-            t("songs.discardBody")
-          ) : pending.usages.length > 0 ? (
-            <ProgramUsages
-              intro={t("songs.deleteInUseIntro")}
-              usages={pending.usages}
-              warning={pending.live ? t("songs.deleteInUseLiveWarning") : t("songs.deleteInUseWarning")}
-            />
-          ) : pending.live ? (
-            t("songs.deleteLiveBody")
-          ) : (
-            t("songs.deleteBody")
-          )
-        }
-        onConfirm={async () => {
-          if (!pending) return;
-          if (pending.kind === "delete") {
-            if (await deleteSong(pending.songId, pending.usages.length > 0)) onOpenChange(false);
-          } else {
-            pending.go();
-          }
-        }}
+        confirmLabel={t("songs.discard")}
+        description={t("songs.discardBody")}
+        onConfirm={() => pendingDiscard?.()}
         onOpenChange={(next) => {
-          if (!next) setPending(null);
+          if (!next) setPendingDiscard(null);
         }}
-        open={pending !== null}
-        title={pending?.kind === "delete" ? t("songs.deleteTitle") : t("songs.discardTitle")}
+        open={pendingDiscard !== null}
+        title={t("songs.discardTitle")}
+      />
+      <DeleteSongConfirm
+        onDeleted={() => onOpenChange(false)}
+        onOpenChange={(next) => {
+          if (!next) setDeleting(null);
+        }}
+        target={deleting}
       />
     </>
   );

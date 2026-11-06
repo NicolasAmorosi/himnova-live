@@ -6,6 +6,7 @@ import { isSongUpsert, SONG_FIELD_MAX_LENGTH, SONG_TITLE_MAX_LENGTH } from "@sha
 import type { Locale } from "@shared/types/settings";
 import type { SongUpsert } from "@shared/types/song";
 import { rtfToText } from "./rtf";
+import type { SongFileOrigin } from "../db/repositories/songs.repo";
 
 /**
  * EasyWorship 6/7's song database: `Songs.db` (table `song`) and
@@ -36,7 +37,9 @@ type SongRow = {
 
 /** What a reader of another program's songs gives: the songs that can be
  *  written, and how many it found without a title or without lyrics. */
-export type SongsRead = { songs: Omit<SongUpsert, "id">[]; problems: number };
+/** What a reader found. A song read from a song file carries `origin`: an
+ *  import keeps it tied to that file (owner, 2026-11-05). */
+export type SongsRead = { songs: (Omit<SongUpsert, "id"> & { origin?: SongFileOrigin })[]; problems: number };
 
 /** Where the two files are: the folder picked, its `Data`, its
  *  `Databases/Data`, or the profile's (`Default/v6.1/Databases/Data`) — the

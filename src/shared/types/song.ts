@@ -86,6 +86,10 @@ export type Song = {
    *  Saving such a song writes its file too, in the file's own format (owner,
    *  2026-11-05). Main's to set: never part of a write. */
   sourceFolder: string | null;
+  /** The file saving writes, whole path: a linked folder's song's, or a
+   *  library song imported from a song file (owner, 2026-11-05: it stays tied
+   *  to it). `null` = the song lives only in the app. Main's to set. */
+  file: string | null;
   updatedAt: number;
 };
 
@@ -94,7 +98,7 @@ export type Song = {
 export const SONG_SORT_ORDERS = ["title-asc", "title-desc", "number-asc", "date-desc", "date-asc"] as const;
 export type SongSortOrder = (typeof SONG_SORT_ORDERS)[number];
 
-export type SongUpsert = Omit<Song, "id" | "updatedAt" | "sourceFolder"> & { id?: number };
+export type SongUpsert = Omit<Song, "id" | "updatedAt" | "sourceFolder" | "file"> & { id?: number };
 
 export type SongUsage = { programId: number; programName: string; itemCount: number };
 

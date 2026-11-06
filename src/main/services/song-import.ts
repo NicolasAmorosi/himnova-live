@@ -81,23 +81,29 @@ export function importSongFiles(files: readonly string[]): SongImportResult {
  * title, same words — is skipped and counted, and so is a second copy inside
  * the same import; one with the same title and other words comes in as a song
  * of its own (owner, 2026-11-04: it may be another version). A song of a
- * linked folder is not the library's: the same song there is no repeat. One
- * transaction: an import that fails halfway leaves the library as it was.
+ * linked folder is not the library's: the same song there is no repeat. A
+ * song read from a song file stays tied to it (owner, 2026-11-05), and so does
+ * the library's repeat of it when that one had no file yet. One transaction:
+ * an import that fails halfway leaves the library as it was.
  */
 function writeSongs(read: SongsRead): SongImportResult {
   const repo = getSongsRepo();
-  const known = new Set(repo.listLibrary().map(songIdentity));
+  const known = new Map(repo.listLibrary().map((song) => [songIdentity(song), song]));
   let imported = 0;
   let repeated = 0;
   getDbHandle().sqlite.transaction(() => {
     for (const song of read.songs) {
       const identity = songIdentity(song);
-      if (known.has(identity)) {
+      const existing = known.get(identity);
+      if (existing) {
+        if (song.origin && existing.file === null) {
+          repo.tieToFile(existing.id, song.origin);
+          known.set(identity, { ...existing, file: song.origin.path });
+        }
         repeated += 1;
         continue;
       }
-      known.add(identity);
-      repo.create(song);
+      known.set(identity, repo.create(song, song.origin));
       imported += 1;
     }
   })();

@@ -30,6 +30,7 @@ import {
   DEFAULT_SONG_THEME,
   songFooterLines,
   songThemeFromBibleStyle,
+  type Song,
   type SongUpsert,
 } from "../../src/shared/types/song";
 import { isSongThemeUpsert } from "../../src/shared/song-validators";
@@ -400,15 +401,138 @@ describe("a linked folder of song files (owner, 2026-11-05)", () => {
     const file = path.join(folder, "gracia.cho");
     fs.writeFileSync(file, "{title: Sublime gracia}\n{start_of_verse}\nSublime gracia del Señor\n{end_of_verse}\n");
     const [gracia] = await listSongFolder(folder);
-    const { id, updatedAt: _u, sourceFolder: _s, ...edited } = { ...gracia!, title: "Sublime gracia (2)" };
+    const { id, updatedAt: _u, sourceFolder: _s, file: _f, ...edited } = { ...gracia!, title: "Sublime gracia (2)" };
     // What `song:update` does: the file first, then the row.
-    expect(writeSongFile(id, edited)).toBe(true);
+    writeSongFile(id, edited);
     repo.update(id, edited);
     expect(fs.readFileSync(file, "utf8")).toContain("Sublime gracia (2)");
     expect((await listSongFolder(folder))[0]?.title).toBe("Sublime gracia (2)");
 
     fs.utimesSync(file, new Date(), new Date(Date.now() + 10_000));
     expect(() => writeSongFile(id, edited)).toThrow(expect.objectContaining({ code: "SONG_FILE_CHANGED" }));
-    expect(writeSongFile(repo.create(song("Biblioteca", "[Estrofa 1]\nuna línea")).id, edited)).toBe(false);
+    // A song that lives only in the app has no file to write.
+    const only = repo.create(song("Biblioteca", "[Estrofa 1]\nuna línea"));
+    expect(only.file).toBeNull();
+    expect(() => writeSongFile(only.id, edited)).not.toThrow();
+  });
+});
+
+describe("a song imported from a song file stays tied to it (owner, 2026-11-05)", () => {
+  /** What `song:update` does: the file first, then the row. */
+  async function save(id: number, change: (song: Song) => Song): Promise<Song> {
+    const { writeSongFile } = await import("../../src/main/services/song-files");
+    const { id: _id, updatedAt: _u, sourceFolder: _s, file: _f, ...edited } = change(repo.get(id)!);
+    writeSongFile(id, edited);
+    return repo.update(id, edited);
+  }
+  const titled = (title: string) => repo.listLibrary().find((song) => song.title === title)!;
+
+  test("an OpenLyrics file in Windows-1252, like the HASD hymnal's, is written back and reads the same", async () => {
+    const { importSongFiles } = await import("../../src/main/services/song-import");
+    const { readOpenLyrics } = await import("../../src/main/songs/openlp");
+    const { decodeText } = await import("../../src/main/decode-text");
+    const folder = fs.mkdtempSync(path.join(tmpDir, "import-"));
+    const file = path.join(folder, "5.xml");
+    const xml = `<?xml version='1.0' encoding='windows-1252'?>
+<song xmlns="http://openlyrics.info/namespace/2009/song" version="0.8">
+  <properties><titles><title>5 - Jubilosos Te Adoramos</title></titles><authors><author>HASD</author></authors></properties>
+  <lyrics><verse name="v1"><lines>Jubilosos Te adoramos<br/>Deus da glória, Deus do amor</lines></verse></lyrics>
+</song>`;
+    fs.writeFileSync(file, Buffer.from(xml, "latin1"));
+    expect(importSongFiles([file])).toEqual({ imported: 1, repeated: 0, problems: 0 });
+    const imported = titled("5 - Jubilosos Te Adoramos");
+    expect(imported.file).toBe(file);
+    expect(imported.sourceFolder).toBeNull();
+
+    await save(imported.id, (song) => ({
+      ...song,
+      sections: song.sections.map((section) => ({
+        ...section,
+        slides: section.slides.map((slide) => ({
+          ...slide,
+          lines: slide.lines.map((line) => line.replace("Deus do amor", "Deus do amor e da paz")),
+        })),
+      })),
+    }));
+    const back = readOpenLyrics(decodeText(fs.readFileSync(file)))!;
+    expect(back.title).toBe("5 - Jubilosos Te Adoramos");
+    expect(back.sections[0]?.slides[0]?.lines).toContain("Deus da glória, Deus do amor e da paz");
+    // Saved twice in a row: the second save sees its own write, not a change from outside.
+    await save(imported.id, (song) => ({ ...song, authors: "HASD (rev.)" }));
+    expect(readOpenLyrics(decodeText(fs.readFileSync(file)))?.authors).toBe("HASD (rev.)");
+  });
+
+  test("a ChordPro file of two songs keeps both; editing the second writes only it", async () => {
+    const { importSongFiles } = await import("../../src/main/services/song-import");
+    const folder = fs.mkdtempSync(path.join(tmpDir, "import-"));
+    const file = path.join(folder, "dos.cho");
+    fs.writeFileSync(
+      file,
+      "{title: Primera}\n{start_of_verse}\nUna línea primera\n{end_of_verse}\n{new_song}\n{title: Segunda}\n{start_of_verse}\nUna línea segunda\n{end_of_verse}\n",
+    );
+    expect(importSongFiles([file]).imported).toBe(2);
+    const segunda = titled("Segunda");
+    expect(segunda.file).toBe(file);
+    await save(segunda.id, (song) => ({ ...song, title: "Segunda (editada)" }));
+    const text = fs.readFileSync(file, "utf8");
+    expect(text).toContain("Primera");
+    expect(text).toContain("Una línea primera");
+    expect(text).toContain("Segunda (editada)");
+  });
+
+  test("changed outside the app: refused, read again, and saving once more replaces it", async () => {
+    const { importSongFiles } = await import("../../src/main/services/song-import");
+    const folder = fs.mkdtempSync(path.join(tmpDir, "import-"));
+    const file = path.join(folder, "roca.cho");
+    fs.writeFileSync(file, "{title: Roca}\n{start_of_verse}\nRoca de la eternidad\n{end_of_verse}\n");
+    importSongFiles([file]);
+    const roca = titled("Roca");
+    fs.writeFileSync(file, "{title: Roca}\n{start_of_verse}\nRoca de los siglos\n{end_of_verse}\n");
+    fs.utimesSync(file, new Date(), new Date(Date.now() + 5000));
+
+    await expect(save(roca.id, (song) => ({ ...song, notes: "mía" }))).rejects.toMatchObject({ code: "SONG_FILE_CHANGED" });
+    expect(repo.get(roca.id)?.sections[0]?.slides[0]?.lines).toEqual(["Roca de los siglos"]);
+    await save(roca.id, (song) => ({ ...song, title: "Roca (mía)" }));
+    expect(fs.readFileSync(file, "utf8")).toContain("Roca (mía)");
+  });
+
+  test("its file gone: saved in the app and untied; the file is never deleted with the song", async () => {
+    const { importSongFiles } = await import("../../src/main/services/song-import");
+    const folder = fs.mkdtempSync(path.join(tmpDir, "import-"));
+    const kept = path.join(folder, "queda.cho");
+    const gone = path.join(folder, "se-va.cho");
+    fs.writeFileSync(kept, "{title: Queda}\n{start_of_verse}\nEsta queda\n{end_of_verse}\n");
+    fs.writeFileSync(gone, "{title: Se va}\n{start_of_verse}\nEsta se va\n{end_of_verse}\n");
+    importSongFiles([kept, gone]);
+    fs.rmSync(gone);
+    const saved = await save(titled("Se va").id, (song) => ({ ...song, title: "Se fue" }));
+    expect(saved.title).toBe("Se fue");
+    expect(saved.file).toBeNull();
+
+    removeSong(titled("Queda").id, false);
+    expect(fs.existsSync(kept)).toBe(true);
+  });
+
+  test("re-imported, a library copy without a file gets tied to it — still counted as a repeat", async () => {
+    const { importSongFiles } = await import("../../src/main/services/song-import");
+    const folder = fs.mkdtempSync(path.join(tmpDir, "import-"));
+    const file = path.join(folder, "copia.cho");
+    fs.writeFileSync(file, "{title: Copia vieja}\n{start_of_verse}\nLa letra de la copia\n{end_of_verse}\n");
+    const copy = repo.create(song("Copia vieja", "[Estrofa 1]\nLa letra de la copia"));
+    expect(copy.file).toBeNull();
+    expect(importSongFiles([file])).toEqual({ imported: 0, repeated: 1, problems: 0 });
+    expect(repo.get(copy.id)?.file).toBe(file);
+  });
+
+  test("the same file imported and in a linked folder: a save from one side makes the other read it again", async () => {
+    const { importSongFiles } = await import("../../src/main/services/song-import");
+    const { listSongFolder } = await import("../../src/main/services/song-files");
+    const folder = fs.mkdtempSync(path.join(tmpDir, "both-"));
+    const file = path.join(folder, "ambos.cho");
+    fs.writeFileSync(file, "{title: Ambos}\n{start_of_verse}\nEn los dos lados\n{end_of_verse}\n");
+    importSongFiles([file]);
+    const [inFolder] = await listSongFolder(folder);
+    await save(titled("Ambos").id, (song) => ({ ...song, title: "Ambos (desde la biblioteca)" }));
+    expect((await listSongFolder(folder)).find((s) => s.id === inFolder!.id)?.title).toBe("Ambos (desde la biblioteca)");
   });
 });

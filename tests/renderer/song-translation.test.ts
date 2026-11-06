@@ -32,6 +32,7 @@ function song(): Song {
     order: [],
     themeId: null,
     sourceFolder: null,
+    file: null,
     updatedAt: 1,
   };
 }

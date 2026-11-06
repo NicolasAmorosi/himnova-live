@@ -27,6 +27,8 @@ import {
   setSongSort,
   songView,
   unlinkSongFolder,
+  songDeleteTarget,
+  type SongDeleteTarget,
 } from "@renderer/lib/actions/songs";
 import { goLive } from "@renderer/lib/actions/playback";
 import { useDebouncedCallback } from "@renderer/lib/hooks/use-debounced-callback";
@@ -37,6 +39,7 @@ import { useProgramStore } from "@renderer/stores/program.store";
 import { useProjectionStore } from "@renderer/stores/projection.store";
 import { parseSnippet } from "@shared/types/bible";
 import { SONG_SORT_ORDERS, type Song, type SongSearchHit, type SongSortOrder } from "@shared/types/song";
+import { DeleteSongConfirm } from "./delete-song-confirm";
 import { SongEditorModal } from "./SongEditorModal";
 import { SongThemesModal } from "./SongThemesModal";
 
@@ -88,6 +91,7 @@ export function SongsBrowser() {
   const [themesOpen, setThemesOpen] = useState(false);
   const [importing, setImporting] = useState(false);
   const [confirmUnlink, setConfirmUnlink] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<SongDeleteTarget | null>(null);
   const runImport = () => {
     setImporting(true);
     void importSongs().finally(() => setImporting(false));
@@ -96,6 +100,9 @@ export function SongsBrowser() {
 
   const previewedId = target?.kind === "song" ? target.songId : null;
   const previewed = findSong(songs, previewedId);
+  // Only a library song: a folder's song is its file, and the app never
+  // deletes one — even when it was previewed before switching views.
+  const deletable = previewed?.sourceFolder === null ? previewed : null;
 
   // A folder is read from disk each time it is opened: its files may have
   // changed since, outside the app.
@@ -256,6 +263,21 @@ export function SongsBrowser() {
             </IconButton>
           </Tooltip>
         ) : null}
+        {/* Like Media's ✕ (owner, 2026-11-05) — but a song lives only here, so
+            this deletes it, asked first. Not in a folder's view, like Media's. */}
+        {folder === null ? (
+          <Tooltip content={t("songs.removeHint")} floating>
+            <IconButton
+              aria-label={t("songs.remove")}
+              disabled={!deletable}
+              onClick={() => deletable && void songDeleteTarget(deletable.id).then(setDeleting)}
+              size="sm"
+              variant="ghost"
+            >
+              <Icon name="close" />
+            </IconButton>
+          </Tooltip>
+        ) : null}
         <Tooltip content={t("songs.editHint")} floating>
           <IconButton
             aria-label={t("songs.edit")}
@@ -323,6 +345,13 @@ export function SongsBrowser() {
       >
         <SongThemesModal onOpenChange={setThemesOpen} open={themesOpen} />
       </ModalBoundary>
+
+      <DeleteSongConfirm
+        onOpenChange={(open) => {
+          if (!open) setDeleting(null);
+        }}
+        target={deleting}
+      />
 
       {/* Asked first, like Media's: the view the operator had open
           disappearing looks like data loss even though no file is touched. */}

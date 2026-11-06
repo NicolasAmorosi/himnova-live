@@ -189,16 +189,19 @@ const filesIn = (folder: string, pattern: RegExp): string[] =>
         .sort()
     : [];
 
+/** A song as a file reader gives it, without which file it came from. */
+const words = <T extends { origin?: unknown }>({ origin: _origin, ...song }: T) => song;
+
 describe("real files", () => {
   test.skipIf(!fs.existsSync(HASD))("the HASD hymnal (OpenLyrics 0.8, Windows-1252)", () => {
-    const { songs } = readOpenLyricsFiles(filesIn(HASD, /\.xml$/i));
+    const songs = readOpenLyricsFiles(filesIn(HASD, /\.xml$/i)).songs.map(words);
     expect(songs.length).toBeGreaterThan(600);
     for (const first of songs) expect(readOpenLyrics(writeOpenLyrics(first)), first.title).toEqual(first);
   });
 
   test.skipIf(!fs.existsSync(FORMATS))("OpenLyrics files", () => {
     const files = [...filesIn(path.join(FORMATS, "openlyrics"), /\.xml$/i), ...filesIn(path.join(FORMATS, "creados-a-mano"), /\.xml$/i)];
-    const { songs } = readOpenLyricsFiles(files);
+    const songs = readOpenLyricsFiles(files).songs.map(words);
     expect(songs.length).toBeGreaterThan(40);
     for (const first of songs) expect(readOpenLyrics(writeOpenLyrics(first)), first.title).toEqual(first);
   });
@@ -211,7 +214,7 @@ describe("real files", () => {
     expect(files.length).toBeGreaterThan(20);
     let read = 0;
     for (const file of files) {
-      const { songs } = readSongTextFiles([file], "es");
+      const songs = readSongTextFiles([file], "es").songs.map(words);
       if (songs.length === 0) continue; // a file with no song the app reads
       read += songs.length;
       expect(readChordPro(writeChordPro(songs), "file", "es"), file).toEqual(songs);
@@ -224,7 +227,7 @@ describe("real files", () => {
       ...filesIn(path.join(FORMATS, "songselect"), /\.txt$/i),
       ...filesIn(path.join(FORMATS, "creados-a-mano"), /^songselect.*\.txt$/i),
     ];
-    const { songs } = readSongTextFiles(files, "es");
+    const songs = readSongTextFiles(files, "es").songs.map(words);
     expect(songs).toHaveLength(files.length);
     for (const first of songs) expect(readSongSelect(writeSongSelect(first), "es"), first.title).toEqual(first);
   });

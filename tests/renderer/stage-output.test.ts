@@ -56,6 +56,7 @@ function liveSong(slideIndex: number, lyricsHidden = false, lyrics = "[Estrofa 1
     order: ["v1", "c1", "v1"],
     themeId: null,
     sourceFolder: null,
+    file: null,
     updatedAt: 1,
   };
   useProjectionStore.getState().setBase({

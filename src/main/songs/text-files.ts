@@ -213,17 +213,22 @@ export function readSongText(text: string, fallbackTitle: string, locale: Locale
  *  read, is neither, or holds a song with no title or no words is a problem
  *  and the rest still come in. */
 export function readSongTextFiles(files: readonly string[], locale: Locale): SongsRead {
-  const songs: ReadSong[] = [];
+  const songs: SongsRead["songs"] = [];
   let problems = 0;
   for (const file of files) {
     let read: (ReadSong | null)[] = [null];
+    let mtime = 0;
     try {
       read = readSongText(decodeText(fs.readFileSync(file)), path.basename(file, path.extname(file)), locale);
+      mtime = Math.floor(fs.statSync(file).mtimeMs);
     } catch (error) {
       console.warn("[songs] song file unreadable", file, error);
     }
+    // Which song of the file, counted the way saving it back reads the file
+    // (`readSongFile`: the songs that read, in order).
+    let index = 0;
     for (const song of read) {
-      if (song) songs.push(song);
+      if (song) songs.push({ ...song, origin: { path: file, index: index++, mtime } });
       else problems += 1;
     }
   }

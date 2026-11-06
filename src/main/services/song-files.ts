@@ -71,27 +71,36 @@ export async function listSongFolder(folder: string): Promise<Song[]> {
 }
 
 /**
- * Saving a song read from a file writes that file first, in its own format
+ * Saving a song tied to a file writes that file first, in its own format
  * (owner, 2026-11-05: «se edita en Lumina y se edita el archivo real, siempre
- * así»): OpenLyrics as OpenLyrics, ChordPro as ChordPro — with the file's
- * other songs as they are —, SongSelect as SongSelect. `false` for a library
- * song. A file changed outside the app since it was read is not overwritten
- * (`SONG_FILE_CHANGED`): the caller reads it again and the operator decides.
- * Written to a sibling and renamed over the file, so a crash halfway never
- * leaves half a song on disk.
+ * así»): a linked folder's song, or a library song imported from a song file.
+ * OpenLyrics as OpenLyrics, ChordPro as ChordPro — with the file's other songs
+ * as they are —, SongSelect as SongSelect. Nothing for a song that lives only
+ * in the app. A file changed outside the app since it was read is not
+ * overwritten (`SONG_FILE_CHANGED`) but read again — a linked folder's by the
+ * caller, a library song's here —, so saving once more replaces it, as the
+ * message says. A library song whose file is gone is untied and saved in the
+ * app; a linked folder's song IS its file, so that one is refused. Written to
+ * a sibling and renamed over the file, so a crash halfway never leaves half a
+ * song on disk.
  */
-export function writeSongFile(id: number, song: ReadSong): boolean {
+export function writeSongFile(id: number, song: ReadSong): void {
   const repo = getSongsRepo();
   const source = repo.source(id);
-  if (!source) return false;
-  const file = path.join(source.folder, source.file);
+  if (!source) return;
+  const file = source.path;
   let stat: fs.Stats;
   try {
     stat = fs.statSync(file);
   } catch {
+    if (source.folder === null) {
+      repo.untieFile(id);
+      return;
+    }
     throw new IpcError({ code: "SONG_FILE_MISSING", message: mt("songs.fileMissing") });
   }
   if (mtimeOf(stat) !== source.mtime) {
+    if (source.folder === null) repo.syncLibraryFile(file, mtimeOf(stat), readSongFileSafely(file));
     throw new IpcError({ code: "SONG_FILE_CHANGED", message: mt("songs.fileChanged") });
   }
   let content: string;
@@ -117,6 +126,15 @@ export function writeSongFile(id: number, song: ReadSong): boolean {
     fs.rmSync(temporary, { force: true });
     throw new IpcError({ code: "SONG_FILE_UNWRITABLE", message: mt("songs.fileUnwritable") });
   }
-  repo.setFileMtime(source.folder, source.file, mtimeOf(fs.statSync(file)));
-  return true;
+  repo.setFileMtime(file, source.folder, mtimeOf(fs.statSync(file)));
+}
+
+/** What a file holds now, or nothing when it no longer reads. */
+function readSongFileSafely(file: string): ReadSong[] {
+  try {
+    return readSongFile(file, fs.readFileSync(file));
+  } catch (error) {
+    console.warn("[songs] song file unreadable", file, error);
+    return [];
+  }
 }

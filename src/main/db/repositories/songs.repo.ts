@@ -1,3 +1,4 @@
+import path from "node:path";
 import { and, eq, gte, gt, isNull, lt, max } from "drizzle-orm";
 import Database from "better-sqlite3";
 import type { Db } from "../client";
@@ -31,6 +32,8 @@ function toSong(row: typeof songs.$inferSelect): Song {
     order: normalizeOrder(parseJson(row.orderJson)),
     themeId: row.themeId,
     sourceFolder: row.sourceFolder,
+    file:
+      row.sourceFolder !== null && row.sourceFile !== null ? path.join(row.sourceFolder, row.sourceFile) : row.filePath,
     updatedAt: row.updatedAt,
   };
 }
@@ -60,6 +63,12 @@ function toThemeRow(row: typeof songThemes.$inferSelect): SongThemeRow {
   return { id: row.id, name: row.name, style: normalizeSongTheme(parseJson(row.styleJson)) };
 }
 
+/** A song file an imported song came from: its whole path, which song of
+ *  it (a ChordPro file may hold several), and its mtime when read. */
+export type SongFileOrigin = { path: string; index: number; mtime: number };
+
+const fileColumns = (file: SongFileOrigin) => ({ filePath: file.path, sourceIndex: file.index, sourceMtime: file.mtime });
+
 /** `songs` and `song_themes`. Knows nothing about what is live. */
 export class SongsRepo {
   constructor(
@@ -79,11 +88,13 @@ export class SongsRepo {
     return row ? toSong(row) : null;
   }
 
-  create(input: Omit<SongUpsert, "id">): Song {
+  /** `file`: a song imported from a song file stays tied to it — which file,
+   *  which song of it, and its mtime when read. */
+  create(input: Omit<SongUpsert, "id">, file?: SongFileOrigin): Song {
     const now = Date.now();
     const id = this.db
       .insert(songs)
-      .values({ ...toRow(input), createdAt: now, updatedAt: now })
+      .values({ ...toRow(input), ...(file ? fileColumns(file) : {}), createdAt: now, updatedAt: now })
       .run().lastInsertRowid as number;
     const song = this.get(id);
     if (!song) throw new Error(`Song ${id} vanished right after being created`);
@@ -214,11 +225,51 @@ export class SongsRepo {
     return this.db.select().from(songs).where(isNull(songs.sourceFolder)).all().map(toSong);
   }
 
-  /** Where a song read from a file came from; `null` for a library song. */
-  source(id: number): { folder: string; file: string; index: number; mtime: number } | null {
+  /** The file a song is saved into, which song of it, and its mtime when last
+   *  read or written; `null` for a song that lives only in the app. `folder`:
+   *  a linked folder's song (`null` = a library song tied to its file). */
+  source(id: number): { path: string; folder: string | null; index: number; mtime: number } | null {
     const row = this.db.select().from(songs).where(eq(songs.id, id)).get();
-    if (!row || row.sourceFolder === null || row.sourceFile === null) return null;
-    return { folder: row.sourceFolder, file: row.sourceFile, index: row.sourceIndex ?? 0, mtime: row.sourceMtime ?? 0 };
+    if (!row) return null;
+    const where = { index: row.sourceIndex ?? 0, mtime: row.sourceMtime ?? 0 };
+    if (row.sourceFolder !== null && row.sourceFile !== null) {
+      return { path: path.join(row.sourceFolder, row.sourceFile), folder: row.sourceFolder, ...where };
+    }
+    return row.filePath === null ? null : { path: row.filePath, folder: null, ...where };
+  }
+
+  /** A library song tied to `file` from now on (an import found it already
+   *  in the library, same title and words). */
+  tieToFile(id: number, file: SongFileOrigin): void {
+    this.db.update(songs).set(fileColumns(file)).where(eq(songs.id, id)).run();
+  }
+
+  /** A library song whose file is gone: it lives only in the app from now on. */
+  untieFile(id: number): void {
+    this.db.update(songs).set({ filePath: null, sourceIndex: null, sourceMtime: null }).where(eq(songs.id, id)).run();
+  }
+
+  /** The library songs tied to `file` take what it holds now (each its own
+   *  song of the file, its theme kept) and its `mtime`: the file changed
+   *  outside the app. A song past the file's end keeps its words. */
+  syncLibraryFile(file: string, mtime: number, read: readonly Omit<SongUpsert, "id">[]): void {
+    const now = Date.now();
+    this.sqlite.transaction(() => {
+      const rows = this.db
+        .select()
+        .from(songs)
+        .where(and(isNull(songs.sourceFolder), eq(songs.filePath, file)))
+        .all();
+      for (const row of rows) {
+        const song = read[row.sourceIndex ?? 0];
+        const values = song ? { ...toRow({ ...song, themeId: row.themeId }), updatedAt: now } : {};
+        this.db
+          .update(songs)
+          .set({ ...values, sourceMtime: mtime })
+          .where(eq(songs.id, row.id))
+          .run();
+      }
+    })();
   }
 
   /** The songs read from `folder`'s files, keyed by file name. */
@@ -275,13 +326,15 @@ export class SongsRepo {
     return out;
   }
 
-  /** The file was written: every song of it now matches `mtime`. */
-  setFileMtime(folder: string, file: string, mtime: number): void {
-    this.db
-      .update(songs)
-      .set({ sourceMtime: mtime })
-      .where(and(eq(songs.sourceFolder, folder), eq(songs.sourceFile, file)))
-      .run();
+  /** `file` was written: every song of it now matches `mtime` — the linked
+   *  folder's rows, or the library's, never both: the other side's rows hold
+   *  what they read before and must read it again. */
+  setFileMtime(file: string, folder: string | null, mtime: number): void {
+    const where =
+      folder === null
+        ? and(isNull(songs.sourceFolder), eq(songs.filePath, file))
+        : and(eq(songs.sourceFolder, folder), eq(songs.sourceFile, path.relative(folder, file)));
+    this.db.update(songs).set({ sourceMtime: mtime }).where(where).run();
   }
 
   listThemes(): SongThemeRow[] {

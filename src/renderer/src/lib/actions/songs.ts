@@ -101,22 +101,33 @@ export async function setLiveSongLanguage(language: SongLanguage): Promise<void>
 }
 
 export async function saveSong(input: SongUpsert): Promise<Song | null> {
+  const before = findSong(useSongStore.getState().songs, input.id ?? null);
   try {
     const song =
       input.id === undefined ? await api.songs.create(input) : await api.songs.update({ ...input, id: input.id });
     await loadSongs();
     await refreshLiveSong(song.id);
+    // A library song whose file is gone was saved in the app and untied.
+    if (before?.file && song.file === null) toast.warning(t("songs.fileUntied", { file: before.file }));
     return song;
   } catch (error) {
     console.warn("[songs] could not save the song", error);
-    // A song of a linked folder whose file is gone, read-only or changed
-    // outside the app: main says which, in the operator's language.
+    // A song tied to a file that is gone, read-only or changed outside the
+    // app: main says which, in the operator's language — and has read a
+    // changed library song's file again; a linked folder's is re-listed.
     const fileError = error instanceof IpcError && error.code.startsWith("SONG_FILE_");
     toast.danger(fileError ? error.message : t("songs.saveError"));
-    const folder = findSong(useSongStore.getState().songs, input.id ?? null)?.sourceFolder;
-    if (fileError && folder) void refreshSongFolder(folder);
+    if (fileError) void (before?.sourceFolder ? refreshSongFolder(before.sourceFolder) : loadSongs());
     return null;
   }
+}
+
+/** What «Eliminar» asks about a song (`DeleteSongConfirm`). */
+export type SongDeleteTarget = { songId: number; live: boolean; usages: SongUsage[]; file: string | null };
+
+export async function songDeleteTarget(id: number): Promise<SongDeleteTarget> {
+  const file = findSong(useSongStore.getState().songs, id)?.file ?? null;
+  return { songId: id, live: isSongLive(id), usages: await songUsages(id), file };
 }
 
 export async function duplicateSong(id: number, title: string): Promise<Song | null> {

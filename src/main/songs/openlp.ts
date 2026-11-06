@@ -346,16 +346,18 @@ export function readOpenLyrics(xml: string): Omit<SongUpsert, "id"> | null {
 /** OpenLyrics files, each read on its own: one that cannot be read, or reads
  *  as no song, is a problem and the rest still come in. */
 export function readOpenLyricsFiles(files: readonly string[]): SongsRead {
-  const songs: Omit<SongUpsert, "id">[] = [];
+  const songs: SongsRead["songs"] = [];
   let problems = 0;
   for (const file of files) {
     let song: Omit<SongUpsert, "id"> | null = null;
+    let mtime = 0;
     try {
       song = readOpenLyrics(decodeText(fs.readFileSync(file)));
+      mtime = Math.floor(fs.statSync(file).mtimeMs);
     } catch (error) {
       console.warn("[songs] OpenLyrics file unreadable", file, error);
     }
-    if (song) songs.push(song);
+    if (song) songs.push({ ...song, origin: { path: file, index: 0, mtime } });
     else problems += 1;
   }
   return { songs, problems };

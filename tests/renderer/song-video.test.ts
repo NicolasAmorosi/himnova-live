@@ -25,6 +25,7 @@ function liveSong(theme: SongTheme) {
     order: [],
     themeId: null,
     sourceFolder: null,
+    file: null,
     updatedAt: 1,
   };
   const store = useProjectionStore.getState();

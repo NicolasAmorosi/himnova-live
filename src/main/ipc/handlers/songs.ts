@@ -64,7 +64,7 @@ export const songsHandlers: Pick<
 > = {
   "song:list": () => getSongsRepo().list(),
   "song:create": (input) => getSongsRepo().create(assertValid(input)),
-  // A song read from a file writes the file first: refused there, nothing changes.
+  // A song tied to a file writes the file first: refused there, nothing changes.
   "song:update": (input) => {
     const song = assertValid(input);
     writeSongFile(input.id, song);

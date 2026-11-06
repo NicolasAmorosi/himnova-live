@@ -35,6 +35,7 @@ function song(lyrics: string, order: string[] = [], id = 7): Song {
     order,
     themeId: null,
     sourceFolder: null,
+    file: null,
     updatedAt: 1,
   };
 }
