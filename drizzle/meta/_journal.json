@@ -155,6 +155,20 @@
       "when": 1793895615764,
       "tag": "0021_song_uses",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "6",
+      "when": 1793922317801,
+      "tag": "0022_song_files",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "6",
+      "when": 1793927016960,
+      "tag": "0023_song_file_path",
+      "breakpoints": true
     }
   ]
 }

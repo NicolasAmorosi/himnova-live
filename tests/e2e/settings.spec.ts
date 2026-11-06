@@ -1,5 +1,8 @@
-import type { Locator } from "@playwright/test";
-import { expect, relaunch, test, videoStates, type WorshipApp } from "./support/app";
+import fs from "node:fs";
+import path from "node:path";
+import type { Locator, Page } from "@playwright/test";
+import { fixture } from "./support/paths";
+import { audioStates, expect, relaunch, test, videoStates, type WorshipApp } from "./support/app";
 
 async function openSettings(
   app: WorshipApp,
@@ -67,7 +70,7 @@ test("emptying the slide cache warns about a deck on air, and a deck is read aga
   await app.goLive();
 
   let settings = await openSettings(app, "Diapositivas");
-  await expect(settings.getByText("1 presentación con audio o video guardado en disco")).toBeVisible();
+  await expect(settings.getByText(/1 presentación con audio o video guardado/)).toBeVisible();
   await settings.getByRole("button", { name: "Vaciar caché" }).click();
   const confirm = app.control.getByRole("dialog", { name: "¿Vaciar la caché de diapositivas?" });
   await expect(confirm).toContainText("Hay una presentación EN VIVO");
@@ -81,7 +84,7 @@ test("emptying the slide cache warns about a deck on air, and a deck is read aga
   await expect(confirm).not.toContainText("EN VIVO");
   await confirm.getByRole("button", { name: "Vaciar caché" }).click();
   await expect(app.control.getByRole("status").filter({ hasText: "Se vació la caché de diapositivas" })).toBeVisible();
-  await expect(settings.getByText("0 presentaciones con audio o video guardado en disco")).toBeVisible();
+  await expect(settings.getByText(/Ninguna presentación con audio o video guardado/)).toBeVisible();
   await closeSettings(settings);
 
   // The deck the control window still remembers is read again, and what goes
@@ -132,4 +135,145 @@ test("«Al terminar un video»: BLACK over the cleared stage, or a loop that sta
   await expect.poll(async () => (await videoStates(projector))[0]?.currentTime ?? 99).toBeLessThan(2);
   expect((await videoStates(projector))[0]?.paused).toBe(false);
   await expect(app.control.getByRole("button", { name: "NEGRO", exact: true }).first()).not.toHaveAttribute("aria-pressed", "true");
+});
+
+test("LOGO without an image shows the church's name, typed in Proyección", async ({ app }) => {
+  const settings = await openSettings(app, "Proyección");
+  const name = settings.getByRole("textbox", { name: "Nombre de la iglesia" });
+  await name.fill("Iglesia Central");
+  await name.press("Enter");
+  // The preview in Settings is the projector's own drawing.
+  await expect(settings.locator("[data-logo-name]")).toHaveText("Iglesia Central");
+  await closeSettings(settings);
+  await app.control.getByRole("button", { name: "LOGO", exact: true }).first().click();
+  const projector = await app.projector();
+  await expect(projector.locator("[data-logo-name]")).toHaveText("Iglesia Central");
+});
+
+test("the church's name and the CCLI licence typed, then Escape or «Volver», are kept — after a restart too", async ({ app }) => {
+  // Escape closes Settings with no blur: a field that saved on blur alone dropped what was typed.
+  let settings = await openSettings(app, "Proyección");
+  await settings.getByRole("textbox", { name: "Nombre de la iglesia" }).fill("Iglesia Central");
+  await app.control.keyboard.press("Escape");
+  await expect(settings).toBeHidden();
+  settings = await openSettings(app, "Proyección");
+  await expect(settings.getByRole("textbox", { name: "Nombre de la iglesia" })).toHaveValue("Iglesia Central");
+
+  await settings.getByRole("tab", { name: "Canciones" }).click();
+  await settings.getByRole("textbox", { name: "Licencia CCLI de la iglesia" }).fill("998877");
+  await closeSettings(settings);
+  await app.quit();
+  const stored = await (await relaunch(app)).invoke<Record<string, unknown>>("settings:get");
+  expect(stored["logo.name"]).toBe("Iglesia Central");
+  expect(stored["songs.ccliLicense"]).toBe("998877");
+});
+
+test("every choice in Proyección, Diapositivas and Sistema is kept after a restart", async ({ app }) => {
+  const folder = fs.mkdtempSync(path.join(app.profile, "videos-"));
+  let settings = await openSettings(app, "Proyección");
+  const pick = async (field: string, option: string) => {
+    await settings.getByRole("combobox", { name: field, exact: true }).click();
+    await app.control.getByRole("option", { name: option, exact: true }).click();
+  };
+  await pick("Al terminar un video", "Quedarse en el último cuadro");
+  await settings.getByRole("slider", { name: "Volumen inicial" }).fill("0.5");
+  await pick("Estilo", "Fundido a negro");
+  await pick("Duración", "Lenta (600 ms)");
+  await settings.getByRole("tab", { name: "Diapositivas" }).click();
+  await pick("Fuente de reemplazo", "Liberation Sans");
+  await settings.getByRole("tab", { name: "Sistema" }).click();
+  await settings.getByRole("group", { name: "Video en movimiento en el monitor En Vivo" }).getByRole("switch").click();
+  const videos = settings.getByRole("group", { name: "Videos", exact: true });
+  await app.answerOpenDialog(folder);
+  await videos.getByRole("button", { name: "Elegir carpeta…" }).click();
+  await expect(videos).toContainText(folder);
+  await closeSettings(settings);
+  await app.quit();
+
+  const again = await relaunch(app);
+  const stored = await again.invoke<Record<string, unknown>>("settings:get");
+  expect(stored["projection.videoEnd"]).toBe("hold");
+  expect(stored["media.volume"]).toBe(0.5);
+  expect(stored["projection.transition.style"]).toBe("fade-through-black");
+  expect(stored["projection.transition.durationMs"]).toBe(600);
+  expect(stored["slides.fallbackFont"]).toBe("Liberation Sans");
+  expect(stored["monitors.liveVideoMotion"]).toBe(false);
+  expect((stored["files.defaultFolders"] as Record<string, string | null>)["video"]).toBe(folder);
+
+  settings = await openSettings(again, "Proyección");
+  await expect(settings.getByRole("combobox", { name: "Al terminar un video", exact: true })).toHaveText(/último cuadro/);
+  await expect(settings.getByRole("slider", { name: "Volumen inicial" })).toHaveValue("0.5");
+  await settings.getByRole("tab", { name: "Sistema" }).click();
+  await settings.getByRole("group", { name: "Videos", exact: true }).getByRole("button", { name: "Restablecer" }).click();
+  await expect(settings.getByRole("group", { name: "Videos", exact: true })).toContainText("Carpeta del sistema");
+});
+
+const scheduleSection = (app: WorshipApp) =>
+  app.control.locator("section").filter({ has: app.control.getByRole("heading", { name: "Programa", exact: true }) });
+const scheduleRow = (app: WorshipApp, text: string) => scheduleSection(app).getByRole("list").first().getByRole("listitem").filter({ hasText: text });
+/** The on-air rail of a schedule row. */
+const rail = (row: Locator) => row.locator("span.bg-on-air");
+
+async function addToSchedule(app: WorshipApp, ...names: string[]) {
+  await app.answerOpenDialog(...names.map(fixture));
+  await scheduleSection(app).getByRole("button", { name: "Agregar medios" }).click();
+}
+
+async function chooseVideoEnd(app: WorshipApp, option: string) {
+  const settings = await openSettings(app, "Proyección");
+  await choose(app, settings.getByRole("group", { name: "Al terminar un video" }), option);
+  await closeSettings(settings);
+}
+
+/** The projected video sent to its last moments, so it ends on its own. */
+async function playToEnd(projector: Page) {
+  await expect.poll(async () => (await videoStates(projector))[0]?.currentTime ?? 0).toBeGreaterThan(0.2);
+  await projector.locator("video").first().evaluate((element: HTMLVideoElement) => (element.currentTime = element.duration - 0.4));
+}
+
+const imageOnProjector = (projector: Page) => projector.locator('img[src^="worship://asset/"]');
+
+test("«Pasar al siguiente del programa» sends the next row that shows something, past an audio", async ({ app }) => {
+  await chooseVideoEnd(app, "Pasar al siguiente del programa");
+  await addToSchedule(app, "clip.mp4", "song.mp3", "photo.png");
+  await scheduleRow(app, "clip").dblclick();
+  const projector = await app.projector();
+  await playToEnd(projector);
+  await expect(imageOnProjector(projector)).toBeVisible();
+  await expect(rail(scheduleRow(app, "photo"))).toHaveCount(1);
+  expect(await audioStates(projector)).toEqual([]);
+});
+
+test("«Pasar al siguiente del programa» after the last row shows the logo", async ({ app }) => {
+  await chooseVideoEnd(app, "Pasar al siguiente del programa");
+  await addToSchedule(app, "photo.png", "clip.mp4");
+  await scheduleRow(app, "clip").dblclick();
+  const projector = await app.projector();
+  await playToEnd(projector);
+  await expect(app.control.getByRole("button", { name: "LOGO", exact: true }).first()).toHaveAttribute("aria-pressed", "true");
+  await expect.poll(async () => (await videoStates(projector)).length).toBe(0);
+  await expect(rail(scheduleRow(app, "clip"))).toHaveCount(0);
+});
+
+test("«Quedarse en el último cuadro» holds the video on air, paused, and NEGRO on and off does not play it again", async ({ app }) => {
+  await chooseVideoEnd(app, "Quedarse en el último cuadro");
+  await addToSchedule(app, "clip.mp4");
+  await scheduleRow(app, "clip").dblclick();
+  const projector = await app.projector();
+  await playToEnd(projector);
+  await expect.poll(async () => (await videoStates(projector))[0]?.paused).toBe(true);
+  await app.control.waitForTimeout(800);
+  expect(await videoStates(projector)).toMatchObject([{ opacity: 1 }]);
+  expect((await videoStates(projector))[0]?.currentTime).toBeGreaterThan(7);
+  await expect(rail(scheduleRow(app, "clip"))).toHaveCount(1);
+  await expect(app.control.getByRole("button", { name: "VIVO", exact: true })).toHaveAttribute("aria-pressed", "true");
+  // The LIVE row says the video stopped: it offers «Reproducir», not «Pausar».
+  await expect(app.liveColumn().getByRole("button", { name: "Reproducir" })).toBeVisible();
+
+  await app.control.locator("body").press("b");
+  await expect(app.control.getByRole("button", { name: "NEGRO", exact: true }).first()).toHaveAttribute("aria-pressed", "true");
+  await app.control.locator("body").press("b");
+  await app.control.waitForTimeout(1_500);
+  // Uncovering must not restart an ended clip from 0 — its sound included.
+  expect((await videoStates(projector))[0]?.currentTime).toBeGreaterThan(7);
 });

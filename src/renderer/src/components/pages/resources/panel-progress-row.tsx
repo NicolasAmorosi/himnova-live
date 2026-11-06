@@ -22,7 +22,7 @@ export function PanelProgressRow({ cancelLabel, label, onCancel, value }: PanelP
   // this the bar announces a bare percentage with nothing to attach it to.
   const labelId = useId();
   return (
-    <div className="flex min-w-0 basis-full items-center gap-2">
+    <div className="flex min-w-0 basis-full items-center gap-2 py-1.5">
       <Caption className="shrink-0 whitespace-nowrap" id={labelId}>
         {label}
       </Caption>

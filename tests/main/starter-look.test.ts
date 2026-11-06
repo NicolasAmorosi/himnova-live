@@ -10,7 +10,7 @@ import { afterEach, describe, expect, test } from "vitest";
 import { openDatabase } from "../../src/main/db/client";
 import { runMigrations } from "../../src/main/db/migrate";
 import { seedSongThemes } from "../../src/main/db/seed/seed-song-themes";
-import { seedStarterLook, STARTER_LOOK_VERSION } from "../../src/main/db/seed/seed-starter-look";
+import { factoryVerseStyle, seedStarterLook, STARTER_LOOK_VERSION } from "../../src/main/db/seed/seed-starter-look";
 import { seedUtilityScenes } from "../../src/main/db/seed/seed-utility-scenes";
 import mainEs from "../../src/main/i18n/messages/es";
 import {
@@ -23,6 +23,7 @@ import {
 } from "../../src/main/services/repos";
 import { DEFAULT_BIBLE_STYLE } from "../../src/shared/types/bible-style";
 import { DEFAULT_SCENE_STYLE } from "../../src/shared/types/scene-style";
+import { DEFAULT_SETTINGS } from "../../src/shared/types/settings";
 
 const drizzleDir = path.join(process.cwd(), "drizzle");
 const backgroundsDir = path.join(process.cwd(), "resources", "backgrounds");
@@ -133,5 +134,57 @@ describe("the starter look", () => {
     ]);
     expect(settings.get("songs.defaultThemeId")).toBeNull();
     expect(getSongsRepo().listThemes()).toHaveLength(7);
+  });
+});
+
+describe("the starter look, version 2: LOGO without an image", () => {
+  test("a new install gets LOGO over «Noche» along with the rest", () => {
+    const { dir, seed } = profile();
+    seed(true);
+    const night = getMediaRepo()
+      .list("image")
+      .find((asset) => asset.path === path.join(dir, "backgrounds", "Noche.webp"));
+    expect(getSettingsRepo().get("logo.background")).toEqual({ kind: "image", assetId: night?.id, fit: "cover" });
+  });
+
+  test("an install on version 1 only dresses LOGO — nothing deleted comes back, nothing is added twice", () => {
+    const { seed } = profile();
+    seed(false);
+    const settings = getSettingsRepo();
+    // As 2.5.0 left it: version 1, LOGO still black, and a background the operator deleted.
+    settings.setMany({ "look.seeded": 1, "logo.background": DEFAULT_SETTINGS["logo.background"] });
+    const sky = getMediaRepo().list("image").find((asset) => asset.name === "Cielo");
+    getMediaRepo().remove(sky!.id);
+    const themes = getSongsRepo().listThemes().length;
+
+    seed(false);
+
+    expect(settings.get("logo.background").kind).toBe("image");
+    expect(getMediaRepo().list("image").map((asset) => asset.name)).not.toContain("Cielo");
+    expect(getSongsRepo().listThemes()).toHaveLength(themes);
+    expect(getOverlaysRepo().list()).toHaveLength(3);
+    expect(settings.get("look.seeded")).toBe(STARTER_LOOK_VERSION);
+  });
+
+  test("a LOGO background the operator chose is kept", () => {
+    const { seed } = profile();
+    const chosen = { kind: "solid" as const, color: "#123456" };
+    getSettingsRepo().setMany({ "logo.background": chosen });
+    seed(false);
+    expect(getSettingsRepo().get("logo.background")).toEqual(chosen);
+  });
+});
+
+describe("the verse's «Restaurar»", () => {
+  test("brings the verse back over «Noche», and to plain black once «Noche» is deleted", () => {
+    const { dir, seed } = profile();
+    seed(true);
+    const folder = path.join(dir, "backgrounds");
+    expect(factoryVerseStyle(getMediaRepo(), folder, mainEs.look)).toEqual(getSettingsRepo().get("bible.style"));
+    expect(factoryVerseStyle(getMediaRepo(), folder, mainEs.look).background.kind).toBe("image");
+
+    const night = getMediaRepo().list("image").find((asset) => asset.name === "Noche");
+    getMediaRepo().remove(night!.id);
+    expect(factoryVerseStyle(getMediaRepo(), folder, mainEs.look)).toEqual(DEFAULT_BIBLE_STYLE);
   });
 });

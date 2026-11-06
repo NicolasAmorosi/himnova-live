@@ -562,6 +562,17 @@ export const songThemes = sqliteTable(
  *
  * `theme_id` is `set null`: deleting a theme leaves its songs on the default
  * one, never without their words.
+ *
+ * `source_*` is set for a song read from a file in a linked folder (owner,
+ * 2026-11-05: folders are the computer's, like Media's): which folder, which
+ * file, which song of that file (a ChordPro file may hold several), and the
+ * file's mtime when it was last read or written. `NULL` = a library song.
+ *
+ * `file_path` is a LIBRARY song's own file: one imported from an OpenLyrics,
+ * ChordPro or SongSelect file stays tied to it, and saving it writes that file
+ * (owner, 2026-11-05: «que quede atada al archivo», like Media's files) — its
+ * song of the file and mtime in `source_index`/`source_mtime`. `NULL` = the
+ * song lives only in the app (typed, duplicated, or from a database).
  */
 export const songs = sqliteTable(
   "songs",
@@ -578,11 +589,16 @@ export const songs = sqliteTable(
     /** JSON: section keys, with repetitions; `[]` = the sections as written. */
     orderJson: text("order_json").notNull(),
     themeId: integer("theme_id").references(() => songThemes.id, { onDelete: "set null" }),
+    sourceFolder: text("source_folder"),
+    sourceFile: text("source_file"),
+    sourceIndex: integer("source_index"),
+    sourceMtime: integer("source_mtime"),
+    filePath: text("file_path"),
     lyricsText: text("lyrics_text").notNull(),
     createdAt: integer("created_at").notNull(),
     updatedAt: integer("updated_at").notNull(),
   },
-  (t) => [index("ix_songs_title").on(t.title)],
+  (t) => [index("ix_songs_title").on(t.title), index("ix_songs_source").on(t.sourceFolder, t.sourceFile, t.sourceIndex)],
 );
 
 /**

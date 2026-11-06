@@ -77,7 +77,7 @@ export function DeckTransport() {
           across the full width below. */}
       <div className="flex flex-col gap-1 px-2 py-1.5">
         <div className="flex items-center gap-2">
-          <Icon className="size-4 text-accent-ink" name="ppt" />
+          <Icon className="text-muted-foreground" name="ppt" />
 
           <span className="min-w-0 flex-1 truncate text-sm text-foreground">{heading ?? ""}</span>
 

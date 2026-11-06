@@ -17,6 +17,7 @@ import { cn } from "@renderer/lib/utils";
 import { BIBLE_VERSION_MIME, hideDragGhost } from "@renderer/lib/dnd";
 import { toast } from "@renderer/lib/toast";
 import { useBibleStore } from "@renderer/stores/bible.store";
+import { useProgramStore } from "@renderer/stores/program.store";
 import { useSettingsStore } from "@renderer/stores/settings.store";
 import { BIBLE_VERSION_NAME_MAX_LENGTH, isBibleVersionName } from "@shared/types/bible";
 import type { BibleVersionDTO, BibleVersionUsage } from "@shared/types/bible";
@@ -60,14 +61,13 @@ type Pending = { version: BibleVersionDTO; usages: BibleVersionUsage[] };
  *
  * Two things about the row are deliberate and easy to undo by accident:
  *
- * - **The star is the LEADING control, and it is the only mark of «default»
- *   there is.** It replaced both a decorative bible icon and a pair
- *   of badges, and it is the same star `ProgramRow` uses — a filled
- *   `accent-ink` glyph, not a badge and not a filled button. One shape for
- *   "this is the one I keep coming back to" across the app. Clicking the one
- *   that already is the default does nothing on purpose: there is always
- *   exactly one, because a dangling default sends the Bible tab back to
- *   `versions[0]`, an insertion order nobody chose.
+ * - **The radio mark is the LEADING control, and it is the only mark of
+ *   «default» there is.** It replaced both a decorative bible icon and a pair
+ *   of badges. A radio and not the star it was: the star means «favorite»
+ *   everywhere else (programs, verses), and the default is one of N (owner,
+ *   2026-11-05). Clicking the one that already is the default does nothing on
+ *   purpose: there is always exactly one, because a dangling default sends
+ *   the Bible tab back to `versions[0]`, an insertion order nobody chose.
  * - **The order is the operator's, and it is not cosmetic.** The list is the
  *   same array the version picker offers (`bible.store`), so dragging a row
  *   here is what puts RV1909 first there. The drag is handle-only — the row
@@ -175,6 +175,9 @@ export function BibleSection() {
       // `force` is exactly "the operator has just read which programs this
       // affects and said yes anyway" — never a flag the UI sets on its own.
       await api.bible.delete(version.id, usages.length > 0);
+      // The open schedule is not a saved row the FK can reach: its verses of
+      // this version lose the ids here, or «Guardar» sends them back dead.
+      useProgramStore.getState().forgetBibleVersion(version.id);
       await loadVersions();
       toast.success(t("settings.bible.deleteDone", { name: version.name }));
     } catch (error) {
@@ -237,19 +240,16 @@ export function BibleSection() {
   }
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex flex-col gap-8">
       {/* Two cards, not one: importing is an ACTION and the list below is a
           set of things, and a single group's `divide-y` drew the same line
           between the button and the first bible as between two bibles. */}
       <FieldGroup title={t("settings.groups.versions")}>
-        <FieldRow description={t("settings.bible.importDesc")} label={t("settings.bible.import")}>
-          {/* `floating` on every tooltip in here, without exception: this
-              panel is the `overflow-y-auto` one in `SettingsModal`, so an
-              in-flow bubble is clipped by it — which is why the row actions'
-              tooltips could not be seen at all. */}
-          <Tooltip content={t("settings.bible.importFormats")} floating>
-            <Icon className="text-subtle" name="help" />
-          </Tooltip>
+        <FieldRow
+          description={t("settings.bible.importDesc")}
+          help={t("settings.bible.importFormats")}
+          label={t("settings.bible.import")}
+        >
           <Button
             loading={importing}
             loadingLabel={t("bible.importing")}
@@ -273,7 +273,10 @@ export function BibleSection() {
           >
             {versions.map((version) => {
               const renaming = renamingId === version.id;
-              const isDefault = version.id === defaultVersionId;
+              // The one the Bible tab opens on — the first when none was set
+              // (`loadVersions`) —, so the radio always has exactly one marked.
+              const isDefault =
+                version.id === (versions.some((v) => v.id === defaultVersionId) ? defaultVersionId : versions[0]?.id);
               return (
                 <VersionRow
                   busy={busyId === version.id}
@@ -308,7 +311,7 @@ export function BibleSection() {
           {/* Outside the `<ul>` so it is not announced as one more version,
               and only while the gesture is actually available. */}
           {reorderEnabled ? (
-            <p className="py-2 text-xs text-muted-foreground">{t("settings.bible.reorderHint")}</p>
+            <p className="px-4 py-2 text-xs text-muted-foreground">{t("settings.bible.reorderHint")}</p>
           ) : null}
         </FieldGroup>
       ) : null}
@@ -443,7 +446,7 @@ function VersionRow({
           )
         }
         leading={
-          // The star IS the default marker — there is no badge saying so any
+          // The radio IS the default marker — there is no badge saying so any
           // more, and none saying «Included» either: neither was something the
           // operator could act on, and between them they pushed the name off
           // its own column on exactly the rows that had them.
@@ -459,7 +462,7 @@ function VersionRow({
               size="xs"
               variant="ghost"
             >
-              <Icon className={cn(isDefault ? "fill-current text-accent-ink" : "text-subtle")} name="favorite" />
+              <Icon className={isDefault ? "text-accent-ink" : "text-subtle"} name={isDefault ? "circleCheck" : "circle"} />
             </IconButton>
           </Tooltip>
         }

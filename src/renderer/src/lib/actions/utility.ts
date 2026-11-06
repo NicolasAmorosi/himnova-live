@@ -213,6 +213,13 @@ export async function deleteScene(id: number, force = false): Promise<boolean> {
   }
 }
 
+/** Whether the open order of service has the scene — no saved program lists
+ *  that, and `deleteScene` takes it out of there too, so the confirmation says
+ *  so (owner, 2026-11-06). */
+export function isSceneInSchedule(id: number): boolean {
+  return useProgramStore.getState().items.some((item) => item.kind === "utility" && item.utilitySceneId === id);
+}
+
 /** Which saved programs an about-to-be-deleted scene appears in. Never throws:
  *  a confirmation that cannot list them still has to open — main refuses the
  *  delete on its own either way, so the worst case is a dialog with less to

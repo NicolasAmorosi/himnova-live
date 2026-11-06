@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { cn } from "@renderer/lib/utils";
 import { sceneTextCss as textStyle } from "./scene-text";
+import { StageImage } from "./stage-image";
 import { useTimerNow } from "@renderer/lib/hooks/use-timer-now";
 import { isAnimatable, transitionStyle, LEAVE_FALLBACK_MARGIN_MS, type LayerRole } from "@renderer/lib/transition";
 import { formatTimerClock, hasReachedZero, pickValueColor } from "@shared/timer";
@@ -116,8 +117,7 @@ export function TimerScene({
       {background ? <div className="absolute inset-0" style={{ background }} /> : null}
 
       {imageBackground && backgroundUrl ? (
-        <img
-          alt=""
+        <StageImage
           className="absolute inset-0 size-full"
           onError={() => onImageError?.(backgroundUrl)}
           src={backgroundUrl}

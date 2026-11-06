@@ -46,7 +46,6 @@ import {
   type SongOutline,
   type SongSlideTransition,
   type SongSection,
-  type SongSlide,
   type SongTheme,
   type SongThemeUpsert,
   type SongUpsert,
@@ -55,11 +54,14 @@ import {
 export const SONG_TITLE_MAX_LENGTH = 200;
 export const SONG_FIELD_MAX_LENGTH = 500;
 export const SONG_NOTES_MAX_LENGTH = 4_000;
+
 export const SONG_LINE_MAX_LENGTH = 500;
 /** Far past any real song; a ceiling so one row cannot hold a novel. */
 export const SONG_MAX_SECTIONS = 60;
 export const SONG_MAX_SLIDES_PER_SECTION = 40;
-export const SONG_MAX_LINES_PER_SLIDE = 40;
+/** A whole song pasted as one block, with no blank line, is stored as it
+ *  came and drawn in pieces (`splitSection`, owner 2026-11-06). */
+export const SONG_MAX_LINES_PER_SLIDE = 200;
 export const SONG_MAX_ORDER = 200;
 
 /* -------------------------------------------------------------------------
@@ -217,26 +219,71 @@ export function isSongThemeUpsert(value: unknown): value is SongThemeUpsert {
 
 const isLine = (v: unknown): boolean => typeof v === "string" && v.length <= SONG_LINE_MAX_LENGTH;
 
-function isSlide(value: unknown): value is SongSlide {
-  if (!isRecord(value) || !Array.isArray(value.lines)) return false;
-  const { lines, translation } = value;
-  if (lines.length === 0 || lines.length > SONG_MAX_LINES_PER_SLIDE || !lines.every(isLine)) return false;
-  if (!lines.some((line) => typeof line === "string" && line.trim().length > 0)) return false;
-  return (
-    translation === undefined ||
-    (Array.isArray(translation) && translation.length <= SONG_MAX_LINES_PER_SLIDE && translation.every(isLine))
-  );
+export const SONG_CHORD_MAX_LENGTH = 16;
+
+const isChord = (v: unknown): boolean =>
+  isRecord(v) &&
+  isIntegerIn(0, SONG_LINE_MAX_LENGTH)(v.at) &&
+  typeof v.name === "string" &&
+  v.name.length > 0 &&
+  v.name.length <= SONG_CHORD_MAX_LENGTH;
+
+/** A line's chords, left to right: one written back before the one ahead of
+ *  it would repeat the words between them (`joinChords`). */
+const isChordLine = (line: unknown): boolean =>
+  Array.isArray(line) &&
+  line.every(isChord) &&
+  line.every((chord: { at: number }, i) => i === 0 || (line[i - 1] as { at: number }).at <= chord.at);
+
+/** Which limit of `isSongUpsert` a song breaks, for the editor to say
+ *  (2026-11-06) instead of blaming the title. `shape` is what no editor
+ *  writes; `basic`, a missing title or no lyrics at all. */
+export type SongProblem =
+  | { kind: "basic" | "shape" }
+  | { kind: "sections" | "order"; max: number }
+  | { kind: "slides" | "lines" | "lineLength" | "chord"; max: number; section: string };
+
+type SlideProblem = "lines" | "lineLength" | "chord" | "basic" | "shape";
+
+function slideProblem(value: unknown): SlideProblem | null {
+  if (!isRecord(value) || !Array.isArray(value.lines) || value.lines.length === 0) return "shape";
+  const lines: unknown[] = value.lines;
+  const { chords, translation } = value;
+  if (translation !== undefined && !Array.isArray(translation)) return "shape";
+  const translated: unknown[] = translation ?? [];
+  const all = [...lines, ...translated];
+  if (!all.every((line) => typeof line === "string")) return "shape";
+  if (lines.length > SONG_MAX_LINES_PER_SLIDE || translated.length > SONG_MAX_LINES_PER_SLIDE) return "lines";
+  if (!all.every(isLine)) return "lineLength";
+  if (chords !== undefined && !(Array.isArray(chords) && chords.length === lines.length)) return "shape";
+  const chordLines: unknown[] = chords ?? [];
+  if (!chordLines.every(isChordLine)) return "chord";
+  // Words, or chords alone: an instrumental slide (owner, 2026-11-06) shows
+  // the theme's background on the projector and its chords on the stage.
+  const said =
+    lines.some((line) => (line as string).trim().length > 0) || chordLines.some((line) => (line as unknown[]).length > 0);
+  return said ? null : "basic";
 }
 
-function isSection(value: unknown): value is SongSection {
-  if (!isRecord(value)) return false;
+function sectionProblem(value: unknown): SongProblem | null {
+  if (!isRecord(value)) return { kind: "shape" };
   const { key, number, slides, type } = value;
-  if (!isOneOf(SONG_SECTION_TYPES)(type) || !isIntegerIn(1, 99)(number)) return false;
-  if (key !== sectionKey(type as SongSection["type"], number as number)) return false;
-  return (
-    Array.isArray(slides) && slides.length > 0 && slides.length <= SONG_MAX_SLIDES_PER_SECTION && slides.every(isSlide)
-  );
+  if (!isOneOf(SONG_SECTION_TYPES)(type) || !isIntegerIn(1, 99)(number)) return { kind: "shape" };
+  if (key !== sectionKey(type as SongSection["type"], number as number)) return { kind: "shape" };
+  if (!Array.isArray(slides) || slides.length === 0) return { kind: "shape" };
+  const section = key;
+  if (slides.length > SONG_MAX_SLIDES_PER_SECTION) return { kind: "slides", max: SONG_MAX_SLIDES_PER_SECTION, section };
+  for (const slide of slides) {
+    const problem = slideProblem(slide);
+    if (problem === "lines") return { kind: problem, max: SONG_MAX_LINES_PER_SLIDE, section };
+    if (problem === "lineLength") return { kind: problem, max: SONG_LINE_MAX_LENGTH, section };
+    if (problem === "chord") return { kind: problem, max: SONG_CHORD_MAX_LENGTH, section };
+    if (problem) return { kind: problem };
+  }
+  return null;
 }
+
+const isSection = (value: unknown): value is SongSection => sectionProblem(value) === null;
 
 export function isSongTitle(value: unknown): boolean {
   return typeof value === "string" && value.trim().length > 0 && value.length <= SONG_TITLE_MAX_LENGTH;
@@ -246,24 +293,33 @@ const isField = isTextOrNull(SONG_FIELD_MAX_LENGTH);
 const isId = isIntegerIn(1, Number.MAX_SAFE_INTEGER);
 
 /** A song main is willing to write: a title, at least one slide that says
- *  something, unique section keys, and an order made of keys (one naming a
- *  section that is gone is allowed — it is skipped, and the editor says so). */
+ *  something (words or chords), unique section keys, and an order made of
+ *  keys (one naming a section that is gone is allowed — it is skipped, and the
+ *  editor says so). */
 export function isSongUpsert(value: unknown): value is SongUpsert {
-  if (!isRecord(value)) return false;
+  return songProblem(value) === null;
+}
+
+/** `isSongUpsert`, saying which limit fails — `null` when none does. */
+export function songProblem(value: unknown): SongProblem | null {
+  if (!isRecord(value)) return { kind: "shape" };
   const { authors, ccliNumber, copyright, id, notes, number, order, sections, themeId, title } = value;
-  if (id !== undefined && !isId(id)) return false;
-  if (!isSongTitle(title)) return false;
-  if (![number, authors, copyright, ccliNumber].every(isField)) return false;
-  if (!isTextOrNull(SONG_NOTES_MAX_LENGTH)(notes)) return false;
-  if (themeId !== null && !isId(themeId)) return false;
-  if (!Array.isArray(sections) || sections.length === 0 || sections.length > SONG_MAX_SECTIONS) return false;
-  if (!sections.every(isSection)) return false;
-  if (new Set(sections.map((section) => section.key)).size !== sections.length) return false;
-  return (
-    Array.isArray(order) &&
-    order.length <= SONG_MAX_ORDER &&
-    order.every((key) => typeof key === "string" && parseSectionKey(key) !== null)
-  );
+  if (id !== undefined && !isId(id)) return { kind: "shape" };
+  if (!isSongTitle(title)) return { kind: "basic" };
+  if (![number, authors, copyright, ccliNumber].every(isField)) return { kind: "shape" };
+  if (!isTextOrNull(SONG_NOTES_MAX_LENGTH)(notes)) return { kind: "shape" };
+  if (themeId !== null && !isId(themeId)) return { kind: "shape" };
+  if (!Array.isArray(sections) || sections.length === 0) return { kind: "basic" };
+  if (sections.length > SONG_MAX_SECTIONS) return { kind: "sections", max: SONG_MAX_SECTIONS };
+  for (const section of sections) {
+    const problem = sectionProblem(section);
+    if (problem) return problem;
+  }
+  if (new Set(sections.map((section: SongSection) => section.key)).size !== sections.length) return { kind: "shape" };
+  if (!Array.isArray(order) || !order.every((key) => typeof key === "string" && parseSectionKey(key) !== null)) {
+    return { kind: "shape" };
+  }
+  return order.length > SONG_MAX_ORDER ? { kind: "order", max: SONG_MAX_ORDER } : null;
 }
 
 /** A stored `sections_json` read back: every section that is not whole is

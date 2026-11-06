@@ -35,6 +35,8 @@ import {
 export const PLATE_NAME_MAX_LENGTH = 80;
 export const PLATE_TEXT_MAX_LENGTH = 200;
 export const PLATE_MARGIN_MAX_CQW = 20;
+/** Enough for a pill on any plate a default text size makes. */
+export const PLATE_CORNER_MAX_CQW = 5;
 export const PLATE_IMAGE_MIN_CQW = 1;
 export const PLATE_IMAGE_MAX_CQW = 50;
 export const PLATE_TICKER_MIN_CQW = 2;
@@ -75,6 +77,7 @@ export const PLATE_STYLE_VALIDATORS: Record<keyof PlateStyle, (v: unknown) => bo
   title: isTextStyle,
   subtitle: isTextStyle,
   marginCqw: isNumberIn(0, PLATE_MARGIN_MAX_CQW),
+  cornerRadiusCqw: isNumberIn(0, PLATE_CORNER_MAX_CQW),
   image: (v) => matchesAll(v, IMAGE_VALIDATORS),
   animation: (v) => matchesAll(v, ANIMATION_VALIDATORS),
   ticker: (v) => matchesAll(v, TICKER_VALIDATORS),
@@ -105,6 +108,8 @@ export function normalizePlateStyle(value: unknown): PlateStyle {
     title: normalizeTextStyle(value.title, d.title),
     subtitle: normalizeTextStyle(value.subtitle, d.subtitle),
     marginCqw: keepOr(v.marginCqw(value.marginCqw), value.marginCqw, d.marginCqw),
+    // Absent on every row written before 2026-11-05: square, as they were drawn.
+    cornerRadiusCqw: keepOr(v.cornerRadiusCqw(value.cornerRadiusCqw), value.cornerRadiusCqw, d.cornerRadiusCqw),
     image: {
       sizeCqw: keepOr(IMAGE_VALIDATORS.sizeCqw(image.sizeCqw), image.sizeCqw, d.image.sizeCqw),
       opacity: keepOr(IMAGE_VALIDATORS.opacity(image.opacity), image.opacity, d.image.opacity),

@@ -3,6 +3,7 @@ import { useT } from "@renderer/lib/i18n/i18n-provider";
 import { Modal, ModalTitle } from "@renderer/components/shared/modal";
 import { Button, Icon, IconButton, Menu, type MenuOption } from "@renderer/components/ui";
 import { cn } from "@renderer/lib/utils";
+import { holdUnsavedEditor } from "@renderer/stores/ui.store";
 import { LiveIndicator } from "./LiveIndicator";
 
 const SAVE_SHORTCUT = navigator.userAgent.includes("Mac") ? "⌘S" : "Ctrl+S";
@@ -83,6 +84,11 @@ export function EditorScreen<T extends string>({
   const rootRef = useRef<HTMLDivElement>(null);
   const onSave = save?.onSave;
   const canSave = save ? save.canSave && !save.saving : false;
+  const unsaved = open && (save?.dirty ?? false);
+
+  // Counted in while it has unsaved changes, so ⌘Q or closing the window asks
+  // first (`quitRisks`) — one place for every editor, not one per editor.
+  useEffect(() => (unsaved ? holdUnsavedEditor() : undefined), [unsaved]);
 
   // ⌘S / Ctrl+S, only while focus is inside THIS screen: a confirm opened on
   // top of it holds the focus, and must not save the draft behind it.
@@ -121,7 +127,7 @@ export function EditorScreen<T extends string>({
                 </span>
                 <input
                   aria-label={name.label}
-                  className="h-8 min-w-24 max-w-96 truncate rounded-md field-sizing-content border border-transparent bg-transparent px-2 font-stretch-extra-condensed text-xl font-bold text-foreground hover:border-border placeholder:text-subtle focus-ring focus:border-border focus:bg-surface"
+                  className="h-8 min-w-24 max-w-96 truncate rounded-md field-sizing-content border border-transparent bg-transparent px-2 font-stretch-extra-condensed text-xl font-bold text-foreground placeholder-shown:border-border hover:border-border placeholder:text-subtle focus-ring focus:border-border focus:bg-surface"
                   maxLength={name.maxLength}
                   onChange={(e) => name.onChange(e.target.value)}
                   // Enter in the name saves, as it did in the programs' old

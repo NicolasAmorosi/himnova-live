@@ -10,7 +10,15 @@ import { Icon } from "./icon";
 
 export type SelectOption = { disabled?: boolean; label: string; value: string };
 
+/** A command at the foot of the list, after a rule — «Import image…» under the
+ *  images it adds to. Not a value: picking it closes the menu and runs it. */
+export type SelectAction = { disabled?: boolean; label: string; onSelect: () => void };
+
 type SelectProps = Omit<ButtonHTMLAttributes<HTMLButtonElement>, "onChange" | "type" | "value"> & {
+  /** The list's last row, after a rule (2026-11-05, owner: the import lives
+   *  inside the picker, not in a button that did not fit beside it). It sits
+   *  at index `visible.length` of the keyboard's highlight. */
+  action?: SelectAction | undefined;
   onChange: (value: string) => void;
   options: SelectOption[];
   placeholder?: string;
@@ -47,6 +55,7 @@ const sizes: Record<NonNullable<SelectProps["size"]>, string> = {
  * into the VISIBLE options, never into `options`.
  */
 export function Select({
+  action,
   className,
   disabled,
   onChange,
@@ -81,6 +90,11 @@ export function Select({
     if (!searchable || needle === "") return options;
     return options.filter((option) => normalizeForSearch(option.label).includes(needle));
   }, [options, query, searchable]);
+
+  /** Rows the highlight walks: the visible options, then the action. */
+  const rows = visible.length + (action ? 1 : 0);
+  const isAction = (index: number) => action !== undefined && index === visible.length;
+  const rowDisabled = (index: number) => (isAction(index) ? action?.disabled === true : visible[index]?.disabled === true);
 
   useFollowTrigger(
     open,
@@ -126,19 +140,23 @@ export function Select({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- optionId is a pure function of `id`, stable across renders
   }, [open, highlightedIndex]);
 
+  /** The first row the highlight may rest on — the action when no option can
+   *  (a new install's image picker holds only «Importar imagen…»). */
   function firstEnabledIndex(list: readonly SelectOption[] = visible): number {
-    return list.findIndex((o) => !o.disabled);
+    const index = list.findIndex((o) => !o.disabled);
+    if (index >= 0) return index;
+    return action && !action.disabled ? list.length : -1;
   }
 
   function lastEnabledIndex(): number {
-    for (let i = visible.length - 1; i >= 0; i--) {
-      if (!visible[i]?.disabled) return i;
+    for (let i = rows - 1; i >= 0; i--) {
+      if (!rowDisabled(i)) return i;
     }
     return -1;
   }
 
   function openMenu(initialIndex?: number) {
-    if (disabled || options.length === 0 || !triggerRef.current) return;
+    if (disabled || (options.length === 0 && !action) || !triggerRef.current) return;
     // A stale query would open the menu already filtered down to whatever the
     // operator looked for last time, hiding the value that is actually set.
     if (searchable) setQuery("");
@@ -162,6 +180,12 @@ export function Select({
    *  arrows and Enter — after choosing a book with the mouse, → no longer moved
    *  the verse on the projector. Left on the page, every shortcut works. */
   function selectOption(index: number, refocusTrigger = true) {
+    if (isAction(index)) {
+      if (action?.disabled) return;
+      closeMenu(refocusTrigger);
+      action?.onSelect();
+      return;
+    }
     const option = visible[index];
     if (!option || option.disabled) return;
     onChange(option.value);
@@ -170,12 +194,12 @@ export function Select({
 
   function moveHighlight(delta: number) {
     setHighlightedIndex((current) => {
-      const count = visible.length;
+      const count = rows;
       if (count === 0) return -1;
       let index = current;
       for (let i = 0; i < count; i++) {
         index = (index + delta + count) % count;
-        if (!visible[index]?.disabled) return index;
+        if (!rowDisabled(index)) return index;
       }
       return current;
     });
@@ -356,7 +380,7 @@ export function Select({
             ) : null}
 
             <ul
-              className={cn("min-h-0 flex-1 overflow-y-auto focus:outline-none", visible.length > 0 && "p-1")}
+              className={cn("min-h-0 flex-1 overflow-y-auto focus:outline-none", rows > 0 && "p-1")}
               id={listboxId}
               role="listbox"
             >
@@ -388,9 +412,36 @@ export function Select({
                   {option.value === value ? <Icon className="text-accent-ink" name="check" /> : null}
                 </li>
               ))}
+              {action ? (
+                <>
+                  {visible.length > 0 ? <li aria-hidden className="mx-1 my-1 h-px bg-border" role="presentation" /> : null}
+                  {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events -- same as the options above: the trigger's `onKeyDown` commits it */}
+                  <li
+                    aria-disabled={action.disabled || undefined}
+                    aria-selected={false}
+                    className={cn(
+                      "flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-foreground",
+                      action.disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer",
+                      !action.disabled && highlightedIndex === visible.length && "bg-hover",
+                    )}
+                    id={optionId(visible.length)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      selectOption(visible.length, false);
+                    }}
+                    onMouseEnter={() => !action.disabled && setHighlightedIndex(visible.length)}
+                    role="option"
+                  >
+                    <Icon className="text-muted-foreground" name="add" />
+                    <span className="truncate">{action.label}</span>
+                  </li>
+                </>
+              ) : null}
             </ul>
 
-            {visible.length === 0 ? (
+            {/* Not for a list that holds only its action: there is nothing to
+                find, only something to do. */}
+            {visible.length === 0 && (options.length > 0 || !action) ? (
               <p className="px-3 py-2 text-sm text-muted-foreground">{t("common.noResults")}</p>
             ) : null}
           </div>,

@@ -150,4 +150,21 @@ export function linkedAudioUrl(mediaAssetId: number): string {
   return `worship://linked-audio/${mediaAssetId}`;
 }
 
+/** The deck asset a `linkedAudioUrl` names, or null for any other url. */
+export function linkedAudioAssetIdOfUrl(url: string): number | null {
+  const match = /^worship:\/\/linked-audio\/(\d+)$/.exec(url);
+  return match ? Number(match[1]) : null;
+}
+
+/**
+ * A deck's music as PREVIEW's media engine can open it (owner, 2026-11-05:
+ * PREVIEW sounds, at its own volume): an embedded clip by its row, whatever
+ * its codec, and a linked file as it is. `null` for anything else.
+ */
+export function previewSoundtrackUrl(url: string): string | null {
+  if (engineClipOfUrl(url) || linkedAudioAssetIdOfUrl(url) !== null) return url;
+  const clip = /^worship:\/\/(?:engine\/)?deck-audio\/(\d+)/.exec(url);
+  return clip ? engineClipUrl("audio", Number(clip[1])) : null;
+}
+
 export const LOGO_URL = "worship://logo";

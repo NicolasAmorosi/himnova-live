@@ -99,6 +99,8 @@ src/
 │   ├── scene-validators.ts    # what is specific to a timer scene; bible-style-validators.ts, the verse's
 │   ├── song-text.ts           # the lyrics text format (headers in 4 languages) ↔ sections, the order line
 │   ├── song-jump.ts           # live jumps to a section and detours off the order (pure); song-validators.ts
+│   ├── song-file-limits.ts    # what each song file format cannot keep (the editor's warning); bible-canon.ts,
+│   │                          #   the 66 books' canonical order the Bible finder's per-language abbreviations map to
 │   ├── types/                 # DTOs: display, media, bible, bible-style, projection, program, settings
 │   ├── constants.ts           # AssetKind, extensions, PPT timeouts
 │   └── urls.ts                # assetUrl()/slideUrl() — capability tokens, not paths
@@ -134,7 +136,8 @@ src/
 │   ├── updates/                   # updater.ts (owns UpdateStatus, wraps electron-updater), mac-dmg.ts
 │   │                              #   (macOS without Squirrel), update-status.ts (PURE, tested)
 │   ├── logging.ts                 # main.log and crash.log, rotated
-│   ├── songs/                     # rtf.ts (RTF → text), easyworship.ts (EasyWorship 6's song database),
+│   ├── songs/                     # song-writers.ts (OpenLyrics, ChordPro, SongSelect written back: a linked folder's
+│   │                              #   song saved into its own file — services/song-files.ts), rtf.ts (RTF → text), easyworship.ts (EasyWorship 6's song database),
 │   │                              #   openlp.ts (OpenLP's songs.sqlite and OpenLyrics files), text-files.ts (SongSelect .txt and
 │   │                              #   ChordPro, told apart by their words), usage-report.ts (CCLI CSV)
 │   └── services/                  # repos.ts (registry), projection-state.ts, broadcast.ts
@@ -219,7 +222,7 @@ This is the core rule of the component system:
 | `bg-surface` / `bg-card` | panels / cards |
 | `bg-muted` / `text-muted-foreground` | secondary backgrounds and text |
 | `text-subtle` | tertiary text (hints, placeholders) |
-| `bg-primary` / `bg-primary-hover` / `border-primary-border` | the primary button (the sheet's Primary). In dark it's navy at 1.31:1 against the background: the border isn't optional |
+| `bg-primary` / `bg-primary-hover` / `border-primary-border` | the primary button (the sheet's Primary navy `#2f557f` in both themes since 2026-11-05). In dark it's only 2.09:1 against the background: the border isn't optional |
 | `bg-secondary` / `bg-secondary-hover` | the secondary button (the sheet's Secondary: navy in light, steel `#8299b2` with dark text in dark) |
 | `bg-accent` / `ring-accent` / `bg-active` | the teal: **selected / focused / on** — selection, focus ring, switch, slider, progress, active tab, pressed toggle. Never decoration |
 | `bg-danger` / `bg-success` | states |
@@ -250,7 +253,10 @@ segments, rows, thumbnails, boxes, tooltips, toasts), `rounded-xl` (12, what flo
 menus, dropdowns) and `rounded-full` only for what is not a control (badges, dots, progress bars, thumbs).
 `rounded-lg`, `rounded-2xl` and the bare `rounded` are retired, and `tests/renderer/radius-scale.test.ts`
 fails on them; a surface never contains a radius larger than its own. Controls are 32 px by default
-(`sm`), 28 in a compact bar (`xs`), and 40 (`md`) only for what is pressed during a service.
+(`sm`), 28 in a compact bar (`xs`); `md` (40) has no use left in the main window. **Every bar of the main window
+is one height, `h-strip`** (`--spacing-strip`, 41 px with its line: a 32 px control sits 4 / 4) — the top bar, the
+columns' headers, both rows of tabs, a tab's search rows, a panel's footer (owner, 2026-11-06). Side edges: 6 px
+(`px-1.5`) for a strip of boxes, 12 (`px-3`) for a strip of text.
 **Five button looks, each with one job** (2026-11-04 review, F4b): `primary` (filled, WITH its word, one per surface:
 an editor's Save, a dialog's Confirm), `live` (GO LIVE only — and a plate's own row in PREVIEW, owner's D14), a tool
 (`IconButton ghost`, a universal icon, always a tooltip), a tool with its word (`Button ghost` icon + text) and the
@@ -350,7 +356,7 @@ npm install              # installs deps — better-sqlite3 ships prebuilt binar
 npm run dev               # electron-vite dev (HMR in the renderer, main restarts on watch)
 npm run typecheck          # tsc --noEmit over node (main+preload+shared) and web (renderer+shared)
 npm run lint                # eslint .
-npm run test                 # vitest run — 631 cases in two projects: `main` (Node: migrations, seed,
+npm run test                 # vitest run — 820 cases in two projects: `main` (Node: migrations, seed,
                               #   FTS5, repos and the library sweep, draft, settings and scene validators, WAL backup,
                               #   zip reader, the legacy-deck reader against an OLE2 file built in the test
                               #   (`tests/fixtures/legacy-ppt.ts`: pictures, master inheritance, what it refuses),
@@ -373,7 +379,7 @@ npm run test                 # vitest run — 631 cases in two projects: `main` 
                               #   frozen frame, toast store, utils). Nothing imports `electron`: that's
                               #   the suite's boundary
 npm run test:watch            # the same suite in watch mode, while working on a module
-npm run test:e2e              # build + Playwright: 168 walkthroughs of the real app (~10 min) with a
+npm run test:e2e              # build + Playwright: 258 walkthroughs of the real app (~13 min) with a
                               #   throwaway, bare profile (`--no-starter-look`; `starter-look.spec.ts` turns it on)
                               #   and media generated on the fly — videos, AVI and WMA with the
                               #   bundled FFmpeg; PDFs, a legacy .pps made of pictures and .pptx with auto-advance, a
@@ -629,7 +635,9 @@ npm run package:win|mac|linux  # build + electron-builder for that platform
   `worship://asset/<id>` (always the original) for the rest. `OutputView` draws the engine's frames
   in a canvas instead of a `<video>` — the same frame in the projector and the monitors. Main drives
   the live session from the `ProjectionOutput` it already forwards (`media/engine-sessions.ts`), never
-  from a record of its own; PREVIEW has a muted engine of its own (`preview:setVideo`). A library
+  from a record of its own; PREVIEW has an engine of its own (`preview:setVideo`) — since 2026-11-05 it SOUNDS, at
+  PREVIEW's own volume, 0 with every new item and silenced by GO LIVE (owner), and it also plays a previewed audio file or
+  a deck's music, started on the first play; `OutputView` only lets PREVIEW's monitor (`audible`) and the projector make sound. A library
   AUDIO: one engine per live track, driven from the `AudioTrackPush[]` main already keeps; the
   projector mounts no `<audio>` for it, and closing the projector pauses it as it silenced an
   `<audio>` (owner). A deck's clips and sounds: `deck-clips.ts` marks such a clip for the engine in

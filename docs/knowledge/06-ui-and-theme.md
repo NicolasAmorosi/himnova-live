@@ -55,11 +55,10 @@ the orange of the logo's «Live» was kept for the brand and the presentations b
 
 Consequences that matter when touching the palette:
 
-1. **The dark Primary is at 1.31:1 against the background.** A main button without a border is a
-   label floating in the void, so it carries `border-primary-border` (`#384f69`, Primary →
-   Secondary at 25%). In light that token equals the fill and adds nothing. It's understated on
-   purpose —the booth is dark—, and for the same reason the Secondary (light steel) stands out
-   more than the Primary in dark: it's the literal reading of the sheet, accepted as such.
+1. **The dark Primary is the sheet's navy `#2f557f`, the light theme's** (owner, 2026-11-05): the
+   dark theme's own `#203651` sat 1.31:1 from the background and «Guardar» read only by its edge.
+   Now 2.09:1, white on it 7.7:1; it still carries `border-primary-border` (`#3b5f87`, Primary →
+   Secondary at 15%, also its hover). In light that token equals the fill and adds nothing.
 2. **What the sheet doesn't define is MIXED, not invented.** `muted` and `hover` are Dialog →
    Borders at 35% and 65%; the strongest light border is Borders → Secondary text at 20%; the
    selected row (`active`) is Background + 26% accent in dark, which is the most it can take
@@ -130,7 +129,7 @@ operated in a dark projection booth.
 - **Motion**: `--ease-enter`/`--ease-exit`; the modal and its scrim enter in 150 ms
   (`wa-modal-enter`/`wa-backdrop-enter`), with no exit animation on purpose — a dialog that's
   closing shouldn't keep taking focus or clicks. Everything decorative goes through
-  `motion-safe:` (the pulse of the LIVE dot, the linked audio's pulse, the skeleton, the
+  `motion-safe:` (the linked audio's pulse, the skeleton, the
   spinner). The PROJECTOR's transitions don't: those are content, not interface (see the note in
   `globals.css`).
 - A modal's scrim is `bg-scrim`: black at 60% in dark, navy at 40% in light.
@@ -185,8 +184,16 @@ the condensed uppercase `Title h2` is kept for the three column headers and, at 
 2026-11-04). Spacing is Tailwind's 4 px step as a rule (4–8 inside a control, 8 between controls, 12–16 at a
 panel's edge, 24 between groups); separate with space before boxes, and a box is a 1 px border + 6 px, no
 shadow. Control heights, GitHub's: 24 (an icon inside a row), 28 (`xs`, a compact bar), **32 (`sm`, the default
-of `Button`, `IconButton`, `Input`, `Select`, `ColorField`)**, 40 (`md`, `Button` only: GO LIVE and LOGO / BLACK /
-LIVE — what is pressed during a service). Fields have no 40 any more. The transports under the monitors (deck,
+of `Button`, `IconButton`, `Input`, `Select`, `ColorField`)**; 40 (`md`, `Button` only) was GO LIVE and LOGO / BLACK /
+LIVE until 2026-11-06, when they went to 32 so the top bar could be a strip like the rest. Fields have no 40 any more.
+**Every bar of the main window is one height, `h-strip`** (`--spacing-strip` in `globals.css`, taught to
+tailwind-merge in `lib/utils.ts`): the top bar, the three columns' headers, the resource tabs and the segments under
+them, a tab's search rows (the Bible tab's are two strips), a panel's footer (`min-h-strip`, it may wrap). 41 px with
+its 1 px line, so a 32 px control sits 4 / 4 and a 28 px one 6 / 6; at a round 40 the 3.5 px were rounded up in some
+bars and down in others (owner, 2026-11-06: «todas las líneas a un mismo tamaño»). Side edges, two values: 6 px
+(`px-1.5`) for a strip of boxes (tabs, segments, search rows, footers — and panel bodies' `p-1.5`), 12 (`px-3`) for a
+strip of text (the headers, and the top bar's three groups, each over its column). The cards under the monitors
+(transports, `MediaTrackRow`) are content, not bars, and keep their own height. The transports under the monitors (deck,
 song, verse) and the rows of `MediaTrackRow` are 32 too, both sides at once: the row under each monitor must land
 on the same pixel as its twin across, so a control taller on one side misaligns both grids. A disabled FILLED button turns grey
 (`disabledVariants` in `button.tsx`) instead of fading: at 60 % opacity the light theme's navy read as a
@@ -224,10 +231,18 @@ of the things of that kind · the canvas · the inspector.
   readout), and the description behind a «?» tooltip — written out, the hints made an inspector twice as long —
   still the row's description for a screen reader. The shared knobs of `style-fields.tsx` render compact in an
   inspector and spread in Settings without a prop. `layout="stacked"` puts the label on top for what is too
-  wide to sit beside one.
+  wide to sit beside one. A row whose only control is a `Switch` is one wide `<label>` instead: the words across
+  the row, the switch at its end, a click anywhere flips it (2026-11-05). Each section remembers whether the
+  operator folded it (`localStorage`, per inspector and title), and the rarely used ones start folded
+  (`defaultOpen={false}`: Traducción, Entre diapositivas, Animación, Ocultar sola, Avisos). Every row is 40 px
+  (`min-h-10`), whatever its control, and a label dims with a control that is off. A section can turn the canvas
+  to what it dresses when a control in it takes focus (`InspectorSection`'s `onFocus`: the footer → a slide that
+  carries it, the translation → «Con traducción», a countdown's end → «Al terminar»).
 - **`EditorStage`** is a look editor's canvas: the 16:9 preview as large as the window allows (capped by height
-  too), its sample controls under it («See how it ends», «Try the way in/out», «See it with a long verse»), and
-  the reason «Save» is off. The previews (`ScenePreview`, `VersePreview`) are only the `OutputView`; the stage
+  too), its sample controls under it, and the reason «Save» is off. A sample is a STATE of the canvas, so it is
+  one `Segmented` in every editor (2026-11-05): Temas «Primera · Última · Con traducción» (the footer follows the
+  theme's own «show on» rule; the sample song has two stanzas and a translation), Escenas «Contando · Al
+  terminar», Versículo «Versículo corto · largo». The plates' «Try the way in/out» stay buttons: they are actions. The previews (`ScenePreview`, `VersePreview`) are only the `OutputView`; the stage
   frames them. `PlatePreview` IS the plates editor's canvas, because its two tests drive the state it draws.
 - **The verse's look is an editor, not a setting** (owner, 2026-11-04): the palette at the foot of the Bible tab
   opens `VerseStyleModal`, the way «Themes» opens from the Songs tab's. It applies at once (a `settings` key, see the
@@ -238,7 +253,13 @@ of the things of that kind · the canvas · the inspector.
   (owner, 2026-11-04): the caret picks its slide on both sides and a click on a slide puts the caret at the start
   of its words. Both directions are pure (`slideAtCaret` / `caretAtSlide` in `shared/song-text.ts`, tested); the
   editor only holds the caret's offset, reported by the textarea's `onSelect` — which React fires on keys and the
-  mouse, NOT on a synthetic `select` event, so a test moves the caret with a real key.
+  mouse, NOT on a synthetic `select` event, so a test moves the caret with a real key. Opened, a song's text is
+  written so it reads back to the very same sections (`serializeLyrics`, see «Chords» and the text format in
+  `05-data-and-persistence.md`), and while it is not touched the save keeps the stored sections (`SongDraft.stored`).
+  «Save» off says WHICH limit (`songProblem` → `songs.limits.*`), never a generic «title and lyrics».
+- **An editor with unsaved changes counts itself in** (`EditorScreen` → `holdUnsavedEditor`, `ui.store`'s
+  `unsavedEditors`), so ⌘Q or closing the window asks first like the schedule does (`quitRisks`'s `editor`) — one
+  place for the song, theme, scene, plate and program editors, none wiring it on its own.
 - **`onNew`** puts «+ New …» at the top of the list column, one look in every editor; a new, unsaved thing is a
   plain selected row at the end of the list. «Duplicate» always saves a copy of what is SAVED and chooses it (it
   copied the draft in two editors, discarded changes included).
@@ -256,8 +277,20 @@ of the things of that kind · the canvas · the inspector.
 ## Forms: `FieldGroup`/`FieldRow`, and `ColorField`
 
 `FieldGroup` + `FieldRow` (`components/ui/field.tsx`) are the shape of ANY options screen: a
-subtitle, rows between thin lines with no box around them (GitHub's settings, 2026-11-04), and one row per option — label (with an optional description)
-on the left, its control on the right, never wrapping. They were born inside Settings as
+subtitle above (and, optionally, one line of `description` about the whole group), the rows in ONE box (`Box`: 1 px border,
+6 px, the fields' surface, no shadow) between thin lines — Windows 11's and macOS's settings; borderless rows on the canvas
+had «no separation from the background» (owner, 2026-11-05) — and one row per option: label (with an optional description)
+on the left, its control on the right, never wrapping. Anything inside a group that is not a `FieldRow` (a preview, a
+hint under a list) carries the row's `px-4` itself.
+
+**The Settings row is one standard (2026-11-05 review):** its label in regular weight under the group's semibold
+title (two levels, not one), at least 64 px tall (`min-h-16`) with or without a
+description; the description is ONE short line (≤ ~70 characters in every language) and anything longer goes in
+`help`, a «?» after the label with the text in a tooltip — the descriptions ran from 11 to 246 characters and the rows
+were all different heights; every field (`Select`, `Input`) is the same 256 px (`w-64`, set by the row, so call sites
+pass no width) and a button keeps its own; at most two buttons per row (change = `outline`, reset/remove = `ghost`);
+a row that would need more controls than that opens a small dialog instead (the CCLI report's dates). Groups are 32 px
+apart (`gap-8`), a group's title 8 px above its box. They were born inside Settings as
 `SettingsGroup`/`SettingsRow` and moved up to `ui/` when the Timers scene editor became the
 second consumer: it's literally the `CLAUDE.md` reuse rule firing. You add an option to an
 existing group, or open a new group; never a flat list of rows.
@@ -277,11 +310,17 @@ stored in a row and editable by the operator —the same category as a schedule'
 end up in an inline `style` on the projector's stage, which has no theme. An INTERFACE color
 still always comes from a semantic token.
 
-`Slider` (`components/ui/slider.tsx`) is the range with its value next to it. The number's width
-is in **`ch`** and not in pixels (`readoutChars`): with `tabular-nums` one `ch` is exactly one
-digit, so a box as long as the longest string that slider can produce carries no dead space —
-and dead space inside the item adds to the row's `gap`, which is the bug measured in
-[`.claude/knowledge/fixed-width-readout-inflates-flex-gap.md`](../../.claude/knowledge/fixed-width-readout-inflates-flex-gap.md).
+`Slider` (`components/ui/slider.tsx`) is the range with its value next to it, in ONE fixed 48 px box for every slider
+(2026-11-05: a `ch` width per call site ended the tracks of an inspector at different x), set inline because an
+inspector row stretches its children with a class that outranks one; the number shows as many decimals as the step
+(«6.0» beside «2.5»). Sliders live only in inspectors, so the dead-space concern of
+[`.claude/knowledge/fixed-width-readout-inflates-flex-gap.md`](../../.claude/knowledge/fixed-width-readout-inflates-flex-gap.md)
+(transport rows) does not apply here.
+
+`Select` takes an optional `action` — a command at the foot of its list, after a rule («Importar imagen…» under the
+images it adds to): picking it closes the menu and runs it, and the keyboard reaches it like an option. That is how a
+background's image or video is imported (owner, 2026-11-05): a button beside the field did not fit in an inspector
+and read «+ A». In an inspector row (`compact`) every field stretches and a plain button beside one keeps its width.
 
 ### `components/shared/style-fields.tsx` — the knobs for everything that gets DRESSED
 
@@ -396,10 +435,9 @@ Settings is a full-screen `EditorScreen` without `save` (it applies at once: «�
 settings (2026-11-04): `Tabs variant="sidebar"` in the list column (`components/ui/tabs.tsx`, NavList's look) and
 the chosen section as a page in a reading column (`max-w-3xl`) CENTRED in the canvas, like every other screen's canvas
 — left-aligned, all the free space sat on the right and read as broken (owner); one scrollbar at the window's edge
-(`scrollbar-gutter: stable both-edges`) — a `PageHeader` (20 px, a thin line
-under it), then one `sections/<name>-section.tsx` per category. Inside each section, `FieldGroup` + `FieldRow`
-group related rows under a subtitle, separated by space and thin lines, never boxed; each row follows the usual rule: label (+ optional description)
-on the left, control(s) on the right, no wrap. Today's categories: **Projection** (screen,
+(`scrollbar-gutter: stable both-edges`) — a `PageHeader` (20 px, no line under it since 2026-11-05), then one
+`sections/<name>-section.tsx` per category. Inside each section, `FieldGroup` + `FieldRow`: each group a titled box
+of rows (see «Forms» above), 32 px from the next; each row follows the standard there. Today's categories: **Projection** (screen,
 open/close the window, logo, clear live content, transition, starting volume), **Slides** (the slides'
 text fallback face, the cache and PDF rasterizing quality),
 **Bible** (which versions are installed: import, rename, default, delete), **System** (theme,
@@ -432,11 +470,18 @@ cuts/restarts it from Settings, not manually from the TopBar.
 - **The work screen's chrome (2026-11-04 redesign, F4):** a column header is the title plus its data in
   quiet text (`PanelHeader`'s `meta`), never a pill — only what asks the operator to act stays a
   badge (the schedule's «Not saved», a damaged slide). The panel footers are neutral (`ghost`):
-  colour no longer carries meaning, and an action whose icon is not universal has its word
-  («Agregar medios», «Importar», «Temas», «Estilo del versículo», «Escenas», «Placas»); a
-  destructive and rare one goes in «⋯» (the schedule's «Vaciar»). «Agregar» (add to schedule) is
-  an `outline` button with its word at the right of each resource footer — neutral, so GO LIVE is
-  the one strong button of the work screen (owner's D13). Empty states carry no buttons. The transport boxes (`MediaPanel`) have no border
+  colour no longer carries meaning, and a tab's own tools — «Importar», «Temas», the verse's
+  «Estilo», «Escenas», «Placas» — are icons with a tooltip (owner, 2026-11-05: «me gustan solo los
+  íconos», reversing the redesign's words). «Agregar» (add to schedule) is the one with its word: an
+  `outline` button at the right of each resource footer — neutral, so GO LIVE is the one strong
+  button of the work screen (owner's D13). The schedule's tools are a vertical strip of icons on the
+  list's right, like EasyWorship's (owner's D19, then «a la derecha»). Media and Songs share one
+  filter bar (`shared/library-filter-bar.tsx`): order, folder, search, add a folder; and a folder view's
+  footer starts with its refresh (`FolderRefreshButton`, owner 2026-11-06), which also reads the folder on
+  screen again when the window comes back to the front — nothing watches the disk. A tooltip goes
+  the moment its trigger is pressed and stays away until the pointer leaves, never shows over the menu its
+  trigger opened (`aria-expanded`), and goes when the window loses focus — a native picker took the pointer
+  without a `pointerleave` and left the bubble stuck (owner, 2026-11-05). Empty states carry no buttons. The transport boxes (`MediaPanel`) have no border
   of their own — the card's fill sets them apart —, an `EmptyState` shows its icon without a disc,
   everything that takes content off the projector — the transports' button, the LIVE panel's rows,
   Settings' button — is «Sacar del aire» with the `offAir` icon (owner's D12), never the ✕ that
@@ -474,6 +519,19 @@ cuts/restarts it from Settings, not manually from the TopBar.
   operator looking at a part of the service that has already passed. It's a different component
   from `deck-slides.tsx`, which navigates the deck *in preview*, not the one on air.
 
+### Toasts: every one goes, with its time drawn
+
+Every toast leaves on its own after `TOAST_DURATION_MS` (5 s; owner, 2026-11-05: first 10, then «10 es mucho») —
+the ones with an action and the «screen lost» warning included («no se van a menos que los cierres») — and a 2 px bar along its bottom edge,
+in its tone's fill, empties as the time runs out. The pointer or the focus on a toast holds the count and the bar
+(`pause`/`resume` in `toast.store.ts`, which keeps what was left), so reading it or reaching for «Deshacer» never
+races the clock. A schedule's «Deshacer» («Quitar», «Vaciar») lives only while nothing else has changed the
+schedule: the next edit takes its toast down (`offerScheduleUndo`; owner, 2026-11-06), since its undo would land in
+another list. What must outlast a toast says so somewhere that stays: the LIVE header keeps «Sin pantalla» with
+«Abrir pantalla» while there is no projector. A message wraps anywhere (`overflow-wrap: anywhere`): a file name or a
+path has no space to break at. An info toast carries the `info` icon, never «!», and its action sits on the
+message's own line.
+
 ### Two-stage flow (strict)
 
 Selecting **never** projects. `lib/actions/preview.ts` moves the preview target and
@@ -483,6 +541,14 @@ slide 3 is still on screen.
 
 The shortcuts follow the same split: ←/→ move **what's live**, ↑/↓ move **the preview**, Enter
 crosses from one to the other.
+
+PREVIEW **sounds** since 2026-11-05 (owner: «todo como en vivo pero con el volumen a 0»): its row has the same
+play, seek and volume as EN VIVO's — a video, an audio file, a deck's music —, at PREVIEW's own `volume`
+(`preview.store`), 0 with every new target, silenced by GO LIVE (`stopPreviewPlayback`). A video plays through the
+monitor's `<video>` (`OutputView`'s `audible`, which ONLY `PreviewMonitor` passes — an editor canvas drawn over the
+live stage must never play the room's video twice) or PREVIEW's engine; a sound through PREVIEW's engine with no
+picture (`usePreviewEngineSound`), started on the first play so a click through the library spins no engine up.
+A deck in PREVIEW gets EN VIVO's transport (◀ ▶, counter, «Auto-avance») but never advances on its own.
 
 ### `OutputView`, the primitive that keeps a monitor from lying
 

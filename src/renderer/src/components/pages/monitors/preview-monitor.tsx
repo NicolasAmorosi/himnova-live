@@ -13,8 +13,9 @@ import { attachPreviewVideo } from "@renderer/lib/actions/preview-playback";
  *  shared with LIVE, instead of in this panel's own footer. Its position
  *  readout (slide 3/12…) lives in the column header — see `SlidesPanel.tsx`.
  *
- *  A previewed video CAN play here (muted, and only via the play button on
- *  `PreviewMediaBar`) — see `mode="preview"` on `OutputView`. `videoElement`
+ *  A previewed video CAN play here — only via the play button on
+ *  `PreviewMediaBar`, and heard at PREVIEW's own volume (0 to start; `audible`
+ *  on `OutputView`, owner 2026-11-05). `videoElement`
  *  is `useState`, not a plain ref, so `usePreviewMediaStatus` re-attaches its
  *  listeners whenever the element itself mounts/unmounts, not just once. */
 export function PreviewMonitor() {
@@ -52,13 +53,17 @@ export function PreviewMonitor() {
   const convertingAssetId = !missing && !output && content?.kind === "deck" ? content.assetId : null;
 
   return (
-    <Monitor empty={empty}>
+    // `p-0`: the stage on the column's own 16 px edge, like the bars under it
+    // (2026-11-05 review: three left edges per column).
+    <Monitor className="p-0" empty={empty}>
       {output ? (
         // The preview's own elements ARE the ones being checked here, which is
         // the point — a file the operator queues up is exercised in this window
         // before it ever reaches the projector. A video the engine plays has no
         // element, so the engine's own failure is passed in.
         <OutputView
+          // PREVIEW's own monitor sounds, at PREVIEW's volume (0 to start).
+          audible
           errorLabel={t("media.loadError")}
           mode="preview"
           output={output}

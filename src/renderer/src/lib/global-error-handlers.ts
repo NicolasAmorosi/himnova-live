@@ -23,7 +23,7 @@ function surface(detail: string): void {
   if (detail === lastDetail && now - lastShownAt < REPEAT_WINDOW_MS) return;
   lastDetail = detail;
   lastShownAt = now;
-  toast.danger(t("app.unexpectedError"), { durationMs: 8000 });
+  toast.danger(t("app.unexpectedError"));
 }
 
 function describe(reason: unknown): string {

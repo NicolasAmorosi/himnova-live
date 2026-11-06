@@ -3,11 +3,12 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import type { CDPSession, Page } from "@playwright/test";
-import { DEFAULT_BIBLE_STYLE } from "../../src/shared/types/bible-style";
-import { DEFAULT_SONG_THEME } from "../../src/shared/types/song";
 import { parseLyrics, withTranslation } from "../../src/shared/song-text";
 import type { BibleVersionDTO } from "../../src/shared/types/bible";
-import type { MediaAsset } from "../../src/shared/types/media";
+import mainEn from "../../src/main/i18n/messages/en";
+import mainEs from "../../src/main/i18n/messages/es";
+import mainIt from "../../src/main/i18n/messages/it";
+import mainPt from "../../src/main/i18n/messages/pt";
 import { LOCALES, type Locale } from "../../src/shared/types/settings";
 import { engineCanvas, expect, relaunch, test, type WorshipApp } from "./support/app";
 import { ROOT, ffmpegBinary } from "./support/paths";
@@ -19,8 +20,9 @@ import { CONTENT, type Hymn } from "./screenshots.content";
  * `npm run screenshots`: the README's and the landing's pictures, taken off
  * the real app, once per language (`docs/screenshots/<locale>/`) — the
  * interface AND what is on it: each language's own public-domain hymns and
- * Bible (`screenshots.content.ts`), FFmpeg gradients and tones, never a
- * church's own decks. The control window is laid out at a fixed 1600×1000 at
+ * Bible (`screenshots.content.ts`), the backgrounds, themes and overlays the
+ * app itself starts with (the starter look), FFmpeg tones, never a church's
+ * own decks. The control window is laid out at a fixed 1600×1000 at
  * 2×, whatever screen runs this, so a re-run on any machine writes the same
  * frames. Each feature also gets a `-detail` crop, for a page that shows it
  * next to a paragraph.
@@ -28,6 +30,8 @@ import { CONTENT, type Hymn } from "./screenshots.content";
 
 const MEDIA = path.join(os.tmpdir(), "lumina-screenshots-media");
 const OUT = path.join(ROOT, "docs/screenshots");
+/** The starter look's names, as each language's install writes them. */
+const LOOK: Record<Locale, (typeof mainEs)["look"]> = { es: mainEs.look, en: mainEn.look, it: mainIt.look, pt: mainPt.look };
 const THEMES = ["dark", "light"] as const;
 
 /** The generated media, under names that mean nothing: each language copies
@@ -46,18 +50,11 @@ test.beforeAll(() => {
     const [c0, c1, c2] = colors;
     return ["-f", "lavfi", "-i", `gradients=s=${size}:c0=${c0}:c1=${c1}:c2=${c2}:n=3:x0=0:y0=${height}:x1=${width}:y1=0:seed=5:d=${seconds}`];
   };
-  const loop = (name: string, colors: [string, string, string]) =>
-    run(...gradient(colors, "1280x720", 12), "-c:v", "libx264", "-pix_fmt", "yuv420p", raw(name));
-  const still = (name: string, colors: [string, string, string]) =>
-    run(...gradient(colors, "1920x1080", 1), "-frames:v", "1", raw(name));
 
-  loop("worship.mp4", ["0x0b1a33", "0x1d6f86", "0x0b1a33"]);
-  loop("sunrise.mp4", ["0x2a1446", "0xe07a3f", "0xf4c06a"]);
-  loop("sky.mp4", ["0x0e2340", "0x3a6ea5", "0x7fb6d9"]);
-  loop("announcements.mp4", ["0x3b2a5c", "0x9b5d8c", "0xf2a97e"]);
-  still("welcome.png", ["0x3b2a5c", "0x9b5d8c", "0xf2a97e"]);
-  still("blue.png", ["0x0b1a33", "0x1f5a8a", "0x0e2340"]);
-  still("warm.png", ["0x2a1446", "0xe07a3f", "0xf4c06a"]);
+  // The welcome and the announcements over the app's own «dusk» background,
+  // the one a church finds in its library from the first launch.
+  fs.copyFileSync(path.join(ROOT, "resources", "backgrounds", "dusk.webp"), raw("welcome.webp"));
+  fs.copyFileSync(path.join(ROOT, "resources", "backgrounds", "dusk.mp4"), raw("announcements.mp4"));
   run("-f", "lavfi", "-i", "sine=frequency=330:duration=20", "-c:a", "libmp3lame", raw("offering.mp3"));
   // MPEG-4 part 2 in an AVI: Chromium cannot play it, the media engine does.
   run(...gradient(["0x0b1a33", "0x1d6f86", "0x7fb6d9"], "1920x1080", 90), "-c:v", "mpeg4", "-q:v", "4", raw("testimony.avi"));
@@ -114,16 +111,23 @@ function prepare(locale: Locale): (name: string) => string {
   return media;
 }
 
-/** A hymn's stanzas as a song: each stanza one section, a slide per four lines. */
-function lyrics(hymn: Hymn, stanzas = hymn.stanzas): string {
+/** «Ein feste Burg» in C, one chord at the start of each line. */
+const FORTRESS_CHORDS = ["C", "G", "F", "C", "Am", "G", "F", "G", "C"];
+
+/** A hymn's stanzas as a song: each stanza one section, a slide per four
+ *  lines; with `chords`, one at the start of each line, written inline. */
+function lyrics(hymn: Hymn, stanzas = hymn.stanzas, chords?: readonly string[]): string {
   return stanzas
-    .map((lines, index) => [`[Estrofa ${index + 1}]`, ...lines.slice(0, 4), ...(lines.length > 4 ? ["", ...lines.slice(4)] : [])].join("\n"))
+    .map((written, index) => {
+      const lines = chords ? written.map((line, at) => `[${chords[at % chords.length]}]${line}`) : written;
+      return [`[Estrofa ${index + 1}]`, ...lines.slice(0, 4), ...(lines.length > 4 ? ["", ...lines.slice(4)] : [])].join("\n");
+    })
     .join("\n\n");
 }
 
 for (const locale of LOCALES) {
   test.describe(locale, () => {
-    test.use({ appLocale: locale });
+    test.use({ appLocale: locale, starterLook: true });
 
     test(`screenshots (${locale})`, async ({ app: first }) => {
       test.setTimeout(600_000);
@@ -139,23 +143,8 @@ for (const locale of LOCALES) {
       const tr = (text: string, vars?: Record<string, string>) => first.tr(text, vars);
       const psalm = `${content.bible?.psalms ?? "Salmos"} 23`;
 
-      // The library a church would have, and verses over one of its backgrounds.
-      // The verse style is read at startup, hence the relaunch.
-      await first.invoke("library:add", {
-        kind: "video",
-        paths: [files.worship, files.sunrise, files.sky].map((name) => media(`${name}.mp4`)),
-      });
-      const [background, warm] = await first.invoke<MediaAsset[]>("library:add", {
-        kind: "image",
-        paths: [files.blue, files.warm].map((name) => media(`${name}.png`)),
-      });
-      if (!background || !warm) throw new Error("import failed");
-      // A song library: Luther's hymn in a theme of its own over the warm
-      // background, read at startup like the verse style.
-      const hymns = await first.invoke<{ id: number }>("songTheme:create", {
-        name: content.theme,
-        style: { ...DEFAULT_SONG_THEME, background: { kind: "image", assetId: warm.id, fit: "cover" } },
-      });
+      // The library, the song themes, the verse's look and the time scenes
+      // are the starter look's: what a church finds on its first launch.
       // Luther's hymn carries another language's version as its translation, live in both at once.
       const sectionsOf = (text: string) => parseLyrics(text, "es").sections;
       const song = (hymn: Hymn, text: string, themeId: number | null, translation?: string) =>
@@ -172,7 +161,8 @@ for (const locale of LOCALES) {
           order: [],
           themeId,
         });
-      await song(fortress, lyrics(fortress), hymns.id, lyrics(CONTENT[locale === "en" ? "es" : "en"].fortress));
+      // With chords, for the musicians' screen: the hymn's own key, a chord at each line.
+      await song(fortress, lyrics(fortress, fortress.stanzas, FORTRESS_CHORDS), null, lyrics(CONTENT[locale === "en" ? "es" : "en"].fortress));
       await song(holy, lyrics(holy, [holy.stanzas[0]!.slice(0, 2)]), null);
       // This language's Bible, opened by default.
       if (content.bible) {
@@ -181,9 +171,6 @@ for (const locale of LOCALES) {
         if (!version) throw new Error("bible import failed");
         await first.invoke("settings:set", { "bible.defaultVersionId": version.id });
       }
-      await first.invoke("settings:set", {
-        "bible.style": { ...DEFAULT_BIBLE_STYLE, background: { kind: "image", assetId: background.id, fit: "cover" } },
-      });
       await first.quit();
       const app = await relaunch(first);
       const { control } = app;
@@ -199,7 +186,7 @@ for (const locale of LOCALES) {
       await app.openResources("Funciones", "Utilidades");
       await scenes.filter({ hasText: tr("Cuenta 10 minutos") }).click();
       await control.getByRole("tabpanel", { name: tr("Utilidades") }).getByRole("button", { name: tr("Agregar al programa") }).click();
-      await app.answerOpenDialog(media(`${files.welcome}.png`), media(`${holy.title}.pptx`));
+      await app.answerOpenDialog(media(`${files.welcome}.webp`), media(`${holy.title}.pptx`));
       await schedule.getByRole("button", { name: tr("Agregar medios") }).click();
       await app.openChapter(psalm);
       await verse.click();
@@ -220,7 +207,7 @@ for (const locale of LOCALES) {
       await slides.getByRole("button", { name: "2", exact: true }).click();
       await app.goLive();
       await slides.getByRole("button", { name: "3", exact: true }).click();
-      await app.openResources("Media", "Videos");
+      await app.openResources("Medios", "Videos");
       await shoot("control");
 
       // Decks as they were made: a hymn that advances by itself, with its music.
@@ -228,7 +215,7 @@ for (const locale of LOCALES) {
         kind: "ppt",
         paths: [`${decks.sermon.name}.pdf`, `${decks.announcements.name}.pptx`, `${fortress.title}.pptx`].map(media),
       });
-      await app.openResources("Media", "Presentaciones");
+      await app.openResources("Medios", "Presentaciones");
       const deckTab = control.getByRole("tabpanel", { name: tr("Presentaciones") });
       // Opened once each, so their tiles draw the first slide: a PDF's as an image, a .pptx from its model.
       const firstSlide = app.previewColumn().getByRole("list", { name: tr("Presentación") }).getByRole("button", { name: "1", exact: true });
@@ -239,7 +226,7 @@ for (const locale of LOCALES) {
       const preview = app.previewColumn();
       await app.answerOpenDialog(media(`${files.track}.mp3`));
       await preview.getByRole("button", { name: tr("Asignar audio"), exact: true }).click();
-      await expect(preview.getByRole("button", { name: tr("Cambiar"), exact: true })).toBeVisible();
+      await expect(preview.getByRole("button", { name: tr("Opciones del audio"), exact: true })).toBeVisible();
       await expect(preview.getByText(tr("Auto-avance"), { exact: true })).toBeVisible();
       await slides.getByRole("button", { name: "2", exact: true }).click();
       await app.goLive();
@@ -293,9 +280,9 @@ for (const locale of LOCALES) {
       await shoot("functions", { x: 533, y: 0, width: 1067, height: 600 });
 
       // The library: a background on air, and an AVI in PREVIEW, played by the media engine.
-      await app.openResources("Media", "Videos");
+      await app.openResources("Medios", "Videos");
       const videos = control.getByRole("tabpanel", { name: tr("Videos") });
-      await videos.getByRole("button", { name: files.sunrise }).dblclick();
+      await videos.getByRole("button", { name: LOOK[locale].backgrounds.sunrise }).first().dblclick();
       await app.invoke("library:add", { kind: "video", paths: [media(`${files.testimony}.avi`)] });
       await videos.getByRole("button", { name: files.testimony }).click();
       await expect.poll(async () => (await engineCanvas(control, "preview:"))?.width ?? 0, { timeout: 30_000 }).toBeGreaterThan(0);

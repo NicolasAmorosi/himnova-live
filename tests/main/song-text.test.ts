@@ -6,16 +6,20 @@
 import { describe, expect, test } from "vitest";
 import {
   caretAtSlide,
+  followsText,
   formatOrder,
   missingOrderKeys,
   parseLyrics,
   parseOrder,
   sectionLabel,
+  sectionsIn,
   serializeLyrics,
   slideAtCaret,
   songDeckSlides,
   splitSection,
+  withTranslation,
 } from "../../src/shared/song-text";
+import type { SongSection } from "../../src/shared/types/song";
 
 const keysOf = (text: string, locale: "es" | "en" | "it" | "pt" = "es") =>
   parseLyrics(text, locale).sections.map((s) => s.key);
@@ -134,6 +138,91 @@ describe("the order", () => {
     expect(songDeckSlides(sections, []).map((s) => s.lines[0])).toEqual(["a", "b", "c"]);
     expect(missingOrderKeys(sections, ["v1", "x1", "x1"])).toEqual(["x1"]);
   });
+
+  test("an order naming only sections that are gone sings the song as written, never nothing (owner, 2026-11-06)", () => {
+    const { sections } = parseLyrics("[Estrofa 1]\na\n[Coro]\nc", "es");
+    expect(songDeckSlides(sections, ["v5", "b1"]).map((s) => s.sectionKey)).toEqual(["v1", "c1"]);
+  });
+});
+
+describe("text ↔ sections is an identity (2026-11-06)", () => {
+  const verse = (...slides: SongSection["slides"]): SongSection => ({ key: "v1", type: "verse", number: 1, slides });
+  const back = (sections: SongSection[], order: string[] = []) => parseLyrics(serializeLyrics(sections, "es", order), "es");
+
+  test("lines the parser would misread come back as lines: a section word, an annotation, a chord that names a section, a blank", () => {
+    const sections = [
+      verse(
+        { lines: ["uno", "dos"] },
+        // The HASD hymnal's «Coro» printed at the top of a slide of verse 1.
+        { lines: ["Coro", "Aleluya"] },
+        { lines: ["Gloria", "[Repeat x2]"] },
+        // «[C]» alone is the chorus in Spanish: a slide's line of that chord alone is escaped.
+        { lines: ["", "Sublime gracia"], chords: [[{ at: 0, name: "C" }], []] },
+        { lines: ["", "\\barra", "tres"] },
+      ),
+      { key: "c1", type: "chorus", number: 1, slides: [{ lines: ["coro"] }] },
+    ] satisfies SongSection[];
+    const text = serializeLyrics(sections, "es");
+    expect(text).toContain("\n\\[Repeat x2]\n");
+    expect(text).toContain("\n\\[C]\n");
+    expect(back(sections).sections).toEqual(sections);
+    // A bare word starts no section once the text has bracketed headers; pasted alone it still does.
+    expect(parseLyrics("[Estrofa 1]\nuno\n\nCoro\nla la", "es").sections.map((s) => s.key)).toEqual(["v1"]);
+    expect(parseLyrics("uno\n\nCoro\nla la", "es").sections.map((s) => s.key)).toEqual(["v1", "c1"]);
+  });
+
+  test("a section whose bare name would read as another gets its number", () => {
+    const twin: SongSection[] = [
+      { key: "c2", type: "chorus", number: 2, slides: [{ lines: ["igual"] }] },
+      { key: "c1", type: "chorus", number: 1, slides: [{ lines: ["igual"] }] },
+    ];
+    expect(serializeLyrics(twin, "es")).toBe("[Coro 2]\nigual\n\n[Coro 1]\nigual");
+    expect(back(twin).sections).toEqual(twin);
+  });
+
+  test("an order the text can say is written into it; any other numbers every header (owner)", () => {
+    const { sections } = parseLyrics("[Estrofa 1]\nuno\n\n[Coro]\nel coro\n\n[Estrofa 2]\ndos", "es");
+    const sung = ["v1", "c1", "v2", "c1"];
+    expect(followsText(sections, sung)).toBe(true);
+    expect(serializeLyrics(sections, "es", sung)).toBe("[Estrofa 1]\nuno\n\n[Coro]\nel coro\n\n[Estrofa 2]\ndos\n\n[Coro]");
+    expect(back(sections, sung).sequence).toEqual(sung);
+    // The operator's own: the chorus first, or the sections as written spelled out.
+    for (const order of [["c1", "v1", "c1"], ["v1", "c1", "v2"]]) {
+      expect(followsText(sections, order)).toBe(false);
+      expect(serializeLyrics(sections, "es", order)).toContain("[Coro 1]\nel coro");
+      expect(back(sections, order).sections).toEqual(sections);
+    }
+  });
+
+  test("a new bare «[Puente]» typed ABOVE the saved one does not take over the operator's order", () => {
+    // QA 2026-11-06: reopened, the editor wrote the first bridge «[Puente]»,
+    // so the new one above became b1 and the order sang it. Now an order of
+    // the operator's numbers it, and a numbered header keeps its number.
+    const saved = parseLyrics("[Estrofa 1]\nUno\n\n[Puente]\nPUENTE VIEJO", "es");
+    const order = ["v1", "b1", "v1", "b1"];
+    const text = serializeLyrics(saved.sections, "es", order).replace("[Puente 1]", "[Puente]\nPUENTE NUEVO\n\n[Puente 1]");
+    const sung = songDeckSlides(parseLyrics(text, "es").sections, order).filter((slide) => slide.type === "bridge");
+    expect(sung.map((slide) => slide.lines[0])).toEqual(["PUENTE VIEJO", "PUENTE VIEJO"]);
+  });
+});
+
+describe("a long block pasted with no blank line (owner, 2026-11-06)", () => {
+  const long = `[Estrofa 1]\n${Array.from({ length: 42 }, (_, i) => `l${i + 1}`).join("\n")}`;
+
+  test("is cut 4 by 4 when the theme sets no lines per slide, by the theme's when it does", () => {
+    const [section] = parseLyrics(long, "es").sections;
+    expect(splitSection(section!, 0).slides.map((s) => s.lines.length)).toEqual([4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 2]);
+    expect(splitSection(section!, 10).slides.map((s) => s.lines.length)).toEqual([10, 10, 10, 10, 2]);
+    // 40 lines or fewer stay one slide.
+    const [short] = parseLyrics(`[Coro]\n${Array.from({ length: 40 }, (_, i) => `l${i}`).join("\n")}`, "es").sections;
+    expect(splitSection(short!, 0)).toBe(short);
+  });
+
+  test("the caret follows its pieces, and back", () => {
+    const slides = songDeckSlides(parseLyrics(long, "es").sections.map((s) => splitSection(s, 0)), []);
+    expect(slideAtCaret(long, long.indexOf("l9\n"), "es", 0, slides, null)).toBe(2);
+    expect(long.slice(caretAtSlide(long, "es", 0, slides[10]!)!).split("\n")[0]).toBe("l41");
+  });
 });
 
 describe("the caret and the slides", () => {
@@ -214,4 +303,64 @@ describe("the caret and the slides", () => {
     expect(landsOn(text.replace(/\r/g, ""), 1)).toBe("coro");
     expect(text.slice(caretAtSlide(text, "es", 0, deck(text)[1]!)!)).toBe("coro");
   });
+});
+
+describe("chords (2026-11-05)", () => {
+  test("written inline, read apart from the words, and written back the same", () => {
+    const text = "[Estrofa 1]\n[G]Sublime [C]gracia\ndel Señor\n\n[Coro]\n[D]Aleluya";
+    const { sections } = parseLyrics(text, "es");
+    expect(sections[0]?.slides[0]).toEqual({
+      lines: ["Sublime gracia", "del Señor"],
+      chords: [
+        [
+          { at: 0, name: "G" },
+          { at: 8, name: "C" },
+        ],
+        [],
+      ],
+    });
+    expect(serializeLyrics(sections, "es")).toBe(text);
+  });
+
+  test("a word in brackets is not a chord, and a chorus with its chords is still the same chorus", () => {
+    const { sections, sequence } = parseLyrics("[Coro]\n[G]Santo [sic]\n\n[Estrofa]\nuno\n\n[Coro]\n[G]Santo [sic]", "es");
+    expect(sections[0]?.slides[0]).toEqual({ lines: ["Santo [sic]"], chords: [[{ at: 0, name: "G" }]] });
+    expect(sequence).toEqual(["c1", "v1", "c1"]);
+  });
+
+  test("split with their lines, kept by a translation, and never over one", () => {
+    const [section] = parseLyrics("[Estrofa 1]\n[G]uno\n[C]dos\n[D]tres", "es").sections;
+    const split = splitSection(section!, 2);
+    expect(split.slides.map((slide) => slide.chords)).toEqual([
+      [[{ at: 0, name: "G" }], [{ at: 0, name: "C" }]],
+      [[{ at: 0, name: "D" }]],
+    ]);
+    const translated = withTranslation([section!], parseLyrics("[Estrofa 1]\none\ntwo\nthree", "es").sections);
+    expect(translated[0]?.slides[0]?.chords).toEqual(section!.slides[0]?.chords);
+    expect(sectionsIn(translated, "translation")[0]?.slides[0]).toEqual({ lines: ["one", "two", "three"] });
+    expect(sectionsIn(translated, "original")[0]?.slides[0]?.chords).toEqual(section!.slides[0]?.chords);
+  });
+});
+
+describe("chords alone, and in Latin notation (owner, 2026-11-06)", () => {
+  test("Do, Re, Mi… with their variants, ♭/♯ and a bass in either notation, and N.C., are chords: never projected", () => {
+    const [slide] = parseLyrics("[Estrofa 1]\n[Re]Sublime gracia del [Sol]Señor\n[Si♭/Re]uno [Lam7]dos [F♯m/C#]tres [N.C.]", "es").sections[0]!.slides;
+    expect(slide!.lines).toEqual(["Sublime gracia del Señor", "uno dos tres"]);
+    expect(slide!.chords!.map((line) => line.map((chord) => chord.name))).toEqual([["Re", "Sol"], ["Si♭/Re", "Lam7", "F♯m/C#", "N.C."]]);
+  });
+
+  test("a line of chords alone is a line, not a header — unless it names a section in the interface's language", () => {
+    const { sections } = parseLyrics("[Estrofa 1]\n[G]\nSublime gracia\n\n[G] [D] [Em]\n\n[Do]\nAleluya", "es");
+    expect(sections.map((s) => s.key)).toEqual(["v1"]);
+    expect(sections[0]!.slides[1]).toEqual({ lines: [""], chords: [[{ at: 0, name: "G" }, { at: 0, name: "D" }, { at: 0, name: "Em" }]] });
+    // «[C]» is the chorus in Spanish and English; in Italian (Ritornello = R) it is a chord.
+    expect(keysOf("[Estrofa 1]\nuno\n\n[C]\nAleluya", "es")).toEqual(["v1", "c1"]);
+    expect(keysOf("[Strofa 1]\nuno\n\n[C]\nAleluya", "it")).toEqual(["v1"]);
+  });
+});
+
+test("a line that ends on a chord is a line, not a header", () => {
+  const { sections } = parseLyrics("[Estrofa 1]\n[G]Cuán grande es [D]\n\n[Coro]\ncoro", "es");
+  expect(sections.map((section) => section.key)).toEqual(["v1", "c1"]);
+  expect(sections[0]?.slides[0]).toEqual({ lines: ["Cuán grande es"], chords: [[{ at: 0, name: "G" }, { at: 14, name: "D" }]] });
 });

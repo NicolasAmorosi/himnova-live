@@ -35,6 +35,12 @@ function nextSortOrder(db: Db): number {
   return highest === null ? 0 : highest + 1;
 }
 
+/** A Bible file's identity, `bible_versions.source_hash`: what a re-seed
+ *  compares, and how an import knows the file is already installed. */
+export function bibleFileHash(filePath: string): string {
+  return crypto.createHash("sha256").update(fs.readFileSync(filePath)).digest("hex");
+}
+
 /**
  * Imports (or re-imports, if the source file changed) a Bible into the
  * relational tables + FTS5 index. Runs as ONE transaction so a crash mid-seed
@@ -58,8 +64,7 @@ export function seedBibleFromFile(
   // below reads the file again, on purpose — it has to work from a PATH, both
   // because a SQLite module is opened rather than read and because a zipped
   // one is read entry by entry.
-  const raw = fs.readFileSync(filePath);
-  const sourceHash = crypto.createHash("sha256").update(raw).digest("hex");
+  const sourceHash = bibleFileHash(filePath);
 
   const existing = db.select().from(bibleVersions).where(eq(bibleVersions.code, code)).get();
   if (existing && existing.sourceHash === sourceHash) {

@@ -25,20 +25,25 @@ export function emptyPlateDraft(name: string): PlateDraft {
 }
 
 /** Switching kind keeps the texts but moves what the new kind cannot hold: a
- *  position it does not allow, and a lower third's image. A lower third
- *  becoming a bug also drops its band, which is how a bug starts out. */
+ *  position it does not allow, and a lower third's image. Becoming a bug
+ *  drops the band, which is how a bug starts out, and leaving one brings the
+ *  default band back; a lower third and a banner hold the same band, so it
+ *  stays as the operator set it (QA, 2026-11-06). */
 export function withKind(draft: PlateDraft, kind: PlateKind): PlateDraft {
   if (kind === draft.kind) return draft;
   const positions = PLATE_KIND_POSITIONS[kind];
+  const band =
+    kind === "bug"
+      ? DEFAULT_BUG_STYLE.backgroundOpacity
+      : draft.kind === "bug"
+        ? DEFAULT_PLATE_STYLE.backgroundOpacity
+        : draft.style.backgroundOpacity;
   return {
     ...draft,
     kind,
     position: positions.includes(draft.position) ? draft.position : positions[0]!,
     imageAssetId: kind === "bug" ? draft.imageAssetId : null,
-    style:
-      kind === "bug"
-        ? { ...draft.style, backgroundOpacity: DEFAULT_BUG_STYLE.backgroundOpacity }
-        : { ...draft.style, backgroundOpacity: DEFAULT_PLATE_STYLE.backgroundOpacity },
+    style: { ...draft.style, backgroundOpacity: band },
   };
 }
 

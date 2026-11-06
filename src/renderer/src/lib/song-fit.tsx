@@ -35,8 +35,15 @@ export function currentMeasureAspect(): number {
   return measureAspect(displays, displayId);
 }
 
+/** Every slide the song can put on screen: its sections', not only the
+ *  order's — a section sung off the order (a detour: the bridge nobody
+ *  planned) is drawn at the same one size, so it has to fit it too. */
+function songSlides(song: ResolvedSong) {
+  return song.sections.flatMap((section) => section.slides);
+}
+
 function fitKey(song: ResolvedSong, theme: SongTheme, aspect: number): string {
-  return JSON.stringify([song.slides.map((slide) => [slide.lines, slide.translation]), theme, aspect.toFixed(4)]);
+  return JSON.stringify([songSlides(song).map((slide) => [slide.lines, slide.translation]), theme, aspect.toFixed(4)]);
 }
 
 /** The song's size, and the slides (their lines joined by `\n`) that do not
@@ -85,7 +92,7 @@ async function measure(song: ResolvedSong, theme: SongTheme, aspect: number): Pr
   // the song shows both: the one size has to fit the two languages.
   const slides = [
     ...new Map(
-      song.slides.map((slide) => [JSON.stringify([slide.lines, slide.translation]), slide]),
+      songSlides(song).map((slide) => [JSON.stringify([slide.lines, slide.translation]), slide]),
     ).values(),
   ];
   if (slides.length === 0) return { sizeCqw: max, overflowing: [] };

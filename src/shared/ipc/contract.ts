@@ -5,7 +5,7 @@ import type {
   EngineAssetUpdate,
   ImportProgress,
   MediaAsset,
-  MediaAssetUsage,
+  MediaAssetUsages,
 } from "../types/media";
 import type {
   BibleBookDTO,
@@ -41,13 +41,13 @@ import type {
   ProgramUpsert,
 } from "../types/program";
 import type { SettingsMap } from "../types/settings";
+import type { BibleStyle } from "../types/bible-style";
 import type { GpuStatus, InternalsPage, VideoDecoderReport } from "../types/system";
 import type { UtilityScene, UtilitySceneUpsert, UtilitySceneUsage } from "../types/utility";
 import type { Plate, PlateUpsert, PlateUsage } from "../types/overlay";
 import type {
   Song,
   SongImportResult,
-  SongImportSource,
   SongSearchHit,
   SongThemeRow,
   SongThemeUpsert,
@@ -111,8 +111,10 @@ export type IpcContract = {
 
   /** `kind: "all"` combines every `AssetKind`'s extensions into one filter, for
    *  a single file dialog that accepts any supported media at once — the
-   *  caller then classifies each returned path by its own extension. */
-  "files:pick": { req: { kind: AssetKind | "all"; multiple: boolean }; res: string[] };
+   *  caller then classifies each returned path by its own extension.
+   *  `startIn` is the kind whose folder that dialog opens in (a Media tab's
+   *  «Agregar»); without it, wherever the OS decides. */
+  "files:pick": { req: { kind: AssetKind | "all"; multiple: boolean; startIn?: AssetKind | undefined }; res: string[] };
   "files:setLogo": { req: void; res: string | null };
   /** Opens a native directory picker. `null` means the user canceled.
    *  `defaultPath` is where it opens — the folder being replaced, when there
@@ -207,9 +209,10 @@ export type IpcContract = {
    *  the asset itself. Without it, an asset still in use throws
    *  `MEDIA_ASSET_IN_USE` (see `MediaRepo.remove`). */
   "library:remove": { req: { id: number; force?: boolean }; res: void };
-  /** Which saved programs (if any) still reference this asset — used to show
-   *  the operator what a forced delete would remove before they confirm it. */
-  "library:usages": { req: { id: number }; res: MediaAssetUsage[] };
+  /** Which saved programs still reference this asset, and which looks are
+   *  drawn over it — shown to the operator before a removal, so a forced
+   *  delete never takes away something they were not told about. */
+  "library:usages": { req: { id: number }; res: MediaAssetUsages };
   "library:relocate": { req: { id: number }; res: MediaAsset | null };
   /** Manual override for a `ppt` asset's linked soundtrack — `path: null`
    *  clears it back to automatic resolution (`linked-audio.ts`). Never
@@ -329,15 +332,20 @@ export type IpcContract = {
   "song:duplicate": { req: { id: number; title: string }; res: Song };
   "song:delete": { req: { id: number; force?: boolean }; res: void };
   "song:usages": { req: { id: number }; res: SongUsage[] };
-  /** Title, number, authors and lyrics, without accents (FTS5), best first. */
-  "song:search": { req: { query: string; limit?: number }; res: SongSearchHit[] };
-  /** Asks for another program's songs and imports them; `null` when the
-   *  operator cancels. EasyWorship 6/7: its `Databases/Data` folder (or the
-   *  profile above it), refused as `EW_NOT_FOUND` when the folder holds no song
-   *  database and `EW_UNREADABLE` when it cannot be opened. OpenLP: its
-   *  `songs.sqlite`, refused as `OPENLP_UNREADABLE`. OpenLyrics: one or more
-   *  `.xml` files, a file that is not a song counted as a problem. */
-  "song:import": { req: { from: SongImportSource }; res: SongImportResult | null };
+  /** Title, number, authors and lyrics, without accents (FTS5), best first —
+   *  in the library (`folder: null`) or in one linked folder. */
+  "song:search": { req: { query: string; limit?: number; folder: string | null }; res: SongSearchHit[] };
+  /** A linked folder's song files (its top level), read into songs — a file
+   *  unchanged since the last read keeps its rows. Throws `FOLDER_MISSING`
+   *  when the folder is gone. Saving one of them (`song:update`) writes its
+   *  file too, in its format; refused as `SONG_FILE_CHANGED` when the file
+   *  changed outside the app, `SONG_FILE_MISSING`, `SONG_FILE_UNWRITABLE`. */
+  "song:listFolder": { req: { path: string }; res: Song[] };
+  /** Asks for song files of any supported format in one picker and imports
+   *  them into the library; `null` when the operator cancels. A database that
+   *  cannot be read is a problem among the rest — or, when nothing came in,
+   *  its own error: `EW_NOT_FOUND`, `EW_UNREADABLE`, `OPENLP_UNREADABLE`. */
+  "song:import": { req: void; res: SongImportResult | null };
   /** The CCLI usage report of `[from, to)` (ms): asks where to save it as CSV;
    *  `null` when the operator cancels, `{ songs: 0 }` — and no question — when
    *  no song went live in those dates. */
@@ -352,11 +360,16 @@ export type IpcContract = {
 
   "settings:get": { req: void; res: SettingsMap };
   "settings:set": { req: Partial<SettingsMap>; res: void };
+  /** The verse's style as a new install has it — what its «Restaurar» saves. */
+  "settings:factoryVerseStyle": { req: void; res: BibleStyle };
 
   "system:gpuStatus": { req: void; res: GpuStatus };
   /** Opens the folder holding `main.log` and `crash.log` in the OS's file
    *  manager — what an operator sends along when something failed. */
   "system:openLogsFolder": { req: void; res: void };
+  /** Opens the app's public repository in the default browser — «Acerca de»'s
+   *  «Código fuente». A fixed address: the renderer never names a URL. */
+  "system:openSourceCode": { req: void; res: void };
   /** Opens `chrome://<page>` in its own window, child of the caller's. */
   "system:openInternals": { req: { page: InternalsPage }; res: void };
   /** Starts listening to the caller's media pipeline (CDP `Media` domain).

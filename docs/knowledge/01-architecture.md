@@ -50,7 +50,11 @@ something.
 `StageApp`) is the musicians' screen: what is live, what comes next and the time, on the screen
 chosen in Settings ▸ Projection (`stage.displayId`, `null` = none). Unlike the projector it exists
 whenever that screen is connected — `syncStageWindow()` decides, called when the control window
-opens, when the setting changes and when a screen comes or goes — and it plays nothing: a video is
+opens, when its setting or the projector's changes and when a screen comes or goes — but never on the
+projector's screen (`chooseStageDisplay`, owner 2026-11-06): fullscreen and on top it would cover it, and
+before the first GO LIVE it would be what the room sees. A choice that becomes the projector's leaves the
+stage off (Settings, which no longer lists that screen, reads «Ninguna») until the projector moves; the
+operator's own screen takes both, as movable windows. It plays nothing: a video is
 its poster (`OutputView`'s `videoStill`), so it has no audio, no media commands and no engine
 session. The control window builds its picture (`lib/stage-output.ts`, pushed by
 `effects/stage-sync.ts` through `stage:show`); main keeps the last one for a window that opens

@@ -1,6 +1,8 @@
 import { useT } from "@renderer/lib/i18n/i18n-provider";
 import { PanelBody, PanelHeader } from "@renderer/components/shared/panel";
 import { DamagedSlideBadge } from "@renderer/components/shared/damaged-slide";
+import { Badge, Button } from "@renderer/components/ui";
+import { useDisplayStore } from "@renderer/stores/display.store";
 import { selectOutputMemo, useProjectionStore } from "@renderer/stores/projection.store";
 import { useLiveHeading, useLiveStatus } from "@renderer/lib/hooks/use-live";
 import { cn } from "@renderer/lib/utils";
@@ -32,6 +34,7 @@ export function MonitorsColumn() {
   const base = useProjectionStore((s) => s.base);
   const heading = useLiveHeading();
   const status = useLiveStatus();
+  const canOpen = useDisplayStore((s) => s.displayId !== null);
   // The slide the LIVE monitor draws — none under BLACK/LOGO, like the stage.
   const liveModelUrl = useProjectionStore((s) => {
     const output = selectOutputMemo(s);
@@ -43,12 +46,31 @@ export function MonitorsColumn() {
   return (
     <>
       <PanelHeader
-        actions={<DamagedSlideBadge url={liveModelUrl} />}
-        meta={[heading, status]}
+        actions={
+          <>
+            <DamagedSlideBadge url={liveModelUrl} />
+            {/* No projector is the one fault to fix before a service: a warning
+                with its fix beside it, not grey text (2026-11-05 review). */}
+            {presentationOpen ? null : (
+              <>
+                <Badge variant="danger">{status}</Badge>
+                <Button
+                  disabled={!canOpen}
+                  onClick={() => void useDisplayStore.getState().open()}
+                  size="xs"
+                  variant="outline"
+                >
+                  {t("header.openDisplay")}
+                </Button>
+              </>
+            )}
+          </>
+        }
+        meta={[heading, presentationOpen ? status : null]}
         title={
           <span className="flex items-center gap-1.5">
             {broadcasting ? (
-              <span className="size-2 shrink-0 rounded-full bg-on-air motion-safe:animate-pulse" />
+              <span className="size-2 shrink-0 rounded-full bg-on-air" />
             ) : null}
             {t("live.title")}
           </span>

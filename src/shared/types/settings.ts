@@ -1,14 +1,20 @@
 import type { AssetKind } from "../constants";
-import {
-  ASSET_KINDS,
-  SLIDES_DEFAULT_CACHE_MB,
-  SLIDES_DEFAULT_RENDER_WIDTH,
-} from "../constants";
+import { ASSET_KINDS } from "../constants";
 import { isBibleStyle, normalizeBibleStyle } from "../bible-style-validators";
 import { DEFAULT_BIBLE_STYLE, type BibleStyle } from "./bible-style";
 import { MEDIA_SORT_ORDERS, type MediaSortOrder } from "./media";
+import { SONG_SORT_ORDERS, type SongSortOrder } from "./song";
 import { TRANSITION_MAX_DURATION_MS, TRANSITION_STYLES, type TransitionStyle } from "./transition";
-import { VIDEO_END_ACTIONS, type VideoEndAction } from "./projection";
+import { LOGO_NAME_MAX_LENGTH, VIDEO_END_ACTIONS, type LogoScene, type VideoEndAction } from "./projection";
+import type { SceneBackground } from "./scene-style";
+import { isSceneBackground } from "../style-validators";
+import { LOGO_URL } from "../urls";
+
+/** How a Functions list (time scenes, plates) is ordered: «own» is the order
+ *  the operator gave it in its editor; the rest like Media's (owner,
+ *  2026-11-05: «el botón de ordenar como en las otras páginas»). */
+export const NAMED_SORT_ORDERS = ["own", "name-asc", "name-desc", "date-desc", "date-asc"] as const;
+export type NamedSortOrder = (typeof NAMED_SORT_ORDERS)[number];
 
 export const THEMES = ["dark", "light"] as const;
 export type Theme = (typeof THEMES)[number];
@@ -16,8 +22,15 @@ export type Theme = (typeof THEMES)[number];
 export const LOCALES = ["es", "en", "it", "pt"] as const;
 export type Locale = (typeof LOCALES)[number];
 
-export const SLIDE_IMAGE_FORMATS = ["webp", "png"] as const;
-export type SlideImageFormat = (typeof SLIDE_IMAGE_FORMATS)[number];
+/** What LOGO shows: the logo image, or the church's name over a background
+ *  (owner, 2026-11-05: «Imagen | Nombre sobre fondo»). */
+export const LOGO_MODES = ["image", "name"] as const;
+export type LogoMode = (typeof LOGO_MODES)[number];
+
+/** The LOGO an install shows: the one the operator chose, else — never chosen,
+ *  every install before the choice existed — the image when there is one, as
+ *  LOGO always did. */
+export const logoModeOf = (mode: LogoMode | null, path: string | null): LogoMode => mode ?? (path ? "image" : "name");
 
 /** The faces a slide can fall back to when it names one this machine lacks:
  *  the open ones Lumina ships (`assets/fonts/slides/`), so the choice looks
@@ -36,6 +49,14 @@ export type SlideFallbackFont = (typeof SLIDE_FALLBACK_FONTS)[number];
 
 export type SettingsMap = {
   "logo.path": string | null;
+  /** Which of the two LOGO shows; `null` until the operator picks — see
+   *  `logoModeOf`. */
+  "logo.mode": LogoMode | null;
+  /** The church's name, on LOGO in «name» mode. */
+  "logo.name": string | null;
+  /** What LOGO is drawn over in «name» mode. Black, as LOGO always was, until
+   *  the starter look dresses it. */
+  "logo.background": SceneBackground;
   /** Where the file picker opens for each kind of asset. `null` means "the
    *  operating system's own folder for this kind" (`systemMediaFolder` in
    *  `main/paths.ts`), which is resolved fresh on every pick: it is looked up
@@ -56,22 +77,19 @@ export type SettingsMap = {
   /** Ignored when the style is "none". */
   "projection.transition.durationMs": number;
   /** What the projector does when a video reaches its end on its own (owner,
-   *  2026-11-05): the logo (black without one), BLACK, start over, or stay on
-   *  its last frame. Videos only — an auto-advancing deck still clears. */
+   *  2026-11-05): the logo (black without one), BLACK, start over, stay on its
+   *  last frame, or the schedule's next item. Videos only — an auto-advancing
+   *  deck still clears. */
   "projection.videoEnd": VideoEndAction;
   /** Whether the LIVE monitor plays its own moving copy of a live video (the
    *  full-screen one and a slide's). Off, it shows the video's thumbnail and
    *  the control window decodes nothing — the projector is never affected. */
   "monitors.liveVideoMotion": boolean;
-  /** The format a PDF's pages are drawn to, when a window asks for one. */
-  "slides.imageFormat": SlideImageFormat;
   /** The face a `.pptx` drawn from its model falls back to when it names one
    *  this machine lacks (after its metric twins); `null` is the operating
    *  system's own sans-serif. One for every face, serif or not (owner,
    *  2026-10-28). */
   "slides.fallbackFont": SlideFallbackFont | null;
-  "slides.cacheMaxMb": number;
-  "slides.maxRenderWidth": number;
   /** Folders the operator has linked per asset kind, so a resource tab can
    *  offer "this folder's files" as an alternative to the added-to-library
    *  list. Files inside are registered like any other asset (so preview/
@@ -103,6 +121,16 @@ export type SettingsMap = {
   "songs.defaultThemeId": number | null;
   /** The church's CCLI licence number, for the copyright footer. */
   "songs.ccliLicense": string | null;
+  /** The Songs tab's order, linked folders and open view («library» or one of
+   *  the folders), kept like Media's `library.sort`, `library.linkedFolders`
+   *  and `library.activeView`. A view whose folder was unlinked reads as the
+   *  library. */
+  "songs.sort": SongSortOrder;
+  /** The Functions tab's lists, each ordered on its own. */
+  "functions.scenesSort": NamedSortOrder;
+  "functions.platesSort": NamedSortOrder;
+  "songs.linkedFolders": string[];
+  "songs.activeView": string;
   /** How a scripture verse is drawn on the projector — see `BibleStyle`.
    *  A JSON column in all but name, so it is the one settings key with a
    *  normalizer as well as a validator (`SETTINGS_NORMALIZERS`). */
@@ -131,10 +159,20 @@ export type SettingsMap = {
   /** The last version the launch toast announced, so each one is announced
    *  once and not every morning until it is installed. */
   "updates.announcedVersion": string | null;
+  /** The saved program open in the schedule, written by the control window
+   *  whenever that changes (`App`). A relaunch with no draft — the program was
+   *  open unedited, so there was nothing to mirror — opens it again (owner,
+   *  2026-11-06: a restart mid-service left the schedule empty). `null`: a
+   *  new, unsaved schedule. Not main's own current program: «programs:save»
+   *  adopts a new program the list's «+» only creates. */
+  "programs.openId": number | null;
 };
 
 export const DEFAULT_SETTINGS: SettingsMap = {
   "logo.path": null,
+  "logo.mode": null,
+  "logo.name": null,
+  "logo.background": { kind: "solid", color: "#000000" },
   "files.defaultFolders": { video: null, image: null, audio: null, ppt: null },
   "projection.displayId": null,
   "stage.displayId": null,
@@ -148,10 +186,7 @@ export const DEFAULT_SETTINGS: SettingsMap = {
   "projection.transition.style": "crossfade",
   "projection.videoEnd": "logo",
   "projection.transition.durationMs": 300,
-  "slides.imageFormat": "webp",
   "slides.fallbackFont": null,
-  "slides.cacheMaxMb": SLIDES_DEFAULT_CACHE_MB,
-  "slides.maxRenderWidth": SLIDES_DEFAULT_RENDER_WIDTH,
   "monitors.liveVideoMotion": true,
   "library.linkedFolders": { video: [], image: [], audio: [], ppt: [] },
   "library.activeView": { video: "recent", image: "recent", audio: "recent", ppt: "recent" },
@@ -161,12 +196,36 @@ export const DEFAULT_SETTINGS: SettingsMap = {
   "look.seeded": 0,
   "songs.defaultThemeId": null,
   "songs.ccliLicense": null,
+  "songs.sort": "title-asc",
+  "functions.scenesSort": "own",
+  "functions.platesSort": "own",
+  "songs.linkedFolders": [],
+  "songs.activeView": "library",
   "bible.style": DEFAULT_BIBLE_STYLE,
   "bible.defaultVersionId": null,
   "bible.builtinSeeded": false,
   "updates.autoCheck": true,
   "updates.announcedVersion": null,
+  "programs.openId": null,
 };
+
+/** What LOGO draws, from its settings: the image in «image» mode — its path is
+ *  the cache-buster, `worship://logo` being one host for every logo —, the
+ *  name over its background in «name» mode, and nothing of the other mode in
+ *  either. One function for the projector (`App`) and the Settings preview, so
+ *  the two cannot disagree. «image» with no image chosen is a bare black LOGO. */
+export function logoLook(
+  settings: Pick<SettingsMap, "logo.path" | "logo.mode" | "logo.name" | "logo.background">,
+): { url: string | null; scene: LogoScene } {
+  const path = settings["logo.path"];
+  if (logoModeOf(settings["logo.mode"], path) === "name") {
+    return { url: null, scene: { name: settings["logo.name"], background: settings["logo.background"] } };
+  }
+  return {
+    url: path ? `${LOGO_URL}?p=${encodeURIComponent(path)}` : null,
+    scene: { name: null, background: DEFAULT_SETTINGS["logo.background"] },
+  };
+}
 
 /* -------------------------------------------------------------------------
  * Runtime validation
@@ -224,6 +283,9 @@ const isStringArray = (v: unknown): boolean => Array.isArray(v) && v.every(isStr
 
 export const SETTINGS_VALIDATORS: Record<keyof SettingsMap, (value: unknown) => boolean> = {
   "logo.path": isNullOr(isString),
+  "logo.mode": isNullOr(isOneOf(LOGO_MODES)),
+  "logo.name": (v) => v === null || (typeof v === "string" && v.length <= LOGO_NAME_MAX_LENGTH),
+  "logo.background": isSceneBackground,
   "files.defaultFolders": isRecordOfKinds(isNullOr(isString)),
   "projection.displayId": isDisplayId,
   "stage.displayId": isDisplayId,
@@ -233,10 +295,7 @@ export const SETTINGS_VALIDATORS: Record<keyof SettingsMap, (value: unknown) => 
   "projection.transition.style": isOneOf(TRANSITION_STYLES),
   "projection.videoEnd": isOneOf(VIDEO_END_ACTIONS),
   "projection.transition.durationMs": isNumberIn(0, TRANSITION_MAX_DURATION_MS),
-  "slides.imageFormat": isOneOf(SLIDE_IMAGE_FORMATS),
   "slides.fallbackFont": isNullOr(isOneOf(SLIDE_FALLBACK_FONTS)),
-  "slides.cacheMaxMb": isNumberIn(1, 1_000_000),
-  "slides.maxRenderWidth": isNumberIn(320, 16_384),
   "monitors.liveVideoMotion": isBoolean,
   "library.linkedFolders": isRecordOfKinds(isStringArray),
   "library.activeView": isRecordOfKinds(isString),
@@ -246,11 +305,17 @@ export const SETTINGS_VALIDATORS: Record<keyof SettingsMap, (value: unknown) => 
   "look.seeded": (v) => typeof v === "number" && Number.isInteger(v) && v >= 0,
   "songs.defaultThemeId": (v) => v === null || (typeof v === "number" && Number.isInteger(v) && v > 0),
   "songs.ccliLicense": (v) => v === null || (typeof v === "string" && v.length <= 100),
+  "songs.sort": isOneOf(SONG_SORT_ORDERS),
+  "functions.scenesSort": isOneOf(NAMED_SORT_ORDERS),
+  "functions.platesSort": isOneOf(NAMED_SORT_ORDERS),
+  "songs.linkedFolders": isStringArray,
+  "songs.activeView": isString,
   "bible.style": isBibleStyle,
   "bible.defaultVersionId": (v) => v === null || (typeof v === "number" && Number.isInteger(v) && v > 0),
   "bible.builtinSeeded": isBoolean,
   "updates.autoCheck": isBoolean,
   "updates.announcedVersion": isNullOr(isString),
+  "programs.openId": (v) => v === null || (typeof v === "number" && Number.isInteger(v) && v > 0),
 };
 
 export function isSettingsKey(key: string): key is keyof SettingsMap {

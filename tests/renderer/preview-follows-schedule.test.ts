@@ -24,6 +24,12 @@ test("moving the previewed row keeps it previewed", () => {
   expect(title()).toBe("c");
 });
 
+test("dragging another row past it keeps it previewed", () => {
+  // SchedulePanel's drop: `reorder(from, targetIndex)`, «a» dropped at the end.
+  useProgramStore.getState().reorder(0, 3);
+  expect(title()).toBe("c");
+});
+
 test("inserting a row above it keeps it previewed", () => {
   useProgramStore.getState().addItem({ kind: "media", mediaAssetId: 1, title: "new" }, 0);
   expect(title()).toBe("c");

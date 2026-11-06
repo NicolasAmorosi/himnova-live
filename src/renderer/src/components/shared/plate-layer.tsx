@@ -3,6 +3,7 @@ import { cssFontFamily, cssSceneBackground } from "@shared/types/scene-style";
 import { plateEdge, type PlateEdge, type PlatePosition } from "@shared/types/overlay";
 import type { ProjectionPlate } from "@shared/types/projection";
 import { sceneTextCss } from "./scene-text";
+import { StageImage } from "./stage-image";
 
 type Phase = "enter" | "leave";
 
@@ -200,15 +201,20 @@ function PlateBox({
               inset: 0,
               background: cssSceneBackground(style.background),
               opacity: style.backgroundOpacity,
+              borderRadius: `${style.cornerRadiusCqw}cqw`,
             }}
           />
         ) : null}
         {plate.imageUrl ? (
-          <img
-            alt=""
+          <StageImage
             onError={() => onImageError?.(plate.imageUrl!)}
             src={plate.imageUrl}
-            style={{ position: "relative", width: `${style.image.sizeCqw}cqw`, opacity: style.image.opacity }}
+            style={{
+              position: "relative",
+              width: `${style.image.sizeCqw}cqw`,
+              opacity: style.image.opacity,
+              borderRadius: `${style.cornerRadiusCqw}cqw`,
+            }}
           />
         ) : null}
         {ticker ? (

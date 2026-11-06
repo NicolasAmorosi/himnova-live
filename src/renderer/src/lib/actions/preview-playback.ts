@@ -6,8 +6,9 @@ import { usePreviewStore } from "@renderer/stores/preview.store";
  * via `OutputView`'s `videoRef` — same wiring `ProjectionApp` uses for the
  * projector's element, but module-scoped instead of a component ref: there is
  * no window boundary or reload to survive here, so a plain module variable is
- * enough. Never mounted for audio — audio keeps the old silent, informational
- * behaviour (see `preview-media-bar.tsx`).
+ * enough. Never mounted for audio: a sound in PREVIEW plays through PREVIEW's
+ * engine (`usePreviewEngineSound`), and its seeks go to main like an engine
+ * video's.
  */
 let previewVideoElement: HTMLVideoElement | null = null;
 
@@ -47,9 +48,8 @@ export function togglePreviewPlayback(): void {
 
 /**
  * One-shot seek, imperative on the element exactly like the live video's own
- * `seekMedia` — but purely local, no IPC. Also used for an audio target,
- * which has no element mounted (`previewVideoElement` stays null): in that
- * case this only records the chosen start point, same as before.
+ * `seekMedia`, or to PREVIEW's engine when it is the one playing (a video only
+ * it decodes, an audio file, a deck's music).
  */
 export function seekPreview(seconds: number): void {
   const next = Math.max(0, seconds);

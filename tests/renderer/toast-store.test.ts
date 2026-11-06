@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { useToastStore } from "@renderer/stores/toast.store";
+import { TOAST_DURATION_MS, useToastStore } from "@renderer/stores/toast.store";
 
 /** Must match `EXIT_MS` in the store, which is module-private: a test that
  *  imported it could not tell a changed duration from a broken exit. */
@@ -57,7 +57,7 @@ describe("toast store exit animation", () => {
 
   test("eviction by the cap is immediate — the room is needed now", () => {
     for (let i = 0; i < 5; i++) {
-      useToastStore.getState().push({ tone: "info", message: `t${i}`, durationMs: null });
+      useToastStore.getState().push({ tone: "info", message: `t${i}` });
     }
 
     // Four, not five with one fading: an animated eviction would hold the
@@ -67,16 +67,43 @@ describe("toast store exit animation", () => {
   });
 
   test("an exiting toast that gets evicted leaves no timer behind", () => {
-    const id = useToastStore.getState().push({ tone: "info", message: "old", durationMs: null });
+    const id = useToastStore.getState().push({ tone: "info", message: "old" });
     useToastStore.getState().dismiss(id);
     for (let i = 0; i < 4; i++) {
-      useToastStore.getState().push({ tone: "info", message: `t${i}`, durationMs: null });
+      useToastStore.getState().push({ tone: "info", message: `t${i}` });
     }
     expect(toasts().some((t) => t.id === id)).toBe(false);
 
     // The evicted toast's exit timer must not fire into a store that has
     // moved on: it would be a no-op filter here, but a pending timer is what
-    // the cap's own `cancelTimer` exists to prevent.
-    expect(vi.getTimerCount()).toBe(0);
+    // the cap's own `cancelTimer` exists to prevent. What is left is the four
+    // live toasts' own lifetime.
+    expect(vi.getTimerCount()).toBe(4);
+  });
+});
+
+/** Every toast goes on its own after `TOAST_DURATION_MS`, the ones with an action too
+ *  (owner, 2026-11-05), and the pointer on it holds the count. */
+describe("toast store lifetime", () => {
+  test("a toast with an action goes after the same time as any other", () => {
+    useToastStore.getState().push({ tone: "danger", message: "x", action: { label: "Reabrir", onClick: () => undefined } });
+    vi.advanceTimersByTime(TOAST_DURATION_MS - 1);
+    expect(toasts()[0]?.exiting).toBeFalsy();
+    vi.advanceTimersByTime(1);
+    expect(toasts()[0]?.exiting).toBe(true);
+  });
+
+  test("a paused toast keeps what it had left, and goes that much after resuming", () => {
+    const id = useToastStore.getState().push({ tone: "info", message: "x" });
+    vi.advanceTimersByTime(2000);
+    useToastStore.getState().pause(id);
+    expect(toasts()[0]?.paused).toBe(true);
+    vi.advanceTimersByTime(60_000);
+    expect(toasts()[0]?.exiting).toBeFalsy();
+    useToastStore.getState().resume(id);
+    vi.advanceTimersByTime(TOAST_DURATION_MS - 2000 - 1);
+    expect(toasts()[0]?.exiting).toBeFalsy();
+    vi.advanceTimersByTime(1);
+    expect(toasts()[0]?.exiting).toBe(true);
   });
 });

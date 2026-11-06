@@ -9,8 +9,8 @@ import { useProgramStore } from "@renderer/stores/program.store";
 import type {
   ResolvedSong,
   Song,
-  SongImportSource,
   SongLanguage,
+  SongSortOrder,
   SongTheme,
   SongThemeRow,
   SongThemeUpsert,
@@ -18,6 +18,7 @@ import type {
   SongUsage,
 } from "@shared/types/song";
 import { useSettingsStore } from "@renderer/stores/settings.store";
+import { IpcError } from "@shared/ipc/result";
 
 /**
  * The song library's writes, and keeping a live song in step with them.
@@ -52,19 +53,25 @@ export async function prepareSong(
   return { resolved, theme, sizeCqw: fit.sizeCqw };
 }
 
-/** Where the operator was, in the song as it is now: the same slide of the
- *  same pass when it still exists, else that section's slide, else the
- *  start of that pass, else the same number. 1-based. */
+/** Where the operator was, in the song as it is now — after an edit, or in
+ *  another language, cut into other slides: the same slide of the same pass,
+ *  clamped to the slides that pass has now, else the start of the pass at the
+ *  same place in the order, else the same number. 1-based. The same pass is
+ *  the same time its section is sung (the second chorus stays the second when
+ *  an intro is added before it), else its last time. */
 export function sameSlideIn(previous: ResolvedSong, slideIndex: number, next: ResolvedSong): number {
   const was = previous.slides[slideIndex - 1];
   if (!was) return slideIndex;
-  const at = (predicate: (slide: ResolvedSong["slides"][number]) => boolean) =>
-    next.slides.findIndex(predicate) + 1;
+  const passesOf = (song: ResolvedSong) => [
+    ...new Set(song.slides.filter((s) => s.sectionKey === was.sectionKey).map((s) => s.pass)),
+  ];
+  const passes = passesOf(next);
+  const pass = passes[Math.min(passesOf(previous).indexOf(was.pass), passes.length - 1)];
+  // That pass's slides, in order: its section's, one by one.
+  const ofPass = next.slides.flatMap((s, i) => (s.pass === pass ? [i + 1] : []));
   return (
-    at((s) => s.pass === was.pass && s.sectionKey === was.sectionKey && s.indexInSection === was.indexInSection) ||
-    at((s) => s.sectionKey === was.sectionKey && s.indexInSection === was.indexInSection) ||
-    at((s) => s.pass === was.pass) ||
-    slideIndex
+    ofPass[Math.min(was.indexInSection, ofPass.length - 1)] ??
+    (next.slides.findIndex((s) => s.pass === was.pass) + 1 || slideIndex)
   );
 }
 
@@ -96,21 +103,55 @@ export async function setLiveSongLanguage(language: SongLanguage): Promise<void>
   const prepared = await prepareSong(base.songId, language);
   const now = useProjectionStore.getState().base;
   if (!prepared || now?.kind !== "song" || now.songId !== base.songId) return;
-  useProjectionStore.getState().setSongLanguage(language, prepared.resolved, prepared.sizeCqw);
+  // A language can cut a section into more slides or fewer: the same slide,
+  // never the same number.
+  useProjectionStore
+    .getState()
+    .setLiveSong(
+      prepared.resolved,
+      prepared.theme,
+      prepared.sizeCqw,
+      sameSlideIn(now.song, now.slideIndex, prepared.resolved),
+      language,
+    );
 }
 
 export async function saveSong(input: SongUpsert): Promise<Song | null> {
+  const before = findSong(useSongStore.getState().songs, input.id ?? null);
   try {
     const song =
       input.id === undefined ? await api.songs.create(input) : await api.songs.update({ ...input, id: input.id });
     await loadSongs();
     await refreshLiveSong(song.id);
+    // A library song whose file is gone was saved in the app and untied.
+    if (before?.file && song.file === null) toast.warning(t("songs.fileUntied", { file: before.file }));
     return song;
   } catch (error) {
     console.warn("[songs] could not save the song", error);
-    toast.danger(t("songs.saveError"));
+    // A song tied to a file that is gone, read-only or changed outside the
+    // app: main says which, in the operator's language — and has read a
+    // changed library song's file again; a linked folder's is re-listed.
+    const fileError = error instanceof IpcError && error.code.startsWith("SONG_FILE_");
+    toast.danger(fileError ? error.message : t("songs.saveError"));
+    if (fileError) void (before?.sourceFolder ? refreshSongFolder(before.sourceFolder) : loadSongs());
     return null;
   }
+}
+
+/** What «Eliminar» asks about a song (`DeleteSongConfirm`). `inSchedule`: the
+ *  order of service being built sings it, and `deleteSong` takes it out. */
+export type SongDeleteTarget = {
+  songId: number;
+  live: boolean;
+  usages: SongUsage[];
+  file: string | null;
+  inSchedule: boolean;
+};
+
+export async function songDeleteTarget(id: number): Promise<SongDeleteTarget> {
+  const file = findSong(useSongStore.getState().songs, id)?.file ?? null;
+  const inSchedule = useProgramStore.getState().items.some((item) => item.kind === "song" && item.songId === id);
+  return { songId: id, live: isSongLive(id), usages: await songUsages(id), file, inSchedule };
 }
 
 export async function duplicateSong(id: number, title: string): Promise<Song | null> {
@@ -201,14 +242,62 @@ export async function deleteSongTheme(id: number): Promise<boolean> {
  * there, or one that will not open), main's own reason, which says what to
  * pick.
  */
-export async function importSongs(from: SongImportSource): Promise<void> {
+/** The view the Songs tab shows: «library», or a linked folder while it is linked. */
+export function songView(): string {
+  const { settings } = useSettingsStore.getState();
+  const saved = settings["songs.activeView"];
+  return settings["songs.linkedFolders"].includes(saved) ? saved : "library";
+}
+
+export function selectSongView(view: string): void {
+  void useSettingsStore.getState().update({ "songs.activeView": view });
+}
+
+export function setSongSort(order: SongSortOrder): void {
+  void useSettingsStore.getState().update({ "songs.sort": order });
+}
+
+/** A linked folder read again from disk (owner, 2026-11-05: the computer's
+ *  folders, like Media's). Gone is `"missing"`, never an empty folder. */
+export async function refreshSongFolder(folder: string): Promise<void> {
   try {
-    const result = await api.songs.import(from);
+    useSongStore.getState().setFolderListing(folder, await api.songs.listFolder(folder));
+  } catch (error) {
+    if (error instanceof IpcError && error.code === "FOLDER_MISSING") {
+      useSongStore.getState().setFolderListing(folder, "missing");
+      return;
+    }
+    console.warn("[songs] could not read the folder", folder, error);
+    toast.danger(t("songs.loadError"));
+  }
+}
+
+/** Links a folder of song files and opens it. */
+export async function linkSongFolder(): Promise<void> {
+  const chosen = await api.files.pickFolder();
+  if (chosen === null) return;
+  const linked = useSettingsStore.getState().settings["songs.linkedFolders"];
+  if (!linked.includes(chosen)) await useSettingsStore.getState().update({ "songs.linkedFolders": [...linked, chosen] });
+  selectSongView(chosen);
+  await refreshSongFolder(chosen);
+}
+
+/** Stops showing a folder; its files are not touched. */
+export async function unlinkSongFolder(folder: string): Promise<void> {
+  const linked = useSettingsStore.getState().settings["songs.linkedFolders"];
+  await useSettingsStore.getState().update({ "songs.linkedFolders": linked.filter((path) => path !== folder) });
+  if (songView() === "library") selectSongView("library");
+}
+
+/** Any supported format, in one picker, into the library (owner, 2026-11-05). */
+export async function importSongs(): Promise<void> {
+  try {
+    const result = await api.songs.import();
     if (!result) return;
     await loadSongs();
     toast.success(t("songs.importDone", result));
   } catch (error) {
-    console.warn(`[songs] ${from} import failed`, error);
+    console.warn("[songs] import failed", error);
     const message = error instanceof Error ? error.message.trim() : "";
     toast.danger(message || t("songs.importError"));
   }
@@ -217,19 +306,24 @@ export async function importSongs(from: SongImportSource): Promise<void> {
 /**
  * The CCLI usage report between two local dates (`YYYY-MM-DD`, both days
  * included), saved as CSV where the operator says. Nothing used in those
- * dates says so instead of saving an empty file.
+ * dates says so instead of saving an empty file: `"empty"`, for the dialog to
+ * say in place. `"written"` once a report is on disk; `"none"` when nothing
+ * was written for another reason (the save dialog cancelled, an error already
+ * toasted).
  */
-export async function exportSongUsage(fromDate: string, toDate: string): Promise<void> {
+export async function exportSongUsage(fromDate: string, toDate: string): Promise<"written" | "empty" | "none"> {
   const from = new Date(`${fromDate}T00:00:00`);
   const to = new Date(`${toDate}T00:00:00`);
   to.setDate(to.getDate() + 1);
   try {
     const result = await api.songs.usageReport({ from: from.getTime(), to: to.getTime() });
-    if (!result) return;
-    if (result.songs === 0) toast.info(t("settings.songs.usageEmpty"));
-    else toast.success(t("settings.songs.usageDone", { songs: result.songs }));
+    if (!result) return "none";
+    if (result.songs === 0) return "empty";
+    toast.success(t("settings.songs.usageDone", { songs: result.songs }));
+    return "written";
   } catch (error) {
     console.warn("[songs] usage report failed", error);
     toast.danger(t("settings.songs.usageError"));
+    return "none";
   }
 }

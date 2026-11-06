@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useT } from "@renderer/lib/i18n/i18n-provider";
-import { BrandMark, Button, Icon, IconButton, Toolbar, Tooltip } from "@renderer/components/ui";
-import { useProjectionStore } from "@renderer/stores/projection.store";
+import { BrandMark, Button, Icon, IconButton, Kbd, Toolbar, Tooltip } from "@renderer/components/ui";
+import { selectOutputMemo, useProjectionStore } from "@renderer/stores/projection.store";
 import { useProgramStore } from "@renderer/stores/program.store";
 import { goLive, setOverlayDirect } from "@renderer/lib/actions/playback";
 import { hasUnsavedChanges, newProgram, saveCurrentProgram } from "@renderer/lib/actions/programs";
@@ -27,6 +27,13 @@ type TopBarProps = {
 export function TopBar({ onOpenPrograms, onOpenSettings }: TopBarProps) {
   const t = useT();
   const overlay = useProjectionStore((s) => s.overlay);
+  const presentationOpen = useProjectionStore((s) => s.presentationOpen);
+  // Lit by what the projector SHOWS, read off the same output the monitor
+  // draws: with nothing live the room sees the logo, and LOGO said nothing
+  // (2026-11-05 review; `useLiveStatus` warns against re-deriving it by hand).
+  // With no projector open the room sees nothing: lit, LOGO claimed it at
+  // every launch (QA, 2026-11-06).
+  const outputKind = useProjectionStore((s) => (s.presentationOpen ? selectOutputMemo(s).kind : null));
   const base = useProjectionStore((s) => s.base);
   const previewContent = usePreviewContent();
   const currentProgramId = useProgramStore((s) => s.currentProgramId);
@@ -52,7 +59,8 @@ export function TopBar({ onOpenPrograms, onOpenSettings }: TopBarProps) {
 
   // Unsaved work is only thrown away when the operator says so, with the same
   // small dialog every other «discard?» uses (2026-11-04 review: it was a toast
-  // with an action here and a dialog everywhere else).
+  // with an action here and a dialog everywhere else) — or saved first, for a
+  // program that has its row, like closing the app (owner, 2026-11-06).
   const [confirmNew, setConfirmNew] = useState(false);
   function handleNewProgram() {
     if (hasUnsavedChanges()) setConfirmNew(true);
@@ -61,12 +69,14 @@ export function TopBar({ onOpenPrograms, onOpenSettings }: TopBarProps) {
 
   return (
     <>
-      <Toolbar className="grid grid-cols-3 items-center">
+      {/* The columns' own grid (`AppShell`: thirds, 1 px apart) and their
+          headers' 12 px edges, so each group ends where its column does. */}
+      <Toolbar className="grid grid-cols-3 items-center gap-px px-0">
         {/* The program's name as plain text, and «Save» with its word
             (2026-11-04 redesign, P7): saving Saturday's program was a 16 px
             icon, and the name floated in a capsule. */}
-        <div className="flex min-w-0 items-center gap-1.5">
-          <BrandMark className="mx-1 size-7 shrink-0 rounded-md" />
+        <div className="flex min-w-0 items-center gap-1.5 px-3">
+          <BrandMark className="mr-1 size-7 shrink-0 rounded-md" />
           <Tooltip content={t("settings.title")} floating>
             <IconButton aria-label={t("settings.title")} onClick={onOpenSettings} variant="ghost">
               <Icon name="settings" />
@@ -75,8 +85,8 @@ export function TopBar({ onOpenPrograms, onOpenSettings }: TopBarProps) {
 
           <div className="mx-1 h-5 w-px shrink-0 bg-border" />
 
-          <span className="min-w-0 flex-1 truncate text-sm font-medium" title={currentProgramName || t("programs.new")}>
-            {currentProgramName || t("programs.new")}
+          <span className="min-w-0 flex-1 truncate text-sm font-medium" title={currentProgramName || t("header.untitled")}>
+            {currentProgramName || t("header.untitled")}
           </span>
 
           <Tooltip content={dirty ? t("programs.saveHint") : t("programs.saveNoChanges")} floating>
@@ -103,49 +113,70 @@ export function TopBar({ onOpenPrograms, onOpenSettings }: TopBarProps) {
           </Tooltip>
         </div>
 
-        <div className="flex items-center justify-end">
-          <Button disabled={previewContent === null} onClick={() => void goLive()} size="md" variant="live">
-            <Icon name="play" /> {t("actions.goLive")}
-          </Button>
+        {/* 32 px like every control of a bar, not the 40 of what is pressed
+            during a service: the bar is a strip tall like all the others
+            (owner, 2026-11-06). They keep their width and their words. */}
+        <div className="flex items-center justify-end px-3">
+          <Tooltip content={<>{t("footerHints.goLive")}<Kbd>Enter</Kbd></>} floating>
+            <Button disabled={previewContent === null} onClick={() => void goLive()} size="sm" variant="live">
+              <Icon name="play" /> {t("actions.goLive")}
+            </Button>
+          </Tooltip>
         </div>
 
-        <div className="flex items-center justify-end gap-1.5">
-          <Button
-            className="w-24 px-2"
-            onClick={() => void setOverlayDirect("logo")}
-            size="md"
-            toggled={overlay === "logo"}
-            variant="outline"
-          >
-            <Icon name="image" /> {t("footer.logo")}
-          </Button>
-          <Button
-            className="w-24 px-2"
-            onClick={() => void setOverlayDirect("black")}
-            size="md"
-            toggled={overlay === "black"}
-            variant="outline"
-          >
-            <Icon name="stop" /> {t("footer.black")}
-          </Button>
-          <Button
-            className="w-24 px-2"
-            disabled={base === null}
-            onClick={() => void setOverlayDirect("none")}
-            size="md"
-            toggled={overlay === "none"}
-            variant="outline"
-          >
-            <Icon name="play" /> {t("footer.live")}
-          </Button>
+        <div className="flex items-center justify-end gap-1.5 px-3">
+          <Tooltip content={<>{t("footerHints.logo")}<Kbd>L</Kbd></>} floating>
+            <Button
+              className="w-24 px-2"
+              onClick={() => void setOverlayDirect("logo")}
+              size="sm"
+              toggled={outputKind === "logo"}
+              toggledTone="warning"
+              variant="outline"
+            >
+              <Icon name="image" /> {t("footer.logo")}
+            </Button>
+          </Tooltip>
+          <Tooltip content={<>{t("footerHints.black")}<Kbd>B</Kbd></>} floating>
+            <Button
+              className="w-24 px-2"
+              onClick={() => void setOverlayDirect("black")}
+              size="sm"
+              toggled={outputKind === "black"}
+              toggledTone="warning"
+              variant="outline"
+            >
+              <Icon name="stop" /> {t("footer.black")}
+            </Button>
+          </Tooltip>
+          <Tooltip content={t("footerHints.live")} floating>
+            <Button
+              className="w-24 px-2"
+              disabled={base === null}
+              onClick={() => void setOverlayDirect("none")}
+              size="sm"
+              // Lit only while content IS on the projector, and with its own
+              // icon: the ▷ of GO LIVE beside it read as a second GO LIVE, lit
+              // all service long — even with nothing live (2026-11-05 review;
+              // the owner kept its word, VIVO).
+              toggled={presentationOpen && overlay === "none" && base !== null}
+              toggledTone="onAir"
+              variant="outline"
+            >
+              <Icon name="display" /> {t("footer.live")}
+            </Button>
+          </Tooltip>
         </div>
       </Toolbar>
       <ConfirmModal
         confirmLabel={t("programs.discardAndNew")}
+        danger
         description={t("programs.discardWarning")}
         onConfirm={newProgram}
         onOpenChange={setConfirmNew}
+        onSave={currentProgramId !== null ? saveCurrentProgram : undefined}
         open={confirmNew}
+        saveLabel={t("programs.saveAndNew")}
         title={t("programs.discardTitle")}
       />
     </>

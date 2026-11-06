@@ -1,5 +1,5 @@
 import { fixture } from "./support/paths";
-import { expect, test, type WorshipApp } from "./support/app";
+import { expect, relaunch, test, type WorshipApp } from "./support/app";
 
 /**
  * The order of service and the saved programs: everything an operator does to
@@ -15,10 +15,9 @@ const manager = (app: WorshipApp) => app.control.getByRole("dialog", { name: "Pr
 const programRow = (app: WorshipApp, name: string) =>
   manager(app).getByRole("listitem").filter({ has: app.control.getByText(name, { exact: true }) });
 
-/** «Vaciar» lives in the schedule's «⋯» menu. */
+/** «Vaciar» is the trash icon at the foot of the schedule's tool strip (2026-11-05). */
 async function clearSchedule(app: WorshipApp) {
-  await scheduleSection(app).getByRole("button", { name: "Más acciones" }).click();
-  await app.control.getByRole("menuitem", { name: "Vaciar" }).click();
+  await scheduleSection(app).getByRole("button", { name: "Vaciar", exact: true }).click();
 }
 
 async function addAll(app: WorshipApp, ...names: string[]) {
@@ -52,7 +51,7 @@ test("a row goes with «Quitar» or the Delete key, and «Vaciar» asks before t
   await app.control.keyboard.press("Delete");
   await expect(rows(app)).toHaveText([/clip/]);
   // The library still has it: removing a row is not removing the file.
-  await app.openResources("Media", "Audios");
+  await app.openResources("Medios", "Audios");
   await expect(app.control.getByRole("tabpanel", { name: "Audios" }).getByRole("button", { name: "song" })).toBeVisible();
 
   // Unsaved: «Vaciar» asks first, the same way «Nuevo programa» does.
@@ -64,16 +63,23 @@ test("a row goes with «Quitar» or the Delete key, and «Vaciar» asks before t
   await expect(app.control.getByText("Programa vacío")).toBeVisible();
 });
 
-test("«Vaciar» on a saved program empties it at once, and the saved copy is still there", async ({ app }) => {
+test("«Vaciar» on a saved program starts a new one: undone while nothing changed, and «Guardar» then asks for a name (owner, 2026-11-06)", async ({
+  app,
+}) => {
   await addAll(app, "clip.mp4", "photo.png");
   await saveAs(app, "Culto A");
   await clearSchedule(app);
   await expect(app.control.getByText("Programa vacío")).toBeVisible();
-
-  await app.control.getByRole("button", { name: "Administrar programas" }).click();
-  await programRow(app, "Culto A").click();
-  await manager(app).getByRole("button", { name: "Abrir" }).click();
-  await expect(rows(app)).toHaveText([/clip/, /photo/]);
+  await expect(toast(app, "Se vació el programa").getByRole("button", { name: "Deshacer" })).toBeVisible();
+  await addAll(app, "song.mp3");
+  await expect(rows(app)).toHaveText([/song/]);
+  // A newer edit takes «Deshacer» down: it would put the rows into a different list.
+  await expect(toast(app, "Se vació el programa")).toHaveCount(0);
+  // Emptied in place, the saved one used to stay the open program, and the next «Guardar» wrote over it.
+  await app.control.getByRole("button", { name: "Guardar", exact: true }).click();
+  await expect(manager(app).getByRole("textbox", { name: "Nombre" })).toBeVisible();
+  const saved = (await app.invoke<{ id: number; name: string }[]>("programs:list")).find((program) => program.name === "Culto A");
+  expect((await app.invoke<{ items: unknown[] }>("programs:peek", { id: saved!.id })).items).toHaveLength(2);
 });
 
 test("a saved program is duplicated, renamed, made a favourite and found by search", async ({ app }) => {
@@ -116,7 +122,7 @@ test("deleting the program in use empties the schedule with it, after saying so"
   await expect(confirm).toContainText('Se va a eliminar "Culto A" y todos sus elementos.');
   await confirm.getByRole("button", { name: "Eliminar", exact: true }).click();
   await expect(toast(app, "Programa eliminado")).toBeVisible();
-  await expect(manager(app).getByText("No hay programas guardados").or(manager(app).getByText("Programa sin guardar"))).toBeVisible();
+  await expect(manager(app).getByText("No hay programas guardados").or(manager(app).getByText("Sin título"))).toBeVisible();
   await manager(app).getByRole("button", { name: "Cerrar" }).click();
 
   await expect(app.control.getByText("Programa vacío")).toBeVisible();
@@ -177,7 +183,7 @@ test("«Nuevo programa» over unsaved changes warns, and only starts over when t
 test("a library tile dragged onto the schedule lands where it is dropped", async ({ app }) => {
   await addAll(app, "clip.mp4", "song.mp3");
   await app.addMedia("image", "photo.png");
-  await app.openResources("Media", "Imágenes");
+  await app.openResources("Medios", "Imágenes");
   await app.control.getByRole("tabpanel", { name: "Imágenes" }).getByRole("button", { name: "photo" }).dragTo(rows(app).filter({ hasText: "song" }));
   await expect(rows(app)).toHaveText([/clip/, /photo/, /song/]);
 });
@@ -203,4 +209,66 @@ test("a verse and a time scene can be dragged into the schedule too", async ({ a
   await app.openResources("Funciones", "Utilidades");
   await control.getByRole("list", { name: "Escenas de tiempo" }).getByRole("listitem").filter({ hasText: "Reloj" }).dragTo(rows(app).first());
   await expect(rows(app)).toHaveText([/Reloj/, /Juan 3:16/]);
+});
+
+const row = (app: WorshipApp, text: string) => rows(app).filter({ hasText: text });
+
+test("the «No guardado» mark: selecting, going live and renaming never make it; an edit does, and «Guardar» writes over the open program", async ({
+  app,
+}) => {
+  const notSaved = app.control.getByText("No guardado");
+  await addAll(app, "clip.mp4", "photo.png");
+  await saveAs(app, "Culto A");
+  await expect(notSaved).toHaveCount(0);
+
+  await row(app, "photo").click();
+  await row(app, "photo").dblclick();
+  await expect((await app.projector()).locator('img[src^="worship://asset/"]')).toBeVisible();
+  await app.control.locator("body").press("b");
+  await app.control.locator("body").press("b");
+  await expect(notSaved).toHaveCount(0);
+
+  // Renamed and given notes from the manager: saved at once, not a pending change.
+  await app.control.getByRole("button", { name: "Administrar programas" }).click();
+  await manager(app).getByRole("textbox", { name: "Nombre" }).fill("Culto B");
+  await manager(app).getByPlaceholder("Notas opcionales").fill("Traer el control remoto");
+  await manager(app).getByRole("button", { name: "Guardar", exact: true }).click();
+  await expect(toast(app, '"Culto B" actualizado')).toBeVisible();
+  await manager(app).getByRole("button", { name: "Cerrar" }).click();
+  await expect(notSaved).toHaveCount(0);
+  await expect(app.control.locator('span[title="Culto B"]')).toBeVisible();
+
+  await row(app, "photo").dragTo(row(app, "clip"));
+  await expect(rows(app)).toHaveText([/photo/, /clip/]);
+  await expect(notSaved).toBeVisible();
+  await app.control.getByRole("button", { name: "Guardar", exact: true }).click();
+  await expect(toast(app, '"Culto B" guardado')).toBeVisible();
+  await expect(notSaved).toHaveCount(0);
+  // Still on air after the save.
+  await expect(row(app, "photo").locator("span.bg-on-air")).toHaveCount(1);
+
+  await app.control.getByRole("button", { name: "Administrar programas" }).click();
+  await expect(programRow(app, "Culto B")).toHaveCount(1);
+  await expect(programRow(app, "Culto A")).toHaveCount(0);
+  await expect(manager(app).getByPlaceholder("Notas opcionales")).toHaveValue("Traer el control remoto");
+});
+
+test("quitting with an edited saved program offers «Guardar y salir», and the edit is there after a restart", async ({ app }) => {
+  await addAll(app, "clip.mp4");
+  await saveAs(app, "Culto A");
+  await addAll(app, "photo.png");
+  await expect(rows(app)).toHaveText([/clip/, /photo/]);
+  const exited = app.exited;
+  await app.electron.evaluate(({ app: electronApp }) => electronApp.quit());
+  // The answer ends the process, which can take the page down before the click returns.
+  await app.control
+    .getByRole("dialog", { name: "¿Cerrar sin guardar?" })
+    .getByRole("button", { name: "Guardar y salir" })
+    .click()
+    .catch(() => undefined);
+  await exited;
+
+  const again = await relaunch(app);
+  await again.control.getByRole("button", { name: "Administrar programas" }).click();
+  await expect(manager(again).getByText("2 elementos")).toBeVisible();
 });

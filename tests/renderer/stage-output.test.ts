@@ -3,7 +3,7 @@
  * → would bring — and BLACK, LOGO or hidden lyrics named, never shown.
  */
 import { beforeEach, describe, expect, test } from "vitest";
-import { buildCumulativeMs, useProjectionStore, type LiveDeck } from "@renderer/stores/projection.store";
+import { buildCumulativeMs, selectOutput, useProjectionStore, type LiveDeck } from "@renderer/stores/projection.store";
 import { resolveSong } from "@renderer/stores/song.store";
 import { stageOutputFor, type StageBibleCursor } from "@renderer/lib/stage-output";
 import { parseLyrics } from "@shared/song-text";
@@ -42,8 +42,8 @@ function liveDeck(slideCount: number, slideIndex: number) {
   store.setBase({ kind: "deck", assetId: 9, slideIndex });
 }
 
-function liveSong(slideIndex: number, lyricsHidden = false) {
-  const sections = parseLyrics("[Estrofa 1]\nuno\n\ndos\n\n[Coro]\ncoro", "es").sections;
+function liveSong(slideIndex: number, lyricsHidden = false, lyrics = "[Estrofa 1]\nuno\n\ndos\n\n[Coro]\ncoro") {
+  const sections = parseLyrics(lyrics, "es").sections;
   const song = {
     id: 7,
     title: "Sublime gracia",
@@ -55,6 +55,8 @@ function liveSong(slideIndex: number, lyricsHidden = false) {
     sections,
     order: ["v1", "c1", "v1"],
     themeId: null,
+    sourceFolder: null,
+    file: null,
     updatedAt: 1,
   };
   useProjectionStore.getState().setBase({
@@ -98,6 +100,20 @@ describe("the stage display", () => {
     liveSong(2);
     expect(stage().current).toMatchObject({ kind: "song", lines: ["dos"] });
     expect(stage().next).toMatchObject({ kind: "song", lines: ["coro"] });
+  });
+
+  test("a song's chords reach the stage, over the live slide and the next — never the projector", () => {
+    liveSong(1, false, "[Estrofa 1]\n[G]uno [C]más\n\n[D]dos\n\n[Coro]\ncoro");
+    const { current, next } = stage();
+    expect(current).toMatchObject({ kind: "song", lines: ["uno más"], chords: [[{ at: 0, name: "G" }, { at: 4, name: "C" }]] });
+    expect(next).toMatchObject({ kind: "song", lines: ["dos"], chords: [[{ at: 0, name: "D" }]] });
+    expect(selectOutput(useProjectionStore.getState())).not.toHaveProperty("chords");
+  });
+
+  test("a section sung off the order (a detour) brings its chords too", () => {
+    liveSong(1, false, "[Estrofa 1]\n[G]uno\n\n[Coro]\n[C]coro\n\n[Puente]\n[Em]puente");
+    useProjectionStore.getState().setSongPosition({ slideIndex: 1, detour: { sectionKey: "b1", slideIndex: 1, returnTo: 1 } });
+    expect(stage().current).toMatchObject({ kind: "song", lines: ["puente"], chords: [[{ at: 0, name: "Em" }]] });
   });
 
   test("BLACK and LOGO keep the content and name the cover", () => {

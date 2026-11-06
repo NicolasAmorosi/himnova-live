@@ -1,12 +1,8 @@
 import type { Handlers } from "../register";
 import { getProgramsRepo, getSettingsRepo, getSongsRepo } from "../../services/repos";
 import { removeSong } from "../../services/song-removal";
-import {
-  importEasyWorshipFolder,
-  importOpenLpDatabase,
-  importOpenLyricsFiles,
-  importSongTextFiles,
-} from "../../services/song-import";
+import { importSongFiles } from "../../services/song-import";
+import { listSongFolder, writeSongFile } from "../../services/song-files";
 import { exportSongUsage } from "../../services/song-usage";
 import { showOpenDialogFor } from "../open-dialog";
 import fs from "node:fs";
@@ -15,7 +11,7 @@ import path from "node:path";
 import { app, type OpenDialogOptions } from "electron";
 import { IpcError } from "@shared/ipc/result";
 import { isSongThemeUpsert, isSongTitle, isSongUpsert } from "@shared/song-validators";
-import { SONG_IMPORT_SOURCES, type SongThemeUpsert, type SongUpsert } from "@shared/types/song";
+import { SONG_IMPORT_EXTENSIONS, type SongThemeUpsert, type SongUpsert } from "@shared/types/song";
 import { mt } from "../../i18n";
 
 /** Where EasyWorship 6/7 keeps its default profile's databases on Windows
@@ -29,24 +25,11 @@ function openLpDefaultFolder(): string {
   return path.join(os.homedir(), ".local", "share", "openlp", "songs");
 }
 
-/** The sources picked as one or more files. A ChordPro file may be a `.txt`
- *  too: the reader tells it from SongSelect's by its words. */
-const FILE_SOURCES = {
-  openlyrics: {
-    title: "songs.openLyricsPickTitle",
-    filter: { name: "OpenLyrics", extensions: ["xml"] },
-    read: importOpenLyricsFiles,
-  },
-  songselect: { title: "songs.songSelectPickTitle", filter: { name: "SongSelect", extensions: ["txt"] }, read: importSongTextFiles },
-  chordpro: {
-    title: "songs.chordProPickTitle",
-    filter: { name: "ChordPro", extensions: ["cho", "chordpro", "chopro", "crd", "pro", "txt"] },
-    read: importSongTextFiles,
-  },
-} as const;
-
-const defaultPathIfThere = (folder: string): Partial<OpenDialogOptions> =>
-  fs.existsSync(folder) ? { defaultPath: folder } : {};
+/** The first of `folders` this machine has, to open a picker in. */
+function defaultPathAmong(...folders: string[]): Partial<OpenDialogOptions> {
+  const folder = folders.find((candidate) => fs.existsSync(candidate));
+  return folder ? { defaultPath: folder } : {};
+}
 
 function assertValidTheme(input: unknown): { name: string; style: SongThemeUpsert["style"] } {
   if (!isSongThemeUpsert(input)) {
@@ -71,6 +54,7 @@ export const songsHandlers: Pick<
   | "song:delete"
   | "song:usages"
   | "song:search"
+  | "song:listFolder"
   | "song:import"
   | "song:usageReport"
   | "songTheme:list"
@@ -78,9 +62,22 @@ export const songsHandlers: Pick<
   | "songTheme:update"
   | "songTheme:delete"
 > = {
-  "song:list": () => getSongsRepo().list(),
+  // The songs of a folder no longer linked go first (the tab only lets go of
+  // the setting): a saved program's, or the unsaved order of service's, become
+  // library songs.
+  "song:list": () => {
+    getSongsRepo().forgetFolders(getSettingsRepo().get("songs.linkedFolders"));
+    return getSongsRepo().list();
+  },
   "song:create": (input) => getSongsRepo().create(assertValid(input)),
-  "song:update": (input) => getSongsRepo().update(input.id, assertValid(input)),
+  // A song tied to a file writes the file first: refused there, nothing changes.
+  "song:update": (input) => {
+    const song = assertValid(input);
+    // `isSongUpsert` lets a missing id through (it is `song:create`'s shape).
+    if (typeof input.id !== "number") throw new IpcError({ code: "INVALID_SONG", message: mt("songs.invalid") });
+    writeSongFile(input.id, song);
+    return getSongsRepo().update(input.id, song);
+  },
   "song:duplicate": ({ id, title }) => {
     if (!isSongTitle(title)) throw new IpcError({ code: "INVALID_SONG", message: mt("songs.invalidTitle") });
     return getSongsRepo().duplicate(id, title.trim());
@@ -89,36 +86,22 @@ export const songsHandlers: Pick<
     removeSong(id, force ?? false);
   },
   "song:usages": ({ id }) => getProgramsRepo().findSongUsages(id),
-  "song:search": ({ query, limit }) => getSongsRepo().search(query, limit),
-  "song:import": async (req, ev) => {
-    const from = req?.from;
-    if (!SONG_IMPORT_SOURCES.includes(from)) throw new IpcError({ code: "INVALID_ARGUMENT", message: "Invalid import source." });
-    if (from === "easyworship") {
-      const result = await showOpenDialogFor(ev.sender, {
-        title: mt("songs.ewPickTitle"),
-        properties: ["openDirectory"],
-        ...defaultPathIfThere(EASYWORSHIP_DEFAULT_DATA),
-      });
-      const folder = result.filePaths[0];
-      return result.canceled || !folder ? null : importEasyWorshipFolder(folder);
-    }
-    if (from === "openlp") {
-      const result = await showOpenDialogFor(ev.sender, {
-        title: mt("songs.openLpPickTitle"),
-        properties: ["openFile"],
-        filters: [{ name: "OpenLP", extensions: ["sqlite", "db"] }],
-        ...defaultPathIfThere(openLpDefaultFolder()),
-      });
-      const file = result.filePaths[0];
-      return result.canceled || !file ? null : importOpenLpDatabase(file);
-    }
-    const files = FILE_SOURCES[from];
+  "song:search": ({ query, limit, folder }) =>
+    getSongsRepo().search(query, limit, typeof folder === "string" ? folder : null),
+  "song:listFolder": ({ path: folder }) => {
+    if (typeof folder !== "string" || folder === "") throw new IpcError({ code: "INVALID_ARGUMENT", message: "Invalid folder." });
+    return listSongFolder(folder);
+  },
+  // One picker for every format (owner, 2026-11-05). It opens where
+  // EasyWorship or OpenLP keep their songs on this machine, when one does.
+  "song:import": async (_req, ev) => {
     const result = await showOpenDialogFor(ev.sender, {
-      title: mt(files.title),
+      title: mt("songs.importPickTitle"),
       properties: ["openFile", "multiSelections"],
-      filters: [{ name: files.filter.name, extensions: [...files.filter.extensions] }],
+      filters: [{ name: mt("songs.importFilter"), extensions: [...SONG_IMPORT_EXTENSIONS] }],
+      ...defaultPathAmong(EASYWORSHIP_DEFAULT_DATA, openLpDefaultFolder()),
     });
-    return result.canceled || result.filePaths.length === 0 ? null : files.read(result.filePaths);
+    return result.canceled || result.filePaths.length === 0 ? null : importSongFiles(result.filePaths);
   },
   "song:usageReport": (req, ev) => exportSongUsage(ev.sender, Number(req?.from), Number(req?.to)),
   "songTheme:list": () => getSongsRepo().listThemes(),

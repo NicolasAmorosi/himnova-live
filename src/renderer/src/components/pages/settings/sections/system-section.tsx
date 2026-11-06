@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { ASSET_KINDS, type AssetKind } from "@shared/constants";
 import type { Locale } from "@shared/types/settings";
 import { availableLocales, useT, type MessageKey } from "@renderer/lib/i18n/i18n-provider";
-import { Button, Callout, FieldGroup, FieldRow, Icon, Select, Switch } from "@renderer/components/ui";
+import { Button, FieldGroup, FieldRow, Segmented, Select, Switch } from "@renderer/components/ui";
 import { useSettingsStore } from "@renderer/stores/settings.store";
 import { api } from "@renderer/lib/api";
 import { PerformanceDiagnostics } from "./performance-diagnostics";
@@ -22,7 +22,8 @@ const KIND_LABEL_KEYS: Record<AssetKind, MessageKey> = {
 };
 
 /** App-wide preferences that aren't about projection: theme, language, how
- *  hard the control window works, and where the file picker opens. */
+ *  hard the control window works, where the file picker opens — and, at the
+ *  foot, the machine's own diagnostics. */
 export function SystemSection() {
   const t = useT();
   const theme = useSettingsStore((s) => s.settings["ui.theme"]);
@@ -65,36 +66,23 @@ export function SystemSection() {
   }
 
   return (
-    <div className="flex flex-col gap-6">
-      <FieldGroup title={t("settings.groups.appearance")}>
+    <div className="flex flex-col gap-8">
+      {/* One group, not two of one row each (2026-11-05 review). */}
+      <FieldGroup title={t("settings.groups.interface")}>
         <FieldRow description={t("settings.themeDesc")} label={t("settings.theme")}>
-          <div className="inline-flex gap-1 rounded-md border border-border p-0.5">
-            <Button
-              className="w-28 justify-center rounded-sm"
-              onClick={() => void updateSettings({ "ui.theme": "dark" })}
-              size="sm"
-              toggled={theme === "dark"}
-              variant="ghost"
-            >
-              <Icon name="moon" /> {t("settings.themeDark")}
-            </Button>
-            <Button
-              className="w-28 justify-center rounded-sm"
-              onClick={() => void updateSettings({ "ui.theme": "light" })}
-              size="sm"
-              toggled={theme === "light"}
-              variant="ghost"
-            >
-              <Icon name="sun" /> {t("settings.themeLight")}
-            </Button>
-          </div>
+          <Segmented
+            className="w-64"
+            label={t("settings.theme")}
+            onChange={(theme) => void updateSettings({ "ui.theme": theme })}
+            options={[
+              { icon: "moon", label: t("settings.themeDark"), value: "dark" },
+              { icon: "sun", label: t("settings.themeLight"), value: "light" },
+            ]}
+            value={theme}
+          />
         </FieldRow>
-      </FieldGroup>
-
-      <FieldGroup title={t("settings.groups.language")}>
         <FieldRow description={t("settings.languageDesc")} label={t("settings.language")}>
           <Select
-            className="min-w-40"
             onChange={(value) => void updateSettings({ "ui.locale": value as Locale })}
             options={availableLocales.map((l) => ({ label: t(LOCALE_LABEL_KEYS[l]), value: l }))}
             value={locale}
@@ -103,18 +91,21 @@ export function SystemSection() {
       </FieldGroup>
 
       <FieldGroup title={t("settings.groups.performance")}>
-        <FieldRow description={t("settings.liveVideoMotionDesc")} label={t("settings.liveVideoMotion")}>
+        <FieldRow
+          description={t("settings.liveVideoMotionDesc")}
+          help={t("settings.liveVideoMotionHelp")}
+          label={t("settings.liveVideoMotion")}
+        >
           <Switch
             checked={liveVideoMotion}
             onChange={(e) => void updateSettings({ "monitors.liveVideoMotion": e.target.checked })}
           />
         </FieldRow>
-        <PerformanceDiagnostics />
       </FieldGroup>
 
       {/* One row per kind, in `ASSET_KINDS` order, so this group cannot fall
           out of step with the resource tabs it governs. */}
-      <FieldGroup title={t("settings.groups.folders")}>
+      <FieldGroup description={t("settings.foldersBody")} title={t("settings.groups.folders")}>
         {ASSET_KINDS.map((kind) => {
           const override = defaultFolders[kind];
           const systemFolder = systemFolders?.[kind];
@@ -132,23 +123,22 @@ export function SystemSection() {
               <Button onClick={() => void chooseFolder(kind)} variant="outline">
                 {t("settings.chooseFolder")}
               </Button>
-              <Button
-                disabled={override === null}
-                onClick={() => void setFolder(kind, null)}
-                variant="ghost"
-              >
-                {t("settings.resetFolder")}
-              </Button>
+              {/* Only where there is something to undo: four greyed «Restablecer» were noise. */}
+              {override !== null ? (
+                <Button onClick={() => void setFolder(kind, null)} variant="ghost">
+                  {t("settings.resetFolder")}
+                </Button>
+              ) : null}
             </FieldRow>
           );
         })}
       </FieldGroup>
 
-      <Callout tone="info">
-        <p className="font-medium">{t("settings.foldersTitle")}</p>
-        <p className="mt-1 text-xs text-muted-foreground">{t("settings.foldersBody")}</p>
-      </Callout>
-
+      {/* What describes the machine rather than sets a preference, last on the
+          page (owner, 2026-11-05: «dejalo donde está pero al fondo»). */}
+      <FieldGroup title={t("settings.groups.diagnostics")}>
+        <PerformanceDiagnostics />
+      </FieldGroup>
     </div>
   );
 }

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { isSafeFontFamily } from "@shared/types/scene-style";
 
 /** One entry of the Local Font Access API. Only `family` matters here — a
  *  scene stores a family and lets the weight come from `SceneStyle`. */
@@ -15,7 +16,7 @@ declare global {
 
 export type LocalFonts =
   | { status: "loading" }
-  /** The API answered. `families` is deduplicated and sorted. */
+  /** The API answered. `families` is deduplicated, sorted, and only names a style may store. */
   | { status: "ready"; families: readonly string[] }
   /** No API, or it refused. The editor keeps whatever family the scene already
    *  names and simply cannot offer a list — which is a smaller lie than an
@@ -51,10 +52,12 @@ export function useLocalFonts(enabled: boolean): LocalFonts {
       .then((fonts) => {
         if (!alive) return;
         // One entry per FAMILY: the API returns a row per face, so a font with
-        // eight weights would otherwise appear eight times.
-        const families = [...new Set(fonts.map((font) => font.family))].sort((a, b) =>
-          a.localeCompare(b),
-        );
+        // eight weights would otherwise appear eight times. And only families
+        // a style may store (`isSafeFontFamily`): «Mom's Typewriter» is a real
+        // font, and offering it made every editor fail on save.
+        const families = [...new Set(fonts.map((font) => font.family))]
+          .filter(isSafeFontFamily)
+          .sort((a, b) => a.localeCompare(b));
         setState({ status: "ready", families });
       })
       .catch((error: unknown) => {

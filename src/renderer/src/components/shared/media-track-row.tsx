@@ -191,17 +191,17 @@ export function MediaTrackRow({
 
   return (
     <div className={cn("flex flex-col gap-1 px-2 py-1.5", className)}>
-      <div className={cn("flex items-center gap-2", paused && "opacity-70")}>
+      {/* Not faded while paused: PREVIEW never autoplays, so every row there
+          sat greyed out, its ▶ included (2026-11-05 review); the ▶/❚❚ says it.
+          The kind's icon is neutral, like the deck, song and verse bars. */}
+      <div className="flex items-center gap-2">
         <Icon
-          className={cn(
-            "size-4 shrink-0",
-            error ? "text-danger-ink" : kind === "audio" ? "text-badge-audio-ink" : "text-accent-ink",
-          )}
+          className={cn("size-4 shrink-0", error ? "text-danger-ink" : "text-muted-foreground")}
           name={error ? "alert" : kindIcon[kind]}
         />
 
         <span
-          className={cn("min-w-0 flex-1 truncate text-sm", paused ? "text-muted-foreground" : "text-foreground")}
+          className="min-w-0 flex-1 truncate text-sm text-foreground"
         >
           {label}
         </span>

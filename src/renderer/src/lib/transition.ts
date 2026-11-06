@@ -176,9 +176,15 @@ export function transitionStyleOptions(t: Translate): SelectOption[] {
   return TRANSITION_STYLES.map((style) => ({ label: t(TRANSITION_STYLE_LABEL_KEYS[style]), value: style }));
 }
 
-export function transitionDurationOptions(t: Translate): SelectOption[] {
-  return TRANSITION_DURATION_OPTIONS.map((ms) => ({
-    label: t(`transition.durations.${ms}`),
+/** With `current` off the list (a value written by an older build or by the
+ *  starter look's 400 ms slide), it is offered too, in order: a select whose
+ *  value matches no option shows an empty box. */
+export function transitionDurationOptions(t: Translate, current: number): SelectOption[] {
+  const known = (ms: number): ms is (typeof TRANSITION_DURATION_OPTIONS)[number] =>
+    (TRANSITION_DURATION_OPTIONS as readonly number[]).includes(ms);
+  const durations = known(current) ? TRANSITION_DURATION_OPTIONS : [...TRANSITION_DURATION_OPTIONS, current].sort((a, b) => a - b);
+  return durations.map((ms) => ({
+    label: known(ms) ? t(`transition.durations.${ms}`) : t("transition.durations.other", { ms: String(ms) }),
     value: String(ms),
   }));
 }

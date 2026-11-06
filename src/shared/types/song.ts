@@ -39,11 +39,18 @@ export const SECTION_KEY_PREFIX: Record<SongSectionType, string> = {
 /** A section's number goes 1..this. A song with a hundredth verse is not a song. */
 export const SONG_SECTION_NUMBER_MAX = 99;
 
+/** A chord over a lyric line: `at` is the character of the line it sits on. */
+export type SongChord = { at: number; name: string };
+
 export type SongSlide = {
   lines: string[];
   /** This slide in the second language, written in the editor's «Traducción»
    *  text and paired by section and slide (`withTranslation`). */
   translation?: string[];
+  /** The chords over each of `lines` (same length), only when the slide has
+   *  any. For the musicians' screen alone: the projector never draws them
+   *  (owner, plan §8). Written inline in the editor's text, `[G]Amazing`. */
+  chords?: SongChord[][];
 };
 
 /** Which language a live song shows (owner, 2026-11-05): a song with a
@@ -75,24 +82,43 @@ export type Song = {
   order: string[];
   /** `null` = the default theme. */
   themeId: number | null;
+  /** The linked folder whose file it was read from, `null` = a library song.
+   *  Saving such a song writes its file too, in the file's own format (owner,
+   *  2026-11-05). Main's to set: never part of a write. */
+  sourceFolder: string | null;
+  /** The file saving writes, whole path: a linked folder's song's, or a
+   *  library song imported from a song file (owner, 2026-11-05: it stays tied
+   *  to it). `null` = the song lives only in the app. Main's to set. */
+  file: string | null;
   updatedAt: number;
 };
 
-export type SongUpsert = Omit<Song, "id" | "updatedAt"> & { id?: number };
+/** How the Songs tab lists the library when nothing is searched, persisted in
+ *  `settings["songs.sort"]`. `date` is when the song came in (its row id). */
+export const SONG_SORT_ORDERS = ["title-asc", "title-desc", "number-asc", "date-desc", "date-asc"] as const;
+export type SongSortOrder = (typeof SONG_SORT_ORDERS)[number];
+
+export type SongUpsert = Omit<Song, "id" | "updatedAt" | "sourceFolder" | "file"> & { id?: number };
 
 export type SongUsage = { programId: number; programName: string; itemCount: number };
 
-/** The programs whose songs the app reads (owner, 2026-11-05: «Importar» is a
- *  menu of them). */
-export const SONG_IMPORT_SOURCES = ["easyworship", "openlp", "openlyrics", "songselect", "chordpro"] as const;
-export type SongImportSource = (typeof SONG_IMPORT_SOURCES)[number];
+/** What «Importar» opens in one picker (owner, 2026-11-05: any supported
+ *  format, no menu): OpenLyrics, SongSelect and ChordPro files, OpenLP's
+ *  `songs.sqlite` and EasyWorship's `Songs.db`. */
+export const SONG_IMPORT_EXTENSIONS = ["xml", "txt", "cho", "chordpro", "chopro", "crd", "pro", "sqlite", "db"] as const;
+
+/** The song files a linked folder shows: the importable ones that are one
+ *  file, not a database. */
+export const SONG_FILE_EXTENSIONS = ["xml", "txt", "cho", "chordpro", "chopro", "crd", "pro"] as const;
 
 /** One song in the CCLI usage report: the days it went live (one per day). */
 export type SongUse = { title: string; authors: string | null; ccliNumber: string | null; days: number[] };
 
 /** What an import did: written, skipped as already there (same title, same
- *  words), and not written because the song had no title or no lyrics. */
-export type SongImportResult = { imported: number; repeated: number; problems: number };
+ *  words), not written because the song had no title or no lyrics, and files
+ *  that were no song file the app reads (another program's, broken, or
+ *  unreadable). */
+export type SongImportResult = { imported: number; repeated: number; problems: number; unsupported: number };
 
 export type SongSearchHit = {
   songId: number;
@@ -105,6 +131,8 @@ export type SongSearchHit = {
  *  knowing which section and which pass of the order it comes from. */
 export type SongDeckSlide = {
   lines: string[];
+  /** `SongSlide.chords`, carried to the musicians' screen. */
+  chords?: SongChord[][];
   /** Drawn under `lines`, smaller (`SongTheme.translation`): only when the song
    *  is resolved in «both» and this slide has one. */
   translation?: string[];

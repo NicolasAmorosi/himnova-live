@@ -137,7 +137,7 @@ export function ColorField({ className, label, onChange, size = "sm", value }: C
         aria-haspopup="dialog"
         aria-label={label}
         className={cn(
-          "focus-ring flex cursor-pointer items-center gap-2 rounded-md border border-border bg-surface text-foreground transition-colors hover:border-accent",
+          "focus-ring flex cursor-pointer items-center gap-2 rounded-md border border-border bg-surface text-foreground transition-colors hover:border-accent disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:border-border",
           sizes[size],
           open && "border-accent",
           className,

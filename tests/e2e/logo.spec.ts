@@ -12,6 +12,8 @@ async function chooseLogo(app: WorshipApp, file: string) {
   await app.control.getByRole("button", { name: "Configuración" }).click();
   const settings = app.control.getByRole("dialog", { name: "Configuración" });
   await settings.getByRole("tab", { name: "Proyección" }).click();
+  // A new install shows the name over a background until «Imagen» is chosen.
+  await settings.getByRole("group", { name: "Mostrar", exact: true }).getByRole("button", { name: "Imagen" }).click();
   await app.answerOpenDialog(file);
   await settings.getByRole("button", { name: "Elegir archivo…" }).click();
   return settings;
@@ -84,5 +86,30 @@ test("removing the logo while it is on the projector asks first", async ({ app }
   await settings.getByRole("button", { name: "Quitar", exact: true }).click();
   await confirm.getByRole("button", { name: "Quitar", exact: true }).click();
   await expect(logoOnProjector(projector)).toHaveCount(0);
-  await expect(settings.getByText("No hay ningún logo cargado")).toBeVisible();
+  // Still in «Imagen»: the group's one preview is a bare black LOGO now.
+  await expect(settings.getByRole("tabpanel", { name: "Proyección" }).locator('img[src^="worship://logo"]')).toHaveCount(0);
+});
+
+test("«Nombre sobre fondo» shows the church's name even with a logo image loaded, and «Imagen» brings the image back", async ({ app }) => {
+  const settings = await chooseLogo(app, fixture("photo.png"));
+  const panel = settings.getByRole("tabpanel", { name: "Proyección" });
+  await settings.getByRole("group", { name: "Mostrar", exact: true }).getByRole("button", { name: "Nombre sobre fondo" }).click();
+  // The image's own row goes, the name's comes.
+  await expect(settings.getByRole("button", { name: "Elegir archivo…" })).toHaveCount(0);
+  const name = settings.getByRole("textbox", { name: "Nombre de la iglesia" });
+  await name.fill("Iglesia Central");
+  await name.press("Enter");
+  await expect(panel.locator("[data-logo-name]")).toHaveText("Iglesia Central");
+  await settings.getByRole("button", { name: "Volver" }).click();
+
+  await app.control.getByRole("button", { name: "LOGO", exact: true }).first().click();
+  const projector = await app.projector();
+  await expect(projector.locator("[data-logo-name]")).toHaveText("Iglesia Central");
+  await expect(logoOnProjector(projector)).toHaveCount(0);
+
+  await app.control.getByRole("button", { name: "Configuración" }).click();
+  await settings.getByRole("tab", { name: "Proyección" }).click();
+  await settings.getByRole("group", { name: "Mostrar", exact: true }).getByRole("button", { name: "Imagen" }).click();
+  await expect(logoOnProjector(projector)).toBeVisible();
+  await expect(projector.locator("[data-logo-name]")).toHaveCount(0);
 });

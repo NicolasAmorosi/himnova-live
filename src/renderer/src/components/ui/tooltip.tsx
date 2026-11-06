@@ -45,6 +45,9 @@ type TooltipProps = {
  * bubble stuck open post-click until the user focused something else.
  * `focus-visible` only engages for keyboard focus, so Tab navigation still
  * reveals the tooltip while a click dismisses it immediately.
+ *
+ * And a trigger whose menu or list is open (`aria-expanded="true"`) shows no
+ * bubble: it sat over the menu it had just opened (owner, 2026-11-05).
  */
 export function Tooltip(props: TooltipProps) {
   if (props.floating) return <FloatingTooltip {...props} />;
@@ -55,7 +58,7 @@ export function Tooltip(props: TooltipProps) {
       {children}
       <span
         className={cn(
-          "pointer-events-none absolute z-[var(--z-raised)] w-64 rounded-md border border-border bg-card p-2 text-xs text-foreground opacity-0 shadow-raised transition-opacity group-hover:opacity-100 group-has-[:focus-visible]:opacity-100",
+          "pointer-events-none absolute z-[var(--z-raised)] w-64 rounded-md border border-border bg-card p-2 text-xs text-foreground opacity-0 shadow-raised transition-opacity group-hover:opacity-100 group-has-[:focus-visible]:opacity-100 group-has-[[aria-expanded=true]]:opacity-0!",
           placement === "top" ? "bottom-full mb-1.5" : "top-full mt-1.5",
           align === "start" ? "left-0" : "right-0",
         )}
@@ -85,6 +88,11 @@ function FloatingTooltip({ children, className, content, fit = "text" }: Tooltip
   const [position, setPosition] = useState<BubblePosition | null>(null);
   const triggerRef = useRef<HTMLSpanElement>(null);
   const bubbleRef = useRef<HTMLSpanElement>(null);
+  /** Pressed: no bubble until the pointer leaves and comes back. A press
+   *  opens a menu, a dialog or a native file picker — and the bubble stayed
+   *  over the menu, or stuck on screen once the picker took the pointer away
+   *  without a `pointerleave` (owner, 2026-11-05). */
+  const pressedRef = useRef(false);
 
   // Two-pass: the bubble mounts invisible first so its natural (unclamped)
   // size can be measured, then gets placed against the viewport.
@@ -116,6 +124,24 @@ function FloatingTooltip({ children, className, content, fit = "text" }: Tooltip
     };
   }, [open]);
 
+  // The window losing focus (a native dialog, another app) takes the pointer
+  // with it, and no `pointerleave` ever comes.
+  useLayoutEffect(() => {
+    if (!open) return;
+    const hide = () => {
+      setOpen(false);
+      setPosition(null);
+    };
+    window.addEventListener("blur", hide);
+    return () => window.removeEventListener("blur", hide);
+  }, [open]);
+
+  /** Not over an open menu: the trigger's own list says what it is. */
+  const show = () => {
+    if (pressedRef.current || triggerRef.current?.querySelector("[aria-expanded='true']")) return;
+    setOpen(true);
+  };
+
   function close(e: { relatedTarget?: EventTarget | null }) {
     // Not always a Node: when the pointer leaves straight out of the document
     // (into the title bar, onto the projector's screen) React reports the
@@ -130,10 +156,18 @@ function FloatingTooltip({ children, className, content, fit = "text" }: Tooltip
       className={cn("inline-flex", className)}
       onBlur={close}
       onFocus={(e) => {
-        if (e.target.matches(":focus-visible")) setOpen(true);
+        if (e.target.matches(":focus-visible")) show();
       }}
-      onPointerEnter={() => setOpen(true)}
-      onPointerLeave={close}
+      onPointerDown={() => {
+        pressedRef.current = true;
+        setOpen(false);
+        setPosition(null);
+      }}
+      onPointerEnter={show}
+      onPointerLeave={(e) => {
+        pressedRef.current = false;
+        close(e);
+      }}
       ref={triggerRef}
     >
       {children}

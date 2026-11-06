@@ -53,6 +53,10 @@ type PreviewStoreState = {
    *  0 until then (and always 0 for audio, which still uses the detached
    *  `useMediaDuration` probe instead). */
   durationSeconds: number;
+  /** 0..1, what PREVIEW sounds at: its video, its audio, a deck's music
+   *  (owner, 2026-11-05: «todo como en vivo pero con el volumen a 0»). Back to
+   *  0 with every new target, so nothing ever sounds there by surprise. */
+  volume: number;
 
   clear: () => void;
   setSlideIndex: (index: number) => void;
@@ -60,6 +64,7 @@ type PreviewStoreState = {
   setPositionSeconds: (seconds: number) => void;
   setPlaying: (playing: boolean) => void;
   setDurationSeconds: (seconds: number) => void;
+  setVolume: (volume: number) => void;
 };
 
 export const usePreviewStore = create<PreviewStoreState>((set) => ({
@@ -68,14 +73,16 @@ export const usePreviewStore = create<PreviewStoreState>((set) => ({
   positionSeconds: 0,
   playing: false,
   durationSeconds: 0,
+  volume: 0,
 
-  clear: () => set({ target: null, slideIndex: 1, positionSeconds: 0, playing: false, durationSeconds: 0 }),
+  clear: () => set({ target: null, slideIndex: 1, positionSeconds: 0, playing: false, durationSeconds: 0, volume: 0 }),
   setSlideIndex: (slideIndex) => set({ slideIndex: Math.max(1, slideIndex) }),
   // A new target always starts at its first slide/verse and its own beginning,
   // paused — never autoplay on a fresh selection.
   setTarget: (target) =>
-    set({ target, slideIndex: 1, positionSeconds: 0, playing: false, durationSeconds: 0 }),
+    set({ target, slideIndex: 1, positionSeconds: 0, playing: false, durationSeconds: 0, volume: 0 }),
   setPositionSeconds: (seconds) => set({ positionSeconds: Math.max(0, seconds) }),
   setPlaying: (playing) => set({ playing }),
   setDurationSeconds: (seconds) => set({ durationSeconds: Math.max(0, seconds) }),
+  setVolume: (volume) => set({ volume: Math.min(1, Math.max(0, volume)) }),
 }));

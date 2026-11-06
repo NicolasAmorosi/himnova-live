@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
 import { useT } from "@renderer/lib/i18n/i18n-provider";
 import { ConfirmModal } from "@renderer/components/shared/modal";
-import { ProgramUsages } from "@renderer/components/shared/program-usages";
+import { LookUsages, ProgramUsages } from "@renderer/components/shared/program-usages";
 import { Icon } from "@renderer/components/ui";
 import { api } from "@renderer/lib/api";
 import { forceRemoveAsset } from "@renderer/lib/actions/remove-asset";
-import type { MediaAssetUsage } from "@shared/types/media";
+import type { MediaAssetUsages } from "@shared/types/media";
+
+const NO_USAGES: MediaAssetUsages = { programs: [], looks: [] };
 
 type RemoveAssetConfirmProps = {
   /** `null` means closed — also the target asset, so no separate `open` flag. */
@@ -13,9 +15,12 @@ type RemoveAssetConfirmProps = {
   onOpenChange: (open: boolean) => void;
 };
 
-/** "Remove anyway" — the escape hatch from the in-use toast. Confirms,
- *  then force-deletes: the asset AND every saved-program item pointing at it
- *  (see `forceRemoveAsset` / `main/services/media-asset-removal.ts`).
+/** "Remove anyway" — the escape hatch from the in-use toast. Names what uses
+ *  the file — saved programs, and the looks drawn over it (owner, 2026-11-06)
+ *  — then force-deletes: the asset AND every saved-program item pointing at it
+ *  (see `forceRemoveAsset` / `main/services/media-asset-removal.ts`). A look
+ *  keeps pointing at the gone file, which the projector reports like any
+ *  other missing picture.
  *
  *  Mounted exactly once, by `App` — the offer is a toast action raised from
  *  `lib/actions/remove-asset.ts` and its target lives in `ui.store`. Rendering
@@ -23,7 +28,7 @@ type RemoveAssetConfirmProps = {
  *  operator has visited. */
 export function RemoveAssetConfirm({ assetId, onOpenChange }: RemoveAssetConfirmProps) {
   const t = useT();
-  const [usages, setUsages] = useState<MediaAssetUsage[]>([]);
+  const [usages, setUsages] = useState<MediaAssetUsages>(NO_USAGES);
   const [assetMissing, setAssetMissing] = useState(false);
 
   // Cleared and re-read per asset, with a cancellation guard. Without it the
@@ -39,7 +44,7 @@ export function RemoveAssetConfirm({ assetId, onOpenChange }: RemoveAssetConfirm
   // and the grid was the wrong source anyway, since the Delete shortcut can
   // target a linked-folder row that was never in `byKind`.
   useEffect(() => {
-    setUsages([]);
+    setUsages(NO_USAGES);
     setAssetMissing(false);
     if (assetId === null) return;
     let cancelled = false;
@@ -61,11 +66,14 @@ export function RemoveAssetConfirm({ assetId, onOpenChange }: RemoveAssetConfirm
       danger
       description={
         <div className="flex flex-col gap-3">
-          <ProgramUsages
-            intro={t("library.removeConfirmIntro")}
-            usages={usages}
-            warning={t("library.removeConfirmWarning")}
-          />
+          {usages.programs.length > 0 ? (
+            <ProgramUsages
+              intro={t("library.removeConfirmIntro")}
+              usages={usages.programs}
+              warning={t("library.removeConfirmWarning")}
+            />
+          ) : null}
+          {usages.looks.length > 0 ? <LookUsages looks={usages.looks} /> : null}
           {assetMissing ? (
             <p className="flex items-start gap-1.5 text-warning-ink">
               <Icon className="mt-0.5" name="alert" />

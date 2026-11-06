@@ -1,33 +1,29 @@
 import type { InputHTMLAttributes } from "react";
+import { useI18n } from "@renderer/lib/i18n/i18n-provider";
 import { cn } from "@renderer/lib/utils";
 
 type SliderProps = Omit<InputHTMLAttributes<HTMLInputElement>, "onChange" | "type" | "value"> & {
-  /** How the current value reads beside the track. The default is the number
-   *  itself, which is what a percentage or a `cqw` wants; a multiplier
-   *  (`1.375`) or a unit belongs here. */
+  /** How the current value reads beside the track, when the number plus
+   *  `unit` is not enough (a multiplier, «No limit», a percentage of 0–1). */
   format?: (value: number) => string;
   /** Accessible name. The visible label lives in the `FieldRow` this sits in,
    *  which is not associated with the input — so without this the control is
    *  announced as an unnamed slider. */
   label: string;
   onChange: (value: number) => void;
-  /**
-   * How wide the readout is, in `ch`.
-   *
-   * A fixed box and not content-sized, because the number changes while the
-   * thumb is being dragged and a box that resized under it would move the
-   * track. But `ch` and not `w-12`: with `tabular-nums`, one `ch` is exactly
-   * one digit, so a box sized to the longest string this particular slider can
-   * produce carries NO dead space — and dead space inside the item stacks on
-   * top of the row's own `gap`, which is what made
-   * `.claude/knowledge/fixed-width-readout-inflates-flex-gap.md` a real,
-   * measured spacing bug in `MediaTrackRow` and `DeckTransport`. The default
-   * fits `100%`, `12.5` and `0.80`; pass 5 for a slider whose values reach
-   * `10.25`.
-   */
-  readoutChars?: number;
+  /** After the number. Every `cqw` reads `%` — a `cqw` IS a percent of the
+   *  stage's width, and nobody knows the CSS unit (owner, 2026-11-05). */
+  unit?: string;
   value: number;
 };
+
+
+/** As many decimals as the step has: «6.0» beside «2.5», never «6» beside
+ *  «2.5» or «0.00» beside «55%» (2026-11-05 review). */
+function decimalsOf(step: SliderProps["step"]): number {
+  const text = String(step ?? 1);
+  return text.includes(".") ? text.length - text.indexOf(".") - 1 : 0;
+}
 
 /**
  * A range with its value read out beside it.
@@ -38,28 +34,39 @@ type SliderProps = Omit<InputHTMLAttributes<HTMLInputElement>, "onChange" | "typ
  * the same track-plus-number pair had already been written twice by hand
  * before this existed, which is the point `CLAUDE.md` promotes on.
  *
- * `tabular-nums` and a fixed-width readout so the track does not shift
- * sideways as the number gains a digit while it is being dragged — sized in
- * `ch` rather than in pixels, see `readoutChars`.
+ * `tabular-nums` and ONE fixed-width readout for every slider: the track does
+ * not shift sideways as the number gains a digit while it is being dragged,
+ * and the tracks of an inspector all end at the same x (2026-11-05 review:
+ * a width per call site made a ragged right edge). 48 px fits «10.25»,
+ * «100%» and «120 s».
  */
-export function Slider({ className, format, label, onChange, readoutChars = 4, value, ...rest }: SliderProps) {
+export function Slider({ className, format, label, onChange, unit = "", value, ...rest }: SliderProps) {
+  const { locale } = useI18n();
+  const decimals = decimalsOf(rest.step);
   return (
     <>
       <input
         aria-label={label}
-        className={cn("w-40 accent-accent disabled:opacity-50", className)}
+        className={cn("peer w-40 accent-accent disabled:opacity-50", className)}
         onChange={(e) => onChange(Number(e.target.value))}
         type="range"
         value={value}
         {...rest}
       />
-      {/* Dimmed with the track: a bright number beside a faded track reads as
+      {/* Dimmed with the track — by `:disabled`, so a disabled `<fieldset>`
+          around it counts too: a bright number beside a faded track reads as
           a setting that still applies. */}
       <span
-        className={cn("shrink-0 text-right text-xs tabular-nums text-muted-foreground", rest.disabled && "opacity-50")}
-        style={{ width: `${readoutChars}ch` }}
+        className="shrink-0 text-right text-xs tabular-nums text-muted-foreground peer-disabled:opacity-50"
+        // Inline, not `w-12`: an inspector row stretches every child with a
+        // class that outranks one here, and the readout took the whole row.
+        style={{ width: "3rem" }}
       >
-        {format ? format(value) : value}
+        {format
+          ? format(value)
+          : // The language's own decimal mark, like every other number in the app («1,38»).
+            new Intl.NumberFormat(locale, { minimumFractionDigits: decimals, maximumFractionDigits: decimals }).format(value) +
+            unit}
       </span>
     </>
   );

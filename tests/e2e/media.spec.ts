@@ -83,11 +83,43 @@ test("closing the projector window from outside does not strand the operator", a
   await expect(second.locator('img[src^="worship://asset/"]')).toBeVisible();
 });
 
+test("PREVIEW sounds at its own volume, 0 to start, and goes quiet when it goes live", async ({ app }) => {
+  await app.addMedia("video", "clip.mp4");
+  await app.previewFile("Videos", "clip");
+  const preview = app.previewColumn();
+  const element = preview.locator("video").first();
+  const state = () => element.evaluate((video: HTMLVideoElement) => ({ muted: video.muted, volume: video.volume, paused: video.paused }));
+
+  // Owner, 2026-11-05: «todo como en vivo pero con el volumen a 0; si le suben el volumen se escucha».
+  await preview.getByRole("button", { name: "Reproducir" }).click();
+  await expect.poll(async () => (await state()).paused).toBe(false);
+  expect((await state()).muted).toBe(true);
+  await preview.getByRole("slider", { name: "Volumen de clip" }).fill("60");
+  await expect.poll(state).toMatchObject({ muted: false, volume: 0.6 });
+
+  // Going live hands the sound to the projector: PREVIEW stops.
+  await app.goLive();
+  await expect.poll(async () => (await state()).paused).toBe(true);
+});
+
+test("an audio file in PREVIEW plays through PREVIEW's engine, its clock moving", async ({ app }) => {
+  await app.addMedia("audio", "song.mp3");
+  await app.previewFile("Audios", "song");
+  const preview = app.previewColumn();
+  await preview.getByRole("button", { name: "Reproducir" }).click();
+  // The engine reports where it is: the row's clock leaves 0:00.
+  await expect(preview.getByText(/^0:0[1-9]$/).first()).toBeVisible({ timeout: 15_000 });
+  await preview.getByRole("button", { name: "Pausar" }).click();
+});
+
 /** The first row under a column's monitor, relative to the column: its X and,
  *  when it has one, its position bar. `null` until it is on screen. */
 async function firstRow(column: Locator) {
   const box = await column.boundingBox();
-  const close = await column.getByRole("button", { name: /^(Quitar|Detener|Sacar del aire)$/ }).first().boundingBox();
+  const close = await column
+    .getByRole("button", { name: /^(Quitar|Detener|Sacar del aire|Limpiar vista previa)$/ })
+    .first()
+    .boundingBox();
   const bar = column.getByRole("slider", { name: /^Posición de / }).first();
   const barBox = (await bar.count()) > 0 ? await bar.boundingBox() : null;
   if (!box || !close) return null;

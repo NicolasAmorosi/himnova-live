@@ -1,6 +1,6 @@
 import { api } from "@renderer/lib/api";
 import { IpcError } from "@shared/ipc/result";
-import type { MediaAsset, MediaAssetUsage } from "@shared/types/media";
+import type { MediaAsset, MediaAssetUsages } from "@shared/types/media";
 import { t } from "@renderer/lib/i18n/i18n-provider";
 import { toast } from "@renderer/lib/toast";
 import { forgetMediaAsset } from "@renderer/lib/hooks/use-media-asset";
@@ -12,11 +12,11 @@ import { useProgramStore } from "@renderer/stores/program.store";
 import { useUiStore } from "@renderer/stores/ui.store";
 import { clearBaseContent } from "./playback";
 import { clearPreview } from "./preview";
+import { TOAST_DURATION_MS } from "@renderer/stores/toast.store";
 
-/** How long the operator has to take a removal back. Long enough to read the
- *  toast and react after realizing Delete hit the wrong panel, short enough
- *  that the library isn't lying about its contents for any length of time. */
-const UNDO_WINDOW_MS = 7000;
+/** How long the operator has to take a removal back: the toast's own life, so
+ *  every toast lasts the same (owner, 2026-11-05). */
+const UNDO_WINDOW_MS = TOAST_DURATION_MS;
 
 /**
  * A deleted asset can be referenced by five independent stores (the open
@@ -42,8 +42,9 @@ function purgeAsset(id: number): void {
 }
 
 /**
- * The "a saved program still uses this" rejection, raised from the action
- * rather than from a component.
+ * The "a saved program still uses this" rejection — or "a look is drawn over
+ * this", which main would not refuse but the operator is asked about first —
+ * raised from the action rather than from a component.
  *
  * It used to be handed to the UI as `library.blockedAssetId` and consumed in a
  * `useEffect` inside `MediaBrowser` — correct while exactly one `MediaBrowser`
@@ -60,13 +61,12 @@ function purgeAsset(id: number): void {
  * whole renderer: a one-shot event kept in a global store cannot be consumed
  * in the effect of a component that may be mounted more than once.
  */
-function offerForcedRemoval(id: number): void {
-  toast.danger(t("library.removeBlocked"), {
+function offerForcedRemoval(id: number, inProgram = true): void {
+  toast.danger(inProgram ? t("library.removeBlocked") : t("library.removeInLook"), {
     action: {
       label: t("library.removeAnyway"),
       onClick: () => useUiStore.getState().setRemoveAssetConfirmId(id),
     },
-    durationMs: 6000,
   });
 }
 
@@ -133,30 +133,32 @@ async function commitRemoval(id: number): Promise<void> {
 }
 
 /** The library "remove" button and the Delete/Backspace shortcut both call
- *  this. An asset a saved program still uses goes straight to the existing
- *  forced-confirm flow (`offerForcedRemoval` -> `RemoveAssetConfirm`), because
- *  that one really does need a decision. Everything else disappears from the
- *  grid at once and is only actually deleted `UNDO_WINDOW_MS` later. */
+ *  this. An asset a saved program still uses, or a look is drawn over (the
+ *  LOGO's or the verse's background, a song theme's, a time scene's, a bug
+ *  plate's picture — owner, 2026-11-06), goes straight to the existing
+ *  forced-confirm flow (`offerForcedRemoval` -> `RemoveAssetConfirm`, which
+ *  names them), because that one really does need a decision. Everything else
+ *  disappears from the grid at once and is only actually deleted
+ *  `UNDO_WINDOW_MS` later. */
 export async function removeAsset(id: number): Promise<void> {
   if (pending.has(id)) return;
 
-  // Asked of main rather than read off the grid: the Delete shortcut fires on
-  // whatever the library has selected, which in a linked-folder view is a row
-  // that was never in `byKind` at all.
-  let usages: MediaAssetUsage[];
+  // Asked of main rather than read off the grid, in the round trip the usages
+  // need anyway.
+  let usages: MediaAssetUsages;
   let asset: MediaAsset | null;
   try {
     [usages, asset] = await Promise.all([api.library.usages(id), api.library.get(id)]);
   } catch {
     // Can't tell whether it's in use: fall back to letting main decide, which
     // is what the non-deferred path always did.
-    usages = [];
+    usages = { programs: [], looks: [] };
     asset = null;
   }
 
   const library = useLibraryStore.getState();
-  if (usages.length > 0) {
-    offerForcedRemoval(id);
+  if (usages.programs.length > 0 || usages.looks.length > 0) {
+    offerForcedRemoval(id, usages.programs.length > 0);
     return;
   }
 
@@ -171,6 +173,9 @@ export async function removeAsset(id: number): Promise<void> {
     },
   );
   const timer = window.setTimeout(() => {
+    // A pointer resting on the toast holds its count, not this timer: once the
+    // file is gone, a «Deshacer» left on screen would undo nothing.
+    toast.dismiss(toastId);
     void commitRemoval(id);
   }, UNDO_WINDOW_MS);
   pending.set(id, { timer, toastId });

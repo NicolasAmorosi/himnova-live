@@ -4,19 +4,26 @@ import { ConfirmModal } from "@renderer/components/shared/modal";
 import { EditorScreen, EditorStage } from "@renderer/components/shared/editor-screen";
 import { ProgramUsages } from "@renderer/components/shared/program-usages";
 import {
-  Badge,
   Button,
   EmptyState,
   Icon,
   Inspector,
   ListRow,
-  Switch,
+  Segmented,
   type MenuOption,
 } from "@renderer/components/ui";
 import { api } from "@renderer/lib/api";
 import { toast } from "@renderer/lib/toast";
 import { hideDragGhost, UTILITY_SCENE_MIME } from "@renderer/lib/dnd";
-import { deleteScene, duplicateScene, reorderScenes, saveScene, sceneUsages } from "@renderer/lib/actions/utility";
+import { copyName } from "@renderer/lib/named-list";
+import {
+  deleteScene,
+  duplicateScene,
+  isSceneInSchedule,
+  reorderScenes,
+  saveScene,
+  sceneUsages,
+} from "@renderer/lib/actions/utility";
 import { useUtilityStore } from "@renderer/stores/utility.store";
 import { SCENE_NAME_MAX_LENGTH } from "@shared/scene-validators";
 import { isCountdownTool } from "@shared/types/timer";
@@ -37,7 +44,7 @@ type Editing = { sceneId: number | null; draft: SceneDraft; baseline: SceneDraft
  *  loading state. */
 type Pending =
   | { kind: "discard"; go: () => void }
-  | { kind: "delete"; sceneId: number; usages: UtilitySceneUsage[] };
+  | { kind: "delete"; sceneId: number; usages: UtilitySceneUsage[]; inSchedule: boolean };
 
 /**
  * The scene editor, full screen (`EditorScreen`): the scenes on the left, the
@@ -129,32 +136,37 @@ export function ScenesModal({ onOpenChange, open }: { onOpenChange: (open: boole
     });
   }
 
-  async function handleSave() {
-    if (!canSave || !editing) return;
+  async function handleSave(): Promise<boolean> {
+    if (!canSave || !editing) return false;
     setSaving(true);
     try {
       const saved = await saveScene(toUpsert(editing.draft, editing.sceneId));
-      if (!saved) return;
+      if (!saved) return false;
       setEditing({ sceneId: saved.id, draft: toDraft(saved), baseline: toDraft(saved) });
       toast.success(t("scenes.saved", { name: saved.name }));
+      return true;
     } finally {
       setSaving(false);
     }
   }
 
-  async function handleDuplicate() {
-    if (editing?.sceneId === null || editing === null) return;
-    const source = scenes.find((scene) => scene.id === editing.sceneId);
+  /** Named off the store when it runs, not off this render: through «Save and
+   *  leave» the scene was renamed after «Duplicate» was chosen. */
+  async function handleDuplicate(sceneId: number) {
+    const source = useUtilityStore.getState().scenes.find((scene) => scene.id === sceneId);
     if (!source) return;
-    const copy = await duplicateScene(source.id, t("scenes.copyName", { name: source.name }));
-    if (copy) setEditing({ sceneId: copy.id, draft: toDraft(copy), baseline: toDraft(copy) });
+    const name = copyName(source.name, SCENE_NAME_MAX_LENGTH, (base) => t("scenes.copyName", { name: base }));
+    const copy = await duplicateScene(source.id, name);
+    if (!copy) return;
+    setEditing({ sceneId: copy.id, draft: toDraft(copy), baseline: toDraft(copy) });
+    toast.success(t("scenes.saved", { name: copy.name }));
   }
 
   /** Opens the confirmation, having first asked which saved programs the
    *  scene appears in — that answer is what turns a plain "are you sure" into
    *  the forced delete, so it has to be in hand before the dialog is. */
   async function askToDelete(sceneId: number) {
-    setPending({ kind: "delete", sceneId, usages: await sceneUsages(sceneId) });
+    setPending({ kind: "delete", sceneId, usages: await sceneUsages(sceneId), inSchedule: isSceneInSchedule(sceneId) });
   }
 
   async function handleDelete(sceneId: number, force: boolean) {
@@ -227,6 +239,7 @@ export function ScenesModal({ onOpenChange, open }: { onOpenChange: (open: boole
           editing ? (
             <Inspector key={editing.sceneId ?? "new"} label={t("scenes.title")}>
               <SceneForm
+                onEndFocus={() => setPreviewAtEnd(true)}
                 addingImages={addingImages}
                 imageAssets={imageAssets}
                 onAddImages={() => void handleAddImages()}
@@ -249,10 +262,10 @@ export function ScenesModal({ onOpenChange, open }: { onOpenChange: (open: boole
                   leading={
                     // The kind as an icon only: written out beside the name it
                     // left the name «Cuent…» in a 256 px list.
-                    <Badge className="px-2" title={t(TOOL_LABEL[scene.tool])} variant="neutral">
-                      <Icon className="size-3.5" name={TOOL_ICON[scene.tool]} />
+                    <span className="flex" title={t(TOOL_LABEL[scene.tool])}>
+                      <Icon className="text-subtle" name={TOOL_ICON[scene.tool]} />
                       <span className="sr-only">{t(TOOL_LABEL[scene.tool])}</span>
-                    </Badge>
+                    </span>
                   }
                   onClick={() => select(scene)}
                   onDragEnd={() => setDragOverId(null)}
@@ -284,10 +297,11 @@ export function ScenesModal({ onOpenChange, open }: { onOpenChange: (open: boole
         menu={{
           onSelect: (command) => {
             if (editing?.sceneId == null) return;
+            const sceneId = editing.sceneId;
             // Through the guard like every other exit from the form: the copy
             // is made of the SAVED scene and replaces the open form.
-            if (command === "duplicate") leaveEditing(() => void handleDuplicate());
-            else void askToDelete(editing.sceneId);
+            if (command === "duplicate") leaveEditing(() => void handleDuplicate(sceneId));
+            else void askToDelete(sceneId);
           },
           options: menuOptions,
         }}
@@ -335,10 +349,17 @@ export function ScenesModal({ onOpenChange, open }: { onOpenChange: (open: boole
               // Only where there is an end to look at. A clock and a stopwatch
               // never run out, so the switch would toggle nothing.
               isCountdownTool(editing.draft.tool) ? (
-                <label className="flex items-center gap-2" title={t("scenes.endPreviewHint")}>
-                  {t("scenes.endPreview")}
-                  <Switch checked={previewAtEnd} onChange={(e) => setPreviewAtEnd(e.target.checked)} />
-                </label>
+                // The editors' one sample control (2026-11-05): a segmented
+                // choice of what the canvas draws, in Temas and Versículo too.
+                <Segmented
+                  label={t("scenes.sample")}
+                  onChange={(sample) => setPreviewAtEnd(sample === "end")}
+                  options={[
+                    { label: t("scenes.sampleRunning"), value: "running" },
+                    { label: t("scenes.sampleEnd"), value: "end" },
+                  ]}
+                  value={previewAtEnd ? "end" : "running"}
+                />
               ) : undefined
             }
             warning={isDraftSavable(editing.draft) ? undefined : t("scenes.invalidHint")}
@@ -357,17 +378,24 @@ export function ScenesModal({ onOpenChange, open }: { onOpenChange: (open: boole
               : t("common.delete")
         }
         danger={pending?.kind === "delete"}
+        onSave={pending?.kind === "discard" && canSave ? handleSave : undefined}
         description={
           pending?.kind !== "delete" ? (
             t("scenes.discardBody")
-          ) : pending.usages.length > 0 ? (
-            <ProgramUsages
-              intro={t("scenes.deleteInUseIntro")}
-              usages={pending.usages}
-              warning={t("scenes.deleteInUseWarning")}
-            />
           ) : (
-            t("scenes.deleteBody")
+            <div className="flex flex-col gap-3">
+              {pending.usages.length > 0 ? (
+                <ProgramUsages
+                  intro={t("scenes.deleteInUseIntro")}
+                  usages={pending.usages}
+                  warning={t("scenes.deleteInUseWarning")}
+                />
+              ) : (
+                <p>{t("scenes.deleteBody")}</p>
+              )}
+              {/* The open order of service is no saved program: said apart. */}
+              {pending.inSchedule ? <p>{t("schedule.inOpenSchedule")}</p> : null}
+            </div>
           )
         }
         onConfirm={async () => {

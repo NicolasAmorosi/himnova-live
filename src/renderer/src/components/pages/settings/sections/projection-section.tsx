@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useT } from "@renderer/lib/i18n/i18n-provider";
-import { Box, Button, FieldGroup, FieldRow, Icon, Select, Tooltip, VolumeControl } from "@renderer/components/ui";
+import { Button, FieldGroup, FieldRow, Icon, Segmented, Select, Slider } from "@renderer/components/ui";
 import { ConfirmModal } from "@renderer/components/shared/modal";
 import { transitionDurationOptions, transitionStyleOptions } from "@renderer/lib/transition";
 import { useDisplayStore } from "@renderer/stores/display.store";
@@ -10,8 +10,9 @@ import { clearLive } from "@renderer/lib/actions/playback";
 import { api } from "@renderer/lib/api";
 import { toast } from "@renderer/lib/toast";
 import { IpcError } from "@shared/ipc/result";
-import { LOGO_URL } from "@shared/urls";
+import { logoModeOf } from "@shared/types/settings";
 import type { TransitionStyle } from "@shared/types/transition";
+import { LogoSceneFields } from "./logo-scene-fields";
 import { VIDEO_END_ACTIONS, type VideoEndAction } from "@shared/types/projection";
 
 /** Everything about what the projector shows: which screen, the fallback
@@ -26,6 +27,7 @@ export function ProjectionSection() {
   // is about to blank a screen the congregation is looking at.
   const output = useProjectionStore(selectOutputMemo);
   const logoPath = useSettingsStore((s) => s.settings["logo.path"]);
+  const logoMode = logoModeOf(useSettingsStore((s) => s.settings["logo.mode"]), logoPath);
   const stageDisplayId = useSettingsStore((s) => s.settings["stage.displayId"]);
   const transitionStyle = useSettingsStore((s) => s.settings["projection.transition.style"]);
   const transitionDurationMs = useSettingsStore((s) => s.settings["projection.transition.durationMs"]);
@@ -33,13 +35,14 @@ export function ProjectionSection() {
   const videoEnd = useSettingsStore((s) => s.settings["projection.videoEnd"]);
   const updateSettings = useSettingsStore((s) => s.update);
 
-  // The URL carries the logo's own path as a cache-buster: it's the same
-  // "worship://logo" host for every logo, so without something in the URL
-  // that actually changes when the file changes, the <img> keeps showing the
-  // previous image after picking a new one (React sees an unchanged `src`
-  // and never re-fetches).
-  const logoUrl = logoPath ? `${LOGO_URL}?p=${encodeURIComponent(logoPath)}` : null;
   const logoOnAir = presentationOpen && output.kind === "logo";
+  // Never the projector's screen: fullscreen and on top, the stage would cover
+  // it — except the operator's own, where both are movable windows. A saved
+  // choice off this list (the projector's now, or unplugged) reads «Ninguna»,
+  // which is what is on (`chooseStageDisplay` in main); the setting stays, so
+  // the stage comes back once the projector moves or the screen returns.
+  const stageDisplays = displays.filter((d) => d.primary || d.id !== displayId);
+  const stageValue = stageDisplays.some((d) => d.id === stageDisplayId) ? String(stageDisplayId) : "none";
   const [confirmRemove, setConfirmRemove] = useState(false);
 
   async function changeLogo() {
@@ -74,11 +77,10 @@ export function ProjectionSection() {
   }
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-8">
       <FieldGroup title={t("settings.groups.screen")}>
         <FieldRow description={t("settings.displayDesc")} label={t("settings.display")}>
           <Select
-            className="min-w-56"
             onChange={(value) => void setDisplayId(Number(value))}
             options={displays.map((d) => ({
               label: `${d.label}${d.primary ? ` ${t("header.primaryDisplay")}` : ""}`,
@@ -100,59 +102,60 @@ export function ProjectionSection() {
             </Button>
           )}
         </FieldRow>
-        {/* Open whenever its screen is connected; main places it (`stage-window.ts`). */}
-        <FieldRow description={t("settings.stageDisplayDesc")} label={t("settings.stageDisplay")}>
+        {/* Open whenever its screen is connected and is not the projector's; main places it (`stage-window.ts`). */}
+        <FieldRow
+          description={t("settings.stageDisplayDesc")}
+          help={t("settings.stageDisplayHelp")}
+          label={t("settings.stageDisplay")}
+        >
           <Select
-            className="min-w-56"
             onChange={(value) =>
               void useSettingsStore.getState().update({ "stage.displayId": value === "none" ? null : Number(value) })
             }
             options={[
               { label: t("settings.stageNone"), value: "none" },
-              ...displays.map((d) => ({
+              ...stageDisplays.map((d) => ({
                 label: `${d.label}${d.primary ? ` ${t("header.primaryDisplay")}` : ""}`,
                 value: String(d.id),
               })),
             ]}
-            value={stageDisplayId !== null ? String(stageDisplayId) : "none"}
+            value={stageValue}
           />
         </FieldRow>
       </FieldGroup>
 
       <FieldGroup title={t("settings.groups.logo")}>
-        <FieldRow description={t("settings.logoDesc")} label={t("settings.logo")}>
-          <Tooltip content={t("settings.logoFormats")} floating>
-            <Icon className="text-subtle" name="help" />
-          </Tooltip>
-          <Button onClick={() => void changeLogo()} variant="outline">
-            {t("settings.chooseFile")}
-          </Button>
-          {/* Asked first only when the logo IS the picture on the projector:
-              removing it then turns the screen black in front of everybody,
-              which is not what "removing a preference" looks like. With
-              nothing on air it is a plain setting and gets no dialog. */}
-          <Button
-            disabled={logoPath === null}
-            onClick={handleRemoveLogo}
-            variant="outline"
-          >
-            <Icon name="close" /> {t("settings.logoRemove")}
-          </Button>
+        {/* One of two, chosen (owner, 2026-11-05): before, a loaded image
+            silently won and the name rows below it stopped applying. */}
+        <FieldRow description={t("settings.logoModeDesc")} label={t("settings.logoMode")}>
+          <Segmented
+            label={t("settings.logoMode")}
+            onChange={(mode) => void updateSettings({ "logo.mode": mode })}
+            options={[
+              { icon: "image", label: t("settings.logoModes.image"), value: "image" },
+              { icon: "text", label: t("settings.logoModes.name"), value: "name" },
+            ]}
+            value={logoMode}
+          />
         </FieldRow>
-        {/* The projector's own proportion, small — the empty 704×256 slab it
-            was took the page over (2026-11-04 review). */}
-        <div className="py-3">
-          <Box className="flex aspect-video w-full max-w-sm flex-col items-center justify-center gap-2 overflow-hidden px-4">
-          {logoUrl ? (
-            <img alt="" className="h-full max-w-full object-contain" src={logoUrl} />
-          ) : (
-            <>
-              <Icon className="text-subtle" name="image" />
-              <span className="text-xs text-subtle">{t("settings.logoEmpty")}</span>
-            </>
-          )}
-          </Box>
-        </div>
+        {logoMode === "image" ? (
+          <FieldRow description={t("settings.logoDesc")} help={t("settings.logoFormats")} label={t("settings.logo")}>
+            <Button onClick={() => void changeLogo()} variant="outline">
+              {t("settings.chooseFile")}
+            </Button>
+            {/* Asked first only when the logo IS the picture on the projector:
+                removing it then turns the screen black in front of everybody,
+                which is not what "removing a preference" looks like. With
+                nothing on air it is a plain setting and gets no dialog. */}
+            <Button disabled={logoPath === null} onClick={handleRemoveLogo} variant="ghost">
+              {t("settings.logoRemove")}
+            </Button>
+          </FieldRow>
+        ) : null}
+        {/* The name and background in «name» mode, and ONE preview of what
+            LOGO shows now (2026-11-05 review: an image box and a scene box
+            were two previews of one button). */}
+        <LogoSceneFields />
       </FieldGroup>
 
       <FieldGroup title={t("settings.groups.liveContent")}>
@@ -161,29 +164,36 @@ export function ProjectionSection() {
             <Icon name="offAir" /> {t("live.takeOffAir")}
           </Button>
         </FieldRow>
-        <FieldRow description={t("settings.videoEndDesc")} label={t("settings.videoEnd")}>
+        <FieldRow
+          description={t("settings.videoEndDesc")}
+          help={t("settings.videoEndHelp")}
+          label={t("settings.videoEnd")}
+        >
           <Select
-            className="min-w-56"
             onChange={(value) => void updateSettings({ "projection.videoEnd": value as VideoEndAction })}
             options={VIDEO_END_ACTIONS.map((action) => ({ label: t(`settings.videoEndOptions.${action}`), value: action }))}
             value={videoEnd}
           />
         </FieldRow>
-      </FieldGroup>
-
-      <FieldGroup title={t("settings.groups.audio")}>
-        <FieldRow description={t("settings.startVolumeDesc")} label={t("settings.startVolume")}>
-          <span className="w-10 text-right text-sm tabular-nums text-muted-foreground">
-            {Math.round(startVolume * 100)}%
-          </span>
-          <VolumeControl
+        {/* With what goes live, not a group of one row (2026-11-05 review); a
+            slider with its readout on the right, like every other one. */}
+        <FieldRow
+          description={t("settings.startVolumeDesc")}
+          help={t("settings.startVolumeHelp")}
+          label={t("settings.startVolume")}
+        >
+          <Slider
+            format={(volume) => `${Math.round(volume * 100)}%`}
             label={t("settings.startVolume")}
-            muteLabel={startVolume === 0 ? t("media.unmute") : t("media.mute")}
-            onChange={(volume) => void updateSettings({ "media.volume": volume })}
+            max={1}
+            min={0}
+            onChange={(volume) => void updateSettings({ "media.volume": Number(volume.toFixed(2)) })}
+            step={0.05}
             value={startVolume}
           />
         </FieldRow>
       </FieldGroup>
+
 
       <ConfirmModal
         confirmLabel={t("settings.logoRemove")}
@@ -197,7 +207,6 @@ export function ProjectionSection() {
       <FieldGroup title={t("settings.groups.transition")}>
         <FieldRow description={t("settings.transitionStyleDesc")} label={t("settings.transitionStyle")}>
           <Select
-            className="min-w-48"
             onChange={(value) => void updateSettings({ "projection.transition.style": value as TransitionStyle })}
             options={transitionStyleOptions(t)}
             value={transitionStyle}
@@ -205,10 +214,9 @@ export function ProjectionSection() {
         </FieldRow>
         <FieldRow description={t("settings.transitionDurationDesc")} label={t("settings.transitionDuration")}>
           <Select
-            className="min-w-40"
             disabled={transitionStyle === "none"}
             onChange={(value) => void updateSettings({ "projection.transition.durationMs": Number(value) })}
-            options={transitionDurationOptions(t)}
+            options={transitionDurationOptions(t, transitionDurationMs)}
             value={String(transitionDurationMs)}
           />
         </FieldRow>

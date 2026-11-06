@@ -23,6 +23,7 @@ import { LOGO_URL, assetUrl, slideUrl } from "@shared/urls";
 import type { DeckSlide, DeckSlideVideo } from "@shared/types/deck";
 import { DEFAULT_BIBLE_STYLE } from "@shared/types/bible-style";
 import { DEFAULT_SCENE_STYLE } from "@shared/types/scene-style";
+import { DEFAULT_SETTINGS, logoLook } from "@shared/types/settings";
 import { DEFAULT_TIMER_FORMAT } from "@shared/types/timer";
 import type { UtilityScene } from "@shared/types/utility";
 
@@ -108,6 +109,45 @@ describe("the overlay wins over the base", () => {
 
     useProjectionStore.getState().setLogoUrl("worship://asset/77");
     expect(output()).toMatchObject({ kind: "logo", url: "worship://asset/77" });
+  });
+
+  test("LOGO without an image carries its scene — the name, and its background's url", () => {
+    useProjectionStore.getState().setLogoScene({ name: "Iglesia Central", background: { kind: "image", assetId: 9, fit: "cover" } });
+    expect(output()).toMatchObject({
+      kind: "logo",
+      url: null,
+      scene: { name: "Iglesia Central" },
+      backgroundUrl: assetUrl(9),
+    });
+  });
+
+  test("logoLook: the chosen mode decides, and an install that never chose shows its image when it has one", () => {
+    const base = {
+      "logo.path": "/logo.png",
+      "logo.mode": null,
+      "logo.name": "Iglesia Central",
+      "logo.background": { kind: "solid", color: "#123456" },
+    } as const;
+    const bare = { name: null, background: DEFAULT_SETTINGS["logo.background"] };
+    expect(logoLook(base)).toEqual({ url: `${LOGO_URL}?p=%2Flogo.png`, scene: bare });
+    expect(logoLook({ ...base, "logo.path": null }).scene.name).toBe("Iglesia Central");
+    // «Nombre sobre fondo» with an image loaded: the image is not shown.
+    expect(logoLook({ ...base, "logo.mode": "name" })).toEqual({
+      url: null,
+      scene: { name: "Iglesia Central", background: base["logo.background"] },
+    });
+    // «Imagen» with no image yet: a bare black LOGO, never the name.
+    expect(logoLook({ ...base, "logo.mode": "image", "logo.path": null })).toEqual({ url: null, scene: bare });
+  });
+
+  test("turning «loop» on with a video live rebuilds the memoized output; another end action does not", () => {
+    const store = useProjectionStore.getState();
+    store.setBase({ kind: "video", assetId: 5, url: assetUrl(5), epoch: 2, startAtSeconds: 0 });
+    const before = selectOutputMemo(useProjectionStore.getState());
+    store.setVideoEnd("black");
+    expect(selectOutputMemo(useProjectionStore.getState())).toBe(before);
+    store.setVideoEnd("loop");
+    expect(selectOutputMemo(useProjectionStore.getState()).videoUnderlay?.loop).toBe(true);
   });
 
   test("nothing selected at all is the logo, never a black screen", () => {

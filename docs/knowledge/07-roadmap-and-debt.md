@@ -22,9 +22,11 @@ configurable keys, and checking the importer against a real EasyWorship 7 databa
 ## Debt consciously left for a later session
 
 - ~~**Real drag & drop of OS files**~~ into the playlist/library: **implemented** — files dropped
-  from the OS onto the schedule or the media browser go through `readOsFilesDrag` (`lib/dnd.ts`,
+  from the OS onto the schedule go through `readOsFilesDrag` (`lib/dnd.ts`,
   `webUtils.getPathForFile` in the preload), and the internal library→schedule drag has its
-  `onDrop` (`SchedulePanel.tsx`).
+  `onDrop` (`SchedulePanel.tsx`). Onto the media browser — and its «Agregar», which takes every kind
+  since 2026-11-06 — they go through `sortPathsByKind`: each file to its own tab, and a toast counts
+  what no tab takes.
 
 - **A `.pptx` drawn from its model (2026-10-26) — what was knowingly left.** The switch is total
   and what the model can't draw exactly is approximated (see «Model decks» in
@@ -94,9 +96,8 @@ high and medium findings. This was left open, each item with its reason:
 - **The clickable `ListRow` rows can't be reached with the keyboard** (Scenes, Plates, Timers,
   Overlays). Making them focusable clashes with Enter = GO LIVE: it's an interaction decision,
   not a fix.
-- **Style violations in `pages/`** (the UI review's table): the hand-written buttons of
-  `media-source-bar.tsx` and of the theme selector (the rebrand to Lumina Live only changed their
-  shape and focus; they're still hand-written), about 25 hand-written typography classes in
+- **Style violations in `pages/`** (the UI review's table): since 2026-11-05 the theme selector and the
+  Bible's search mode are the `Segmented` primitive and the media source chips a `Select`; left: about 25 hand-written typography classes in
   `pages/`, and two copies of the `FieldGroup` box. They're cosmetic and each one needs a visual pass.
 - **The units `s`, `px` and `%` are still written in the code.** They're typography, not words;
   the neutral color names did go through i18n.

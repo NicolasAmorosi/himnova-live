@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type DragEvent } from "react";
-import { useT } from "@renderer/lib/i18n/i18n-provider";
+import { useT, type MessageKey } from "@renderer/lib/i18n/i18n-provider";
 import {
   Button,
   EmptyState,
@@ -17,7 +17,8 @@ import { useProgramStore } from "@renderer/stores/program.store";
 import { useSettingsStore } from "@renderer/stores/settings.store";
 import { useDeckStore } from "@renderer/stores/deck.store";
 import { api } from "@renderer/lib/api";
-import { readOsFilesDrag, setMediaAssetDrag } from "@renderer/lib/dnd";
+import { setMediaAssetDrag, sortPathsByKind } from "@renderer/lib/dnd";
+import { toast } from "@renderer/lib/toast";
 import { previewAsset } from "@renderer/lib/actions/preview";
 import { goLive } from "@renderer/lib/actions/playback";
 import { removeAsset } from "@renderer/lib/actions/remove-asset";
@@ -30,13 +31,26 @@ import {
 import { useDebouncedCallback } from "@renderer/lib/hooks/use-debounced-callback";
 import { filterAssetsByName, sortAssets } from "@renderer/lib/media-view";
 import { AssetTile } from "./asset-tile";
-import { MediaFilterBar } from "./media-filter-bar";
-import { MediaSourceBar } from "./media-source-bar";
+import { FolderRefreshButton, LibraryFilterBar } from "@renderer/components/shared/library-filter-bar";
 import { PanelProgressRow } from "./panel-progress-row";
 import { PrewarmConfirmModal } from "./prewarm-confirm-modal";
 import { PREWARM_VISIBLE_MAX, type AssetKind } from "@shared/constants";
 import type { DeckStatusSummary } from "@shared/types/deck";
-import type { MediaAsset } from "@shared/types/media";
+import { MEDIA_SORT_ORDERS, type MediaAsset, type MediaSortOrder } from "@shared/types/media";
+
+/** Explicit, because a message key can never be built from a runtime value —
+ *  see the note on `MessageKey` in `i18n-provider.tsx`. */
+const SORT_LABEL_KEY: Record<MediaSortOrder, MessageKey> = {
+  "name-asc": "resources.sortOrders.name-asc",
+  "name-desc": "resources.sortOrders.name-desc",
+  "date-desc": "resources.sortOrders.date-desc",
+  "date-asc": "resources.sortOrders.date-asc",
+  "size-desc": "resources.sortOrders.size-desc",
+  "size-asc": "resources.sortOrders.size-asc",
+};
+
+/** A folder's own name: its tail is what tells two folders apart. */
+const folderName = (folderPath: string) => folderPath.split(/[\\/]/).filter(Boolean).pop() ?? folderPath;
 
 /** Rough estimate for the "this can take about N minutes" warning: a flat,
  *  slightly conservative per-deck figure. Reading a real deck took 0.2–0.5 s on
@@ -68,7 +82,7 @@ const EMPTY_ASSETS: MediaAsset[] = [];
  * in the schedule to be shown, which is what EasyWorship's resource area does.
  *
  * Two sources feed the grid: the added-to-library list ("recent"), or one of
- * this kind's linked folders, browsed live from disk (`MediaSourceBar`).
+ * this kind's linked folders, browsed live from disk (the source dropdown in `LibraryFilterBar`).
  */
 export function MediaBrowser({ active, kind }: { active: boolean; kind: AssetKind }) {
   const t = useT();
@@ -112,8 +126,8 @@ export function MediaBrowser({ active, kind }: { active: boolean; kind: AssetKin
    *  thousand presentations — for a map the tiles look up by id anyway, and
    *  which filtering cannot change a single entry of. */
   const assets = useMemo(
-    () => sortAssets(filterAssetsByName(viewAssets, query), sortOrder),
-    [query, sortOrder, viewAssets],
+    () => sortAssets(filterAssetsByName(viewAssets, query), sortOrder, isFolderView ? "file" : "library"),
+    [isFolderView, query, sortOrder, viewAssets],
   );
   // A new order, filter or view starts from its first file. The grid used to
   // keep its scroll offset, so an operator scrolled to the bottom of A → Z who
@@ -154,9 +168,12 @@ export function MediaBrowser({ active, kind }: { active: boolean; kind: AssetKin
     if (!isFolderView) void refresh(kind);
   }, [isFolderView, kind, refresh]);
 
+  // Opening a folder reads it; its footer's refresh, and the window coming
+  // back to the front, read it again (`FolderRefreshButton`).
+  const refreshView = useCallback(() => void refreshFolder(kind, activeView), [kind, activeView, refreshFolder]);
   useEffect(() => {
-    if (isFolderView) void refreshFolder(kind, activeView);
-  }, [kind, activeView, isFolderView, refreshFolder]);
+    if (isFolderView) refreshView();
+  }, [isFolderView, refreshView]);
 
   // Identity-stable so `VirtualGrid`'s notification effect doesn't re-fire on
   // every render of this component.
@@ -290,38 +307,59 @@ export function MediaBrowser({ active, kind }: { active: boolean; kind: AssetKin
   );
   const pendingDeckCount = pendingDeckAssetIds.length;
 
+  /** «Agregar» and a drop onto the grid share one path: each file goes to its
+   *  own tab, by extension, and what no tab takes is said (owner, 2026-11-06 —
+   *  «Agregar» used to keep only this tab's kind, in silence). */
+  async function addSorted(paths: readonly string[]) {
+    const { byKind, unsupported } = sortPathsByKind(paths);
+    for (const [fileKind, kindPaths] of byKind) await addFiles(kindPaths, fileKind);
+    if (unsupported > 0) toast.warning(t("library.addUnsupported", { count: unsupported }));
+  }
+
   async function handleAdd() {
-    const paths = await api.files.pick(kind, true);
-    if (paths.length > 0) await addFiles(paths, kind);
+    // Every kind in one dialog, opened where this tab's files live.
+    await addSorted(await api.files.pick("all", true, kind));
   }
 
   async function handleDrop(e: DragEvent<HTMLDivElement>) {
     e.preventDefault();
-    const byKind = new Map<AssetKind, string[]>();
-    for (const file of readOsFilesDrag(e)) {
-      byKind.set(file.kind, [...(byKind.get(file.kind) ?? []), file.path]);
-    }
-    for (const [dropped, paths] of byKind) await addFiles(paths, dropped);
+    await addSorted(Array.from(e.dataTransfer.files, (file) => window.worship.getPathForFile(file)));
   }
 
   return (
     <>
-      <MediaSourceBar
+      <LibraryFilterBar
         activeView={activeView}
-        folders={folders}
-        onAddFolder={() => void addLinkedFolder(kind)}
-        // Asked first: the button is a 12px × next to the folder's name, it
-        // sits inside the row that SELECTS that folder, and the result — the
-        // view the operator had open disappearing — looks exactly like data
-        // loss even though no file is touched.
-        onRemoveFolder={(folderPath) => setConfirmRemoveFolder(folderPath)}
-        onSelectView={(view) => selectMediaSourceView(kind, view)}
-      />
-      <MediaFilterBar
+        addFolder={{ hint: t("resources.addFolderHint"), label: t("resources.addFolder"), onClick: () => void addLinkedFolder(kind) }}
+        folderActions={
+          <Tooltip content={t("resources.removeFolderHint")} floating>
+            {/* Its own icon: a bare ✕ after a dropdown read as «clear the
+                choice». Asked first: the view the operator had open
+                disappearing looks exactly like data loss even though no file
+                is touched. */}
+            <IconButton
+              aria-label={t("resources.removeFolder")}
+              onClick={() => setConfirmRemoveFolder(activeView)}
+              size="sm"
+              variant="ghost"
+            >
+              <Icon name="folderMinus" />
+            </IconButton>
+          </Tooltip>
+        }
         onQueryChange={setQuery}
+        onSelectView={(view) => selectMediaSourceView(kind, view)}
         onSortChange={(order) => setMediaSortOrder(kind, order)}
         query={query}
+        searchLabel={t("resources.search")}
         sort={sortOrder}
+        sortHint={t("resources.sortHint")}
+        sortOptions={MEDIA_SORT_ORDERS.map((order) => ({ label: t(SORT_LABEL_KEY[order]), value: order }))}
+        views={[
+          { label: t("resources.recentTab"), value: "recent" },
+          ...folders.map((folderPath) => ({ label: folderName(folderPath), value: folderPath })),
+        ]}
+        viewsLabel={t("resources.source")}
       />
       <PanelBody
         className="p-1.5"
@@ -413,6 +451,7 @@ export function MediaBrowser({ active, kind }: { active: boolean; kind: AssetKin
         open={confirmPrewarmOpen}
       />
       <PanelFooter>
+        {isFolderView ? <FolderRefreshButton onRefresh={refreshView} /> : null}
         {imports && imports.kind === kind ? (
           <PanelProgressRow
             label={t("library.importing", { done: imports.done, total: imports.total })}

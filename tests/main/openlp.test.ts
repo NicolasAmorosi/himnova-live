@@ -13,7 +13,7 @@ import { openDatabase } from "../../src/main/db/client";
 import { runMigrations } from "../../src/main/db/migrate";
 import { initRepos } from "../../src/main/services/repos";
 import { importOpenLpDatabase, importOpenLyricsFiles } from "../../src/main/services/song-import";
-import { readOpenLpDatabase, readOpenLpLyrics, readOpenLyrics } from "../../src/main/songs/openlp";
+import { readOpenLpDatabase, readOpenLpLyrics, readOpenLyrics, readOpenLyricsFiles } from "../../src/main/songs/openlp";
 import { IpcError } from "../../src/shared/ipc/result";
 
 const drizzleDir = path.join(process.cwd(), "drizzle");
@@ -56,6 +56,25 @@ describe("OpenLP's lyrics", () => {
       ["c1", [["[Coro] stays: a word in brackets is not a chord"]]],
       ["pc1", [["Before the chorus"]]],
     ]);
+    // The chords come in apart from the words, for the musicians' screen.
+    expect(sections[0]?.slides[0]?.chords).toEqual([
+      [
+        { at: 0, name: "C" },
+        { at: 8, name: "C7" },
+        { at: 19, name: "F#m7" },
+      ],
+      [{ at: 4, name: "G/B" }],
+    ]);
+    expect(sections[1]?.slides[0]?.chords).toBeUndefined();
+  });
+
+  test("a line of chords alone is kept: an instrumental verse is one (review 2026-11-06)", () => {
+    const sections = readOpenLpLyrics(lyricsXml(verse("i", "1", "[G] [D] [Em] [C]") + verse("v", "1", "[G]Uno\n[C] [G]\ndos")));
+    expect(slidesOf(sections)).toEqual([
+      ["i1", [[""]]],
+      ["v1", [["Uno", "", "dos"]]],
+    ]);
+    expect(sections[1]?.slides[0]?.chords?.[1]).toEqual([{ at: 0, name: "C" }, { at: 0, name: "G" }]);
   });
 
   test("a second language is the translation, paired by verse and slide; a third is dropped", () => {
@@ -145,8 +164,8 @@ describe("OpenLP's database", () => {
   test("importing twice skips what is there; a file that is not OpenLP's says so", () => {
     const file = path.join(tmpDir, "songs-import.sqlite");
     writeOpenLp24(file);
-    expect(importOpenLpDatabase(file)).toEqual({ imported: 2, repeated: 0, problems: 1 });
-    expect(importOpenLpDatabase(file)).toEqual({ imported: 0, repeated: 2, problems: 1 });
+    expect(importOpenLpDatabase(file)).toEqual({ imported: 2, repeated: 0, problems: 1, unsupported: 0 });
+    expect(importOpenLpDatabase(file)).toEqual({ imported: 0, repeated: 2, problems: 1, unsupported: 0 });
 
     const other = path.join(tmpDir, "not-openlp.sqlite");
     new Database(other).exec("CREATE TABLE song (title TEXT)").close();
@@ -196,6 +215,15 @@ describe("OpenLyrics", () => {
       ["c1", [["Aleluya"]]],
       ["v2", [["Su gracia me enseñó a temer"]]],
     ]);
+    expect(song!.sections[0]?.slides[0]?.chords).toEqual([
+      [
+        { at: 0, name: "C" },
+        { at: 8, name: "C7" },
+        { at: 21, name: "F" },
+      ],
+      [],
+    ]);
+    expect(song!.sections[1]?.slides[0]?.chords).toEqual([[{ at: 0, name: "G7" }]]);
     expect(song).toMatchObject({
       title: "Sublime gracia",
       authors: "John Newton",
@@ -223,14 +251,118 @@ describe("OpenLyrics", () => {
     ]);
   });
 
-  test("files: one without lyrics or not XML is a problem; the rest come in once", () => {
+  test("files: one without lyrics is a problem, one not XML no song file at all; the rest come in once", () => {
     const good = path.join(tmpDir, "gracia.xml");
     const empty = path.join(tmpDir, "empty.xml");
     const broken = path.join(tmpDir, "broken.xml");
     fs.writeFileSync(good, openLyrics(`<verse name="v1"><lines>Sublime gracia del Señor</lines></verse>`));
     fs.writeFileSync(empty, openLyrics(""));
     fs.writeFileSync(broken, "<song><lyrics><verse");
-    expect(importOpenLyricsFiles([good, empty, broken])).toEqual({ imported: 1, repeated: 0, problems: 2 });
-    expect(importOpenLyricsFiles([good])).toEqual({ imported: 0, repeated: 1, problems: 0 });
+    expect(importOpenLyricsFiles([good, empty, broken])).toEqual({ imported: 1, repeated: 0, problems: 1, unsupported: 1 });
+    expect(importOpenLyricsFiles([good])).toEqual({ imported: 0, repeated: 1, problems: 0, unsupported: 0 });
+  });
+
+  test("0.9 chords keep their kind: shortcode or formula, bass included; an unknown one keeps its root", () => {
+    const song = readOpenLyrics(
+      `<song xmlns="http://openlyrics.info/namespace/2009/song" version="0.9"><properties><titles><title>Acordes</title></titles></properties>` +
+        `<lyrics><verse name="v1"><lines><chord root="A" structure="min7"/>Uno <chord root="D" structure="dom7" bass="F#"/>dos ` +
+        `<chord root="E" structure="m3-5"/>tres <chord root="G" structure="sus4"/>cuatro <chord root="C" structure="m3-5-7-9-a11-13"/>cinco` +
+        `</lines></verse></lyrics></song>`,
+    );
+    expect(song?.sections[0]?.slides[0]?.chords?.[0]?.map((chord) => chord.name)).toEqual(["Am7", "D7/F#", "Em", "Gsus4", "C"]);
+  });
+
+  test("files read in the encoding they declare or carry, never as � (the HASD hymnal, 2026-11-05)", () => {
+    const song = (title: string, line: string, encoding: string) =>
+      `<?xml version='1.0' encoding='${encoding}'?><song xmlns="http://openlyrics.info/namespace/2009/song" version="0.8">` +
+      `<properties><titles><title>${title}</title></titles></properties>` +
+      `<lyrics><verse name="v1"><lines>${line}</lines></verse></lyrics></song>`;
+    // Windows-1251 by hand: А..я are 0xC0..0xFF, ASCII is itself.
+    const cp1251 = (text: string) =>
+      Buffer.from([...text].map((c) => (c.charCodeAt(0) >= 0x410 ? 0xc0 + c.charCodeAt(0) - 0x410 : c.charCodeAt(0))));
+    const files = Object.entries({
+      // OpenLP 2.0's own export: declared and written as Windows-1252.
+      "hasd.xml": Buffer.from(song("1 - Ó Deus de Amor", "vimos nós", "windows-1252"), "latin1"),
+      "russian.xml": cp1251(song("Аминь", "Слава Богу", "windows-1251")),
+      "chinese.xml": Buffer.from(song("奇异恩典", "何等甘甜 🙏", "utf-8"), "utf8"),
+      "greek.xml": Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from(song("Ἀμήν", "Ἀλληλούια", "utf-16"), "utf16le")]),
+      // Says UTF-8 and is not: an editor saved Latin-1 and kept the declaration.
+      "lying.xml": Buffer.from(song("Canción", "Señor", "utf-8"), "latin1"),
+    }).map(([name, bytes]) => {
+      const file = path.join(tmpDir, name);
+      fs.writeFileSync(file, bytes);
+      return file;
+    });
+    const read = readOpenLyricsFiles(files);
+    expect(read.problems).toBe(0);
+    expect(read.songs.map((s) => [s.title, s.sections[0]?.slides[0]?.lines[0]])).toEqual([
+      ["1 - Ó Deus de Amor", "vimos nós"],
+      ["Аминь", "Слава Богу"],
+      ["奇异恩典", "何等甘甜 🙏"],
+      ["Ἀμήν", "Ἀλληλούια"],
+      ["Canción", "Señor"],
+    ]);
+  });
+});
+
+describe("OpenLyrics: languages and text kept as written (2026-11-06)", () => {
+  const xml = (verses: string) =>
+    `<?xml version="1.0" encoding="UTF-8"?><song xmlns="http://openlyrics.info/namespace/2009/song" version="0.8"><properties><titles><title>T</title></titles></properties><lyrics>${verses}</lyrics></song>`;
+  const lines = (sections: readonly { slides: { lines: string[] }[] }[] | undefined) =>
+    (sections ?? []).flatMap((section) => section.slides.flatMap((slide) => slide.lines));
+
+  test("a verse without `lang` is the lyrics', not a third language dropped", () => {
+    const read = readOpenLyrics(
+      xml(`<verse name="v1" lang="es"><lines>Primera estrofa</lines></verse><verse name="c1"><lines>El coro sin idioma</lines></verse><verse name="v2" lang="es"><lines>Segunda estrofa</lines></verse>`),
+    );
+    expect(lines(read?.sections)).toEqual(["Primera estrofa", "El coro sin idioma", "Segunda estrofa"]);
+  });
+
+  test("`en` and `en-US` are one language", () => {
+    const read = readOpenLyrics(xml(`<verse name="v1" lang="en"><lines>Verse one</lines></verse><verse name="v2" lang="en-US"><lines>Verse two</lines></verse>`));
+    expect(lines(read?.sections)).toEqual(["Verse one", "Verse two"]);
+  });
+
+  test("a transliteration is never projected; a section only the translation has comes in as lyrics", () => {
+    const read = readOpenLyrics(
+      xml(
+        `<verse name="v1" lang="he"><lines>הבה נגילה</lines></verse><verse name="v1" lang="he" translit="en"><lines>Hava nagila</lines></verse>` +
+          `<verse name="v1" lang="en"><lines>Let's rejoice</lines></verse><verse name="e" lang="en"><lines>The end</lines></verse>`,
+      ),
+    );
+    expect(read?.sections.map((section) => [section.key, section.slides])).toEqual([
+      ["v1", [{ lines: ["הבה נגילה"], translation: ["Let's rejoice"] }]],
+      ["e1", [{ lines: ["The end"] }]],
+    ]);
+  });
+
+  test("a <br/> ends a line: OpenLP's after the last one is no line, two in a row an empty line; chords alone are a line (review 2026-11-06)", () => {
+    const read = readOpenLyrics(
+      xml(
+        `<verse name="i1"><lines><chord name="G"/> <chord name="D"/></lines></verse>` +
+          `<verse name="v1"><lines>\n  Uno<br/>\n  <br/>\n  dos<br/>\n</lines><lines>Tres<br/></lines></verse>`,
+      ),
+    );
+    expect(read?.sections.map((section) => [section.key, section.slides.map((slide) => slide.lines)])).toEqual([
+      ["i1", [[""]]],
+      ["v1", [["Uno", "", "dos"], ["Tres"]]],
+    ]);
+    expect(read?.sections[0]?.slides[0]?.chords).toEqual([[{ at: 0, name: "G" }, { at: 0, name: "D" }]]);
+  });
+
+  test("a <comment> alone on its line is no line, not an empty one (review 2026-11-06)", () => {
+    const read = readOpenLyrics(
+      xml(`<verse name="c"><lines><comment>any comment</comment><br/>Line content.</lines></verse>` +
+        `<verse name="v1"><lines>Uno<br/><comment>softly</comment><br/>dos<br/><br/></lines></verse>`),
+    );
+    expect(read?.sections.map((section) => section.slides.map((slide) => slide.lines))).toEqual([
+      [["Line content."]],
+      [["Uno", "dos", ""]],
+    ]);
+  });
+
+  test("an ideographic space inside a line stays; a chord written the Central-European way ([Ami]) is a chord", () => {
+    const read = readOpenLyrics(xml(`<verse name="v1"><lines>いつくしみ深き\u3000友なるイエスは<br/>Všemoh[Ami]úci [G]Boh</lines></verse>`));
+    expect(read?.sections[0]?.slides[0]?.lines).toEqual(["いつくしみ深き　友なるイエスは", "Všemohúci Boh"]);
   });
 });

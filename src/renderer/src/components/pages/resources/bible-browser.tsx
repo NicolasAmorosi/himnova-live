@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { KeyboardEvent } from "react";
-import { useT } from "@renderer/lib/i18n/i18n-provider";
+import { useI18n } from "@renderer/lib/i18n/i18n-provider";
 import {
   Caption,
   EmptyState,
@@ -11,6 +11,7 @@ import {
   Input,
   ListRow,
   Select,
+  Segmented,
   Tooltip,
 } from "@renderer/components/ui";
 import { ModalBoundary } from "@renderer/components/shared/modal-boundary";
@@ -23,12 +24,11 @@ import { previewVerse } from "@renderer/lib/actions/preview";
 import { goLive } from "@renderer/lib/actions/playback";
 import { setBibleVerseDrag } from "@renderer/lib/dnd";
 import { useDebouncedCallback } from "@renderer/lib/hooks/use-debounced-callback";
-import { normalizeForSearch } from "@renderer/lib/utils";
+import { matchReference, type ReferenceMatch } from "@renderer/lib/bible-reference";
 import { toast } from "@renderer/lib/toast";
 import {
   parseSnippet,
   passageReference,
-  type BibleBookDTO,
   type BibleBookmark,
   type BibleSearchHit,
 } from "@shared/types/bible";
@@ -41,35 +41,11 @@ const TEXT_SEARCH_DEBOUNCE_MS = 200;
 
 type SearchMode = "reference" | "text";
 
-type ReferenceMatch = { book: BibleBookDTO; chapter: number | null };
-
-/** Splits "juan 3" into name="juan"/chapter=3, or "juan" into name="juan"/chapter=null. */
-function parseReferenceQuery(query: string): { chapter: number | null; name: string } {
-  const match = /^(.+?)\s+(\d+)$/.exec(query.trim());
-  if (!match?.[1] || !match[2]) return { chapter: null, name: query };
-  return { chapter: Number(match[2]), name: match[1] };
-}
-
-function matchReference(books: BibleBookDTO[], query: string): ReferenceMatch[] {
-  const { chapter, name } = parseReferenceQuery(query);
-  const normalizedName = normalizeForSearch(name);
-  if (!normalizedName) return [];
-
-  const matchingBooks = books.filter(
-    (b) =>
-      normalizeForSearch(b.name).includes(normalizedName) ||
-      normalizeForSearch(b.abbrev).includes(normalizedName),
-  );
-
-  if (chapter === null) return matchingBooks.map((book) => ({ book, chapter: null }));
-  return matchingBooks.filter((b) => chapter >= 1 && chapter <= b.chapterCount).map((book) => ({ book, chapter }));
-}
-
 /** Scripture as one more resource tab: browse or search, click to preview,
  *  double-click to go live. Search defaults to a quick book/chapter finder;
  *  a toggle switches it to full-text verse search. */
 export function BibleBrowser() {
-  const t = useT();
+  const { locale, t } = useI18n();
   // Field-by-field, not `useBibleStore()` bare — the whole-store subscription
   // re-rendered this panel (and its list of up to 500 verse rows) on every
   // write, including ones it never reads.
@@ -88,6 +64,14 @@ export function BibleBrowser() {
   const target = usePreviewStore((s) => s.target);
   const [pendingBook, setPendingBook] = useState("");
   const [pendingChapter, setPendingChapter] = useState("");
+  // The pickers follow the chapter the tab holds, wherever it was loaded from:
+  // a search hit, a bookmark, a verse picked in PREVIEW from a schedule row.
+  // Not while the operator is choosing a book and has no chapter yet.
+  useEffect(() => {
+    if (loadedBookId === null || loadedChapter === null) return;
+    setPendingBook(String(loadedBookId));
+    setPendingChapter(String(loadedChapter));
+  }, [loadedBookId, loadedChapter]);
   const [searchMode, setSearchMode] = useState<SearchMode>("reference");
   const [styleOpen, setStyleOpen] = useState(false);
   /** The list shows favorites and recent passages instead of the chapter. */
@@ -102,8 +86,8 @@ export function BibleBrowser() {
   const searching = searchMode === "text" ? query.trim().length >= MIN_TEXT_QUERY_LENGTH : query.trim().length > 0;
 
   const referenceMatches = useMemo(
-    () => (searchMode === "reference" ? matchReference(books, query) : []),
-    [books, query, searchMode],
+    () => (searchMode === "reference" ? matchReference(books, query, locale) : []),
+    [books, locale, query, searchMode],
   );
 
   const resultCount = searchMode === "text" ? searchResults.length : referenceMatches.length;
@@ -219,11 +203,18 @@ export function BibleBrowser() {
     );
   }
 
+  /** A book, a chapter, or a verse (owner, 2026-11-06: «Juan 3:16» puts
+   *  that verse — the first of a range — in PREVIEW). A verse past the
+   *  chapter's end says so, like a bookmark the version lacks. */
   function selectReferenceMatch(match: ReferenceMatch) {
     setPendingBook(String(match.book.id));
     if (match.chapter !== null) {
       setPendingChapter(String(match.chapter));
-      void setBookAndChapter(match.book.id, match.chapter);
+      if (match.verseFrom === null) void setBookAndChapter(match.book.id, match.chapter);
+      else
+        void previewPassage(match.book.id, match.chapter, match.verseFrom).then((found) => {
+          if (!found) toast.danger(t("bible.notInVersion"));
+        });
     } else {
       setPendingChapter("");
     }
@@ -256,11 +247,12 @@ export function BibleBrowser() {
 
   return (
     <>
-      <div className="flex shrink-0 flex-col gap-1.5 border-b border-border p-1.5">
-        <div className="flex items-center gap-1.5">
+      {/* Two strips, like every bar of the main window (owner, 2026-11-06):
+          version · book · chapter above, the search mode · the search under. */}
+      <div className="grid h-strip shrink-0 grid-cols-[minmax(0,3fr)_minmax(0,3fr)_minmax(8rem,2fr)] items-center gap-1.5 border-b border-border px-1.5">
           <Select
             aria-label={t("bible.versionLabel")}
-            className="min-w-0 flex-[3]"
+            className="min-w-0"
             onChange={(value) => void setVersion(Number(value))}
             options={versions.map((v) => ({ label: v.name, value: String(v.id) }))}
             size="sm"
@@ -268,7 +260,7 @@ export function BibleBrowser() {
           />
           <Select
             aria-label={t("bible.bookLabel")}
-            className="min-w-0 flex-[3]"
+            className="min-w-0"
             onChange={(value) => {
               setPendingBook(value);
               setPendingChapter("");
@@ -280,7 +272,7 @@ export function BibleBrowser() {
           />
           <Select
             aria-label={t("bible.chapterLabel")}
-            className="min-w-16 flex-1"
+            className="min-w-0"
             disabled={!selectedBook}
             onChange={(value) => {
               setPendingChapter(value);
@@ -294,28 +286,27 @@ export function BibleBrowser() {
             size="sm"
             value={pendingChapter}
           />
-        </div>
-        <div className="flex items-center gap-1.5">
-          <Tooltip
-            content={
-              searchMode === "reference" ? t("bible.searchModeToggleHint") : t("bible.searchModeToggleHintReference")
-            }
-            floating
-          >
-            <IconButton
-              aria-label={
-                searchMode === "reference" ? t("bible.searchModeToggleHint") : t("bible.searchModeToggleHintReference")
-              }
-              onClick={toggleSearchMode}
-              size="sm"
-              toggled={searchMode === "text"}
-            >
-              <Icon name="fileText" />
-            </IconButton>
-          </Tooltip>
+      </div>
+      <div className="flex h-strip min-w-0 shrink-0 items-center gap-1.5 border-b border-border px-1.5">
+          {/* Words, not a document icon nobody could read as «search the text»
+              (2026-11-05 review), as wide as its longer word in each half
+              (owner, 2026-11-05): in the first column it cut «Referencia». */}
+          <Segmented
+            label={t("bible.searchMode")}
+            onChange={(mode) => {
+              if (mode !== searchMode) toggleSearchMode();
+            }}
+            options={[
+              { label: t("bible.modeReference"), value: "reference" },
+              { label: t("bible.modeText"), value: "text" },
+            ]}
+            value={searchMode}
+          />
           <Tooltip content={t("bible.bookmarks")} floating>
-            <IconButton aria-label={t("bible.bookmarks")} onClick={toggleBookmarks} size="sm" toggled={showBookmarks}>
-              <Icon name="favorite" />
+            <IconButton aria-label={t("bible.bookmarks")} onClick={toggleBookmarks} size="sm" toggled={showBookmarks} variant="ghost">
+              {/* Not the star: the star in the footer MARKS a verse, this shows the
+                  marked ones (2026-11-05 review: one icon, two verbs). */}
+              <Icon name="bookmarks" />
             </IconButton>
           </Tooltip>
           <div className="min-w-0 flex-1">
@@ -331,7 +322,6 @@ export function BibleBrowser() {
               value={query}
             />
           </div>
-        </div>
       </div>
 
       <PanelBody className="p-1.5">
@@ -366,7 +356,7 @@ export function BibleBrowser() {
             <ul className="flex flex-col gap-0.5">
               {referenceMatches.map((match, index) => (
                 <ListRow
-                  key={`${match.book.id}-${match.chapter ?? "book"}`}
+                  key={match.book.id}
                   onClick={() => selectReferenceMatch(match)}
                   onMouseEnter={() => setHighlightedIndex(index)}
                   ref={(el) => {
@@ -374,7 +364,11 @@ export function BibleBrowser() {
                   }}
                   selected={highlightedIndex === index}
                 >
-                  {match.chapter !== null ? `${match.book.name} ${match.chapter}` : match.book.name}
+                  {match.chapter === null
+                    ? match.book.name
+                    : match.verseFrom === null
+                      ? `${match.book.name} ${match.chapter}`
+                      : passageReference(match.book.name, match.chapter, match.verseFrom, match.verseTo ?? match.verseFrom)}
                 </ListRow>
               ))}
             </ul>
@@ -417,12 +411,12 @@ export function BibleBrowser() {
       </PanelBody>
 
       <PanelFooter>
-        {/* Bottom left, like the Songs tab's «Themes»: the tab's own tools. */}
+        {/* Bottom left, like the Songs tab's «Themes»: the tab's own tools, an
+            icon with a tooltip (owner, 2026-11-05). */}
         <Tooltip content={t("bible.styleHint")} floating>
-          <Button onClick={() => setStyleOpen(true)} size="sm" variant="ghost">
+          <IconButton aria-label={t("bible.styleTitle")} onClick={() => setStyleOpen(true)} size="sm" variant="ghost">
             <Icon name="palette" />
-            {t("bible.styleTitle")}
-          </Button>
+          </IconButton>
         </Tooltip>
         <Tooltip
           className="ml-auto"
@@ -435,6 +429,7 @@ export function BibleBrowser() {
             onClick={() => previewIndex !== null && void setFavorite(previewIndex, !previewedIsFavorite)}
             size="sm"
             toggled={previewedIsFavorite}
+            variant="ghost"
           >
             <Icon name="favorite" />
           </IconButton>

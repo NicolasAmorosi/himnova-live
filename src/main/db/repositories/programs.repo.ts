@@ -2,6 +2,7 @@ import { eq, count, desc, min } from "drizzle-orm";
 import type Database from "better-sqlite3";
 import type { Db } from "../client";
 import { programItems, programs } from "../schema";
+import { withLiveBibleIds } from "./draft.repo";
 import { IpcError } from "@shared/ipc/result";
 import type {
   ProgramDTO,
@@ -13,7 +14,7 @@ import type {
   ProgramUpsert,
 } from "@shared/types/program";
 import type { BibleVersionUsage } from "@shared/types/bible";
-import type { MediaAssetUsage } from "@shared/types/media";
+import type { AssetLookUsage, MediaAssetUsages } from "@shared/types/media";
 import type { UtilitySceneUsage } from "@shared/types/utility";
 import type { PlateUsage } from "@shared/types/overlay";
 import type { SongUsage } from "@shared/types/song";
@@ -152,7 +153,7 @@ export class ProgramsRepo {
           .run().lastInsertRowid as number;
       }
 
-      input.items.forEach((item: ProgramItemUpsert, index: number) => {
+      withLiveBibleIds(this.db, input.items).forEach((item: ProgramItemUpsert, index: number) => {
         this.db.insert(programItems).values(toRow(programId, index, item, now)).run();
       });
 
@@ -281,10 +282,11 @@ export class ProgramsRepo {
     this.db.delete(programs).where(eq(programs.id, id)).run();
   }
 
-  /** Which saved programs still reference `assetId`, for the "delete anyway"
-   *  confirmation — the FK violation itself doesn't say which program. */
-  findUsages(assetId: number): MediaAssetUsage[] {
-    const rows = this.db
+  /** What still uses `assetId`, for the warning before it leaves the library:
+   *  the saved programs that list it — the FK violation itself doesn't say
+   *  which — and the looks drawn over it (owner, 2026-11-06). */
+  findUsages(assetId: number): MediaAssetUsages {
+    const programRows = this.db
       .select({
         programId: programs.id,
         programName: programs.name,
@@ -295,7 +297,36 @@ export class ProgramsRepo {
       .where(eq(programItems.mediaAssetId, assetId))
       .groupBy(programs.id)
       .all();
-    return rows;
+    return { programs: programRows, looks: this.findLookUsages(assetId) };
+  }
+
+  /**
+   * The looks drawn over `assetId`: the LOGO's and the verse's backgrounds
+   * (settings), a song theme's (an image or a video), a time scene's, a bug
+   * plate's picture. A style is a JSON column that no FK reaches, so removing
+   * the file is never refused for it — the look would simply lose its picture
+   * on the projector; this is what lets the removal say so first. Only an
+   * image or video background carries `assetId`, so the path alone tells. A
+   * value that is not JSON costs that row, never the answer (`CASE` is the one
+   * guard SQLite promises to evaluate first).
+   */
+  private findLookUsages(assetId: number): AssetLookUsage[] {
+    const drawsIt = (column: string, path: string) =>
+      `CASE WHEN json_valid(${column}) THEN json_extract(${column}, '${path}') END = :id`;
+    return this.sqlite
+      .prepare(
+        `SELECT 'logo' AS kind, NULL AS name FROM settings
+          WHERE key = 'logo.background' AND ${drawsIt("value", "$.assetId")}
+         UNION ALL
+         SELECT 'verse', NULL FROM settings WHERE key = 'bible.style' AND ${drawsIt("value", "$.background.assetId")}
+         UNION ALL
+         SELECT 'songTheme', name FROM song_themes WHERE ${drawsIt("style_json", "$.background.assetId")}
+         UNION ALL
+         SELECT 'scene', name FROM utility_scenes WHERE ${drawsIt("style_json", "$.background.assetId")}
+         UNION ALL
+         SELECT 'plate', name FROM overlay_plates WHERE image_asset_id = :id`,
+      )
+      .all({ id: assetId }) as AssetLookUsage[];
   }
 
   /** Which saved programs still reference the time scene `sceneId` — the same

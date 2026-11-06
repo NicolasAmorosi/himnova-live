@@ -2,7 +2,9 @@ import fs from "node:fs";
 import path from "node:path";
 import { screen } from "electron";
 import {
+  SLIDES_CACHE_MAX_MB,
   SLIDES_CONVERTER_VERSION,
+  SLIDES_FALLBACK_RENDER_WIDTH,
   SLIDES_MAX_RENDER_WIDTH,
   SLIDES_MIN_ADVANCE_MS,
   SLIDES_MIN_RENDER_WIDTH,
@@ -36,8 +38,11 @@ import { mt } from "../i18n";
 // Render target
 // ---------------------------------------------------------------------------
 
-/** What a PDF's pages are drawn at: the projector's width, capped by
- *  Settings, and the image format chosen there. */
+/** What a PDF's pages are drawn at: the projector's own width, up to 4K, and
+ *  always PNG — the pages live only in memory, so WebP's smaller files bought
+ *  nothing and its encode was the slow half of every page (measured,
+ *  `.claude/knowledge/a-pdf-page-drawn-on-request-costs-milliseconds-and-webp-is-most-of-it.md`).
+ *  Both were settings until 2026-11-05 (owner: «¿esto es necesario?»). */
 export type RenderTarget = {
   width: number;
   format: "webp" | "png";
@@ -45,10 +50,9 @@ export type RenderTarget = {
 
 export function resolveRenderTarget(): RenderTarget {
   const settings = getSettingsRepo();
-  const configuredMax = settings.get("slides.maxRenderWidth");
-  const format = settings.get("slides.imageFormat");
+  const format = "png";
 
-  let physicalWidth = configuredMax;
+  let physicalWidth = SLIDES_FALLBACK_RENDER_WIDTH;
   try {
     const displays = screen.getAllDisplays();
     const primary = screen.getPrimaryDisplay();
@@ -58,12 +62,12 @@ export function resolveRenderTarget(): RenderTarget {
     const target = preferred ?? displays.find((d) => d.id !== primary.id) ?? primary;
     physicalWidth = Math.round(target.bounds.width * target.scaleFactor);
   } catch {
-    // screen isn't available before app.whenReady; the configured default is fine.
+    // screen isn't available before app.whenReady; the 1080p width is fine.
   }
 
   const width = Math.min(
     SLIDES_MAX_RENDER_WIDTH,
-    Math.max(SLIDES_MIN_RENDER_WIDTH, Math.min(physicalWidth, configuredMax)),
+    Math.max(SLIDES_MIN_RENDER_WIDTH, physicalWidth),
   );
   return { width, format };
 }
@@ -527,9 +531,9 @@ async function recordModelDeck(
 const pdfInFlight = new Map<number, Promise<DeckDTO>>();
 
 /** A PDF deck is its page sizes at a render width and format: what it is drawn
- *  at is part of its identity, so changing either setting opens the PDF again
- *  (~25 ms) under new urls, instead of leaving pictures drawn at the old ones
- *  in the windows. */
+ *  at is part of its identity, so a new projector width (or a row drawn as
+ *  WebP by an older build) opens the PDF again (~25 ms) under new urls, instead
+ *  of leaving pictures drawn at the old ones in the windows. */
 function isUsablePdf(row: DeckRow, target: RenderTarget): boolean {
   return (
     row.status === "ready" &&
@@ -716,7 +720,7 @@ export function cacheUsage(): { bytesOnDisk: number; maxBytes: number } {
 }
 
 function cacheMaxBytes(): number {
-  return getSettingsRepo().get("slides.cacheMaxMb") * 1024 * 1024;
+  return SLIDES_CACHE_MAX_MB * 1024 * 1024;
 }
 
 /** Deck ids that must never be evicted, grouped by why — the deck currently
@@ -746,7 +750,7 @@ const EVICTION_PAGE = 64;
 
 export function evictIfOverCap(): void {
   const repo = getSlidesRepo();
-  const maxBytes = getSettingsRepo().get("slides.cacheMaxMb") * 1024 * 1024;
+  const maxBytes = cacheMaxBytes();
   let total = repo.totalBytes();
   if (total <= maxBytes) return;
 

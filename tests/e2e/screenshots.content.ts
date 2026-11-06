@@ -14,19 +14,15 @@ export type Hymn = { title: string; credit: string; stanzas: string[][] };
 type TitleSlide = { title: string; credit: string };
 
 export type Content = {
-  /** The library's file names, without extension, by the generated file they
-   *  copy (`raw/<key>.*`). */
-  files: Record<
-    "worship" | "sunrise" | "sky" | "announcements" | "welcome" | "blue" | "warm" | "offering" | "testimony" | "track",
-    string
-  >;
+  /** The library's file names, without extension, by the file they copy
+   *  (`raw/<key>.*`). The backgrounds are the app's own (the starter look). */
+  files: Record<"announcements" | "welcome" | "offering" | "testimony" | "track", string>;
   /** Heber's «Holy, Holy, Holy»: four stanzas of four lines. */
   holy: Hymn;
   /** Luther's «Ein feste Burg»: two stanzas of nine lines. */
   fortress: Hymn;
   decks: { announcements: { name: string; slides: TitleSlide[] }; sermon: { name: string; slides: TitleSlide[] } };
   program: string;
-  theme: string;
   copyright: string;
   /** Imported and made the default; `null` is the bundled RV1909. Only Psalm
    *  23 is imported: it is all the screenshots open. */
@@ -38,13 +34,8 @@ export type Content = {
 export const CONTENT: Record<Locale, Content> = {
   es: {
     files: {
-      worship: "Fondo adoración",
-      sunrise: "Amanecer",
-      sky: "Cielo",
       announcements: "Anuncios",
       welcome: "Bienvenida",
-      blue: "Fondo azul",
-      warm: "Fondo cálido",
       offering: "Música de ofrenda",
       testimony: "Testimonio",
       track: "Pista instrumental",
@@ -86,7 +77,6 @@ export const CONTENT: Record<Locale, Content> = {
       },
     },
     program: "Culto de adoración",
-    theme: "Himnos",
     copyright: "Dominio público",
     bible: null,
     verse: "Ciertamente el bien y la misericordia me seguirán",
@@ -94,13 +84,8 @@ export const CONTENT: Record<Locale, Content> = {
 
   en: {
     files: {
-      worship: "Worship background",
-      sunrise: "Sunrise",
-      sky: "Sky",
       announcements: "Announcements",
       welcome: "Welcome",
-      blue: "Blue background",
-      warm: "Warm background",
       offering: "Offering music",
       testimony: "Testimony",
       track: "Instrumental track",
@@ -144,7 +129,6 @@ export const CONTENT: Record<Locale, Content> = {
       },
     },
     program: "Worship service",
-    theme: "Hymns",
     copyright: "Public domain",
     // eBible.org/eng-kjv, checked against Project Gutenberg's KJV.
     bible: {
@@ -163,13 +147,8 @@ export const CONTENT: Record<Locale, Content> = {
   },
   it: {
     files: {
-      worship: "Sfondo adorazione",
-      sunrise: "Alba",
-      sky: "Cielo",
       announcements: "Annunci",
       welcome: "Benvenuto",
-      blue: "Sfondo blu",
-      warm: "Sfondo caldo",
       offering: "Musica dell'offerta",
       testimony: "Testimonianza",
       track: "Traccia strumentale",
@@ -214,7 +193,6 @@ export const CONTENT: Record<Locale, Content> = {
       },
     },
     program: "Culto di adorazione",
-    theme: "Inni",
     copyright: "Pubblico dominio",
     // Giovanni Luzzi's Riveduta, 1927 (he died in 1948): eBible.org/ita1927, checked against laparola.net.
     // Verse 1 without its «Salmo di Davide.» superscription, like the other languages.
@@ -235,13 +213,8 @@ export const CONTENT: Record<Locale, Content> = {
 
   pt: {
     files: {
-      worship: "Fundo adoração",
-      sunrise: "Amanhecer",
-      sky: "Céu",
       announcements: "Avisos",
       welcome: "Boas-vindas",
-      blue: "Fundo azul",
-      warm: "Fundo quente",
       offering: "Música da oferta",
       testimony: "Testemunho",
       track: "Faixa instrumental",
@@ -286,7 +259,6 @@ export const CONTENT: Record<Locale, Content> = {
       },
     },
     program: "Culto de adoração",
-    theme: "Hinos",
     copyright: "Domínio público",
     // João Ferreira de Almeida, Revista e Corrigida, 1911 reprint: CrossWire's PorAlmeida1911, checked word for
     // word against the American Bible Society's 1904 printing (archive.org). Its own spelling (valle, oleo, calix).

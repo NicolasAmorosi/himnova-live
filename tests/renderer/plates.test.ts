@@ -4,8 +4,9 @@
  */
 import { beforeEach, describe, expect, test } from "vitest";
 import { selectOutput, useProjectionStore } from "@renderer/stores/projection.store";
+import { emptyPlateDraft, withKind } from "@renderer/components/pages/functions/plate-draft";
 import { assetUrl } from "@shared/urls";
-import { DEFAULT_PLATE_STYLE, type Plate } from "@shared/types/overlay";
+import { DEFAULT_BUG_STYLE, DEFAULT_PLATE_STYLE, type Plate } from "@shared/types/overlay";
 
 const initialState = useProjectionStore.getState();
 
@@ -166,5 +167,22 @@ describe("a plate that hides itself", () => {
     store.showPlate(timed);
     store.hidePlate(1);
     expect(useProjectionStore.getState().plateHideClocks).toEqual({});
+  });
+});
+
+describe("switching a plate's kind in the editor", () => {
+  const banded = () => {
+    const draft = emptyPlateDraft("Aviso");
+    return { ...draft, style: { ...draft.style, backgroundOpacity: 0.3 } };
+  };
+
+  test("a lower third and a banner hold the same band, so its opacity stays", () => {
+    expect(withKind(banded(), "banner").style.backgroundOpacity).toBe(0.3);
+  });
+
+  test("a bug starts without a band, and leaving it brings the default band back", () => {
+    const bug = withKind(banded(), "bug");
+    expect(bug.style.backgroundOpacity).toBe(DEFAULT_BUG_STYLE.backgroundOpacity);
+    expect(withKind(bug, "lower-third").style.backgroundOpacity).toBe(DEFAULT_PLATE_STYLE.backgroundOpacity);
   });
 });

@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 
 /** Trailing-only debounce for a callback whose identity may change every
  *  render (it always calls the LATEST version passed in, via a ref, so the
@@ -19,8 +19,12 @@ export function useDebouncedCallback<Args extends unknown[]>(
     [],
   );
 
-  return (...args: Args) => {
-    if (timerRef.current) clearTimeout(timerRef.current);
-    timerRef.current = setTimeout(() => callbackRef.current(...args), delayMs);
-  };
+  // Stable, so an effect can list it as a dependency without running on every render.
+  return useCallback(
+    (...args: Args) => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+      timerRef.current = setTimeout(() => callbackRef.current(...args), delayMs);
+    },
+    [delayMs],
+  );
 }

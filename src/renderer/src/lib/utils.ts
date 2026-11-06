@@ -7,9 +7,10 @@ import { extendTailwindMerge } from "tailwind-merge";
 // and cascade order (not className order) picks the winner. Copied from
 // libretto-villaaurora's lib/utils.ts, same reason. The two type steps added
 // to `--text-*` (globals.css) likewise: unknown to it, `text-dense` reads as a
-// COLOUR and silently removes the `text-foreground` next to it.
+// COLOUR and silently removes the `text-foreground` next to it. And
+// `--spacing-strip`: unknown, `h-strip` and an `h-auto` after it both survive.
 const twMerge = extendTailwindMerge({
-  extend: { theme: { shadow: ["surface", "raised", "overlay"], text: ["2xs", "dense"] } },
+  extend: { theme: { shadow: ["surface", "raised", "overlay"], text: ["2xs", "dense"], spacing: ["strip"] } },
 });
 
 export function cn(...inputs: ClassValue[]): string {

@@ -1,5 +1,5 @@
 import { useT, useI18n } from "@renderer/lib/i18n/i18n-provider";
-import { Badge, Button, Icon, IconButton, MediaPanel } from "@renderer/components/ui";
+import { Badge, Icon, IconButton, MediaPanel, Segmented } from "@renderer/components/ui";
 import { SongSectionButtons } from "@renderer/components/shared/song-section-buttons";
 import { useProjectionStore } from "@renderer/stores/projection.store";
 import { advanceSong, clearBaseContent, jumpSong, toggleSongLyrics } from "@renderer/lib/actions/playback";
@@ -31,7 +31,7 @@ export function SongTransport() {
   return (
     <MediaPanel className="shrink-0">
       <div className="flex items-center gap-2 px-2 py-1.5">
-        <Icon className="size-4 text-accent-ink" name="song" />
+        <Icon className="text-muted-foreground" name="song" />
         <span className="min-w-0 flex-1 truncate text-sm text-foreground">{base.song.title}</span>
         {section ? (
           <span className="shrink-0 truncate text-xs text-muted-foreground">
@@ -82,7 +82,7 @@ export function SongTransport() {
           <Icon name="offAir" />
         </IconButton>
       </div>
-      <div className="flex items-center gap-2 px-2 pb-1.5">
+      <div className="flex items-center gap-2 px-2 py-1.5">
         <div className="min-w-0 flex-1">
           <SongSectionButtons
             activeKey={activeKey}
@@ -91,19 +91,14 @@ export function SongTransport() {
           />
         </div>
         {translated ? (
-          <div aria-label={t("songs.language.label")} className="flex shrink-0 items-center gap-1" role="group">
-            {SONG_LANGUAGES.map((language) => (
-              <Button
-                key={language}
-                onClick={() => void setLiveSongLanguage(language)}
-                size="xs"
-                toggled={base.language === language}
-                variant="ghost"
-              >
-                {t(`songs.language.${language}`)}
-              </Button>
-            ))}
-          </div>
+          // The app's one segmented look (2026-11-05), at the bar's 28 px.
+          <Segmented
+            label={t("songs.language.label")}
+            onChange={(language) => void setLiveSongLanguage(language)}
+            options={SONG_LANGUAGES.map((language) => ({ label: t(`songs.language.${language}`), value: language }))}
+            size="xs"
+            value={base.language}
+          />
         ) : null}
       </div>
     </MediaPanel>

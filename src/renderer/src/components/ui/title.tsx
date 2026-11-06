@@ -19,9 +19,9 @@ export function Title({ as = "h2", className, ...props }: TitleProps) {
 }
 
 /** The heading of a page in a full-screen screen with sections (Settings):
- *  GitHub's «Subhead», a 20 px title with a thin line under it. */
+ *  a 20 px title; its groups below are boxes, so no line under it (2026-11-05). */
 export function PageHeader({ children }: { children: ReactNode }) {
-  return <h2 className="border-b border-border pb-2 text-xl font-semibold text-foreground">{children}</h2>;
+  return <h2 className="text-xl font-semibold text-foreground">{children}</h2>;
 }
 
 /** `Label`'s typography without the `<label>` semantics — for text that names

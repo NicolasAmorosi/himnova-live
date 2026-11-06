@@ -13,7 +13,7 @@ const borders: Record<NonNullable<ToolbarProps["border"]>, string> = {
 export function Toolbar({ border = "bottom", className, ...props }: ToolbarProps) {
   return (
     <div
-      className={cn("flex shrink-0 items-center gap-2 bg-surface px-2 py-1.5", borders[border], className)}
+      className={cn("flex h-strip shrink-0 items-center gap-2 bg-surface px-2", borders[border], className)}
       {...props}
     />
   );

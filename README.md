@@ -16,8 +16,8 @@ Windows, macOS and Linux · English, Spanish, Italian and Portuguese
   slide's timing and the embedded audio are kept.
 - **Any video or audio.** Whatever the player can't decode (AVI, WMV, ProRes, AC3…) plays at once
   through Lumina's own media engine, built on libmpv. Nothing is converted and the original file is
-  never touched. When a video ends, the projector shows the logo, goes black, loops it or holds its
-  last frame — your choice in Settings.
+  never touched. When a video ends, the projector shows the logo, goes black, loops it, holds its
+  last frame or moves on to the schedule's next item — your choice in Settings.
 - **Bible** with full-text search (accent-insensitive), favourite passages and the ones that went live
   recently. Ships with the Reina-Valera 1909; import other versions in JSON, Zefania, USFX, OSIS or
   MyBible/MySword modules.
@@ -37,10 +37,13 @@ Windows, macOS and Linux · English, Spanish, Italian and Portuguese
 - **A look to start with:** eight backgrounds and four moving ones in the library, song themes over
   them, a quiet background behind the verse, dressed timers and three overlays ready to fill in — all
   editable, and none of it touches what you already changed.
-- **A stage screen** for the musicians on a third screen: what is live, what comes next and the time.
+- **A stage screen** for the musicians on a third screen: what is live, what comes next and the time —
+  with the song's chords over its words, which the projector never shows. Chords come in from OpenLP,
+  OpenLyrics and ChordPro, or are written in the lyrics as `[G]Amazing [C]grace`.
 - **Timers** (countdown, clock, stopwatch) and **overlays** on top of what is projected (a lower third
   with the preacher's name, the church logo).
-- **BLACK and LOGO** pause whatever is playing and resume it where it was.
+- **BLACK and LOGO** pause whatever is playing and resume it where it was. Without a logo image, LOGO
+  shows your church's name over a background of your choice.
 - **Built for a live service:** if the projector disconnects, the picture comes back by itself when
   it reconnects; the schedule saves itself; closing the app by accident asks first.
 - Saved programs, a media library, light and dark themes.

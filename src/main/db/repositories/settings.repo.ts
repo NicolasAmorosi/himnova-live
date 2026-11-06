@@ -5,7 +5,7 @@ import { DEFAULT_SETTINGS, SETTINGS_NORMALIZERS, type SettingsMap } from "@share
 /**
  * Settings are read from a hot path, so they are held in memory.
  *
- * `resolveRenderTarget()` reads three keys and runs once per asset on every
+ * `resolveRenderTarget()` reads a key and runs once per asset on every
  * prewarm; `worship://logo` reads one per request. Each of those used to be a
  * SELECT plus a `JSON.parse`, on the thread that also serves the projection
  * window. The table is a handful of rows that only this process writes, so the

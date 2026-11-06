@@ -1,5 +1,6 @@
 import { app, BrowserWindow, shell, type WebContents } from "electron";
 import { userDataDir } from "../../paths";
+import { REPO_URL } from "../../updates/updater";
 import type { Handlers } from "../register";
 import { IpcError } from "@shared/ipc/result";
 import {
@@ -122,8 +123,14 @@ function reportFor(player: ProbePlayer): VideoDecoderReport {
 
 export const systemHandlers: Pick<
   Handlers,
-  "system:gpuStatus" | "system:openInternals" | "system:probeBegin" | "system:probeEnd" | "system:openLogsFolder"
+  | "system:gpuStatus"
+  | "system:openInternals"
+  | "system:probeBegin"
+  | "system:probeEnd"
+  | "system:openLogsFolder"
+  | "system:openSourceCode"
 > = {
+  "system:openSourceCode": () => shell.openExternal(REPO_URL),
   "system:openLogsFolder": async () => {
     // `openPath` resolves to an error MESSAGE rather than rejecting.
     const failure = await shell.openPath(userDataDir);

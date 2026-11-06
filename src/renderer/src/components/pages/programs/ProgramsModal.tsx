@@ -33,6 +33,7 @@ import {
   hasUnsavedChanges,
   openProgram,
   reorderPrograms,
+  saveCurrentProgram,
   setProgramFavorite,
   updateProgramMeta,
   type ProgramMetaInput,
@@ -517,7 +518,7 @@ export function ProgramsModal({ initialMode, onOpenChange, open }: ProgramsModal
                       onClick={() => leaveEditing(() => setEditing({ kind: "create", draft: EMPTY, baseline: EMPTY }))}
                       selected={editing?.kind === "create"}
                     >
-                      {t("programs.untitled")}
+                      {t("header.untitled")}
                     </ListRow>
                   ) : null}
                   {filtered.map((program) => (
@@ -601,7 +602,16 @@ export function ProgramsModal({ initialMode, onOpenChange, open }: ProgramsModal
       >
         {editing === null ? (
           <div className="relative flex-1">
-            {loading || loadError ? null : <EmptyState icon="folderOpen" title={t("programs.empty")} />}
+            {loading || loadError ? null : (
+              // With nothing saved yet the list still shows the unsaved
+              // schedule: say it is the way to save it (2026-11-05 review: the
+              // canvas said «nothing saved» beside a row, with no next step).
+              <EmptyState
+                {...(showDraftRow ? { description: t("programs.emptyDraftHint", { name: t("header.untitled") }) } : {})}
+                icon="folderOpen"
+                title={t("programs.empty")}
+              />
+            )}
           </div>
         ) : (
           // The items in a framed box down to the bottom, under a header —
@@ -682,7 +692,12 @@ export function ProgramsModal({ initialMode, onOpenChange, open }: ProgramsModal
           const shown = pending;
           if (!next) setPending((current) => (current === shown ? null : current));
         }}
+        // The schedule's changes can be saved first when the open program has
+        // its row, like closing the app (owner, 2026-11-06); a never-saved
+        // one needs a name, which is this screen's «Guardar».
+        onSave={pending?.kind === "schedule" && currentProgramId !== null ? saveCurrentProgram : undefined}
         open={pending !== null}
+        saveLabel={t("programs.saveAndOpen")}
         title={
           pending?.kind === "delete"
             ? t("programs.deleteTitle")

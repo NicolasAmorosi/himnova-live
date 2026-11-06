@@ -96,6 +96,12 @@ export class BibleRepo {
     return row ? toVersionDTO(row) : null;
   }
 
+  /** The version made from a file with these bytes (`bibleFileHash`), if any. */
+  findVersionBySourceHash(sourceHash: string): BibleVersionDTO | null {
+    const row = this.db.select().from(bibleVersions).where(eq(bibleVersions.sourceHash, sourceHash)).get();
+    return row ? toVersionDTO(row) : null;
+  }
+
   /**
    * Renames a version.
    *

@@ -2,14 +2,15 @@ import { useEffect, useState } from "react";
 import { useT, type MessageKey } from "@renderer/lib/i18n/i18n-provider";
 import {
   Button,
+  DependentFields,
   FieldRow,
   Icon,
   Inspector,
   InspectorSection,
   Select,
   Slider,
+  Segmented,
   Switch,
-  Tooltip,
 } from "@renderer/components/ui";
 import { ConfirmModal } from "@renderer/components/shared/modal";
 import { EditorScreen, EditorStage } from "@renderer/components/shared/editor-screen";
@@ -29,7 +30,6 @@ import {
   BIBLE_LINE_HEIGHT_MIN,
   BIBLE_MAX_WIDTH_MAX_CQW,
   BIBLE_MAX_WIDTH_MIN_CQW,
-  DEFAULT_BIBLE_STYLE,
   REFERENCE_POSITIONS,
   TEXT_ALIGNS,
   TEXT_CASES,
@@ -140,9 +140,16 @@ export function VerseStyleModal({ onOpenChange, open }: { onOpenChange: (open: b
 
   // Off the store at the moment of writing, not off this render: an image
   // import resolves seconds later, and spreading the style it closed over
-  // reverted whatever was changed meanwhile.
+  // reverted whatever was changed meanwhile. A style main refuses has already
+  // snapped back (`update` re-reads the settings); the operator is told which
+  // change did not take, not the generic «unexpected error».
   const patch = (next: Partial<BibleStyle>) =>
-    void update({ "bible.style": { ...useSettingsStore.getState().settings["bible.style"], ...next } });
+    void update({ "bible.style": { ...useSettingsStore.getState().settings["bible.style"], ...next } }).catch(
+      (error: unknown) => {
+        console.warn("[bible] could not save the verse style", error);
+        toast.danger(t("settings.verse.saveError"));
+      },
+    );
 
   async function handleAddImages() {
     setAddingImages(true);
@@ -186,15 +193,10 @@ export function VerseStyleModal({ onOpenChange, open }: { onOpenChange: (open: b
               />
             </InspectorSection>
 
-            <InspectorSection title={t("style.groups.typography")}>
-              <FontFamilyFields onChange={(fontFamily) => patch({ fontFamily })} value={style.fontFamily} />
-            </InspectorSection>
-
             <InspectorSection title={t("settings.verse.groups.layout")}>
               <VerticalAlignField onChange={(verticalAlign) => patch({ verticalAlign })} value={style.verticalAlign} />
               <FieldRow label={t("settings.verse.textAlign")}>
                 <Select
-                  className="w-52"
                   onChange={(align) => patch({ textAlign: align as TextAlign })}
                   options={TEXT_ALIGNS.map((align) => ({ label: t(ALIGN_LABEL[align]), value: align }))}
                   value={style.textAlign}
@@ -216,18 +218,21 @@ export function VerseStyleModal({ onOpenChange, open }: { onOpenChange: (open: b
               </FieldRow>
               <FieldRow description={t("settings.verse.maxWidthHint")} label={t("settings.verse.maxWidth")}>
                 <Slider
-                  format={(value) => `${value}%`}
                   label={t("settings.verse.maxWidth")}
                   max={BIBLE_MAX_WIDTH_MAX_CQW}
                   min={BIBLE_MAX_WIDTH_MIN_CQW}
                   onChange={(maxWidthCqw) => patch({ maxWidthCqw })}
                   step={1}
+                  unit="%"
                   value={style.maxWidthCqw}
                 />
               </FieldRow>
             </InspectorSection>
 
+            {/* The font with the text it dresses: a section of its own held
+                that one row (2026-11-05 review). */}
             <InspectorSection title={t("settings.verse.groups.verse")}>
+              <FontFamilyFields onChange={(fontFamily) => patch({ fontFamily })} value={style.fontFamily} />
               <TextStyleFields
                 onChange={(text) => patch({ text })}
                 sizeRange={VERSE_SIZE_RANGE}
@@ -261,8 +266,8 @@ export function VerseStyleModal({ onOpenChange, open }: { onOpenChange: (open: b
                   // against that number, and two controls describing the same
                   // quantity at different resolutions is how the operator ends up
                   // with a floor they cannot actually reach.
-                  readoutChars={5}
                   step={0.1}
+                  unit="%"
                   value={Math.min(style.autoFit.minSizeCqw, style.text.sizeCqw)}
                 />
               </FieldRow>
@@ -272,52 +277,46 @@ export function VerseStyleModal({ onOpenChange, open }: { onOpenChange: (open: b
               <FieldRow description={t("settings.verse.showReferenceHint")} label={t("settings.verse.showReference")}>
                 <Switch checked={style.showReference} onChange={(e) => patch({ showReference: e.target.checked })} />
               </FieldRow>
-              {/* Everything below describes a line that is not being drawn when the
-                  switch above is off. Hidden rather than disabled: a group of six
-                  dead controls reads as something broken. */}
-              {style.showReference ? (
-                <>
-                  <FieldRow label={t("settings.verse.referencePosition")}>
-                    <Select
-                      className="w-52"
-                      onChange={(position) => patch({ referencePosition: position as ReferencePosition })}
-                      options={REFERENCE_POSITIONS.map((position) => ({
-                        label: t(POSITION_LABEL[position]),
-                        value: position,
-                      }))}
-                      value={style.referencePosition}
-                    />
-                  </FieldRow>
-                  <FieldRow label={t("settings.verse.referenceCase")}>
-                    <Select
-                      className="w-52"
-                      onChange={(next) => patch({ referenceCase: next as TextCase })}
-                      options={TEXT_CASES.map((next) => ({ label: t(CASE_LABEL[next]), value: next }))}
-                      value={style.referenceCase}
-                    />
-                  </FieldRow>
-                  <FieldRow
-                    description={t("settings.verse.versionDisplayHint")}
-                    label={t("settings.verse.versionDisplay")}
-                  >
-                    <Select
-                      className="w-52"
-                      onChange={(next) => patch({ versionDisplay: next as VersionDisplay })}
-                      options={VERSION_DISPLAYS.map((next) => ({
-                        label: t(VERSION_DISPLAY_LABEL[next]),
-                        value: next,
-                      }))}
-                      value={style.versionDisplay}
-                    />
-                  </FieldRow>
-                  <TextStyleFields
-                    onChange={(reference) => patch({ reference })}
-                    sizeRange={REFERENCE_SIZE_RANGE}
-                    t={t}
-                    value={style.reference}
+              {/* Everything below describes a line that is not drawn while the
+                  switch above is off: dimmed, never hidden (owner, 2026-11-05). */}
+              <DependentFields enabled={style.showReference}>
+                <FieldRow label={t("settings.verse.referencePosition")}>
+                  <Select
+                    onChange={(position) => patch({ referencePosition: position as ReferencePosition })}
+                    options={REFERENCE_POSITIONS.map((position) => ({
+                      label: t(POSITION_LABEL[position]),
+                      value: position,
+                    }))}
+                    value={style.referencePosition}
                   />
-                </>
-              ) : null}
+                </FieldRow>
+                <FieldRow label={t("settings.verse.referenceCase")}>
+                  <Select
+                    onChange={(next) => patch({ referenceCase: next as TextCase })}
+                    options={TEXT_CASES.map((next) => ({ label: t(CASE_LABEL[next]), value: next }))}
+                    value={style.referenceCase}
+                  />
+                </FieldRow>
+                <FieldRow
+                  description={t("settings.verse.versionDisplayHint")}
+                  label={t("settings.verse.versionDisplay")}
+                >
+                  <Select
+                    onChange={(next) => patch({ versionDisplay: next as VersionDisplay })}
+                    options={VERSION_DISPLAYS.map((next) => ({
+                      label: t(VERSION_DISPLAY_LABEL[next]),
+                      value: next,
+                    }))}
+                    value={style.versionDisplay}
+                  />
+                </FieldRow>
+                <TextStyleFields
+                  onChange={(reference) => patch({ reference })}
+                  sizeRange={REFERENCE_SIZE_RANGE}
+                  t={t}
+                  value={style.reference}
+                />
+              </DependentFields>
             </InspectorSection>
 
             {/* Not a section: one button, last, away from every knob above. */}
@@ -340,15 +339,16 @@ export function VerseStyleModal({ onOpenChange, open }: { onOpenChange: (open: b
       >
         <EditorStage
           below={
-            <>
-              <label className="flex items-center gap-2">
-                {t("settings.verse.preview")}
-                <Switch checked={longPreview} onChange={(e) => setLongPreview(e.target.checked)} />
-              </label>
-              <Tooltip content={t("settings.verse.previewHint")} floating>
-                <Icon className="text-subtle" name="help" />
-              </Tooltip>
-            </>
+            // A long verse is how the automatic fit is checked.
+            <Segmented
+              label={t("settings.verse.sample")}
+              onChange={(sample) => setLongPreview(sample === "long")}
+              options={[
+                { label: t("settings.verse.sampleShortLabel"), value: "short" },
+                { label: t("settings.verse.sampleLongLabel"), value: "long" },
+              ]}
+              value={longPreview ? "long" : "short"}
+            />
           }
         >
           <VersePreview long={longPreview} style={style} />
@@ -359,7 +359,7 @@ export function VerseStyleModal({ onOpenChange, open }: { onOpenChange: (open: b
         description={t("settings.verse.resetBody")}
         onConfirm={async () => {
           setPendingImage(null);
-          await update({ "bible.style": DEFAULT_BIBLE_STYLE });
+          await update({ "bible.style": await api.settings.factoryVerseStyle() });
           toast.success(t("settings.verse.resetDone"));
         }}
         onOpenChange={setConfirmingReset}

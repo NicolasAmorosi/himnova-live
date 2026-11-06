@@ -1,10 +1,8 @@
 import { useT, type MessageKey, type Translate } from "@renderer/lib/i18n/i18n-provider";
 import {
-  Button,
   Callout,
   ColorField,
   FieldRow,
-  Icon,
   Select,
   Slider,
   Switch,
@@ -150,7 +148,6 @@ export function BackgroundFields<B extends SongBackground = SceneBackground>({
     <>
       <FieldRow label={t("style.backgroundKind")}>
         <Select
-          className="w-52"
           onChange={(next) => onChange(backgroundOfKind(next as SongBackground["kind"], value))}
           options={kinds.map((kind) => ({
             label: t(BACKGROUND_LABEL[kind]),
@@ -188,7 +185,6 @@ export function BackgroundFields<B extends SongBackground = SceneBackground>({
           </FieldRow>
           <FieldRow label={t("style.gradientDirection")}>
             <Select
-              className="w-52"
               onChange={(direction) =>
                 onChange({ ...value, direction: direction as (typeof GRADIENT_DIRECTIONS)[number] })
               }
@@ -206,20 +202,15 @@ export function BackgroundFields<B extends SongBackground = SceneBackground>({
         <>
           <FieldRow description={t("style.imageHint")} label={t("style.image")}>
             <Select
-              className="w-52"
+              action={{ disabled: addingImages, label: t("style.importImage"), onSelect: onAddImages }}
               onChange={(assetId) => onChange({ ...value, assetId: Number(assetId) })}
               options={imageAssets.map((asset) => ({ label: asset.name, value: String(asset.id) }))}
               placeholder={t("style.imagePlaceholder")}
               value={String(value.assetId)}
             />
-            <Button disabled={addingImages} onClick={onAddImages} variant="outline">
-              <Icon name="add" />
-              {t("style.addImage")}
-            </Button>
           </FieldRow>
           <FieldRow label={t("style.fit")}>
             <Select
-              className="w-52"
               onChange={(fit) => onChange({ ...value, fit: fit as (typeof BACKGROUND_FITS)[number] })}
               options={BACKGROUND_FITS.map((fit) => ({ label: t(FIT_LABEL[fit]), value: fit }))}
               value={value.fit}
@@ -232,20 +223,15 @@ export function BackgroundFields<B extends SongBackground = SceneBackground>({
         <>
           <FieldRow description={t("style.videoHint")} label={t("style.video")}>
             <Select
-              className="w-52"
+              action={onAddVideos ? { disabled: addingVideos, label: t("style.importVideo"), onSelect: onAddVideos } : undefined}
               onChange={(assetId) => onChange({ ...value, assetId: Number(assetId) })}
               options={videoAssets.map((asset) => ({ label: asset.name, value: String(asset.id) }))}
               placeholder={t("style.videoPlaceholder")}
               value={String(value.assetId)}
             />
-            <Button disabled={addingVideos} onClick={onAddVideos} variant="outline">
-              <Icon name="add" />
-              {t("style.addImage")}
-            </Button>
           </FieldRow>
           <FieldRow label={t("style.fit")}>
             <Select
-              className="w-52"
               onChange={(fit) => onChange({ ...value, fit: fit as (typeof BACKGROUND_FITS)[number] })}
               options={BACKGROUND_FITS.map((fit) => ({ label: t(FIT_LABEL[fit]), value: fit }))}
               value={value.fit}
@@ -288,7 +274,6 @@ export function FontFamilyFields({
             — hundreds of families on a designer's laptop, in an order nobody
             memorises. */}
         <Select
-          className="w-64"
           onChange={(family) => onChange(family === APP_FONT ? null : family)}
           options={options}
           searchable
@@ -315,7 +300,6 @@ export function VerticalAlignField({
   return (
     <FieldRow label={t("style.verticalAlign")}>
       <Select
-        className="w-52"
         onChange={(align) => onChange(align as SceneVerticalAlign)}
         options={SCENE_VERTICAL_ALIGNS.map((align) => ({ label: t(ALIGN_LABEL[align]), value: align }))}
         value={value}
@@ -390,6 +374,7 @@ export function TextStyleFields({
           // `3.5000000000000004` would reach both the row and the projector.
           onChange={(sizeCqw) => onChange({ ...value, sizeCqw: Number(sizeCqw.toFixed(decimals)) })}
           step={sizeRange.step}
+          unit="%"
           value={value.sizeCqw}
         />
       </FieldRow>
@@ -402,7 +387,6 @@ export function TextStyleFields({
       </FieldRow>
       <FieldRow label={t("style.weight")}>
         <Select
-          className="w-40"
           onChange={(weight) => onChange({ ...value, weight: Number(weight) as SceneFontWeight })}
           options={SCENE_FONT_WEIGHTS.map((weight) => ({ label: t(WEIGHT_LABEL[weight]), value: String(weight) }))}
           value={String(value.weight)}
@@ -419,7 +403,6 @@ export function TextStyleFields({
           max={STYLE_SHADOW_MAX}
           min={STYLE_SHADOW_MIN}
           onChange={(strength) => onChange({ ...value, shadowStrength: Number(strength.toFixed(2)) })}
-          readoutChars={4}
           step={0.05}
           value={value.shadowStrength}
         />

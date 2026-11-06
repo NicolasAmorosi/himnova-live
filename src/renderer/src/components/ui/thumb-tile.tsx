@@ -127,8 +127,14 @@ export function ThumbTile({
         // other. A grid item gets stretched for free and hid this for as long
         // as the tile was one.
         "group flex h-full w-full cursor-pointer flex-col overflow-hidden rounded-md border bg-card text-left transition-colors focus-ring-inset",
-        selected ? "border-accent ring-2 ring-accent" : "border-border hover:border-border-light",
-        live && !selected && "border-on-air ring-1 ring-on-air",
+        // On air wins over chosen: in the LIVE grid the chosen tile IS the one
+        // on air, and teal there said «chosen» where the room is looking
+        // (2026-11-05 review). Chosen AND on air is the thicker red ring.
+        live
+          ? cn("border-on-air ring-on-air", selected ? "ring-2" : "ring-1")
+          : selected
+            ? "border-accent ring-2 ring-accent"
+            : "border-border hover:border-border-light",
         className,
       )}
       draggable={draggable}

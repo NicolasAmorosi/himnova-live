@@ -1,5 +1,5 @@
 import { selectOutput, type ProjectionStoreState } from "@renderer/stores/projection.store";
-import { stepSong } from "@shared/song-jump";
+import { slideAt, stepSong, type SongPosition } from "@shared/song-jump";
 import { passageReference, type BibleVerseDTO } from "@shared/types/bible";
 import { INSTANT_TRANSITION, type ProjectionOutput, type StageOutput } from "@shared/types/projection";
 
@@ -11,6 +11,17 @@ export type StageWords = { black: string; logo: string; lyricsHidden: string; ne
  *  no plates, and cut rather than faded — the band reads, it does not watch. */
 function uncovered(state: ProjectionStoreState): ProjectionOutput {
   return { ...selectOutput({ ...state, overlay: "none" }), plates: [], transition: INSTANT_TRANSITION };
+}
+
+/** A song slide with its chords, for the musicians: the slide of the live song
+ *  at `position` — of the order or of a detour —, found by where it is and not
+ *  by its words, so two slides of chords alone (an intro, an interlude: no
+ *  words, owner 2026-11-06) bring their own. In «Traducción» the slide is the
+ *  translation's, which carries none. */
+function withChords(output: ProjectionOutput | null, state: ProjectionStoreState, position: SongPosition | null): ProjectionOutput | null {
+  if (output?.kind !== "song" || state.base?.kind !== "song" || !position) return output;
+  const chords = slideAt(state.base.song, position)?.chords;
+  return chords ? { ...output, chords } : output;
 }
 
 /** The slide or verse → would bring — the same step `advanceSlide`,
@@ -27,8 +38,9 @@ function nextOutput(state: ProjectionStoreState, bible: StageBibleCursor): Proje
       return position ? uncovered({ ...state, base: { ...base, ...position, lyricsHidden: false } }) : null;
     }
     case "bible": {
-      // Only a verse projected from the Bible tab has a cursor (`projectVerse`);
-      // a program's verse, or the tab browsed elsewhere since, has none.
+      // The Bible tab's cursor: a verse projected from it (`projectVerse`), or a
+      // program's verse once its chapter reached the tab (`handLiveItemToTab`);
+      // the tab browsed elsewhere since has none.
       const index = bible.currentVerseIndex;
       const verse = index === null ? undefined : bible.verses[index + 1];
       if (!verse) return null;
@@ -54,9 +66,12 @@ export function stageOutputFor(
   const { base, overlay } = state;
   const lyricsHidden = base?.kind === "song" && base.lyricsHidden;
   return {
-    current:
+    current: withChords(
       base === null ? null : uncovered(lyricsHidden ? { ...state, base: { ...base, lyricsHidden: false } } : state),
-    next: nextOutput(state, bible),
+      state,
+      base?.kind === "song" ? base : null,
+    ),
+    next: withChords(nextOutput(state, bible), state, base?.kind === "song" ? stepSong(base.song, base, 1) : null),
     videoStill: { posterUrl, videoUrl: base?.kind === "video" ? base.url : null },
     notice:
       overlay === "black" ? words.black : overlay === "logo" ? words.logo : lyricsHidden ? words.lyricsHidden : null,

@@ -19,6 +19,14 @@
  * to full opacity for the tick between the animation ending and the state
  * update landing. */
 .wa-toast-exit { animation: toast-exit 180ms var(--ease-exit) forwards; }
+/* The time a toast has left, emptying from the right; its duration comes
+ * inline from the toast's own `durationMs`, and its play state follows the
+ * store's pause (pointer or focus on it). */
+@keyframes toast-countdown {
+  from { transform: scaleX(1); }
+  to   { transform: scaleX(0); }
+}
+.wa-toast-countdown { animation: toast-countdown linear forwards; }
 
 /* A modal arrives; it does not blink in. A centred dialog has no exit: it would
  * have to stay mounted after `open` turns false, and a closing dialog that
@@ -120,6 +128,9 @@
   /* The store still waits EXIT_MS before removing the item — it just spends
    * that time already invisible, which is the point of the preference. */
   .wa-toast-exit { animation-duration: 1ms; }
+  /* A bar that shrinks is motion: under the preference it stays full and the
+   * toast still goes after its time. */
+  .wa-toast-countdown { animation: none; }
   .wa-modal-enter, .wa-backdrop-enter, .wa-screen-enter, .wa-screen-exit { animation-duration: 1ms; }
 }
 
@@ -160,6 +171,9 @@
  * `data-theme` on <html>) needs no per-component changes.
  */
 :root, [data-theme="dark"] {
+  /* Native parts — a range's empty track, a date field's calendar icon and popup,
+     scrollbars — follow the theme; without it they stayed light on dark. */
+  color-scheme: dark;
   --wa-bg-primary: #162231;
   --wa-bg-secondary: #162231;
   /* dialog -> borders, 35% / 65% */
@@ -174,11 +188,13 @@
   --wa-text-secondary: #9aa9b8;
   /* One visible step below secondary that still reads 4.5:1 on muted. */
   --wa-text-muted: #93a2b3;
-  --wa-primary: #203651;
-  --wa-primary-hover: #283e59;
-  /* The dark primary sits 1.31:1 from the background: without an edge a primary
-   * button is a label floating on nothing. primary -> secondary, 25%. */
-  --wa-primary-border: #384f69;
+  /* The sheet's navy, the light theme's primary (owner, 2026-11-05): the dark
+   * theme's own #203651 sat 1.31:1 from the background and «Guardar» read only
+   * by its border. This one is 2.09:1, white on it 7.7:1. Hover and edge:
+   * primary -> secondary (#8299b2), 15%. */
+  --wa-primary: #2f557f;
+  --wa-primary-hover: #3b5f87;
+  --wa-primary-border: #3b5f87;
   /* The mark's tile IS the background (#162231): on the toolbar only the flame
    * showed. Same problem as the primary, same edge. */
   --wa-brand-edge: #384f69;
@@ -223,6 +239,7 @@
 }
 
 [data-theme="light"] {
+  color-scheme: light;
   --wa-bg-primary: #ffffff;
   --wa-bg-secondary: #ffffff;
   --wa-bg-tertiary: #f1f3f7;
@@ -273,6 +290,12 @@
 }
 
 @theme inline {
+  /* `h-strip`: the ONE height of every bar of the main window — the top bar,
+   * the columns' headers, both rows of tabs, a tab's search row, a panel's
+   * footer (owner, 2026-11-06: «todas las líneas a un mismo tamaño»). Its 1 px
+   * line included, so 40 inside: a 32 px control sits 4 / 4, a 28 px one 6 / 6
+   * — at a round 40 they were 3.5, rounded up in some bars and down in others. */
+  --spacing-strip: calc(2.5rem + 1px);
   --color-background: var(--wa-bg-primary);
   --color-foreground: var(--wa-text-primary);
   --color-surface: var(--wa-bg-secondary);

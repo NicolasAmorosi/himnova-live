@@ -8,6 +8,7 @@ import { parseUsfx } from "./usfx";
 import { parseZefania } from "./zefania";
 import { BibleFormatError, type ParsedBible } from "./types";
 import { mt } from "../../../i18n";
+import { decodeText } from "../../../decode-text";
 
 export { BibleFormatError };
 export type { ParsedBible, ParsedBook, ParsedVerse } from "./types";
@@ -103,43 +104,6 @@ function extractFromZip(filePath: string): Buffer {
   const best = Object.values(entries).sort((a, b) => b.length - a.length)[0];
   if (!best) throw new BibleFormatError(mt("bible.zipEmpty"));
   return Buffer.from(best);
-}
-
-/** UTF-16 byte-order marks. A Zefania module written on Windows is regularly
- *  UTF-16LE, and read as UTF-8 it is a string of NUL bytes. */
-const BOM_UTF16LE = Buffer.from("fffe", "hex");
-const BOM_UTF16BE = Buffer.from("feff", "hex");
-
-/**
- * Bytes to text, honouring what the file says it is.
- *
- * This is not defensive programming, it is the difference between «Génesis»
- * and «GÃ©nesis» on the projector. Public-domain bible modules are old files:
- * a large share of the Zefania and OSIS catalogue is still
- * `encoding="ISO-8859-1"`, and Spanish is the language where that matters
- * most — every accented vowel and every ñ in the text.
- *
- * A declared encoding is trusted over a guess: the XML declaration is the
- * file telling us the answer.
- */
-function decodeText(buffer: Buffer): string {
-  if (buffer.subarray(0, 2).equals(BOM_UTF16LE)) return buffer.toString("utf16le");
-  if (buffer.subarray(0, 2).equals(BOM_UTF16BE)) return Buffer.from(buffer).swap16().toString("utf16le");
-
-  // The declaration is ASCII-compatible in every encoding this could be, so
-  // reading the first line as latin1 is always safe.
-  const declaration = buffer.subarray(0, 200).toString("latin1");
-  const encoding = /encoding\s*=\s*["']([\w-]+)["']/i.exec(declaration)?.[1]?.toLowerCase();
-  if (!encoding || encoding === "utf-8" || encoding === "utf8") return buffer.toString("utf8");
-
-  try {
-    return new TextDecoder(encoding).decode(buffer);
-  } catch {
-    // An encoding label Node does not know is not a reason to refuse the
-    // file: UTF-8 is right far more often than it is wrong, and a wrong
-    // accent is a smaller failure than no bible at all.
-    return buffer.toString("utf8");
-  }
 }
 
 /**

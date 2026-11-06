@@ -106,13 +106,14 @@ export function AboutSection() {
   }
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-8">
       <div className="flex items-center gap-5 py-2">
         <BrandMark className="size-20" />
         <div className="flex flex-col gap-2">
           <Wordmark className="text-5xl" />
           <Caption className="select-text">
-            {t("settings.aboutTagline")} · {t("settings.version")} {__APP_VERSION__}
+            {/* The version is the row below, once (2026-11-05 review). */}
+            {t("settings.aboutTagline")}
           </Caption>
         </div>
       </div>
@@ -201,6 +202,19 @@ export function AboutSection() {
             {t("settings.logsOpen")}
           </Button>
         </FieldRow>
+        <FieldRow description={t("settings.licenseDesc")} label={t("settings.license")}>
+          {/* The license's own identifier, like the version: not translated. */}
+          <Caption className="select-text">GPL-3.0</Caption>
+          <Button
+            onClick={() =>
+              void api.system.openSourceCode().catch((error: unknown) => console.warn("[about] could not open the repo", error))
+            }
+            size="sm"
+            variant="outline"
+          >
+            {t("settings.sourceCode")}
+          </Button>
+        </FieldRow>
       </FieldGroup>
 
       <ConfirmModal
@@ -208,6 +222,7 @@ export function AboutSection() {
         danger
         description={[
           risks?.unsaved ? t("schedule.closeConfirmBody") : null,
+          risks?.editor ? t("schedule.closeEditorBody") : null,
           risks?.onAir ? t("schedule.closeOnAirBody") : null,
         ]
           .filter(Boolean)

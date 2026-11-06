@@ -7,12 +7,12 @@
 import type { BibleStyle } from "./bible-style";
 import type { SlideRect } from "./deck";
 import type { PlateKind, PlatePosition, PlateStyle } from "./overlay";
-import type { BackgroundFit, SceneStyle } from "./scene-style";
+import type { BackgroundFit, SceneBackground, SceneStyle } from "./scene-style";
 import type { SlideTextSettings } from "./slide-model";
 import type { TimerClock, TimerFormat } from "./timer";
 import type { SlideTransition, TransitionSpec } from "./transition";
 import type { UtilityScene } from "./utility";
-import type { ResolvedSong, SongLanguage, SongTheme } from "./song";
+import type { ResolvedSong, SongChord, SongLanguage, SongTheme } from "./song";
 import type { SongDetour } from "../song-jump";
 
 /** Which video (if any) is the current *base* content, independent of BLACK/
@@ -48,7 +48,11 @@ export type VideoUnderlay = {
   loop: boolean;
 } | null;
 
-export const VIDEO_END_ACTIONS = ["logo", "black", "loop", "hold"] as const;
+/** What LOGO shows without a logo image (`logo.name`, `logo.background`). */
+export type LogoScene = { name: string | null; background: SceneBackground };
+export const LOGO_NAME_MAX_LENGTH = 80;
+
+export const VIDEO_END_ACTIONS = ["logo", "black", "loop", "hold", "next"] as const;
 export type VideoEndAction = (typeof VIDEO_END_ACTIONS)[number];
 
 /**
@@ -89,7 +93,10 @@ export type SlideVideo = {
 
 export type ProjectionOutputKind =
   | { kind: "black" }
-  | { kind: "logo"; url: string | null }
+  /** `url` is the church's logo image; without one, `scene` is drawn — a
+   *  background and the church's name (owner, 2026-11-05), dressed like a
+   *  verse: `backgroundUrl` is its image's, resolved here. */
+  | { kind: "logo"; url: string | null; scene: LogoScene; backgroundUrl: string | null }
   | { kind: "image"; url: string }
   | { kind: "video"; url: string; epoch: number }
   /**
@@ -178,6 +185,10 @@ export type ProjectionOutputKind =
       /** The slide in the second language, drawn under `lines` — only when the
        *  live song shows both (`SongLanguage`). */
       translation: readonly string[] | null;
+      /** The chords over `lines`. Only the musicians' screen's outputs carry
+       *  them (`stageOutputFor`): `selectOutput` never sets them, so the
+       *  projector and the monitors cannot draw one (owner, plan §8). */
+      chords?: readonly (readonly SongChord[])[];
       /** The copyright footer, on the slides its theme puts it on; `null` on
        *  the rest (its place is kept anyway — see `SongFooter`). */
       footer: readonly string[] | null;
@@ -355,10 +366,13 @@ export type MediaStatus = {
   ended: boolean;
 };
 
-/** What the PREVIEW monitor shows through the media engine (`preview:setVideo`),
- *  muted: a library video only the engine plays. `paused` is declarative, like
- *  `VideoUnderlay.paused`; `startAtSeconds` only applies to a new `url`. */
-export type PreviewEngineVideo = { url: string; paused: boolean; startAtSeconds: number };
+/** What PREVIEW plays through the media engine (`preview:setVideo`): a library
+ *  video only the engine plays (`picture`, drawn in the PREVIEW monitor), or —
+ *  with no picture — an audio file or a deck's music, whatever its codec.
+ *  `paused` and `volume` (0..1, PREVIEW's own, 0 to start — owner, 2026-11-05)
+ *  are declarative, like `VideoUnderlay`'s; `startAtSeconds` only applies to a
+ *  new `url`. */
+export type PreviewEngineVideo = { url: string; paused: boolean; startAtSeconds: number; volume: number; picture: boolean };
 
 /** The PREVIEW engine's `MediaStatus`. Its own event and not a `MediaTarget`,
  *  for the reason `use-preview-media-status.ts` gives: the preview's clock must

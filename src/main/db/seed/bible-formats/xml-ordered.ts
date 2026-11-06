@@ -28,6 +28,9 @@ const parser = new XMLParser({
   textNodeName: "#text",
   trimValues: false,
   parseAttributeValue: false,
+  // Text stays text: by default «2.50» came back as the number 2.5, a CCLI
+  // number lost its leading zeros, and a compact OpenLyrics line «1.» read «1».
+  parseTagValue: false,
   processEntities: true,
 });
 

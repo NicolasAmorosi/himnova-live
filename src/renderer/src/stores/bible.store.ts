@@ -3,6 +3,7 @@ import type { BibleBookDTO, BibleBookmark, BibleVerseDTO, BibleVersionDTO } from
 import { api } from "@renderer/lib/api";
 import { useSettingsStore } from "@renderer/stores/settings.store";
 import { usePreviewStore } from "@renderer/stores/preview.store";
+import { sameBook } from "@shared/bible-canon";
 
 /** A verse PREVIEW target is an index into the chapter loaded HERE, so a
  *  different chapter makes it name another verse: Juan 3:16 previewed, then
@@ -111,10 +112,41 @@ export const useBibleStore = create<BibleStoreState>((set, get) => ({
     }
   },
 
+  /**
+   * Another version, on the same passage when it has it (owner, 2026-11-06):
+   * the book found by what it is, not by its row (`sameBook`), the chapter,
+   * and the verses in PREVIEW and live followed by number — a verse of the
+   * tab that is live keeps its ←/→, now through this version's text (what is
+   * on the projector only changes with the next verse). A passage the version
+   * lacks leaves the tab with no chapter, as before.
+   */
   setVersion: async (versionId) => {
     const books = await api.bible.books(versionId);
-    dropVersePreview();
-    set({ versionId, books, bookId: null, chapter: null, verses: [], currentVerseIndex: null });
+    const before = get();
+    const { chapter } = before;
+    const oldBook = before.books.find((book) => book.id === before.bookId);
+    const book =
+      oldBook && chapter !== null
+        ? books.find((b) => sameBook(b, books.length, oldBook, before.books.length) && chapter <= b.chapterCount)
+        : undefined;
+    if (!book || chapter === null) {
+      dropVersePreview();
+      set({ versionId, books, bookId: null, chapter: null, verses: [], currentVerseIndex: null });
+      return;
+    }
+    const verses = await api.bible.chapter(book.id, chapter);
+    const follow = (index: number | null) => {
+      const number = index === null ? undefined : before.verses[index]?.verse;
+      const next = number === undefined ? -1 : verses.findIndex((verse) => verse.verse === number);
+      return next >= 0 ? next : null;
+    };
+    const target = usePreviewStore.getState().target;
+    if (target?.kind === "verse") {
+      const index = follow(target.verseIndex);
+      if (index === null) usePreviewStore.getState().clear();
+      else usePreviewStore.getState().setTarget({ kind: "verse", verseIndex: index });
+    }
+    set({ versionId, books, bookId: book.id, chapter, verses, currentVerseIndex: follow(before.currentVerseIndex) });
   },
 
   setBookAndChapter: async (bookId, chapter) => {

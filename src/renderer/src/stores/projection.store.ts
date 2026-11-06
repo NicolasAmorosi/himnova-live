@@ -11,6 +11,7 @@ import type {
   SceneTransition,
   SlideVideo,
   SongVideo,
+  LogoScene,
   VideoEndAction,
   VideoUnderlay,
 } from "@shared/types/projection";
@@ -63,6 +64,8 @@ export type ProjectionStoreState = {
   base: BaseContent | null;
   overlay: OverlayState;
   logoUrl: string | null;
+  /** LOGO without an image: `logo.name` and `logo.background`, mirrored by `App.tsx`. */
+  logoScene: LogoScene;
   presentationOpen: boolean;
   /** Declarative, operator-set pause for the live video — see `VideoUnderlay`.
    *  Reset to `false` whenever `base` changes, so a fresh GO LIVE always
@@ -176,6 +179,7 @@ export type ProjectionStoreState = {
   setBase: (base: BaseContent | null) => void;
   setOverlay: (overlay: OverlayState) => void;
   setLogoUrl: (url: string | null) => void;
+  setLogoScene: (scene: LogoScene) => void;
   setPresentationOpen: (open: boolean) => void;
   setVideoPaused: (paused: boolean) => void;
   /** Moves where the live video would resume from if its element had to be
@@ -217,18 +221,22 @@ export type ProjectionStoreState = {
    *  not restart. A no-op unless this exact scene is the one that is live. */
   setLiveScene: (scene: UtilityScene) => void;
 
-  /** Re-dresses the live song after it, or its theme, was saved — the
+  /** Re-dresses the live song after it, or its theme, was saved — or in
+   *  another `language`, re-resolved and re-measured by the caller — the
    *  `setLiveScene` of a song: `base` patched in place, no new scene, the
    *  projector cuts to the new words. `slideIndex` is where it lands (the
-   *  caller keeps the operator on the same section and slide when it still
-   *  exists). A no-op unless this song is the one live. */
-  setLiveSong: (song: ResolvedSong, theme: SongTheme, sizeCqw: number, slideIndex: number) => void;
+   *  caller keeps the operator on the same section and slide, `sameSlideIn`).
+   *  A no-op unless this song is the one live. */
+  setLiveSong: (
+    song: ResolvedSong,
+    theme: SongTheme,
+    sizeCqw: number,
+    slideIndex: number,
+    language?: SongLanguage,
+  ) => void;
   /** Moves within the live song — a slide of the order (1-based, clamped) or
    *  a detour off it. A cut, like a verse, and it shows the lyrics again. */
   setSongPosition: (position: SongPosition) => void;
-  /** The live song in another language, re-resolved and re-measured by the
-   *  caller: same slide, same detour, never a new scene. */
-  setSongLanguage: (language: SongLanguage, song: ResolvedSong, sizeCqw: number) => void;
   /** T: only the theme's background on the projector, or the lyrics back. */
   setLyricsHidden: (hidden: boolean) => void;
 
@@ -331,6 +339,7 @@ export const useProjectionStore = create<ProjectionStoreState>()(
     base: null,
     overlay: "none",
     logoUrl: null,
+    logoScene: { name: null, background: { kind: "solid", color: "#000000" } },
     presentationOpen: false,
     videoPaused: false,
     videoVolume: defaultMediaVolume(),
@@ -367,6 +376,7 @@ export const useProjectionStore = create<ProjectionStoreState>()(
       })),
     setOverlay: (overlay) => set({ overlay }),
     setLogoUrl: (logoUrl) => set({ logoUrl }),
+    setLogoScene: (logoScene) => set({ logoScene }),
     setPresentationOpen: (presentationOpen) => set({ presentationOpen }),
     setVideoPaused: (videoPaused) => set({ videoPaused }),
     setVideoVolume: (volume) =>
@@ -413,10 +423,11 @@ export const useProjectionStore = create<ProjectionStoreState>()(
         return { base: { ...base, scene } };
       }),
 
-    setLiveSong: (song, theme, sizeCqw, slideIndex) =>
+    setLiveSong: (song, theme, sizeCqw, slideIndex, language) =>
       set((state) => {
         const { base } = state;
         if (base?.kind !== "song" || base.songId !== song.id) return state;
+        const lang = language ?? base.language;
         const index = clamp(slideIndex, 1, Math.max(1, song.slides.length));
         // A detour survives while its section does, on a slide it still has.
         const section = base.detour && song.sections.find((s) => s.key === base.detour?.sectionKey);
@@ -436,18 +447,12 @@ export const useProjectionStore = create<ProjectionStoreState>()(
           base.sizeCqw === sizeCqw &&
           base.slideIndex === index &&
           base.backgroundVideo === backgroundVideo &&
+          base.language === lang &&
           JSON.stringify(base.detour) === JSON.stringify(detour)
         ) {
           return state;
         }
-        return { base: { ...base, song, theme, sizeCqw, slideIndex: index, detour, backgroundVideo } };
-      }),
-
-    setSongLanguage: (language, song, sizeCqw) =>
-      set((state) => {
-        const { base } = state;
-        if (base?.kind !== "song" || base.songId !== song.id) return state;
-        return { base: { ...base, language, song, sizeCqw } };
+        return { base: { ...base, song, theme, sizeCqw, slideIndex: index, detour, backgroundVideo, language: lang } };
       }),
 
     setSongPosition: (position) =>
@@ -680,6 +685,16 @@ function selectSongVideo(state: ProjectionStoreState): SongVideo | null {
   return { ...base.backgroundVideo, fit: base.theme.background.fit, posterUrl };
 }
 
+function logoKind(state: ProjectionStoreState): ProjectionOutputKind {
+  const { background } = state.logoScene;
+  return {
+    kind: "logo",
+    url: state.logoUrl,
+    scene: state.logoScene,
+    backgroundUrl: background.kind === "image" && background.assetId > 0 ? assetUrl(background.assetId) : null,
+  };
+}
+
 function selectOutputWithoutUnderlay(state: ProjectionStoreState): ProjectionOutputKind {
   if (state.overlay === "black") return { kind: "black" };
   // `logoUrl` is null while no logo has been chosen (`App.tsx` mirrors
@@ -687,10 +702,10 @@ function selectOutputWithoutUnderlay(state: ProjectionStoreState): ProjectionOut
   // logo-less LOGO is a black stage, not a broken <img>. It used to fall back
   // to the bare `worship://logo`, which main answers with a 404 when there is
   // no `logo.path` — so the projector painted the browser's own broken-image
-  // icon and reported a media error for a file nobody ever picked. Saying
-  // "there is no logo" is the control window's job instead (`LiveMonitor`).
-  if (state.overlay === "logo") return { kind: "logo", url: state.logoUrl };
-  if (state.base === null) return { kind: "logo", url: state.logoUrl };
+  // icon and reported a media error for a file nobody ever picked. Without
+  // an image the projector draws the logo scene instead (black, unless the
+  // operator or the starter look dressed it).
+  if (state.overlay === "logo" || state.base === null) return logoKind(state);
 
   switch (state.base.kind) {
     case "deck": {
@@ -813,6 +828,10 @@ type OutputInputs = readonly [
   ProjectionStoreState["base"],
   ProjectionStoreState["overlay"],
   ProjectionStoreState["logoUrl"],
+  ProjectionStoreState["logoScene"],
+  // Only whether it loops reaches the output: «logo», «black», «hold» and
+  // «next» are the end-of-playback effect's, and must not rebuild it.
+  boolean,
   ProjectionStoreState["videoPaused"],
   ProjectionStoreState["videoVolume"],
   ProjectionStoreState["slideVideoEpoch"],
@@ -834,6 +853,8 @@ function outputInputs(state: ProjectionStoreState): OutputInputs {
     state.base,
     state.overlay,
     state.logoUrl,
+    state.logoScene,
+    state.videoEnd === "loop",
     state.videoPaused,
     state.videoVolume,
     state.slideVideoEpoch,

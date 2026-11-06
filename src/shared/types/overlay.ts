@@ -80,6 +80,9 @@ export type PlateStyle = {
   subtitle: SceneTextStyle;
   /** Distance from the stage edges, in `cqw` like every size on the stage. */
   marginCqw: number;
+  /** How round the band's corners are, and a bug's image's, in `cqw`. `0` is
+   *  square; past half the band's height the browser clamps it to a pill. */
+  cornerRadiusCqw: number;
   /** A bug's image: its width, and its own opacity (a translucent watermark
    *  is the ordinary case). Ignored by a lower third. */
   image: { sizeCqw: number; opacity: number };
@@ -137,6 +140,7 @@ export const DEFAULT_PLATE_STYLE: PlateStyle = {
   // The dark theme's secundario.
   subtitle: { sizeCqw: 2, color: "#8299b2", weight: 400, shadow: false, shadowStrength: DEFAULT_SHADOW_STRENGTH },
   marginCqw: 3,
+  cornerRadiusCqw: 0,
   image: { sizeCqw: 8, opacity: 1 },
   animation: { style: "fade", durationMs: 300 },
   ticker: { enabled: false, speedCqw: 10 },

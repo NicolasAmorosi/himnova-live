@@ -18,14 +18,20 @@ import { DamagedSlideBadge } from "@renderer/components/shared/damaged-slide";
 import { useDeckStore } from "@renderer/stores/deck.store";
 import { PreviewMonitor } from "@renderer/components/pages/monitors/preview-monitor";
 import { useBibleStore } from "@renderer/stores/bible.store";
+import { useProgramStore } from "@renderer/stores/program.store";
 import { usePreviewStore } from "@renderer/stores/preview.store";
 import { useProjectionStore } from "@renderer/stores/projection.store";
 import { usePreviewContent } from "@renderer/lib/hooks/use-preview";
 import { clearPreview, previewVerse, setPreviewSlide } from "@renderer/lib/actions/preview";
 import { goLive, gotoSongSlide } from "@renderer/lib/actions/playback";
+import { sameSlideIn } from "@renderer/lib/actions/songs";
 import { SongSlideGrid } from "@renderer/components/shared/song-slide-grid";
 import { SongSectionButtons } from "@renderer/components/shared/song-section-buttons";
 import { jumpTo } from "@shared/song-jump";
+import type { BibleVerseDTO } from "@shared/types/bible";
+import { api } from "@renderer/lib/api";
+import { type BibleScheduleItem, previewItemVerse } from "@renderer/lib/actions/bible";
+import { type ReactNode, useEffect, useState } from "react";
 import { DeckPreviewBar, DeckSlides } from "./deck-slides";
 import { PreviewMediaBar } from "./preview-media-bar";
 
@@ -43,6 +49,9 @@ export function SlidesPanel() {
   const verses = useBibleStore((s) => s.verses);
   const liveVerseIndex = useBibleStore((s) => s.currentVerseIndex);
   const target = usePreviewStore((s) => s.target);
+  const scheduleItem = useProgramStore((s) =>
+    target?.kind === "scheduleItem" && s.selectedIndex !== null ? s.items[s.selectedIndex] : undefined,
+  );
   const base = useProjectionStore((s) => s.base);
   // The slide the PREVIEW monitor draws — the same pick `usePreviewOutput`
   // makes.
@@ -94,24 +103,27 @@ export function SlidesPanel() {
     }
 
     if (content.kind === "bible") {
-      return (
+      const single = (
         <SlideGrid>
           <ThumbTile label={content.reference} selected text={content.text} />
         </SlideGrid>
       );
+      return scheduleItem?.kind === "bible" ? <ScheduleChapterGrid fallback={single} item={scheduleItem} /> : single;
     }
 
     // The song's slides, the order expanded. A double click sends it live
     // from that slide — or, already live, moves the projector there.
     if (content.kind === "song") {
       const live = base?.kind === "song" && base.songId === content.song.id ? base : null;
+      // PREVIEW shows both languages; the live song may be in one, cut into
+      // other slides — the same slide there, never the same number.
       return (
         <SongSlideGrid
           // On a detour no slide of the order is on air.
-          liveIndex={live && !live.detour ? live.slideIndex : null}
+          liveIndex={live && !live.detour ? sameSlideIn(live.song, live.slideIndex, content.resolved) : null}
           onActivate={(index) => {
             setPreviewSlide(index);
-            if (live) gotoSongSlide(index);
+            if (live) gotoSongSlide(sameSlideIn(content.resolved, index, live.song));
             else void goLive();
           }}
           onSelect={setPreviewSlide}
@@ -138,7 +150,7 @@ export function SlidesPanel() {
   // clears the preview back to empty (`clearPreview`), so an operator can back
   // out of a wrong pick without touching the schedule/library selection by
   // hand. Video/audio keep their own richer bar (scrubber, preview playback),
-  // a deck its soundtrack strip; everything else is a plain `MediaTrackRow`
+  // a deck EN VIVO's own transport with its music; everything else is a plain `MediaTrackRow`
   // with nothing but the close button.
   // Rendered as a sibling of the monitor, never inside `PanelBody`, so it lands
   // on the same pixel as the first row under LIVE instead of picking up an
@@ -146,7 +158,7 @@ export function SlidesPanel() {
   const mediaBar = (() => {
     if (!content) return null;
     if (content.kind === "deck") {
-      return <DeckPreviewBar assetId={content.assetId} missingSince={content.missingSince} />;
+      return <DeckPreviewBar assetId={content.assetId} missingSince={content.missingSince} title={content.title} />;
     }
     if (content.kind === "media") {
       if (content.asset.kind === "image") {
@@ -183,16 +195,21 @@ export function SlidesPanel() {
       return (
         <MediaPanel className="w-full">
           <MediaTrackRow kind="song" label={content.song.title} onDelete={clearPreview} />
-          <div className="px-2 pb-1.5">
+          {/* Padding on both sides: the panel draws a line between its rows,
+              and the chips touched it (owner, 2026-11-05). */}
+          <div className="px-2 py-1.5">
             <SongSectionButtons
               activeKey={resolved.slides[previewSlideIndex - 1]?.sectionKey ?? null}
               onPick={(section, shift) => {
-                const next = jumpTo(
-                  resolved,
-                  { slideIndex: previewSlideIndex, detour: null },
-                  { type: section.type, number: section.number },
-                  shift ? -1 : 1,
-                );
+                // Its next time in the order (Shift: the previous), else the
+                // other way: PREVIEW has no detour, and a section already
+                // behind used to do nothing (owner, 2026-11-05: «que se pueda
+                // mover como quiera»).
+                const here = { slideIndex: previewSlideIndex, detour: null };
+                const target = { type: section.type, number: section.number };
+                const direction = shift ? -1 : 1;
+                const ahead = jumpTo(resolved, here, target, direction);
+                const next = ahead && !ahead.detour ? ahead : jumpTo(resolved, here, target, direction === 1 ? -1 : 1);
                 if (next && !next.detour) setPreviewSlide(next.slideIndex);
               }}
               sections={resolved.sections}
@@ -241,5 +258,72 @@ export function SlidesPanel() {
         <PanelBody className="p-1.5">{body()}</PanelBody>
       </div>
     </>
+  );
+}
+
+/**
+ * A Bible row of the schedule previews its whole chapter, its own verses
+ * selected (owner, 2026-11-06: «que se vea todo el capítulo»). Read here, not
+ * through the Bible tab's store: loading it there would move what the tab —
+ * and ←/→ on a verse already live — is walking just because a row was
+ * selected. Picking another verse (`previewItemVerse`), or the row going live
+ * (`handLiveItemToTab`), is what hands the chapter to the tab, and from there
+ * it is the Bible tab's own flow.
+ */
+function ScheduleChapterGrid({ fallback, item }: { fallback: ReactNode; item: BibleScheduleItem }) {
+  const t = useT();
+  const { bibleBookId, chapter } = item;
+  const key = `${bibleBookId}:${chapter}`;
+  const [loaded, setLoaded] = useState<{ key: string; verses: BibleVerseDTO[] } | null>(null);
+  const onAir = useProgramStore((s) => s.activeIndex !== null && s.items[s.activeIndex] === item);
+  const bibleLive = useProjectionStore((s) => s.base?.kind === "bible");
+
+  useEffect(() => {
+    if (bibleBookId === null || chapter === null) return;
+    let current = true;
+    api.bible.chapter(bibleBookId, chapter).then(
+      (verses) => {
+        if (current) setLoaded({ key, verses });
+      },
+      (error: unknown) => console.error("[preview] chapter failed", error),
+    );
+    return () => {
+      current = false;
+    };
+  }, [bibleBookId, chapter, key]);
+
+  const verses = loaded?.key === key ? loaded.verses : null;
+  const from = item.verseFrom;
+  if (!verses || verses.length === 0 || from === null) return fallback;
+  const to = item.verseTo ?? from;
+  const own = (verse: BibleVerseDTO) => verse.verse >= from && verse.verse <= to;
+
+  return (
+    <VirtualGrid
+      aria-label={t("bible.title")}
+      gap={SLIDE_GRID_GAP_PX}
+      itemHeight={(columnWidth) => thumbTileHeight(columnWidth, { label: false })}
+      itemKey={(verse) => verse.id}
+      items={verses}
+      minItemWidth={VERSE_TILE_MIN_WIDTH_PX}
+      renderItem={(verse, _index, { tabIndex }) => (
+        <ThumbTile
+          index={verse.verse}
+          live={onAir && bibleLive && own(verse)}
+          // The row's own verses are what PREVIEW already holds.
+          onClick={() => {
+            if (!own(verse)) void previewItemVerse(item, verse.verse);
+          }}
+          onDoubleClick={() => {
+            if (own(verse)) void goLive();
+            else void previewItemVerse(item, verse.verse).then(goLive);
+          }}
+          selected={own(verse)}
+          tabIndex={tabIndex}
+          text={verse.text}
+        />
+      )}
+      scrollToIndex={Math.max(0, verses.findIndex((verse) => verse.verse === from))}
+    />
   );
 }
