@@ -189,3 +189,30 @@ test("deleting a plate that is up takes it off the projector first", async ({ ap
   await confirm.getByRole("button", { name: "Eliminar", exact: true }).click();
   await expect(projector.getByText("Pr. Juan Pérez")).toHaveCount(0);
 });
+
+test("the time scenes are searched by name and ordered like Media's files, and the order is remembered (owner, 2026-11-05)", async ({
+  app,
+}) => {
+  await app.openResources("Funciones", "Utilidades");
+  const panel = app.control.getByRole("tabpanel", { name: "Utilidades" });
+  const rows = panel.getByRole("list", { name: "Escenas de tiempo" }).getByRole("listitem");
+  // «Orden personalizado»: the editor's own order.
+  await expect(rows).toHaveText([/^Cuenta 10 minutos/, /^Comenzamos 10:00/, /^Reloj/, /^Cronómetro/]);
+
+  await panel.getByRole("button", { name: "Ordenar" }).click();
+  await app.control.getByRole("menuitemradio", { name: "Nombre (Z → A)" }).click();
+  await expect(rows).toHaveText([/^Reloj/, /^Cuenta 10 minutos/, /^Cronómetro/, /^Comenzamos 10:00/]);
+
+  const search = panel.getByRole("textbox", { name: "Buscar por nombre…" });
+  await search.fill("CRONOMETRO");
+  await expect(rows).toHaveText([/^Cronómetro/]);
+  await search.fill("zzz");
+  await expect(panel).toContainText("Nada en esta lista se llama «zzz»");
+  await panel.getByRole("button", { name: "Limpiar la búsqueda" }).first().click();
+  await expect(rows).toHaveCount(4);
+
+  // The order is the tab's, kept; the search is not.
+  await app.openResources("Funciones", "Placas");
+  await app.openResources("Funciones", "Utilidades");
+  await expect(rows.first()).toHaveText(/^Reloj/);
+});

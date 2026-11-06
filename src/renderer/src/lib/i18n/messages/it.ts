@@ -56,10 +56,12 @@ const it: Messages = {
     search: "Cerca per nome…",
     searchNoResults: "Nessun risultato",
     searchNoResultsHint: "Nessun file di questa vista si chiama «{query}»",
+    searchNoNameHint: "Niente in questo elenco si chiama «{query}»",
     clearSearch: "Cancella la ricerca",
     sort: "Ordina",
     sortHint: "Cambia l'ordine dei file. Viene ricordato per questa scheda.",
     sortOrders: {
+      own: "Ordine personalizzato",
       "name-asc": "Nome (A → Z)",
       "name-desc": "Nome (Z → A)",
       "date-desc": "Più recenti prima",
@@ -132,6 +134,7 @@ const it: Messages = {
   },
   utilities: {
     listLabel: "Scene con timer",
+    sortHint: "Cambia l'ordine delle scene. Viene ricordato per questa scheda.",
     tools: {
       countdown: "Conto alla rovescia",
       countdownToTime: "Fino a un orario",
@@ -303,6 +306,7 @@ const it: Messages = {
   },
   overlays: {
     listLabel: "Grafiche salvate",
+    sortHint: "Cambia l'ordine delle grafiche. Viene ricordato per questa scheda.",
     kinds: {
       lowerThird: "Sottopancia",
       banner: "Banner",

@@ -3,15 +3,16 @@ import { useT } from "@renderer/lib/i18n/i18n-provider";
 import { Icon, IconButton, Input, Menu, Select, Tooltip, type MenuOption } from "@renderer/components/ui";
 
 type LibraryFilterBarProps<S extends string> = {
-  activeView: string;
-  /** Linking a folder (Media) or making one (Songs). */
-  addFolder: { hint: string; label: string; onClick: () => void };
+  activeView?: string;
+  /** Linking a folder (Media, Songs); a list without folders (the Functions
+   *  tab's) has none. */
+  addFolder?: { hint: string; label: string; onClick: () => void };
   /** What acts on the open folder, beside the dropdown; hidden on the whole library. */
   folderActions?: ReactNode;
   onQueryChange: (query: string) => void;
   /** Enter in the search box: the Songs tab previews the best match. */
   onSearchEnter?: () => void;
-  onSelectView: (view: string) => void;
+  onSelectView?: (view: string) => void;
   onSortChange: (order: S) => void;
   query: string;
   searchLabel: string;
@@ -20,9 +21,9 @@ type LibraryFilterBarProps<S extends string> = {
   sortOptions: readonly MenuOption<S>[];
   /** Where the list comes from: the whole library first, then each folder. The
    *  dropdown only exists once there is a folder. */
-  views: readonly { label: string; value: string }[];
+  views?: readonly { label: string; value: string }[];
   /** The dropdown's name: «Origen» in Media, «Carpeta» in Songs. */
-  viewsLabel: string;
+  viewsLabel?: string;
 };
 
 /**
@@ -50,7 +51,7 @@ export function LibraryFilterBar<S extends string>({
   sort,
   sortHint,
   sortOptions,
-  views,
+  views = [],
   viewsLabel,
 }: LibraryFilterBarProps<S>) {
   const t = useT();
@@ -67,9 +68,9 @@ export function LibraryFilterBar<S extends string>({
           <Select
             aria-label={viewsLabel}
             className="w-44 shrink-0"
-            onChange={onSelectView}
+            onChange={(view) => onSelectView?.(view)}
             options={[...views]}
-            value={activeView}
+            value={activeView ?? ""}
           />
           {activeView !== views[0]?.value ? folderActions : null}
         </>
@@ -101,11 +102,13 @@ export function LibraryFilterBar<S extends string>({
         </Tooltip>
       ) : null}
 
-      <Tooltip content={addFolder.hint} floating>
-        <IconButton aria-label={addFolder.label} onClick={addFolder.onClick} size="sm" variant="ghost">
-          <Icon name="folderPlus" />
-        </IconButton>
-      </Tooltip>
+      {addFolder ? (
+        <Tooltip content={addFolder.hint} floating>
+          <IconButton aria-label={addFolder.label} onClick={addFolder.onClick} size="sm" variant="ghost">
+            <Icon name="folderPlus" />
+          </IconButton>
+        </Tooltip>
+      ) : null}
     </div>
   );
 }

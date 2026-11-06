@@ -55,10 +55,12 @@ const es = {
     search: "Buscar por nombre…",
     searchNoResults: "Sin resultados",
     searchNoResultsHint: "Ningún archivo de esta vista se llama «{query}»",
+    searchNoNameHint: "Nada en esta lista se llama «{query}»",
     clearSearch: "Limpiar la búsqueda",
     sort: "Ordenar",
     sortHint: "Cambiar el orden de los archivos. Se recuerda para esta pestaña.",
     sortOrders: {
+      own: "Orden personalizado",
       "name-asc": "Nombre (A → Z)",
       "name-desc": "Nombre (Z → A)",
       "date-desc": "Más nuevo primero",
@@ -131,6 +133,7 @@ const es = {
   },
   utilities: {
     listLabel: "Escenas de tiempo",
+    sortHint: "Cambiar el orden de las escenas. Se recuerda para esta pestaña.",
     tools: {
       countdown: "Cuenta regresiva",
       countdownToTime: "A una hora",
@@ -307,6 +310,7 @@ const es = {
   },
   overlays: {
     listLabel: "Placas guardadas",
+    sortHint: "Cambiar el orden de las placas. Se recuerda para esta pestaña.",
     kinds: {
       lowerThird: "Zócalo",
       banner: "Banner",

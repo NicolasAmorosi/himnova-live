@@ -56,10 +56,12 @@ const en: Messages = {
     search: "Search by name…",
     searchNoResults: "No results",
     searchNoResultsHint: "No file in this view matches “{query}”",
+    searchNoNameHint: "Nothing in this list is called «{query}»",
     clearSearch: "Clear search",
     sort: "Sort",
     sortHint: "Change how the files are sorted. It's remembered for this tab.",
     sortOrders: {
+      own: "Custom order",
       "name-asc": "Name (A → Z)",
       "name-desc": "Name (Z → A)",
       "date-desc": "Newest first",
@@ -132,6 +134,7 @@ const en: Messages = {
   },
   utilities: {
     listLabel: "Timer scenes",
+    sortHint: "Change the order of the scenes. Remembered for this tab.",
     tools: {
       countdown: "Countdown",
       countdownToTime: "Countdown to time",
@@ -302,6 +305,7 @@ const en: Messages = {
   },
   overlays: {
     listLabel: "Saved overlays",
+    sortHint: "Change the order of the overlays. Remembered for this tab.",
     kinds: {
       lowerThird: "Lower third",
       banner: "Banner",

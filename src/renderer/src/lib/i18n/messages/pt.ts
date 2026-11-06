@@ -56,10 +56,12 @@ const pt: Messages = {
     search: "Buscar por nome…",
     searchNoResults: "Nenhum resultado",
     searchNoResultsHint: "Nenhum arquivo desta visualização se chama “{query}”",
+    searchNoNameHint: "Nada nesta lista se chama «{query}»",
     clearSearch: "Limpar a busca",
     sort: "Ordenar",
     sortHint: "Mudar a ordem dos arquivos. Fica salva para esta aba.",
     sortOrders: {
+      own: "Ordem personalizada",
       "name-asc": "Nome (A → Z)",
       "name-desc": "Nome (Z → A)",
       "date-desc": "Mais recentes primeiro",
@@ -132,6 +134,7 @@ const pt: Messages = {
   },
   utilities: {
     listLabel: "Cenas de tempo",
+    sortHint: "Mudar a ordem das cenas. Fica lembrada para esta aba.",
     tools: {
       countdown: "Contagem regressiva",
       countdownToTime: "Até um horário",
@@ -303,6 +306,7 @@ const pt: Messages = {
   },
   overlays: {
     listLabel: "Overlays salvos",
+    sortHint: "Mudar a ordem dos overlays. Fica lembrada para esta aba.",
     kinds: {
       lowerThird: "Tarja",
       banner: "Banner",

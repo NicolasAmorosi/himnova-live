@@ -10,6 +10,12 @@ import type { SceneBackground } from "./scene-style";
 import { isSceneBackground } from "../style-validators";
 import { LOGO_URL } from "../urls";
 
+/** How a Functions list (time scenes, plates) is ordered: «own» is the order
+ *  the operator gave it in its editor; the rest like Media's (owner,
+ *  2026-11-05: «el botón de ordenar como en las otras páginas»). */
+export const NAMED_SORT_ORDERS = ["own", "name-asc", "name-desc", "date-desc", "date-asc"] as const;
+export type NamedSortOrder = (typeof NAMED_SORT_ORDERS)[number];
+
 export const THEMES = ["dark", "light"] as const;
 export type Theme = (typeof THEMES)[number];
 
@@ -120,6 +126,9 @@ export type SettingsMap = {
    *  and `library.activeView`. A view whose folder was unlinked reads as the
    *  library. */
   "songs.sort": SongSortOrder;
+  /** The Functions tab's lists, each ordered on its own. */
+  "functions.scenesSort": NamedSortOrder;
+  "functions.platesSort": NamedSortOrder;
   "songs.linkedFolders": string[];
   "songs.activeView": string;
   /** How a scripture verse is drawn on the projector — see `BibleStyle`.
@@ -181,6 +190,8 @@ export const DEFAULT_SETTINGS: SettingsMap = {
   "songs.defaultThemeId": null,
   "songs.ccliLicense": null,
   "songs.sort": "title-asc",
+  "functions.scenesSort": "own",
+  "functions.platesSort": "own",
   "songs.linkedFolders": [],
   "songs.activeView": "library",
   "bible.style": DEFAULT_BIBLE_STYLE,
@@ -287,6 +298,8 @@ export const SETTINGS_VALIDATORS: Record<keyof SettingsMap, (value: unknown) => 
   "songs.defaultThemeId": (v) => v === null || (typeof v === "number" && Number.isInteger(v) && v > 0),
   "songs.ccliLicense": (v) => v === null || (typeof v === "string" && v.length <= 100),
   "songs.sort": isOneOf(SONG_SORT_ORDERS),
+  "functions.scenesSort": isOneOf(NAMED_SORT_ORDERS),
+  "functions.platesSort": isOneOf(NAMED_SORT_ORDERS),
   "songs.linkedFolders": isStringArray,
   "songs.activeView": isString,
   "bible.style": isBibleStyle,

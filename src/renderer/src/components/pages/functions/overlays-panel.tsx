@@ -1,7 +1,11 @@
-import { useState } from "react";
-import { useT } from "@renderer/lib/i18n/i18n-provider";
+import { useMemo, useState } from "react";
+import { useI18n } from "@renderer/lib/i18n/i18n-provider";
 import { Button, EmptyState, Icon, IconButton, ListRow, Tooltip } from "@renderer/components/ui";
 import { PanelBody, PanelFooter } from "@renderer/components/shared/panel";
+import { LibraryFilterBar } from "@renderer/components/shared/library-filter-bar";
+import { viewNamed } from "@renderer/lib/named-list";
+import { useSettingsStore } from "@renderer/stores/settings.store";
+import { NAMED_SORT_ORDERS, type NamedSortOrder } from "@shared/types/settings";
 import { ModalBoundary } from "@renderer/components/shared/modal-boundary";
 import { PlateAirStatus } from "@renderer/components/shared/plate-air-status";
 import { toast } from "@renderer/lib/toast";
@@ -29,9 +33,12 @@ import { PLATE_KIND_ICON, PLATE_KIND_LABEL } from "./plate-display";
  * schedule.
  */
 export function OverlaysPanel() {
-  const t = useT();
+  const { locale, t } = useI18n();
   const [editorOpen, setEditorOpen] = useState(false);
   const plates = useOverlayStore((s) => s.plates);
+  const sort = useSettingsStore((s) => s.settings["functions.platesSort"]);
+  const [query, setQuery] = useState("");
+  const shown = useMemo(() => viewNamed(plates, sort, query, locale), [plates, sort, query, locale]);
   const target = usePreviewStore((s) => s.target);
   const livePlates = useProjectionStore((s) => s.livePlates);
   const addItem = useProgramStore((s) => s.addItem);
@@ -40,6 +47,16 @@ export function OverlaysPanel() {
 
   return (
     <>
+      {/* Searched and ordered like Media's and Songs' lists (owner, 2026-11-05). */}
+      <LibraryFilterBar<NamedSortOrder>
+        onQueryChange={setQuery}
+        onSortChange={(order) => void useSettingsStore.getState().update({ "functions.platesSort": order })}
+        query={query}
+        searchLabel={t("resources.search")}
+        sort={sort}
+        sortHint={t("overlays.sortHint")}
+        sortOptions={NAMED_SORT_ORDERS.map((order) => ({ label: t(`resources.sortOrders.${order}`), value: order }))}
+      />
       <PanelBody className="gap-1.5 p-1.5">
         {plates.length === 0 ? (
           // No button: «Placas» is in the footer right below (2026-11-04 review).
@@ -48,9 +65,20 @@ export function OverlaysPanel() {
             icon="overlay"
             title={t("overlays.empty")}
           />
+        ) : shown.length === 0 ? (
+          <EmptyState
+            action={
+              <Button onClick={() => setQuery("")} size="sm" variant="outline">
+                {t("resources.clearSearch")}
+              </Button>
+            }
+            description={t("resources.searchNoNameHint", { query })}
+            icon="search"
+            title={t("resources.searchNoResults")}
+          />
         ) : (
           <ul aria-label={t("overlays.listLabel")} className="flex flex-col gap-0.5" title={t("overlays.selectHint")}>
-            {plates.map((plate) => (
+            {shown.map((plate) => (
               <ListRow
                 active={livePlates.some((live) => live.id === plate.id)}
                 draggable

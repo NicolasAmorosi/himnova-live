@@ -1,7 +1,11 @@
-import { useState } from "react";
-import { useT } from "@renderer/lib/i18n/i18n-provider";
+import { useMemo, useState } from "react";
+import { useI18n } from "@renderer/lib/i18n/i18n-provider";
 import { Button, EmptyState, Icon, IconButton, ListRow, Tooltip } from "@renderer/components/ui";
 import { PanelBody, PanelFooter } from "@renderer/components/shared/panel";
+import { LibraryFilterBar } from "@renderer/components/shared/library-filter-bar";
+import { viewNamed } from "@renderer/lib/named-list";
+import { useSettingsStore } from "@renderer/stores/settings.store";
+import { NAMED_SORT_ORDERS, type NamedSortOrder } from "@shared/types/settings";
 import { ModalBoundary } from "@renderer/components/shared/modal-boundary";
 import { toast } from "@renderer/lib/toast";
 import { useUtilityStore } from "@renderer/stores/utility.store";
@@ -41,9 +45,12 @@ import { TOOL_ICON, TOOL_LABEL } from "./tool-display";
  * (see `PLAN.md`).
  */
 export function UtilitiesPanel() {
-  const t = useT();
+  const { locale, t } = useI18n();
   const [editorOpen, setEditorOpen] = useState(false);
   const scenes = useUtilityStore((s) => s.scenes);
+  const sort = useSettingsStore((s) => s.settings["functions.scenesSort"]);
+  const [query, setQuery] = useState("");
+  const shown = useMemo(() => viewNamed(scenes, sort, query, locale), [scenes, sort, query, locale]);
   const runSceneId = useUtilityStore((s) => s.run?.sceneId ?? null);
   const runStarted = useUtilityStore((s) => s.run?.started ?? false);
   const target = usePreviewStore((s) => s.target);
@@ -60,6 +67,16 @@ export function UtilitiesPanel() {
 
   return (
     <>
+      {/* Searched and ordered like Media's and Songs' lists (owner, 2026-11-05). */}
+      <LibraryFilterBar<NamedSortOrder>
+        onQueryChange={setQuery}
+        onSortChange={(order) => void useSettingsStore.getState().update({ "functions.scenesSort": order })}
+        query={query}
+        searchLabel={t("resources.search")}
+        sort={sort}
+        sortHint={t("utilities.sortHint")}
+        sortOptions={NAMED_SORT_ORDERS.map((order) => ({ label: t(`resources.sortOrders.${order}`), value: order }))}
+      />
       <PanelBody className="gap-1.5 p-1.5">
         {scenes.length === 0 ? (
           // No button: «Escenas» is in the footer right below (2026-11-04 review).
@@ -68,9 +85,20 @@ export function UtilitiesPanel() {
             icon="clock"
             title={t("utilities.empty")}
           />
+        ) : shown.length === 0 ? (
+          <EmptyState
+            action={
+              <Button onClick={() => setQuery("")} size="sm" variant="outline">
+                {t("resources.clearSearch")}
+              </Button>
+            }
+            description={t("resources.searchNoNameHint", { query })}
+            icon="search"
+            title={t("resources.searchNoResults")}
+          />
         ) : (
           <ul aria-label={t("utilities.listLabel")} className="flex flex-col gap-0.5">
-            {scenes.map((scene) => (
+            {shown.map((scene) => (
               <ListRow
                 active={liveSceneId === scene.id}
                 key={scene.id}
