@@ -164,6 +164,7 @@ export const api = {
   settings: {
     get: () => invoke("settings:get", undefined),
     set: (partial: Partial<SettingsMap>) => invoke("settings:set", partial),
+    factoryVerseStyle: () => invoke("settings:factoryVerseStyle", undefined),
   },
   system: {
     gpuStatus: () => invoke("system:gpuStatus", undefined),

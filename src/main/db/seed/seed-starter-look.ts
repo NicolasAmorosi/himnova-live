@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import type Database from "better-sqlite3";
-import { DEFAULT_BIBLE_STYLE } from "@shared/types/bible-style";
+import { DEFAULT_BIBLE_STYLE, type BibleStyle } from "@shared/types/bible-style";
 import { DEFAULT_BUG_STYLE, DEFAULT_PLATE_STYLE, type Plate } from "@shared/types/overlay";
 import { DEFAULT_SCENE_STYLE, type SceneStyle } from "@shared/types/scene-style";
 import { DEFAULT_SETTINGS } from "@shared/types/settings";
@@ -179,7 +179,22 @@ function seedFirstLook(repos: Repos, dirs: Dirs, text: Text, isNewProfile: boole
  *  background the operator deleted stays deleted. */
 function dressLogo(repos: Repos, dirs: Dirs, text: Text): void {
   if (!isDeepStrictEqual(repos.settings.get("logo.background"), DEFAULT_SETTINGS["logo.background"])) return;
-  const night = path.join(dirs.to, `${text.backgrounds.night}.webp`);
-  const asset = repos.media.list("image").find((candidate) => candidate.path === night);
-  if (asset) repos.settings.setMany({ "logo.background": { kind: "image", assetId: asset.id, fit: "cover" } });
+  const night = nightBackground(repos.media, dirs.to, text);
+  if (night) repos.settings.setMany({ "logo.background": night });
+}
+
+/** «Noche» where version 1 put it in the library, or `null` once the operator deleted it.
+ *  ponytail: looks it up under the CURRENT language's name — a profile seeded in another
+ *  language falls back to black; search every dictionary's name if that ever matters. */
+function nightBackground(media: MediaRepo, folder: string, text: Text) {
+  const night = path.join(folder, `${text.backgrounds.night}.webp`);
+  const asset = media.list("image").find((candidate) => candidate.path === night);
+  return asset ? ({ kind: "image", assetId: asset.id, fit: "cover" } as const) : null;
+}
+
+/** The verse's style as it comes (its «Restaurar»; owner, 2026-11-06): over «Noche» while the
+ *  library still has it, plain black otherwise. */
+export function factoryVerseStyle(media: MediaRepo, folder: string, text: Text): BibleStyle {
+  const night = nightBackground(media, folder, text);
+  return night ? { ...DEFAULT_BIBLE_STYLE, background: night } : DEFAULT_BIBLE_STYLE;
 }

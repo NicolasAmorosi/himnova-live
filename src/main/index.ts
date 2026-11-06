@@ -40,6 +40,7 @@ import {
   legacySettingsPath,
   migrationsDir,
   userDataDir,
+  profileBackgroundsDir,
 } from "./paths";
 import { mainMessages, mt, setMainLocale } from "./i18n";
 import { systemLocale } from "./i18n/system-locale";
@@ -152,7 +153,7 @@ function initDatabase(): void {
         overlays: getOverlaysRepo(),
         settings: getSettingsRepo(),
       },
-      { from: backgroundsDir, to: path.join(userDataDir, "backgrounds") },
+      { from: backgroundsDir, to: profileBackgroundsDir },
       mainMessages().look,
       isNewProfile,
     );

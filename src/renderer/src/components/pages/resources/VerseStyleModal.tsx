@@ -30,7 +30,6 @@ import {
   BIBLE_LINE_HEIGHT_MIN,
   BIBLE_MAX_WIDTH_MAX_CQW,
   BIBLE_MAX_WIDTH_MIN_CQW,
-  DEFAULT_BIBLE_STYLE,
   REFERENCE_POSITIONS,
   TEXT_ALIGNS,
   TEXT_CASES,
@@ -360,7 +359,7 @@ export function VerseStyleModal({ onOpenChange, open }: { onOpenChange: (open: b
         description={t("settings.verse.resetBody")}
         onConfirm={async () => {
           setPendingImage(null);
-          await update({ "bible.style": DEFAULT_BIBLE_STYLE });
+          await update({ "bible.style": await api.settings.factoryVerseStyle() });
           toast.success(t("settings.verse.resetDone"));
         }}
         onOpenChange={setConfirmingReset}

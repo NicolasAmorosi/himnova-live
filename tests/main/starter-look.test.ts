@@ -10,7 +10,7 @@ import { afterEach, describe, expect, test } from "vitest";
 import { openDatabase } from "../../src/main/db/client";
 import { runMigrations } from "../../src/main/db/migrate";
 import { seedSongThemes } from "../../src/main/db/seed/seed-song-themes";
-import { seedStarterLook, STARTER_LOOK_VERSION } from "../../src/main/db/seed/seed-starter-look";
+import { factoryVerseStyle, seedStarterLook, STARTER_LOOK_VERSION } from "../../src/main/db/seed/seed-starter-look";
 import { seedUtilityScenes } from "../../src/main/db/seed/seed-utility-scenes";
 import mainEs from "../../src/main/i18n/messages/es";
 import {
@@ -172,5 +172,19 @@ describe("the starter look, version 2: LOGO without an image", () => {
     getSettingsRepo().setMany({ "logo.background": chosen });
     seed(false);
     expect(getSettingsRepo().get("logo.background")).toEqual(chosen);
+  });
+});
+
+describe("the verse's «Restaurar»", () => {
+  test("brings the verse back over «Noche», and to plain black once «Noche» is deleted", () => {
+    const { dir, seed } = profile();
+    seed(true);
+    const folder = path.join(dir, "backgrounds");
+    expect(factoryVerseStyle(getMediaRepo(), folder, mainEs.look)).toEqual(getSettingsRepo().get("bible.style"));
+    expect(factoryVerseStyle(getMediaRepo(), folder, mainEs.look).background.kind).toBe("image");
+
+    const night = getMediaRepo().list("image").find((asset) => asset.name === "Noche");
+    getMediaRepo().remove(night!.id);
+    expect(factoryVerseStyle(getMediaRepo(), folder, mainEs.look)).toEqual(DEFAULT_BIBLE_STYLE);
   });
 });

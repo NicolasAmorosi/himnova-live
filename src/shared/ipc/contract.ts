@@ -41,6 +41,7 @@ import type {
   ProgramUpsert,
 } from "../types/program";
 import type { SettingsMap } from "../types/settings";
+import type { BibleStyle } from "../types/bible-style";
 import type { GpuStatus, InternalsPage, VideoDecoderReport } from "../types/system";
 import type { UtilityScene, UtilitySceneUpsert, UtilitySceneUsage } from "../types/utility";
 import type { Plate, PlateUpsert, PlateUsage } from "../types/overlay";
@@ -359,6 +360,8 @@ export type IpcContract = {
 
   "settings:get": { req: void; res: SettingsMap };
   "settings:set": { req: Partial<SettingsMap>; res: void };
+  /** The verse's style as a new install has it — what its «Restaurar» saves. */
+  "settings:factoryVerseStyle": { req: void; res: BibleStyle };
 
   "system:gpuStatus": { req: void; res: GpuStatus };
   /** Opens the folder holding `main.log` and `crash.log` in the OS's file

@@ -1,10 +1,12 @@
 import type { Handlers } from "../register";
-import { getSettingsRepo } from "../../services/repos";
+import { getMediaRepo, getSettingsRepo } from "../../services/repos";
 import { IpcError } from "@shared/ipc/result";
 import { SETTINGS_VALIDATORS, isSettingsKey, type SettingsMap } from "@shared/types/settings";
-import { setMainLocale } from "../../i18n";
+import { mainMessages, setMainLocale } from "../../i18n";
 import { installApplicationMenu } from "../../windows/app-menu";
 import { syncStageWindow } from "../../windows/stage-window";
+import { factoryVerseStyle } from "../../db/seed/seed-starter-look";
+import { profileBackgroundsDir } from "../../paths";
 
 /**
  * The IPC contract is a compile-time guarantee, and this is the one channel
@@ -33,7 +35,7 @@ function assertValidSettings(partial: Partial<SettingsMap>): void {
   }
 }
 
-export const settingsHandlers: Pick<Handlers, "settings:get" | "settings:set"> = {
+export const settingsHandlers: Pick<Handlers, "settings:get" | "settings:set" | "settings:factoryVerseStyle"> = {
   "settings:get": () => getSettingsRepo().getAll(),
   "settings:set": (partial) => {
     assertValidSettings(partial);
@@ -46,4 +48,5 @@ export const settingsHandlers: Pick<Handlers, "settings:get" | "settings:set"> =
     // The projector's screen counts too: the stage never shares it.
     if ("stage.displayId" in partial || "projection.displayId" in partial) syncStageWindow();
   },
+  "settings:factoryVerseStyle": () => factoryVerseStyle(getMediaRepo(), profileBackgroundsDir, mainMessages().look),
 };
