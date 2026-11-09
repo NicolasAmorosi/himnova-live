@@ -201,6 +201,14 @@ export type IpcContract = {
     req: { bookId: number; chapter: number; verseFrom: number; verseTo: number };
     res: BibleBookmark[];
   };
+  /** The same passage in another version, its book found by the app's own
+   *  abbrev (`bible-canon.ts`) — a verse going out in two languages. The
+   *  reference carries that version's own book name; `null` when it lacks the
+   *  passage. */
+  "bible:passage": {
+    req: { versionId: number; bookAbbrev: string; chapter: number; verseFrom: number; verseTo: number };
+    res: { text: string; reference: string } | null;
+  };
 
   "library:list": { req: { kind: AssetKind }; res: MediaAsset[] };
   "library:get": { req: { id: number }; res: MediaAsset | null };

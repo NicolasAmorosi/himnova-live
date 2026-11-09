@@ -162,6 +162,10 @@ export type SettingsMap = {
    *  deleted, by the delete itself: a dangling id would silently fall back
    *  and look like the setting was never saved. */
   "bible.defaultVersionId": number | null;
+  /** The version every verse also goes out in, side by side (the Bible tab's
+   *  «En paralelo»). `null` is none, and so is the verse's own version. Reset
+   *  to `null` by the delete of the version it names, like the default. */
+  "bible.parallelVersionId": number | null;
   /** Whether this database has ever been offered the bundled RV1909.
    *
    *  Exists for exactly the reason `utility.seeded` does, with one extra
@@ -233,6 +237,7 @@ export const DEFAULT_SETTINGS: SettingsMap = {
   "songs.activeView": "library",
   "bible.style": DEFAULT_BIBLE_STYLE,
   "bible.defaultVersionId": null,
+  "bible.parallelVersionId": null,
   "bible.builtinSeeded": false,
   "updates.autoCheck": true,
   "updates.announcedVersion": null,
@@ -349,6 +354,7 @@ export const SETTINGS_VALIDATORS: Record<keyof SettingsMap, (value: unknown) => 
   "songs.activeView": isString,
   "bible.style": isBibleStyle,
   "bible.defaultVersionId": (v) => v === null || (typeof v === "number" && Number.isInteger(v) && v > 0),
+  "bible.parallelVersionId": (v) => v === null || (typeof v === "number" && Number.isInteger(v) && v > 0),
   "bible.builtinSeeded": isBoolean,
   "updates.autoCheck": isBoolean,
   "updates.announcedVersion": isNullOr(isString),
