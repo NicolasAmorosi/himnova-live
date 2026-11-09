@@ -93,3 +93,15 @@ export function formatBytes(bytes: number, locale = "es"): string {
   const digits = unit === 0 ? 0 : 1;
   return `${value.toLocaleString(locale, { minimumFractionDigits: digits, maximumFractionDigits: digits })} ${units[unit]}`;
 }
+
+/** A language's name in the interface's language, capitalized like a heading («Inglés», «Portoghese»); a tag
+ *  `Intl` has no name for is shown as it is. */
+export function languageName(code: string, locale: string): string {
+  try {
+    const name = new Intl.DisplayNames([locale], { type: "language", fallback: "none" }).of(code);
+    if (name) return name.charAt(0).toLocaleUpperCase(locale) + name.slice(1);
+  } catch {
+    // Not a language tag at all: `of` throws a RangeError.
+  }
+  return code;
+}

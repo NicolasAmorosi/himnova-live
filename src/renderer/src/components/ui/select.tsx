@@ -1,14 +1,23 @@
 import type { ButtonHTMLAttributes, KeyboardEvent as ReactKeyboardEvent } from "react";
-import { useContext, useEffect, useId, useMemo, useRef, useState } from "react";
+import { Fragment, useContext, useEffect, useId, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useT } from "@renderer/lib/i18n/i18n-provider";
 import { isPointerFocused } from "@renderer/lib/focus-modality";
-import { cn, normalizeForSearch } from "@renderer/lib/utils";
+import { cn } from "@renderer/lib/utils";
 import { FieldLabelContext } from "./field-layout";
 import { computeMenuPosition, useFollowTrigger, type MenuPosition } from "./floating-menu";
 import { Icon } from "./icon";
+import { filterOptions, groupHeaderAt, orderByGroup } from "./select.groups";
 
-export type SelectOption = { disabled?: boolean; label: string; value: string };
+export type SelectOption = {
+  disabled?: boolean;
+  /** A heading the option is listed under — the language of a bible. Options of one group are listed together,
+   *  the groups in the order they first appear; the heading is a label, never a row the keyboard stops on. Leave
+   *  it out when every option would share it. */
+  group?: string;
+  label: string;
+  value: string;
+};
 
 /** A command at the foot of the list, after a rule — «Import image…» under the
  *  images it adds to. Not a value: picking it closes the menu and runs it. */
@@ -85,11 +94,11 @@ export function Select({
   /** What the menu actually lists. Everything below indexes into THIS: with a
    *  filter applied, an index into `options` points at a row that is not on
    *  screen, which is how a keyboard commit picks the wrong font. */
-  const visible = useMemo(() => {
-    const needle = normalizeForSearch(query);
-    if (!searchable || needle === "") return options;
-    return options.filter((option) => normalizeForSearch(option.label).includes(needle));
-  }, [options, query, searchable]);
+  const ordered = useMemo(() => orderByGroup(options), [options]);
+  const visible = useMemo(
+    () => (searchable ? filterOptions(ordered, query) : ordered),
+    [ordered, query, searchable],
+  );
 
   /** Rows the highlight walks: the visible options, then the action. */
   const rows = visible.length + (action ? 1 : 0);
@@ -160,11 +169,11 @@ export function Select({
     // A stale query would open the menu already filtered down to whatever the
     // operator looked for last time, hiding the value that is actually set.
     if (searchable) setQuery("");
-    // `options`, not `visible`: a searchable menu opens unfiltered (the query
+    // `ordered`, not `visible`: a searchable menu opens unfiltered (the query
     // was just cleared) and a plain one never filters at all.
-    const selectedIndex = options.findIndex((o) => o.value === value);
+    const selectedIndex = ordered.findIndex((o) => o.value === value);
     setPosition(computeMenuPosition(triggerRef.current));
-    setHighlightedIndex(initialIndex ?? (selectedIndex >= 0 ? selectedIndex : firstEnabledIndex(options)));
+    setHighlightedIndex(initialIndex ?? (selectedIndex >= 0 ? selectedIndex : firstEnabledIndex(ordered)));
     setOpen(true);
   }
 
@@ -213,11 +222,11 @@ export function Select({
       state.buffer = "";
     }, 500);
 
-    const count = options.length;
+    const count = ordered.length;
     const startAt = open ? highlightedIndex + 1 : 0;
     for (let i = 0; i < count; i++) {
       const index = (startAt + i) % count;
-      const option = options[index];
+      const option = ordered[index];
       if (option && !option.disabled && option.label.toLowerCase().startsWith(state.buffer)) {
         if (open) setHighlightedIndex(index);
         else openMenu(index);
@@ -231,9 +240,7 @@ export function Select({
     // The highlight is an index into a list that just changed under it, so it
     // is re-seeded rather than kept: Enter must commit the row the operator is
     // looking at, which after typing is the first match.
-    const needle = normalizeForSearch(next);
-    const list = needle === "" ? options : options.filter((o) => normalizeForSearch(o.label).includes(needle));
-    setHighlightedIndex(firstEnabledIndex(list));
+    setHighlightedIndex(firstEnabledIndex(filterOptions(ordered, next)));
   }
 
   function handleKeyDown(e: ReactKeyboardEvent<HTMLElement>) {
@@ -384,34 +391,48 @@ export function Select({
               id={listboxId}
               role="listbox"
             >
-              {visible.map((option, index) => (
-                /* eslint-disable-next-line jsx-a11y/click-events-have-key-events --
-                   In the ARIA listbox pattern the options never take focus: the
-                   trigger (or the filter box) keeps it and points at the active
-                   option with `aria-activedescendant`, so the keyboard
-                   equivalent of this click lives in that element's `onKeyDown`.
-                   A key handler here could never fire. */
-                <li
-                  aria-disabled={option.disabled || undefined}
-                  aria-selected={option.value === value}
-                  className={cn(
-                    "flex items-center justify-between gap-2 rounded-md px-2 py-1.5 text-sm text-foreground",
-                    option.disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer",
-                    !option.disabled && index === highlightedIndex && "bg-hover",
-                  )}
-                  id={optionId(index)}
-                  key={option.value}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    selectOption(index, false);
-                  }}
-                  onMouseEnter={() => !option.disabled && setHighlightedIndex(index)}
-                  role="option"
-                >
-                  <span className="truncate">{option.label}</span>
-                  {option.value === value ? <Icon className="text-accent-ink" name="check" /> : null}
-                </li>
-              ))}
+              {visible.map((option, index) => {
+                const header = groupHeaderAt(visible, index);
+                return (
+                  <Fragment key={option.value}>
+                    {/* A label, not a row: no `role="option"`, no index, so the
+                        highlight and the type-ahead step over it. */}
+                    {header !== null ? (
+                      <li
+                        className="px-2 pt-2 pb-1 text-xs font-medium text-muted-foreground first:pt-1"
+                        role="presentation"
+                      >
+                        {header}
+                      </li>
+                    ) : null}
+                    {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events --
+                       In the ARIA listbox pattern the options never take focus: the
+                       trigger (or the filter box) keeps it and points at the active
+                       option with `aria-activedescendant`, so the keyboard
+                       equivalent of this click lives in that element's `onKeyDown`.
+                       A key handler here could never fire. */}
+                    <li
+                      aria-disabled={option.disabled || undefined}
+                      aria-selected={option.value === value}
+                      className={cn(
+                        "flex items-center justify-between gap-2 rounded-md px-2 py-1.5 text-sm text-foreground",
+                        option.disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer",
+                        !option.disabled && index === highlightedIndex && "bg-hover",
+                      )}
+                      id={optionId(index)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        selectOption(index, false);
+                      }}
+                      onMouseEnter={() => !option.disabled && setHighlightedIndex(index)}
+                      role="option"
+                    >
+                      <span className="truncate">{option.label}</span>
+                      {option.value === value ? <Icon className="text-accent-ink" name="check" /> : null}
+                    </li>
+                  </Fragment>
+                );
+              })}
               {action ? (
                 <>
                   {visible.length > 0 ? <li aria-hidden className="mx-1 my-1 h-px bg-border" role="presentation" /> : null}

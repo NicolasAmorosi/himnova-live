@@ -26,6 +26,7 @@ import { setBibleVerseDrag } from "@renderer/lib/dnd";
 import { useDebouncedCallback } from "@renderer/lib/hooks/use-debounced-callback";
 import { matchReference, type ReferenceMatch } from "@renderer/lib/bible-reference";
 import { toast } from "@renderer/lib/toast";
+import { languageName } from "@renderer/lib/utils";
 import {
   parseSnippet,
   passageReference,
@@ -62,6 +63,16 @@ export function BibleBrowser() {
   const recents = useBibleStore((s) => s.recents);
   const setFavorite = useBibleStore((s) => s.setFavorite);
   const target = usePreviewStore((s) => s.target);
+  // Under a heading per language, and only once there is more than one: a
+  // single-language list needs no headings (owner, 2026-11-09).
+  const versionOptions = useMemo(() => {
+    const grouped = new Set(versions.map((v) => v.language)).size > 1;
+    return versions.map((v) => ({
+      label: v.name,
+      value: String(v.id),
+      ...(grouped ? { group: languageName(v.language, locale) } : {}),
+    }));
+  }, [versions, locale]);
   const [pendingBook, setPendingBook] = useState("");
   const [pendingChapter, setPendingChapter] = useState("");
   // The pickers follow the chapter the tab holds, wherever it was loaded from:
@@ -254,7 +265,7 @@ export function BibleBrowser() {
             aria-label={t("bible.versionLabel")}
             className="min-w-0"
             onChange={(value) => void setVersion(Number(value))}
-            options={versions.map((v) => ({ label: v.name, value: String(v.id) }))}
+            options={versionOptions}
             size="sm"
             value={versionId !== null ? String(versionId) : ""}
           />
