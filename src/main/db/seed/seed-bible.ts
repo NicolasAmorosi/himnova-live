@@ -115,6 +115,15 @@ export function seedBibleFromFile(
       })
       .run().lastInsertRowid as number;
 
+    // The insert trigger indexes one row at a time: ~0.5 s of a whole bible's
+    // ~0.6 s load, ten times what the rows cost (measured 2026-11-09). It is set
+    // aside for the bulk load — DDL is part of this transaction, so a failure
+    // puts it back — and the new rows are indexed in one statement below.
+    const trigger = sqlite
+      .prepare(`SELECT sql FROM sqlite_master WHERE type = 'trigger' AND name = 'bible_verses_ai'`)
+      .get() as { sql: string } | undefined;
+    if (trigger) sqlite.exec(`DROP TRIGGER bible_verses_ai`);
+
     const insertVerse = sqlite.prepare(
       `INSERT INTO bible_verses (version_id, book_id, chapter, verse, text) VALUES (?, ?, ?, ?, ?)`,
     );
@@ -137,9 +146,13 @@ export function seedBibleFromFile(
       }
     });
 
-    // Rebuilding once after the bulk load is far cheaper than firing the sync
-    // triggers 31k times individually; see docs/knowledge for the measured cost.
-    sqlite.exec(`INSERT INTO bible_verses_fts(bible_verses_fts) VALUES('rebuild')`);
+    // Only this version's rows: a 'rebuild' would re-index every installed
+    // version (it is what this used to do, on top of the trigger — not instead
+    // of it), so each new bible took longer to install than the one before.
+    sqlite
+      .prepare(`INSERT INTO bible_verses_fts(rowid, text) SELECT id, text FROM bible_verses WHERE version_id = ?`)
+      .run(versionId);
+    if (trigger) sqlite.exec(trigger.sql);
 
     return { versionId, verseCount: totalVerses };
   });
