@@ -189,6 +189,16 @@ describe("USFX XML", () => {
     expect(john.verses[1]!.text).toContain("condenar al mundo");
   });
 
+  test("a verse wrapped over lines in the file is one line", () => {
+    const wrapped = `<usfx><languageCode>spa</languageCode><book id="EXO"><c id="16"/>
+<p><v id="25"/>Comedlo hoy, porque hoy es reposo delante del
+        <nd>Señor</nd>;   hoy no lo hallaréis en el campo.<ve/></p></book></usfx>`;
+    const exodus = parseBibleFile(write("usfx-3.xml", wrapped)).books[0]!;
+    expect(exodus.verses[0]!.text).toBe(
+      "Comedlo hoy, porque hoy es reposo delante del Señor; hoy no lo hallaréis en el campo.",
+    );
+  });
+
   test("drops the footnote and the machine id line", () => {
     const john = parseBibleFile(write("usfx-2.xml", xml)).books[0]!;
     expect(john.verses[0]!.text).not.toContain("nota al pie");
