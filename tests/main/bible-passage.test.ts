@@ -26,7 +26,7 @@ beforeAll(() => {
   const opened = openDatabase(path.join(dir, "passage.db"));
   sqlite = opened.sqlite;
   runMigrations(opened.db, path.join(process.cwd(), "drizzle"));
-  seedBuiltinBibles(opened.db, sqlite, path.join(process.cwd(), "resources/bibles"), new SettingsRepo(opened.db));
+  seedBuiltinBibles(opened.db, sqlite, path.join(process.cwd(), "resources/bibles"), new SettingsRepo(opened.db), false);
   repo = new BibleRepo(opened.db, sqlite);
   spanish = repo.listVersions()[0]!.id;
 

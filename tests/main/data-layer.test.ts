@@ -92,7 +92,7 @@ beforeAll(() => {
   bibleRepo = new BibleRepo(db, sqlite);
   settingsRepo = new SettingsRepo(db);
   // After the repo exists: the seed reads (and sets) `bible.builtinSeeded`.
-  seedBuiltinBibles(db, sqlite, biblesDir, settingsRepo);
+  seedBuiltinBibles(db, sqlite, biblesDir, settingsRepo, false);
   programsRepo = new ProgramsRepo(db, sqlite);
   mediaRepo = new MediaRepo(db, sqlite);
   slidesRepo = new SlidesRepo(db, sqlite);
@@ -1256,7 +1256,7 @@ describe("Installed bibles keep the order the operator gave them", () => {
     // delete-and-reinsert path (that is how the verses cascade), which without
     // `existing?.sortOrder` brings the row back at the bottom.
     db.update(bibleVersions).set({ sourceHash: null }).where(eq(bibleVersions.id, versionId)).run();
-    seedBuiltinBibles(db, sqlite, biblesDir, settingsRepo);
+    seedBuiltinBibles(db, sqlite, biblesDir, settingsRepo, false);
     const after = bibleRepo.listVersions().findIndex((version) => version.code === BUILTIN_BIBLE_CODE);
     assert(after === before, `expected the bundled bible to stay at ${before}, found it at ${after}`);
   });
@@ -1414,7 +1414,7 @@ describe("Bible favorites and recent passages", () => {
   test("both lists survive re-seeding the version they were made in", () => {
     const version = bibleRepo.listVersions().find((v) => v.code === BUILTIN_BIBLE_CODE)!;
     db.update(bibleVersions).set({ sourceHash: null }).where(eq(bibleVersions.id, version.id)).run();
-    seedBuiltinBibles(db, sqlite, biblesDir, settingsRepo);
+    seedBuiltinBibles(db, sqlite, biblesDir, settingsRepo, false);
     assert(refs(bibleRepo.listFavorites()) === "Génesis 1:1", "favorites are keyed by abbrev, not by row id");
     assert(bibleRepo.listRecents().length === BIBLE_RECENTS_MAX, "recents are keyed by abbrev, not by row id");
   });

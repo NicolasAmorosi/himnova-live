@@ -80,6 +80,8 @@ const es = {
     noVerses: "«{file}» se leyó correctamente pero no contiene ningún versículo.",
     invalidName: "El nombre de la versión no es válido.",
     alreadyInstalled: "Ese archivo ya está instalado: es «{name}».",
+    bundledNotFound: "Esa versión no viene incluida en esta instalación.",
+    invalidLanguage: "El idioma de la versión no es válido.",
   },
   library: {
     relocateKindMismatch: "El archivo elegido no es del mismo tipo que el original.",

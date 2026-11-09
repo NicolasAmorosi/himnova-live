@@ -78,6 +78,8 @@ const en: MainMessages = {
     noVerses: "“{file}” was read correctly but doesn't contain any verses.",
     invalidName: "The version name isn't valid.",
     alreadyInstalled: "That file is already installed: it's “{name}”.",
+    bundledNotFound: "That version is not included in this installation.",
+    invalidLanguage: "The version's language is not valid.",
   },
   library: {
     relocateKindMismatch: "The chosen file isn't the same type as the original.",

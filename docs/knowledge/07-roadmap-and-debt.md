@@ -104,8 +104,9 @@ high and medium findings. This was left open, each item with its reason:
 - **The Windows package carries the better-sqlite3 prebuilds for other platforms** and their
   SQLite sources (~24 MB). Excluding them per platform is possible, but it would touch the native
   module's loading right before launch.
-- **Re-seeding RV1909 with a different JSON would erase the version from the saved verses**
-  (`seed-bible.ts`). It doesn't happen: the file hasn't changed since the first commit.
+- **Re-seeding a bundled version whose file changed would erase the version from the saved verses**
+  (`seed-bible.ts`: the row is deleted and inserted again, and `program_items`' FK is `set null`). It
+  doesn't happen: no bundled file has changed since it shipped (the RV1909's, since the first commit).
 - **No code signing** (SmartScreen warns «Windows protected your PC») — `I1`, it costs money.
 - **To check by hand on the church's PC**: Win+P on «Extend»; different scaling per monitor;
   turning the projector off and on mid-service (the window hides, the sound keeps going, and it
