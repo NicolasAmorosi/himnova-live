@@ -45,13 +45,18 @@ function verse(bible: ParsedBible, book: number, chapter: number, number: number
 }
 
 /** Each text's own Genesis 1:1 and John 3:16, and how many verses it numbers (the KJV versification has 31 102;
- *  the ASV leaves out 16 and the WEB 4, the Diodati follows the Italian one, the Almeida joins 2 Corinthians
+ *  the ASV and the VBL leave out 16 and the WEB 4, the Diodati follows the Italian one, the Almeida joins 2 Corinthians
  *  13:14 to 13:13). */
 const EXPECTED: Record<string, { verses: number; genesis: string; john: string }> = {
   [BUILTIN_BIBLE_CODE]: {
     verses: 31102,
     genesis: "EN el principio crió Dios los cielos y la tierra.",
     john: "Porque de tal manera amó Dios al mundo, que ha dado á su Hijo unigénito, para que todo aquel que en él cree, no se pierda, mas tenga vida eterna.",
+  },
+  vbl: {
+    verses: 31086,
+    genesis: "En el principio, Dios creó los cielos y la tierra.",
+    john: "“Porque Dios amó al mundo, y lo hizo de esta manera: entregó a su único Hijo, a fin de que todos los que crean en él no mueran, sino que tengan vida eterna.",
   },
   kjv: {
     verses: 31102,
@@ -131,6 +136,7 @@ describe("every bundled file, read by the app's own parser", () => {
   test("book names are the text's own", () => {
     const names = (file: string) => parseBibleFile(path.join(biblesDir, file)).books.map((book) => book.name);
     expect(names("kjv.xml")[42]).toBe("John");
+    expect(names("vbl.xml")[42]).toBe("Juan");
     expect(names("riveduta1927.xml")[43]).toBe("Atti");
     expect(names("diodati1885.xml")[45]).toBe("1 Corinti");
     expect(names("almeida1911.xml")[0]).toBe("Génesis");
@@ -140,7 +146,7 @@ describe("every bundled file, read by the app's own parser", () => {
 
 describe("a new profile gets the versions of its language", () => {
   test.each([
-    ["es", [BUILTIN_BIBLE_CODE]],
+    ["es", [BUILTIN_BIBLE_CODE, "vbl"]],
     ["en", ["kjv", "asv", "web"]],
     ["it", ["riveduta1927", "diodati1885"]],
     ["pt", ["almeida1911", "biblialivre"]],
@@ -205,7 +211,7 @@ describe("installing from Settings", () => {
     expect(profile.repo.getVersion(id)).toMatchObject({ name: "King James Version", language: "en", isBuiltin: true });
     // A second click while the first one was still running answers with the same version.
     expect(installBundledBible(profile.db, profile.sqlite, biblesDir, "kjv")).toBe(id);
-    expect(profile.repo.listVersions().map((version) => version.code)).toEqual([BUILTIN_BIBLE_CODE, "kjv"]);
+    expect(profile.repo.listVersions().map((version) => version.code)).toEqual([BUILTIN_BIBLE_CODE, "vbl", "kjv"]);
     // The search index holds the new version's rows (indexed in bulk, with the insert trigger set aside and put
     // back), and still agrees with the table.
     expect(profile.repo.search(id, "begotten").length).toBeGreaterThan(0);
@@ -218,7 +224,7 @@ describe("installing from Settings", () => {
     profile.repo.deleteVersion(id);
     seedBuiltinBibles(profile.db, profile.sqlite, biblesDir, profile.settings, false);
     expect(installedId("kjv")).toBeNull();
-    profile.repo.deleteVersion(profile.repo.listVersions()[0]!.id);
+    for (const version of profile.repo.listVersions()) profile.repo.deleteVersion(version.id);
     seedBuiltinBibles(profile.db, profile.sqlite, biblesDir, profile.settings, false);
     expect(profile.repo.listVersions()).toEqual([]);
 
@@ -233,7 +239,8 @@ describe("installing from Settings", () => {
     const listing = bundledBibleDTOs([]);
     expect(listing.map((bible) => bible.code)).toEqual(BUNDLED_BIBLES.map((bible) => bible.code));
     expect(listing.find((bible) => bible.code === "biblialivre")?.credit).toMatch(/BLIVRE.*Creative Commons/);
-    expect(listing.filter((bible) => bible.credit !== null)).toHaveLength(1);
+    expect(listing.find((bible) => bible.code === "vbl")?.credit).toMatch(/Gallagher.*CompartirIgual/);
+    expect(listing.filter((bible) => bible.credit !== null)).toHaveLength(2);
   });
 });
 

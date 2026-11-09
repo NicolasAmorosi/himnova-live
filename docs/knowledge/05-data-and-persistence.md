@@ -382,13 +382,14 @@ startup.
 
 ## Bible seed — never written inside the bundle
 
-The app ships eight Bible versions, public-domain or freely licensed classics in the interface's four
+The app ships nine Bible versions, public-domain or freely licensed classics in the interface's four
 languages (2026-11-09), listed in `src/main/db/seed/bundled-bibles.ts` (`BUNDLED_BIBLES`: code, file,
 name, language, credit) and packaged from `resources/bibles/` with `extraResources`:
 
 | Code | Version | Language | File |
 |---|---|---|---|
 | `rv1960` | Reina-Valera 1909 | es | `rv1909.json` (see below for the code) |
+| `vbl` | Versión Biblia Libre | es | `vbl.xml` |
 | `kjv`, `asv`, `web` | King James Version, American Standard Version, World English Bible | en | `<code>.xml` |
 | `riveduta1927`, `diodati1885` | Riveduta 1927, Diodati 1885 | it | `<code>.xml` |
 | `almeida1911`, `biblialivre` | Almeida 1911, Bíblia Livre | pt | `<code>.xml` |
@@ -400,11 +401,12 @@ array index. Each holds the 66 books with the book names the text itself prints,
 verse's words. They are built from their sources by maintainer scripts kept outside this repo, with the
 plans (`../docs/plans/2026-11-09-bienvenida-y-biblias/scripts/`); `resources/bibles/NOTICE.txt` says
 where each text comes from, its licence, and what was changed. A version whose licence asks for a credit
-(the Bíblia Livre, CC BY 4.0 BR) carries it in the catalog, and Settings shows it under that version.
+(the Versión Biblia Libre, CC BY-SA 4.0; the Bíblia Livre, CC BY 4.0 BR) carries it in the catalog, and
+Settings shows it under that version.
 
 A **new profile** (`isNewProfile` in `initDatabase`) gets every version of its interface language — the
 locale set from the OS just before — in the catalog's order, and the first becomes
-`bible.defaultVersionId`; the E2E suite (`--lang=es`) starts with the RV1909 alone. Every other version is
+`bible.defaultVersionId`; the E2E suite (`--lang=es`) starts with the RV1909 and the VBL. Every other version is
 installed with one click in Settings ▸ Bible (`bible:bundled`, `bible:installBundled`), no internet;
 deleting one makes it «not installed» again. An existing profile is never given a version on its own.
 All bundled versions are `isBuiltin`.

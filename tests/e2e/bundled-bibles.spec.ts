@@ -1,7 +1,7 @@
 import { expect, test, type WorshipApp } from "./support/app";
 
 /**
- * The Bible versions inside the installer: a Spanish profile starts with the RV1909 alone, and any other is one
+ * The Bible versions inside the installer: a Spanish profile starts with the RV1909 and the VBL, and any other is one
  * click away in Ajustes ▸ Biblia — no file, no internet. Once there are two languages, the Bible tab's picker lists
  * the versions under a heading per language.
  */
@@ -22,7 +22,8 @@ test("a version included with the app is installed in Ajustes, listed under its 
   const settings = await openBibleSettings(app);
   const installed = settings.getByRole("list", { name: "Versiones instaladas" });
   const included = settings.getByRole("list", { name: "Versiones incluidas" });
-  await expect(installed.getByRole("list", { name: "Español" }).getByRole("group")).toHaveCount(1);
+  await expect(installed.getByRole("list", { name: "Español" }).getByRole("group")).toHaveCount(2);
+  await expect(installed.getByRole("group", { name: "Versión Biblia Libre" })).toContainText("CompartirIgual");
   // Every other bundled version, under its own language, with the credit its licence asks for.
   await expect(included.getByRole("list", { name: "Inglés" }).getByRole("group")).toHaveCount(3);
   await expect(included.getByRole("group", { name: "Bíblia Livre" })).toContainText("BLIVRE");
@@ -39,8 +40,8 @@ test("a version included with the app is installed in Ajustes, listed under its 
   const listbox = app.control.getByRole("listbox");
   // A heading per language, in the order the operator's list has them, and only the versions are options.
   await expect(listbox.getByRole("listitem")).toHaveCount(0);
-  await expect(listbox).toHaveText(/^Español.*Reina-Valera 1909.*Inglés.*King James Version$/);
-  await expect(listbox.getByRole("option")).toHaveText(["Reina-Valera 1909", "King James Version"]);
+  await expect(listbox).toHaveText(/^Español.*Reina-Valera 1909.*Versión Biblia Libre.*Inglés.*King James Version$/);
+  await expect(listbox.getByRole("option")).toHaveText(["Reina-Valera 1909", "Versión Biblia Libre", "King James Version"]);
   await listbox.getByRole("option", { name: "King James Version" }).click();
 
   await bibleTab(app).getByRole("combobox", { name: "Libro" }).click();

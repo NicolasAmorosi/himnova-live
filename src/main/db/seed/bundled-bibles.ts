@@ -23,6 +23,17 @@ export type BundledBible = {
  */
 export const BUNDLED_BIBLES: readonly BundledBible[] = [
   { code: BUILTIN_BIBLE_CODE, file: "rv1909.json", name: "Reina-Valera 1909", language: "es", credit: null },
+  {
+    code: "vbl",
+    file: "vbl.xml",
+    name: "Versión Biblia Libre",
+    language: "es",
+    // Creative Commons Attribution-ShareAlike 4.0: the copyright line eBible.org publishes with it; the licence's
+    // link and what was changed are in `resources/bibles/NOTICE.txt`.
+    credit:
+      "Versión Biblia Libre (VBL), copyright © 2018-2020 Jonathan Gallagher y Shelly Barrios de Avila. " +
+      "Licencia Creative Commons Atribución-CompartirIgual 4.0.",
+  },
   { code: "kjv", file: "kjv.xml", name: "King James Version", language: "en", credit: null },
   { code: "asv", file: "asv.xml", name: "American Standard Version", language: "en", credit: null },
   { code: "web", file: "web.xml", name: "World English Bible", language: "en", credit: null },

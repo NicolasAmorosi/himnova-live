@@ -9,6 +9,14 @@ headings, psalm superscriptions marked as headings, Strong's numbers and paragra
 Reina-Valera 1909 (rv1909.json), Spanish
   Public domain.
 
+Versión Biblia Libre (vbl.xml), Spanish
+  Copyright © 2018-2020 Jonathan Gallagher y Shelly Barrios de Avila. Licensed under the Creative Commons
+  Attribution-ShareAlike 4.0 International license (https://creativecommons.org/licenses/by-sa/4.0/);
+  this file, a changed copy of it, is shared under the same license.
+  Source: eBible.org, spavbl  https://ebible.org/Scriptures/details.php?id=spavbl
+  Changes: footnotes, cross references and headings left out, and the space before punctuation
+  removed in 144 verses. The translators do not necessarily endorse these changes.
+
 King James Version (kjv.xml), English
   Public domain (the 1769 standard text). In the United Kingdom the rights in the Authorized Version
   are vested in the Crown.
