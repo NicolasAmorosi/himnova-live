@@ -24,6 +24,10 @@ import { NDI_FRAME_RATES, NDI_NAME_MAX_LENGTH, NDI_RESOLUTIONS, type NdiFrameRat
 export const NAMED_SORT_ORDERS = ["own", "name-asc", "name-desc", "date-desc", "date-asc"] as const;
 export type NamedSortOrder = (typeof NAMED_SORT_ORDERS)[number];
 
+/** «Primeros pasos», in the order the checklist lists them: what a first service needs, learnt by doing it. */
+export const FIRST_STEP_IDS = ["preview", "live", "cover", "schedule", "song", "save"] as const;
+export type FirstStepId = (typeof FIRST_STEP_IDS)[number];
+
 export const THEMES = ["dark", "light"] as const;
 export type Theme = (typeof THEMES)[number];
 
@@ -193,6 +197,15 @@ export type SettingsMap = {
   "ndi.output.name": string;
   "ndi.output.resolution": NdiResolution;
   "ndi.output.fps": NdiFrameRate;
+  /** The welcome screen opens at the next launch (`WelcomeScreen`). Only a NEW profile is given `true`
+   *  (`initDatabase`), so an install that updates never sees it on its own; closing it — finished or
+   *  skipped — clears it. Reopened by hand from Settings ▸ About. */
+  "welcome.pending": boolean;
+  /** «Primeros pasos», the checklist over the work screen that ticks itself as the operator does each
+   *  thing (`effects/first-steps.ts`). */
+  "welcome.firstStepsOpen": boolean;
+  /** Which of its steps are done. */
+  "welcome.firstStepsDone": FirstStepId[];
 };
 
 export const DEFAULT_SETTINGS: SettingsMap = {
@@ -241,6 +254,9 @@ export const DEFAULT_SETTINGS: SettingsMap = {
   "ndi.output.name": "Lumina Live",
   "ndi.output.resolution": "1080p",
   "ndi.output.fps": 30,
+  "welcome.pending": false,
+  "welcome.firstStepsOpen": false,
+  "welcome.firstStepsDone": [],
 };
 
 /** What LOGO draws, from its settings: the image in «image» mode — its path is
@@ -362,6 +378,9 @@ export const SETTINGS_VALIDATORS: Record<keyof SettingsMap, (value: unknown) => 
     ![...v].some((c) => c.charCodeAt(0) < 0x20 || c.charCodeAt(0) === 0x7f),
   "ndi.output.resolution": isOneOf(NDI_RESOLUTIONS),
   "ndi.output.fps": (v) => (NDI_FRAME_RATES as readonly unknown[]).includes(v),
+  "welcome.pending": isBoolean,
+  "welcome.firstStepsOpen": isBoolean,
+  "welcome.firstStepsDone": (v) => Array.isArray(v) && v.every(isOneOf(FIRST_STEP_IDS)),
 };
 
 export function isSettingsKey(key: string): key is keyof SettingsMap {

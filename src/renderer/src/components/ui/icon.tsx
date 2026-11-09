@@ -1,5 +1,10 @@
 import {
   AlarmClock,
+  House,
+  Keyboard,
+  MousePointerClick,
+  RadioTower,
+  Repeat,
   AlertCircle,
   ArrowDown,
   ArrowLeft,
@@ -78,6 +83,11 @@ import { cn } from "@renderer/lib/utils";
 
 const icons = {
   alert: AlertCircle,
+  home: House,
+  keyboard: Keyboard,
+  click: MousePointerClick,
+  broadcast: RadioTower,
+  loop: Repeat,
   arrowLeft: ArrowLeft,
   arrowDown: ArrowDown,
   arrowRight: ArrowRight,

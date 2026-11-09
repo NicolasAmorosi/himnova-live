@@ -129,6 +129,9 @@ function initDatabase(): void {
   // which is Spanish unless the operator changed it. Before the seeds: the
   // example time scenes are written in it.
   if (isNewProfile) getSettingsRepo().setMany({ "ui.locale": systemLocale() });
+  // Only a new profile is welcomed (owner, 2026-11-09): an install that updates keeps going to work. The E2E
+  // suite launches a new profile per test and skips it unless a spec asks for it.
+  if (isNewProfile && !process.argv.includes("--no-welcome")) getSettingsRepo().setMany({ "welcome.pending": true });
   setMainLocale(getSettingsRepo().get("ui.locale"));
   setBibleDb(db, sqlite);
   // After `initRepos` now, and for the same reason the utility seed below is:

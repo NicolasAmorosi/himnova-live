@@ -19,6 +19,11 @@ type UiStoreState = {
   /** Opens Settings on `section`, or switches to it when already open. */
   openSettings: (section?: SettingsSection) => void;
   closeSettings: () => void;
+  /** The first-run welcome (`WelcomeScreen`): opened by `App` on a new profile, or by hand from
+   *  Settings ▸ About — which it then replaces, the two being full screens. */
+  welcomeOpen: boolean;
+  openWelcome: () => void;
+  closeWelcome: () => void;
   /** The asset whose "remove anyway" confirmation is open, `null` when
    *  none. Here for the same reason as `settingsSection`: the offer is a toast
    *  action raised from `lib/actions/remove-asset.ts`, with no component tree
@@ -46,6 +51,9 @@ export const useUiStore = create<UiStoreState>((set) => ({
   settingsSection: null,
   openSettings: (section = "projection") => set({ settingsSection: section }),
   closeSettings: () => set({ settingsSection: null }),
+  welcomeOpen: false,
+  openWelcome: () => set({ settingsSection: null, welcomeOpen: true }),
+  closeWelcome: () => set({ welcomeOpen: false }),
   removeAssetConfirmId: null,
   setRemoveAssetConfirmId: (removeAssetConfirmId) => set({ removeAssetConfirmId }),
   closeGuard: null,
