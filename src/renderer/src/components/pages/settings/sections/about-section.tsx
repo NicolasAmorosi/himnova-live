@@ -195,24 +195,6 @@ export function AboutSection() {
             />
           </FieldRow>
         ) : null}
-        <FieldRow description={t("settings.welcomeDesc")} label={t("settings.welcome")}>
-          <Button onClick={() => useUiStore.getState().openWelcome()} size="sm" variant="outline">
-            {t("settings.welcomeOpen")}
-          </Button>
-        </FieldRow>
-        <FieldRow description={t("settings.firstStepsDesc")} label={t("settings.firstSteps")}>
-          <Switch
-            aria-label={t("settings.firstSteps")}
-            checked={firstStepsOpen}
-            // Shown again, it starts over: a list ticked long ago teaches nothing.
-            onChange={(e) =>
-              void updateSettings({
-                "welcome.firstStepsOpen": e.target.checked,
-                ...(e.target.checked ? { "welcome.firstStepsDone": [] } : {}),
-              })
-            }
-          />
-        </FieldRow>
         <FieldRow description={t("settings.logsDesc")} label={t("settings.logs")}>
           <Button
             onClick={() => void api.system.openLogsFolder().catch(() => toast.danger(t("settings.logsError")))}
@@ -238,6 +220,39 @@ export function AboutSection() {
         {/* The NDI SDK licence asks for its notice in «About», in its own words. */}
         <FieldRow label={t("settings.trademarks")}>
           <Caption className="select-text">{NDI_TRADEMARK}</Caption>
+        </FieldRow>
+      </FieldGroup>
+
+      {/* Its own card, apart from the version and the licence (owner, 2026-11-09). */}
+      <FieldGroup title={t("settings.groups.help")}>
+        <FieldRow description={t("settings.onlineGuideDesc")} label={t("settings.onlineGuide")}>
+          <Button
+            onClick={() =>
+              void api.system.openGuide().catch((error: unknown) => console.warn("[about] could not open the guide", error))
+            }
+            size="sm"
+            variant="outline"
+          >
+            {t("settings.onlineGuideOpen")}
+          </Button>
+        </FieldRow>
+        <FieldRow description={t("settings.welcomeDesc")} label={t("settings.welcome")}>
+          <Button onClick={() => useUiStore.getState().openWelcome()} size="sm" variant="outline">
+            {t("settings.welcomeOpen")}
+          </Button>
+        </FieldRow>
+        <FieldRow description={t("settings.firstStepsDesc")} label={t("settings.firstSteps")}>
+          <Switch
+            aria-label={t("settings.firstSteps")}
+            checked={firstStepsOpen}
+            // Shown again, it starts over: a list ticked long ago teaches nothing.
+            onChange={(e) =>
+              void updateSettings({
+                "welcome.firstStepsOpen": e.target.checked,
+                ...(e.target.checked ? { "welcome.firstStepsDone": [] } : {}),
+              })
+            }
+          />
         </FieldRow>
       </FieldGroup>
 

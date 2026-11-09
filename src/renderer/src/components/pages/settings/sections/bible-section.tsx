@@ -1,8 +1,7 @@
-import { useEffect, useState, type DragEvent, type KeyboardEvent, type ReactNode } from "react";
+import { useEffect, useState, type DragEvent, type KeyboardEvent } from "react";
 import { useI18n, useT } from "@renderer/lib/i18n/i18n-provider";
 import {
   Button,
-  Caption,
   EmptyState,
   FieldGroup,
   FieldRow,
@@ -14,8 +13,9 @@ import {
 } from "@renderer/components/ui";
 import { ConfirmModal } from "@renderer/components/shared/modal";
 import { ProgramUsages } from "@renderer/components/shared/program-usages";
+import { BundledBiblesGroup, LanguageGroup } from "@renderer/components/shared/settings-groups/bundled-bibles-group";
 import { api } from "@renderer/lib/api";
-import { cn, languageName } from "@renderer/lib/utils";
+import { byLanguage, cn, describeError, languageName } from "@renderer/lib/utils";
 import { BIBLE_VERSION_MIME, hideDragGhost } from "@renderer/lib/dnd";
 import { toast } from "@renderer/lib/toast";
 import { useBibleStore } from "@renderer/stores/bible.store";
@@ -30,15 +30,6 @@ import { LOCALES } from "@shared/types/settings";
  *  would change the question under them, and an empty one is the ordinary
  *  case rather than a loading state. Same shape as `ScenesModal`'s. */
 type Pending = { version: BibleVersionDTO; usages: BibleVersionUsage[] };
-
-/** Items under one heading per language, the languages in the order they first
- *  appear — the operator's arrangement for the installed versions, the
- *  catalog's for the included ones. */
-function byLanguage<T extends { language: string }>(items: readonly T[]): [string, T[]][] {
-  const groups = new Map<string, T[]>();
-  for (const item of items) groups.set(item.language, [...(groups.get(item.language) ?? []), item]);
-  return [...groups];
-}
 
 /**
  * «Bible»: the versions — import, install one of those inside the installer,
@@ -106,7 +97,6 @@ export function BibleSection() {
   const [draggingId, setDraggingId] = useState<number | null>(null);
   const reorderVersions = useBibleStore((s) => s.reorderVersions);
   const [bundled, setBundled] = useState<BundledBibleDTO[]>([]);
-  const [installingCode, setInstallingCode] = useState<string | null>(null);
 
   // Read again whenever the installed list changes — an install, a delete, an
   // import —, which is what moves a version between the two lists.
@@ -124,7 +114,6 @@ export function BibleSection() {
   }, [versions]);
 
   const installedGroups = byLanguage(versions);
-  const bundledGroups = byLanguage(bundled.filter((bible) => bible.versionId === null));
   const credits = new Map(bundled.map((bible) => [bible.code, bible.credit]));
   const languageLabel = (code: string) => languageName(code, locale);
 
@@ -187,24 +176,6 @@ export function BibleSection() {
   async function setDefault(version: BibleVersionDTO) {
     await update({ "bible.defaultVersionId": version.id });
     toast.success(t("settings.bible.setDefaultDone", { name: version.name }));
-  }
-
-  /** ~0.6 s of synchronous work in main, like an import: the row says so and
-   *  every «Install» waits for it, so a second click cannot start a second one. */
-  async function install(bible: BundledBibleDTO) {
-    setInstallingCode(bible.code);
-    try {
-      const version = await api.bible.installBundled(bible.code);
-      await loadVersions();
-      // Before the row stops loading, or it would flash back to «Install».
-      setBundled(await api.bible.bundled());
-      toast.success(t("settings.bible.installDone", { name: version.name }));
-    } catch (error) {
-      console.error("[bible] install failed", error);
-      toast.danger(describeError(error, t("settings.bible.installFailed")));
-    } finally {
-      setInstallingCode(null);
-    }
   }
 
   async function setLanguage(version: BibleVersionDTO, language: string) {
@@ -396,35 +367,7 @@ export function BibleSection() {
         </FieldGroup>
       ) : null}
 
-      {bundledGroups.length > 0 ? (
-        <FieldGroup description={t("settings.bible.bundledDesc")} title={t("settings.groups.versionsBundled")}>
-          <ul aria-label={t("settings.bible.bundledLabel")} className="divide-y divide-border">
-            {bundledGroups.map(([language, members]) => (
-              <LanguageGroup key={language} label={languageLabel(language)}>
-                {members.map((bible) => (
-                  <li key={bible.code}>
-                    <FieldRow
-                      description={bible.credit ?? undefined}
-                      label={<span className="truncate">{bible.name}</span>}
-                    >
-                      <Button
-                        disabled={installingCode !== null}
-                        loading={installingCode === bible.code}
-                        loadingLabel={t("settings.bible.installing")}
-                        onClick={() => void install(bible)}
-                        variant="outline"
-                      >
-                        <Icon name="download" />
-                        {t("settings.bible.install")}
-                      </Button>
-                    </FieldRow>
-                  </li>
-                ))}
-              </LanguageGroup>
-            ))}
-          </ul>
-        </FieldGroup>
-      ) : null}
+      <BundledBiblesGroup />
 
       {versions.length === 0 ? (
         <div className="relative min-h-40">
@@ -464,19 +407,6 @@ export function BibleSection() {
         title={t("settings.bible.deleteTitle")}
       />
     </div>
-  );
-}
-
-/** One language's versions inside a list, under its name: a nested list, so the
- *  rows of a language keep their lines between them and none under the name. */
-function LanguageGroup({ children, label }: { children: ReactNode; label: string }) {
-  return (
-    <li>
-      <Caption className="block px-4 pt-3">{label}</Caption>
-      <ul aria-label={label} className="divide-y divide-border">
-        {children}
-      </ul>
-    </li>
   );
 }
 
@@ -644,12 +574,3 @@ function VersionRow({
     </li>
   );
 }
-
-/** Main's own message when it has one. An import can fail for two reasons the
- *  operator can act on differently — the file is not a bible, or it is one
- *  with no verses in it — and only main knows which. */
-function describeError(error: unknown, fallback: string): string {
-  const message = error instanceof Error ? error.message.trim() : "";
-  return message.length > 0 ? message : fallback;
-}
-

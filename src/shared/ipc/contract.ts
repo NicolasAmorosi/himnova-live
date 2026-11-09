@@ -386,6 +386,8 @@ export type IpcContract = {
   /** Opens the app's public repository in the default browser — «Acerca de»'s
    *  «Código fuente». A fixed address: the renderer never names a URL. */
   "system:openSourceCode": { req: void; res: void };
+  /** The website's user guide, in the interface's language. */
+  "system:openGuide": { req: void; res: void };
   /** Opens `chrome://<page>` in its own window, child of the caller's. */
   "system:openInternals": { req: { page: InternalsPage }; res: void };
   /** Starts listening to the caller's media pipeline (CDP `Media` domain).

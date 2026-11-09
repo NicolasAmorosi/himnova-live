@@ -178,6 +178,7 @@ export const api = {
     probeEnd: (src: string) => invoke("system:probeEnd", { src }),
     openLogsFolder: () => invoke("system:openLogsFolder", undefined),
     openSourceCode: () => invoke("system:openSourceCode", undefined),
+    openGuide: () => invoke("system:openGuide", undefined),
   },
   ndi: {
     getStatus: () => invoke("ndi:getStatus", undefined),

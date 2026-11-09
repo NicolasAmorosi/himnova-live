@@ -1,7 +1,9 @@
 import { app, BrowserWindow, shell, type WebContents } from "electron";
 import { userDataDir } from "../../paths";
+import { getSettingsRepo } from "../../services/repos";
 import { REPO_URL } from "../../updates/updater";
 import type { Handlers } from "../register";
+import type { Locale } from "@shared/types/settings";
 import { IpcError } from "@shared/ipc/result";
 import {
   INTERNALS_PAGES,
@@ -121,6 +123,10 @@ function reportFor(player: ProbePlayer): VideoDecoderReport {
   };
 }
 
+/** The website, and its guide's path per language (the landing's `src/i18n/routing.ts`: Spanish at the root). */
+const SITE_URL = "https://lumina-live-site.vercel.app";
+const GUIDE_PATH: Record<Locale, string> = { es: "/guia", en: "/en/guide", it: "/it/guida", pt: "/pt/guia" };
+
 export const systemHandlers: Pick<
   Handlers,
   | "system:gpuStatus"
@@ -129,8 +135,10 @@ export const systemHandlers: Pick<
   | "system:probeEnd"
   | "system:openLogsFolder"
   | "system:openSourceCode"
+  | "system:openGuide"
 > = {
   "system:openSourceCode": () => shell.openExternal(REPO_URL),
+  "system:openGuide": () => shell.openExternal(`${SITE_URL}${GUIDE_PATH[getSettingsRepo().get("ui.locale")]}`),
   "system:openLogsFolder": async () => {
     // `openPath` resolves to an error MESSAGE rather than rejecting.
     const failure = await shell.openPath(userDataDir);

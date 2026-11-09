@@ -40,12 +40,15 @@ test("a new profile is welcomed, every step saves as it goes, and finishing open
   await expect(steps.getByText("1 de 6")).toBeVisible();
   await app.goLive();
   await expect(steps.getByText("2 de 6")).toBeVisible();
+  // Songs: opening the tab is enough, nothing has to be made (owner, 2026-11-09).
+  await app.openResources("Canciones");
+  await expect(steps.getByText("3 de 6")).toBeVisible();
 
   // Chosen once, kept: the next launch neither welcomes again nor forgets the choices.
   await app.quit();
   const again = await relaunch(app);
   await expect(again.control.getByRole("dialog", { name: "Bienvenida" })).toBeHidden();
-  await expect(again.control.getByRole("complementary", { name: "Primeros pasos" }).getByText("2 de 6")).toBeVisible();
+  await expect(again.control.getByRole("complementary", { name: "Primeros pasos" }).getByText("3 de 6")).toBeVisible();
 });
 
 test("skipping keeps what was chosen, and the guide reopens from Settings ▸ About", async ({ app }) => {
@@ -67,16 +70,27 @@ test("skipping keeps what was chosen, and the guide reopens from Settings ▸ Ab
 test("the Bibles step installs a bundled version and draws it beside the main one", async ({ app }) => {
   const welcome = app.control.getByRole("dialog", { name: "Bienvenida" });
   await welcome.getByRole("tab", { name: "Biblias" }).click();
-  // A Spanish profile starts with its language's version installed.
-  await expect(welcome.getByRole("switch", { name: "Reina-Valera 1909" })).toBeChecked();
-  const kjv = welcome.getByRole("switch", { name: "King James Version" });
-  await expect(kjv).not.toBeChecked();
-  await kjv.click();
-  await expect(kjv).toBeChecked();
+  const included = welcome.getByRole("list", { name: "Versiones incluidas" });
+  // A Spanish profile starts with its language's version installed; the others are «Instalar», as in Settings.
+  await expect(included.getByRole("group", { name: "Reina-Valera 1909" })).toContainText("Instalada");
+  await included.getByRole("group", { name: "King James Version" }).getByRole("button", { name: "Instalar" }).click();
+  await expect(included.getByRole("group", { name: "King James Version" })).toContainText("Instalada");
 
   await welcome.getByRole("group", { name: "En paralelo" }).getByRole("combobox").click();
   await app.control.getByRole("option", { name: "King James Version", exact: true }).click();
   // The sample verse, in both versions, as the room will see it.
   await expect(welcome.getByText("Juan 3:16")).toBeVisible();
   await expect(welcome.getByText("John 3:16")).toBeVisible();
+});
+
+test("choosing another language on a first launch swaps the profile's Bibles for that language's", async ({ app }) => {
+  await app.control.getByRole("dialog", { name: "Bienvenida" }).getByRole("radio", { name: "English" }).click();
+  const welcome = app.control.getByRole("dialog", { name: "Welcome" });
+  await welcome.getByRole("tab", { name: "Bibles" }).click();
+  const included = welcome.getByRole("list", { name: "Included versions" });
+  for (const name of ["King James Version", "American Standard Version", "World English Bible"]) {
+    await expect(included.getByRole("group", { name })).toContainText("Installed");
+  }
+  await expect(included.getByRole("group", { name: "Reina-Valera 1909" }).getByRole("button", { name: "Install" })).toBeVisible();
+  await expect(welcome.getByRole("group", { name: "Main version" }).getByRole("combobox")).toContainText("King James Version");
 });

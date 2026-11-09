@@ -28,7 +28,7 @@ import { setBibleVerseDrag } from "@renderer/lib/dnd";
 import { useDebouncedCallback } from "@renderer/lib/hooks/use-debounced-callback";
 import { matchReference, type ReferenceMatch } from "@renderer/lib/bible-reference";
 import { toast } from "@renderer/lib/toast";
-import { languageName } from "@renderer/lib/utils";
+import { bibleVersionOptions } from "@renderer/lib/utils";
 import {
   parseSnippet,
   passageReference,
@@ -69,20 +69,14 @@ export function BibleBrowser() {
   // The browsed version itself, or one deleted since, is no parallel.
   const parallelId = parallelVersionFor(parallelSetting, versions, versionId);
   const parallelName = bibleVersionLabel(versions, parallelId);
-  const parallelOptions = versions
-    .filter((v) => v.id !== versionId)
-    .map((v) => ({ label: v.name, value: String(v.id) }));
+  // Same order as the version picker; a menu has no headings.
+  const parallelOptions = bibleVersionOptions(
+    versions.filter((v) => v.id !== versionId),
+    locale,
+  ).map(({ label, value }) => ({ label, value }));
   const target = usePreviewStore((s) => s.target);
-  // Under a heading per language, and only once there is more than one: a
-  // single-language list needs no headings (owner, 2026-11-09).
-  const versionOptions = useMemo(() => {
-    const grouped = new Set(versions.map((v) => v.language)).size > 1;
-    return versions.map((v) => ({
-      label: v.name,
-      value: String(v.id),
-      ...(grouped ? { group: languageName(v.language, locale) } : {}),
-    }));
-  }, [versions, locale]);
+  // The interface's language first, under a heading per language (owner, 2026-11-09).
+  const versionOptions = useMemo(() => bibleVersionOptions(versions, locale), [versions, locale]);
   const [pendingBook, setPendingBook] = useState("");
   const [pendingChapter, setPendingChapter] = useState("");
   // The pickers follow the chapter the tab holds, wherever it was loaded from:

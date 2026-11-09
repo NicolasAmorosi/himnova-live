@@ -1,4 +1,5 @@
 import { app } from "electron";
+import fs from "node:fs";
 import path from "node:path";
 import type { AssetKind } from "@shared/constants";
 
@@ -112,4 +113,20 @@ export function systemMediaFolder(kind: AssetKind): string {
   } catch {
     return app.getPath("home");
   }
+}
+
+/** A new profile's Media folders (owner, 2026-11-09): each kind's system folder, linked if it exists — never
+ *  the home folder `systemMediaFolder` falls back to, which is no kind's. Listed only when its view is opened,
+ *  and only its own files, so Documents costs nothing until then. */
+export function systemLinkedFolders(): Record<AssetKind, string[]> {
+  const home = app.getPath("home");
+  const linked = (kind: AssetKind): string[] => {
+    const folder = systemMediaFolder(kind);
+    try {
+      return folder !== home && fs.statSync(folder).isDirectory() ? [folder] : [];
+    } catch {
+      return [];
+    }
+  };
+  return { video: linked("video"), image: linked("image"), audio: linked("audio"), ppt: linked("ppt") };
 }

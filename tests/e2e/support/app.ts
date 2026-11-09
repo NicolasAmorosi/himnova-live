@@ -35,6 +35,8 @@ const FLAGS = [
   "--no-starter-look",
   // Every test is a new profile, which main welcomes; `welcome.spec.ts` turns it back on.
   "--no-welcome",
+  // …and links the computer's own Videos, Pictures, Music and Documents in Media: not this machine's.
+  "--no-system-folders",
 ];
 
 /** What the renderer's global handlers log before showing the "error
