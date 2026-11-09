@@ -1,5 +1,12 @@
 import { create } from "zustand";
-import type { BibleBookDTO, BibleBookmark, BibleVerseDTO, BibleVersionDTO } from "@shared/types/bible";
+import {
+  passageReference,
+  type BibleBookDTO,
+  type BibleBookmark,
+  type BibleVerseDTO,
+  type BibleVersionDTO,
+} from "@shared/types/bible";
+import type { BibleParallel } from "@shared/types/projection";
 import { api } from "@renderer/lib/api";
 import { useSettingsStore } from "@renderer/stores/settings.store";
 import { usePreviewStore } from "@renderer/stores/preview.store";
@@ -13,6 +20,67 @@ function dropVersePreview(): void {
   if (usePreviewStore.getState().target?.kind === "verse") usePreviewStore.getState().clear();
 }
 
+/** Which version a verse of `ownVersionId` also goes out in: the setting
+ *  (`bible.parallelVersionId`), unless it names that same version or one no
+ *  longer installed — both mean none. */
+export function parallelVersionFor(
+  setting: number | null,
+  versions: readonly BibleVersionDTO[],
+  ownVersionId: number | null,
+): number | null {
+  return setting !== null && setting !== ownVersionId && versions.some((version) => version.id === setting)
+    ? setting
+    : null;
+}
+
+/** `verses`' twins in another version's same chapter, by verse NUMBER, never by
+ *  position: a version that leaves a verse out must not shift every verse after
+ *  it onto its neighbour's text. `null` where it lacks one. */
+export function alignByNumber(
+  verses: readonly BibleVerseDTO[],
+  twins: readonly BibleVerseDTO[],
+): (BibleVerseDTO | null)[] {
+  const byNumber = new Map(twins.map((verse) => [verse.verse, verse]));
+  return verses.map((verse) => byNumber.get(verse.verse) ?? null);
+}
+
+type ParallelChapter = { versionId: number; verses: BibleVerseDTO[] } | null;
+
+/** The parallel version's same chapter, its book found by what it is
+ *  (`sameBook`, as `setVersion` does) — `null` when no parallel applies, no
+ *  verses when that version lacks the chapter. Never a rejection: a failed
+ *  lookup must not keep the browsed chapter from loading. */
+async function parallelChapter(
+  versions: readonly BibleVersionDTO[],
+  versionId: number,
+  books: readonly BibleBookDTO[],
+  bookId: number,
+  chapter: number,
+): Promise<ParallelChapter> {
+  const setting = useSettingsStore.getState().settings["bible.parallelVersionId"];
+  const parallelId = parallelVersionFor(setting, versions, versionId);
+  const book = books.find((b) => b.id === bookId);
+  if (parallelId === null || !book) return null;
+  try {
+    const theirs = await api.bible.books(parallelId);
+    const twin = theirs.find((b) => sameBook(b, theirs.length, book, books.length) && chapter <= b.chapterCount);
+    return { versionId: parallelId, verses: twin ? await api.bible.chapter(twin.id, chapter) : [] };
+  } catch (error) {
+    console.error("[bible] parallel chapter failed", error);
+    return null;
+  }
+}
+
+function parallelState(
+  parallel: ParallelChapter,
+  verses: readonly BibleVerseDTO[],
+): Pick<BibleStoreState, "parallelVersionId" | "parallelVerses"> {
+  return {
+    parallelVersionId: parallel?.versionId ?? null,
+    parallelVerses: parallel ? alignByNumber(verses, parallel.verses) : [],
+  };
+}
+
 type BibleStoreState = {
   versions: BibleVersionDTO[];
   books: BibleBookDTO[];
@@ -21,10 +89,20 @@ type BibleStoreState = {
   chapter: number | null;
   verses: BibleVerseDTO[];
   currentVerseIndex: number | null;
+  /** The parallel version that applies to the browsed one, and its same
+   *  chapter aligned to `verses` by number — loaded WITH the chapter, so
+   *  `projectVerse` and ←/→ never wait for it. A `null` entry is a verse that
+   *  version lacks: it goes out alone. */
+  parallelVersionId: number | null;
+  parallelVerses: (BibleVerseDTO | null)[];
   favorites: BibleBookmark[];
   recents: BibleBookmark[];
 
   loadVersions: () => Promise<void>;
+  /** «En paralelo»: saved, and the browsed chapter's twin loaded. */
+  setParallelVersion: (versionId: number | null) => Promise<void>;
+  /** Reloads the parallel chapter for what is browsed now. */
+  refreshParallel: () => Promise<void>;
   loadBookmarks: () => Promise<void>;
   /** Stars or unstars the verse at `index` of the loaded chapter. */
   setFavorite: (index: number, favorite: boolean) => Promise<void>;
@@ -44,6 +122,8 @@ export const useBibleStore = create<BibleStoreState>((set, get) => ({
   chapter: null,
   verses: [],
   currentVerseIndex: null,
+  parallelVersionId: null,
+  parallelVerses: [],
   favorites: [],
   recents: [],
 
@@ -71,7 +151,8 @@ export const useBibleStore = create<BibleStoreState>((set, get) => ({
     set({ versions });
 
     const current = get().versionId;
-    if (current !== null && versions.some((version) => version.id === current)) return;
+    // The parallel may be the version just deleted, or the one just imported.
+    if (current !== null && versions.some((version) => version.id === current)) return get().refreshParallel();
 
     const defaultId = useSettingsStore.getState().settings["bible.defaultVersionId"];
     const next = versions.find((version) => version.id === defaultId) ?? versions[0];
@@ -81,7 +162,15 @@ export const useBibleStore = create<BibleStoreState>((set, get) => ({
     }
     // Every version was deleted: the browser has to empty out rather than keep
     // showing the chapter of a bible that is gone.
-    set({ versionId: null, books: [], bookId: null, chapter: null, verses: [], currentVerseIndex: null });
+    set({
+      versionId: null,
+      books: [],
+      bookId: null,
+      chapter: null,
+      verses: [],
+      currentVerseIndex: null,
+      ...parallelState(null, []),
+    });
   },
 
   /**
@@ -131,10 +220,21 @@ export const useBibleStore = create<BibleStoreState>((set, get) => ({
         : undefined;
     if (!book || chapter === null) {
       dropVersePreview();
-      set({ versionId, books, bookId: null, chapter: null, verses: [], currentVerseIndex: null });
+      set({
+        versionId,
+        books,
+        bookId: null,
+        chapter: null,
+        verses: [],
+        currentVerseIndex: null,
+        ...parallelState(null, []),
+      });
       return;
     }
-    const verses = await api.bible.chapter(book.id, chapter);
+    const [verses, parallel] = await Promise.all([
+      api.bible.chapter(book.id, chapter),
+      parallelChapter(before.versions, versionId, books, book.id, chapter),
+    ]);
     const follow = (index: number | null) => {
       const number = index === null ? undefined : before.verses[index]?.verse;
       const next = number === undefined ? -1 : verses.findIndex((verse) => verse.verse === number);
@@ -146,14 +246,46 @@ export const useBibleStore = create<BibleStoreState>((set, get) => ({
       if (index === null) usePreviewStore.getState().clear();
       else usePreviewStore.getState().setTarget({ kind: "verse", verseIndex: index });
     }
-    set({ versionId, books, bookId: book.id, chapter, verses, currentVerseIndex: follow(before.currentVerseIndex) });
+    set({
+      versionId,
+      books,
+      bookId: book.id,
+      chapter,
+      verses,
+      currentVerseIndex: follow(before.currentVerseIndex),
+      ...parallelState(parallel, verses),
+    });
   },
 
   setBookAndChapter: async (bookId, chapter) => {
-    const verses = await api.bible.chapter(bookId, chapter);
+    const { books, versionId, versions } = get();
+    const [verses, parallel] = await Promise.all([
+      api.bible.chapter(bookId, chapter),
+      versionId === null ? null : parallelChapter(versions, versionId, books, bookId, chapter),
+    ]);
     const { bookId: currentBook, chapter: currentChapter } = get();
     if (bookId !== currentBook || chapter !== currentChapter) dropVersePreview();
-    set({ bookId, chapter, verses, currentVerseIndex: null });
+    set({ bookId, chapter, verses, currentVerseIndex: null, ...parallelState(parallel, verses) });
+  },
+
+  setParallelVersion: async (versionId) => {
+    // ponytail: the verse already live keeps the parallel it went out with; the
+    // choice reaches the NEXT verse (PREVIEW shows it at once). Upgrade: patch
+    // `base.parallel` in place with no new scene, as a restyled verse does.
+    // The mirror is written at once (`update`), so the reload already reads it.
+    const saved = useSettingsStore.getState().update({ "bible.parallelVersionId": versionId });
+    await get().refreshParallel();
+    await saved;
+  },
+
+  refreshParallel: async () => {
+    const { bookId, books, chapter, verses, versionId, versions } = get();
+    const parallel =
+      versionId === null || bookId === null || chapter === null
+        ? null
+        : await parallelChapter(versions, versionId, books, bookId, chapter);
+    // A chapter loaded meanwhile brought its own.
+    if (get().verses === verses) set(parallelState(parallel, verses));
   },
 
   setCurrentVerseIndex: (currentVerseIndex) => set({ currentVerseIndex }),
@@ -212,4 +344,19 @@ export function bibleVersionLabel(
 ): string | null {
   if (versionId === null) return null;
   return versions.find((version) => version.id === versionId)?.name ?? null;
+}
+
+/** The verse at `index` of the loaded chapter in the parallel version, as it
+ *  goes out beside it — or `null`: none applies, or that version lacks it. */
+export function parallelAt(
+  state: Pick<BibleStoreState, "parallelVersionId" | "parallelVerses" | "versions">,
+  index: number,
+): BibleParallel | null {
+  const twin = state.parallelVerses[index];
+  if (!twin) return null;
+  return {
+    text: twin.text,
+    reference: passageReference(twin.bookName, twin.chapter, twin.verse, twin.verse),
+    versionLabel: bibleVersionLabel(state.versions, state.parallelVersionId),
+  };
 }

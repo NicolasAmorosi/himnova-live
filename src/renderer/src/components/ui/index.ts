@@ -38,4 +38,8 @@ export { Callout } from "./callout";
 export { Tooltip } from "./tooltip";
 export { Kbd } from "./kbd";
 export { Segmented } from "./segmented";
+export { ChoiceGroup, type ChoiceOption } from "./choice-group";
+export { IconTile } from "./icon-tile";
+export { ThemeSwatch } from "./theme-swatch";
+export { StageSketch, type SketchContent, type SketchScene } from "./stage-sketch";
 export { ToastHost } from "./toast";

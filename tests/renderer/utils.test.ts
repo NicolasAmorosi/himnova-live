@@ -7,7 +7,7 @@
  * spelled the combining range out as raw invisible characters.
  */
 import { describe, expect, test } from "vitest";
-import { cn, createBoundedSet, formatBytes, formatClock, normalizeForSearch } from "@renderer/lib/utils";
+import { cn, createBoundedSet, formatBytes, formatClock, languageName, normalizeForSearch } from "@renderer/lib/utils";
 
 describe("cn", () => {
   test("the later class wins a conflict", () => {
@@ -108,5 +108,16 @@ describe("createBoundedSet", () => {
     set.add("a");
     expect(set.has("a")).toBe(true);
     expect(set.has("b")).toBe(true);
+  });
+});
+
+describe("languageName", () => {
+  test("in the interface's language, capitalized; an unknown tag as it is", () => {
+    expect(languageName("en", "es")).toBe("Inglés");
+    expect(languageName("pt", "it")).toBe("Portoghese");
+    expect(languageName("es", "en")).toBe("Spanish");
+    expect(languageName("it", "pt")).toBe("Italiano");
+    expect(languageName("zz", "es")).toBe("zz");
+    expect(languageName("?", "es")).toBe("?");
   });
 });

@@ -22,7 +22,7 @@ test("the NDI output turns on and off from Settings and never touches the projec
   await expect(settings.getByRole("textbox", { name: "Nombre", exact: true })).toBeDisabled();
 
   await toggle.click();
-  await expect(status).toContainText(/Enviando|Falta el runtime de NDI/);
+  await expect(status).toContainText(/Enviando|Falta instalar NDI/);
   const sending = !(await status.textContent())?.includes("Falta");
   if (!sending) await expect(status.getByRole("button", { name: "Descargar NDI" })).toBeVisible();
   await expect(settings.getByRole("textbox", { name: "Nombre", exact: true })).toBeEnabled();

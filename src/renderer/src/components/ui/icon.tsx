@@ -1,5 +1,10 @@
 import {
   AlarmClock,
+  House,
+  Keyboard,
+  MousePointerClick,
+  RadioTower,
+  Repeat,
   AlertCircle,
   ArrowDown,
   ArrowLeft,
@@ -18,6 +23,7 @@ import {
   CircleCheck,
   Clapperboard,
   Clock,
+  Columns2,
   Copy,
   Download,
   Ellipsis,
@@ -78,6 +84,11 @@ import { cn } from "@renderer/lib/utils";
 
 const icons = {
   alert: AlertCircle,
+  home: House,
+  keyboard: Keyboard,
+  click: MousePointerClick,
+  broadcast: RadioTower,
+  loop: Repeat,
   arrowLeft: ArrowLeft,
   arrowDown: ArrowDown,
   arrowRight: ArrowRight,
@@ -95,6 +106,8 @@ const icons = {
   circleCheck: CircleCheck,
   media: Clapperboard,
   clock: Clock,
+  // A verse in two versions side by side (the Bible tab's «En paralelo»).
+  columns: Columns2,
   alarm: AlarmClock,
   hourglass: Hourglass,
   timer: Timer,

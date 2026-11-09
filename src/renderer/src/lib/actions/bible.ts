@@ -1,22 +1,52 @@
 import { claimLiveIntent } from "@renderer/lib/actions/live-intent";
-import { bibleVersionLabel, useBibleStore } from "@renderer/stores/bible.store";
+import { bibleVersionLabel, parallelAt, parallelVersionFor, useBibleStore } from "@renderer/stores/bible.store";
 import { useProjectionStore } from "@renderer/stores/projection.store";
 import { useProgramStore } from "@renderer/stores/program.store";
+import { useSettingsStore } from "@renderer/stores/settings.store";
 import { previewVerse } from "@renderer/lib/actions/preview";
 import { usePreviewStore } from "@renderer/stores/preview.store";
 import { api } from "@renderer/lib/api";
 import type { DraggedVerse } from "@renderer/lib/dnd";
+import { canonAbbrev } from "@shared/bible-canon";
 import type { BibleSearchHit } from "@shared/types/bible";
+import type { BibleParallel } from "@shared/types/projection";
 import type { ProgramItemDTO } from "@shared/types/program";
 
 export type BibleScheduleItem = Extract<ProgramItemDTO, { kind: "bible" }>;
+
+/**
+ * A schedule row's passage in the parallel version, or `null`: none is set, it
+ * is the row's own version, or that version lacks the passage. The row names
+ * its book by id, so its own version's books give the abbrev every version
+ * shares (`canonAbbrev`).
+ */
+export async function scheduleItemParallel(item: BibleScheduleItem): Promise<BibleParallel | null> {
+  const { bibleBookId, bibleVersionId, chapter, verseFrom, verseTo } = item;
+  const { versions } = useBibleStore.getState();
+  const setting = useSettingsStore.getState().settings["bible.parallelVersionId"];
+  const parallelId = parallelVersionFor(setting, versions, bibleVersionId);
+  if (parallelId === null || bibleVersionId === null || bibleBookId === null) return null;
+  if (chapter === null || verseFrom === null) return null;
+  try {
+    const books = await api.bible.books(bibleVersionId);
+    const book = books.find((b) => b.id === bibleBookId);
+    if (!book) return null;
+    const abbrev = canonAbbrev(book, books.length);
+    const passage = await api.bible.passage(parallelId, abbrev, chapter, verseFrom, verseTo ?? verseFrom);
+    return passage && { ...passage, versionLabel: bibleVersionLabel(versions, parallelId) };
+  } catch (error) {
+    // The verse still goes out, alone.
+    console.error("[bible] parallel lookup failed", error);
+    return null;
+  }
+}
 
 /** Projects the verse at `index` and marks it current — the single
  *  implementation behind `goLive()` on a verse target and the global ←/→
  *  shortcut (use-global-shortcuts.ts) while scripture is on the projector. */
 export function projectVerse(index: number): void {
-  const { bookId, chapter, recordRecent, setCurrentVerseIndex, versionId, verses, versions } =
-    useBibleStore.getState();
+  const bible = useBibleStore.getState();
+  const { bookId, chapter, recordRecent, setCurrentVerseIndex, versionId, verses, versions } = bible;
   const verse = verses[index];
   if (!verse) return;
   const reference = `${verse.bookName} ${verse.chapter}:${verse.verse}`;
@@ -32,7 +62,9 @@ export function projectVerse(index: number): void {
   // A verse of the tab is never a schedule row: ←/→ from a row's verse that
   // went live must take the row's on-air rail down with it.
   useProgramStore.getState().setActive(null);
-  useProjectionStore.getState().setBase({ kind: "bible", text: verse.text, reference, versionLabel });
+  // Already loaded beside the chapter, so ←/→ never waits for it.
+  const parallel = parallelAt(bible, index);
+  useProjectionStore.getState().setBase({ kind: "bible", text: verse.text, reference, versionLabel, parallel });
   setCurrentVerseIndex(index);
   if (bookId !== null && chapter !== null) recordRecent(bookId, chapter, verse.verse, verse.verse);
 }

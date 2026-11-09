@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useT, type MessageKey } from "@renderer/lib/i18n/i18n-provider";
 import { TabPanel, TabPanels, Tabs, type IconName, type TabItem } from "@renderer/components/ui";
+import { markFirstStep } from "@renderer/effects/first-steps";
 import { useLibraryStore } from "@renderer/stores/library.store";
 import { BibleBrowser } from "./bible-browser";
 import { FunctionsTabs } from "./functions-tabs";
@@ -73,6 +74,7 @@ export function ResourcePanel() {
           // was not even looking at. Coming BACK is `MediaTabs`' own job — it
           // is the one that knows which kind is open.
           if (value !== "media") selectAsset(null);
+          if (value === "songs") markFirstStep("song");
         }}
         tabs={tabs}
         value={tab}

@@ -36,6 +36,9 @@ const VERTICAL_ALIGN: Record<SceneVerticalAlign, string> = {
  */
 const EDGE_GUTTER_CQW = 4.5;
 
+/** The gutter between a verse and its parallel version, out of `maxWidthCqw`. */
+const PARALLEL_GAP_CQW = 4;
+
 /** How many halvings the search below does. Seven puts the answer within
  *  1/128th of the range — far finer than a reader can tell apart, and seven
  *  reflows of one paragraph is work nobody will ever perceive either. */
@@ -99,16 +102,24 @@ function availableHeight(stage: HTMLElement): number {
 function measureFittedSize(
   block: HTMLElement,
   stage: HTMLElement,
-  text: HTMLElement,
+  texts: readonly HTMLElement[],
   max: number,
   min: number,
 ): number {
   const available = availableHeight(stage);
+  // Every text at the SAME size: a verse in two languages is one block with one
+  // size, never two columns shrunk on their own.
+  const setSize = (size: string) => {
+    for (const text of texts) text.style.fontSize = size;
+  };
   const fits = (cqw: number): boolean => {
-    text.style.fontSize = `${cqw}cqw`;
+    setSize(`${cqw}cqw`);
     return (
       block.scrollHeight <= available + FIT_TOLERANCE_PX &&
-      block.scrollWidth <= block.clientWidth + FIT_TOLERANCE_PX
+      block.scrollWidth <= block.clientWidth + FIT_TOLERANCE_PX &&
+      // A word wider than its own column spills into the next one without
+      // widening the block; for one column this is the line above.
+      texts.every((text) => text.scrollWidth <= text.clientWidth + FIT_TOLERANCE_PX)
     );
   };
 
@@ -124,7 +135,7 @@ function measureFittedSize(
   // Rounded so a re-measure after an imperceptible container change cannot
   // produce a value that differs in the twelfth decimal and re-render forever.
   const fitted = Math.round(low * 100) / 100;
-  text.style.fontSize = `${fitted}cqw`;
+  setSize(`${fitted}cqw`);
   return fitted;
 }
 
@@ -149,27 +160,32 @@ function useFittedTextSize(
   max: number,
   min: number,
   key: string,
-): { blockRef: React.RefObject<HTMLDivElement | null>; sizeCqw: number; textRef: React.RefObject<HTMLParagraphElement | null> } {
+): {
+  blockRef: React.RefObject<HTMLDivElement | null>;
+  sizeCqw: number;
+  /** The verse's paragraph, and the parallel version's beside it — by column. */
+  textRefs: React.RefObject<(HTMLParagraphElement | null)[]>;
+} {
   const blockRef = useRef<HTMLDivElement>(null);
-  const textRef = useRef<HTMLParagraphElement>(null);
+  const textRefs = useRef<(HTMLParagraphElement | null)[]>([]);
   const [sizeCqw, setSizeCqw] = useState(max);
 
   useLayoutEffect(() => {
     const block = blockRef.current;
-    const text = textRef.current;
+    const texts = textRefs.current.filter((text) => text !== null);
     const stage = block?.parentElement;
-    if (!block || !text || !stage) return;
+    if (!block || texts.length === 0 || !stage) return;
 
     // A floor at or above the ceiling is not a configuration error worth
     // refusing to save (see `normalizeAutoFit`); it simply means there is no
     // room to shrink into, which is the same outcome as the feature being off.
     if (!enabled || min >= max) {
-      text.style.fontSize = "";
+      for (const text of texts) text.style.fontSize = "";
       setSizeCqw(max);
       return;
     }
 
-    const measure = () => setSizeCqw(measureFittedSize(block, stage, text, max, min));
+    const measure = () => setSizeCqw(measureFittedSize(block, stage, texts, max, min));
     measure();
 
     const observer = new ResizeObserver(measure);
@@ -177,7 +193,7 @@ function useFittedTextSize(
     return () => observer.disconnect();
   }, [enabled, max, min, key]);
 
-  return { blockRef, sizeCqw, textRef };
+  return { blockRef, sizeCqw, textRefs };
 }
 
 /**
@@ -204,17 +220,30 @@ export function BibleScene({
   onImageError?: ((url: string) => void) | undefined;
   output: BibleOutput;
 }) {
-  const { backgroundUrl, reference, style, text, versionLabel } = output;
+  const { backgroundUrl, parallel, reference, style, text, versionLabel } = output;
   const referenceLines = bibleReferenceLines(reference, versionLabel, style);
+  const parallelLines = parallel ? bibleReferenceLines(parallel.reference, parallel.versionLabel, style) : [];
 
-  const { blockRef, sizeCqw, textRef } = useFittedTextSize(
+  const { blockRef, sizeCqw, textRefs } = useFittedTextSize(
     style.autoFit.enabled,
     style.text.sizeCqw,
     style.autoFit.minSizeCqw,
     // Everything that moves a line break or changes the height of the block.
     // `versionLabel` is in via `referenceLines`.
-    JSON.stringify([text, referenceLines, style]),
+    JSON.stringify([text, referenceLines, parallel?.text, parallelLines, style]),
   );
+  const blockStyle = {
+    fontFamily: cssFontFamily(style.fontFamily),
+    lineHeight: style.lineHeight,
+    textAlign: style.textAlign,
+    width: `${style.maxWidthCqw}cqw`,
+  };
+  const verseStyle = { ...textStyle(style.text), fontSize: `${sizeCqw}cqw` };
+  const columnRef = (column: number) => (el: HTMLParagraphElement | null) => {
+    textRefs.current[column] = el;
+  };
+  const above = style.referencePosition === "above";
+  const below = style.referencePosition === "below";
 
   const background = cssSceneBackground(style.background);
   // Narrowed once, rather than re-tested inside the JSX: `background.kind`
@@ -245,24 +274,43 @@ export function BibleScene({
             against — see `measureFittedSize`, which reads the stage's own
             content box, because this block is content-sized until it reaches
             that ceiling. */}
-        <div
-          className="flex max-h-full min-h-0 flex-col gap-[1.2cqw] overflow-hidden"
-          ref={blockRef}
-          style={{
-            fontFamily: cssFontFamily(style.fontFamily),
-            lineHeight: style.lineHeight,
-            textAlign: style.textAlign,
-            width: `${style.maxWidthCqw}cqw`,
-          }}
-        >
-          {style.referencePosition === "above" ? <ReferenceLines lines={referenceLines} style={style} /> : null}
-          {/* `dir="auto"`, like a song's lines: an Arabic or Hebrew version
-              reads right to left, punctuation included. */}
-          <p dir="auto" ref={textRef} style={{ ...textStyle(style.text), fontSize: `${sizeCqw}cqw` }}>
-            {text}
-          </p>
-          {style.referencePosition === "below" ? <ReferenceLines lines={referenceLines} style={style} /> : null}
-        </div>
+        {parallel ? (
+          // Two languages side by side: two equal columns, filled row by row —
+          // the references, the verses, the references — so both verses start
+          // on the same line whatever either reference wraps to, and at the
+          // one size measured for the whole block.
+          <div
+            className="grid max-h-full min-h-0 grid-cols-2 items-start gap-y-[1.2cqw] overflow-hidden"
+            data-bible-parallel=""
+            ref={blockRef}
+            style={{ ...blockStyle, columnGap: `${PARALLEL_GAP_CQW}cqw` }}
+          >
+            {above ? <ReferenceLines lines={referenceLines} style={style} /> : null}
+            {above ? <ReferenceLines lines={parallelLines} style={style} /> : null}
+            <p dir="auto" ref={columnRef(0)} style={verseStyle}>
+              {text}
+            </p>
+            <p dir="auto" ref={columnRef(1)} style={verseStyle}>
+              {parallel.text}
+            </p>
+            {below ? <ReferenceLines lines={referenceLines} style={style} /> : null}
+            {below ? <ReferenceLines lines={parallelLines} style={style} /> : null}
+          </div>
+        ) : (
+          <div
+            className="flex max-h-full min-h-0 flex-col gap-[1.2cqw] overflow-hidden"
+            ref={blockRef}
+            style={blockStyle}
+          >
+            {above ? <ReferenceLines lines={referenceLines} style={style} /> : null}
+            {/* `dir="auto"`, like a song's lines: an Arabic or Hebrew version
+                reads right to left, punctuation included. */}
+            <p dir="auto" ref={columnRef(0)} style={verseStyle}>
+              {text}
+            </p>
+            {below ? <ReferenceLines lines={referenceLines} style={style} /> : null}
+          </div>
+        )}
       </div>
     </>
   );

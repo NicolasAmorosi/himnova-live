@@ -19,8 +19,10 @@ Windows, macOS and Linux · English, Spanish, Italian and Portuguese
   never touched. When a video ends, the projector shows the logo, goes black, loops it, holds its
   last frame or moves on to the schedule's next item — your choice in Settings.
 - **Bible** with full-text search (accent-insensitive), favourite passages and the ones that went live
-  recently. Ships with the Reina-Valera 1909; import other versions in JSON, Zefania, USFX, OSIS or
-  MyBible/MySword modules.
+  recently. Ships with nine public-domain or freely licensed versions — Reina-Valera 1909, Versión
+  Biblia Libre, King James Version, American Standard Version, World English Bible, Riveduta 1927, Diodati
+  1885, Almeida 1911 and Bíblia Livre —: a new install gets those of its language, and any other installs
+  with one click, no internet. Import other versions in JSON, Zefania, USFX, OSIS or MyBible/MySword modules.
 - **Songs:** type or paste the lyrics — with headers like `[Verse 1]` or `[Chorus]` in English, Spanish,
   Italian or Portuguese, or none, and the block that repeats becomes the chorus — and the app builds the
   slides. One order per song, as chips you drag or a line like `V1 C V2 C B C`. **Every slide of a song is
@@ -120,4 +122,8 @@ libmpv (see [`resources/engine-NOTICE.txt`](resources/engine-NOTICE.txt); the en
 table of Office's shapes, under the MPL-2.0 (see
 [`resources/ooxml/mso-shapes-NOTICE.txt`](resources/ooxml/mso-shapes-NOTICE.txt)). The NDI® output is built against the NDI SDK's headers, under the MIT license
 ([`native/ndi/include/`](native/ndi/include/)); the NDI runtime does not ship with the app — you install it from
-[ndi.video](https://ndi.video/). NDI® is a registered trademark of Vizrt NDI AB. The text of the Reina-Valera 1909 is in the public domain.
+[ndi.video](https://ndi.video/). NDI® is a registered trademark of Vizrt NDI AB. The bundled Bible versions are in the public domain, except the
+Versión Biblia Libre, © Jonathan Gallagher and Shelly Barrios de Avila under the Creative Commons
+Attribution-ShareAlike 4.0 license, and the Bíblia Livre, © Diego Santos, Mario Sérgio and Marco Teles under the
+Creative Commons Attribution 4.0 Brazil license; where each text comes from and what was changed is in
+[`resources/bibles/NOTICE.txt`](resources/bibles/NOTICE.txt).

@@ -8,8 +8,9 @@ WorshipApp — the product has been called **Lumina Live** since 2026-10-22 and 
 Vite + Tailwind**, with **embedded SQLite** as its backend, meant as a replacement for EasyWorship.
 It drives two windows — control and projection — to show presentations (PowerPoint old and new,
 `.odp` and PDF, every one read and drawn by the app itself, with nothing else to install), video,
-images, audio, Bible verses (it ships the RV1909, in the public domain; any other version is
-imported) and songs (lyrics with sections, an order and named themes) during a service. Visual identity: Lumina Live's (navy + teal accent +
+images, audio, Bible verses (it ships eight public-domain or freely licensed versions in its four
+languages — a new profile gets its language's, any other installs from Settings with no internet —
+and any other version is imported) and songs (lyrics with sections, an order and named themes) during a service. Visual identity: Lumina Live's (navy + teal accent +
 the flame, identity sheet of 2026-10-22), with a switchable light/dark theme (dark by default, meant
 to be operated from a dark booth).
 
@@ -158,7 +159,8 @@ src/
         │   ├── ui/          # design system primitives — barrel index.ts
         │   ├── shared/      # cross-feature: modal, editor-screen (the full-screen editor shell), panel,
         │   │                #   output-view (renders a ProjectionOutput), timer-scene + bible-scene (the two
-        │   │                #   generated scenes), style-fields
+        │   │                #   generated scenes), style-fields, settings-groups/ (Settings' groups the welcome
+        │   │                #   shows too: screen, LOGO, NDI)
         │   └── pages/       # one folder per feature:
         │       ├── layout/     # AppShell (EasyWorship-style grid), TopBar
         │       ├── schedule/   # the order of service (left column, top)
@@ -168,6 +170,8 @@ src/
         │       ├── slides/     # center: PREVIEW monitor + grid of slides/verses of the item in preview
         │       ├── monitors/   # right column: LIVE monitor, live grid, deck transport
         │       ├── settings/   # Settings (the bible versions manager among them)
+        │       ├── welcome/    # the first-run welcome (new profiles only; Settings ▸ About reopens it) and
+        │       │               #   «Primeros pasos», the checklist that ticks itself (`effects/first-steps.ts`)
         │       └── programs/   # the saved programs screen
         ├── stores/          # Zustand: program, toast, preview, projection, deck, bible,
         │                    #   library, settings, audio, display, ui
@@ -358,7 +362,7 @@ npm install              # installs deps — better-sqlite3 ships prebuilt binar
 npm run dev               # electron-vite dev (HMR in the renderer, main restarts on watch)
 npm run typecheck          # tsc --noEmit over node (main+preload+shared) and web (renderer+shared)
 npm run lint                # eslint .
-npm run test                 # vitest run — 820 cases in two projects: `main` (Node: migrations, seed,
+npm run test                 # vitest run — 857 cases in two projects: `main` (Node: migrations, seed,
                               #   FTS5, repos and the library sweep, draft, settings and scene validators, WAL backup,
                               #   zip reader, the legacy-deck reader against an OLE2 file built in the test
                               #   (`tests/fixtures/legacy-ppt.ts`: pictures, master inheritance, what it refuses),
@@ -372,7 +376,7 @@ npm run test                 # vitest run — 820 cases in two projects: `main` 
                               #   video embedded in a slide: geometry, external rels and node by `spid`,
                               #   verse style, the update errors and launch check, and the Bible format
                               #   readers against real files written on the fly: Zefania, USFX, OSIS,
-                              #   SQLite modules, Latin-1 and .zip)
+                              #   SQLite modules, Latin-1 and .zip; every bundled bible read whole, a new profile per language)
                               #   and `renderer` (jsdom: selectOutput —including slide video under
                               #   BLACK and a slide's own way in, forward only—,
                               #   the dressed verse and its live restyling,
@@ -381,7 +385,7 @@ npm run test                 # vitest run — 820 cases in two projects: `main` 
                               #   frozen frame, toast store, utils). Nothing imports `electron`: that's
                               #   the suite's boundary
 npm run test:watch            # the same suite in watch mode, while working on a module
-npm run test:e2e              # build + Playwright: 258 walkthroughs of the real app (~13 min) with a
+npm run test:e2e              # build + Playwright: 259 walkthroughs of the real app (~13 min) with a
                               #   throwaway, bare profile (`--no-starter-look`; `starter-look.spec.ts` turns it on)
                               #   and media generated on the fly — videos, AVI and WMA with the
                               #   bundled FFmpeg; PDFs, a legacy .pps made of pictures and .pptx with auto-advance, a
@@ -697,7 +701,7 @@ npm run package:win|mac|linux  # build + electron-builder for that platform
   `--user-data-dir` (the E2E tests always pass it). See
   [`.claude/knowledge/electron-userdata-follows-package-name-not-build-productname.md`](.claude/knowledge/electron-userdata-follows-package-name-not-build-productname.md).
 - **Never write user data inside the app bundle.** The DB lives in
-  `app.getPath('userData')/worship.db`; the packaged resources (`resources/bibles/*.json`,
+  `app.getPath('userData')/worship.db`; the packaged resources (`resources/bibles/`,
   `drizzle/*.sql`) are read-only in production — always access them through `src/main/paths.ts`.
 - `kebab-case` filenames (`PascalCase.tsx` components inside their folders). Vars and
   functions `camelCase`.

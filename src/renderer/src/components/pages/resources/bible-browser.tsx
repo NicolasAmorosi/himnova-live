@@ -10,14 +10,16 @@ import {
   IconButton,
   Input,
   ListRow,
+  Menu,
   Select,
   Segmented,
   Tooltip,
 } from "@renderer/components/ui";
 import { ModalBoundary } from "@renderer/components/shared/modal-boundary";
 import { PanelBody, PanelFooter } from "@renderer/components/shared/panel";
-import { bookmarkCovers, useBibleStore } from "@renderer/stores/bible.store";
+import { bibleVersionLabel, bookmarkCovers, parallelVersionFor, useBibleStore } from "@renderer/stores/bible.store";
 import { usePreviewStore } from "@renderer/stores/preview.store";
+import { useSettingsStore } from "@renderer/stores/settings.store";
 import { api } from "@renderer/lib/api";
 import { addVerseToSchedule, buildVerseDrag, previewPassage, previewSearchHit } from "@renderer/lib/actions/bible";
 import { previewVerse } from "@renderer/lib/actions/preview";
@@ -26,6 +28,7 @@ import { setBibleVerseDrag } from "@renderer/lib/dnd";
 import { useDebouncedCallback } from "@renderer/lib/hooks/use-debounced-callback";
 import { matchReference, type ReferenceMatch } from "@renderer/lib/bible-reference";
 import { toast } from "@renderer/lib/toast";
+import { bibleVersionOptions } from "@renderer/lib/utils";
 import {
   parseSnippet,
   passageReference,
@@ -61,7 +64,19 @@ export function BibleBrowser() {
   const favorites = useBibleStore((s) => s.favorites);
   const recents = useBibleStore((s) => s.recents);
   const setFavorite = useBibleStore((s) => s.setFavorite);
+  const setParallelVersion = useBibleStore((s) => s.setParallelVersion);
+  const parallelSetting = useSettingsStore((s) => s.settings["bible.parallelVersionId"]);
+  // The browsed version itself, or one deleted since, is no parallel.
+  const parallelId = parallelVersionFor(parallelSetting, versions, versionId);
+  const parallelName = bibleVersionLabel(versions, parallelId);
+  // Same order as the version picker; a menu has no headings.
+  const parallelOptions = bibleVersionOptions(
+    versions.filter((v) => v.id !== versionId),
+    locale,
+  ).map(({ label, value }) => ({ label, value }));
   const target = usePreviewStore((s) => s.target);
+  // The interface's language first, under a heading per language (owner, 2026-11-09).
+  const versionOptions = useMemo(() => bibleVersionOptions(versions, locale), [versions, locale]);
   const [pendingBook, setPendingBook] = useState("");
   const [pendingChapter, setPendingChapter] = useState("");
   // The pickers follow the chapter the tab holds, wherever it was loaded from:
@@ -248,16 +263,34 @@ export function BibleBrowser() {
   return (
     <>
       {/* Two strips, like every bar of the main window (owner, 2026-11-06):
-          version · book · chapter above, the search mode · the search under. */}
-      <div className="grid h-strip shrink-0 grid-cols-[minmax(0,3fr)_minmax(0,3fr)_minmax(8rem,2fr)] items-center gap-1.5 border-b border-border px-1.5">
+          version · «En paralelo» · book · chapter above, the search mode · the search under. The chapter's
+          floor (a number, «Cap…») paid for the parallel's icon: names keep the width they had. */}
+      <div className="grid h-strip shrink-0 grid-cols-[minmax(0,3fr)_auto_minmax(0,3fr)_minmax(5.5rem,2fr)] items-center gap-1.5 border-b border-border px-1.5">
           <Select
             aria-label={t("bible.versionLabel")}
             className="min-w-0"
             onChange={(value) => void setVersion(Number(value))}
-            options={versions.map((v) => ({ label: v.name, value: String(v.id) }))}
+            options={versionOptions}
             size="sm"
             value={versionId !== null ? String(versionId) : ""}
           />
+          {/* Beside the version it pairs with; an icon, because a second select
+              did not fit the strip at the column's narrow widths. */}
+          <Tooltip
+            content={parallelName ? t("bible.parallelOn", { name: parallelName }) : t("bible.parallelHint")}
+            floating
+          >
+            <Menu
+              active={parallelId !== null}
+              disabled={parallelOptions.length === 0}
+              icon="columns"
+              label={t("bible.parallel")}
+              onSelect={(value) => void setParallelVersion(value === "none" ? null : Number(value))}
+              options={[{ label: t("bible.parallelNone"), value: "none" }, ...parallelOptions]}
+              size="sm"
+              value={parallelId === null ? "none" : String(parallelId)}
+            />
+          </Tooltip>
           <Select
             aria-label={t("bible.bookLabel")}
             className="min-w-0"

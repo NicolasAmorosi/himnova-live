@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { AppShell } from "@renderer/components/pages/layout/AppShell";
 import { ProgramsModal } from "@renderer/components/pages/programs/ProgramsModal";
 import { SettingsModal } from "@renderer/components/pages/settings/SettingsModal";
+import { FirstStepsPanel } from "@renderer/components/pages/welcome/FirstStepsPanel";
+import { WelcomeScreen } from "@renderer/components/pages/welcome/WelcomeScreen";
 import { RemoveAssetConfirm } from "@renderer/components/pages/resources/remove-asset-confirm";
 import {
   ConfirmModal,
@@ -37,6 +39,7 @@ import { startDraftAutosave } from "@renderer/effects/draft-autosave";
 import { startStageSync } from "@renderer/effects/stage-sync";
 import { startEngineAssetsSync } from "@renderer/effects/engine-assets-sync";
 import { startUpdateAnnouncement } from "@renderer/effects/update-announcement";
+import { startFirstSteps } from "@renderer/effects/first-steps";
 import { useGlobalShortcuts } from "@renderer/lib/hooks/use-global-shortcuts";
 
 /**
@@ -64,6 +67,7 @@ export function App() {
   // open Settings on a given section, and a toast action has no component
   // tree under it. See `ui.store.ts`.
   const settingsOpen = useUiStore((s) => s.settingsSection !== null);
+  const welcomeOpen = useUiStore((s) => s.welcomeOpen);
   const openSettings = useUiStore((s) => s.openSettings);
   const closeSettings = useUiStore((s) => s.closeSettings);
   // Same reasoning, and one more: mounted here it exists ONCE. Rendered by
@@ -131,6 +135,8 @@ export function App() {
       // unreliable. The operator's first tap on BLACK, LOGO or GO LIVE opens
       // it on demand (see display.store's `openIfNeeded`).
       await useDisplayStore.getState().load();
+      // A new profile is welcomed — once the screens are known, which its «Pantallas» step lists.
+      if (settings["welcome.pending"]) useUiStore.getState().openWelcome();
       // After the settings, never before: `loadVersions` settles on
       // `bible.defaultVersionId`, and reading that key before it is loaded
       // would silently open on whichever version happens to be first. This is
@@ -181,6 +187,7 @@ export function App() {
     // Main's launch check comes ten seconds after the window, long after the
     // settings it reads have loaded.
     const stopUpdateAnnouncement = startUpdateAnnouncement();
+    const stopFirstSteps = startFirstSteps();
     return () => {
       stopProjectionEffects();
       stopStageSync();
@@ -189,6 +196,7 @@ export function App() {
       stopDraftAutosave();
       stopOpenProgramMemory();
       stopUpdateAnnouncement();
+      stopFirstSteps();
     };
   }, [loadSettings]);
 
@@ -275,6 +283,7 @@ export function App() {
           }}
           onOpenSettings={() => openSettings()}
         />
+        <FirstStepsPanel />
       </ErrorBoundary>
       {/* One boundary per modal, deliberately NOT a share of the shell's:
           a throw in a dialog must cost the operator that dialog, not the
@@ -300,6 +309,16 @@ export function App() {
         open={settingsOpen}
       >
         <SettingsModal />
+      </ModalBoundary>
+      <ModalBoundary
+        onCrash={() => {
+          useUiStore.getState().closeWelcome();
+          void useSettingsStore.getState().update({ "welcome.pending": false });
+          toast.danger(t("app.modalCrashed"));
+        }}
+        open={welcomeOpen}
+      >
+        <WelcomeScreen />
       </ModalBoundary>
       <ModalBoundary
         onCrash={() => {

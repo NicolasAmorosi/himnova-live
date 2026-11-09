@@ -328,10 +328,12 @@ missing — most used first, its days; a BOM for Excel and `;` as the separator 
 
 `bible_verses_fts` uses `tokenize="unicode61 remove_diacritics 2"` — searching "espiritu" finds
 "Espíritu". The table is *external content* over `bible_verses` (it doesn't duplicate the ~4MB of
-text) and is kept in sync with `AFTER INSERT/UPDATE/DELETE` triggers. The seed uses
-`INSERT INTO bible_verses_fts(bible_verses_fts) VALUES('rebuild')` once at the end instead of
-letting the triggers run 31,102 times — the full load measures ~550ms on this machine
-(`npm run test`, `main` project).
+text) and is kept in sync with `AFTER INSERT/UPDATE/DELETE` triggers. A bible's load sets the
+insert trigger aside inside its transaction (`DROP TRIGGER`, the saved SQL from `sqlite_master` put
+back at the end) and indexes only its own rows with one `INSERT … SELECT`: the trigger firing 31 102
+times was ~0.5 s of a ~0.6 s load, and the `'rebuild'` this used to run afterwards — not instead —
+re-indexed every installed version. A whole bible now loads in ~0.15 s plus its parse (~0.1–0.2 s);
+see [`an-fts5-rebuild-after-a-bulk-insert-does-not-replace-the-sync-triggers.md`](../../.claude/knowledge/an-fts5-rebuild-after-a-bulk-insert-does-not-replace-the-sync-triggers.md).
 
 ## `media_conversions` — facts, never the decision
 
@@ -380,19 +382,52 @@ startup.
 
 ## Bible seed — never written inside the bundle
 
-`resources/bibles/rv1909.json` is packaged with `extraResources` (`build/electron-builder`) and
-imported into the tables on **first startup**, not at build time — that way an app update never
+The app ships nine Bible versions, public-domain or freely licensed classics in the interface's four
+languages (2026-11-09), listed in `src/main/db/seed/bundled-bibles.ts` (`BUNDLED_BIBLES`: code, file,
+name, language, credit) and packaged from `resources/bibles/` with `extraResources`:
+
+| Code | Version | Language | File |
+|---|---|---|---|
+| `rv1960` | Reina-Valera 1909 | es | `rv1909.json` (see below for the code) |
+| `vbl` | Versión Biblia Libre | es | `vbl.xml` |
+| `kjv`, `asv`, `web` | King James Version, American Standard Version, World English Bible | en | `<code>.xml` |
+| `riveduta1927`, `diodati1885` | Riveduta 1927, Diodati 1885 | it | `<code>.xml` |
+| `almeida1911`, `biblialivre` | Almeida 1911, Bíblia Livre | pt | `<code>.xml` |
+
+Every file after the RV1909 is **Zefania XML** (read by `bible-formats/zefania.ts` like any import): it
+carries the version's name and language and each verse's OWN number, so a verse a text leaves out (the
+ASV's 16, the WEB's 4) is a gap and never shifts the verses after it — the JSON reader numbers verses by
+array index. Each holds the 66 books with the book names the text itself prints, and nothing but the
+verse's words. They are built from their sources by maintainer scripts kept outside this repo, with the
+plans (`../docs/plans/2026-11-09-bienvenida-y-biblias/scripts/`); `resources/bibles/NOTICE.txt` says
+where each text comes from, its licence, and what was changed. A version whose licence asks for a credit
+(the Versión Biblia Libre, CC BY-SA 4.0; the Bíblia Livre, CC BY 4.0 BR) carries it in the catalog, and
+Settings shows it under that version.
+
+A **new profile** (`isNewProfile` in `initDatabase`) gets every version of its interface language — the
+locale set from the OS just before — in the catalog's order, and the first becomes
+`bible.defaultVersionId`; the E2E suite (`--lang=es`) starts with the RV1909 and the VBL. Every other version is
+installed with one click in Settings ▸ Bible (`bible:bundled`, `bible:installBundled`), no internet;
+deleting one makes it «not installed» again. An existing profile is never given a version on its own.
+All bundled versions are `isBuiltin`.
+
+They are copied into the tables when installed, not at build time — that way an app update never
 overwrites the user's DB. `bible:import` does exactly the same: it parses the file in memory and
 inserts rows. **It never writes a file inside the app directory** — the legacy bug of
 `import-bible` writing to `data/bible/` (broken in a packaged install because of permissions) does
 not exist in this design.
 
-Idempotency by `sourceHash` (sha256 of the file, `bibleFileHash`) in `bible_versions` — the bundled
-RV1909 is re-seeded only when its file changed, and `bible:import` refuses a file whose hash an installed
+Idempotency by `sourceHash` (sha256 of the file, `bibleFileHash`) in `bible_versions` — an installed
+bundled version is re-seeded only when its file changed, and `bible:import` refuses a file whose hash an installed
 version already has (`BIBLE_ALREADY_INSTALLED`, naming that version; owner, 2026-11-06): every import
 gets a new random `code`, so the same file twice used to be two identical versions. A reseed **keeps the name the row already has**: the version can be
 renamed from Settings (it's what the projector writes below the verse), and a corrected
-`rv1909.json` in a later build can't undo that rename.
+file in a later build can't undo that rename.
+
+A file that doesn't say its language is stored as `es` (the column's default): Settings offers an
+imported version's language as a select (`bible:setLanguage`, a two-letter tag — `isBibleLanguage`),
+and both the Settings list and the Bible tab's picker group the versions by it, the languages in the
+order they first appear in the operator's arrangement (the picker only once there are two).
 
 The bundled text is the **Reina-Valera 1909** (public domain), although up to 2.2.0-beta.3 it was
 called «Reina-Valera 1960» and the file was `rv1960.json`. Its `code` is still `rv1960` because
@@ -404,13 +439,14 @@ is theirs. A real RV1960 can't be bundled (it's under copyright): it gets import
 
 `seedBuiltinBibles()` runs on every startup, so without a flag the RV1909 came back on the next
 launch and «delete» didn't mean delete. But the flag **can't** just switch the seeding off, because
-the seeding is also the update path. The three rules, in order:
+the seeding is also the update path. The three rules of an existing profile, in order (a new one
+gets its language's versions and the flag, as above):
 
 | State | What it does |
 |---|---|
-| the row exists | seeds anyway — the hash short-circuit turns it into one digest per startup, and that's how a corrected `rv1909.json` reaches an existing install |
-| it doesn't exist and the flag is set | the operator deleted it: that's respected |
-| it doesn't exist and the flag isn't set | fresh database: seeds and sets the flag |
+| the row exists | seeds anyway — the hash short-circuit turns it into one digest per startup, and that's how a corrected file reaches an existing install; true of every installed bundled version |
+| it doesn't exist and the flag is set | the operator deleted it (or the profile started in another language): that's respected |
+| it doesn't exist and the flag isn't set | a database never offered it — the legacy app's: seeds the RV1909 and sets the flag |
 
 That's why `seedBuiltinBibles` runs **after** `initRepos()` (it needs `SettingsRepo`), just like the
 timer-scene seeding and for the same reason.

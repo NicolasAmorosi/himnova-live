@@ -8,7 +8,7 @@ their place, **Zustand** in per-domain slices (`src/renderer/src/stores/`):
 | `program.store.ts` | current program (`items`, name, notes, date), `selectedIndex` (highlight), `activeIndex` (live), `dirty` |
 | `preview.store.ts` | **what is being looked at** (`target`: program item \| verse \| library asset) + `slideIndex`, the preview cursor, independent of the projection one |
 | `projection.store.ts` | `base` (what was chosen to project) + `overlay` ('none'\|'black'\|'logo') + `logoUrl` + `logoScene` (LOGO's two modes, `logo.mode` «image» \| «name» — unset: the image when there is one —, resolved by `logoLook` in `shared/types/settings.ts` for `App.tsx` and the Settings preview alike: the image's url, or `logo.name` over `logo.background` carried dressed in the `logo` output and drawn by `LogoScene`) + `presentationOpen` |
-| `bible.store.ts` | active version/book/chapter, loaded verses, current verse index |
+| `bible.store.ts` | active version/book/chapter, loaded verses, current verse index, and the parallel version's same chapter aligned to them (`parallelVerses`) |
 | `library.store.ts` | media library by type, active tab, selection |
 | `settings.store.ts` | in-memory mirror of the `settings` table, applies `data-theme` to `<html>` |
 | `display.store.ts` | available screens, which one is chosen (persisted in `settings['projection.displayId']`), `open()/close()` of the projection window |
@@ -205,6 +205,30 @@ EasyWorship's two-stage flow:
 - `bible.ts` — `projectVerse`/`advanceVerse` (live), `previewSearchHit` and
   `addVerseToSchedule`.
 
+## Verses in two versions («En paralelo»)
+
+A verse goes live dressed (`bibleOutputFor`, shared by `selectOutput` and the PREVIEW monitor) and, when the Bible
+tab's «En paralelo» names another installed version (`bible.parallelVersionId`, 2026-11-09), with its `parallel` —
+the same passage's text, its reference in that version's own book name and its own label — resolved in the control
+window and carried in `base` like `versionLabel`. `BibleScene` then draws two equal columns filled row by row
+(references, verses, references) so both verses start on the same line, at ONE size: the auto-fit measures the whole
+block with every text at the same size, never a column on its own. `parallel: null` renders exactly the one column it
+always did.
+
+- **The tab never waits.** `bible.store` loads the parallel version's same chapter WITH the browsed one
+  (`setVersion`, `setBookAndChapter`, `refreshParallel` when the choice or the installed versions change), its book
+  found by what it is (`sameBook`) and aligned by verse NUMBER (`alignByNumber`): `projectVerse` and ←/→ read it
+  synchronously, and a verse that version lacks goes out alone.
+- **A schedule row looks it up** (`scheduleItemParallel` → `bible:passage`, the book by the app's own abbrev,
+  `canonAbbrev`): already async, so its commit re-checks the live intent and a newer GO LIVE wins. PREVIEW looks the
+  row's passage up the same way, again whenever the choice changes.
+- **No parallel** when none is chosen, when it is the verse's own version, or when it names a version no longer
+  installed (`parallelVersionFor`); deleting that version resets the setting in main, like the default version.
+- **A new choice reaches the NEXT verse**; PREVIEW shows it at once and the verse already live keeps what it went out
+  with (a `ponytail:` in `setParallelVersion` names the in-place upgrade).
+- **The musicians' screen shows the verse in its own version only** (`stage-output.ts`): two columns in its frames
+  would be too small to read.
+
 ## Songs
 
 A song goes live RESOLVED in `base` (`{ kind: "song", song: ResolvedSong, slideIndex, detour,
@@ -264,6 +288,26 @@ lines per slide (`resolveSong`, `stores/song.store.ts`), its theme, and its **on
   it replaces fades out instead of holding under it. Everywhere no video is mounted — PREVIEW, the
   tiles, the theme editor, the stage, a monitor with motion off — the theme's `backgroundUrl` is the
   video's still. Main plays an engine one as a third, silent video session (`songVideo`).
+
+## The first-run welcome
+
+`components/pages/welcome/WelcomeScreen.tsx`: a `Modal size="screen"` with the steps on a sidebar `Tabs`
+(any step at any time), «Back» / «Next: …» at its foot and «Skip» on the rail. It holds **no draft**: every
+control writes its settings key as it changes, and most steps ARE Settings' own groups
+(`components/shared/settings-groups/`: `ScreenGroup`, `LogoGroup`, `NdiOutputGroup` with `essentials`), so
+skipping keeps what was chosen and Escape does nothing.
+
+- **Who sees it.** Main sets `welcome.pending` only when `initDatabase` finds a new profile (`isNewProfile`);
+  `App` opens it after the displays load and closing it — finished or skipped — clears the key. An install
+  that updates never has the key, so it is never welcomed. `--no-welcome` keeps main from setting it: the
+  E2E harness always passes it, and `test.use({ welcome: true })` drops it (`welcome.spec.ts`).
+- **«Primeros pasos»** (`welcome.firstStepsOpen`, `welcome.firstStepsDone`): `effects/first-steps.ts`
+  subscribes to the preview, projection, program and settings stores and ticks a step the first time its
+  thing happens — only while the list is open, so it always ends practised. The work screen knows nothing
+  about it. `FirstStepsPanel` lives inside `#root`, so a modal makes it inert like the rest.
+- **What the steps draw** comes from the projector's own builders: the LOGO preview from `useLogoPreview`
+  (`selectOutput` under LOGO), the sample verse from `bibleOutputFor` with the stored style and the
+  «En paralelo» version; the «Al terminar» cards are `StageSketch`es, not outputs — a picture of a choice.
 
 ## Keyboard
 

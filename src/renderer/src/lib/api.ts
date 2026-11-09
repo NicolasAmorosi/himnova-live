@@ -77,12 +77,17 @@ export const api = {
       invoke("bible:delete", { id, ...(force !== undefined ? { force } : {}) }),
     usages: (id: number) => invoke("bible:usages", { id }),
     reorder: (ids: number[]) => invoke("bible:reorder", { ids }),
+    bundled: () => invoke("bible:bundled", undefined),
+    installBundled: (code: string) => invoke("bible:installBundled", { code }),
+    setLanguage: (id: number, language: string) => invoke("bible:setLanguage", { id, language }),
     favorites: () => invoke("bible:favorites", undefined),
     setFavorite: (bookId: number, chapter: number, verse: number, favorite: boolean) =>
       invoke("bible:setFavorite", { bookId, chapter, verse, favorite }),
     recents: () => invoke("bible:recents", undefined),
     recordRecent: (bookId: number, chapter: number, verseFrom: number, verseTo: number) =>
       invoke("bible:recordRecent", { bookId, chapter, verseFrom, verseTo }),
+    passage: (versionId: number, bookAbbrev: string, chapter: number, verseFrom: number, verseTo: number) =>
+      invoke("bible:passage", { versionId, bookAbbrev, chapter, verseFrom, verseTo }),
   },
   engine: {
     assets: () => invoke("engine:assets", undefined),
@@ -173,6 +178,7 @@ export const api = {
     probeEnd: (src: string) => invoke("system:probeEnd", { src }),
     openLogsFolder: () => invoke("system:openLogsFolder", undefined),
     openSourceCode: () => invoke("system:openSourceCode", undefined),
+    openGuide: () => invoke("system:openGuide", undefined),
   },
   ndi: {
     getStatus: () => invoke("ndi:getStatus", undefined),

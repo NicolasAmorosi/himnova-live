@@ -79,7 +79,10 @@ export class BookCollector {
    *   gets the app's name for it in `finish`, once the file's language is known.
    */
   add(book: CanonBook, chapter: number, verse: number, text: string, name?: string | null): void {
-    const clean = text.trim();
+    // A verse is one line: the line breaks and indentation an XML file wraps a
+    // verse's text with (eBible's USFX, mid-verse after a `<w>` or `<nd>`) are
+    // layout, and would break the projected line where the file did.
+    const clean = text.replace(/[ \t\r\n]+/g, " ").trim();
     // An empty verse is not a verse. Formats routinely carry placeholder
     // elements for verses a translation does not render (a bracketed passage,
     // a chapter's trailing `<v>` milestone with nothing after it), and storing

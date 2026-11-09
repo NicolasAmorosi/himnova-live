@@ -48,6 +48,11 @@ export type VideoUnderlay = {
   loop: boolean;
 } | null;
 
+/** A verse's passage in the parallel version (`bible.parallelVersionId`):
+ *  its own text, its reference in its own language and its own label —
+ *  resolved in the control window, like the verse's. */
+export type BibleParallel = { text: string; reference: string; versionLabel: string | null };
+
 /** What LOGO shows without a logo image (`logo.name`, `logo.background`). */
 export type LogoScene = { name: string | null; background: SceneBackground };
 export const LOGO_NAME_MAX_LENGTH = 80;
@@ -130,6 +135,9 @@ export type ProjectionOutputKind =
       text: string;
       reference: string;
       versionLabel: string | null;
+      /** The same passage in the parallel version, drawn beside it; `null`
+       *  draws one column, exactly as before parallels existed. */
+      parallel: BibleParallel | null;
       style: BibleStyle;
       /** Resolved from `style.background` when it is an image, exactly like a
        *  time scene's. `null` for every other kind of background. */
@@ -426,8 +434,10 @@ export type BaseContent =
    *  the verse may have come from a program row whose version was deleted
    *  since, and `selectOutput` is a pure function of this state — it cannot
    *  reach into `bible.store` to ask. The same rule `utility`'s resolved
-   *  `scene` follows, for the same reason. */
-  | { kind: "bible"; text: string; reference: string; versionLabel: string | null }
+   *  `scene` follows, for the same reason — and so does `parallel`, resolved
+   *  when the verse went live: changing «En paralelo» reaches the NEXT verse.
+   *  Absent is none. */
+  | { kind: "bible"; text: string; reference: string; versionLabel: string | null; parallel?: BibleParallel | null }
   /**
    * A utility scene on the projector.
    *

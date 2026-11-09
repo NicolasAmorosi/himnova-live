@@ -33,6 +33,10 @@ const FLAGS = [
   // The suite was written against a bare profile: no sample backgrounds,
   // themes or overlays. `starter-look.spec.ts` turns the look back on.
   "--no-starter-look",
+  // Every test is a new profile, which main welcomes; `welcome.spec.ts` turns it back on.
+  "--no-welcome",
+  // …and links the computer's own Videos, Pictures, Music and Documents in Media: not this machine's.
+  "--no-system-folders",
 ];
 
 /** What the renderer's global handlers log before showing the "error
@@ -63,6 +67,7 @@ export class WorshipApp {
     readonly mainPid: number,
     readonly locale: Locale,
     readonly starterLook: boolean,
+    readonly welcome: boolean,
   ) {
     this.exited = new Promise((resolve) =>
       electron.process().once("exit", () => {
@@ -74,7 +79,13 @@ export class WorshipApp {
 
   /** Starts the built app on `profile`, an empty directory for a first launch
    *  or a previous run's for a relaunch. */
-  static async launch(profile: string, launchCheck = false, locale: Locale = "es", starterLook = false): Promise<WorshipApp> {
+  static async launch(
+    profile: string,
+    launchCheck = false,
+    locale: Locale = "es",
+    starterLook = false,
+    welcome = false,
+  ): Promise<WorshipApp> {
     // `WORSHIP_E2E_EXECUTABLE` runs the suite against an INSTALLED build
     // (`release/mac-arm64/Lumina Live.app/Contents/MacOS/Lumina Live`, or
     // `Lumina Live.exe` on the church PC) instead of `electron .` on `out/`:
@@ -84,7 +95,7 @@ export class WorshipApp {
     // Every test starts a new profile, and a new profile starts in the OS's
     // language (`main/i18n/system-locale.ts`): pinned, so the suite reads the
     // same Spanish on any machine — or `locale`, for the screenshots.
-    const dropped = [launchCheck && "--no-update-check", starterLook && "--no-starter-look"];
+    const dropped = [launchCheck && "--no-update-check", starterLook && "--no-starter-look", welcome && "--no-welcome"];
     const flags = [...FLAGS.filter((flag) => !dropped.includes(flag)), `--lang=${locale}`];
     const app = await electron.launch({
       cwd: ROOT,
@@ -101,7 +112,7 @@ export class WorshipApp {
 
     const control = await app.firstWindow();
     await expect(control.getByRole("button", { name: translate("EN VIVO", locale), exact: true })).toBeVisible();
-    return new WorshipApp(app, control, profile, log, await app.evaluate(() => process.pid), locale, starterLook);
+    return new WorshipApp(app, control, profile, log, await app.evaluate(() => process.pid), locale, starterLook, welcome);
   }
 
   /** `text`, written as the app's Spanish, in this app's language — see `translate`. */
@@ -353,13 +364,22 @@ export function audioStates(page: Page) {
   );
 }
 
-type Fixtures = { app: WorshipApp; appLocale: Locale; profileDir: string; launchCheck: boolean; starterLook: boolean };
+type Fixtures = {
+  app: WorshipApp;
+  appLocale: Locale;
+  profileDir: string;
+  launchCheck: boolean;
+  starterLook: boolean;
+  welcome: boolean;
+};
 
 export const test = base.extend<Fixtures>({
   /** Whether `app` runs main's update check ten seconds after launch. */
   launchCheck: [false, { option: true }],
   /** Whether `app` starts with the starter look (backgrounds, themes, overlays). */
   starterLook: [false, { option: true }],
+  /** Whether `app` starts with the first-run welcome screen, as a church's first launch does. */
+  welcome: [false, { option: true }],
   /** The language `app` starts in (`--lang`). Spanish, which the specs are written in. */
   appLocale: ["es", { option: true }],
   // A fresh profile per test, removed afterwards. Playwright requires the
@@ -374,8 +394,8 @@ export const test = base.extend<Fixtures>({
     fs.rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
   },
 
-  app: async ({ appLocale, profileDir, launchCheck, starterLook }, use, testInfo) => {
-    const app = await WorshipApp.launch(profileDir, launchCheck, appLocale, starterLook);
+  app: async ({ appLocale, profileDir, launchCheck, starterLook, welcome }, use, testInfo) => {
+    const app = await WorshipApp.launch(profileDir, launchCheck, appLocale, starterLook, welcome);
     await use(app);
     // Whatever app the test ended with — it may have relaunched — is the one
     // registered last; tests that relaunch call `adopt` below.
@@ -404,7 +424,7 @@ const adopted = new Map<string, WorshipApp>();
  *  the new instance too. The new one starts like the old one — with the
  *  starter look if that one had it, as a church's next morning would. */
 export async function relaunch(app: WorshipApp): Promise<WorshipApp> {
-  const next = await WorshipApp.launch(app.profile, false, app.locale, app.starterLook);
+  const next = await WorshipApp.launch(app.profile, false, app.locale, app.starterLook, app.welcome);
   adopted.set(test.info().testId, next);
   return next;
 }

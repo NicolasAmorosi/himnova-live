@@ -93,3 +93,46 @@ export function formatBytes(bytes: number, locale = "es"): string {
   const digits = unit === 0 ? 0 : 1;
   return `${value.toLocaleString(locale, { minimumFractionDigits: digits, maximumFractionDigits: digits })} ${units[unit]}`;
 }
+
+/** A language's name in the interface's language, capitalized like a heading («Inglés», «Portoghese»); a tag
+ *  `Intl` has no name for is shown as it is. */
+export function languageName(code: string, locale: string): string {
+  try {
+    const name = new Intl.DisplayNames([locale], { type: "language", fallback: "none" }).of(code);
+    if (name) return name.charAt(0).toLocaleUpperCase(locale) + name.slice(1);
+  } catch {
+    // Not a language tag at all: `of` throws a RangeError.
+  }
+  return code;
+}
+
+/** A Bible version picker's options: the interface's language first, the rest in the operator's order (owner,
+ *  2026-11-09; `sort` is stable), under a heading per language once there is more than one. */
+export function bibleVersionOptions(
+  versions: readonly { id: number; language: string; name: string }[],
+  locale: string,
+): { group?: string; label: string; value: string }[] {
+  const grouped = new Set(versions.map((v) => v.language)).size > 1;
+  return [...versions]
+    .sort((a, b) => Number(b.language === locale) - Number(a.language === locale))
+    .map((v) => ({
+      label: v.name,
+      value: String(v.id),
+      ...(grouped ? { group: languageName(v.language, locale) } : {}),
+    }));
+}
+
+/** Items under one heading per language, the languages in the order they first
+ *  appear — the operator's arrangement for the installed versions, the
+ *  catalog's for the included ones. */
+export function byLanguage<T extends { language: string }>(items: readonly T[]): [string, T[]][] {
+  const groups = new Map<string, T[]>();
+  for (const item of items) groups.set(item.language, [...(groups.get(item.language) ?? []), item]);
+  return [...groups];
+}
+
+/** Main's own message when it has one (it says which file and why), else `fallback`. */
+export function describeError(error: unknown, fallback: string): string {
+  const message = error instanceof Error ? error.message.trim() : "";
+  return message.length > 0 ? message : fallback;
+}

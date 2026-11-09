@@ -42,6 +42,7 @@ import {
   migrationsDir,
   userDataDir,
   profileBackgroundsDir,
+  systemLinkedFolders,
 } from "./paths";
 import { mainMessages, mt, setMainLocale } from "./i18n";
 import { systemLocale } from "./i18n/system-locale";
@@ -129,12 +130,21 @@ function initDatabase(): void {
   // which is Spanish unless the operator changed it. Before the seeds: the
   // example time scenes are written in it.
   if (isNewProfile) getSettingsRepo().setMany({ "ui.locale": systemLocale() });
+  // Only a new profile is welcomed (owner, 2026-11-09): an install that updates keeps going to work. The E2E
+  // suite launches a new profile per test and skips it unless a spec asks for it.
+  if (isNewProfile && !process.argv.includes("--no-welcome")) getSettingsRepo().setMany({ "welcome.pending": true });
+  // A new profile starts with the system's Videos, Pictures, Music and Documents linked in Media (owner,
+  // 2026-11-09); the E2E suite keeps its bare library.
+  if (isNewProfile && !process.argv.includes("--no-system-folders")) {
+    getSettingsRepo().setMany({ "library.linkedFolders": systemLinkedFolders() });
+  }
   setMainLocale(getSettingsRepo().get("ui.locale"));
   setBibleDb(db, sqlite);
   // After `initRepos` now, and for the same reason the utility seed below is:
   // it reads `bible.builtinSeeded`, which is what keeps a deleted RV1909
-  // deleted across launches. See `seedBuiltinBibles`.
-  seedBuiltinBibles(db, sqlite, biblesDir, getSettingsRepo());
+  // deleted across launches. After the locale too: a new profile gets the
+  // bundled versions of its language. See `seedBuiltinBibles`.
+  seedBuiltinBibles(db, sqlite, biblesDir, getSettingsRepo(), isNewProfile);
   migrateLegacySettingsIfPresent(getSettingsRepo());
   // After `initRepos`, unlike the Bible seed above: this one needs two
   // repositories rather than a raw handle, and the flag it reads lives in

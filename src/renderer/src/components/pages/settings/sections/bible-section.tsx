@@ -1,5 +1,5 @@
-import { useState, type DragEvent, type KeyboardEvent } from "react";
-import { useT } from "@renderer/lib/i18n/i18n-provider";
+import { useEffect, useState, type DragEvent, type KeyboardEvent } from "react";
+import { useI18n, useT } from "@renderer/lib/i18n/i18n-provider";
 import {
   Button,
   EmptyState,
@@ -8,19 +8,22 @@ import {
   Icon,
   IconButton,
   Input,
+  Select,
   Tooltip,
 } from "@renderer/components/ui";
 import { ConfirmModal } from "@renderer/components/shared/modal";
 import { ProgramUsages } from "@renderer/components/shared/program-usages";
+import { BundledBiblesGroup, LanguageGroup } from "@renderer/components/shared/settings-groups/bundled-bibles-group";
 import { api } from "@renderer/lib/api";
-import { cn } from "@renderer/lib/utils";
+import { byLanguage, cn, describeError, languageName } from "@renderer/lib/utils";
 import { BIBLE_VERSION_MIME, hideDragGhost } from "@renderer/lib/dnd";
 import { toast } from "@renderer/lib/toast";
 import { useBibleStore } from "@renderer/stores/bible.store";
 import { useProgramStore } from "@renderer/stores/program.store";
 import { useSettingsStore } from "@renderer/stores/settings.store";
 import { BIBLE_VERSION_NAME_MAX_LENGTH, isBibleVersionName } from "@shared/types/bible";
-import type { BibleVersionDTO, BibleVersionUsage } from "@shared/types/bible";
+import type { BibleVersionDTO, BibleVersionUsage, BundledBibleDTO } from "@shared/types/bible";
+import { LOCALES } from "@shared/types/settings";
 
 /** What a delete confirmation is about to do. The usages are read BEFORE the
  *  dialog opens — a list that arrived while the operator was already reading
@@ -29,8 +32,9 @@ import type { BibleVersionDTO, BibleVersionUsage } from "@shared/types/bible";
 type Pending = { version: BibleVersionDTO; usages: BibleVersionUsage[] };
 
 /**
- * «Bible»: the installed versions, and nothing else — import, rename, choose
- * a default, delete.
+ * «Bible»: the versions — import, install one of those inside the installer,
+ * rename, choose a default, change an imported one's language, delete. Both
+ * lists are grouped under their language (owner, 2026-11-09).
  *
  * How a verse LOOKS is not here: it is the Bible tab's verse style editor
  * (`pages/resources/VerseStyleModal.tsx`), a single `settings` key with a live
@@ -75,7 +79,7 @@ type Pending = { version: BibleVersionDTO; usages: BibleVersionUsage[] };
  *   when you press its name is a row you cannot use.
  */
 export function BibleSection() {
-  const t = useT();
+  const { locale, t } = useI18n();
   const versions = useBibleStore((s) => s.versions);
   const loadVersions = useBibleStore((s) => s.loadVersions);
   const defaultVersionId = useSettingsStore((s) => s.settings["bible.defaultVersionId"]);
@@ -92,10 +96,32 @@ export function BibleSection() {
   const [dragOverId, setDragOverId] = useState<number | null>(null);
   const [draggingId, setDraggingId] = useState<number | null>(null);
   const reorderVersions = useBibleStore((s) => s.reorderVersions);
+  const [bundled, setBundled] = useState<BundledBibleDTO[]>([]);
 
-  // One version cannot be arranged, and a rename in progress owns the row's
-  // whole width — dragging either is a gesture with no meaning.
-  const reorderEnabled = versions.length > 1 && renamingId === null;
+  // Read again whenever the installed list changes — an install, a delete, an
+  // import —, which is what moves a version between the two lists.
+  useEffect(() => {
+    let current = true;
+    api.bible
+      .bundled()
+      .then((list) => {
+        if (current) setBundled(list);
+      })
+      .catch((error: unknown) => console.error("[bible] bundled list failed", error));
+    return () => {
+      current = false;
+    };
+  }, [versions]);
+
+  const installedGroups = byLanguage(versions);
+  const credits = new Map(bundled.map((bible) => [bible.code, bible.credit]));
+  const languageLabel = (code: string) => languageName(code, locale);
+
+  // A rename in progress owns the row's whole width, and a version alone in its
+  // language has nowhere to go: the drag stays inside a language.
+  const reorderable = (language: string) =>
+    renamingId === null && versions.filter((version) => version.language === language).length > 1;
+  const draggingLanguage = versions.find((version) => version.id === draggingId)?.language;
 
   /**
    * Importing is seconds of work with nothing on screen to say so: measured at
@@ -152,6 +178,20 @@ export function BibleSection() {
     toast.success(t("settings.bible.setDefaultDone", { name: version.name }));
   }
 
+  async function setLanguage(version: BibleVersionDTO, language: string) {
+    if (language === version.language) return;
+    setBusyId(version.id);
+    try {
+      await api.bible.setLanguage(version.id, language);
+      await loadVersions();
+    } catch (error) {
+      console.error("[bible] language change failed", error);
+      toast.danger(describeError(error, t("settings.bible.languageFailed")));
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   /** Opens the confirmation having first asked which saved programs cite the
    *  version — that answer is what turns a plain "are you sure" into the
    *  forced delete, so it has to be in hand before the dialog is. */
@@ -192,13 +232,16 @@ export function BibleSection() {
   function dropTargetId(e: DragEvent<HTMLElement>): number | null {
     const li = (e.target as HTMLElement).closest<HTMLElement>("li[data-id]");
     const id = li ? Number(li.dataset.id) : Number.NaN;
-    return Number.isFinite(id) ? id : null;
+    // Only a row of the dragged version's own language is a target.
+    const language = versions.find((version) => version.id === id)?.language;
+    return Number.isFinite(id) && language !== undefined && language === draggingLanguage ? id : null;
   }
 
   function handleDragOver(e: DragEvent<HTMLUListElement>) {
-    if (!reorderEnabled || !e.dataTransfer.types.includes(BIBLE_VERSION_MIME)) return;
-    e.preventDefault();
-    setDragOverId(dropTargetId(e));
+    if (draggingLanguage === undefined || !e.dataTransfer.types.includes(BIBLE_VERSION_MIME)) return;
+    const target = dropTargetId(e);
+    setDragOverId(target);
+    if (target !== null) e.preventDefault();
   }
 
   /** Drop-BEFORE semantics, exactly like `ProgramsModal`'s: the dragged
@@ -209,7 +252,7 @@ export function BibleSection() {
   function handleDrop(e: DragEvent<HTMLUListElement>) {
     const raw = e.dataTransfer.getData(BIBLE_VERSION_MIME);
     setDragOverId(null);
-    if (!reorderEnabled || raw === "") return;
+    if (draggingLanguage === undefined || raw === "") return;
     e.preventDefault();
 
     const fromId = Number(raw);
@@ -271,50 +314,60 @@ export function BibleSection() {
             onDragOver={handleDragOver}
             onDrop={handleDrop}
           >
-            {versions.map((version) => {
-              const renaming = renamingId === version.id;
-              // The one the Bible tab opens on — the first when none was set
-              // (`loadVersions`) —, so the radio always has exactly one marked.
-              const isDefault =
-                version.id === (versions.some((v) => v.id === defaultVersionId) ? defaultVersionId : versions[0]?.id);
-              return (
-                <VersionRow
-                  busy={busyId === version.id}
-                  draggable={reorderEnabled}
-                  dragOver={dragOverId === version.id}
-                  dragging={draggingId === version.id}
-                  draftName={draftName}
-                  isDefault={isDefault}
-                  key={version.id}
-                  onDelete={() => void askToDelete(version)}
-                  onDraftNameChange={setDraftName}
-                  onDragEnd={() => {
-                    setDraggingId(null);
-                    setDragOverId(null);
-                  }}
-                  onDragStart={(e) => {
-                    hideDragGhost(e);
-                    e.dataTransfer.effectAllowed = "move";
-                    e.dataTransfer.setData(BIBLE_VERSION_MIME, String(version.id));
-                    setDraggingId(version.id);
-                  }}
-                  onRenameCommit={() => void commitRename(version)}
-                  onRenameKey={(e) => handleRenameKey(e, version)}
-                  onRenameStart={() => startRename(version)}
-                  onSetDefault={() => void setDefault(version)}
-                  renaming={renaming}
-                  version={version}
-                />
-              );
-            })}
+            {installedGroups.map(([language, members]) => (
+              <LanguageGroup key={language} label={languageLabel(language)}>
+                {members.map((version) => {
+                  const renaming = renamingId === version.id;
+                  // The one the Bible tab opens on — the first when none was set
+                  // (`loadVersions`) —, so the radio always has exactly one marked.
+                  const isDefault =
+                    version.id ===
+                    (versions.some((v) => v.id === defaultVersionId) ? defaultVersionId : versions[0]?.id);
+                  return (
+                    <VersionRow
+                      busy={busyId === version.id}
+                      credit={credits.get(version.code) ?? null}
+                      draggable={reorderable(language)}
+                      dragOver={dragOverId === version.id}
+                      dragging={draggingId === version.id}
+                      draftName={draftName}
+                      isDefault={isDefault}
+                      key={version.id}
+                      languageLabel={languageLabel}
+                      onDelete={() => void askToDelete(version)}
+                      onDraftNameChange={setDraftName}
+                      onDragEnd={() => {
+                        setDraggingId(null);
+                        setDragOverId(null);
+                      }}
+                      onDragStart={(e) => {
+                        hideDragGhost(e);
+                        e.dataTransfer.effectAllowed = "move";
+                        e.dataTransfer.setData(BIBLE_VERSION_MIME, String(version.id));
+                        setDraggingId(version.id);
+                      }}
+                      onLanguageChange={(next) => void setLanguage(version, next)}
+                      onRenameCommit={() => void commitRename(version)}
+                      onRenameKey={(e) => handleRenameKey(e, version)}
+                      onRenameStart={() => startRename(version)}
+                      onSetDefault={() => void setDefault(version)}
+                      renaming={renaming}
+                      version={version}
+                    />
+                  );
+                })}
+              </LanguageGroup>
+            ))}
           </ul>
           {/* Outside the `<ul>` so it is not announced as one more version,
               and only while the gesture is actually available. */}
-          {reorderEnabled ? (
+          {installedGroups.some(([language]) => reorderable(language)) ? (
             <p className="px-4 py-2 text-xs text-muted-foreground">{t("settings.bible.reorderHint")}</p>
           ) : null}
         </FieldGroup>
       ) : null}
+
+      <BundledBiblesGroup />
 
       {versions.length === 0 ? (
         <div className="relative min-h-40">
@@ -338,6 +391,8 @@ export function BibleSection() {
               usages={pending.usages}
               warning={t("settings.bible.deleteInUseWarning")}
             />
+          ) : pending?.version.isBuiltin ? (
+            t("settings.bible.deleteBodyBundled")
           ) : (
             t("settings.bible.deleteBody")
           )
@@ -359,20 +414,26 @@ type VersionRowProps = {
   /** A write for this version is in flight — the buttons that would start a
    *  second one are out for its duration. */
   busy: boolean;
+  /** The attribution its licence asks to show (a bundled version's), under its
+   *  name. */
+  credit: string | null;
   draftName: string;
-  /** Reordering is available at all: off for a single version and while a
-   *  rename is open. The grip stays in place, greyed out, so the row does not
-   *  change width — same call `ProgramRow` makes for a filtered list. */
+  /** Reordering is available at all: off for a version alone in its language
+   *  and while a rename is open. The grip stays in place, greyed out, so the
+   *  row does not change width — same call `ProgramRow` makes for a filtered
+   *  list. */
   draggable: boolean;
   /** A drag is hovering this row: the drop indicator goes above it. */
   dragOver: boolean;
   /** This row is the one being dragged — faded in place. */
   dragging: boolean;
   isDefault: boolean;
+  languageLabel: (code: string) => string;
   onDelete: () => void;
   onDraftNameChange: (next: string) => void;
   onDragEnd: () => void;
   onDragStart: (e: DragEvent<HTMLLIElement>) => void;
+  onLanguageChange: (language: string) => void;
   onRenameCommit: () => void;
   onRenameKey: (e: KeyboardEvent<HTMLInputElement>) => void;
   onRenameStart: () => void;
@@ -392,15 +453,18 @@ type VersionRowProps = {
  */
 function VersionRow({
   busy,
+  credit,
   draftName,
   draggable,
   dragOver,
   dragging,
   isDefault,
+  languageLabel,
   onDelete,
   onDraftNameChange,
   onDragEnd,
   onDragStart,
+  onLanguageChange,
   onRenameCommit,
   onRenameKey,
   onRenameStart,
@@ -411,6 +475,11 @@ function VersionRow({
   const t = useT();
   const [dragReady, setDragReady] = useState(false);
   const defaultLabel = isDefault ? t("settings.bible.isDefault") : t("settings.bible.setDefault");
+  // The interface's four, and the version's own when it is another one: a file
+  // that says «de» keeps «Alemán» on offer.
+  const languages = LOCALES.includes(version.language as (typeof LOCALES)[number])
+    ? [...LOCALES]
+    : [...LOCALES, version.language];
 
   return (
     <li
@@ -424,7 +493,7 @@ function VersionRow({
       onDragStart={onDragStart}
     >
       <FieldRow
-        description={renaming ? t("settings.bible.renameHint") : undefined}
+        description={renaming ? t("settings.bible.renameHint") : (credit ?? undefined)}
         dropBefore={dragOver}
         grip
         gripDisabled={!draggable}
@@ -474,6 +543,21 @@ function VersionRow({
             one keystroke away from the caret is a trap. */}
         {renaming ? null : (
           <>
+            {/* Only an imported one: a bundled version's language is its
+                file's. Wrapped, so the row's one field width does not apply —
+                it sits beside two icons, not in a column of fields. */}
+            {version.isBuiltin ? null : (
+              <div>
+                <Select
+                  aria-label={t("settings.bible.languageLabel", { name: version.name })}
+                  className="w-36"
+                  disabled={busy}
+                  onChange={onLanguageChange}
+                  options={languages.map((code) => ({ label: languageLabel(code), value: code }))}
+                  value={version.language}
+                />
+              </div>
+            )}
             <Tooltip content={t("settings.bible.rename")} floating>
               <IconButton aria-label={t("settings.bible.rename")} disabled={busy} onClick={onRenameStart} variant="ghost">
                 <Icon name="pencil" />
@@ -490,12 +574,3 @@ function VersionRow({
     </li>
   );
 }
-
-/** Main's own message when it has one. An import can fail for two reasons the
- *  operator can act on differently — the file is not a bible, or it is one
- *  with no verses in it — and only main knows which. */
-function describeError(error: unknown, fallback: string): string {
-  const message = error instanceof Error ? error.message.trim() : "";
-  return message.length > 0 ? message : fallback;
-}
-

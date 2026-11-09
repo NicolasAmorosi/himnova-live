@@ -117,7 +117,23 @@
   50%, 100% { opacity: 0; }
 }
 
+/* A `StageSketch` playing its «before» (something on the projector, its progress filling) and then showing
+ * what comes after it — the «Al terminar» choices of the welcome. Only the chosen card plays. */
+@keyframes sketch-before {
+  0%, 52% { opacity: 1; }
+  62%, 92% { opacity: 0; }
+  100% { opacity: 1; }
+}
+@keyframes sketch-progress {
+  from { transform: scaleX(0); }
+  52%, to { transform: scaleX(1); }
+}
+.wa-sketch-before { animation: sketch-before 3.2s ease-in-out infinite; }
+.wa-sketch-progress { animation: sketch-progress 3.2s linear infinite; transform-origin: left; }
+
 @media (prefers-reduced-motion: reduce) {
+  /* The «after» alone: a still picture of the choice. */
+  .wa-sketch-before { animation: none; opacity: 0; }
   @keyframes toast-enter { from { opacity: 0; } to { opacity: 1; } }
   @keyframes toast-exit  { from { opacity: 1; } to { opacity: 0; } }
   @keyframes linear-loader-slide { from { opacity: 0.45; } to { opacity: 0.8; } }

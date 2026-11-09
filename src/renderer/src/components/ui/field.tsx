@@ -36,7 +36,7 @@ export function FieldGroup({
   className?: string;
   /** One line about the whole group, under its title — never a box of prose
    *  after the rows. */
-  description?: string;
+  description?: string | undefined;
   title: string;
 }) {
   return (

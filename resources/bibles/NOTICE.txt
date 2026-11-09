@@ -1,0 +1,65 @@
+Lumina Live ships these Bible versions, public-domain or freely licensed classics. A version is copied
+into the app's own database when it is installed (from Settings, or at first launch for the versions in
+the interface's language); the files here are never changed.
+
+Each file keeps the verse text of the 66 books and nothing else, every verse under its source's own
+number (a verse a source leaves out is absent, never renumbered): footnotes, cross references, section
+headings, psalm superscriptions marked as headings, Strong's numbers and paragraph marks were left out.
+
+Reina-Valera 1909 (rv1909.json), Spanish
+  Public domain.
+
+Versión Biblia Libre (vbl.xml), Spanish
+  Copyright © 2018-2020 Jonathan Gallagher y Shelly Barrios de Avila. Licensed under the Creative Commons
+  Attribution-ShareAlike 4.0 International license (https://creativecommons.org/licenses/by-sa/4.0/);
+  this file, a changed copy of it, is shared under the same license.
+  Source: eBible.org, spavbl  https://ebible.org/Scriptures/details.php?id=spavbl
+  Changes: footnotes, cross references and headings left out, and the space before punctuation
+  removed in 144 verses. The translators do not necessarily endorse these changes.
+
+King James Version (kjv.xml), English
+  Public domain (the 1769 standard text). In the United Kingdom the rights in the Authorized Version
+  are vested in the Crown.
+  Source: eBible.org, eng-kjv2006, courtesy of the CrossWire Bible Society
+          https://ebible.org/Scriptures/details.php?id=eng-kjv2006
+  Changes: the paragraph marks (¶) removed.
+
+American Standard Version (asv.xml), English
+  Public domain (1901).
+  Source: eBible.org, eng-asv  https://ebible.org/Scriptures/details.php?id=eng-asv
+
+World English Bible (web.xml), English
+  Public domain. "World English Bible" is a trademark of eBible.org; its words are unchanged here.
+  Source: eBible.org, engwebp  https://ebible.org/Scriptures/details.php?id=engwebp
+
+Riveduta 1927 (riveduta1927.xml), Italian
+  Public domain.
+  Source: eBible.org, ita1927  https://ebible.org/Scriptures/details.php?id=ita1927
+  Changes: the markers of another versification inside verses, like "(H20-43)", removed, and three
+  chapter headings that had slipped into the end of a verse of Matthew.
+
+Diodati 1885 (diodati1885.xml), Italian
+  Public domain.
+  Source: eBible.org, ita1885  https://ebible.org/Scriptures/details.php?id=ita1885
+
+Almeida 1911 (almeida1911.xml), Portuguese
+  The text is in the public domain. Its digitization is the CrossWire Bible Society's module
+  PorAlmeida1911 (version 0.2.1), distributed under the GNU General Public License.
+  Source: https://crosswire.org/sword/modules/ModInfo.jsp?modName=PorAlmeida1911
+  Changes: 75 OCR artefacts, a "*" left where a printed line broke, corrected by hand (the word joined,
+  or its hyphen kept, as this same text spells it elsewhere), three stray punctuation marks removed,
+  and the space before punctuation removed in 18 verses. The 1911 spelling is kept.
+
+Bíblia Livre (biblialivre.xml), Brazilian Portuguese
+  Licensed under the Creative Commons Attribution 4.0 Brazil license
+  (http://creativecommons.org/licenses/by/4.0/br/). Its attribution, as its authors ask for it:
+
+    Todas as Escrituras em português citadas são da Bíblia Livre (BLIVRE), Copyright © Diego Santos,
+    Mario Sérgio, e Marco Teles, http://sites.google.com/site/biblialivre/ - fevereiro de 2018.
+    Licença Creative Commons Atribuição 4.0 Brasil
+    (http://creativecommons.org/licenses/by/4.0/br/). Reprodução permitida desde que devidamente
+    mencionados fonte e autores.
+
+  Source: eBible.org, porbr2018  https://ebible.org/Scriptures/details.php?id=porbr2018
+  Changes: footnotes, cross references and headings left out, and the space before punctuation
+  removed in 809 verses. The authors do not necessarily endorse these changes.

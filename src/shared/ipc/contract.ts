@@ -14,6 +14,7 @@ import type {
   BibleVerseDTO,
   BibleVersionDTO,
   BibleVersionUsage,
+  BundledBibleDTO,
 } from "../types/bible";
 import type {
   AudioTrackPush,
@@ -187,6 +188,12 @@ export type IpcContract = {
    *  with the re-sorted list, so the caller replaces its state with what was
    *  actually persisted instead of trusting its optimistic guess. */
   "bible:reorder": { req: { ids: number[] }; res: BibleVersionDTO[] };
+  /** The versions inside the installer, in the catalog's order, each with its installed row if any. */
+  "bible:bundled": { req: void; res: BundledBibleDTO[] };
+  /** Installs a bundled version (~0.6 s of synchronous work in main); an installed one answers as it is. */
+  "bible:installBundled": { req: { code: string }; res: BibleVersionDTO };
+  /** A version's language, for one whose file did not say (stored as "es") or said wrong. */
+  "bible:setLanguage": { req: { id: number; language: string }; res: BibleVersionDTO };
   /** Favorites and the passages that went live lately — see `BibleBookmark`.
    *  Each write answers with the whole list, so the caller never keeps a guess. */
   "bible:favorites": { req: void; res: BibleBookmark[] };
@@ -200,6 +207,14 @@ export type IpcContract = {
   "bible:recordRecent": {
     req: { bookId: number; chapter: number; verseFrom: number; verseTo: number };
     res: BibleBookmark[];
+  };
+  /** The same passage in another version, its book found by the app's own
+   *  abbrev (`bible-canon.ts`) — a verse going out in two languages. The
+   *  reference carries that version's own book name; `null` when it lacks the
+   *  passage. */
+  "bible:passage": {
+    req: { versionId: number; bookAbbrev: string; chapter: number; verseFrom: number; verseTo: number };
+    res: { text: string; reference: string } | null;
   };
 
   "library:list": { req: { kind: AssetKind }; res: MediaAsset[] };
@@ -371,6 +386,8 @@ export type IpcContract = {
   /** Opens the app's public repository in the default browser — «Acerca de»'s
    *  «Código fuente». A fixed address: the renderer never names a URL. */
   "system:openSourceCode": { req: void; res: void };
+  /** The website's user guide, in the interface's language. */
+  "system:openGuide": { req: void; res: void };
   /** Opens `chrome://<page>` in its own window, child of the caller's. */
   "system:openInternals": { req: { page: InternalsPage }; res: void };
   /** Starts listening to the caller's media pipeline (CDP `Media` domain).

@@ -3,13 +3,13 @@ import { useT } from "@renderer/lib/i18n/i18n-provider";
 import { Box, FieldRow, Input } from "@renderer/components/ui";
 import { OutputView } from "@renderer/components/shared/output-view";
 import { BackgroundFields } from "@renderer/components/shared/style-fields";
-import { selectOutput, useProjectionStore } from "@renderer/stores/projection.store";
 import { useSettingsStore } from "@renderer/stores/settings.store";
 import { useCommitOnUnmount } from "@renderer/lib/hooks/use-commit-on-unmount";
+import { useLogoPreview } from "./use-logo-preview";
 import { api } from "@renderer/lib/api";
 import { toast } from "@renderer/lib/toast";
-import { INSTANT_TRANSITION, LOGO_NAME_MAX_LENGTH, type ProjectionOutput } from "@shared/types/projection";
-import { logoLook, logoModeOf } from "@shared/types/settings";
+import { LOGO_NAME_MAX_LENGTH } from "@shared/types/projection";
+import { logoModeOf } from "@shared/types/settings";
 import type { MediaAsset } from "@shared/types/media";
 import type { SceneBackground } from "@shared/types/scene-style";
 
@@ -23,7 +23,7 @@ import type { SceneBackground } from "@shared/types/scene-style";
  * the image library — the backgrounds the app ships included — through the
  * same `BackgroundFields` every style editor uses.
  */
-export function LogoSceneFields() {
+export function LogoSceneFields({ preview = true }: { preview?: boolean }) {
   const t = useT();
   const path = useSettingsStore((s) => s.settings["logo.path"]);
   const mode = useSettingsStore((s) => s.settings["logo.mode"]);
@@ -70,22 +70,7 @@ export function LogoSceneFields() {
     }
   }
 
-  // The projector's own builder, fed this group's values: the preview cannot
-  // draw what the projector would not.
-  const look = logoLook({
-    "logo.path": path,
-    "logo.mode": mode,
-    "logo.name": name,
-    "logo.background": pendingImage ?? background,
-  });
-  const logo = selectOutput({
-    ...useProjectionStore.getState(),
-    base: null,
-    overlay: "logo",
-    logoUrl: look.url,
-    logoScene: look.scene,
-  });
-  const output: ProjectionOutput = { ...logo, transition: INSTANT_TRANSITION };
+  const output = useLogoPreview(pendingImage);
 
   return (
     <>
@@ -119,12 +104,16 @@ export function LogoSceneFields() {
           />
         </>
       ) : null}
-      {/* A row like the others, the picture where a field would be. */}
-      <FieldRow label={t("settings.logoPreview")}>
-        <Box className="aspect-video w-64 overflow-hidden">
-          <OutputView mode="preview" output={output} />
-        </Box>
-      </FieldRow>
+      {/* A row like the others, the picture where a field would be — or, where the caller draws it bigger
+          (the welcome), not here. */}
+      {preview ? (
+        <FieldRow label={t("settings.logoPreview")}>
+          <Box className="aspect-video w-64 overflow-hidden">
+            <OutputView mode="preview" output={output} />
+          </Box>
+        </FieldRow>
+      ) : null}
     </>
   );
 }
+
