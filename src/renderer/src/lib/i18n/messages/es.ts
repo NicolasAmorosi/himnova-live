@@ -652,6 +652,10 @@ const es = {
     favoriteAdd: "Marcar como favorito",
     favoriteRemove: "Quitar de favoritos",
     notInVersion: "Ese pasaje no está en esta versión",
+    parallel: "En paralelo",
+    parallelNone: "Ninguna",
+    parallelHint: "Proyectar cada versículo también en otra versión, lado a lado",
+    parallelOn: "En paralelo con {name}",
   },
   deck: {
     title: "Presentación",

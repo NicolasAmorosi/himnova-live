@@ -5,7 +5,7 @@ import { isPointerFocused } from "@renderer/lib/focus-modality";
 import { cn } from "@renderer/lib/utils";
 import { computeMenuPosition, useFollowTrigger, type MenuPosition } from "./floating-menu";
 import { Icon, type IconName } from "./icon";
-import { IconButton } from "./icon-button";
+import { IconButton, TOGGLED_CLASS } from "./icon-button";
 
 export type MenuOption<T extends string> = {
   /** Shown greyed and skipped by the arrows — kept in the list so it never
@@ -21,6 +21,9 @@ export type MenuOption<T extends string> = {
 type MenuSize = "xs" | "sm";
 
 type MenuProps<T extends string> = {
+  /** The choice in effect turns something on: the trigger wears the teal «on»
+   *  of a pressed tool, without `aria-pressed` (see `triggerProps`). */
+  active?: boolean;
   align?: "start" | "end";
   className?: string;
   disabled?: boolean;
@@ -62,6 +65,7 @@ const triggerSizes: Record<MenuSize, string> = { xs: "size-7", sm: "size-8" };
  * preview to the projector.
  */
 export function Menu<T extends string>({
+  active = false,
   align = "start",
   className,
   disabled,
@@ -185,7 +189,7 @@ export function Menu<T extends string>({
     <IconButton
       {...triggerProps}
       aria-label={label}
-      className={cn(triggerSizes[size], open && "border-accent bg-muted", className)}
+      className={cn(triggerSizes[size], open && "border-accent bg-muted", active && TOGGLED_CLASS, className)}
       size="xs"
       variant="ghost"
     >

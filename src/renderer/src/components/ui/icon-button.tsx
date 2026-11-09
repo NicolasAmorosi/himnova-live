@@ -22,6 +22,9 @@ const variants: Record<IconButtonVariant, string> = {
   ghost: "text-foreground hover:bg-muted",
 };
 
+/** The teal «on» of a pressed tool — also `Menu`'s trigger while its choice is on. */
+export const TOGGLED_CLASS = "border-accent bg-accent text-accent-foreground hover:bg-accent";
+
 const sizes: Record<IconButtonSize, string> = {
   xs: "size-6",
   sm: "size-8",
@@ -44,7 +47,7 @@ export function IconButton({
         "focus-ring inline-flex shrink-0 cursor-pointer items-center justify-center rounded-md transition-colors disabled:cursor-not-allowed disabled:opacity-50",
         variants[variant],
         sizes[size],
-        toggled && "border-accent bg-accent text-accent-foreground hover:bg-accent",
+        toggled && TOGGLED_CLASS,
         className,
       )}
       ref={ref}

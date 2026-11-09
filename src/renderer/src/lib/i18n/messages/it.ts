@@ -653,6 +653,10 @@ const it: Messages = {
     favoriteAdd: "Aggiungi ai preferiti",
     favoriteRemove: "Togli dai preferiti",
     notInVersion: "Quel passo non c'è in questa versione",
+    parallel: "In parallelo",
+    parallelNone: "Nessuna",
+    parallelHint: "Proietta ogni versetto anche in un'altra versione, affiancata",
+    parallelOn: "In parallelo con {name}",
   },
   deck: {
     title: "Presentazione",

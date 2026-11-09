@@ -8,9 +8,13 @@ export type StageBibleCursor = { verses: readonly BibleVerseDTO[]; currentVerseI
 export type StageWords = { black: string; logo: string; lyricsHidden: string; next: string };
 
 /** What the projector would show with nothing covering it: no BLACK or LOGO,
- *  no plates, and cut rather than faded — the band reads, it does not watch. */
+ *  no plates, and cut rather than faded — the band reads, it does not watch.
+ *  A verse in its own version only: two columns in a frame this size are two
+ *  columns nobody on the platform can read. */
 function uncovered(state: ProjectionStoreState): ProjectionOutput {
-  return { ...selectOutput({ ...state, overlay: "none" }), plates: [], transition: INSTANT_TRANSITION };
+  const output = selectOutput({ ...state, overlay: "none" });
+  const own = output.kind === "bible" ? { ...output, parallel: null } : output;
+  return { ...own, plates: [], transition: INSTANT_TRANSITION };
 }
 
 /** A song slide with its chords, for the musicians: the slide of the live song

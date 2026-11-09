@@ -1,4 +1,6 @@
-import { bibleVersionLabel, useBibleStore } from "@renderer/stores/bible.store";
+import { useEffect, useState } from "react";
+import { bibleVersionLabel, parallelAt, useBibleStore } from "@renderer/stores/bible.store";
+import { scheduleItemParallel, type BibleScheduleItem } from "@renderer/lib/actions/bible";
 import { useDeckStore } from "@renderer/stores/deck.store";
 import { usePreviewStore } from "@renderer/stores/preview.store";
 import { useProgramStore } from "@renderer/stores/program.store";
@@ -21,7 +23,31 @@ import type { MediaAsset } from "@shared/types/media";
 import type { UtilityScene } from "@shared/types/utility";
 import type { Plate } from "@shared/types/overlay";
 import { INSTANT_TRANSITION } from "@shared/types/projection";
-import type { ProjectionOutput } from "@shared/types/projection";
+import type { BibleParallel, ProjectionOutput } from "@shared/types/projection";
+
+/**
+ * A schedule row's verse in the parallel version, for PREVIEW: looked up in
+ * main (`scheduleItemParallel`), again when «En paralelo» changes — so PREVIEW
+ * shows the choice at once, while the verse already live keeps its own.
+ * Nothing while it is looked up: a parallel from another choice is worse.
+ */
+function useScheduleItemParallel(item: BibleScheduleItem | null): BibleParallel | null {
+  const setting = useSettingsStore((s) => s.settings["bible.parallelVersionId"]);
+  const versions = useBibleStore((s) => s.versions);
+  type Found = { item: BibleScheduleItem; setting: number | null; versions: unknown; parallel: BibleParallel | null };
+  const [found, setFound] = useState<Found | null>(null);
+  useEffect(() => {
+    if (!item) return;
+    let current = true;
+    void scheduleItemParallel(item).then((parallel) => {
+      if (current) setFound({ item, setting, versions, parallel });
+    });
+    return () => {
+      current = false;
+    };
+  }, [item, setting, versions]);
+  return found?.item === item && found.setting === setting && found.versions === versions ? found.parallel : null;
+}
 
 /**
  * The preview target resolved against the stores — one shape the whole right
@@ -31,7 +57,14 @@ import type { ProjectionOutput } from "@shared/types/projection";
 export type PreviewContent =
   | { kind: "deck"; assetId: number; title: string; missingSince: number | null }
   | { kind: "media"; asset: MediaAsset }
-  | { kind: "bible"; reference: string; text: string; versionLabel: string | null; verseIndex: number | null }
+  | {
+      kind: "bible";
+      reference: string;
+      text: string;
+      versionLabel: string | null;
+      parallel: BibleParallel | null;
+      verseIndex: number | null;
+    }
   | { kind: "utility"; scene: UtilityScene }
   | { kind: "plate"; plate: Plate }
   | { kind: "song"; song: Song; resolved: ResolvedSong; theme: SongTheme };
@@ -42,6 +75,8 @@ export function usePreviewContent(): PreviewContent | null {
   const verses = useBibleStore((s) => s.verses);
   const versionId = useBibleStore((s) => s.versionId);
   const versions = useBibleStore((s) => s.versions);
+  const parallelVersionId = useBibleStore((s) => s.parallelVersionId);
+  const parallelVerses = useBibleStore((s) => s.parallelVerses);
   const scenes = useUtilityStore((s) => s.scenes);
   const plates = useOverlayStore((s) => s.plates);
   const songs = useSongStore((s) => s.songs);
@@ -63,6 +98,7 @@ export function usePreviewContent(): PreviewContent | null {
   // useMediaAsset(null) is a no-op.
   const scheduleAsset = useMediaAsset(scheduleAssetId);
   const directAsset = useMediaAsset(target?.kind === "asset" ? target.assetId : null);
+  const scheduleParallel = useScheduleItemParallel(scheduleItem?.kind === "bible" ? scheduleItem : null);
 
   if (!target) return null;
 
@@ -74,6 +110,8 @@ export function usePreviewContent(): PreviewContent | null {
       reference: `${verse.bookName} ${verse.chapter}:${verse.verse}`,
       text: verse.text,
       versionLabel: bibleVersionLabel(versions, versionId),
+      // The twin `projectVerse` would send, from the same loaded chapter.
+      parallel: parallelAt({ parallelVersionId, parallelVerses, versions }, target.verseIndex),
       verseIndex: target.verseIndex,
     };
   }
@@ -126,6 +164,7 @@ export function usePreviewContent(): PreviewContent | null {
         // be browsing: a program written against RV1909 previews as RV1909
         // even while the operator is looking at another one.
         versionLabel: bibleVersionLabel(versions, scheduleItem.bibleVersionId),
+        parallel: scheduleParallel,
         verseIndex: null,
       };
     case "utility": {
