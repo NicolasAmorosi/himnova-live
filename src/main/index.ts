@@ -30,6 +30,7 @@ import { installApplicationMenu } from "./windows/app-menu";
 import { holdQuitUntilAnswered, installCloseGuard } from "./windows/close-guard";
 import { watchDisplays } from "./windows/projector-screen";
 import { closeStageWindow, syncStageWindow } from "./windows/stage-window";
+import { isNdiWindow, stopNdiOutput, syncNdiOutput } from "./ndi/ndi-output";
 import { projectionState } from "./services/projection-state";
 import {
   dbBackupDir,
@@ -173,6 +174,7 @@ function wireMinimizeRestoreSync(controlWindow: BrowserWindow): void {
   controlWindow.on("closed", () => {
     projectionState.getWindow()?.close();
     closeStageWindow();
+    stopNdiOutput();
   });
 }
 
@@ -181,7 +183,7 @@ function wireMinimizeRestoreSync(controlWindow: BrowserWindow): void {
  *  app look "still open" for the 60s its idle timer keeps it alive after a
  *  conversion. */
 function userFacingWindows(): BrowserWindow[] {
-  return BrowserWindow.getAllWindows().filter((win) => !isRasterizerWindow(win));
+  return BrowserWindow.getAllWindows().filter((win) => !isRasterizerWindow(win) && !isNdiWindow(win));
 }
 
 /** Creates the control window and wires everything that must follow it.
@@ -195,6 +197,9 @@ function openControlWindow(): BrowserWindow {
   const win = createControlWindow();
   wireMinimizeRestoreSync(win);
   syncStageWindow();
+  // After the control window's page: Playwright takes the first window that loads as the control one, and
+  // the NDI output's is a window too.
+  win.webContents.once("did-finish-load", syncNdiOutput);
   // Vetoes the first close and asks the control window instead — the unsaved
   // schedule is the renderer's to speak for. See `close-guard.ts`.
   installCloseGuard(win);
@@ -330,6 +335,7 @@ app.on("before-quit", (event) => {
   stopDeckClips();
   shutdownEngineAssets();
   killAllEngines();
+  stopNdiOutput();
 });
 
 // `will-quit`, not `before-quit`, for two reasons. It runs after every window

@@ -7,6 +7,7 @@ import { installApplicationMenu } from "../../windows/app-menu";
 import { syncStageWindow } from "../../windows/stage-window";
 import { factoryVerseStyle } from "../../db/seed/seed-starter-look";
 import { profileBackgroundsDir } from "../../paths";
+import { syncNdiOutput } from "../../ndi/ndi-output";
 
 /**
  * The IPC contract is a compile-time guarantee, and this is the one channel
@@ -47,6 +48,7 @@ export const settingsHandlers: Pick<Handlers, "settings:get" | "settings:set" | 
     }
     // The projector's screen counts too: the stage never shares it.
     if ("stage.displayId" in partial || "projection.displayId" in partial) syncStageWindow();
+    if (Object.keys(partial).some((key) => key.startsWith("ndi.output."))) syncNdiOutput();
   },
   "settings:factoryVerseStyle": () => factoryVerseStyle(getMediaRepo(), profileBackgroundsDir, mainMessages().look),
 };

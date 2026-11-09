@@ -856,6 +856,19 @@ describe("settings:set validators reject what the types cannot", () => {
       "a default folder that is not a path must be rejected",
     );
   });
+
+  test("the NDI output's keys: off by default, a name receivers can list, only the sizes and rates offered", () => {
+    const valid = (key: keyof typeof SETTINGS_VALIDATORS, value: unknown) => SETTINGS_VALIDATORS[key](value);
+    assert(DEFAULT_SETTINGS["ndi.output.enabled"] === false, "NDI stays off until the operator turns it on");
+    for (const key of ["ndi.output.enabled", "ndi.output.name", "ndi.output.resolution", "ndi.output.fps"] as const)
+      assert(valid(key, DEFAULT_SETTINGS[key]), `the default ${key} must pass its own validator`);
+    assert(valid("ndi.output.name", "Iglesia Central"), "a plain name must pass");
+    assert(!valid("ndi.output.name", "   "), "a blank name must be rejected: receivers list the source by it");
+    assert(!valid("ndi.output.name", "x".repeat(61)), "a name over 60 characters must be rejected");
+    assert(!valid("ndi.output.name", "Lumina\nLive"), "a control character must be rejected: the name is a program argument");
+    assert(valid("ndi.output.resolution", "720p") && !valid("ndi.output.resolution", "4k"), "only 720p and 1080p");
+    assert(valid("ndi.output.fps", 60) && !valid("ndi.output.fps", "60") && !valid("ndi.output.fps", 25), "only the numbers 30 and 60");
+  });
 });
 
 describe("The pre-migration backup is WAL-aware", () => {

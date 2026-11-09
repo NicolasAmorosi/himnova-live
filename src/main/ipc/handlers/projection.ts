@@ -136,8 +136,8 @@ export const projectionHandlers: Pick<
 
   "projection:mediaCommand": (command) => {
     if (commandLiveEngine(command)) return;
-    const win = projectionState.getWindow();
-    win?.webContents.send("media-command", command);
+    // The NDI output's copy of a Chromium video seeks with the projector's.
+    for (const win of [projectionState.getWindow(), ...projectionState.getMirrors()]) win?.webContents.send("media-command", command);
   },
 
   "projection:setAudioTracks": (tracks) => {

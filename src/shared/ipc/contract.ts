@@ -56,6 +56,7 @@ import type {
 } from "../types/song";
 import type { CloseDecision } from "../types/window";
 import type { UpdateStatus } from "../types/updates";
+import type { NdiOutputStatus } from "../types/ndi";
 
 /**
  * The single source of truth for every main<->renderer call. Add a channel here
@@ -391,6 +392,11 @@ export type IpcContract = {
   /** Opens the available version's release page in the system browser. The
    *  URL is main's. */
   "updates:openReleaseNotes": { req: void; res: void };
+
+  /** The NDI® output's state, for Settings ▸ Projection; then `ndi-status` on every change. */
+  "ndi:getStatus": { req: void; res: NdiOutputStatus };
+  /** Opens where the NDI runtime is downloaded (`NDI_RUNTIME_URL`). A fixed address: the renderer never names a URL. */
+  "ndi:openRuntimePage": { req: void; res: void };
 };
 
 export type IpcChannel = keyof IpcContract;
@@ -458,6 +464,8 @@ export type IpcEvents = {
   "close-requested": void;
   /** Every change of `updates:getStatus`; download progress at most 4/s. */
   "update-status": UpdateStatus;
+  /** Every change of `ndi:getStatus`, receivers included. */
+  "ndi-status": NdiOutputStatus;
 };
 
 export type IpcEventName = keyof IpcEvents;
