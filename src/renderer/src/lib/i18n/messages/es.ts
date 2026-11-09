@@ -955,7 +955,7 @@ const es = {
       enabledDesc: "Solo la imagen, tal como se ve en el proyector.",
       enabledHelp:
         "El sonido no viaja por NDI: OBS lo toma de la consola. Hace falta el runtime gratuito de NDI instalado en esta computadora (ndi.video). A 60 cuadros por segundo, conectá la computadora por cable.",
-      firewall: "La primera vez, el Firewall de Windows pregunta por «media-engine»: tocá «Permitir» o los demás equipos no reciben la imagen.",
+      firewall: "La primera vez, el Firewall de Windows pregunta por «Lumina Live media engine»: tocá «Permitir» o los demás equipos no reciben la imagen.",
       localNetwork: "La primera vez, macOS pregunta si Lumina Live puede usar la red local: tocá «Permitir» o los demás equipos no reciben la imagen.",
       status: "Estado",
       states: {

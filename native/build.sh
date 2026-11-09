@@ -70,9 +70,11 @@ win32-x64)
   docker image inspect lumina-mingw >/dev/null 2>&1 ||
     printf 'FROM debian:trixie-slim\nRUN apt-get update && apt-get install -y --no-install-recommends g++-mingw-w64-x86-64-posix && rm -rf /var/lib/apt/lists/*\n' |
     docker build -q -t lumina-mingw -
-  docker run --rm -v "$PWD:/w" -w /w lumina-mingw x86_64-w64-mingw32-g++-posix "${FLAGS[@]}" -static -static-libgcc -static-libstdc++ \
-    native/engine/engine.cpp native/engine/gpu-windows.cpp native/engine/ndi.cpp -I "$WORK/mpv-win/include" -I native/ndi/include \
-    "$WORK/mpv-win/libmpv.dll.a" -ld3d11 -ldxgi -lwinmm -o "$OUT/media-engine.exe"
+  docker run --rm -v "$PWD:/w" -w /w lumina-mingw sh -c "
+    x86_64-w64-mingw32-windres native/engine/media-engine.rc -O coff -o $WORK/media-engine-res.o &&
+    x86_64-w64-mingw32-g++-posix ${FLAGS[*]} -static -static-libgcc -static-libstdc++ \
+      native/engine/engine.cpp native/engine/gpu-windows.cpp native/engine/ndi.cpp $WORK/media-engine-res.o \
+      -I $WORK/mpv-win/include -I native/ndi/include $WORK/mpv-win/libmpv.dll.a -ld3d11 -ldxgi -lwinmm -o $OUT/media-engine.exe"
   cp "$WORK/mpv-win/libmpv-2.dll" "$OUT/"
   ;;
 linux-x64)

@@ -953,7 +953,7 @@ const it: Messages = {
       enabledDesc: "Solo l'immagine, esattamente come la mostra il proiettore.",
       enabledHelp:
         "Il suono non viaggia via NDI: OBS lo prende dal mixer. Su questo computer serve il runtime gratuito di NDI (ndi.video). A 60 fotogrammi al secondo, collega il computer via cavo.",
-      firewall: "La prima volta, Windows Firewall chiede di «media-engine»: premi «Consenti», altrimenti gli altri computer non ricevono l'immagine.",
+      firewall: "La prima volta, Windows Firewall chiede di «Lumina Live media engine»: premi «Consenti», altrimenti gli altri computer non ricevono l'immagine.",
       localNetwork: "La prima volta, macOS chiede se Lumina Live può usare la rete locale: premi «Consenti», altrimenti gli altri computer non ricevono l'immagine.",
       status: "Stato",
       states: {

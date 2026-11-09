@@ -1,0 +1,23 @@
+// Windows version resource of media-engine.exe. Its FileDescription is the name Windows shows in the firewall prompt
+// the first time the engine sends or receives NDI, and the name of the rules «Allow» creates; without it the prompt
+// reads «media-engine.exe». Built by native/build.sh win32-x64.
+1 VERSIONINFO
+FILETYPE 0x1 // VFT_APP
+BEGIN
+  BLOCK "StringFileInfo"
+  BEGIN
+    BLOCK "040904B0"
+    BEGIN
+      VALUE "CompanyName", "Lumina Live"
+      VALUE "FileDescription", "Lumina Live media engine"
+      VALUE "InternalName", "media-engine"
+      VALUE "LegalCopyright", "Nicolas Amorosi, GPL-3.0-or-later"
+      VALUE "OriginalFilename", "media-engine.exe"
+      VALUE "ProductName", "Lumina Live"
+    END
+  END
+  BLOCK "VarFileInfo"
+  BEGIN
+    VALUE "Translation", 0x409, 1200
+  END
+END
