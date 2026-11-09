@@ -62,6 +62,59 @@ later (`stage:getSnapshot`). On the operator's own screen it is a movable 800×4
 fullscreen one over the control window. Its keys are forwarded to the control window, like the
 projector's.
 
+## The NDI® output
+
+Settings ▸ Projection «Salida NDI®» (`ndi.output.*`, off by default; name, 720p/1080p, 30/60) puts the projector's
+picture on the network as an NDI source for OBS, vMix or Studio Monitor. **Video only**: the room's audio reaches a
+stream from the mixing desk (owner, 2026-11-09). The NDI runtime is **the user's own**, installed for free from
+ndi.video and loaded at run time; nothing of NDI ships but the SDK's MIT headers (`native/ndi/include/`). The SDK
+licence asks for «NDI®», the trademark line (`NDI_TRADEMARK`, `shared/types/ndi.ts`) near its first use and in «About»,
+and a link to ndi.video wherever NDI is used or chosen — the app, the landing and its guide.
+
+- **Its own offscreen window, not a capture of the projector's.** `main/ndi/ndi-output.ts` loads
+  `projection.html?role=ndi` at the output's size and registers it as a **mirror** in `projectionState`: it gets
+  every `display-content` and `media-command` the projector gets, never the audio tracks, and reports nothing
+  (`04-renderer-state.md`). The engine's videos reach it like any other window (`syncLiveEngine()`). It keeps
+  working with the projector hidden, but with no projector open the videos pause as they always have, and NDI shows
+  that (owner, 2026-11-09). It is created after the control window's `did-finish-load` (Playwright takes the first
+  window that loads as the control one) and `userFacingWindows()` skips it.
+- **Windows clamps even an offscreen window to the screen** (1920×1032 under a taskbar): `frame: false`,
+  `useContentSize` and `setContentSize()` after creating it is what gives the whole picture.
+- **Frames travel as shared GPU textures** (`offscreen: { useSharedTexture: true }`, experimental in Electron): main
+  hands each painted texture to `media-engine --ndi-send` and only passes a handle, so a slow church PC keeps its
+  main thread and an NDI crash takes down nothing else. The engine reads the pixels, sends the latest frame at a
+  steady rate (BGRX) and answers `done`; main holds one texture in flight and drops the paints of that moment. How
+  a texture crosses (`handles.node` exists on macOS and Linux only):
+
+  | System | How it reaches the engine | How the engine reads it |
+  |---|---|---|
+  | Windows | its NT handle over stdin; the engine duplicates it out of main (`--parent`) | `OpenSharedResource1` → staging copy → `Map` (retried on another adapter) |
+  | macOS | the IOSurface's mach port, to a launchd name the engine checked in (`machSendSurface`) — an IOSurface ID means nothing in another process | `IOSurfaceLock` |
+  | Linux | the dmabuf fds over a `SOCK_SEQPACKET` socket (`sendFds`) | `mmap` between `DMA_BUF_IOCTL_SYNC` — an EGL import read zeros |
+
+- **With no receivers, a frame at most every 500 ms**, encoded once: the SDK hands its last frame to every new
+  receiver, and OBS reconnects on scene changes. A first receiver, or a paint dropped at the end of a fade, gets a
+  fresh frame through `stopPainting(); startPainting()` (`invalidate()` paints no texture; painting left stopped
+  freezes the page's clock).
+- **Supervised like the media engine:** a crash restarts it after 2 s (`ndi-exit`); exit codes 2–4 (bad arguments,
+  no runtime, NDI refused) wait for the user. Settings reads `ndi:getStatus` and listens to `ndi-status`:
+  «Enviando · N», «Falta el runtime» with the download link, or the error code.
+- **The OS gates the first network use, and only a packaged app shows how.** macOS asks for Local Network in the
+  app's name (the engine is a child), with the `NSLocalNetworkUsageDescription` of `mac.extendInfo`; until it is
+  answered, or once denied, receivers see the source with no picture and the sender can't tell; switched back on in
+  System Settings › Privacy & Security › Local Network, the picture returns with no restart (measured 2026-11-09). A dev run
+  from Terminal inherits Terminal's permission. Windows' firewall asks for `media-engine.exe`, named «Lumina Live
+  media engine» by its version resource (`native/engine/media-engine.rc`); without «Allow» nobody can connect.
+  Settings says each one beside the switch; the installer creates no firewall rule (per-user, no admin).
+- **Testing:** `LUMINA_NDI_LIB=<path to libndi>` points at a runtime that isn't installed;
+  `tests/e2e/ndi-output.spec.ts` runs with and without one.
+
+Findings behind this:
+[`an-offscreen-shared-texture-window-paints-a-texture-only-for-a-real-frame.md`](../../.claude/knowledge/an-offscreen-shared-texture-window-paints-a-texture-only-for-a-real-frame.md),
+[`offscreen-textures-cross-to-another-process-differently-on-each-os.md`](../../.claude/knowledge/offscreen-textures-cross-to-another-process-differently-on-each-os.md),
+[`the-first-network-use-is-gated-by-the-os-and-dev-runs-hide-it.md`](../../.claude/knowledge/the-first-network-use-is-gated-by-the-os-and-dev-runs-hide-it.md),
+[`the-ndi-sdk-hands-its-last-frame-to-every-new-receiver.md`](../../.claude/knowledge/the-ndi-sdk-hands-its-last-frame-to-every-new-receiver.md).
+
 ## In-app updates
 
 Main owns them (`src/main/updates/`): the control window asks for the state (`updates:getStatus`)

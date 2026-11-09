@@ -40,6 +40,10 @@ Windows, macOS and Linux · English, Spanish, Italian and Portuguese
 - **A stage screen** for the musicians on a third screen: what is live, what comes next and the time —
   with the song's chords over its words, which the projector never shows. Chords come in from OpenLP,
   OpenLyrics and ChordPro, or are written in the lyrics as `[G]Amazing [C]grace`.
+- **NDI® output:** the projector's picture as a video source on your local network, for OBS, vMix or any
+  other NDI program — to stream the service with the lyrics and slides. Video only: the sound comes from
+  your mixing desk. Turn it on in Settings › Projection; it needs NDI's free runtime, which you install
+  from [ndi.video](https://ndi.video/).
 - **Timers** (countdown, clock, stopwatch) and **overlays** on top of what is projected (a lower third
   with the preacher's name, the church logo).
 - **BLACK and LOGO** pause whatever is playing and resume it where it was. Without a logo image, LOGO
@@ -114,4 +118,6 @@ FFmpeg ships alongside the app as a separate program, under its own GPL-3.0 lice
 libmpv (see [`resources/engine-NOTICE.txt`](resources/engine-NOTICE.txt); the engine's source is in
 [`native/`](native/)). The shapes of legacy `.ppt` files are drawn from LibreOffice's
 table of Office's shapes, under the MPL-2.0 (see
-[`resources/ooxml/mso-shapes-NOTICE.txt`](resources/ooxml/mso-shapes-NOTICE.txt)). The text of the Reina-Valera 1909 is in the public domain.
+[`resources/ooxml/mso-shapes-NOTICE.txt`](resources/ooxml/mso-shapes-NOTICE.txt)). The NDI® output is built against the NDI SDK's headers, under the MIT license
+([`native/ndi/include/`](native/ndi/include/)); the NDI runtime does not ship with the app — you install it from
+[ndi.video](https://ndi.video/). NDI® is a registered trademark of Vizrt NDI AB. The text of the Reina-Valera 1909 is in the public domain.

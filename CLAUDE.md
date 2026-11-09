@@ -85,7 +85,7 @@ answer, and ask about what does. Nothing is delivered half-done in silence.
 | Packaging | `electron-builder` (nsis / ad-hoc signed dmg / AppImage + deb) |
 | Updates | `electron-updater` 6.8.9, from the GitHub release marked Latest; on macOS the app downloads and opens the `.dmg` itself |
 | Media probe + thumbnails | FFmpeg 9.0.2 (`ffmpeg` + `ffprobe`) **bundled**, pinned by sha256 and downloaded by `scripts/fetch-binaries.ts` (GPLv3, see `resources/ffmpeg-NOTICE.txt`) |
-| Media engine | Our own process on libmpv (`native/`), **prebuilt** per platform in this repo's GitHub Release `engine-<n>`, pinned by sha256 and downloaded by `scripts/fetch-binaries.ts` (see `resources/engine-NOTICE.txt`). `native/build.sh <target>` builds it locally (kept by the fetch: a `.local` marker) and `native/build.sh pack` zips a new release |
+| Media engine | Our own process on libmpv (`native/`), **prebuilt** per platform in this repo's GitHub Release `engine-<n>`, pinned by sha256 and downloaded by `scripts/fetch-binaries.ts` (see `resources/engine-NOTICE.txt`); the same binary sends the NDI® output (`--ndi-send`). `native/build.sh <target>` builds it locally (kept by the fetch: a `.local` marker) and `native/build.sh pack` zips a new release |
 | E2E | Playwright 1.63 (`_electron`) against the built app or the installed one — `tests/e2e/` |
 
 ## Folder structure
@@ -133,6 +133,8 @@ src/
 │   │                              #   deck-clips.ts (video/audio embedded in a .pptx), thumbnail-service.ts,
 │   │                              #   media-engine.ts (one libmpv process per file) + engine-sessions.ts (live video, slide clip and audio, PREVIEW)
 │   ├── windows/projector-screen.ts # the projector bound to its screen: anti-sleep and reconnection
+│   ├── ndi/ndi-output.ts          # the NDI® output: an offscreen projection whose textures the engine's
+│   │                              #   NDI mode sends (native/engine/ndi.cpp; the runtime is the user's)
 │   ├── updates/                   # updater.ts (owns UpdateStatus, wraps electron-updater), mac-dmg.ts
 │   │                              #   (macOS without Squirrel), update-status.ts (PURE, tested)
 │   ├── logging.ts                 # main.log and crash.log, rotated
