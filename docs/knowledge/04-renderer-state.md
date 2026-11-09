@@ -304,7 +304,13 @@ skipping keeps what was chosen and Escape does nothing.
 - **«Primeros pasos»** (`welcome.firstStepsOpen`, `welcome.firstStepsDone`): `effects/first-steps.ts`
   subscribes to the preview, projection, program and settings stores and ticks a step the first time its
   thing happens — only while the list is open, so it always ends practised. The work screen knows nothing
-  about it. `FirstStepsPanel` lives inside `#root`, so a modal makes it inert like the rest.
+  about it — but for the Songs tab, whose choice is `ResourcePanel`'s own state: opening it calls
+  `markFirstStep("song")`. `FirstStepsPanel` lives inside `#root`, so a modal makes it inert like the rest.
+- **The Bibles step** is Settings' «Included with Lumina Live» group (`settings-groups/bundled-bibles-group.tsx`),
+  which there also lists the installed ones as «Installed»; removing a version is only in Settings.
+- **Reopening it** and «Primeros pasos» live in Settings ▸ About's «Help» card, with «Online guide»
+  (`system:openGuide`: the website's guide in the interface's language; the address is `SITE_URL` in
+  `main/ipc/handlers/system.ts`).
 - **What the steps draw** comes from the projector's own builders: the LOGO preview from `useLogoPreview`
   (`selectOutput` under LOGO), the sample verse from `bibleOutputFor` with the stored style and the
   «En paralelo» version; the «Al terminar» cards are `StageSketch`es, not outputs — a picture of a choice.

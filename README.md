@@ -13,7 +13,10 @@ Windows, macOS and Linux · English, Spanish, Italian and Portuguese
 
 - **Presentations** in `.ppt`, `.pptx`, `.pps`, `.ppsx`, `.odp` and `.pdf`, read and drawn by Lumina
   itself — nothing else to install —, including `.pps` hymnals with auto-advance and music: each
-  slide's timing and the embedded audio are kept.
+  slide's timing and the embedded audio are kept. When a presentation runs out — by itself or a step past
+  its last slide — and past a song's last slide, the projector shows the logo, goes black, starts over,
+  stays on the last slide or moves on to the schedule's next item; a standalone audio stops, loops or plays
+  the next one. Each is chosen once in Settings.
 - **Any video or audio.** Whatever the player can't decode (AVI, WMV, ProRes, AC3…) plays at once
   through Lumina's own media engine, built on libmpv. Nothing is converted and the original file is
   never touched. When a video ends, the projector shows the logo, goes black, loops it, holds its
@@ -22,7 +25,9 @@ Windows, macOS and Linux · English, Spanish, Italian and Portuguese
   recently. Ships with nine public-domain or freely licensed versions — Reina-Valera 1909, Versión
   Biblia Libre, King James Version, American Standard Version, World English Bible, Riveduta 1927, Diodati
   1885, Almeida 1911 and Bíblia Livre —: a new install gets those of its language, and any other installs
-  with one click, no internet. Import other versions in JSON, Zefania, USFX, OSIS or MyBible/MySword modules.
+  with one click, no internet. **Two versions side by side** for a bilingual service: two columns on the
+  projector, each with its own reference. Import other versions in JSON, Zefania, USFX, OSIS or MyBible/MySword
+  modules.
 - **Songs:** type or paste the lyrics — with headers like `[Verse 1]` or `[Chorus]` in English, Spanish,
   Italian or Portuguese, or none, and the block that repeats becomes the chorus — and the app builds the
   slides. One order per song, as chips you drag or a line like `V1 C V2 C B C`. **Every slide of a song is
@@ -52,7 +57,12 @@ Windows, macOS and Linux · English, Spanish, Italian and Portuguese
   shows your church's name over a background of your choice.
 - **Built for a live service:** if the projector disconnects, the picture comes back by itself when
   it reconnects; the schedule saves itself; closing the app by accident asks first.
-- Saved programs, a media library, light and dark themes.
+- **A welcome on the first launch:** language and theme, your church's logo, the screens, what happens at
+  the end of a video or a presentation, your folders, the Bibles and streaming — then a «First steps» list
+  that ticks itself as you try each thing in the real app. It reopens from Settings › About, next to the
+  [online guide](https://lumina-live-site.vercel.app/en/guide).
+- Saved programs, a media library that starts with the computer's Videos, Pictures, Music and Documents
+  folders, light and dark themes.
 - **In English, Spanish, Italian and Portuguese.** The first launch follows the computer's language;
   change it in Settings › System.
 

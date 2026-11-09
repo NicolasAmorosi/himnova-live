@@ -8,7 +8,7 @@ WorshipApp — the product has been called **Lumina Live** since 2026-10-22 and 
 Vite + Tailwind**, with **embedded SQLite** as its backend, meant as a replacement for EasyWorship.
 It drives two windows — control and projection — to show presentations (PowerPoint old and new,
 `.odp` and PDF, every one read and drawn by the app itself, with nothing else to install), video,
-images, audio, Bible verses (it ships eight public-domain or freely licensed versions in its four
+images, audio, Bible verses (it ships nine public-domain or freely licensed versions in its four
 languages — a new profile gets its language's, any other installs from Settings with no internet —
 and any other version is imported) and songs (lyrics with sections, an order and named themes) during a service. Visual identity: Lumina Live's (navy + teal accent +
 the flame, identity sheet of 2026-10-22), with a switchable light/dark theme (dark by default, meant
@@ -362,7 +362,7 @@ npm install              # installs deps — better-sqlite3 ships prebuilt binar
 npm run dev               # electron-vite dev (HMR in the renderer, main restarts on watch)
 npm run typecheck          # tsc --noEmit over node (main+preload+shared) and web (renderer+shared)
 npm run lint                # eslint .
-npm run test                 # vitest run — 857 cases in two projects: `main` (Node: migrations, seed,
+npm run test                 # vitest run — 878 cases in two projects: `main` (Node: migrations, seed,
                               #   FTS5, repos and the library sweep, draft, settings and scene validators, WAL backup,
                               #   zip reader, the legacy-deck reader against an OLE2 file built in the test
                               #   (`tests/fixtures/legacy-ppt.ts`: pictures, master inheritance, what it refuses),
@@ -385,8 +385,8 @@ npm run test                 # vitest run — 857 cases in two projects: `main` 
                               #   frozen frame, toast store, utils). Nothing imports `electron`: that's
                               #   the suite's boundary
 npm run test:watch            # the same suite in watch mode, while working on a module
-npm run test:e2e              # build + Playwright: 259 walkthroughs of the real app (~13 min) with a
-                              #   throwaway, bare profile (`--no-starter-look`; `starter-look.spec.ts` turns it on)
+npm run test:e2e              # build + Playwright: 268 walkthroughs of the real app (~14 min) with a
+                              #   throwaway, bare profile (`--no-starter-look`, `--no-welcome`, `--no-system-folders`; a spec turns each back on)
                               #   and media generated on the fly — videos, AVI and WMA with the
                               #   bundled FFmpeg; PDFs, a legacy .pps made of pictures and .pptx with auto-advance, a
                               #   WMA soundtrack and an embedded WMV written in code (`tests/e2e/support/pptx.ts`),

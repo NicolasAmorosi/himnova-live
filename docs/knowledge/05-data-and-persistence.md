@@ -363,6 +363,12 @@ source file is validated against a `stat` of the file, or against a row that som
 date. Diagnosis in
 [`a-library-rows-size-and-mtime-are-every-stamps-identity-and-the-sweep-only-checked-existence.md`](../../.claude/knowledge/a-library-rows-size-and-mtime-are-every-stamps-identity-and-the-sweep-only-checked-existence.md).
 
+A **new profile** starts with the system's Videos, Pictures, Music and Documents folders linked in Media
+(`library.linkedFolders` ← `systemLinkedFolders()` in `paths.ts`, owner 2026-11-09) — only those that exist,
+never the home folder. They are listed only when their view opens; on macOS that first opening asks for the
+privacy permission of that folder. Songs has no system folder and starts empty. `--no-system-folders` (the E2E
+harness) keeps the library bare.
+
 A linked folder that isn't there (`library:listFolder`) answers `FOLDER_MISSING`, not an empty
 list: the two were indistinguishable. And no import accepts a `._x.pps` (the AppleDouble that
 macOS leaves on a FAT/exFAT USB stick), a `~$x.pptx` (PowerPoint's lock file) or a file whose
@@ -409,7 +415,12 @@ locale set from the OS just before — in the catalog's order, and the first bec
 `bible.defaultVersionId`; the E2E suite (`--lang=es`) starts with the RV1909 and the VBL. Every other version is
 installed with one click in Settings ▸ Bible (`bible:bundled`, `bible:installBundled`), no internet;
 deleting one makes it «not installed» again. An existing profile is never given a version on its own.
-All bundled versions are `isBuiltin`.
+All bundled versions are `isBuiltin`. While the first-run welcome is pending, choosing another language in its
+first step swaps them: the new language's are installed (the first becomes the default) and the previous
+language's go, unless a saved program cites one (`swapBundledBibles` in `welcome/HelloStep.tsx`).
+
+Whatever the format, `BookCollector.add` stores a verse as one line: runs of spaces, tabs and line breaks
+become one space (eBible's USFX wraps some verses mid-sentence).
 
 They are copied into the tables when installed, not at build time — that way an app update never
 overwrites the user's DB. `bible:import` does exactly the same: it parses the file in memory and
