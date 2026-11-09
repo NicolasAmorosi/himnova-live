@@ -849,6 +849,7 @@ const en: Messages = {
       performance: "Performance",
       diagnostics: "Diagnostics",
       about: "Version and updates",
+      ndi: "NDI® output",
     },
     verse: {
       sample: "Sample",
@@ -941,6 +942,36 @@ const en: Messages = {
     stageDisplayDesc: "For the musicians: what's live, what's next and the time.",
     stageDisplayHelp: "Under BLACK or LOGO it keeps showing the content and says so.",
     stageNone: "None",
+    /** Settings ▸ Projection ▸ «Salida NDI®» (`ndi-output-group.tsx`). */
+    ndi: {
+      groupDesc: "The projection as a video source on the network, for OBS, vMix or any other program.",
+      enabled: "Send over NDI®",
+      enabledDesc: "The picture only, exactly as the projector shows it.",
+      enabledHelp:
+        "Sound does not travel over NDI: OBS takes it from the mixing desk. This computer needs NDI's free runtime installed (ndi.video). At 60 frames per second, connect the computer by cable.",
+      firewall: "The first time, Windows Firewall asks about «media-engine»: press «Allow», or other computers won't receive the picture.",
+      status: "Status",
+      states: {
+        off: "Off",
+        starting: "Starting…",
+        sending:
+          "{count, plural, =0 {Sending · no program is receiving it} one {Sending · # program receives it} other {Sending · # programs receive it}}",
+        runtimeMissing: "NDI's runtime is missing, and it's free. Install it and restart Lumina Live.",
+      },
+      errors: {
+        "ndi-send": "NDI couldn't create the source.",
+        "ndi-gpu": "The picture couldn't be read from the graphics card.",
+        "ndi-exit": "The output closed by itself; it comes back on in a few seconds.",
+        "ndi-engine-missing": "This installation has no media engine.",
+      },
+      getRuntime: "Download NDI",
+      name: "Name",
+      nameDesc: "Programs list it as «COMPUTER (name)».",
+      resolution: "Resolution",
+      resolutionDesc: "The size of the picture sent.",
+      fps: "Frames per second",
+      fpsDesc: "60 needs a network cable; over Wi-Fi, 30.",
+    },
     windowLabel: "Projector window",
     windowDesc: "If the projector stops responding, close it and open it again.",
     theme: "Theme",
@@ -953,6 +984,7 @@ const en: Messages = {
     license: "Licence",
     licenseDesc: "Free software: anyone may use, study, change and share it.",
     sourceCode: "Source code",
+    trademarks: "Trademarks",
     logsError: "Couldn't open the logs folder",
     updates: "Updates",
     updatesCheck: "Check for updates",

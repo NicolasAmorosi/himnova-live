@@ -56,8 +56,11 @@ export function FieldGroup({
  *  off every control inside, and each `FieldRow` dims its own label beside a
  *  disabled control; `contents` keeps the rows in the section's own column. */
 export function DependentFields({ children, enabled }: { children: ReactNode; enabled: boolean }) {
+  // On a Settings page the rows sit between lines (`FieldGroup`'s `divide-y`), which reach only the box's
+  // own children: through `contents` the rows in here would lose theirs.
+  const spread = useContext(FieldLayoutContext) === "spread";
   return (
-    <fieldset className="contents" disabled={!enabled}>
+    <fieldset className={cn("contents", spread && "divide-y divide-border")} disabled={!enabled}>
       {children}
     </fieldset>
   );

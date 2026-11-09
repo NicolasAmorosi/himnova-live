@@ -850,6 +850,7 @@ const es = {
       performance: "Rendimiento",
       diagnostics: "Diagnóstico",
       about: "Versión y actualizaciones",
+      ndi: "Salida NDI®",
     },
     /** How a verse is DRESSED — the Bible tab's «Estilo» editor
      *  (`VerseStyleModal`). The keys kept their old `settings.` home when it
@@ -947,6 +948,36 @@ const es = {
     stageDisplayDesc: "Para los músicos: lo que está en vivo, lo que sigue y la hora.",
     stageDisplayHelp: "Con NEGRO o LOGO sigue mostrando el contenido y lo avisa.",
     stageNone: "Ninguna",
+    /** Settings ▸ Projection ▸ «Salida NDI®» (`ndi-output-group.tsx`). */
+    ndi: {
+      groupDesc: "La proyección como fuente de video en la red, para OBS, vMix u otro programa.",
+      enabled: "Enviar por NDI®",
+      enabledDesc: "Solo la imagen, tal como se ve en el proyector.",
+      enabledHelp:
+        "El sonido no viaja por NDI: OBS lo toma de la consola. Hace falta el runtime gratuito de NDI instalado en esta computadora (ndi.video). A 60 cuadros por segundo, conectá la computadora por cable.",
+      firewall: "La primera vez, el Firewall de Windows pregunta por «media-engine»: tocá «Permitir» o los demás equipos no reciben la imagen.",
+      status: "Estado",
+      states: {
+        off: "Apagada",
+        starting: "Arrancando…",
+        sending:
+          "{count, plural, =0 {Enviando · ningún programa la está recibiendo} one {Enviando · # programa la recibe} other {Enviando · # programas la reciben}}",
+        runtimeMissing: "Falta el runtime de NDI, que es gratis. Instalalo y reiniciá Lumina Live.",
+      },
+      errors: {
+        "ndi-send": "NDI no pudo crear la fuente.",
+        "ndi-gpu": "No se pudo leer la imagen de la placa de video.",
+        "ndi-exit": "La salida se cerró sola; vuelve a encenderse en unos segundos.",
+        "ndi-engine-missing": "Esta instalación no trae el motor de medios.",
+      },
+      getRuntime: "Descargar NDI",
+      name: "Nombre",
+      nameDesc: "Los programas la listan como «COMPUTADORA (nombre)».",
+      resolution: "Resolución",
+      resolutionDesc: "El tamaño de la imagen que se envía.",
+      fps: "Cuadros por segundo",
+      fpsDesc: "60 necesita cable de red; por Wi-Fi, 30.",
+    },
     windowLabel: "Ventana de proyección",
     windowDesc: "Si el proyector deja de responder, cerrala y volvé a abrirla.",
     theme: "Tema",
@@ -959,6 +990,7 @@ const es = {
     license: "Licencia",
     licenseDesc: "Software libre: se puede usar, estudiar, cambiar y compartir.",
     sourceCode: "Código fuente",
+    trademarks: "Marcas registradas",
     logsError: "No se pudo abrir la carpeta de registros",
     updates: "Actualizaciones",
     updatesCheck: "Buscar actualizaciones",

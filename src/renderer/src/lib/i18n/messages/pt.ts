@@ -850,6 +850,7 @@ const pt: Messages = {
       performance: "Desempenho",
       diagnostics: "Diagnóstico",
       about: "Versão e atualizações",
+      ndi: "Saída NDI®",
     },
     verse: {
       sample: "Amostra",
@@ -942,6 +943,36 @@ const pt: Messages = {
     stageDisplayDesc: "Para os músicos: o que está ao vivo, o que vem depois e a hora.",
     stageDisplayHelp: "Com PRETO ou LOGO continua mostrando o conteúdo e avisa.",
     stageNone: "Nenhuma",
+    /** Settings ▸ Projection ▸ «Salida NDI®» (`ndi-output-group.tsx`). */
+    ndi: {
+      groupDesc: "A projeção como fonte de vídeo na rede, para OBS, vMix ou outro programa.",
+      enabled: "Enviar por NDI®",
+      enabledDesc: "Só a imagem, exatamente como o projetor mostra.",
+      enabledHelp:
+        "O som não viaja por NDI: o OBS o pega da mesa de som. Este computador precisa do runtime gratuito do NDI instalado (ndi.video). A 60 quadros por segundo, conecte o computador por cabo.",
+      firewall: "Na primeira vez, o Firewall do Windows pergunta sobre «media-engine»: clique em «Permitir», senão os outros computadores não recebem a imagem.",
+      status: "Status",
+      states: {
+        off: "Desligada",
+        starting: "Iniciando…",
+        sending:
+          "{count, plural, =0 {Enviando · nenhum programa está recebendo} one {Enviando · # programa recebe} other {Enviando · # programas recebem}}",
+        runtimeMissing: "Falta o runtime do NDI, que é gratuito. Instale-o e reinicie o Lumina Live.",
+      },
+      errors: {
+        "ndi-send": "O NDI não conseguiu criar a fonte.",
+        "ndi-gpu": "Não foi possível ler a imagem da placa de vídeo.",
+        "ndi-exit": "A saída fechou sozinha; volta a ligar em alguns segundos.",
+        "ndi-engine-missing": "Esta instalação não tem o motor de mídia.",
+      },
+      getRuntime: "Baixar NDI",
+      name: "Nome",
+      nameDesc: "Os programas a listam como «COMPUTADOR (nome)».",
+      resolution: "Resolução",
+      resolutionDesc: "O tamanho da imagem enviada.",
+      fps: "Quadros por segundo",
+      fpsDesc: "60 precisa de cabo de rede; por Wi-Fi, 30.",
+    },
     windowLabel: "Janela de projeção",
     windowDesc: "Se o projetor parar de responder, feche e abra de novo.",
     theme: "Tema",
@@ -954,6 +985,7 @@ const pt: Messages = {
     license: "Licença",
     licenseDesc: "Software livre: pode ser usado, estudado, modificado e compartilhado.",
     sourceCode: "Código-fonte",
+    trademarks: "Marcas registradas",
     logsError: "Não foi possível abrir a pasta de registros",
     updates: "Atualizações",
     updatesCheck: "Procurar atualizações",
