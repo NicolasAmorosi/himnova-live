@@ -2,7 +2,8 @@
  * What the projector does when a live video reaches its end on its own —
  * `projection.videoEnd`, mirrored into the projection store — and when a deck
  * ends, on its own or stepped past its last slide (`projection.deckEnd`), and
- * a song stepped past its last slide (`projection.songEnd`).
+ * a song stepped past its last slide (`projection.songEnd`), and the audio
+ * row that follows one that played to its end (`projection.audioEnd`).
  */
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { startEndOfPlaybackEffects } from "@renderer/effects/end-of-playback";
@@ -10,7 +11,9 @@ import { useProgramStore } from "@renderer/stores/program.store";
 import { useDeckStore } from "@renderer/stores/deck.store";
 import { buildCumulativeMs, selectOutput, useProjectionStore } from "@renderer/stores/projection.store";
 import { useSettingsStore } from "@renderer/stores/settings.store";
-import { advanceSlide, advanceSong } from "@renderer/lib/actions/playback";
+import { advanceSlide, advanceSong, goLiveWithNextScheduleAudio } from "@renderer/lib/actions/playback";
+import { useAudioStore, type LiveAudioTrack } from "@renderer/stores/audio.store";
+import type { MediaAsset } from "@shared/types/media";
 import { resolveSong } from "@renderer/stores/song.store";
 import { parseLyrics } from "@shared/song-text";
 import { DEFAULT_SONG_THEME } from "@shared/types/song";
@@ -235,4 +238,72 @@ test("a song's «Volver a la primera diapositiva» starts it over; «Quedarse» 
   advanceSong(1);
   const held = useProjectionStore.getState().base;
   expect(held?.kind === "song" && held.slideIndex).toBe(3);
+});
+
+/** Library rows by id, as `library:get` answers them. */
+function libraryOf(kinds: Record<number, MediaAsset["kind"]>) {
+  (window as unknown as { worship: unknown }).worship = {
+    invoke: (_channel: string, { id }: { id: number }) => {
+      const kind = kinds[id];
+      const asset = kind ? { id, kind, name: `asset ${id}`, ext: "mp3", path: `/m/${id}`, sizeBytes: 1, mtimeMs: 1, durationMs: 1000, linkedAudioPath: null, inLibrary: true, missingSince: null, createdAt: 1, updatedAt: 1 } : null;
+      return Promise.resolve({ ok: true, data: asset });
+    },
+  };
+}
+
+/** The audio that just ended, sent from row `fromItemId`, at 30 %. */
+const endedTrack = (fromItemId: number | undefined): LiveAudioTrack => ({
+  trackId: "asset:1:1",
+  source: "asset",
+  assetId: 1,
+  label: "",
+  url: assetUrl(1),
+  epoch: 1,
+  paused: false,
+  startAtSeconds: 0,
+  volume: 0.3,
+  loop: false,
+  ...(fromItemId !== undefined ? { fromItemId } : {}),
+});
+
+test("an audio's «next» plays the audio row right after its own, past a plate, at the level it ended", async () => {
+  libraryOf({ 1: "audio", 2: "audio" });
+  useAudioStore.getState().clear();
+  const program = useProgramStore.getState();
+  program.clear();
+  program.addItem({ kind: "media", mediaAssetId: 1, title: "Intro" });
+  program.addItem({ kind: "plate", overlayPlateId: 1, title: "Zócalo" });
+  program.addItem({ kind: "media", mediaAssetId: 2, title: "Fondo" });
+  const [first, , third] = useProgramStore.getState().items;
+  // Edited while it played: every row is copied, ids stay.
+  program.addItem({ kind: "media", mediaAssetId: 9, title: "Otro" });
+
+  await goLiveWithNextScheduleAudio(endedTrack(first!.id));
+  const [track] = useAudioStore.getState().tracks;
+  expect(track).toMatchObject({ assetId: 2, volume: 0.3, startAtSeconds: 0, fromItemId: third!.id });
+});
+
+test("an audio's «next» still finds its row after the program was saved under it (new ids)", async () => {
+  libraryOf({ 1: "audio", 2: "audio" });
+  useAudioStore.getState().clear();
+  const program = useProgramStore.getState();
+  program.clear();
+  program.addItem({ kind: "media", mediaAssetId: 1, title: "Intro" });
+  program.addItem({ kind: "media", mediaAssetId: 2, title: "Fondo" });
+  await goLiveWithNextScheduleAudio(endedTrack(123_456));
+  expect(useAudioStore.getState().tracks[0]?.assetId).toBe(2);
+});
+
+test("an audio's «next» stops when the next row is not an audio, or it was not sent from the schedule", async () => {
+  libraryOf({ 1: "audio", 2: "video", 3: "audio" });
+  useAudioStore.getState().clear();
+  const program = useProgramStore.getState();
+  program.clear();
+  program.addItem({ kind: "media", mediaAssetId: 1, title: "Intro" });
+  program.addItem({ kind: "media", mediaAssetId: 2, title: "Video" });
+  program.addItem({ kind: "media", mediaAssetId: 3, title: "Ofrenda" });
+
+  await goLiveWithNextScheduleAudio(endedTrack(useProgramStore.getState().items[0]!.id));
+  await goLiveWithNextScheduleAudio(endedTrack(undefined));
+  expect(useAudioStore.getState().tracks).toEqual([]);
 });

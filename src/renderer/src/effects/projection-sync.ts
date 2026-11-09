@@ -4,6 +4,8 @@ import { selectOutputMemo, useProjectionStore } from "@renderer/stores/projectio
 import { useAudioStore, type LiveAudioTrack } from "@renderer/stores/audio.store";
 import { useDeckStore } from "@renderer/stores/deck.store";
 import { useDisplayStore } from "@renderer/stores/display.store";
+import { useSettingsStore } from "@renderer/stores/settings.store";
+import { goLiveWithNextScheduleAudio } from "@renderer/lib/actions/playback";
 import { freezeLivePositions } from "@renderer/lib/actions/live-positions";
 import { getCachedMediaAsset } from "@renderer/lib/hooks/use-media-asset";
 import { t } from "@renderer/lib/i18n/i18n-provider";
@@ -23,7 +25,7 @@ import type { AudioTrackPush, ProjectionMediaError, ProjectionOutput } from "@sh
  * soundtrack reacts to the cover; a standalone audio asset sent live is
  * intentionally independent of what's on screen (see `audio.store.ts`).
  */
-function toAudioTrackPush(track: LiveAudioTrack, covered: boolean): AudioTrackPush {
+function toAudioTrackPush(track: LiveAudioTrack, covered: boolean, loopStandalone: boolean): AudioTrackPush {
   return {
     trackId: track.trackId,
     url: track.url,
@@ -31,7 +33,9 @@ function toAudioTrackPush(track: LiveAudioTrack, covered: boolean): AudioTrackPu
     paused: track.paused || (track.source === "deck" && covered),
     startAtSeconds: track.startAtSeconds,
     volume: track.volume,
-    loop: track.loop,
+    // `projection.audioEnd` «loop»: state, like a video's, so it also starts
+    // over in a rebuilt projector and a change reaches what already plays.
+    loop: track.loop || (track.source === "asset" && loopStandalone),
   };
 }
 
@@ -103,13 +107,14 @@ export function startProjectionEffects(): () => void {
     queueMicrotask(() => {
       audioFlushScheduled = false;
       const covered = useProjectionStore.getState().overlay !== "none";
+      const loopStandalone = useSettingsStore.getState().settings["projection.audioEnd"] === "loop";
       const tracks = useAudioStore.getState().tracks;
       // The one place that knows the complete live track list, so it is also
       // where the status slots of tracks that no longer exist get collected —
       // every path that can retire a track (`removeTrack`, `restartTrack`'s new
       // epoch, `setDeckTrack`, `clear`) ends up here.
       useProjectionStore.getState().pruneMediaStatus(tracks.map((track) => track.trackId));
-      void api.projection.setAudioTracks(tracks.map((track) => toAudioTrackPush(track, covered)));
+      void api.projection.setAudioTracks(tracks.map((track) => toAudioTrackPush(track, covered, loopStandalone)));
     });
   };
 
@@ -120,6 +125,10 @@ export function startProjectionEffects(): () => void {
     (state) => state.overlay,
     pushAudioTracks,
   );
+  // And on a change of `projection.audioEnd`, which folds into `loop`.
+  const unsubscribeAudioEnd = useSettingsStore.subscribe((state, previous) => {
+    if (state.settings["projection.audioEnd"] !== previous.settings["projection.audioEnd"]) pushAudioTracks();
+  });
 
   // The projector went away without this window asking (Cmd+W on it, a crash).
   // Nothing else can tell: `presentationOpen` is otherwise only ever written by
@@ -171,7 +180,10 @@ export function startProjectionEffects(): () => void {
     const { target } = status;
     if (status.ended && target.kind === "audio") {
       const track = useAudioStore.getState().tracks.find((t) => t.trackId === target.trackId);
-      if (track?.source === "asset") useAudioStore.getState().removeTrack(track.trackId);
+      if (track?.source === "asset") {
+        useAudioStore.getState().removeTrack(track.trackId);
+        if (useSettingsStore.getState().settings["projection.audioEnd"] === "next") void goLiveWithNextScheduleAudio(track);
+      }
     }
   });
 
@@ -237,6 +249,7 @@ export function startProjectionEffects(): () => void {
     unsubscribeOutput();
     unsubscribeAudioTracks();
     unsubscribeOverlayForAudio();
+    unsubscribeAudioEnd();
     unsubscribeProjectionClosed();
     unsubscribePresentationOpen();
     unsubscribeStatus();

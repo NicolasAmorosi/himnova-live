@@ -22,8 +22,13 @@ export type LiveAudioTrack = {
    *  persisted, so nothing ever starts at a level left over from another
    *  service. */
   volume: number;
-  /** Starts over at its end: only ever a deck's sound the file says loops. */
+  /** Starts over at its end: a deck's sound the file says loops. A
+   *  standalone one loops by `projection.audioEnd`, folded in when pushed. */
   loop: boolean;
+  /** The id of the schedule row a standalone audio was sent from: «next»
+   *  plays the row after it. An id, not the row: every edit of the schedule
+   *  copies its rows (`reindex`). Absent for one sent from the library. */
+  fromItemId?: number;
 };
 
 /** Stable id for the one deck-soundtrack slot — at most one at a time,

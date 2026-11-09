@@ -5,7 +5,14 @@ import { DEFAULT_BIBLE_STYLE, type BibleStyle } from "./bible-style";
 import { MEDIA_SORT_ORDERS, type MediaSortOrder } from "./media";
 import { SONG_SORT_ORDERS, type SongSortOrder } from "./song";
 import { TRANSITION_MAX_DURATION_MS, TRANSITION_STYLES, type TransitionStyle } from "./transition";
-import { LOGO_NAME_MAX_LENGTH, VIDEO_END_ACTIONS, type LogoScene, type VideoEndAction } from "./projection";
+import {
+  AUDIO_END_ACTIONS,
+  LOGO_NAME_MAX_LENGTH,
+  VIDEO_END_ACTIONS,
+  type AudioEndAction,
+  type LogoScene,
+  type VideoEndAction,
+} from "./projection";
 import type { SceneBackground } from "./scene-style";
 import { isSceneBackground } from "../style-validators";
 import { LOGO_URL } from "../urls";
@@ -88,6 +95,12 @@ export type SettingsMap = {
   /** The same for a song (owner, 2026-11-09). A song never advances on its
    *  own, so only the step past its last slide ends it. */
   "projection.songEnd": VideoEndAction;
+  /** A standalone audio sent live, when it plays to its end (owner,
+   *  2026-11-09): it stops (and leaves the LIVE panel, as before), starts
+   *  over, or the schedule row right after the one it was sent from plays —
+   *  only when that row (past plates) is an audio too, at the ended one's
+   *  level. A deck's own music follows its deck. */
+  "projection.audioEnd": AudioEndAction;
   /** Whether the LIVE monitor plays its own moving copy of a live video (the
    *  full-screen one and a slide's). Off, it shows the video's thumbnail and
    *  the control window decodes nothing — the projector is never affected. */
@@ -194,6 +207,7 @@ export const DEFAULT_SETTINGS: SettingsMap = {
   "projection.videoEnd": "logo",
   "projection.deckEnd": "logo",
   "projection.songEnd": "logo",
+  "projection.audioEnd": "stop",
   "projection.transition.durationMs": 300,
   "slides.fallbackFont": null,
   "monitors.liveVideoMotion": true,
@@ -305,6 +319,7 @@ export const SETTINGS_VALIDATORS: Record<keyof SettingsMap, (value: unknown) => 
   "projection.videoEnd": isOneOf(VIDEO_END_ACTIONS),
   "projection.deckEnd": isOneOf(VIDEO_END_ACTIONS),
   "projection.songEnd": isOneOf(VIDEO_END_ACTIONS),
+  "projection.audioEnd": isOneOf(AUDIO_END_ACTIONS),
   "projection.transition.durationMs": isNumberIn(0, TRANSITION_MAX_DURATION_MS),
   "slides.fallbackFont": isNullOr(isOneOf(SLIDE_FALLBACK_FONTS)),
   "monitors.liveVideoMotion": isBoolean,

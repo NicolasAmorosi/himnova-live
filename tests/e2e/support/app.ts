@@ -348,6 +348,7 @@ export function audioStates(page: Page) {
       paused: audio.paused,
       readyState: audio.readyState,
       volume: audio.volume,
+      loop: audio.loop,
     })),
   );
 }

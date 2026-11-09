@@ -5,7 +5,7 @@ import { useDisplayStore } from "@renderer/stores/display.store";
 import { usePreviewStore, type PreviewTarget } from "@renderer/stores/preview.store";
 import { findPlate, useOverlayStore } from "@renderer/stores/overlay.store";
 import { bibleVersionLabel, useBibleStore } from "@renderer/stores/bible.store";
-import { useAudioStore, nextAssetTrack } from "@renderer/stores/audio.store";
+import { useAudioStore, nextAssetTrack, type LiveAudioTrack } from "@renderer/stores/audio.store";
 import { findScene, useUtilityStore } from "@renderer/stores/utility.store";
 import { notifyManualNavigation, restartDeck } from "@renderer/effects/deck-autoplay";
 import { handLiveItemToTab, projectVerse } from "@renderer/lib/actions/bible";
@@ -39,7 +39,12 @@ let videoEpoch = 0;
  *  never stacks a second instance of it. Already sounding → no-op, the
  *  existing track plays on untouched. Already there but paused → restarted
  *  in place instead of duplicated. */
-function goLiveWithAudioAsset(asset: MediaAsset, startAtSeconds: number): void {
+function goLiveWithAudioAsset(
+  asset: MediaAsset,
+  startAtSeconds: number,
+  fromItemId?: number,
+  volume = defaultMediaVolume(),
+): void {
   const audioStore = useAudioStore.getState();
   const existing = audioStore.tracks.find((t) => t.source === "asset" && t.assetId === asset.id);
   if (existing) {
@@ -58,8 +63,9 @@ function goLiveWithAudioAsset(asset: MediaAsset, startAtSeconds: number): void {
     epoch,
     paused: false,
     startAtSeconds,
-    volume: defaultMediaVolume(),
+    volume,
     loop: false,
+    ...(fromItemId !== undefined ? { fromItemId } : {}),
   });
 }
 
@@ -178,6 +184,7 @@ async function goLiveWithMediaAsset(
   assetId: number,
   startAtSeconds: number,
   intent: number,
+  fromItemId?: number,
 ): Promise<MediaLiveResult> {
   const asset = await api.library.get(assetId);
   if (!asset) return "failed";
@@ -188,7 +195,7 @@ async function goLiveWithMediaAsset(
   if (!isCurrentLiveIntent(intent)) return "superseded";
 
   if (asset.kind === "audio") {
-    goLiveWithAudioAsset(asset, startAtSeconds);
+    goLiveWithAudioAsset(asset, startAtSeconds, fromItemId);
     return "audio";
   }
 
@@ -395,7 +402,7 @@ async function goLiveWithScheduleItem(
       // Audio never claims the on-air rail — that rail means "this is what's
       // on the projector", and audio never is. Its own "sounding" indicator
       // (schedule-row.tsx) is driven by the audio store instead.
-      const result = await goLiveWithMediaAsset(item.mediaAssetId, startAtSeconds, intent);
+      const result = await goLiveWithMediaAsset(item.mediaAssetId, startAtSeconds, intent, item.id);
       if (result === "base") settleRail();
       return result === "base";
     }
@@ -483,6 +490,34 @@ export async function goLiveWithNextScheduleItem(): Promise<boolean> {
   if (next < 0) return false;
   const intent = claimLiveIntent();
   return (await goLiveWithScheduleItem(next, 1, 0, intent)) || !isCurrentLiveIntent(intent);
+}
+
+/**
+ * A standalone audio that played to its end with `projection.audioEnd` set to
+ * «next» (owner, 2026-11-09): the schedule row right after the one it was
+ * sent from — plates skipped, they make no sound — plays, at the level the
+ * ended one had, so a list of background music keeps the operator's volume.
+ * Only when that row is an audio too: the offertory's music further down
+ * never starts on its own mid-service. Nothing when it was not sent from the
+ * schedule, or its row is gone.
+ */
+export async function goLiveWithNextScheduleAudio(ended: LiveAudioTrack): Promise<void> {
+  if (ended.fromItemId === undefined) return;
+  const { items } = useProgramStore.getState();
+  // Saving the program gives every row a new id (`adoptSaved`), so then its row
+  // is the one with its audio. ponytail: the first such row if the same audio
+  // is in the schedule twice and the program was saved while it played.
+  const byId = items.findIndex((item) => item.id === ended.fromItemId);
+  const from = byId >= 0 ? byId : items.findIndex((item) => item.kind === "media" && item.mediaAssetId === ended.assetId);
+  if (from < 0) return;
+  const next = items.slice(from + 1).find((item) => item.kind !== "plate");
+  if (next?.kind !== "media") return;
+  // Observed, never claimed — an audio is not what is on screen; CLEAR during
+  // the read below still means silence.
+  const intent = currentLiveIntent();
+  const asset = await api.library.get(next.mediaAssetId);
+  if (asset?.kind !== "audio" || !isCurrentLiveIntent(intent)) return;
+  goLiveWithAudioAsset(asset, 0, next.id, ended.volume);
 }
 
 /** Whether a preview target is a standalone audio, which goes live without

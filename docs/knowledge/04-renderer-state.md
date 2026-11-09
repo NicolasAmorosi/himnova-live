@@ -151,6 +151,16 @@ the cover nobody asked to lift. A song has its own copy of the choice (`projecti
 same `endLiveContent()`): a song never advances by itself, so only `advanceSong` stepping past the end of its
 order ends it (a detour off the last slide returns to it first), and «loop» is its first slide.
 
+A standalone audio's end has its own setting (`projection.audioEnd`, 2026-11-09: «stop» · «loop» · «next»,
+`AUDIO_END_ACTIONS` — it is sound, so no logo/black/hold). «stop» is the old rule (`projection-sync.ts`'s
+`ended` handler removes the track). «loop» is folded into `AudioTrackPush.loop` when the tracks are pushed
+(`toAudioTrackPush`, re-pushed on a change of the setting), so the `<audio>` and the engine session start over
+by themselves, also the one already sounding. «next» (`goLiveWithNextScheduleAudio`) plays the schedule row right
+after the ended track's `fromItemId` (the row it was sent from: an id, since every schedule edit copies the rows,
+and found by its audio after a save renumbers them), plates skipped, only when that row
+is an audio too and at the ended track's volume (owner): the offertory's music further down never starts on its own.
+A deck's own soundtrack and sounds are never touched by it.
+
 A video's end is the operator's choice since 2026-11-05 (`projection.videoEnd`, Settings ▸ Projection,
 mirrored into `projection.store` by `App.tsx` like the transition): «logo» clears as above, «black» clears
 under BLACK (`clearBaseContentUnder`), «hold» only marks it paused (`setVideoPaused`) — the element, or

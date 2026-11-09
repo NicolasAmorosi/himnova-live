@@ -13,7 +13,12 @@ import { IpcError } from "@shared/ipc/result";
 import { logoModeOf } from "@shared/types/settings";
 import type { TransitionStyle } from "@shared/types/transition";
 import { LogoSceneFields } from "./logo-scene-fields";
-import { VIDEO_END_ACTIONS, type VideoEndAction } from "@shared/types/projection";
+import {
+  AUDIO_END_ACTIONS,
+  VIDEO_END_ACTIONS,
+  type AudioEndAction,
+  type VideoEndAction,
+} from "@shared/types/projection";
 
 /** Everything about what the projector shows: which screen, the fallback
  *  logo, and clearing whatever is currently live. */
@@ -35,6 +40,7 @@ export function ProjectionSection() {
   const videoEnd = useSettingsStore((s) => s.settings["projection.videoEnd"]);
   const deckEnd = useSettingsStore((s) => s.settings["projection.deckEnd"]);
   const songEnd = useSettingsStore((s) => s.settings["projection.songEnd"]);
+  const audioEnd = useSettingsStore((s) => s.settings["projection.audioEnd"]);
   const updateSettings = useSettingsStore((s) => s.update);
 
   const logoOnAir = presentationOpen && output.kind === "logo";
@@ -197,6 +203,17 @@ export function ProjectionSection() {
             onChange={(value) => void updateSettings({ "projection.songEnd": value as VideoEndAction })}
             options={VIDEO_END_ACTIONS.map((action) => ({ label: t(`settings.deckEndOptions.${action}`), value: action }))}
             value={songEnd}
+          />
+        </FieldRow>
+        <FieldRow
+          description={t("settings.audioEndDesc")}
+          help={t("settings.audioEndHelp")}
+          label={t("settings.audioEnd")}
+        >
+          <Select
+            onChange={(value) => void updateSettings({ "projection.audioEnd": value as AudioEndAction })}
+            options={AUDIO_END_ACTIONS.map((action) => ({ label: t(`settings.audioEndOptions.${action}`), value: action }))}
+            value={audioEnd}
           />
         </FieldRow>
         {/* With what goes live, not a group of one row (2026-11-05 review); a

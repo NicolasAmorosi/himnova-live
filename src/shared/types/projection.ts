@@ -55,6 +55,11 @@ export const LOGO_NAME_MAX_LENGTH = 80;
 export const VIDEO_END_ACTIONS = ["logo", "black", "loop", "hold", "next"] as const;
 export type VideoEndAction = (typeof VIDEO_END_ACTIONS)[number];
 
+/** A standalone audio's end (`projection.audioEnd`): it is sound, not a
+ *  picture, so only stopping, starting over or the next audio row. */
+export const AUDIO_END_ACTIONS = ["stop", "loop", "next"] as const;
+export type AudioEndAction = (typeof AUDIO_END_ACTIONS)[number];
+
 /**
  * A video embedded in the slide that is currently live, positioned inside it.
  *

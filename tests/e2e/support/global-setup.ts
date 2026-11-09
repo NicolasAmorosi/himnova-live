@@ -43,6 +43,8 @@ export default function globalSetup(): void {
   // The silent case: opens in Chromium and plays sound over a black picture.
   run(...picture("640x360", 6), ...tone(6), "-shortest", "-c:v", "mpeg4", "-c:a", "aac", out("sound-over-black.mp4"));
   run(...tone(8), "-c:a", "libmp3lame", out("song.mp3"));
+  // The first of two background songs in a row (`projection.audioEnd`).
+  run(...tone(4), "-c:a", "libmp3lame", out("intro.mp3"));
   // Long enough to cover it with NEGRO and close the projector before it ends.
   run(...tone(30), "-c:a", "wmav2", out("song.wma"));
   run("-f", "lavfi", "-i", "testsrc2=size=1280x720", "-frames:v", "1", out("photo.png"));

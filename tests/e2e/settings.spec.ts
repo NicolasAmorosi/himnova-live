@@ -178,6 +178,7 @@ test("every choice in Proyección, Diapositivas and Sistema is kept after a rest
   await pick("Al terminar un video", "Quedarse en el último cuadro");
   await pick("Al terminar una presentación", "Volver a la primera diapositiva");
   await pick("Al terminar una canción", "Pasar al siguiente del programa");
+  await pick("Al terminar un audio", "Repetir en bucle");
   await settings.getByRole("slider", { name: "Volumen inicial" }).fill("0.5");
   await pick("Estilo", "Fundido a negro");
   await pick("Duración", "Lenta (600 ms)");
@@ -197,6 +198,7 @@ test("every choice in Proyección, Diapositivas and Sistema is kept after a rest
   expect(stored["projection.videoEnd"]).toBe("hold");
   expect(stored["projection.deckEnd"]).toBe("loop");
   expect(stored["projection.songEnd"]).toBe("next");
+  expect(stored["projection.audioEnd"]).toBe("loop");
   expect(stored["media.volume"]).toBe(0.5);
   expect(stored["projection.transition.style"]).toBe("fade-through-black");
   expect(stored["projection.transition.durationMs"]).toBe(600);

@@ -1,3 +1,4 @@
+import { fixture } from "./support/paths";
 import { audioStates, expect, test, videoStates, type WorshipApp } from "./support/app";
 
 /**
@@ -122,6 +123,37 @@ test("an audio that plays to its end leaves the LIVE panel", async ({ app }) => 
   await scrubber.press("End");
   await expect(scrubber).toHaveCount(0);
   await expect.poll(async () => (await audioStates(projector)).length).toBe(0);
+});
+
+test("«Al terminar un audio»: the next audio row plays at the level the ended one had, and «bucle» loops what plays", async ({ app }) => {
+  const pickAudioEnd = async (option: string) => {
+    const settings = await openSettings(app, "Proyección");
+    await settings.getByRole("combobox", { name: "Al terminar un audio", exact: true }).click();
+    await app.control.getByRole("option", { name: option, exact: true }).click();
+    await settings.getByRole("button", { name: "Volver" }).click();
+  };
+  await pickAudioEnd("Pasar al siguiente audio del programa");
+
+  const schedule = app.control.locator("section").filter({ has: app.control.getByRole("heading", { name: "Programa", exact: true }) });
+  await app.answerOpenDialog(fixture("intro.mp3"), fixture("song.mp3"));
+  await schedule.getByRole("button", { name: "Agregar medios" }).click();
+  await schedule.getByRole("list").first().getByRole("listitem").filter({ hasText: "intro" }).dblclick();
+  const projector = await app.projector();
+  const live = app.liveColumn();
+  await expect.poll(async () => (await audioStates(projector))[0]?.currentTime ?? 0).toBeGreaterThan(0.3);
+  await live.getByRole("slider", { name: "Volumen de intro" }).fill("30");
+
+  const scrubber = live.getByRole("slider", { name: "Posición de intro" });
+  await scrubber.focus();
+  await scrubber.press("End");
+  await expect(live.getByRole("slider", { name: "Posición de song" })).toBeVisible();
+  await expect(scrubber).toHaveCount(0);
+  await expect.poll(async () => (await audioStates(projector))[0]?.currentTime ?? 0).toBeGreaterThan(0.3);
+  expect((await audioStates(projector))[0]?.volume).toBeCloseTo(0.3, 2);
+
+  // Changed while it plays, it reaches the one already sounding.
+  await pickAudioEnd("Repetir en bucle");
+  await expect.poll(async () => (await audioStates(projector))[0]?.loop).toBe(true);
 });
 
 test("the start volume set in Ajustes is the level a new video starts at", async ({ app }) => {
