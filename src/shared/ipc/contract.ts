@@ -395,7 +395,7 @@ export type IpcContract = {
 
   /** The NDI® output's state, for Settings ▸ Projection; then `ndi-status` on every change. */
   "ndi:getStatus": { req: void; res: NdiOutputStatus };
-  /** Opens where the NDI runtime is downloaded (`NDI_RUNTIME_URL`). A fixed address: the renderer never names a URL. */
+  /** Opens where the NDI runtime is downloaded (`NDI_RUNTIME_URLS`, per system). A fixed address: the renderer never names a URL. */
   "ndi:openRuntimePage": { req: void; res: void };
 };
 

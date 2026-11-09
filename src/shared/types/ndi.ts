@@ -14,9 +14,15 @@ export const NDI_SIZES: Record<NdiResolution, { width: number; height: number }>
   "1080p": { width: 1920, height: 1080 },
 };
 
-/** Where the user gets the free runtime: the NDI SDK licence asks for a link to ndi.video next to every
- *  place NDI is used or chosen. */
-export const NDI_RUNTIME_URL = "https://ndi.video/tools/";
+/** Where the user gets the free runtime, per system: the NDI SDK licence asks for a link to ndi.video next to
+ *  every place NDI is used or chosen. Windows: NDI Tools, which install it (measured 2026-11-09). macOS: NDI's
+ *  runtime installer (the SDK header's `NDILIB_REDIST_URL`; it puts `/usr/local/lib/libndi.dylib`, which NDI
+ *  Tools for Mac does not). Linux has no installer: `libndi.so.6` comes inside the NDI SDK for Linux. */
+export const NDI_RUNTIME_URLS: Record<"win32" | "darwin" | "linux", string> = {
+  win32: "https://ndi.video/tools/",
+  darwin: "https://ndi.link/NDIRedistV6Apple",
+  linux: "https://ndi.video/for-developers/ndi-sdk/download/",
+};
 /** The notice the NDI SDK licence asks for near NDI's first use and in «About». A legal line, kept in its
  *  own words in every language, like the GPL's identifier. */
 export const NDI_TRADEMARK = "NDI® is a registered trademark of Vizrt NDI AB.";
