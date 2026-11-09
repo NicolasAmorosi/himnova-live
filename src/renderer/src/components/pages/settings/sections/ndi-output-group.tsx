@@ -8,8 +8,10 @@ import { onIpc } from "@renderer/lib/ipc";
 import { SETTINGS_VALIDATORS } from "@shared/types/settings";
 import { NDI_NAME_MAX_LENGTH, NDI_TRADEMARK, type NdiOutputStatus } from "@shared/types/ndi";
 
-/** Windows asks, through its own firewall, the first time the engine listens on the network. */
+/** The first time the output reaches the network, Windows asks through its firewall and macOS through its
+ *  Local Network privacy (for «Lumina Live»); until it is allowed, receivers see the source and no picture. */
 const ON_WINDOWS = navigator.userAgent.includes("Windows");
+const ON_MAC = navigator.userAgent.includes("Mac");
 
 function useNdiStatus(): NdiOutputStatus | null {
   const [status, setStatus] = useState<NdiOutputStatus | null>(null);
@@ -69,7 +71,9 @@ export function NdiOutputGroup() {
   return (
     <FieldGroup description={t("settings.ndi.groupDesc")} title={t("settings.groups.ndi")}>
       <FieldRow
-        description={ON_WINDOWS ? t("settings.ndi.firewall") : t("settings.ndi.enabledDesc")}
+        description={
+          ON_WINDOWS ? t("settings.ndi.firewall") : ON_MAC ? t("settings.ndi.localNetwork") : t("settings.ndi.enabledDesc")
+        }
         help={t("settings.ndi.enabledHelp")}
         label={t("settings.ndi.enabled")}
       >

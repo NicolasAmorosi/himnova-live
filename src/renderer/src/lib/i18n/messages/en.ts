@@ -950,6 +950,7 @@ const en: Messages = {
       enabledHelp:
         "Sound does not travel over NDI: OBS takes it from the mixing desk. This computer needs NDI's free runtime installed (ndi.video). At 60 frames per second, connect the computer by cable.",
       firewall: "The first time, Windows Firewall asks about «media-engine»: press «Allow», or other computers won't receive the picture.",
+      localNetwork: "The first time, macOS asks whether Lumina Live may use the local network: press «Allow», or other computers won't receive the picture.",
       status: "Status",
       states: {
         off: "Off",
