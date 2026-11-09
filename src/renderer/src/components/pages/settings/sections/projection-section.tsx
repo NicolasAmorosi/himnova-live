@@ -34,6 +34,7 @@ export function ProjectionSection() {
   const startVolume = useSettingsStore((s) => s.settings["media.volume"]);
   const videoEnd = useSettingsStore((s) => s.settings["projection.videoEnd"]);
   const deckEnd = useSettingsStore((s) => s.settings["projection.deckEnd"]);
+  const songEnd = useSettingsStore((s) => s.settings["projection.songEnd"]);
   const updateSettings = useSettingsStore((s) => s.update);
 
   const logoOnAir = presentationOpen && output.kind === "logo";
@@ -185,6 +186,17 @@ export function ProjectionSection() {
             onChange={(value) => void updateSettings({ "projection.deckEnd": value as VideoEndAction })}
             options={VIDEO_END_ACTIONS.map((action) => ({ label: t(`settings.deckEndOptions.${action}`), value: action }))}
             value={deckEnd}
+          />
+        </FieldRow>
+        <FieldRow
+          description={t("settings.songEndDesc")}
+          help={t("settings.songEndHelp")}
+          label={t("settings.songEnd")}
+        >
+          <Select
+            onChange={(value) => void updateSettings({ "projection.songEnd": value as VideoEndAction })}
+            options={VIDEO_END_ACTIONS.map((action) => ({ label: t(`settings.deckEndOptions.${action}`), value: action }))}
+            value={songEnd}
           />
         </FieldRow>
         {/* With what goes live, not a group of one row (2026-11-05 review); a

@@ -291,11 +291,13 @@ async function goLiveWithSong(songId: number, startSlideIndex: number, intent: n
 }
 
 /** ←/→ on the live song: a cut, like a verse — through a detour and back to
- *  the order after it (`stepSong`). */
-export function advanceSong(direction: 1 | -1): void {
+ *  the order after it (`stepSong`). Past its last slide it ends, like a deck
+ *  (`endLiveContent`). */
+export function advanceSong(direction: 1 | -1, repeat = false): void {
   const { base, setSongPosition } = useProjectionStore.getState();
   if (base?.kind !== "song") return;
   const next = stepSong(base.song, base, direction);
+  if (!next && direction === 1 && !repeat) endLiveContent();
   if (!next) return;
   claimLiveIntent();
   setSongPosition(next);
@@ -590,13 +592,13 @@ export function clearLive(): void {
 
 /** Synchronous: the slide cursor lives in the store and flows out through
  *  `selectOutput`, so there is no IPC round-trip to wait on any more. A step
- *  past the last slide ends the deck (`endDeck`) — never on a held key's
+ *  past the last slide ends the deck (`endLiveContent`) — never on a held key's
  *  repeat, or holding → on the last slide would run through the next item. */
 export function advanceSlide(direction: 1 | -1, repeat = false): void {
   const { base, liveDeck, setSlideIndex } = useProjectionStore.getState();
   if (base?.kind !== "deck" || !liveDeck) return;
   const next = base.slideIndex + direction;
-  if (next > liveDeck.slides.length && !repeat) endDeck();
+  if (next > liveDeck.slides.length && !repeat) endLiveContent();
   if (next < 1 || next > liveDeck.slides.length) return;
   // Claimed here and not at the top: a keypress that bails out above changed
   // nothing on the projector, so it must not cancel a conversion in flight.
@@ -614,16 +616,20 @@ export function gotoSlide(index: number): void {
 }
 
 /**
- * What the live deck does at its end (`projection.deckEnd`, owner
- * 2026-11-09): an auto-advancing one that finished on its own
- * (`end-of-playback.ts`) or the operator stepping past its last slide. «next»
- * under BLACK/LOGO only clears, as before the setting: going live lifts the
- * cover, and nobody asked to uncover the projector.
+ * What the live deck or song does at its end (`projection.deckEnd` /
+ * `projection.songEnd`, owner 2026-11-09): a deck that finished advancing on
+ * its own (`end-of-playback.ts`), or the operator stepping past the last
+ * slide. «next» under BLACK/LOGO only clears, as before the setting: going
+ * live lifts the cover, and nobody asked to uncover the projector.
  */
-export function endDeck(): void {
-  const action = useSettingsStore.getState().settings["projection.deckEnd"];
+export function endLiveContent(): void {
+  const song = useProjectionStore.getState().base?.kind === "song";
+  const action = useSettingsStore.getState().settings[song ? "projection.songEnd" : "projection.deckEnd"];
   if (action === "logo" || action === "black") clearBaseContentUnder(action);
-  if (action === "loop") restartDeck();
+  if (action === "loop") {
+    if (song) gotoSongSlide(1);
+    else restartDeck();
+  }
   if (action !== "next") return;
   if (useProjectionStore.getState().overlay !== "none") clearBaseContent();
   else void goLiveWithNextScheduleItem().then((moved) => moved || clearBaseContent());

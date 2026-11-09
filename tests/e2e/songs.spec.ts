@@ -180,6 +180,19 @@ test("a song written in the editor is found by its lyrics without accents and go
   await expect(projector.getByText("Aleluya, aleluya")).toBeVisible();
 });
 
+test("one more step on a song's last slide takes it off to the logo", async ({ app }) => {
+  await createSong(app, "Sublime gracia", GRACIA);
+  await songRows(app).first().click();
+  await app.goLive();
+  const projector = await app.projector();
+  await app.liveColumn().getByRole("listitem").nth(2).click();
+  await expect(projector.getByText("Aleluya, aleluya")).toBeVisible();
+  await expect(app.liveColumn().getByRole("button", { name: "Diapositiva siguiente" })).toBeEnabled();
+  await app.control.keyboard.press("ArrowRight");
+  await expect(projector.getByText("Aleluya, aleluya")).toHaveCount(0);
+  await expect(app.liveColumn().getByText("Sublime gracia", { exact: true })).toHaveCount(0);
+});
+
 test("every slide of a song is drawn at the same size", async ({ app }) => {
   const long = Array.from({ length: 6 }, (_, i) => `una línea bastante larga de la estrofa número ${i + 1}`);
   await createSong(app, "Tamaño único", ["[Estrofa 1]", "corta", "", ...long].join("\n"));

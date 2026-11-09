@@ -2,6 +2,7 @@ import { useT, useI18n } from "@renderer/lib/i18n/i18n-provider";
 import { Badge, Icon, IconButton, MediaPanel, Segmented } from "@renderer/components/ui";
 import { SongSectionButtons } from "@renderer/components/shared/song-section-buttons";
 import { useProjectionStore } from "@renderer/stores/projection.store";
+import { useSettingsStore } from "@renderer/stores/settings.store";
 import { advanceSong, clearBaseContent, jumpSong, toggleSongLyrics } from "@renderer/lib/actions/playback";
 import { setLiveSongLanguage } from "@renderer/lib/actions/songs";
 import { findSong, useSongStore } from "@renderer/stores/song.store";
@@ -18,6 +19,8 @@ export function SongTransport() {
   const { locale } = useI18n();
   const base = useProjectionStore((s) => s.base);
   const songs = useSongStore((s) => s.songs);
+  // On the last slide «Siguiente» ends the song, unless its end is to stay there.
+  const holdsAtEnd = useSettingsStore((s) => s.settings["projection.songEnd"] === "hold");
   if (base?.kind !== "song") return null;
   // Asked of the stored song: resolved in «original», the live one has none.
   const stored = findSong(songs, base.songId);
@@ -60,7 +63,7 @@ export function SongTransport() {
         </IconButton>
         <IconButton
           aria-label={t("songs.next")}
-          disabled={!base.detour && base.slideIndex >= total}
+          disabled={holdsAtEnd && !base.detour && base.slideIndex >= total}
           onClick={() => advanceSong(1)}
           size="sm"
           variant="ghost"

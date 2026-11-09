@@ -1,7 +1,8 @@
 /**
  * What the projector does when a live video reaches its end on its own —
  * `projection.videoEnd`, mirrored into the projection store — and when a deck
- * ends, on its own or stepped past its last slide (`projection.deckEnd`).
+ * ends, on its own or stepped past its last slide (`projection.deckEnd`), and
+ * a song stepped past its last slide (`projection.songEnd`).
  */
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { startEndOfPlaybackEffects } from "@renderer/effects/end-of-playback";
@@ -9,7 +10,10 @@ import { useProgramStore } from "@renderer/stores/program.store";
 import { useDeckStore } from "@renderer/stores/deck.store";
 import { buildCumulativeMs, selectOutput, useProjectionStore } from "@renderer/stores/projection.store";
 import { useSettingsStore } from "@renderer/stores/settings.store";
-import { advanceSlide } from "@renderer/lib/actions/playback";
+import { advanceSlide, advanceSong } from "@renderer/lib/actions/playback";
+import { resolveSong } from "@renderer/stores/song.store";
+import { parseLyrics } from "@shared/song-text";
+import { DEFAULT_SONG_THEME } from "@shared/types/song";
 import type { VideoEndAction } from "@shared/types/projection";
 import { DEFAULT_SETTINGS } from "@shared/types/settings";
 import { assetUrl, slideUrl } from "@shared/urls";
@@ -190,4 +194,45 @@ test("«Pasar al siguiente del programa» sends the next row; under BLACK it onl
   advanceSlide(1);
   expect(useProjectionStore.getState().base).toBeNull();
   expect(useProjectionStore.getState().overlay).toBe("black");
+});
+
+/** A three-slide song live on its last slide. */
+function songOnLastSlide(songEnd: VideoEndAction) {
+  useSettingsStore.setState({ settings: { ...DEFAULT_SETTINGS, "projection.songEnd": songEnd } });
+  const sections = parseLyrics("[Estrofa 1]\nuno\n\ndos\n\n[Coro]\ncoro", "es").sections;
+  const song = { id: 7, title: "Sublime gracia", number: null, authors: null, copyright: null, ccliNumber: null, notes: null, sections, order: [], themeId: null, sourceFolder: null, file: null, updatedAt: 1 };
+  useProjectionStore.getState().setBase({
+    kind: "song",
+    songId: 7,
+    song: resolveSong(song, DEFAULT_SONG_THEME, null),
+    slideIndex: 3,
+    detour: null,
+    lyricsHidden: false,
+    enterSeq: 0,
+    theme: DEFAULT_SONG_THEME,
+    sizeCqw: 4.2,
+    backgroundVideo: null,
+    language: "both",
+  });
+}
+
+test("a song stepped past its last slide clears to the logo by default; a held key's repeat does not", () => {
+  songOnLastSlide("logo");
+  advanceSong(1, true);
+  expect(useProjectionStore.getState().base?.kind).toBe("song");
+  advanceSong(1);
+  expect(useProjectionStore.getState().base).toBeNull();
+  expect(useProjectionStore.getState().overlay).toBe("logo");
+});
+
+test("a song's «Volver a la primera diapositiva» starts it over; «Quedarse» leaves it", () => {
+  songOnLastSlide("loop");
+  advanceSong(1);
+  const looped = useProjectionStore.getState().base;
+  expect(looped?.kind === "song" && looped.slideIndex).toBe(1);
+
+  songOnLastSlide("hold");
+  advanceSong(1);
+  const held = useProjectionStore.getState().base;
+  expect(held?.kind === "song" && held.slideIndex).toBe(3);
 });

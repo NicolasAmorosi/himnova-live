@@ -142,12 +142,14 @@ whichever ends last wins; music longer than the sum of the timings is not cut of
 No manual deck (without `advanceAfterMs`) ever ends by itself.
 
 A deck's end is the operator's choice since 2026-11-09 (`projection.deckEnd`, Settings ▸ Projection, the
-same five values as a video's, read straight from `settings.store`): `endDeck()` (`lib/actions/playback.ts`)
+same five values as a video's, read straight from `settings.store`): `endLiveContent()` (`lib/actions/playback.ts`)
 runs both when an auto-advancing deck finishes and when the operator steps past its last slide
 (`advanceSlide`, never on a held key's repeat, so «Siguiente» stays enabled on the last slide unless the
 choice is «hold»). «logo»/«black» clear as a video does, «loop» is `restartDeck()`, «hold» does nothing and
 «next» is `goLiveWithNextScheduleItem` — except under BLACK/LOGO, where it only clears: going live would lift
-the cover nobody asked to lift.
+the cover nobody asked to lift. A song has its own copy of the choice (`projection.songEnd`, same values,
+same `endLiveContent()`): a song never advances by itself, so only `advanceSong` stepping past the end of its
+order ends it (a detour off the last slide returns to it first), and «loop» is its first slide.
 
 A video's end is the operator's choice since 2026-11-05 (`projection.videoEnd`, Settings ▸ Projection,
 mirrored into `projection.store` by `App.tsx` like the transition): «logo» clears as above, «black» clears

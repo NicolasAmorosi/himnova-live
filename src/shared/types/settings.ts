@@ -85,6 +85,9 @@ export type SettingsMap = {
    *  its last slide: «loop» goes back to the first slide, «hold» stays on the
    *  last one (the extra step does nothing). */
   "projection.deckEnd": VideoEndAction;
+  /** The same for a song (owner, 2026-11-09). A song never advances on its
+   *  own, so only the step past its last slide ends it. */
+  "projection.songEnd": VideoEndAction;
   /** Whether the LIVE monitor plays its own moving copy of a live video (the
    *  full-screen one and a slide's). Off, it shows the video's thumbnail and
    *  the control window decodes nothing — the projector is never affected. */
@@ -190,6 +193,7 @@ export const DEFAULT_SETTINGS: SettingsMap = {
   "projection.transition.style": "crossfade",
   "projection.videoEnd": "logo",
   "projection.deckEnd": "logo",
+  "projection.songEnd": "logo",
   "projection.transition.durationMs": 300,
   "slides.fallbackFont": null,
   "monitors.liveVideoMotion": true,
@@ -300,6 +304,7 @@ export const SETTINGS_VALIDATORS: Record<keyof SettingsMap, (value: unknown) => 
   "projection.transition.style": isOneOf(TRANSITION_STYLES),
   "projection.videoEnd": isOneOf(VIDEO_END_ACTIONS),
   "projection.deckEnd": isOneOf(VIDEO_END_ACTIONS),
+  "projection.songEnd": isOneOf(VIDEO_END_ACTIONS),
   "projection.transition.durationMs": isNumberIn(0, TRANSITION_MAX_DURATION_MS),
   "slides.fallbackFont": isNullOr(isOneOf(SLIDE_FALLBACK_FONTS)),
   "monitors.liveVideoMotion": isBoolean,
