@@ -2,6 +2,7 @@ import { useT } from "@renderer/lib/i18n/i18n-provider";
 import { Badge, Box, Callout, Caption, Title } from "@renderer/components/ui";
 import { ScreenGroup } from "@renderer/components/shared/settings-groups/screen-group";
 import { useDisplayStore } from "@renderer/stores/display.store";
+import { useProjectionStore } from "@renderer/stores/projection.store";
 import { useSettingsStore } from "@renderer/stores/settings.store";
 import { StepLayout } from "./StepLayout";
 
@@ -11,7 +12,8 @@ export function ScreensStep() {
   const displays = useDisplayStore((s) => s.displays);
   return (
     <StepLayout
-      aside={displays.length > 0 ? <DisplayMap /> : undefined}
+      // One rectangle says nothing: the map is for telling two or more apart.
+      aside={displays.length > 1 ? <DisplayMap /> : undefined}
       subtitle={t("welcome.screens.subtitle")}
       title={t("welcome.screens.title")}
     >
@@ -22,7 +24,9 @@ export function ScreensStep() {
 }
 
 /** The screens as the computer arranges them, each named by the role it has now — so «Pantalla 2» in the
- *  list above has a place to point at. Proportions only: positions in percent of the whole arrangement. */
+ *  list above has a place to point at. Proportions only: positions in percent of the whole arrangement.
+ *  Pressing one makes it the projector and opens it there: with nothing live it shows LOGO, so the church's
+ *  name appears on the wall it should — the step's question answered by looking. */
 function DisplayMap() {
   const t = useT();
   const displays = useDisplayStore((s) => s.displays);
@@ -48,9 +52,12 @@ function DisplayMap() {
                   ? t("welcome.screens.roleControl")
                   : null;
             return (
-              <Box
-                className="absolute flex flex-col items-center justify-center gap-1 p-1"
+              <button
+                aria-label={t("welcome.screens.useAsProjector", { name: d.label })}
+                aria-pressed={projector}
+                className="focus-ring absolute rounded-md"
                 key={d.id}
+                onClick={() => void projectOn(d.id)}
                 style={{
                   height: `calc(${(d.bounds.height / height) * 100}% - 4px)`,
                   left: `calc(${((d.bounds.x - left) / width) * 100}% + 2px)`,
@@ -58,15 +65,25 @@ function DisplayMap() {
                   width: `calc(${(d.bounds.width / width) * 100}% - 4px)`,
                 }}
                 title={d.label}
+                type="button"
               >
-                <Title as="h3">{index + 1}</Title>
-                <Caption className="max-w-full truncate px-1">{d.label.split(" · ")[0]}</Caption>
-                {role ? <Badge variant={projector ? "blue" : "neutral"}>{role}</Badge> : null}
-              </Box>
+                <Box className="flex size-full flex-col items-center justify-center gap-1 p-1 hover:bg-hover">
+                  <Title as="h3">{index + 1}</Title>
+                  <Caption className="max-w-full truncate px-1">{d.label.split(" · ")[0]}</Caption>
+                  {role ? <Badge variant={projector ? "blue" : "neutral"}>{role}</Badge> : null}
+                </Box>
+              </button>
             );
           })}
         </div>
       </Box>
+      <p className="text-xs text-muted-foreground">{t("welcome.screens.mapHint")}</p>
     </>
   );
+}
+
+async function projectOn(displayId: number): Promise<void> {
+  const display = useDisplayStore.getState();
+  await display.setDisplayId(displayId);
+  if (!useProjectionStore.getState().presentationOpen) await useDisplayStore.getState().open();
 }

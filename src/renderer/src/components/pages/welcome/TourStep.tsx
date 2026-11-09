@@ -6,7 +6,7 @@ const IDEAS: readonly { icon: IconName; id: "select" | "live" | "cover" | "move"
   { icon: "click", id: "select", keys: [] },
   { icon: "play", id: "live", keys: ["Enter"] },
   { icon: "offAir", id: "cover", keys: ["B", "L"] },
-  { icon: "keyboard", id: "move", keys: ["←", "→", "C"] },
+  { icon: "keyboard", id: "move", keys: ["←", "→", "1–9", "C", "P"] },
 ];
 
 /** The four ideas the whole work screen rests on, and the switch for «Primeros pasos» — the checklist that
@@ -19,7 +19,7 @@ export function TourStep({ firstSteps, onFirstStepsChange }: { firstSteps: boole
         {IDEAS.map(({ icon, id, keys }, index) => (
           <li key={id}>
             <Box className="flex h-full gap-3 p-4">
-              <IconTile tone="accent">
+              <IconTile>
                 <Icon name={icon} />
               </IconTile>
               <span className="flex min-w-0 flex-col gap-1">

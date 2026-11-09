@@ -16,7 +16,8 @@ export function FirstStepsPanel() {
   const open = useSettingsStore((s) => s.settings["welcome.firstStepsOpen"]);
   const done = useSettingsStore((s) => s.settings["welcome.firstStepsDone"]);
   const update = useSettingsStore((s) => s.update);
-  const [folded, setFolded] = useState(false);
+  // Folded, it shows the one step to do next: in its corner it sits over the LIVE column's slides.
+  const [folded, setFolded] = useState(true);
   if (!open) return null;
 
   const count = FIRST_STEP_IDS.filter((id) => done.includes(id)).length;
@@ -30,9 +31,9 @@ export function FirstStepsPanel() {
       role="complementary"
     >
       <div className="flex items-center gap-2 py-2 pr-1.5 pl-4">
-        <Icon className="text-accent-ink" name={finished ? "circleCheck" : "click"} />
+        <Icon className={finished ? "text-success-ink" : "text-muted-foreground"} name={finished ? "circleCheck" : "click"} />
         <Title as="h3">{t("firstSteps.title")}</Title>
-        <span className="flex-1 text-xs text-muted-foreground">
+        <span aria-live="polite" className="flex-1 text-xs text-muted-foreground">
           {t("firstSteps.progress", { done: count, total: FIRST_STEP_IDS.length })}
         </span>
         <IconButton
@@ -56,14 +57,14 @@ export function FirstStepsPanel() {
         </IconButton>
       </div>
       <ProgressBar aria-label={t("firstSteps.title")} className="mx-4 mb-2 w-auto" value={count / FIRST_STEP_IDS.length} />
-      {folded ? null : finished ? (
+      {finished ? (
         <div className="flex flex-col gap-1 px-4 pt-1 pb-4">
           <Title as="h3">{t("firstSteps.doneTitle")}</Title>
           <p className="text-xs text-muted-foreground">{t("firstSteps.doneBody")}</p>
         </div>
       ) : (
         <ol className="flex flex-col gap-0.5 px-2 pb-2">
-          {FIRST_STEP_IDS.map((id) => {
+          {FIRST_STEP_IDS.filter((id) => !folded || id === next).map((id) => {
             const isDone = done.includes(id);
             const isNext = id === next;
             return (

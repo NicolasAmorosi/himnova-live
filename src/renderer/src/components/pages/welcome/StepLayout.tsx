@@ -1,10 +1,13 @@
 import type { ReactNode } from "react";
 import { Box, Caption, Title } from "@renderer/components/ui";
 import { OutputView } from "@renderer/components/shared/output-view";
+import { cn } from "@renderer/lib/utils";
 import type { ProjectionOutput } from "@shared/types/projection";
 
 /** One step of the welcome: its title and one or two lines under it, the controls, and — when the step is
- *  about what the projector shows — that picture on the right, drawn by the projector's own `OutputView`. */
+ *  about what the projector shows — that picture beside them on a wide window, under them on a narrow one
+ *  (at the app's minimum width, 1000 px, a column beside would squeeze the controls to 320 px). Settings'
+ *  reading width when there is no picture. */
 export function StepLayout({
   aside,
   children,
@@ -17,15 +20,15 @@ export function StepLayout({
   title: string;
 }) {
   return (
-    <div className="mx-auto flex w-full max-w-5xl gap-10 px-10 py-10">
-      <div className="flex min-w-0 flex-1 flex-col gap-8">
-        <header className="flex max-w-2xl flex-col gap-2">
-          <Title as="h1">{title}</Title>
-          <p className="text-sm text-muted-foreground">{subtitle}</p>
-        </header>
-        {children}
+    <div className="mx-auto flex w-full max-w-5xl flex-col gap-8 px-10 py-10">
+      <header className="flex max-w-2xl flex-col gap-2">
+        <Title as="h1">{title}</Title>
+        <p className="text-sm text-muted-foreground">{subtitle}</p>
+      </header>
+      <div className="flex flex-col gap-8 xl:flex-row xl:gap-10">
+        <div className={cn("flex min-w-0 flex-1 flex-col gap-8", !aside && "max-w-3xl")}>{children}</div>
+        {aside ? <aside className="flex w-full max-w-sm shrink-0 flex-col gap-3 xl:w-80">{aside}</aside> : null}
       </div>
-      {aside ? <aside className="flex w-80 shrink-0 flex-col gap-3 pt-14">{aside}</aside> : null}
     </div>
   );
 }

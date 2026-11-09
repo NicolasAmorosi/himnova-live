@@ -28,7 +28,7 @@ test("a new profile is welcomed, every step saves as it goes, and finishing open
   await welcome.getByRole("tab", { name: "Listo" }).click();
   await expect(welcome.getByText("«Iglesia Central»")).toBeVisible();
   await expect(welcome.getByText(/Video: Negro/)).toBeVisible();
-  await welcome.getByRole("button", { name: "Empezar a usar Lumina" }).click();
+  await welcome.getByRole("button", { name: "Empezar", exact: true }).click();
   await expect(welcome).toBeHidden();
 
   // «Primeros pasos» ticks itself: a verse in PREVIEW, then live.

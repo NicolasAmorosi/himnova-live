@@ -1,10 +1,10 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { useT } from "@renderer/lib/i18n/i18n-provider";
 import {
-  BrandMark,
   Caption,
   ChoiceGroup,
   Icon,
+  Segmented,
   StageSketch,
   Title,
   type IconName,
@@ -19,33 +19,37 @@ import { StepLayout } from "./StepLayout";
 type EndKey = "projection.videoEnd" | "projection.deckEnd" | "projection.songEnd";
 
 /** How each choice is drawn: what stays on the stage after the end, and the sign that names it. */
-const VIDEO_SKETCH: Record<VideoEndAction, { after: "content" | "black" | "logo"; badge?: IconName }> = {
+const SKETCH: Record<VideoEndAction, { after: "content" | "black" | "logo"; badge?: IconName }> = {
   logo: { after: "logo" },
   black: { after: "black" },
   loop: { after: "content", badge: "loop" },
   hold: { after: "content", badge: "pause" },
   next: { after: "content", badge: "next" },
 };
-const AUDIO_SKETCH: Record<AudioEndAction, { after: "content" | "black"; badge: IconName }> = {
-  stop: { after: "black", badge: "stop" },
-  loop: { after: "content", badge: "loop" },
-  next: { after: "content", badge: "next" },
-};
+const AUDIO_ICONS: Record<AudioEndAction, IconName> = { stop: "stop", loop: "loop", next: "next" };
 
-const ROWS: readonly { content: Exclude<SketchContent, "audio">; icon: IconName; key: EndKey; options: "videoEndOptions" | "deckEndOptions"; row: "video" | "deck" | "song" }[] = [
+const ROWS: readonly {
+  content: SketchContent;
+  icon: IconName;
+  key: EndKey;
+  options: "videoEndOptions" | "deckEndOptions";
+  row: "video" | "deck" | "song";
+}[] = [
   { content: "video", icon: "video", key: "projection.videoEnd", options: "videoEndOptions", row: "video" },
   { content: "ppt", icon: "ppt", key: "projection.deckEnd", options: "deckEndOptions", row: "deck" },
   // A song's choices read like a deck's in Settings («the first slide», «the last slide»).
   { content: "song", icon: "song", key: "projection.songEnd", options: "deckEndOptions", row: "song" },
 ];
 
-/** «Al terminar» — the four choices of Settings ▸ Projection as pictures: each card plays what was on the
- *  projector and then what comes after it, only the chosen one moving. */
+/** «Al terminar» — the four choices of Settings ▸ Projection: the three that change the picture as cards
+ *  that play what was on the projector and then what comes after it (only the row being looked at moves),
+ *  and audio's — which is not seen — as plain choices. */
 export function EndingsStep() {
   const t = useT();
   const settings = useSettingsStore((s) => s.settings);
   const update = useSettingsStore((s) => s.update);
-  const logo = <LogoMark settings={settings} />;
+  const [playing, setPlaying] = useState<EndKey>("projection.videoEnd");
+  const logo = <LogoMark placeholder={t("welcome.endings.logoPlaceholder")} settings={settings} />;
 
   return (
     <StepLayout subtitle={t("welcome.endings.subtitle")} title={t("welcome.endings.title")}>
@@ -55,21 +59,26 @@ export function EndingsStep() {
           hint={t(`welcome.endings.${row}Hint`)}
           icon={icon}
           key={key}
+          onLook={() => setPlaying(key)}
           title={t(`welcome.endings.${row}`)}
         >
           <ChoiceGroup<VideoEndAction>
             className="max-w-2xl"
             columns={VIDEO_END_ACTIONS.length}
             label={t(`welcome.endings.${row}`)}
-            onChange={(value) => void update({ [key]: value })}
+            onChange={(value) => {
+              setPlaying(key);
+              void update({ [key]: value });
+            }}
             options={VIDEO_END_ACTIONS.map((value) => ({
+              hint: t(`settings.${options}.${value}`),
               label: t(`welcome.endings.short.${value}`),
               value,
               visual: (
                 <StageSketch
-                  after={scene(VIDEO_SKETCH[value].after, content)}
-                  animate={settings[key] === value}
-                  badge={VIDEO_SKETCH[value].badge}
+                  after={scene(SKETCH[value].after, content)}
+                  animate={playing === key && settings[key] === value}
+                  badge={SKETCH[value].badge}
                   content={content}
                   logo={logo}
                 />
@@ -85,23 +94,14 @@ export function EndingsStep() {
         icon="audio"
         title={t("welcome.endings.audio")}
       >
-        <ChoiceGroup<AudioEndAction>
-          // As wide as three of the five cards above, so the cards keep one size.
-          className="max-w-[calc(42rem*3/5)]"
-          columns={AUDIO_END_ACTIONS.length}
+        <Segmented<AudioEndAction>
+          className="self-start"
           label={t("welcome.endings.audio")}
           onChange={(value) => void update({ "projection.audioEnd": value })}
           options={AUDIO_END_ACTIONS.map((value) => ({
+            icon: AUDIO_ICONS[value],
             label: t(`welcome.endings.short.${value}`),
             value,
-            visual: (
-              <StageSketch
-                after={scene(AUDIO_SKETCH[value].after, "audio")}
-                animate={settings["projection.audioEnd"] === value}
-                badge={AUDIO_SKETCH[value].badge}
-                content="audio"
-              />
-            ),
           }))}
           value={settings["projection.audioEnd"]}
         />
@@ -119,16 +119,19 @@ function EndRow({
   children,
   hint,
   icon,
+  onLook,
   title,
 }: {
   caption: string;
   children: ReactNode;
   hint: string;
   icon: IconName;
+  /** Pointed at or focused: this row's chosen card is the one that plays. */
+  onLook?: () => void;
   title: string;
 }) {
   return (
-    <section className="flex flex-col gap-2">
+    <section className="flex flex-col gap-2" onFocus={onLook} onPointerEnter={onLook}>
       <div className="flex items-baseline gap-2">
         <Icon className="self-center text-muted-foreground" name={icon} />
         <Title as="h3">{title}</Title>
@@ -144,10 +147,11 @@ function EndRow({
   );
 }
 
-/** What LOGO shows, in small: the church's image, else its name, else the app's flame. */
-function LogoMark({ settings }: { settings: SettingsMap }) {
+/** What LOGO shows, in small: the church's image, else its name — and with neither, LOGO is black, so the
+ *  card says where the logo will be instead of showing the app's flame, which LOGO never shows. */
+function LogoMark({ placeholder, settings }: { placeholder: string; settings: SettingsMap }) {
   const look = logoLook(settings);
   if (look.url) return <img alt="" className="max-h-[60%] max-w-[70%] object-contain" src={look.url} />;
   if (look.scene.name) return <span className="line-clamp-2">{look.scene.name}</span>;
-  return <BrandMark className="size-5" />;
+  return <span className="opacity-60">{placeholder}</span>;
 }

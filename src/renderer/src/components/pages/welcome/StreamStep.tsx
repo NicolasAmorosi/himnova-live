@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { useT } from "@renderer/lib/i18n/i18n-provider";
 import { Box, ChoiceGroup, Icon, IconTile, Title } from "@renderer/components/ui";
 import { NdiOutputGroup } from "@renderer/components/shared/settings-groups/ndi-output-group";
@@ -7,27 +6,19 @@ import { StepLayout } from "./StepLayout";
 
 type Streams = "yes" | "no";
 
-/** NDI® for whoever streams: one question first, and only a «yes» shows Settings' own group (with its live
- *  status and the runtime's download when it is missing). */
+/** NDI® for whoever streams: one question, and the answer IS the output's switch — «yes» turns it on at
+ *  once and shows the essentials of Settings' own group (its live status, the runtime's download when it
+ *  is missing, the name receivers list); «no» turns it off. */
 export function StreamStep() {
   const t = useT();
   const enabled = useSettingsStore((s) => s.settings["ndi.output.enabled"]);
   const name = useSettingsStore((s) => s.settings["ndi.output.name"]);
   const update = useSettingsStore((s) => s.update);
-  // An install that never chose starts on «no», which is what it does: the output is off.
-  const [answer, setAnswer] = useState<Streams>(enabled ? "yes" : "no");
-
-  /** «Yes» turns the output on at once — the status below then says whether the runtime is there — and
-   *  «no» turns it off: the answer IS the switch, which stays below for whoever changes their mind. */
-  function choose(value: Streams) {
-    setAnswer(value);
-    if ((value === "yes") !== enabled) void update({ "ndi.output.enabled": value === "yes" });
-  }
 
   return (
     <StepLayout
       aside={
-        answer === "yes" ? (
+        enabled ? (
           <Box className="flex flex-col gap-3 p-4">
             <Title as="h3">{t("welcome.stream.howTitle")}</Title>
             <ol className="flex flex-col gap-3 text-sm text-muted-foreground">
@@ -45,10 +36,9 @@ export function StreamStep() {
       title={t("welcome.stream.title")}
     >
       <ChoiceGroup<Streams>
-        className="max-w-md"
         columns={2}
         label={t("welcome.stream.question")}
-        onChange={choose}
+        onChange={(value) => void update({ "ndi.output.enabled": value === "yes" })}
         options={(["yes", "no"] as const).map((value) => ({
           description: t(`welcome.stream.${value}Desc`),
           label: t(`welcome.stream.${value}`),
@@ -59,9 +49,9 @@ export function StreamStep() {
             </IconTile>
           ),
         }))}
-        value={answer}
+        value={enabled ? "yes" : "no"}
       />
-      {answer === "yes" ? <NdiOutputGroup /> : null}
+      {enabled ? <NdiOutputGroup essentials /> : null}
     </StepLayout>
   );
 }

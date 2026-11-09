@@ -1,10 +1,9 @@
 import { useT } from "@renderer/lib/i18n/i18n-provider";
-import { ChoiceGroup, Icon, IconTile, Title, type IconName } from "@renderer/components/ui";
+import { ChoiceGroup, Icon, ThemeSwatch, Title, type IconName } from "@renderer/components/ui";
 import { useSettingsStore } from "@renderer/stores/settings.store";
 import { LOCALES, THEMES, type Locale, type Theme } from "@shared/types/settings";
 import { StepLayout } from "./StepLayout";
 
-const THEME_ICONS: Record<Theme, IconName> = { dark: "moon", light: "sun" };
 const POINTS = [
   { icon: "check", key: "offline" },
   { icon: "save", key: "autosave" },
@@ -26,7 +25,7 @@ export function HelloStep() {
           <ul className="flex flex-col gap-3">
             {POINTS.map(({ icon, key }) => (
               <li className="flex items-start gap-2.5 text-sm text-muted-foreground" key={key}>
-                <Icon className="mt-0.5 text-accent-ink" name={icon} />
+                <Icon className="mt-0.5" name={icon} />
                 <span>{t(`welcome.hello.points.${key}`)}</span>
               </li>
             ))}
@@ -51,7 +50,6 @@ export function HelloStep() {
       <section className="flex flex-col gap-2">
         <Title as="h3">{t("welcome.hello.theme")}</Title>
         <ChoiceGroup<Theme>
-          className="max-w-md"
           columns={2}
           label={t("welcome.hello.theme")}
           onChange={(value) => void update({ "ui.theme": value })}
@@ -59,11 +57,8 @@ export function HelloStep() {
             description: t(`welcome.hello.themeDescs.${value}`),
             label: t(`welcome.hello.themes.${value}`),
             value,
-            visual: (
-              <IconTile size="picture">
-                <Icon name={THEME_ICONS[value]} />
-              </IconTile>
-            ),
+            // The work screen in that theme, not a moon or a sun.
+            visual: <ThemeSwatch theme={value} />,
           }))}
           value={theme}
         />

@@ -30,8 +30,11 @@ function useNdiStatus(): NdiOutputStatus | null {
  * Settings ▸ Projection ▸ «Salida NDI®»: the projector's picture as a source on the network
  * (`main/ndi/ndi-output.ts`). Applied as it changes, like everything in Settings; the name on blur, Enter
  * or leaving Settings. The runtime is the user's own: missing, the status row offers where to get it.
+ *
+ * `essentials` (the welcome, where a question already turned it on): the status and the name only — no
+ * switch, which would be a second control for the same answer, and the defaults for size and frame rate.
  */
-export function NdiOutputGroup() {
+export function NdiOutputGroup({ essentials = false }: { essentials?: boolean }) {
   const t = useT();
   const status = useNdiStatus();
   const enabled = useSettingsStore((s) => s.settings["ndi.output.enabled"]);
@@ -70,20 +73,30 @@ export function NdiOutputGroup() {
 
   return (
     <FieldGroup description={t("settings.ndi.groupDesc")} title={t("settings.groups.ndi")}>
+      {essentials ? null : (
+        <FieldRow
+          description={
+            ON_WINDOWS ? t("settings.ndi.firewall") : ON_MAC ? t("settings.ndi.localNetwork") : t("settings.ndi.enabledDesc")
+          }
+          help={t("settings.ndi.enabledHelp")}
+          label={t("settings.ndi.enabled")}
+        >
+          <Switch
+            aria-label={t("settings.ndi.enabled")}
+            checked={enabled}
+            onChange={(e) => void update({ "ndi.output.enabled": e.target.checked })}
+          />
+        </FieldRow>
+      )}
+      {/* The OS's own permission prompt, said where the welcome has no switch row to say it. */}
       <FieldRow
         description={
-          ON_WINDOWS ? t("settings.ndi.firewall") : ON_MAC ? t("settings.ndi.localNetwork") : t("settings.ndi.enabledDesc")
+          essentials && (ON_WINDOWS || ON_MAC)
+            ? `${describe(status)} ${ON_WINDOWS ? t("settings.ndi.firewall") : t("settings.ndi.localNetwork")}`
+            : describe(status)
         }
-        help={t("settings.ndi.enabledHelp")}
-        label={t("settings.ndi.enabled")}
+        label={t("settings.ndi.status")}
       >
-        <Switch
-          aria-label={t("settings.ndi.enabled")}
-          checked={enabled}
-          onChange={(e) => void update({ "ndi.output.enabled": e.target.checked })}
-        />
-      </FieldRow>
-      <FieldRow description={describe(status)} label={t("settings.ndi.status")}>
         {status?.state === "runtime-missing" ? (
           <Button
             onClick={() => void api.ndi.openRuntimePage().catch((error: unknown) => console.warn("[ndi] could not open the page", error))}
@@ -108,28 +121,32 @@ export function NdiOutputGroup() {
             value={draft}
           />
         </FieldRow>
-        <FieldRow description={t("settings.ndi.resolutionDesc")} label={t("settings.ndi.resolution")}>
-          <Segmented
-            label={t("settings.ndi.resolution")}
-            onChange={(value) => void update({ "ndi.output.resolution": value })}
-            options={[
-              { label: "720p", value: "720p" },
-              { label: "1080p", value: "1080p" },
-            ]}
-            value={resolution}
-          />
-        </FieldRow>
-        <FieldRow description={t("settings.ndi.fpsDesc")} label={t("settings.ndi.fps")}>
-          <Segmented
-            label={t("settings.ndi.fps")}
-            onChange={(value) => void update({ "ndi.output.fps": value === "60" ? 60 : 30 })}
-            options={[
-              { label: "30", value: "30" },
-              { label: "60", value: "60" },
-            ]}
-            value={String(fps) as "30" | "60"}
-          />
-        </FieldRow>
+        {essentials ? null : (
+          <>
+            <FieldRow description={t("settings.ndi.resolutionDesc")} label={t("settings.ndi.resolution")}>
+              <Segmented
+                label={t("settings.ndi.resolution")}
+                onChange={(value) => void update({ "ndi.output.resolution": value })}
+                options={[
+                  { label: "720p", value: "720p" },
+                  { label: "1080p", value: "1080p" },
+                ]}
+                value={resolution}
+              />
+            </FieldRow>
+            <FieldRow description={t("settings.ndi.fpsDesc")} label={t("settings.ndi.fps")}>
+              <Segmented
+                label={t("settings.ndi.fps")}
+                onChange={(value) => void update({ "ndi.output.fps": value === "60" ? 60 : 30 })}
+                options={[
+                  { label: "30", value: "30" },
+                  { label: "60", value: "60" },
+                ]}
+                value={String(fps) as "30" | "60"}
+              />
+            </FieldRow>
+          </>
+        )}
       </DependentFields>
       {/* The licence's notice, near where NDI is chosen; its link is «Descargar NDI» above. */}
       <Caption className="block px-4 py-3">{NDI_TRADEMARK}</Caption>

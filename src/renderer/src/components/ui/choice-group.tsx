@@ -8,6 +8,9 @@ export type ChoiceOption<T extends string> = {
   label: string;
   /** One short line under the label. */
   description?: string;
+  /** The whole sentence a short label stands for, read by a screen reader in its place («Logo» →
+   *  «Mostrar el logo»): the picture says it to the eye. */
+  hint?: string;
   value: T;
 };
 
@@ -68,6 +71,7 @@ export function ChoiceGroup<T extends string>({ className, columns, label, onCha
         return (
           <button
             aria-checked={chosen}
+            aria-label={option.hint ? `${option.label}. ${option.hint}` : undefined}
             className={cn(
               "focus-ring relative flex min-w-0 flex-col gap-1.5 rounded-md border p-1.5 text-left transition-colors",
               chosen
@@ -83,7 +87,13 @@ export function ChoiceGroup<T extends string>({ className, columns, label, onCha
             tabIndex={chosen ? 0 : -1}
             type="button"
           >
-            {option.visual}
+            {/* A picture of the choice, not part of its name: a stage sketch would otherwise read out the
+                church's name before «Logo». */}
+            {option.visual ? (
+              <span aria-hidden="true" className="flex flex-col">
+                {option.visual}
+              </span>
+            ) : null}
             <span className="flex min-w-0 items-start gap-1 px-0.5">
               <span className="flex min-w-0 flex-1 flex-col">
                 <span className="truncate text-xs font-medium text-foreground">{option.label}</span>
@@ -91,7 +101,8 @@ export function ChoiceGroup<T extends string>({ className, columns, label, onCha
                   <span className="line-clamp-2 text-xs text-muted-foreground">{option.description}</span>
                 ) : null}
               </span>
-              {chosen ? <Icon className="size-3.5 text-accent-ink" name="circleCheck" /> : null}
+              {/* Its room kept when not chosen, so choosing a card does not rewrap its words. */}
+              <Icon className={cn("size-3.5 text-accent-ink", !chosen && "invisible")} name="circleCheck" />
             </span>
           </button>
         );

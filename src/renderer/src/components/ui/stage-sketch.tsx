@@ -3,17 +3,16 @@ import { cn } from "@renderer/lib/utils";
 import { Icon, type IconName } from "./icon";
 
 /** What was on the projector before, coloured like its kind is everywhere else (the schedule's badges). */
-export type SketchContent = "video" | "ppt" | "song" | "audio";
+export type SketchContent = "video" | "ppt" | "song";
 
 // Dimmed over the black stage: a card is a reminder of the kind, not a swatch of it.
 const tints: Record<SketchContent, string> = {
   video: "bg-badge-video/40",
   ppt: "bg-badge-ppt/40",
   song: "bg-section-verse/45",
-  audio: "bg-badge-audio/40",
 };
 
-const contentIcons: Record<SketchContent, IconName> = { video: "video", ppt: "ppt", song: "song", audio: "audio" };
+const contentIcons: Record<SketchContent, IconName> = { video: "video", ppt: "ppt", song: "song" };
 
 /** The «after» drawn on the stage: the kind's own tile, black, or a mark of the app. */
 export type SketchScene = { kind: "content"; content: SketchContent } | { kind: "black" } | { kind: "logo" };

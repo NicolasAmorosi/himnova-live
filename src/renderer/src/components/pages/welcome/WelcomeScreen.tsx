@@ -45,7 +45,6 @@ export function WelcomeScreen() {
   const closeWelcome = useUiStore((s) => s.closeWelcome);
   const update = useSettingsStore((s) => s.update);
   const [step, setStep] = useState<WelcomeStepId>("hello");
-  const [visited, setVisited] = useState<ReadonlySet<WelcomeStepId>>(() => new Set(["hello"]));
   // The tour's switch, applied when the guide closes: the checklist must not appear over the guide itself.
   const [firstSteps, setFirstSteps] = useState(true);
 
@@ -53,10 +52,7 @@ export function WelcomeScreen() {
   const next = STEPS[index + 1];
   const previous = STEPS[index - 1];
 
-  function go(target: WelcomeStepId) {
-    setStep(target);
-    setVisited((current) => new Set(current).add(target));
-  }
+  const go = setStep;
 
   /** Finished or skipped: what was chosen is already saved. The checklist opens for a first launch either
    *  way (skipping is for the hurried, and a small list in a corner does not stop anybody), and when the
@@ -69,13 +65,12 @@ export function WelcomeScreen() {
     });
     closeWelcome();
     setStep("hello");
-    setVisited(new Set(["hello"]));
   }
 
   return (
     <Modal onOpenChange={() => undefined} open={open} size="screen">
       <div className="flex min-h-0 flex-1">
-        <nav className="flex w-60 shrink-0 flex-col border-r border-border bg-background">
+        <nav aria-label={t("welcome.title")} className="flex w-60 shrink-0 flex-col border-r border-border bg-background">
           <div className="flex items-center gap-3 px-4 pt-5 pb-4">
             <BrandMark className="size-9" />
             <Wordmark className="text-xl" />
@@ -85,20 +80,18 @@ export function WelcomeScreen() {
             className="min-h-0 w-full flex-1 border-r-0"
             idBase={STEP_ID_BASE}
             onChange={go}
-            tabs={STEPS.map(({ icon, id }) => ({
-              // A step already seen reads as done: every step is optional, so seeing it is doing it.
-              icon: visited.has(id) && id !== step ? "check" : icon,
-              label: t(`welcome.steps.${id}`),
-              value: id,
-            }))}
+            tabs={STEPS.map(({ icon, id }) => ({ icon, label: t(`welcome.steps.${id}`), value: id }))}
             value={step}
             variant="sidebar"
           />
-          <div className="shrink-0 border-t border-border p-2">
-            <Button className="w-full justify-start" onClick={() => close(false)} size="sm" variant="ghost">
-              <Icon name="close" />
-              {t("welcome.skip")}
-            </Button>
+          {/* Not on the last step: there, finishing is the way out, and it honours the tour's switch. */}
+          <div className="flex h-strip shrink-0 items-center border-t border-border px-2">
+            {step === "done" ? null : (
+              <Button className="w-full justify-start" onClick={() => close(false)} size="sm" variant="ghost">
+                <Icon name="close" />
+                {t("welcome.skip")}
+              </Button>
+            )}
           </div>
         </nav>
         <div className="flex min-w-0 flex-1 flex-col bg-card">
@@ -117,6 +110,10 @@ export function WelcomeScreen() {
           </TabPanels>
           <footer className="flex h-strip shrink-0 items-center gap-2 border-t border-border px-3">
             <Caption className="flex-1">{t("welcome.stepOf", { current: index + 1, total: STEPS.length })}</Caption>
+            {/* The new step said out loud: «Next» keeps the focus where it was. */}
+            <span aria-live="polite" className="sr-only">
+              {t(`welcome.steps.${step}`)}
+            </span>
             {previous ? (
               <Button onClick={() => go(previous.id)} size="sm" variant="ghost">
                 <Icon name="arrowLeft" />
