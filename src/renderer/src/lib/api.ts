@@ -77,6 +77,9 @@ export const api = {
       invoke("bible:delete", { id, ...(force !== undefined ? { force } : {}) }),
     usages: (id: number) => invoke("bible:usages", { id }),
     reorder: (ids: number[]) => invoke("bible:reorder", { ids }),
+    bundled: () => invoke("bible:bundled", undefined),
+    installBundled: (code: string) => invoke("bible:installBundled", { code }),
+    setLanguage: (id: number, language: string) => invoke("bible:setLanguage", { id, language }),
     favorites: () => invoke("bible:favorites", undefined),
     setFavorite: (bookId: number, chapter: number, verse: number, favorite: boolean) =>
       invoke("bible:setFavorite", { bookId, chapter, verse, favorite }),

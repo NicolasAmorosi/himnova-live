@@ -9,9 +9,7 @@ import { bibleBooks, bibleVersions } from "../schema";
 import { BibleFormatError, parseBibleFile } from "./bible-formats";
 import { BUILTIN_BIBLE_CODE } from "@shared/constants";
 import { mt } from "../../i18n";
-
-const BUILTIN_BIBLE_NAME = "Reina-Valera 1909";
-const BUILTIN_BIBLE_FILE = "rv1909.json";
+import { BUNDLED_BIBLES, type BundledBible } from "./bundled-bibles";
 
 /** The column's own default, and what a file that does not say gets. */
 const DEFAULT_LANGUAGE = "es";
@@ -160,39 +158,80 @@ export function seedBibleFromFile(
   return run();
 }
 
+/** Installs a version of the catalog, or re-seeds it when its file changed (the hash short-circuit makes an
+ *  unchanged one a digest). Every bundled version is `isBuiltin`; its name is the file's own — the catalog's —
+ *  unless the row was renamed. */
+function seedBundled(db: Db, sqlite: Database.Database, biblesDir: string, bible: BundledBible) {
+  return seedBibleFromFile(db, sqlite, path.join(biblesDir, bible.file), {
+    code: bible.code,
+    fallbackName: bible.name,
+    isBuiltin: true,
+  });
+}
+
+/** `bible:installBundled`: the version's id, installed now or already. */
+export function installBundledBible(db: Db, sqlite: Database.Database, biblesDir: string, code: string): number {
+  const bible = BUNDLED_BIBLES.find((entry) => entry.code === code);
+  const seeded = bible ? seedBundled(db, sqlite, biblesDir, bible) : null;
+  if (!seeded) throw new BibleFormatError(mt("bible.bundledNotFound"));
+  return seeded.versionId;
+}
+
 /**
- * Puts the bundled RV1909 in place, unless the operator has deleted it.
+ * The bundled versions at launch (`bundled-bibles.ts`).
  *
- * The flag is consulted ONLY when the row is gone, and that asymmetry is the
- * whole design:
+ * A NEW profile gets every version of its interface language — the locale
+ * `initDatabase` set from the OS —, in the catalog's order, and the first one
+ * becomes the default. Every other version is installed from Settings only.
+ *
+ * An EXISTING profile is never given a version on its own, with the one rule
+ * kept from before the catalog: the RV1909 of a database that has never been
+ * offered it (`bible.builtinSeeded` unset — a profile of the legacy app). The
+ * flag is consulted ONLY when that row is gone, and that asymmetry is the whole
+ * design:
  *
  * - row present → seed anyway. `seedBibleFromFile` short-circuits on an
  *   unchanged hash, so this costs a digest per launch and is the path by which
- *   a corrected `resources/bibles/rv1909.json` in a later build reaches an
- *   existing install.
+ *   a corrected file in a later build reaches an existing install — for every
+ *   bundled version that is installed, not only the RV1909.
  * - row gone, flag set → the operator deleted it. Leave it deleted; this is
- *   what makes «delete» mean delete, exactly like `utility.seeded`.
- * - row gone, flag unset → a fresh database. Seed, and set the flag.
+ *   what makes «delete» mean delete, exactly like `utility.seeded`. A deleted
+ *   bundled version is just «not installed» again in Settings.
+ * - row gone, flag unset → a database that never had it. Seed, and set the flag.
  *
  * Checking only the flag would break the upgrade path; checking only the row
  * would resurrect a deleted bible on every launch. Both are needed.
+ *
+ * A file that fails costs that version, never the launch: it is logged and the
+ * others go on.
  */
 export function seedBuiltinBibles(
   db: Db,
   sqlite: Database.Database,
   biblesDir: string,
   settings: SettingsRepo,
+  isNewProfile: boolean,
 ): void {
-  const filePath = path.join(biblesDir, BUILTIN_BIBLE_FILE);
-  if (!fs.existsSync(filePath)) return;
+  const installed = new Set(db.select({ code: bibleVersions.code }).from(bibleVersions).all().map((row) => row.code));
+  const offered = settings.get("bible.builtinSeeded");
+  const locale = settings.get("ui.locale");
+  const wanted = BUNDLED_BIBLES.filter((bible) =>
+    isNewProfile
+      ? bible.language === locale
+      : installed.has(bible.code) || (bible.code === BUILTIN_BIBLE_CODE && !offered),
+  );
 
-  const existing = db.select().from(bibleVersions).where(eq(bibleVersions.code, BUILTIN_BIBLE_CODE)).get();
-  if (!existing && settings.get("bible.builtinSeeded")) return;
+  let firstId: number | null = null;
+  for (const bible of wanted) {
+    if (!fs.existsSync(path.join(biblesDir, bible.file))) continue;
+    try {
+      const seeded = seedBundled(db, sqlite, biblesDir, bible);
+      firstId ??= seeded?.versionId ?? null;
+    } catch (error) {
+      console.error(`[bible] the bundled ${bible.code} could not be seeded`, error);
+    }
+  }
 
-  seedBibleFromFile(db, sqlite, filePath, {
-    code: BUILTIN_BIBLE_CODE,
-    fallbackName: BUILTIN_BIBLE_NAME,
-    isBuiltin: true,
-  });
-  if (!settings.get("bible.builtinSeeded")) settings.setMany({ "bible.builtinSeeded": true });
+  if (isNewProfile && firstId !== null) settings.setMany({ "bible.defaultVersionId": firstId });
+  if (!offered) settings.setMany({ "bible.builtinSeeded": true });
 }

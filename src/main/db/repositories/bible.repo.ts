@@ -122,6 +122,13 @@ export class BibleRepo {
     return this.getVersion(id);
   }
 
+  /** An imported file that does not say its language is stored as `"es"`: the operator corrects it here.
+   *  `language` is already validated (`isBibleLanguage`). */
+  setLanguage(id: number, language: string): BibleVersionDTO | null {
+    this.db.update(bibleVersions).set({ language }).where(eq(bibleVersions.id, id)).run();
+    return this.getVersion(id);
+  }
+
   /**
    * Deletes a version, with its books and verses.
    *

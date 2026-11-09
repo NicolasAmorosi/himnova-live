@@ -27,7 +27,7 @@ beforeAll(() => {
   db = opened.db;
   runMigrations(db, path.join(process.cwd(), "drizzle"));
   const settings = new SettingsRepo(db);
-  seedBuiltinBibles(db, sqlite, path.join(process.cwd(), "resources/bibles"), settings);
+  seedBuiltinBibles(db, sqlite, path.join(process.cwd(), "resources/bibles"), settings, false);
   bible = new BibleRepo(db, sqlite);
   media = new MediaRepo(db, sqlite);
 });

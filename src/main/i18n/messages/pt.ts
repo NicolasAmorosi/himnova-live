@@ -78,6 +78,8 @@ const pt: MainMessages = {
     noVerses: "“{file}” foi lido corretamente, mas não contém nenhum versículo.",
     invalidName: "O nome da versão não é válido.",
     alreadyInstalled: "Esse arquivo já está instalado: é “{name}”.",
+    bundledNotFound: "Essa versão não vem incluída nesta instalação.",
+    invalidLanguage: "O idioma da versão não é válido.",
   },
   library: {
     relocateKindMismatch: "O arquivo escolhido não é do mesmo tipo que o original.",

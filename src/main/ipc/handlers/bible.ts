@@ -2,10 +2,12 @@ import { randomUUID } from "node:crypto";
 import path from "node:path";
 import type { Handlers } from "../register";
 import { getBibleRepo, getProgramsRepo, getSettingsRepo } from "../../services/repos";
-import { bibleFileHash, seedBibleFromFile } from "../../db/seed/seed-bible";
+import { bibleFileHash, installBundledBible, seedBibleFromFile } from "../../db/seed/seed-bible";
 import { bibleImportFilters } from "../../db/seed/bible-formats";
+import { bundledBibleDTOs } from "../../db/seed/bundled-bibles";
 import { IpcError } from "@shared/ipc/result";
-import { isBibleVersionName } from "@shared/types/bible";
+import { isBibleLanguage, isBibleVersionName } from "@shared/types/bible";
+import { biblesDir } from "../../paths";
 import type { Db } from "../../db/client";
 import type Database from "better-sqlite3";
 import { showOpenDialogFor } from "../open-dialog";
@@ -27,6 +29,9 @@ export const bibleHandlers: Pick<
   | "bible:delete"
   | "bible:usages"
   | "bible:reorder"
+  | "bible:bundled"
+  | "bible:installBundled"
+  | "bible:setLanguage"
   | "bible:favorites"
   | "bible:setFavorite"
   | "bible:recents"
@@ -108,4 +113,24 @@ export const bibleHandlers: Pick<
   "bible:usages": ({ id }) => getProgramsRepo().findBibleVersionUsages(id),
 
   "bible:reorder": ({ ids }) => getBibleRepo().reorderVersions(ids),
+
+  "bible:bundled": () => bundledBibleDTOs(getBibleRepo().listVersions()),
+
+  // Lands at the bottom of the list like an import (`nextSortOrder`); the
+  // control window blocks a second click on the row while this runs.
+  "bible:installBundled": ({ code }) => {
+    if (!dbRef) throw new IpcError({ code: "DB_NOT_READY", message: "Database not ready" });
+    const version = getBibleRepo().getVersion(installBundledBible(dbRef.db, dbRef.sqlite, biblesDir, code));
+    if (!version) throw new IpcError({ code: "BIBLE_VERSION_NOT_FOUND", message: `Bible version ${code} not found` });
+    return version;
+  },
+
+  "bible:setLanguage": ({ id, language }) => {
+    if (!isBibleLanguage(language)) {
+      throw new IpcError({ code: "INVALID_BIBLE_LANGUAGE", message: mt("bible.invalidLanguage") });
+    }
+    const updated = getBibleRepo().setLanguage(id, language);
+    if (!updated) throw new IpcError({ code: "BIBLE_VERSION_NOT_FOUND", message: `Bible version ${id} not found` });
+    return updated;
+  },
 };

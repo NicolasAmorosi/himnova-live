@@ -14,6 +14,7 @@ import type {
   BibleVerseDTO,
   BibleVersionDTO,
   BibleVersionUsage,
+  BundledBibleDTO,
 } from "../types/bible";
 import type {
   AudioTrackPush,
@@ -187,6 +188,12 @@ export type IpcContract = {
    *  with the re-sorted list, so the caller replaces its state with what was
    *  actually persisted instead of trusting its optimistic guess. */
   "bible:reorder": { req: { ids: number[] }; res: BibleVersionDTO[] };
+  /** The versions inside the installer, in the catalog's order, each with its installed row if any. */
+  "bible:bundled": { req: void; res: BundledBibleDTO[] };
+  /** Installs a bundled version (~0.6 s of synchronous work in main); an installed one answers as it is. */
+  "bible:installBundled": { req: { code: string }; res: BibleVersionDTO };
+  /** A version's language, for one whose file did not say (stored as "es") or said wrong. */
+  "bible:setLanguage": { req: { id: number; language: string }; res: BibleVersionDTO };
   /** Favorites and the passages that went live lately — see `BibleBookmark`.
    *  Each write answers with the whole list, so the caller never keeps a guess. */
   "bible:favorites": { req: void; res: BibleBookmark[] };

@@ -7,6 +7,24 @@ export type BibleVersionDTO = {
   verseCount: number;
 };
 
+/** A version that ships inside the installer (`main/db/seed/bundled-bibles.ts`), installed or not. */
+export type BundledBibleDTO = {
+  code: string;
+  /** The catalog's name: the installed row may have been renamed since, and Settings shows the row's. */
+  name: string;
+  /** "es" | "en" | "it" | "pt". */
+  language: string;
+  /** The installed version's id, `null` while it is not installed. */
+  versionId: number | null;
+  /** Attribution its licence asks to show; `null` when none. */
+  credit: string | null;
+};
+
+/** What `bible_versions.language` holds: a two-letter tag (`normalizeLanguage` reduces every format's to one). */
+export function isBibleLanguage(value: unknown): value is string {
+  return typeof value === "string" && /^[a-z]{2}$/.test(value);
+}
+
 /** Which saved programs cite a version, for the "delete anyway" confirmation.
  *  Same shape and same purpose as `UtilitySceneUsage` and `MediaAssetUsage` —
  *  and, like them, read BEFORE the dialog opens so the question cannot change

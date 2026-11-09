@@ -172,7 +172,9 @@ export type SettingsMap = {
    *  changes hash, which is how a corrected bundle reaches an existing
    *  install. So the flag is only consulted when the version row is GONE (see
    *  `seedBuiltinBibles`), which is the only case that means the operator
-   *  deleted it on purpose. */
+   *  deleted it on purpose. A new profile sets it whatever its language: one
+   *  that started in English was offered the RV1909 among the bundled
+   *  versions, and does not get it on its second launch. */
   "bible.builtinSeeded": boolean;
   /** Whether the app looks for a new version on its own, once per launch. Off,
    *  it never connects anywhere unless the operator presses «Check now». */
