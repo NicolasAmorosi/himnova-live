@@ -159,7 +159,8 @@ src/
         │   ├── ui/          # design system primitives — barrel index.ts
         │   ├── shared/      # cross-feature: modal, editor-screen (the full-screen editor shell), panel,
         │   │                #   output-view (renders a ProjectionOutput), timer-scene + bible-scene (the two
-        │   │                #   generated scenes), style-fields
+        │   │                #   generated scenes), style-fields, settings-groups/ (Settings' groups the welcome
+        │   │                #   shows too: screen, LOGO, NDI)
         │   └── pages/       # one folder per feature:
         │       ├── layout/     # AppShell (EasyWorship-style grid), TopBar
         │       ├── schedule/   # the order of service (left column, top)
@@ -169,6 +170,8 @@ src/
         │       ├── slides/     # center: PREVIEW monitor + grid of slides/verses of the item in preview
         │       ├── monitors/   # right column: LIVE monitor, live grid, deck transport
         │       ├── settings/   # Settings (the bible versions manager among them)
+        │       ├── welcome/    # the first-run welcome (new profiles only; Settings ▸ About reopens it) and
+        │       │               #   «Primeros pasos», the checklist that ticks itself (`effects/first-steps.ts`)
         │       └── programs/   # the saved programs screen
         ├── stores/          # Zustand: program, toast, preview, projection, deck, bible,
         │                    #   library, settings, audio, display, ui

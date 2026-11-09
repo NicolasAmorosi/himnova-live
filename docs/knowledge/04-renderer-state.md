@@ -289,6 +289,26 @@ lines per slide (`resolveSong`, `stores/song.store.ts`), its theme, and its **on
   tiles, the theme editor, the stage, a monitor with motion off — the theme's `backgroundUrl` is the
   video's still. Main plays an engine one as a third, silent video session (`songVideo`).
 
+## The first-run welcome
+
+`components/pages/welcome/WelcomeScreen.tsx`: a `Modal size="screen"` with the steps on a sidebar `Tabs`
+(any step at any time), «Back» / «Next: …» at its foot and «Skip» on the rail. It holds **no draft**: every
+control writes its settings key as it changes, and most steps ARE Settings' own groups
+(`components/shared/settings-groups/`: `ScreenGroup`, `LogoGroup`, `NdiOutputGroup` with `essentials`), so
+skipping keeps what was chosen and Escape does nothing.
+
+- **Who sees it.** Main sets `welcome.pending` only when `initDatabase` finds a new profile (`isNewProfile`);
+  `App` opens it after the displays load and closing it — finished or skipped — clears the key. An install
+  that updates never has the key, so it is never welcomed. `--no-welcome` keeps main from setting it: the
+  E2E harness always passes it, and `test.use({ welcome: true })` drops it (`welcome.spec.ts`).
+- **«Primeros pasos»** (`welcome.firstStepsOpen`, `welcome.firstStepsDone`): `effects/first-steps.ts`
+  subscribes to the preview, projection, program and settings stores and ticks a step the first time its
+  thing happens — only while the list is open, so it always ends practised. The work screen knows nothing
+  about it. `FirstStepsPanel` lives inside `#root`, so a modal makes it inert like the rest.
+- **What the steps draw** comes from the projector's own builders: the LOGO preview from `useLogoPreview`
+  (`selectOutput` under LOGO), the sample verse from `bibleOutputFor` with the stored style and the
+  «En paralelo» version; the «Al terminar» cards are `StageSketch`es, not outputs — a picture of a choice.
+
 ## Keyboard
 
 `use-global-shortcuts.ts`, with the split that lets you press them without looking:
