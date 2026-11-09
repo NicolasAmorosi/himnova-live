@@ -1228,6 +1228,16 @@ const es = {
     bibles: {
       title: "Biblias",
       subtitle: "Elegí las versiones que vas a usar. Vienen incluidas, no hace falta internet, y podés sumar otras cuando quieras.",
+      inUse: "«{name}» se usa en programas guardados: quitala desde Configuración ▸ Biblia, que te muestra cuáles.",
+      failed: "No se pudo cambiar «{name}».",
+      working: "Instalando…",
+      previewHint: "Así se ve un versículo con tu estilo; se cambia con la paleta al pie de la pestaña Biblia.",
+      projecting: "Al proyectar",
+      default: "Versión principal",
+      defaultDesc: "Con la que abre la pestaña Biblia.",
+      parallel: "En paralelo",
+      parallelDesc: "Otra versión al lado, en dos columnas: para cultos en dos idiomas.",
+      parallelNone: "Ninguna",
     },
     stream: {
       title: "Transmisión",

@@ -63,3 +63,20 @@ test("skipping keeps what was chosen, and the guide reopens from Settings ▸ Ab
   await expect(welcome).toBeVisible();
   await expect(settings).toBeHidden();
 });
+
+test("the Bibles step installs a bundled version and draws it beside the main one", async ({ app }) => {
+  const welcome = app.control.getByRole("dialog", { name: "Bienvenida" });
+  await welcome.getByRole("tab", { name: "Biblias" }).click();
+  // A Spanish profile starts with its language's version installed.
+  await expect(welcome.getByRole("switch", { name: "Reina-Valera 1909" })).toBeChecked();
+  const kjv = welcome.getByRole("switch", { name: "King James Version" });
+  await expect(kjv).not.toBeChecked();
+  await kjv.click();
+  await expect(kjv).toBeChecked();
+
+  await welcome.getByRole("group", { name: "En paralelo" }).getByRole("combobox").click();
+  await app.control.getByRole("option", { name: "King James Version", exact: true }).click();
+  // The sample verse, in both versions, as the room will see it.
+  await expect(welcome.getByText("Juan 3:16")).toBeVisible();
+  await expect(welcome.getByText("John 3:16")).toBeVisible();
+});

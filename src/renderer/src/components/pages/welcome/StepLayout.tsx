@@ -27,7 +27,12 @@ export function StepLayout({
       </header>
       <div className="flex flex-col gap-8 xl:flex-row xl:gap-10">
         <div className={cn("flex min-w-0 flex-1 flex-col gap-8", !aside && "max-w-3xl")}>{children}</div>
-        {aside ? <aside className="flex w-full max-w-sm shrink-0 flex-col gap-3 xl:w-80">{aside}</aside> : null}
+        {/* Beside, it stays in view while a long step scrolls (the Bibles' list). */}
+        {aside ? (
+          <aside className="flex w-full max-w-sm shrink-0 flex-col gap-3 xl:sticky xl:top-10 xl:w-80 xl:self-start">
+            {aside}
+          </aside>
+        ) : null}
       </div>
     </div>
   );

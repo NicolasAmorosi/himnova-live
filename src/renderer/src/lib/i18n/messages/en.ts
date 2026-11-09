@@ -1215,6 +1215,16 @@ const en: Messages = {
     bibles: {
       title: "Bibles",
       subtitle: "Choose the versions you will use. They are included, no internet needed, and you can add others whenever you like.",
+      inUse: "«{name}» is used in saved schedules: remove it from Settings ▸ Bible, which shows which ones.",
+      failed: "«{name}» could not be changed.",
+      working: "Installing…",
+      previewHint: "This is how a verse looks with your style; change it with the palette at the foot of the Bible tab.",
+      projecting: "When projecting",
+      default: "Main version",
+      defaultDesc: "The one the Bible tab opens on.",
+      parallel: "Side by side",
+      parallelDesc: "Another version beside it, in two columns: for services in two languages.",
+      parallelNone: "None",
     },
     stream: {
       title: "Streaming",

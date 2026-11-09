@@ -1219,6 +1219,16 @@ const it: Messages = {
     bibles: {
       title: "Bibbie",
       subtitle: "Scegli le versioni che userai. Sono incluse, non serve internet, e puoi aggiungerne altre quando vuoi.",
+      inUse: "«{name}» è usata in scalette salvate: toglila da Impostazioni ▸ Bibbia, che ti mostra quali.",
+      failed: "Non è stato possibile cambiare «{name}».",
+      working: "Installazione…",
+      previewHint: "Così appare un versetto con il tuo stile; si cambia con la tavolozza in fondo alla scheda Bibbia.",
+      projecting: "In proiezione",
+      default: "Versione principale",
+      defaultDesc: "Quella con cui si apre la scheda Bibbia.",
+      parallel: "In parallelo",
+      parallelDesc: "Un'altra versione accanto, su due colonne: per culti in due lingue.",
+      parallelNone: "Nessuna",
     },
     stream: {
       title: "Diretta",

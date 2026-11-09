@@ -1216,6 +1216,16 @@ const pt: Messages = {
     bibles: {
       title: "Bíblias",
       subtitle: "Escolha as versões que vai usar. Elas vêm incluídas, sem precisar de internet, e você pode adicionar outras quando quiser.",
+      inUse: "«{name}» é usada em roteiros salvos: tire-a em Configurações ▸ Bíblia, que mostra quais.",
+      failed: "Não foi possível mudar «{name}».",
+      working: "Instalando…",
+      previewHint: "Assim fica um versículo com o seu estilo; muda-se com a paleta no pé da aba Bíblia.",
+      projecting: "Ao projetar",
+      default: "Versão principal",
+      defaultDesc: "A que abre na aba Bíblia.",
+      parallel: "Em paralelo",
+      parallelDesc: "Outra versão ao lado, em duas colunas: para cultos em dois idiomas.",
+      parallelNone: "Nenhuma",
     },
     stream: {
       title: "Transmissão",
