@@ -135,5 +135,6 @@ table of Office's shapes, under the MPL-2.0 (see
 [ndi.video](https://ndi.video/). NDI® is a registered trademark of Vizrt NDI AB. The bundled Bible versions are in the public domain, except the
 Versión Biblia Libre, © Jonathan Gallagher and Shelly Barrios de Avila under the Creative Commons
 Attribution-ShareAlike 4.0 license, and the Bíblia Livre, © Diego Santos, Mario Sérgio and Marco Teles under the
-Creative Commons Attribution 4.0 Brazil license; where each text comes from and what was changed is in
+Creative Commons Attribution 4.0 Brazil license (the Almeida 1911's text is in the public domain; its digitization is
+the CrossWire Bible Society's, under the GNU GPL); where each text comes from and what was changed is in
 [`resources/bibles/NOTICE.txt`](resources/bibles/NOTICE.txt).
