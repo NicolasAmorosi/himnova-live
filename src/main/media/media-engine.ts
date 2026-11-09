@@ -51,12 +51,25 @@ type EngineEvent =
   | ({ ev: "status" } & EngineStatus)
   | ({ ev: "error" } & EngineError);
 
-/** `native/handles`: what Node can't do to take another process's textures. */
-type MacHandles = { lookup(id: number): string; release(pointer: string): void };
-type LinuxHandles = { listen(socketPath: string): number; accept(server: number, timeoutMs: number): number[]; close(fd: number): void };
+/** `native/handles`: what Node can't do to take another process's textures, or to hand one over (the
+ *  NDI output, `ndi/ndi-output.ts`). Windows has none. */
+export type MacHandles = {
+  lookup(id: number): string;
+  release(pointer: string): void;
+  machLookup(service: string): number;
+  machSendSurface(port: number, ioSurface: Buffer): boolean;
+  machRelease(port: number): void;
+};
+export type LinuxHandles = {
+  listen(socketPath: string): number;
+  accept(server: number, timeoutMs: number): number[];
+  close(fd: number): void;
+  connect(socketPath: string): number;
+  sendFds(fd: number, text: string, fds: number[]): boolean;
+};
 
 let handlesAddon: MacHandles | LinuxHandles | null = null;
-function handles<T extends MacHandles | LinuxHandles>(): T {
+export function handles<T extends MacHandles | LinuxHandles>(): T {
   if (!handlesAddon) {
     const mod = { exports: {} as MacHandles | LinuxHandles };
     process.dlopen(mod, path.join(engineDir, "handles.node"));

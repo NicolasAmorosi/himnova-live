@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { NDI_TRADEMARK } from "@shared/types/ndi";
 import { useI18n, type Translate } from "@renderer/lib/i18n/i18n-provider";
 import {
   Badge,
@@ -214,6 +215,10 @@ export function AboutSection() {
           >
             {t("settings.sourceCode")}
           </Button>
+        </FieldRow>
+        {/* The NDI SDK licence asks for its notice in «About», in its own words. */}
+        <FieldRow label={t("settings.trademarks")}>
+          <Caption className="select-text">{NDI_TRADEMARK}</Caption>
         </FieldRow>
       </FieldGroup>
 

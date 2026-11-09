@@ -853,6 +853,7 @@ const it: Messages = {
       performance: "Prestazioni",
       diagnostics: "Diagnostica",
       about: "Versione e aggiornamenti",
+      ndi: "Uscita NDI®",
     },
     verse: {
       sample: "Esempio",
@@ -945,6 +946,37 @@ const it: Messages = {
     stageDisplayDesc: "Per i musicisti: ciò che è in onda, ciò che segue e l'ora.",
     stageDisplayHelp: "Con NERO o LOGO continua a mostrare il contenuto e lo segnala.",
     stageNone: "Nessuno",
+    /** Settings ▸ Projection ▸ «Salida NDI®» (`ndi-output-group.tsx`). */
+    ndi: {
+      groupDesc: "La proiezione come sorgente video in rete, per OBS, vMix o un altro programma.",
+      enabled: "Invia via NDI®",
+      enabledDesc: "Solo l'immagine, esattamente come la mostra il proiettore.",
+      enabledHelp:
+        "Il suono non viaggia via NDI: OBS lo prende dal mixer. Su questo computer serve il runtime gratuito di NDI (ndi.video). A 60 fotogrammi al secondo, collega il computer via cavo.",
+      firewall: "La prima volta, Windows Firewall chiede di «Lumina Live media engine»: premi «Consenti», altrimenti gli altri computer non ricevono l'immagine.",
+      localNetwork: "La prima volta, macOS chiede se Lumina Live può usare la rete locale: premi «Consenti», altrimenti gli altri computer non ricevono l'immagine.",
+      status: "Stato",
+      states: {
+        off: "Spenta",
+        starting: "Avvio…",
+        sending:
+          "{count, plural, =0 {Invio · nessun programma la riceve} one {Invio · # programma la riceve} other {Invio · # programmi la ricevono}}",
+        runtimeMissing: "Manca il runtime di NDI, che è gratuito. Installalo e riavvia Lumina Live.",
+      },
+      errors: {
+        "ndi-send": "NDI non è riuscito a creare la sorgente.",
+        "ndi-gpu": "Impossibile leggere l'immagine dalla scheda video.",
+        "ndi-exit": "L'uscita si è chiusa da sola; si riaccende tra pochi secondi.",
+        "ndi-engine-missing": "Questa installazione non ha il motore multimediale.",
+      },
+      getRuntime: "Scarica NDI",
+      name: "Nome",
+      nameDesc: "I programmi la elencano come «COMPUTER (nome)».",
+      resolution: "Risoluzione",
+      resolutionDesc: "La dimensione dell'immagine inviata.",
+      fps: "Fotogrammi al secondo",
+      fpsDesc: "60 richiede il cavo di rete; via Wi-Fi, 30.",
+    },
     windowLabel: "Finestra di proiezione",
     windowDesc: "Se il proiettore non risponde, chiudila e riaprila.",
     theme: "Tema",
@@ -957,6 +989,7 @@ const it: Messages = {
     license: "Licenza",
     licenseDesc: "Software libero: si può usare, studiare, modificare e condividere.",
     sourceCode: "Codice sorgente",
+    trademarks: "Marchi registrati",
     logsError: "Impossibile aprire la cartella dei log",
     updates: "Aggiornamenti",
     updatesCheck: "Cerca aggiornamenti",

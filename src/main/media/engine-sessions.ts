@@ -180,7 +180,8 @@ function syncVideo(target: VideoTarget, want: LiveEngineState | null, windows: (
 export function syncLiveEngine(): void {
   const projector = projectionState.getWindow();
   const { output } = projectionState.getSnapshot();
-  const windows = [projector, ...controlWindows()];
+  // The NDI output draws the projector's picture, its videos included.
+  const windows = [projector, ...projectionState.getMirrors(), ...controlWindows()];
   syncAudio(projector !== null);
   syncVideo("video", liveEngineState(output, projector !== null), windows);
   syncVideo("slideVideo", liveEngineSlideVideo(output, projector !== null), windows);

@@ -17,6 +17,7 @@
 // Args: [--parent <pid>] (Windows) [--fd-socket <path>] (Linux) [--max-width 1920 --max-height 1080]
 //       [--slots 6] [--hwdec …] [--close-in-parent <handle,…>] (Windows: a dead engine's ring)
 //       [--log-level error|warn|info|v|debug] (mpv's log on stderr; main keeps its tail for errors)
+// `--ndi-send <name> …` as the first argument runs the NDI output mode instead: see ndi.cpp.
 #include <mpv/client.h>
 #include <mpv/render.h>
 
@@ -44,15 +45,17 @@
 #endif
 void closeInParent(unsigned long parentPid, const std::vector<unsigned long long>& handles);
 #endif
+int ndiSendMain(int argc, char** argv);
 
 static std::mutex outMutex;
-static void emit(const std::string& json) {
+// Also used by ndi.cpp, the NDI output mode.
+void emit(const std::string& json) {
   std::lock_guard<std::mutex> l(outMutex);
   fputs(json.c_str(), stdout);
   fputc('\n', stdout);
   fflush(stdout);
 }
-static std::string js(const std::string& s) {
+std::string js(const std::string& s) {
   std::string o = "\"";
   for (unsigned char c : s) {
     if (c == '"' || c == '\\') { o += '\\'; o += (char)c; }
@@ -237,6 +240,8 @@ int main(int argc, char** argv) {
 #else
   std::string hwdec = "auto";
 #endif
+  // The NDI output (ndi.cpp) is this same binary in another mode: it never touches mpv.
+  if (argc > 2 && std::string(argv[1]) == "--ndi-send") return ndiSendMain(argc, argv);
   for (int i = 1; i + 1 < argc; i += 2) {
     std::string k = argv[i], v = argv[i + 1];
     if (k == "--parent") options.parentPid = strtoul(v.c_str(), nullptr, 10);

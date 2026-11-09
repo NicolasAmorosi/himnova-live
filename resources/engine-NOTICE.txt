@@ -19,6 +19,10 @@ libmpv:
               https://github.com/mpv-player/mpv/tree/e471496c56
   Linux     Not shipped: the engine loads the libmpv the system provides (libmpv.so.2, or libmpv.so.1).
 
+NDI®: the engine's NDI output mode is built against the NDI SDK's headers (native/ndi/include/, each
+under the MIT license in its own text). The NDI runtime is not shipped: the engine loads the one the user
+installs from https://ndi.video/ . NDI® is a registered trademark of Vizrt NDI AB.
+
   License texts:  https://www.gnu.org/licenses/gpl-3.0.txt
                   https://www.gnu.org/licenses/old-licenses/gpl-2.0.txt
   mpv:            https://mpv.io/  https://github.com/mpv-player/mpv

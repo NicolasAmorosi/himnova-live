@@ -19,6 +19,13 @@ function reportMediaError(error: ProjectionMediaError): void {
   void api.projection.reportMediaError(error);
 }
 
+/** This page as the NDI® output's offscreen copy of the projection (`main/ndi/ndi-output.ts`): the same
+ *  pixels, but it is not the projector — it reports nothing (the panel would see every video twice),
+ *  mounts no audio track (main mutes it too: the room hears the projector) and its errors are the
+ *  projector's to report. */
+const IS_NDI_OUTPUT = new URLSearchParams(window.location.search).get("role") === "ndi";
+const NO_ELEMENT: RefObject<HTMLMediaElement | null> = { current: null };
+
 type AudioTrackElementProps = {
   /** The shared `trackId -> element` map `media-command` routes through. Passed
    *  as the map itself rather than as a per-track callback so the `ref` below
@@ -213,15 +220,15 @@ export function ProjectionApp() {
     [],
   );
 
-  useMediaStatusReporter(videoRef, null, output.videoUnderlay?.epoch ?? 0);
-  useMediaStatusReporter(slideVideoRef, null, output.slideVideo?.epoch ?? 0, "slideVideo");
+  useMediaStatusReporter(IS_NDI_OUTPUT ? NO_ELEMENT : videoRef, null, output.videoUnderlay?.epoch ?? 0);
+  useMediaStatusReporter(IS_NDI_OUTPUT ? NO_ELEMENT : slideVideoRef, null, output.slideVideo?.epoch ?? 0, "slideVideo");
 
   return (
     <div className="h-screen w-screen bg-black">
       <OutputView
         key={hasRealOutput ? "live" : "placeholder"}
         mode="live"
-        onMediaError={reportMediaError}
+        {...(IS_NDI_OUTPUT ? {} : { onMediaError: reportMediaError })}
         output={output}
         slideVideoRef={slideVideoRef}
         videoRef={videoRef}
@@ -232,7 +239,7 @@ export function ProjectionApp() {
           fresh GO LIVE on the same asset bumps the epoch), never merely
           because BLACK/LOGO or a pause toggled. A track the media engine
           plays has no element at all: main plays it, sound included. */}
-      {tracks.filter((track) => !isEngineUrl(track.url)).map((track) => (
+      {tracks.filter((track) => !IS_NDI_OUTPUT && !isEngineUrl(track.url)).map((track) => (
         <AudioTrackElement
           key={`${track.trackId}:${track.epoch}`}
           registry={audioRefs.current}

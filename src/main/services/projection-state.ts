@@ -14,6 +14,9 @@ import type { AudioTrackPush, ProjectionOutput } from "@shared/types/projection"
  */
 class ProjectionState {
   private window: BrowserWindow | null = null;
+  /** Windows that draw the same picture without being the projector: the NDI output's offscreen window.
+   *  They get every output, never the audio tracks (they play no sound), and they report nothing. */
+  private readonly mirrors = new Set<BrowserWindow>();
   private lastOutput: ProjectionOutput | null = null;
   private lastAudioTracks: AudioTrackPush[] = [];
 
@@ -46,9 +49,18 @@ class ProjectionState {
     return this.window && !this.window.isDestroyed() ? this.window : null;
   }
 
+  addMirror(win: BrowserWindow): void {
+    this.mirrors.add(win);
+    win.once("closed", () => this.mirrors.delete(win));
+  }
+
+  getMirrors(): BrowserWindow[] {
+    return [...this.mirrors].filter((win) => !win.isDestroyed());
+  }
+
   send(output: ProjectionOutput): void {
     this.lastOutput = output;
-    this.getWindow()?.webContents.send("display-content", output);
+    for (const win of [this.getWindow(), ...this.getMirrors()]) win?.webContents.send("display-content", output);
   }
 
   setAudioTracks(tracks: AudioTrackPush[]): void {

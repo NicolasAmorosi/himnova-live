@@ -14,6 +14,8 @@
 #   ./native/build.sh pack           Zips every target built here into native/.build/release/, the files of a
 #                                    Release `engine-<n>` (see scripts/fetch-binaries.ts), and prints their sha256.
 # A build leaves a `.local` marker: scripts/fetch-binaries.ts keeps it instead of the published engine.
+# The engine's NDI output mode (native/engine/ndi.cpp) builds against the NDI SDK's MIT headers in native/ndi/include/;
+# the NDI runtime itself is the user's, loaded at run time.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 WORK=native/.build
@@ -50,7 +52,7 @@ darwin-*)
     cp -a "$LIB"/*.dylib "$OUT/"
   fi
   clang++ "${FLAGS[@]}" -Wno-multichar -Wno-deprecated-declarations -mmacosx-version-min=12.0 -I "$INC" \
-    native/engine/engine.cpp native/engine/gpu-apple.cpp -L "$LIB" -lmpv -Wl,-rpath,"$RPATH" \
+    -I native/ndi/include native/engine/engine.cpp native/engine/gpu-apple.cpp native/engine/ndi.cpp -L "$LIB" -lmpv -Wl,-rpath,"$RPATH" \
     -framework OpenGL -framework IOSurface -framework CoreFoundation -o "$OUT/media-engine"
   clang++ "${FLAGS[@]}" -mmacosx-version-min=12.0 -bundle -undefined dynamic_lookup -I "$NODE_INC" \
     native/handles/handles.cpp -framework IOSurface -framework CoreFoundation -o "$OUT/handles.node"
@@ -68,9 +70,11 @@ win32-x64)
   docker image inspect lumina-mingw >/dev/null 2>&1 ||
     printf 'FROM debian:trixie-slim\nRUN apt-get update && apt-get install -y --no-install-recommends g++-mingw-w64-x86-64-posix && rm -rf /var/lib/apt/lists/*\n' |
     docker build -q -t lumina-mingw -
-  docker run --rm -v "$PWD:/w" -w /w lumina-mingw x86_64-w64-mingw32-g++-posix "${FLAGS[@]}" -static -static-libgcc -static-libstdc++ \
-    native/engine/engine.cpp native/engine/gpu-windows.cpp -I "$WORK/mpv-win/include" "$WORK/mpv-win/libmpv.dll.a" \
-    -ld3d11 -ldxgi -lwinmm -o "$OUT/media-engine.exe"
+  docker run --rm -v "$PWD:/w" -w /w lumina-mingw sh -c "
+    x86_64-w64-mingw32-windres native/engine/media-engine.rc -O coff -o $WORK/media-engine-res.o &&
+    x86_64-w64-mingw32-g++-posix ${FLAGS[*]} -static -static-libgcc -static-libstdc++ \
+      native/engine/engine.cpp native/engine/gpu-windows.cpp native/engine/ndi.cpp $WORK/media-engine-res.o \
+      -I $WORK/mpv-win/include -I native/ndi/include $WORK/mpv-win/libmpv.dll.a -ld3d11 -ldxgi -lwinmm -o $OUT/media-engine.exe"
   cp "$WORK/mpv-win/libmpv-2.dll" "$OUT/"
   ;;
 linux-x64)
@@ -80,7 +84,7 @@ linux-x64)
     docker build --platform linux/amd64 -q -t lumina-linux-engine-build -
   docker run --rm --platform linux/amd64 -v "$PWD:/w" -w /w lumina-linux-engine-build sh -c "
     g++ ${FLAGS[*]} -static-libstdc++ -static-libgcc native/engine/engine.cpp native/engine/gpu-linux.cpp native/engine/mpv-linux.cpp \
-      -I /usr/include/libdrm -ldl -lEGL -lOpenGL -lgbm -o $OUT/media-engine &&
+      native/engine/ndi.cpp -I /usr/include/libdrm -I native/ndi/include -ldl -lEGL -lOpenGL -lgbm -lpthread -o $OUT/media-engine &&
     g++ ${FLAGS[*]} -shared -fPIC -static-libstdc++ -static-libgcc native/handles/handles.cpp -I $WORK/node-include -o $OUT/handles.node"
   ;;
 *)

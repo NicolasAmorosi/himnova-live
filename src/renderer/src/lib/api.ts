@@ -174,6 +174,10 @@ export const api = {
     openLogsFolder: () => invoke("system:openLogsFolder", undefined),
     openSourceCode: () => invoke("system:openSourceCode", undefined),
   },
+  ndi: {
+    getStatus: () => invoke("ndi:getStatus", undefined),
+    openRuntimePage: () => invoke("ndi:openRuntimePage", undefined),
+  },
   updates: {
     getStatus: () => invoke("updates:getStatus", undefined),
     check: () => invoke("updates:check", undefined),

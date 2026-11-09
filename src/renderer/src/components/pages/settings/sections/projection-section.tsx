@@ -13,6 +13,7 @@ import { IpcError } from "@shared/ipc/result";
 import { logoModeOf } from "@shared/types/settings";
 import type { TransitionStyle } from "@shared/types/transition";
 import { LogoSceneFields } from "./logo-scene-fields";
+import { NdiOutputGroup } from "./ndi-output-group";
 import {
   AUDIO_END_ACTIONS,
   VIDEO_END_ACTIONS,
@@ -131,6 +132,8 @@ export function ProjectionSection() {
           />
         </FieldRow>
       </FieldGroup>
+
+      <NdiOutputGroup />
 
       <FieldGroup title={t("settings.groups.logo")}>
         {/* One of two, chosen (owner, 2026-11-05): before, a loaded image

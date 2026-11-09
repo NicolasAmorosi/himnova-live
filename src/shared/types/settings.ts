@@ -16,6 +16,7 @@ import {
 import type { SceneBackground } from "./scene-style";
 import { isSceneBackground } from "../style-validators";
 import { LOGO_URL } from "../urls";
+import { NDI_FRAME_RATES, NDI_NAME_MAX_LENGTH, NDI_RESOLUTIONS, type NdiFrameRate, type NdiResolution } from "./ndi";
 
 /** How a Functions list (time scenes, plates) is ordered: «own» is the order
  *  the operator gave it in its editor; the rest like Media's (owner,
@@ -186,6 +187,12 @@ export type SettingsMap = {
    *  new, unsaved schedule. Not main's own current program: «programs:save»
    *  adopts a new program the list's «+» only creates. */
   "programs.openId": number | null;
+  /** The projector's picture as an NDI® source (`types/ndi.ts`), from launch on while true. */
+  "ndi.output.enabled": boolean;
+  /** What receivers list it as: «COMPUTER (name)». */
+  "ndi.output.name": string;
+  "ndi.output.resolution": NdiResolution;
+  "ndi.output.fps": NdiFrameRate;
 };
 
 export const DEFAULT_SETTINGS: SettingsMap = {
@@ -230,6 +237,10 @@ export const DEFAULT_SETTINGS: SettingsMap = {
   "updates.autoCheck": true,
   "updates.announcedVersion": null,
   "programs.openId": null,
+  "ndi.output.enabled": false,
+  "ndi.output.name": "Lumina Live",
+  "ndi.output.resolution": "1080p",
+  "ndi.output.fps": 30,
 };
 
 /** What LOGO draws, from its settings: the image in «image» mode — its path is
@@ -342,6 +353,15 @@ export const SETTINGS_VALIDATORS: Record<keyof SettingsMap, (value: unknown) => 
   "updates.autoCheck": isBoolean,
   "updates.announcedVersion": isNullOr(isString),
   "programs.openId": (v) => v === null || (typeof v === "number" && Number.isInteger(v) && v > 0),
+  "ndi.output.enabled": isBoolean,
+  // Not blank, and no control characters: it travels as a program argument and shows in every receiver.
+  "ndi.output.name": (v) =>
+    typeof v === "string" &&
+    v.trim().length > 0 &&
+    v.length <= NDI_NAME_MAX_LENGTH &&
+    ![...v].some((c) => c.charCodeAt(0) < 0x20 || c.charCodeAt(0) === 0x7f),
+  "ndi.output.resolution": isOneOf(NDI_RESOLUTIONS),
+  "ndi.output.fps": (v) => (NDI_FRAME_RATES as readonly unknown[]).includes(v),
 };
 
 export function isSettingsKey(key: string): key is keyof SettingsMap {
