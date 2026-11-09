@@ -651,6 +651,10 @@ const en: Messages = {
     favoriteAdd: "Add to favorites",
     favoriteRemove: "Remove from favorites",
     notInVersion: "That passage isn't in this version",
+    parallel: "Parallel",
+    parallelNone: "None",
+    parallelHint: "Also project every verse in another version, side by side",
+    parallelOn: "Side by side with {name}",
   },
   deck: {
     title: "Presentation",

@@ -23,6 +23,7 @@ import {
   CircleCheck,
   Clapperboard,
   Clock,
+  Columns2,
   Copy,
   Download,
   Ellipsis,
@@ -105,6 +106,8 @@ const icons = {
   circleCheck: CircleCheck,
   media: Clapperboard,
   clock: Clock,
+  // A verse in two versions side by side (the Bible tab's «En paralelo»).
+  columns: Columns2,
   alarm: AlarmClock,
   hourglass: Hourglass,
   timer: Timer,

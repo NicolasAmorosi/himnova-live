@@ -27,3 +27,10 @@ export function sameBook(a: BibleBookDTO, aCount: number, b: BibleBookDTO, bCoun
   const index = canonIndex(a, aCount);
   return index !== null ? index === canonIndex(b, bCount) : a.abbrev === b.abbrev;
 }
+
+/** The app's own abbrev for a version's row, what `bible:passage` finds it by
+ *  in another version; its own spelling when there is no telling. */
+export function canonAbbrev(book: Pick<BibleBookDTO, "abbrev" | "position">, bookCount: number): string {
+  const index = canonIndex(book, bookCount);
+  return (index !== null ? CANON_ABBREVS[index] : undefined) ?? book.abbrev;
+}

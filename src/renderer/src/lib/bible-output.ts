@@ -1,9 +1,9 @@
 import { assetUrl } from "@shared/urls";
 import type { BibleStyle } from "@shared/types/bible-style";
-import type { ProjectionOutputKind } from "@shared/types/projection";
+import type { BibleParallel, ProjectionOutputKind } from "@shared/types/projection";
 
-/** What a `bible` output is made of, before it is dressed — the three pieces
- *  the control window knows and the projector does not. */
+/** What a `bible` output is made of, before it is dressed — the pieces the
+ *  control window knows and the projector does not. */
 export type BibleContent = {
   text: string;
   reference: string;
@@ -11,6 +11,8 @@ export type BibleContent = {
    *  version was deleted, or the verse came from a program row whose FK is
    *  now null). */
   versionLabel: string | null;
+  /** The same passage in the parallel version; absent or `null` is none. */
+  parallel?: BibleParallel | null | undefined;
 };
 
 /**
@@ -36,6 +38,7 @@ export function bibleOutputFor(
     text: content.text,
     reference: content.reference,
     versionLabel: content.versionLabel,
+    parallel: content.parallel ?? null,
     style,
     // `assetId === 0` is an image background that has not been given a file
     // yet — the same sentinel, and the same reason, as `timerOutputFor`: a url

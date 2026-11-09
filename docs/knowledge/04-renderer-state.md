@@ -8,7 +8,7 @@ their place, **Zustand** in per-domain slices (`src/renderer/src/stores/`):
 | `program.store.ts` | current program (`items`, name, notes, date), `selectedIndex` (highlight), `activeIndex` (live), `dirty` |
 | `preview.store.ts` | **what is being looked at** (`target`: program item \| verse \| library asset) + `slideIndex`, the preview cursor, independent of the projection one |
 | `projection.store.ts` | `base` (what was chosen to project) + `overlay` ('none'\|'black'\|'logo') + `logoUrl` + `logoScene` (LOGO's two modes, `logo.mode` «image» \| «name» — unset: the image when there is one —, resolved by `logoLook` in `shared/types/settings.ts` for `App.tsx` and the Settings preview alike: the image's url, or `logo.name` over `logo.background` carried dressed in the `logo` output and drawn by `LogoScene`) + `presentationOpen` |
-| `bible.store.ts` | active version/book/chapter, loaded verses, current verse index |
+| `bible.store.ts` | active version/book/chapter, loaded verses, current verse index, and the parallel version's same chapter aligned to them (`parallelVerses`) |
 | `library.store.ts` | media library by type, active tab, selection |
 | `settings.store.ts` | in-memory mirror of the `settings` table, applies `data-theme` to `<html>` |
 | `display.store.ts` | available screens, which one is chosen (persisted in `settings['projection.displayId']`), `open()/close()` of the projection window |
@@ -204,6 +204,30 @@ EasyWorship's two-stage flow:
   changes nothing there and says why in a toast (`explainDeckFailure`).
 - `bible.ts` — `projectVerse`/`advanceVerse` (live), `previewSearchHit` and
   `addVerseToSchedule`.
+
+## Verses in two versions («En paralelo»)
+
+A verse goes live dressed (`bibleOutputFor`, shared by `selectOutput` and the PREVIEW monitor) and, when the Bible
+tab's «En paralelo» names another installed version (`bible.parallelVersionId`, 2026-11-09), with its `parallel` —
+the same passage's text, its reference in that version's own book name and its own label — resolved in the control
+window and carried in `base` like `versionLabel`. `BibleScene` then draws two equal columns filled row by row
+(references, verses, references) so both verses start on the same line, at ONE size: the auto-fit measures the whole
+block with every text at the same size, never a column on its own. `parallel: null` renders exactly the one column it
+always did.
+
+- **The tab never waits.** `bible.store` loads the parallel version's same chapter WITH the browsed one
+  (`setVersion`, `setBookAndChapter`, `refreshParallel` when the choice or the installed versions change), its book
+  found by what it is (`sameBook`) and aligned by verse NUMBER (`alignByNumber`): `projectVerse` and ←/→ read it
+  synchronously, and a verse that version lacks goes out alone.
+- **A schedule row looks it up** (`scheduleItemParallel` → `bible:passage`, the book by the app's own abbrev,
+  `canonAbbrev`): already async, so its commit re-checks the live intent and a newer GO LIVE wins. PREVIEW looks the
+  row's passage up the same way, again whenever the choice changes.
+- **No parallel** when none is chosen, when it is the verse's own version, or when it names a version no longer
+  installed (`parallelVersionFor`); deleting that version resets the setting in main, like the default version.
+- **A new choice reaches the NEXT verse**; PREVIEW shows it at once and the verse already live keeps what it went out
+  with (a `ponytail:` in `setParallelVersion` names the in-place upgrade).
+- **The musicians' screen shows the verse in its own version only** (`stage-output.ts`): two columns in its frames
+  would be too small to read.
 
 ## Songs
 

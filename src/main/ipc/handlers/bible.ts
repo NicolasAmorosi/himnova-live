@@ -31,6 +31,7 @@ export const bibleHandlers: Pick<
   | "bible:setFavorite"
   | "bible:recents"
   | "bible:recordRecent"
+  | "bible:passage"
 > = {
   "bible:versions": () => getBibleRepo().listVersions(),
   "bible:books": ({ versionId }) => getBibleRepo().listBooks(versionId),
@@ -42,6 +43,8 @@ export const bibleHandlers: Pick<
   "bible:recents": () => getBibleRepo().listRecents(),
   "bible:recordRecent": ({ bookId, chapter, verseFrom, verseTo }) =>
     getBibleRepo().recordRecent(bookId, chapter, verseFrom, verseTo),
+  "bible:passage": ({ versionId, bookAbbrev, chapter, verseFrom, verseTo }) =>
+    getBibleRepo().getPassage(versionId, bookAbbrev, chapter, verseFrom, verseTo),
 
   "bible:import": async (_req, ev) => {
     const result = await showOpenDialogFor(ev.sender, {
@@ -89,7 +92,8 @@ export const bibleHandlers: Pick<
    * Resetting `bible.defaultVersionId` is part of the same operation rather
    * than a follow-up write from the renderer: a dangling default would fall
    * back silently to "whichever comes first" and read, from the booth, exactly
-   * like a setting that never saved.
+   * like a setting that never saved. The parallel version is reset the same
+   * way: the next version to get that id must not start going out side by side.
    */
   "bible:delete": ({ id, force }) => {
     const usages = getProgramsRepo().findBibleVersionUsages(id);
@@ -103,6 +107,7 @@ export const bibleHandlers: Pick<
 
     const settings = getSettingsRepo();
     if (settings.get("bible.defaultVersionId") === id) settings.setMany({ "bible.defaultVersionId": null });
+    if (settings.get("bible.parallelVersionId") === id) settings.setMany({ "bible.parallelVersionId": null });
   },
 
   "bible:usages": ({ id }) => getProgramsRepo().findBibleVersionUsages(id),

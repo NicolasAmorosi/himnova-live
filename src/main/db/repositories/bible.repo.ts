@@ -4,9 +4,11 @@ import type { Db } from "../client";
 import { toFtsQuery } from "../fts-query";
 import { bibleBooks, bibleFavorites, bibleRecents, bibleVersions, bibleVerses } from "../schema";
 import { canonByAbbrev } from "../seed/bible-formats/canon";
+import { CANON_ABBREVS, canonIndex } from "@shared/bible-canon";
 import {
   BIBLE_RECENTS_MAX,
   passageReference,
+  passageText,
   type BibleBookDTO,
   type BibleBookmark,
   type BibleSearchHit,
@@ -177,6 +179,28 @@ export class BibleRepo {
         verse: v.verse,
         text: v.text,
       }));
+  }
+
+  /**
+   * A passage in `versionId`, its book found by the app's own abbrev — what a
+   * book is in every version (`canonIndex`), with the version's own spelling
+   * as the fallback a partial canon may need. The reference is in that
+   * version's book name; `null` when it has none of the verses.
+   */
+  getPassage(
+    versionId: number,
+    bookAbbrev: string,
+    chapter: number,
+    verseFrom: number,
+    verseTo: number,
+  ): { text: string; reference: string } | null {
+    const books = this.listBooks(versionId);
+    const index = CANON_ABBREVS.indexOf(bookAbbrev.toLowerCase());
+    const book = books.find((b) => (index >= 0 ? canonIndex(b, books.length) === index : b.abbrev === bookAbbrev));
+    if (!book) return null;
+    const verses = this.getChapter(book.id, chapter).filter((v) => v.verse >= verseFrom && v.verse <= verseTo);
+    if (verses.length === 0) return null;
+    return { text: passageText(verses), reference: passageReference(book.name, chapter, verseFrom, verseTo) };
   }
 
   search(versionId: number, query: string, limit = 100): BibleSearchHit[] {

@@ -83,6 +83,8 @@ export const api = {
     recents: () => invoke("bible:recents", undefined),
     recordRecent: (bookId: number, chapter: number, verseFrom: number, verseTo: number) =>
       invoke("bible:recordRecent", { bookId, chapter, verseFrom, verseTo }),
+    passage: (versionId: number, bookAbbrev: string, chapter: number, verseFrom: number, verseTo: number) =>
+      invoke("bible:passage", { versionId, bookAbbrev, chapter, verseFrom, verseTo }),
   },
   engine: {
     assets: () => invoke("engine:assets", undefined),

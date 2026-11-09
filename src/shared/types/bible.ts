@@ -135,6 +135,11 @@ export function passageReference(bookName: string, chapter: number, verseFrom: n
   return `${bookName} ${chapter}:${verseFrom}${verseTo > verseFrom ? `-${verseTo}` : ""}`;
 }
 
+/** A passage's text: its verses in order, one space apart. */
+export function passageText(verses: readonly Pick<BibleVerseDTO, "text">[]): string {
+  return verses.map((verse) => verse.text).join(" ");
+}
+
 /** Raw shape of the bundled/importable Bible JSON files. */
 export type BibleSourceBook = {
   abbrev: string;

@@ -8,7 +8,7 @@ import { bibleVersionLabel, useBibleStore } from "@renderer/stores/bible.store";
 import { useAudioStore, nextAssetTrack, type LiveAudioTrack } from "@renderer/stores/audio.store";
 import { findScene, useUtilityStore } from "@renderer/stores/utility.store";
 import { notifyManualNavigation, restartDeck } from "@renderer/effects/deck-autoplay";
-import { handLiveItemToTab, projectVerse } from "@renderer/lib/actions/bible";
+import { handLiveItemToTab, projectVerse, scheduleItemParallel } from "@renderer/lib/actions/bible";
 import { stopPreviewPlayback } from "@renderer/lib/actions/preview-playback";
 import { previewedScheduleItem } from "@renderer/lib/actions/preview";
 import { defaultMediaVolume, useSettingsStore } from "@renderer/stores/settings.store";
@@ -381,7 +381,7 @@ async function goLiveWithScheduleItem(
   startAtSeconds: number,
   intent: number,
 ): Promise<boolean> {
-  const { items, setActive } = useProgramStore.getState();
+  const { items } = useProgramStore.getState();
   const item = items[index];
   if (!item) return false;
   /** Where that row is NOW: a deck can take seconds to convert, and a row
@@ -407,7 +407,11 @@ async function goLiveWithScheduleItem(
       return result === "base";
     }
     case "bible": {
-      setActive(index);
+      // The parallel version's same passage is a lookup in main; anything the
+      // operator did meanwhile wins (`liveIntent`).
+      const parallel = await scheduleItemParallel(item);
+      if (!isCurrentLiveIntent(intent)) return false;
+      settleRail();
       useAudioStore.getState().setDeckTrack(null);
       // Not driven by projectVerse() — this reference doesn't necessarily
       // belong to the chapter currently loaded in the Bible browser, so any
@@ -423,6 +427,7 @@ async function goLiveWithScheduleItem(
         // a program saved before a version was deleted keeps its text and its
         // reference and loses only the label.
         versionLabel: bibleVersionLabel(useBibleStore.getState().versions, item.bibleVersionId),
+        parallel,
       });
       useProjectionStore.getState().setOverlay("none");
       const { bibleBookId, chapter, verseFrom, verseTo } = item;
