@@ -2,6 +2,7 @@ import { useT } from "@renderer/lib/i18n/i18n-provider";
 import { cn, formatClock } from "@renderer/lib/utils";
 import { Button, IconButton, Icon, MediaPanel, ProgressBar } from "@renderer/components/ui";
 import { useProjectionStore } from "@renderer/stores/projection.store";
+import { useSettingsStore } from "@renderer/stores/settings.store";
 import { useLiveHeading } from "@renderer/lib/hooks/use-live";
 import { DECK_SOUNDTRACK_TRACK_ID } from "@renderer/stores/audio.store";
 import { advanceSlide, clearBaseContent } from "@renderer/lib/actions/playback";
@@ -28,6 +29,8 @@ export function DeckTransport() {
   const liveDeck = useProjectionStore((s) => s.liveDeck);
   const autoplay = useProjectionStore((s) => s.autoplay);
   const autoplayMode = useProjectionStore((s) => s.autoplayMode);
+  // On the last slide «Siguiente» ends the deck, unless its end is to stay there.
+  const holdsAtEnd = useSettingsStore((s) => s.settings["projection.deckEnd"] === "hold");
   const heading = useLiveHeading();
   // Filtered by target: the shared slot also carries the video's or other
   // audio tracks' clocks, which must never be read as this deck's.
@@ -109,7 +112,7 @@ export function DeckTransport() {
 
           <IconButton
             aria-label={t("deck.next")}
-            disabled={current >= total}
+            disabled={holdsAtEnd && current >= total}
             onClick={() => advanceSlide(1)}
             size="sm"
             variant="ghost"

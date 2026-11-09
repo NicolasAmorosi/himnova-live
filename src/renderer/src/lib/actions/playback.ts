@@ -7,11 +7,11 @@ import { findPlate, useOverlayStore } from "@renderer/stores/overlay.store";
 import { bibleVersionLabel, useBibleStore } from "@renderer/stores/bible.store";
 import { useAudioStore, nextAssetTrack } from "@renderer/stores/audio.store";
 import { findScene, useUtilityStore } from "@renderer/stores/utility.store";
-import { notifyManualNavigation } from "@renderer/effects/deck-autoplay";
+import { notifyManualNavigation, restartDeck } from "@renderer/effects/deck-autoplay";
 import { handLiveItemToTab, projectVerse } from "@renderer/lib/actions/bible";
 import { stopPreviewPlayback } from "@renderer/lib/actions/preview-playback";
 import { previewedScheduleItem } from "@renderer/lib/actions/preview";
-import { defaultMediaVolume } from "@renderer/stores/settings.store";
+import { defaultMediaVolume, useSettingsStore } from "@renderer/stores/settings.store";
 import { api } from "@renderer/lib/api";
 import { t } from "@renderer/lib/i18n/i18n-provider";
 import { toast } from "@renderer/lib/toast";
@@ -589,11 +589,14 @@ export function clearLive(): void {
 }
 
 /** Synchronous: the slide cursor lives in the store and flows out through
- *  `selectOutput`, so there is no IPC round-trip to wait on any more. */
-export function advanceSlide(direction: 1 | -1): void {
+ *  `selectOutput`, so there is no IPC round-trip to wait on any more. A step
+ *  past the last slide ends the deck (`endDeck`) — never on a held key's
+ *  repeat, or holding → on the last slide would run through the next item. */
+export function advanceSlide(direction: 1 | -1, repeat = false): void {
   const { base, liveDeck, setSlideIndex } = useProjectionStore.getState();
   if (base?.kind !== "deck" || !liveDeck) return;
   const next = base.slideIndex + direction;
+  if (next > liveDeck.slides.length && !repeat) endDeck();
   if (next < 1 || next > liveDeck.slides.length) return;
   // Claimed here and not at the top: a keypress that bails out above changed
   // nothing on the projector, so it must not cancel a conversion in flight.
@@ -608,6 +611,22 @@ export function gotoSlide(index: number): void {
   claimLiveIntent();
   setSlideIndex(index);
   notifyManualNavigation();
+}
+
+/**
+ * What the live deck does at its end (`projection.deckEnd`, owner
+ * 2026-11-09): an auto-advancing one that finished on its own
+ * (`end-of-playback.ts`) or the operator stepping past its last slide. «next»
+ * under BLACK/LOGO only clears, as before the setting: going live lifts the
+ * cover, and nobody asked to uncover the projector.
+ */
+export function endDeck(): void {
+  const action = useSettingsStore.getState().settings["projection.deckEnd"];
+  if (action === "logo" || action === "black") clearBaseContentUnder(action);
+  if (action === "loop") restartDeck();
+  if (action !== "next") return;
+  if (useProjectionStore.getState().overlay !== "none") clearBaseContent();
+  else void goLiveWithNextScheduleItem().then((moved) => moved || clearBaseContent());
 }
 
 /** Clears just what's on the projector right now — a live video, PPT deck or

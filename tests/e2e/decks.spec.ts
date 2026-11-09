@@ -307,13 +307,28 @@ test("a slide clicked in the LIVE grid goes up at once; one clicked in PREVIEW d
   await expect.poll(() => projectedSlide(projector)).toBe(3);
   const live = app.liveColumn();
   await expect(live.getByText("3/3", { exact: true })).toBeVisible();
-  await expect(live.getByRole("button", { name: "Siguiente" })).toBeDisabled();
+  // On the last slide it still works: one more ends the deck (`projection.deckEnd`).
+  await expect(live.getByRole("button", { name: "Siguiente" })).toBeEnabled();
   await live.getByRole("button", { name: "Anterior" }).click();
   await expect.poll(() => projectedSlide(projector)).toBe(2);
 
   // A double click in PREVIEW on a deck that is already live jumps there too.
   await slideTile(app, 1).dblclick();
   await expect.poll(() => projectedSlide(projector)).toBe(1);
+});
+
+test("one more step on the last slide takes the deck off to the logo", async ({ app }) => {
+  await app.addMedia("ppt", "deck.pdf");
+  await app.previewFile("Presentaciones", "deck");
+  await expect(slideTile(app, 3)).toBeVisible({ timeout: 60_000 });
+  await app.goLive();
+  const projector = await app.projector();
+  await expect.poll(() => projectedSlide(projector)).toBe(1);
+  await liveSlideTile(app, 3).click();
+  await expect.poll(() => projectedSlide(projector)).toBe(3);
+  await app.control.keyboard.press("ArrowRight");
+  await expect.poll(() => projectedSlide(projector)).toBeNull();
+  await expect(app.liveColumn().getByRole("button", { name: "Siguiente" })).toHaveCount(0);
 });
 
 test("Space freezes a deck that advances by itself, and resumes it", async ({ app }) => {

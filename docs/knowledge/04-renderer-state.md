@@ -139,7 +139,15 @@ auto-advancing deck that finished playing by itself, leaving the logo scene
 slide because the operator forgot to clear. A deck counts as finished when it has reached
 `autoplay: "finished"` **and**, if it has a soundtrack, that track has also reported `ended` —
 whichever ends last wins; music longer than the sum of the timings is not cut off midway.
-No manual deck (without `advanceAfterMs`) ever clears itself.
+No manual deck (without `advanceAfterMs`) ever ends by itself.
+
+A deck's end is the operator's choice since 2026-11-09 (`projection.deckEnd`, Settings ▸ Projection, the
+same five values as a video's, read straight from `settings.store`): `endDeck()` (`lib/actions/playback.ts`)
+runs both when an auto-advancing deck finishes and when the operator steps past its last slide
+(`advanceSlide`, never on a held key's repeat, so «Siguiente» stays enabled on the last slide unless the
+choice is «hold»). «logo»/«black» clear as a video does, «loop» is `restartDeck()`, «hold» does nothing and
+«next» is `goLiveWithNextScheduleItem` — except under BLACK/LOGO, where it only clears: going live would lift
+the cover nobody asked to lift.
 
 A video's end is the operator's choice since 2026-11-05 (`projection.videoEnd`, Settings ▸ Projection,
 mirrored into `projection.store` by `App.tsx` like the transition): «logo» clears as above, «black» clears

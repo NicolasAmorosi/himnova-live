@@ -149,7 +149,7 @@ function runShortcut(key: string, repeat: boolean, shift = false, code = ""): bo
   const step = LIVE_STEP[key];
   if (step !== undefined) {
     const { base } = useProjectionStore.getState();
-    if (base?.kind === "deck") advanceSlide(step);
+    if (base?.kind === "deck") advanceSlide(step, repeat);
     else if (base?.kind === "bible") advanceVerse(step);
     else if (base?.kind === "song") advanceSong(step);
     else return false;

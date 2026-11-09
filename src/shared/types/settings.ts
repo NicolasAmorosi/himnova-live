@@ -78,9 +78,13 @@ export type SettingsMap = {
   "projection.transition.durationMs": number;
   /** What the projector does when a video reaches its end on its own (owner,
    *  2026-11-05): the logo (black without one), BLACK, start over, stay on its
-   *  last frame, or the schedule's next item. Videos only — an auto-advancing
-   *  deck still clears. */
+   *  last frame, or the schedule's next item. */
   "projection.videoEnd": VideoEndAction;
+  /** The same five choices for a deck (owner, 2026-11-09), applied when an
+   *  auto-advancing one finishes on its own AND when the operator steps past
+   *  its last slide: «loop» goes back to the first slide, «hold» stays on the
+   *  last one (the extra step does nothing). */
+  "projection.deckEnd": VideoEndAction;
   /** Whether the LIVE monitor plays its own moving copy of a live video (the
    *  full-screen one and a slide's). Off, it shows the video's thumbnail and
    *  the control window decodes nothing — the projector is never affected. */
@@ -185,6 +189,7 @@ export const DEFAULT_SETTINGS: SettingsMap = {
   "media.volume": 1,
   "projection.transition.style": "crossfade",
   "projection.videoEnd": "logo",
+  "projection.deckEnd": "logo",
   "projection.transition.durationMs": 300,
   "slides.fallbackFont": null,
   "monitors.liveVideoMotion": true,
@@ -294,6 +299,7 @@ export const SETTINGS_VALIDATORS: Record<keyof SettingsMap, (value: unknown) => 
   "media.volume": isNumberIn(0, 1),
   "projection.transition.style": isOneOf(TRANSITION_STYLES),
   "projection.videoEnd": isOneOf(VIDEO_END_ACTIONS),
+  "projection.deckEnd": isOneOf(VIDEO_END_ACTIONS),
   "projection.transition.durationMs": isNumberIn(0, TRANSITION_MAX_DURATION_MS),
   "slides.fallbackFont": isNullOr(isOneOf(SLIDE_FALLBACK_FONTS)),
   "monitors.liveVideoMotion": isBoolean,
