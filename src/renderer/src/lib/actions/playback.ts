@@ -188,6 +188,13 @@ async function goLiveWithMediaAsset(
 ): Promise<MediaLiveResult> {
   const asset = await api.library.get(assetId);
   if (!asset) return "failed";
+  // A file PREVIEW already calls missing never reaches the projector: sending
+  // it anyway cut what was live to a black, silent stage. Said the way a deck
+  // that won't open is said, and nothing on the projector changes.
+  if (asset.missingSince !== null) {
+    toast.warning(t("deck.liveFailed", { name: asset.name, reason: t("preview.missingHint") }));
+    return "failed";
+  }
   // A DB read, so a far narrower window than a conversion — but the audio
   // branch below is guarded by the same check on purpose: CLEAR means
   // silence, and a track that starts just after it would outlive the button
@@ -199,8 +206,22 @@ async function goLiveWithMediaAsset(
     return "audio";
   }
 
-  const { beginScene, setBase, setOverlay } = useProjectionStore.getState();
+  const { base, beginScene, mediaErrors, mediaStatus, setBase, setOverlay } = useProjectionStore.getState();
   if (asset.kind === "video") {
+    // The video already on air, playing fine: GO LIVE only uncovers it (owner,
+    // 2026-11-10), like a countdown already live. Re-sending it restarted it
+    // from 0:00 in front of the congregation on an extra Enter. A failed one
+    // is re-sent — that is the operator's retry (`beginScene` clears its
+    // error) — and so is one that already ended.
+    if (base?.kind === "video" && base.assetId === asset.id) {
+      const failed = mediaErrors.video?.url === base.url;
+      const status = mediaStatus.video;
+      const ended = status?.ended === true && status.epoch === base.epoch;
+      if (!failed && !ended) {
+        setOverlay("none");
+        return "base";
+      }
+    }
     beginScene();
     videoEpoch += 1;
     setBase({ kind: "video", assetId: asset.id, url: playableAssetUrl(asset.id), epoch: videoEpoch, startAtSeconds });

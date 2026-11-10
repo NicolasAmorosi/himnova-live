@@ -4,7 +4,7 @@ import path from "node:path";
 import { Readable } from "node:stream";
 import type { MediaRepo } from "../db/repositories/media.repo";
 import { getSettingsRepo, getSlidesRepo, isDatabaseOpen } from "../services/repos";
-import { slidesCacheDir } from "../paths";
+import { liveDeckDir, slidesCacheDir } from "../paths";
 import { pdfPageImage, resolveRasterPdf } from "../slides/rasterizer";
 import { renderNativeSlide } from "../slides/native-deck";
 import { decodeEmbeddedFont } from "../slides/pptx/embedded-font";
@@ -270,6 +270,8 @@ function withinCache(filePath: string | null): string | null {
  * `<audio>` seek.
  */
 export function registerWorshipProtocolHandler(mediaRepo: MediaRepo): void {
+  // The copies of a previous run's deck on air.
+  void fs.promises.rm(liveDeckDir, { recursive: true, force: true }).catch(() => {});
   protocol.handle("worship", async (request) => {
     const url = new URL(request.url);
     const resource = url.hostname; // worship://asset/42 -> hostname "asset"
@@ -322,7 +324,7 @@ export function registerWorshipProtocolHandler(mediaRepo: MediaRepo): void {
           // worship://deck/<deckId>/<slideIndex>/model — a slide's `SlideModel`.
           if (segments[2] === "model") {
             const model = getSlidesRepo().getSlideModel(Number(segments[0]), Number(segments[1]));
-            if (!model || !(await sourceUnchanged(model))) return new Response("Gone", { status: 410 });
+            if (!model || !(await readableSource(model))) return new Response("Gone", { status: 410 });
             return new Response(request.method === "HEAD" ? null : model.json, {
               status: 200,
               headers: { "Cache-Control": "public, max-age=31536000, immutable", "Content-Type": "application/json" },
@@ -346,16 +348,17 @@ export function registerWorshipProtocolHandler(mediaRepo: MediaRepo): void {
           // deck was read from: a deck edited in place would hand out bytes
           // from the wrong offsets, or another page. Gone, not a guess — the
           // deck is read again the next time it is opened.
-          if (!(await sourceUnchanged(image))) return new Response("Gone", { status: 410 });
+          const sourcePath = await readableSource(image);
+          if (!sourcePath) return new Response("Gone", { status: 410 });
           let slide: { body: Buffer; contentType: string } | null;
           if (image.kind === "pdf") {
-            const body = await pdfPageImage(image, image.page, image.variant).catch((error: unknown) => {
-              console.warn(`[slides] couldn't draw page ${image.page} of ${image.sourcePath}`, error);
+            const body = await pdfPageImage({ ...image, sourcePath }, image.page, image.variant).catch((error: unknown) => {
+              console.warn(`[slides] couldn't draw page ${image.page} of ${sourcePath}`, error);
               return null;
             });
             slide = body ? { body, contentType: `image/${image.imageFormat}` } : null;
           } else {
-            slide = renderNativeSlide(image.sourcePath, image.layers, image.variant);
+            slide = renderNativeSlide(sourcePath, image.layers, image.variant);
           }
           if (!slide) return new Response("Gone", { status: 410 });
           return new Response(request.method === "HEAD" ? null : new Uint8Array(slide.body), {
@@ -431,9 +434,63 @@ export function registerWorshipProtocolHandler(mediaRepo: MediaRepo): void {
 /** A deck read from its source hands out bytes from that file: it has to still
  *  BE the file it was read from, or a deck edited in place would serve parts
  *  from the wrong offsets. Gone, not a guess — it is read again on next use. */
-async function sourceUnchanged(source: { sourcePath: string; sourceSizeBytes: number; sourceMtimeMs: number }): Promise<boolean> {
+type DeckSource = { sourcePath: string; sourceSizeBytes: number; sourceMtimeMs: number };
+
+async function sourceUnchanged(source: DeckSource): Promise<boolean> {
   const stat = await fs.promises.stat(source.sourcePath).catch(() => null);
   return !!stat && stat.size === source.sourceSizeBytes && Math.trunc(stat.mtimeMs) === source.sourceMtimeMs;
+}
+
+/**
+ * The deck on air goes on if its file goes — a USB stick pulled out, a network folder down, a synced
+ * folder that moves it. Every slide of a native deck (the hymnal), every page of a PDF and every
+ * picture of a model deck is read from the source when asked for, so the next slide came back 410
+ * and the projector went black with the hymn still singing (2026-11-10 review, agent5-02). A copy is
+ * taken in the profile as the deck goes live (`keepLiveDeckSource`, from `projection:show`), in the
+ * background, and read only once the original is gone or changed. One deck at a time.
+ */
+let liveCopy: { deckId: number; path: string; source: DeckSource } | null = null;
+let copyingDeckId: number | null = null;
+
+/** Where to read the deck's bytes from: its own file while it is still the one read, else the copy
+ *  of it taken when it went live, else nowhere (410). */
+async function readableSource(source: DeckSource): Promise<string | null> {
+  if (await sourceUnchanged(source)) return source.sourcePath;
+  const copy = liveCopy;
+  const same =
+    copy !== null &&
+    copy.source.sourcePath === source.sourcePath &&
+    copy.source.sourceSizeBytes === source.sourceSizeBytes &&
+    copy.source.sourceMtimeMs === source.sourceMtimeMs;
+  return same ? copy.path : null;
+}
+
+/** The deck `deckId` is on air: copies its source aside unless it already is. Never blocks main. */
+export function keepLiveDeckSource(deckId: number): void {
+  if (liveCopy?.deckId === deckId || copyingDeckId === deckId) return;
+  const row = getSlidesRepo().getDeckById(deckId);
+  if (!row) return;
+  const source: DeckSource = { sourcePath: row.sourcePath, sourceSizeBytes: row.sourceSizeBytes, sourceMtimeMs: row.sourceMtimeMs };
+  copyingDeckId = deckId;
+  const dest = path.join(liveDeckDir, `${deckId}${path.extname(source.sourcePath)}`);
+  void (async () => {
+    try {
+      await fs.promises.mkdir(liveDeckDir, { recursive: true });
+      if (!(await sourceUnchanged(source))) return;
+      await fs.promises.copyFile(source.sourcePath, dest);
+      if ((await fs.promises.stat(dest)).size !== source.sourceSizeBytes || copyingDeckId !== deckId) {
+        await fs.promises.rm(dest, { force: true });
+        return;
+      }
+      const previous = liveCopy;
+      liveCopy = { deckId, path: dest, source };
+      if (previous && previous.path !== dest) await fs.promises.rm(previous.path, { force: true });
+    } catch (error) {
+      console.warn(`[slides] could not keep a copy of the deck on air (${source.sourcePath})`, error);
+    } finally {
+      if (copyingDeckId === deckId) copyingDeckId = null;
+    }
+  })();
 }
 
 const PART_TYPES: Record<string, string> = {
@@ -449,13 +506,14 @@ const PART_TYPES: Record<string, string> = {
  */
 async function serveDeckPart(request: Request, deckId: number, kind: "part" | "font", part: string): Promise<Response> {
   const source = Number.isFinite(deckId) ? getSlidesRepo().getDeckSource(deckId) : null;
-  if (!source || !(await sourceUnchanged(source))) return new Response("Gone", { status: 410 });
+  const sourcePath = source && (await readableSource(source));
+  if (!sourcePath) return new Response("Gone", { status: 410 });
   // A legacy binary's parts are ranges of its OLE streams (`ppt/parts.ts`);
   // a `.pptx`'s and an `.odp`'s, zip entries.
   const raw =
-    containerKind(source.sourcePath) === "binary"
-      ? (readBinaryPart(source.sourcePath, part) ?? undefined)
-      : readZipEntries(source.sourcePath, (name) => name === part)[part];
+    containerKind(sourcePath) === "binary"
+      ? (readBinaryPart(sourcePath, part) ?? undefined)
+      : readZipEntries(sourcePath, (name) => name === part)[part];
   if (!raw) return new Response("Not found", { status: 404 });
   const ext = part.slice(part.lastIndexOf(".") + 1).toLowerCase();
   let body: Uint8Array | string | null = raw;

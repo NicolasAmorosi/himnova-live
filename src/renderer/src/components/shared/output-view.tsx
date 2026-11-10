@@ -694,6 +694,7 @@ function OutputScene({ frozenFrame, mode, onImageError, output, posterUrl, video
         <StageImage
           className="size-full object-contain"
           decoding={mode === "live" ? "sync" : "async"}
+          holdLastGood
           onError={() => onImageError?.(output.url)}
           src={output.url}
         />

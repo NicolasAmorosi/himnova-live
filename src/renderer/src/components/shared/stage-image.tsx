@@ -1,6 +1,11 @@
 import { useState, type ImgHTMLAttributes } from "react";
 
-type StageImageProps = Omit<ImgHTMLAttributes<HTMLImageElement>, "alt" | "src"> & { src: string };
+type StageImageProps = Omit<ImgHTMLAttributes<HTMLImageElement>, "alt" | "src"> & {
+  src: string;
+  /** A slide: when the next one fails, the one before stays up rather than black — the deck's file
+   *  gone mid-hymn (2026-11-10 review, agent5-02). The control window still says it failed. */
+  holdLastGood?: boolean;
+};
 
 /**
  * Every picture on a stage — the projector's and the monitors' — drawn by an
@@ -12,21 +17,28 @@ type StageImageProps = Omit<ImgHTMLAttributes<HTMLImageElement>, "alt" | "src"> 
  * belongs to its `src`: the next file — the next slide, in the same element —
  * is tried, and so is the failed one when it comes back.
  */
-export function StageImage({ onError, src, ...props }: StageImageProps) {
+export function StageImage({ holdLastGood = false, onError, onLoad, src, ...props }: StageImageProps) {
   const [failed, setFailed] = useState<string | null>(null);
+  const [lastGood, setLastGood] = useState<string | null>(null);
   // Another file forgets the old failure, so coming back to it tries it again
   // (a drive plugged in late, a relocated file under the same address).
   if (failed !== null && failed !== src) setFailed(null);
-  if (failed === src) return null;
+  const shown = failed !== src ? src : holdLastGood ? lastGood : null;
+  if (shown === null) return null;
   return (
     <img
       alt=""
       {...props}
       onError={(event) => {
+        if (shown !== src) return;
         setFailed(src);
         onError?.(event);
       }}
-      src={src}
+      onLoad={(event) => {
+        if (shown === src && holdLastGood) setLastGood(src);
+        onLoad?.(event);
+      }}
+      src={shown}
     />
   );
 }

@@ -6,6 +6,8 @@ import { broadcast } from "../../services/broadcast";
 import { pinDecks } from "../../slides/deck-service";
 import { commandLiveEngine, redrawEngineFrame, syncLiveEngine } from "../../media/engine-sessions";
 import { IpcError } from "@shared/ipc/result";
+import { deckIdOfUrl } from "@shared/urls";
+import { keepLiveDeckSource } from "../../protocol/worship-protocol";
 import { showOnStage, stageSnapshot } from "../../windows/stage-window";
 
 let currentProgramId: number | null = null;
@@ -97,6 +99,9 @@ export const projectionHandlers: Pick<
 
   "projection:show": (output) => {
     projectionState.send(output);
+    // The output names the deck the projector shows; its bytes must outlive its file.
+    const deckId = output.kind === "slide" ? deckIdOfUrl(output.url) : null;
+    if (deckId !== null) keepLiveDeckSource(deckId);
     syncLiveEngine();
     getHistoryRepo().record(output, currentProgramId);
     if (output.kind === "song") {
