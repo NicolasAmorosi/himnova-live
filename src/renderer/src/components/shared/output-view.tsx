@@ -22,6 +22,7 @@ import { TimerScene } from "./timer-scene";
 import { SongScene } from "./song-scene";
 import { PlateLayer } from "./plate-layer";
 import { StageImage } from "./stage-image";
+import { FramePacer } from "@renderer/lib/frame-pacer";
 import type {
   MediaStatus,
   ProjectionMediaError,
@@ -331,6 +332,9 @@ function LiveVideo({
 
 type EngineVideoProps = {
   className: string;
+  /** The projector and the NDI window: frames go up on the page's clock (`FramePacer`). A monitor
+   *  draws them as they land — its cadence nobody watches, and it costs the control window less. */
+  paced: boolean;
   /** What main sends this video's frames under (`liveEngineFrameKey`, `previewEngineFrameKey`). */
   frameKey: string;
   onFirstFrame?: (() => void) | undefined;
@@ -346,11 +350,12 @@ type EngineVideoProps = {
  * sounds it from the same output this view gets, so there is nothing here to
  * drive, and no second copy to keep in step in a monitor.
  *
- * Each frame is drawn as it lands and handed back at once (`onVideoFrame`):
- * the engine reuses its texture. The canvas starts at no size, so one that
+ * Each frame is copied as it lands and handed back at once (`onVideoFrame`):
+ * the engine reuses its texture. Where the room looks (`paced`), it goes up at
+ * an animation frame (`FramePacer`). The canvas starts at no size, so one that
  * never drew has no pixels for `captureFrame` to freeze on the way out.
  */
-function EngineVideo({ className, frameKey, onFirstFrame, onFreezeFrame, style }: EngineVideoProps) {
+function EngineVideo({ className, frameKey, onFirstFrame, onFreezeFrame, paced, style }: EngineVideoProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const firstFrameRef = useRef(onFirstFrame);
   firstFrameRef.current = onFirstFrame;
@@ -362,21 +367,56 @@ function EngineVideo({ className, frameKey, onFirstFrame, onFreezeFrame, style }
     const context = canvas?.getContext("2d");
     if (!canvas || !context) return;
     let first = true;
-    const off = window.worship.onVideoFrame(frameKey, (frame) => {
-      if (canvas.width !== frame.displayWidth || canvas.height !== frame.displayHeight) {
-        canvas.width = frame.displayWidth;
-        canvas.height = frame.displayHeight;
+    const present = (source: CanvasImageSource, width: number, height: number) => {
+      if (canvas.width !== width || canvas.height !== height) {
+        canvas.width = width;
+        canvas.height = height;
       }
-      context.drawImage(frame, 0, 0);
+      context.drawImage(source, 0, 0);
       if (first) {
         first = false;
         firstFrameRef.current?.();
       }
-    });
+    };
+    let raf = 0;
+    let off: () => void;
+    if (!paced) {
+      off = window.worship.onVideoFrame(frameKey, (frame) => present(frame, frame.displayWidth, frame.displayHeight));
+    } else {
+      // Each frame copied as it lands — the engine's texture goes back at once, its ring has six — and
+      // put up at an animation frame. Three copies: two waiting at most, the oldest dropped past that.
+      const free = [0, 1, 2].map(() => new OffscreenCanvas(1, 1));
+      const queue: OffscreenCanvas[] = [];
+      const pacer = new FramePacer();
+      off = window.worship.onVideoFrame(frameKey, (frame) => {
+        pacer.arrived(performance.now());
+        const stage = free.pop() ?? queue.shift();
+        const stageContext = stage?.getContext("2d");
+        if (!stage || !stageContext) return;
+        if (stage.width !== frame.displayWidth || stage.height !== frame.displayHeight) {
+          stage.width = frame.displayWidth;
+          stage.height = frame.displayHeight;
+        }
+        stageContext.drawImage(frame, 0, 0);
+        queue.push(stage);
+      });
+      const loop = (now: number) => {
+        if (pacer.tick(now, queue.length)) {
+          const stage = queue.shift()!;
+          present(stage, stage.width, stage.height);
+          free.push(stage);
+        }
+        raf = requestAnimationFrame(loop);
+      };
+      raf = requestAnimationFrame(loop);
+    }
     // A paused engine sends nothing: a projector rebuilt onto another screen
     // would stay black until play.
     void api.projection.wantVideoFrame(frameKey);
-    return off;
+    return () => {
+      off();
+      cancelAnimationFrame(raf);
+    };
     // Keyed by `frameKey` at the call site: one canvas, one stream of frames.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -541,6 +581,7 @@ function SlideVideoLayer({
           <EngineVideo
             className="absolute object-contain"
             frameKey={liveEngineFrameKey("slideVideo", slideVideo.epoch)}
+            paced={mode === "live"}
             style={rectStyle}
           />
         ) : (
@@ -572,10 +613,12 @@ function SlideVideoLayer({
 function SongVideoLayer({
   covered,
   onError,
+  paced,
   songVideo,
 }: {
   covered: boolean;
   onError: (code: number | null) => void;
+  paced: boolean;
   songVideo: SongVideo;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -593,6 +636,7 @@ function SongVideoLayer({
         <EngineVideo
           className="absolute inset-0 size-full"
           frameKey={liveEngineFrameKey("songVideo", songVideo.epoch)}
+          paced={paced}
           style={fit}
         />
       ) : (
@@ -1559,6 +1603,7 @@ export function OutputView({
           covered={output.kind !== "song"}
           key={songVideo.epoch}
           onError={handleSongVideoError}
+          paced={mode === "live"}
           songVideo={songVideo}
         />
       ) : null}
@@ -1593,6 +1638,7 @@ export function OutputView({
           key={engineFrameKey}
           onFirstFrame={() => handleVideoFirstFrame(output.videoUnderlay?.epoch ?? 0)}
           onFreezeFrame={shouldAnimate ? freezeFrame : undefined}
+          paced={mode === "live"}
           style={transitionStyle(videoRole, transition, output.kind !== "video" ? 0 : 1, held, incomingCovers)}
         />
       ) : output.videoUnderlay && videoMounted ? (
