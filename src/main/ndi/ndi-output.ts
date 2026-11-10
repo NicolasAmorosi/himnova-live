@@ -4,6 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { NDI_ERROR_CODES, NDI_SIZES, type NdiAudioStatus, type NdiOutputStatus } from "@shared/types/ndi";
+import type { MediaStatus } from "@shared/types/projection";
 import type { SettingsMap } from "@shared/types/settings";
 import { trustWindow } from "../ipc/trusted-senders";
 import { broadcast } from "../services/broadcast";
@@ -106,6 +107,13 @@ export function stopNdiOutput(): void {
   sender = null;
   if (window && !window.isDestroyed()) window.destroy();
   window = null;
+}
+
+/** The projector's report of its own Chromium video: the NDI window's copy of that video follows it
+ *  (`follow-projector.ts`), so the picture NDI sends keeps step with the sound the room — and NDI — hears. */
+export function forwardMediaStatusToNdi(status: MediaStatus): void {
+  if (status.target.kind === "audio" || !window || window.isDestroyed()) return;
+  window.webContents.send("media-status", status);
 }
 
 /** For `userFacingWindows()`: a hidden helper, like the rasterizer. */

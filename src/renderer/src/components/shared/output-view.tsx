@@ -23,6 +23,7 @@ import { SongScene } from "./song-scene";
 import { PlateLayer } from "./plate-layer";
 import { StageImage } from "./stage-image";
 import { FramePacer } from "@renderer/lib/frame-pacer";
+import { followProjector } from "@renderer/lib/follow-projector";
 import type {
   MediaStatus,
   ProjectionMediaError,
@@ -98,8 +99,9 @@ type LiveVideoProps = {
    *  report the new one. */
   epoch: number;
   /** The projector's own video reporting its real position (`mediaStatus`,
-   *  keyed "video") — only ever provided for `mode === "monitor"`. Drives the
-   *  LIVE monitor's drift correction; unused for "live"/"preview". */
+   *  keyed "video") — provided for `mode === "monitor"`, where it drives the
+   *  LIVE monitor's drift correction, and to the NDI window's "live" view,
+   *  whose copy follows it (`follow-projector.ts`). Never to the projector. */
   liveVideoStatus?: MediaStatus | null | undefined;
   mode: OutputViewMode;
   /** This element failed to load or decode. `code` is
@@ -287,6 +289,15 @@ function LiveVideo({
     if (drift > MONITOR_DRIFT_THRESHOLD_SECONDS) {
       element.currentTime = liveVideoStatus.currentTimeSeconds;
     }
+  }, [mode, liveVideoStatus, epoch]);
+
+  // The NDI window's copy keeps step with the projector's, whose sound NDI sends (`follow-projector.ts`).
+  // Only it gets a status in "live" mode; the projector's own view never does.
+  useEffect(() => {
+    if (mode !== "live" || !liveVideoStatus || liveVideoStatus.epoch !== epoch) return;
+    const element = elementRef.current;
+    if (!element || !canResync(element) || liveVideoStatus.paused || liveVideoStatus.ended) return;
+    followProjector(element, liveVideoStatus.currentTimeSeconds, liveVideoStatus.durationSeconds, element.loop);
   }, [mode, liveVideoStatus, epoch]);
 
   // The component is keyed by epoch at the call site, so this instance only
@@ -547,6 +558,14 @@ function SlideVideoLayer({
     if (Math.abs(element.currentTime - status.currentTimeSeconds) > MONITOR_DRIFT_THRESHOLD_SECONDS) {
       element.currentTime = status.currentTimeSeconds;
     }
+  }, [mode, status, epoch]);
+
+  // The NDI window's copy follows the projector's, like `LiveVideo`'s.
+  useEffect(() => {
+    if (mode !== "live" || !status || status.epoch !== epoch) return;
+    const element = elementRef.current;
+    if (!element || !canResync(element) || status.paused || status.ended) return;
+    followProjector(element, status.currentTimeSeconds, status.durationSeconds, element.loop);
   }, [mode, status, epoch]);
 
   // Keyed by epoch at the call site, so this instance has exactly one
@@ -962,8 +981,9 @@ type OutputViewProps = {
    *  free of i18n — it also renders inside the projection window, which has
    *  no provider. Omit it (the projector does) and no notice is ever shown. */
   errorLabel?: string;
-  /** The projector's own video `mediaStatus` — only meaningful (and only ever
-   *  passed) for `mode === "monitor"`; drives `LiveVideo`'s drift correction. */
+  /** The projector's own video `mediaStatus` — passed for `mode === "monitor"`
+   *  (`LiveVideo`'s drift correction) and by the NDI window, whose copy follows
+   *  it; never by the projector itself. */
   liveVideoStatus?: MediaStatus | null;
   /**
    * "live" is the projection window itself: video autoplays and is wired to
@@ -997,8 +1017,7 @@ type OutputViewProps = {
    *  something the projector can't, and vice versa. */
   reportedErrorUrls?: readonly string[];
   /** The projector's report for the live slide's own video — the `SlideVideo`
-   *  counterpart of `liveVideoStatus`, and passed under the same rule: only in
-   *  `mode === "monitor"`. */
+   *  counterpart of `liveVideoStatus`, and passed under the same rule. */
   slideVideoStatus?: MediaStatus | null;
   /** The live slide's video element, so the projection window can route a
    *  `MediaCommand` to it. Separate from `videoRef` because the two are

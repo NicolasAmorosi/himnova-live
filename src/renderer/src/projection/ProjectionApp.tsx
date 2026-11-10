@@ -8,6 +8,7 @@ import { isEngineUrl } from "@shared/urls";
 import type {
   AudioTrackPush,
   MediaCommand,
+  MediaStatus,
   ProjectionMediaError,
   ProjectionOutput,
 } from "@shared/types/projection";
@@ -220,6 +221,18 @@ export function ProjectionApp() {
     [],
   );
 
+  // The NDI window's copies of the projector's Chromium videos follow the projector's own reports
+  // (`follow-projector.ts`): its picture is what NDI sends, the projector's sound is what NDI captures.
+  const [projectorVideo, setProjectorVideo] = useState<MediaStatus | null>(null);
+  const [projectorSlideVideo, setProjectorSlideVideo] = useState<MediaStatus | null>(null);
+  useEffect(() => {
+    if (!IS_NDI_OUTPUT) return;
+    return onIpc("media-status", (status) => {
+      if (status.target.kind === "video") setProjectorVideo(status);
+      else if (status.target.kind === "slideVideo") setProjectorSlideVideo(status);
+    });
+  }, []);
+
   useMediaStatusReporter(IS_NDI_OUTPUT ? NO_ELEMENT : videoRef, null, output.videoUnderlay?.epoch ?? 0);
   useMediaStatusReporter(IS_NDI_OUTPUT ? NO_ELEMENT : slideVideoRef, null, output.slideVideo?.epoch ?? 0, "slideVideo");
 
@@ -228,7 +241,9 @@ export function ProjectionApp() {
       <OutputView
         key={hasRealOutput ? "live" : "placeholder"}
         mode="live"
-        {...(IS_NDI_OUTPUT ? {} : { onMediaError: reportMediaError })}
+        {...(IS_NDI_OUTPUT
+          ? { liveVideoStatus: projectorVideo, slideVideoStatus: projectorSlideVideo }
+          : { onMediaError: reportMediaError })}
         output={output}
         slideVideoRef={slideVideoRef}
         videoRef={videoRef}

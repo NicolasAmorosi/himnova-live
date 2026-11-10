@@ -114,14 +114,22 @@ and a link to ndi.video wherever NDI is used or chosen — the app, the landing 
   `NSAudioCaptureUsageDescription`; earlier macOS is video only, and Settings says why), Linux the default output's
   monitor (the whole computer). Picture and sound are stamped on one clock — the picture when painted, the sound
   when played — and the sound leaves `ndi.output.audioDelayMs` late (0 by default, «Sincronía del sonido» in
-  Settings, −200…+400). The engine holds a video's own sound 50 ms (`audio-delay`) so that both paths agree in the
-  room and over NDI. Settings shows the sound's peak level once a second: a refused macOS permission sends silence.
+  Settings, −200…+400). The engine holds a video's own sound 65 ms (`audio-delay`): +2 ms in the room, +3…+29 ms
+  over NDI. Settings shows the sound's peak level once a second: a refused macOS permission sends silence.
+- **A Chromium video plays twice** — the projector's, whose sound the room hears and NDI captures, and the NDI
+  window's, whose picture NDI sends — and each starts when its own pipeline is ready: 3 starts in 5 the sound came
+  −10…+23 ms after its picture over NDI, the other two +227 / +311 ms, fixed for the whole play. Main forwards the
+  projector's `media-status` to the NDI window and its copy follows it (`lib/follow-projector.ts`: within 12 ms as
+  is, past it ±10 % speed at most — a copy ahead repeats frames, never skips one —, past a second a seek). Measured
+  after: −11…+18 ms in every start. An engine video needs none of it: one decoder sends both windows its frames.
 - **Engine frames go up on the page's clock** in the projector and the NDI window (`FramePacer`,
   `04-renderer-state.md`): drawn as they landed, the NDI window lost 8–37 % of an engine video by phase.
 - **Testing:** `LUMINA_NDI_LIB=<path to libndi>` points at a runtime that isn't installed;
   `tests/e2e/ndi-output.spec.ts` runs with and without one, and `tests/e2e/ndi-receiver.spec.ts` asks a real
   receiver (`native/ndi-probe`, built with `native/build.sh ndi-probe <target>`) for every frame of a barcode video
-  and for the sound's sync with a flash+beep file; it skips without a runtime and fails without the probe.
+  and for the sound's sync with a flash+beep file; it skips without a runtime and fails without the probe. Its source
+  has a name of its own each run: a finder still lists a killed sender's source for hours, another computer's
+  included, and the first one found gave 0 frames.
 
 Findings behind this:
 [`an-offscreen-shared-texture-window-paints-a-texture-only-for-a-real-frame.md`](../../.claude/knowledge/an-offscreen-shared-texture-window-paints-a-texture-only-for-a-real-frame.md),

@@ -9,6 +9,7 @@ import { IpcError } from "@shared/ipc/result";
 import { deckIdOfUrl } from "@shared/urls";
 import { keepLiveDeckSource } from "../../protocol/worship-protocol";
 import { showOnStage, stageSnapshot } from "../../windows/stage-window";
+import { forwardMediaStatusToNdi } from "../../ndi/ndi-output";
 
 let currentProgramId: number | null = null;
 
@@ -156,9 +157,11 @@ export const projectionHandlers: Pick<
   },
 
   /** The projection window describing its own media element; forwarded to the
-   *  control window, which owns the autoplay clock. */
+   *  control window, which owns the autoplay clock, and to the NDI window, whose
+   *  copy of a Chromium video follows it. */
   "projection:reportMediaStatus": (status) => {
     broadcast("media-status", status);
+    forwardMediaStatusToNdi(status);
   },
 
   /** A file the projector could not load or decode. Logged here as well as
