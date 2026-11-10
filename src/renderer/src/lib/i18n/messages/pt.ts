@@ -965,9 +965,9 @@ const pt: Messages = {
     ndi: {
       groupDesc: "A projeção como fonte de vídeo na rede, para OBS, vMix ou outro programa.",
       enabled: "Enviar por NDI®",
-      enabledDesc: "Só a imagem, exatamente como o projetor mostra.",
+      enabledDesc: "A imagem, exatamente como o projetor mostra, com o som do app.",
       enabledHelp:
-        "O som não viaja por NDI: o OBS o pega da mesa de som. Este computador precisa do runtime gratuito do NDI instalado (ndi.video). O vídeo pede uma rede rápida: conecte este computador e o que recebe com cabo de rede gigabit (1 Gbps); por Wi-Fi ou com um cabo de 100 Mbps, use 720p. Uma VPN (ZeroTier, Tailscale) nos dois computadores pode levar a imagem por ela: desligue-a enquanto usar NDI.",
+        "O som do app viaja com a imagem (dá para desligar abaixo, se o OBS o pega da mesa de som). Este computador precisa do runtime gratuito do NDI instalado (ndi.video). O vídeo pede uma rede rápida: conecte este computador e o que recebe com cabo de rede gigabit (1 Gbps); por Wi-Fi ou com um cabo de 100 Mbps, use 720p. Uma VPN (ZeroTier, Tailscale) nos dois computadores pode levar a imagem por ela: desligue-a enquanto usar NDI.",
       firewall: "Na primeira vez, o Firewall do Windows pergunta sobre «Lumina Live media engine»: clique em «Permitir», senão os outros computadores não recebem a imagem.",
       localNetwork: "Na primeira vez, o macOS pergunta se o Lumina Live pode usar a rede local: clique em «Permitir», senão os outros computadores não recebem a imagem.",
       status: "Status",
@@ -991,6 +991,19 @@ const pt: Messages = {
       resolutionDesc: "1080p pede cabo de rede gigabit; por Wi-Fi ou com um cabo mais lento, 720p.",
       fps: "Quadros por segundo",
       fpsDesc: "60 envia o dobro: só com cabo gigabit.",
+      audio: "Som",
+      audioDescWin: "O som do app (vídeos, música, hinos), sem o resto do computador.",
+      audioDescMac:
+        "O som do app (vídeos, música, hinos). Pede macOS 14.2 ou posterior, e na primeira vez o macOS pergunta se o Lumina Live pode gravar o áudio do sistema: toque em «Permitir».",
+      audioDescLinux: "Todo o som deste computador: feche os outros programas que tocam som.",
+      audioDelay: "Sincronia do som",
+      audioDelayDesc: "Se no programa que recebe o som chega antes da imagem, aumente; se chega depois, diminua.",
+      audioStates: {
+        on: "Som: sendo enviado",
+        level: "Som: sendo enviado · pico {level} dB",
+        silent: "Som: em silêncio (se algo toca e continua assim, confira a permissão de gravar áudio)",
+        unavailable: "Som: não é possível neste computador ({detail})",
+      },
     },
     windowLabel: "Janela de projeção",
     windowDesc: "Se o projetor parar de responder, feche e abra de novo.",

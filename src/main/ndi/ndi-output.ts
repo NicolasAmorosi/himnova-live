@@ -3,7 +3,7 @@ import { spawn, type ChildProcess } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { NDI_ERROR_CODES, NDI_SIZES, type NdiOutputStatus } from "@shared/types/ndi";
+import { NDI_ERROR_CODES, NDI_SIZES, type NdiAudioStatus, type NdiOutputStatus } from "@shared/types/ndi";
 import type { SettingsMap } from "@shared/types/settings";
 import { trustWindow } from "../ipc/trusted-senders";
 import { broadcast } from "../services/broadcast";
@@ -29,7 +29,7 @@ import { syncLiveEngine } from "../media/engine-sessions";
  * every `IDLE_FRAME_MS`, encoded once. `LUMINA_NDI_LIB` points at a runtime that is not installed (tests).
  */
 
-type Config = { name: string; width: number; height: number; fps: number };
+type Config = { name: string; width: number; height: number; fps: number; audio: boolean; audioDelayMs: number };
 
 let window: BrowserWindow | null = null;
 let sender: NdiSender | null = null;
@@ -59,7 +59,10 @@ export function ndiOutputStatus(): NdiOutputStatus {
 /** Starts, stops or rebuilds the output from its settings: at launch (after the control window has
  *  loaded — Playwright takes the first window that loads as the control one) and when one changes. */
 export function syncNdiOutput(): void {
-  let settings: Pick<SettingsMap, "ndi.output.enabled" | "ndi.output.name" | "ndi.output.resolution" | "ndi.output.fps">;
+  let settings: Pick<
+    SettingsMap,
+    "ndi.output.enabled" | "ndi.output.name" | "ndi.output.resolution" | "ndi.output.fps" | "ndi.output.audio" | "ndi.output.audioDelayMs"
+  >;
   try {
     const repo = getSettingsRepo();
     settings = {
@@ -67,6 +70,8 @@ export function syncNdiOutput(): void {
       "ndi.output.name": repo.get("ndi.output.name"),
       "ndi.output.resolution": repo.get("ndi.output.resolution"),
       "ndi.output.fps": repo.get("ndi.output.fps"),
+      "ndi.output.audio": repo.get("ndi.output.audio"),
+      "ndi.output.audioDelayMs": repo.get("ndi.output.audioDelayMs"),
     };
   } catch {
     return;
@@ -80,6 +85,8 @@ export function syncNdiOutput(): void {
     name: settings["ndi.output.name"].trim(),
     ...NDI_SIZES[settings["ndi.output.resolution"]],
     fps: settings["ndi.output.fps"],
+    audio: settings["ndi.output.audio"],
+    audioDelayMs: settings["ndi.output.audioDelayMs"],
   };
   const key = JSON.stringify(config);
   if (key === running && window && !window.isDestroyed()) return;
@@ -201,6 +208,7 @@ type SenderEvent =
   | { ev: "ready"; runtime: string }
   | { ev: "done" }
   | { ev: "status"; receivers: number }
+  | { ev: "audio"; state: "on" | "off"; detail?: string; level?: number }
   | { ev: "error"; code: string; detail: string };
 
 const STDERR_TAIL_BYTES = 2048;
@@ -210,6 +218,7 @@ class NdiSender {
   private readonly child: ChildProcess;
   private ready = false;
   private receivers = 0;
+  private audio: NdiAudioStatus | null = null;
   private pending: OffscreenSharedTexture | null = null;
   private lastIdleFrame = 0;
   private settleTimer: NodeJS.Timeout | null = null;
@@ -226,6 +235,7 @@ class NdiSender {
     private readonly events: SenderEvents,
   ) {
     const args = ["--ndi-send", config.name, "--width", String(config.width), "--height", String(config.height), "--fps", String(config.fps)];
+    if (config.audio) args.push("--audio", "1", "--audio-delay", String(config.audioDelayMs));
     const lib = process.env["LUMINA_NDI_LIB"];
     if (lib) args.push("--ndi-lib", lib);
     serial++;
@@ -328,13 +338,18 @@ class NdiSender {
         }
         console.log(`[ndi] sending (${event.runtime})`);
         this.ready = true;
-        return this.give({ state: "sending", receivers: 0 });
+        return this.give({ state: "sending", receivers: 0, audio: this.audio });
       case "done":
         return this.release();
       case "status":
         this.receivers = event.receivers;
         // A frame read before a status that says nobody is watching is still released by its `done`.
-        return this.give({ state: "sending", receivers: event.receivers });
+        return this.give({ state: "sending", receivers: event.receivers, audio: this.audio });
+      case "audio":
+        if (event.state === "off") console.warn("[ndi] no sound:", event.detail);
+        this.audio =
+          event.state === "on" ? { state: "on", levelDb: event.level ?? null } : { state: "unavailable", detail: event.detail ?? "" };
+        return this.ready ? this.give({ state: "sending", receivers: this.receivers, audio: this.audio }) : undefined;
       case "error":
         console.warn("[ndi] engine", event.code, event.detail);
         if (event.code === "ndi-runtime-missing") return this.give({ state: "runtime-missing" });

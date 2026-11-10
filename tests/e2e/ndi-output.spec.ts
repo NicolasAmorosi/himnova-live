@@ -31,6 +31,9 @@ test("the NDI output turns on and off from Settings and never touches the projec
   expect(app.electron.windows().filter((page) => page.url().endsWith("/projection.html"))).toHaveLength(1);
 
   if (sending) {
+    // With the app's sound (on by default): the capture started, on every system the suite runs on.
+    await expect(status).toContainText("Sonido: se envía");
+    await expect(settings.getByRole("group", { name: "Sonido", exact: true }).getByRole("switch")).toBeChecked();
     // Its own window: closing the projector and opening it again never stops it.
     await settings.getByRole("button", { name: "Cerrar pantalla" }).click();
     await expect.poll(() => app.hasProjector()).toBe(false);

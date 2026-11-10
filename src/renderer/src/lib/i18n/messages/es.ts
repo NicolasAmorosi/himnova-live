@@ -970,9 +970,9 @@ const es = {
     ndi: {
       groupDesc: "La proyección como fuente de video en la red, para OBS, vMix u otro programa.",
       enabled: "Enviar por NDI®",
-      enabledDesc: "Solo la imagen, tal como se ve en el proyector.",
+      enabledDesc: "La imagen, tal como se ve en el proyector, con el sonido de la app.",
       enabledHelp:
-        "El sonido no viaja por NDI: OBS lo toma de la consola. Hace falta el runtime gratuito de NDI instalado en esta computadora (ndi.video). El video pide una red rápida: conectá esta computadora y la que recibe por cable de red gigabit (1 Gbps); por Wi-Fi o con un cable de 100 Mbps, usá 720p. Una VPN (ZeroTier, Tailscale) en las dos computadoras puede llevarse la imagen por ella: apagala mientras uses NDI.",
+        "El sonido de la app viaja con la imagen (se puede apagar abajo, si OBS lo toma de la consola). Hace falta el runtime gratuito de NDI instalado en esta computadora (ndi.video). El video pide una red rápida: conectá esta computadora y la que recibe por cable de red gigabit (1 Gbps); por Wi-Fi o con un cable de 100 Mbps, usá 720p. Una VPN (ZeroTier, Tailscale) en las dos computadoras puede llevarse la imagen por ella: apagala mientras uses NDI.",
       firewall: "La primera vez, el Firewall de Windows pregunta por «Lumina Live media engine»: tocá «Permitir» o los demás equipos no reciben la imagen.",
       localNetwork: "La primera vez, macOS pregunta si Lumina Live puede usar la red local: tocá «Permitir» o los demás equipos no reciben la imagen.",
       status: "Estado",
@@ -996,6 +996,19 @@ const es = {
       resolutionDesc: "1080p pide cable de red gigabit; por Wi-Fi o un cable más lento, 720p.",
       fps: "Cuadros por segundo",
       fpsDesc: "60 manda el doble: solo con cable gigabit.",
+      audio: "Sonido",
+      audioDescWin: "El sonido de la app (videos, música, himnos), sin el resto de la computadora.",
+      audioDescMac:
+        "El sonido de la app (videos, música, himnos). Pide macOS 14.2 o posterior, y la primera vez macOS pregunta si Lumina Live puede grabar el audio del sistema: tocá «Permitir».",
+      audioDescLinux: "Todo el sonido de esta computadora: cerrá los demás programas que suenan.",
+      audioDelay: "Sincronía del sonido",
+      audioDelayDesc: "Si en el programa que recibe el sonido llega antes que la imagen, subilo; si llega después, bajalo.",
+      audioStates: {
+        on: "Sonido: se envía",
+        level: "Sonido: se envía · pico {level} dB",
+        silent: "Sonido: en silencio (si algo suena y sigue así, revisá el permiso de grabar audio)",
+        unavailable: "Sonido: no se puede en esta computadora ({detail})",
+      },
     },
     windowLabel: "Ventana de proyección",
     windowDesc: "Si el proyector deja de responder, cerrala y volvé a abrirla.",

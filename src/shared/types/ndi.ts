@@ -1,6 +1,7 @@
 /** The projector's picture as an NDI® source on the network (Settings ▸ Projection), sent by the media
  *  engine in its NDI mode (`native/engine/ndi.cpp`) from an offscreen copy of the projection
- *  (`main/ndi/ndi-output.ts`). Video only. The NDI runtime is the user's own: nothing of NDI ships. */
+ *  (`main/ndi/ndi-output.ts`), with the app's own sound (`native/engine/ndi-audio.h`). The NDI runtime is the
+ *  user's own: nothing of NDI ships. */
 
 export const NDI_RESOLUTIONS = ["720p", "1080p"] as const;
 export type NdiResolution = (typeof NDI_RESOLUTIONS)[number];
@@ -32,10 +33,20 @@ export const NDI_TRADEMARK = "NDI® is a registered trademark of Vizrt NDI AB.";
 export const NDI_ERROR_CODES = ["ndi-send", "ndi-gpu", "ndi-exit", "ndi-engine-missing"] as const;
 export type NdiErrorCode = (typeof NDI_ERROR_CODES)[number];
 
-/** What Settings shows next to the switch. */
+/** The sound held back to meet its picture (ms): the range of «Ajuste de sincronía», and where it starts.
+ *  0 until measured on each system; a receiver aligns by timecode and the queue is short. */
+export const NDI_AUDIO_DELAY_MIN_MS = -200;
+export const NDI_AUDIO_DELAY_MAX_MS = 400;
+export const NDI_AUDIO_DELAY_DEFAULT_MS = 0;
+
+/** The output's sound: going out (its loudest moment in the last second, dBFS, while someone watches), or
+ *  impossible here and why (`detail`: macOS before 14.2, a Windows before 10 2004…). */
+export type NdiAudioStatus = { state: "on"; levelDb: number | null } | { state: "unavailable"; detail: string };
+
+/** What Settings shows next to the switch. `audio` is `null` while the sound is off or not reported yet. */
 export type NdiOutputStatus =
   | { state: "off" }
   | { state: "starting" }
-  | { state: "sending"; receivers: number }
+  | { state: "sending"; receivers: number; audio: NdiAudioStatus | null }
   | { state: "runtime-missing" }
   | { state: "error"; code: NdiErrorCode };

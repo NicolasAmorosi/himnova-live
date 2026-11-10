@@ -111,6 +111,9 @@ struct Engine {
   std::atomic<int> started{0};
 };
 static Engine E;
+// Seconds the sound of a video is held (see FILE_LOADED). ponytail: measured on the Mac; Windows and Linux use the
+// same until their own measurement says otherwise.
+static const char* AUDIO_DELAY = "0.050";
 
 static void onUpdate(void*) {
   { std::lock_guard<std::mutex> l(E.m); E.updated = true; }
@@ -384,6 +387,11 @@ int main(int argc, char** argv) {
           seen.dheight = dh;
           askForRing();
         }
+        // mpv puts the sound out as it renders the frame, but the frame still crosses main and the page before
+        // it shows: measured on a Mac's screen and speakers (ScreenCaptureKit, 2026-11-10), the sound of an
+        // engine video came 61 ms before its picture, Chromium's 11 ms. Held this much, the two paths agree,
+        // in the room and over NDI (agent2-02). Only a file with a picture: a song alone has nothing to meet.
+        if (video > 0) set("audio-delay", AUDIO_DELAY);
         E.loaded = true;
         changed = true;
         break;
