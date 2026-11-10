@@ -65,8 +65,8 @@ projector's.
 ## The NDI® output
 
 Settings ▸ Projection «Salida NDI®» (`ndi.output.*`, off by default; name, 720p/1080p, 30/60) puts the projector's
-picture on the network as an NDI source for OBS, vMix or Studio Monitor. **Video only**: the room's audio reaches a
-stream from the mixing desk (owner, 2026-11-09). The NDI runtime is **the user's own**, installed for free from
+picture on the network as an NDI source for OBS, vMix or Studio Monitor, **with the app's own sound** since 2026-11-10
+(`ndi.output.audio`, on by default; it was video only, owner 2026-11-09, until he asked for the sound). The NDI runtime is **the user's own**, installed for free from
 ndi.video and loaded at run time; nothing of NDI ships but the SDK's MIT headers (`native/ndi/include/`). The SDK
 licence asks for «NDI®», the trademark line (`NDI_TRADEMARK`, `shared/types/ndi.ts`) near its first use and in «About»,
 and a link to ndi.video wherever NDI is used or chosen — the app, the landing and its guide.
@@ -108,8 +108,20 @@ and a link to ndi.video wherever NDI is used or chosen — the app, the landing 
   from Terminal inherits Terminal's permission. Windows' firewall asks for `media-engine.exe`, named «Lumina Live
   media engine» by its version resource (`native/engine/media-engine.rc`); without «Allow» nobody can connect.
   Settings says each one beside the switch; the installer creates no firewall rule (per-user, no admin).
+- **The sound is captured from the OS, inside the sender** (`native/engine/ndi-audio.h`): libmpv lends no audio, so
+  the app's process tree is captured — Windows 10 2004+ WASAPI process loopback of main (no prompt), macOS 14.2+ a
+  Core Audio process tap of main and its children, following new ones (asks once for «System Audio Recording»:
+  `NSAudioCaptureUsageDescription`; earlier macOS is video only, and Settings says why), Linux the default output's
+  monitor (the whole computer). Picture and sound are stamped on one clock — the picture when painted, the sound
+  when played — and the sound leaves `ndi.output.audioDelayMs` late (0 by default, «Sincronía del sonido» in
+  Settings, −200…+400). The engine holds a video's own sound 50 ms (`audio-delay`) so that both paths agree in the
+  room and over NDI. Settings shows the sound's peak level once a second: a refused macOS permission sends silence.
+- **Engine frames go up on the page's clock** in the projector and the NDI window (`FramePacer`,
+  `04-renderer-state.md`): drawn as they landed, the NDI window lost 8–37 % of an engine video by phase.
 - **Testing:** `LUMINA_NDI_LIB=<path to libndi>` points at a runtime that isn't installed;
-  `tests/e2e/ndi-output.spec.ts` runs with and without one.
+  `tests/e2e/ndi-output.spec.ts` runs with and without one, and `tests/e2e/ndi-receiver.spec.ts` asks a real
+  receiver (`native/ndi-probe`, built with `native/build.sh ndi-probe <target>`) for every frame of a barcode video
+  and for the sound's sync with a flash+beep file; it skips without a runtime and fails without the probe.
 
 Findings behind this:
 [`an-offscreen-shared-texture-window-paints-a-texture-only-for-a-real-frame.md`](../../.claude/knowledge/an-offscreen-shared-texture-window-paints-a-texture-only-for-a-real-frame.md),
