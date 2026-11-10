@@ -82,7 +82,9 @@ export function SongsBrowser() {
   const view = useSettingsStore(() => songView());
   const folder = view === LIBRARY ? null : view;
   const listing = folder === null ? undefined : listings[folder];
-  const target = usePreviewStore((s) => s.target);
+  // Only which song PREVIEW holds, never the whole target: every click on a verse, a slide or a schedule row
+  // re-rendered all 1 207 rows of a real songbook, even with this tab hidden (2026-11-10 review, agent7-03).
+  const previewedId = usePreviewStore((s) => (s.target?.kind === "song" ? s.target.songId : null));
   const liveSongId = useProjectionStore((s) => (s.base?.kind === "song" ? s.base.songId : null));
   const addItem = useProgramStore((s) => s.addItem);
   const [query, setQuery] = useState("");
@@ -98,7 +100,6 @@ export function SongsBrowser() {
   };
   const requestRef = useRef(0);
 
-  const previewedId = target?.kind === "song" ? target.songId : null;
   const previewed = findSong(songs, previewedId);
   // Only a library song: a folder's song is its file, and the app never
   // deletes one — even when it was previewed before switching views.
