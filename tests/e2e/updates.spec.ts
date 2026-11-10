@@ -25,8 +25,9 @@ const updatesRow = (about: Locator) => about.getByRole("group", { name: /^Actual
 const DMG_NAME = "Lumina-Live-mac-arm64.dmg";
 const DMG = Buffer.from("not a disk image, only bytes with a known sha512");
 const DMG_SHA512 = createHash("sha512").update(DMG).digest("base64");
-/** Where `mac-dmg.ts` keeps a download: the user's cache, not the profile. */
-const DMG_PATH = path.join(os.homedir(), "Library", "Caches", "worship-app-updater", DMG_NAME);
+/** Where `mac-dmg.ts` keeps a download: the profile's own folder — so this suite never touches the download the
+ *  INSTALLED app has waiting (it did, until 2026-11-10). */
+const dmgPath = (app: WorshipApp) => path.join(fs.realpathSync(app.profile), "update-download", DMG_NAME);
 
 /** What a release's `latest*.yml` says. */
 const releaseYml = (version: string) =>
@@ -83,6 +84,8 @@ test.describe("against a release server", () => {
   /** The `latest*.yml` the server answers with; `null` answers 404, like a
    *  release published before the app could update itself. */
   let yml: string | null = null;
+  /** Bytes that are not the release's: a tampered or truncated download. */
+  let tampered = false;
   const server = http.createServer((req, res) => {
     // The updater appends `?noCache=…`.
     const file = new URL(req.url ?? "/", "http://localhost").pathname;
@@ -90,8 +93,9 @@ test.describe("against a release server", () => {
       res.writeHead(200, { "content-type": "text/yaml" });
       res.end(yml);
     } else if (file === `/${DMG_NAME}`) {
-      res.writeHead(200, { "content-type": "application/octet-stream", "content-length": DMG.length });
-      res.end(DMG);
+      const body = tampered ? Buffer.from("other bytes than the release says").subarray(0, DMG.length) : DMG;
+      res.writeHead(200, { "content-type": "application/octet-stream", "content-length": body.length });
+      res.end(body);
     } else {
       res.writeHead(404);
       res.end();
@@ -117,7 +121,10 @@ test.describe("against a release server", () => {
     });
     process.env["PATH"] = `${bin}${path.delimiter}${pathBefore}`;
   });
-  test.beforeEach(() => fs.rmSync(path.join(bin, "opened.txt"), { force: true }));
+  test.beforeEach(() => {
+    tampered = false;
+    fs.rmSync(path.join(bin, "opened.txt"), { force: true });
+  });
   test.afterAll(async () => {
     // One worker runs every spec: nothing after this file may see the feed,
     // or the fake `open`.
@@ -125,7 +132,6 @@ test.describe("against a release server", () => {
     process.env["PATH"] = pathBefore;
     fs.rmSync(bin, { recursive: true, force: true });
     await new Promise((resolve) => server.close(resolve));
-    fs.rmSync(DMG_PATH, { force: true });
   });
 
   /** «Buscar actualizaciones» and «Descargar» in About, on the feed's 99.0.0. */
@@ -221,7 +227,18 @@ test.describe("against a release server", () => {
     await confirm.getByRole("button", { name: "Abrir instalador" }).click();
     await app.exited;
     expect(installerLines(app)).toHaveLength(1);
-    await expect.poll(openedFiles).toEqual([DMG_PATH]);
+    await expect.poll(openedFiles).toEqual([dmgPath(app)]);
+  });
+
+  test("a .dmg whose sha512 is not the release's is refused, kept off disk and never opened", async ({ app }) => {
+    // Skipping the check passed every test here: the feed always served the bytes its yml promised (agent3-11).
+    test.skip(process.platform !== "darwin", "the feed serves a macOS release");
+    tampered = true;
+    const row = await download(app);
+    await expect(row).toContainText("La descarga llegó dañada");
+    await expect(row.getByRole("button", { name: "Abrir instalador" })).toHaveCount(0);
+    expect(fs.existsSync(dmgPath(app))).toBe(false);
+    expect(openedFiles()).toEqual([]);
   });
 
   test("«Al cerrar la app» opens the installer on the way out — not on a quit the operator cancels", async ({ app }) => {
@@ -239,7 +256,7 @@ test.describe("against a release server", () => {
 
     await app.quit("close");
     expect(installerLines(app)).toHaveLength(1);
-    await expect.poll(openedFiles).toEqual([DMG_PATH]);
+    await expect.poll(openedFiles).toEqual([dmgPath(app)]);
   });
 });
 
