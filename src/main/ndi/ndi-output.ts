@@ -38,6 +38,10 @@ let running = "";
 let status: NdiOutputStatus = { state: "off" };
 let restartTimer: NodeJS.Timeout | null = null;
 let serial = 0;
+/** The sender being stopped, until it has gone: the next one waits for it (`syncNdiOutput`). */
+let leaving: Promise<void> = Promise.resolve();
+/** How long a sender asked to quit has before it is killed. */
+const QUIT_GRACE_MS = 1000;
 
 const RESTART_DELAY_MS = 2000;
 /** With nobody watching, a frame at most this often. The NDI SDK hands the last frame it sent to every new
@@ -95,7 +99,12 @@ export function syncNdiOutput(): void {
   running = key;
   if (!engineAvailable()) return setStatus({ state: "error", code: "ndi-engine-missing" });
   window = createNdiWindow(config);
-  startSender(config);
+  // After the one before has said goodbye: the same name registered while it was still on the network could come
+  // back under another one.
+  setStatus({ state: "starting" });
+  void leaving.then(() => {
+    if (running === key && !sender && window && !window.isDestroyed()) startSender(config);
+  });
 }
 
 /** Synchronous, for `before-quit` and the control window closing. */
@@ -103,7 +112,7 @@ export function stopNdiOutput(): void {
   running = "";
   if (restartTimer) clearTimeout(restartTimer);
   restartTimer = null;
-  sender?.kill();
+  if (sender) leaving = sender.kill();
   sender = null;
   if (window && !window.isDestroyed()) window.destroy();
   window = null;
@@ -237,6 +246,7 @@ class NdiSender {
   private stdout = "";
   private stderrTail = "";
   private killed = false;
+  private readonly gone: Promise<void>;
 
   constructor(
     config: Config,
@@ -267,6 +277,7 @@ class NdiSender {
     });
     this.child.once("error", (error) => console.warn("[ndi] engine", error.message));
     this.child.once("exit", (code, signal) => this.onExit(code, signal));
+    this.gone = new Promise((resolve) => this.child.once("exit", () => resolve()));
   }
 
   /** Takes the texture (true) until the engine has read it, or leaves it to the caller to release. */
@@ -306,11 +317,23 @@ class NdiSender {
     return true;
   }
 
-  /** Synchronous: the texture in flight goes back now, before its window is destroyed. */
-  kill(): void {
+  /**
+   * The texture in flight goes back now, before its window is destroyed; the engine is asked to quit, so the NDI
+   * library says goodbye on the network — killed, it left its source listed on other computers for hours (Windows,
+   * 2026-11-10: a receiver connected to that ghost and got nothing). Killed only if still there a second later.
+   * Resolves once it has gone.
+   */
+  kill(): Promise<void> {
     this.killed = true;
     this.release();
-    if (this.child.exitCode === null && this.child.signalCode === null) this.child.kill("SIGKILL");
+    const child = this.child;
+    if (child.exitCode === null && child.signalCode === null) {
+      child.stdin?.end("quit\n");
+      setTimeout(() => {
+        if (child.exitCode === null && child.signalCode === null) child.kill("SIGKILL");
+      }, QUIT_GRACE_MS).unref();
+    }
+    return this.gone;
   }
 
   private release(): void {
@@ -342,7 +365,8 @@ class NdiSender {
         } catch (error) {
           console.warn("[ndi] engine unreachable", error instanceof Error ? error.message : error);
           this.give({ state: "error", code: "ndi-gpu" });
-          return this.kill();
+          void this.kill();
+          return;
         }
         console.log(`[ndi] sending (${event.runtime})`);
         this.ready = true;

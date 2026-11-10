@@ -283,7 +283,13 @@ test("a deck whose music is a WMA follows the media engine's clock, and NEGRO fr
   await expect.poll(() => projectedSlide(projector), { timeout: 5_000 }).toBe(2);
 
   await app.control.locator("body").press("b");
-  await app.control.waitForTimeout(500);
+  // The engine's last report from before the pause can land after it: the position the row settles on.
+  const settled = async () => {
+    const before = await music.getAttribute("aria-valuenow");
+    await app.control.waitForTimeout(700);
+    return before === (await music.getAttribute("aria-valuenow")) ? before : null;
+  };
+  await expect.poll(settled, { timeout: 5_000 }).not.toBeNull();
   const coveredAt = await music.getAttribute("aria-valuenow");
   // Covered for longer than a slide: neither the music nor the deck moves.
   await app.control.waitForTimeout(3000);
