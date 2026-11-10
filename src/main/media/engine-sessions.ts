@@ -88,7 +88,11 @@ function start(
 /** The live sessions' `media-status` and `media-error`, as the projector's own elements report them. */
 function liveEvents(session: Session, target: MediaTarget, isCurrent: () => boolean): EngineEvents {
   return {
+    ...pictureExpected(target.kind !== "audio", session, target, isCurrent),
     status: (status) => {
+      // A report the previous engine had already written when it was told to quit: it would move the
+      // next deck's slide to its own position (2026-11-10 review, agent1-07).
+      if (!isCurrent()) return;
       const { next, nudge } = watchStall(session.stall ?? null, status, session.paused, Date.now());
       session.stall = next;
       if (nudge && isCurrent()) {
@@ -108,6 +112,25 @@ function liveEvents(session: Session, target: MediaTarget, isCurrent: () => bool
     error: (error) => {
       if (!isCurrent()) return;
       console.warn("[engine] live", target.kind, error.code, error.detail);
+      broadcast("media-error", { target, url: session.url, code: null });
+    },
+  };
+}
+
+/** A video whose picture the engine cannot decode (a codec FFmpeg lacks, a damaged video track) played
+ *  its sound over black with no word to anyone: the «sound over black» the engine exists to end
+ *  (2026-11-10 review, agent1-06). Said like any file the projector cannot play. */
+function pictureExpected(
+  expected: boolean,
+  session: Session,
+  target: MediaTarget | { kind: "songVideo" },
+  isCurrent: () => boolean,
+): Pick<EngineEvents, "loaded"> {
+  if (!expected) return {};
+  return {
+    loaded: (info) => {
+      if (info.hasVideo || !isCurrent()) return;
+      console.warn("[engine] live", target.kind, "has no picture it can decode:", session.url);
       broadcast("media-error", { target, url: session.url, code: null });
     },
   };
@@ -161,6 +184,7 @@ function syncVideo(target: VideoTarget, want: LiveEngineState | null, windows: (
     const events: EngineEvents =
       target === "songVideo"
         ? {
+            ...pictureExpected(true, fresh, { kind: "songVideo" }, isCurrent),
             error: (error) => {
               if (!isCurrent()) return;
               console.warn("[engine] live songVideo", error.code, error.detail);

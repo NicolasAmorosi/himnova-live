@@ -36,6 +36,8 @@ export default function globalSetup(): void {
   run(...picture("640x360", 8), ...tone(8), "-shortest", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", out("clip.mp4"));
   // Converted, quickly.
   run(...picture("640x360", 6), ...tone(6), "-shortest", "-c:v", "mpeg4", "-vtag", "xvid", "-c:a", "libmp3lame", out("clip-xvid.avi"));
+  // The same, its video named after a codec nobody has: the engine plays its sound and can't draw a frame.
+  fs.writeFileSync(out("no-picture.avi"), Buffer.from(fs.readFileSync(out("clip-xvid.avi")).toString("latin1").replaceAll("xvid", "QQQQ"), "latin1"));
   // Converted, slowly enough to be watched converting: a full re-encode of
   // 1080p, at the low priority and half the cores a real conversion gets,
   // takes several seconds even on a fast machine.

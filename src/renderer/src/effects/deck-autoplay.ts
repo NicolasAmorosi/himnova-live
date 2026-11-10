@@ -271,6 +271,8 @@ export function startDeckAutoplay(): () => void {
       const state = useProjectionStore.getState();
       const deck = state.liveDeck;
       if (!deck?.soundtrack || state.base?.kind !== "deck") return;
+      // Another play's report (the previous deck's music, still in flight) is not this deck's clock.
+      if (status.epoch !== state.soundtrackEpoch) return;
 
       // Reopening the projection window mid-deck gives us a fresh <audio> that
       // starts at 0. Seek it back to where the current slide belongs — but only
