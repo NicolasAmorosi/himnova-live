@@ -714,6 +714,7 @@ const en: Messages = {
     deckMusic: "{title} (music)",
     slideVideo: "{title} (slide video)",
     loadError: "Couldn't play the file",
+    showError: "Couldn't show it: the file is gone or damaged",
     loadErrorRow: "Couldn't play",
     loadErrorToast: "Couldn't play “{name}” on the projector",
     loadErrorToastGeneric: "Couldn't play a file on the projector",

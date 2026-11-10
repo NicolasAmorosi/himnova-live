@@ -11,7 +11,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, test, vi } from "vitest";
-import { zipSync, strToU8 } from "fflate";
+import { strFromU8, strToU8, zipSync } from "fflate";
 import { ZipFormatError, readZipEntries } from "../../src/main/slides/zip-reader";
 
 const XML = '<?xml version="1.0"?><p:presentation><p:sldSz cx="9144000" cy="6858000"/></p:presentation>';
@@ -114,4 +114,16 @@ describe("readZipEntries", () => {
     fs.writeFileSync(tiny, "PK");
     expect(() => readZipEntries(tiny, () => true)).toThrow(ZipFormatError);
   });
+});
+
+test("a zip bomb is refused, not inflated: a few hundred KB declaring 300 MB comes back without that entry", () => {
+  // 2026-11-10 review, agent6-04: 398 KB on disk became 400 MB in main.
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "worship-zip-bomb-"));
+  const file = path.join(dir, "bomb.zip");
+  fs.writeFileSync(file, zipSync({ "biblia.xml": [new Uint8Array(300 * 1024 * 1024).fill(0x61), { level: 9 }], "ok.xml": strToU8("<ok/>") }));
+  expect(fs.statSync(file).size).toBeLessThan(1024 * 1024);
+  const out = readZipEntries(file, (name) => name.endsWith(".xml"));
+  expect(out["biblia.xml"]).toBeUndefined();
+  expect(strFromU8(out["ok.xml"]!)).toBe("<ok/>");
+  fs.rmSync(dir, { recursive: true, force: true });
 });

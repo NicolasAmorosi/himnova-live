@@ -718,6 +718,7 @@ const it: Messages = {
     deckMusic: "{title} (musica)",
     slideVideo: "{title} (video della diapositiva)",
     loadError: "Impossibile riprodurre il file",
+    showError: "Impossibile mostrarlo: il file non c'è più o è danneggiato",
     loadErrorRow: "Impossibile riprodurre",
     loadErrorToast: "Impossibile riprodurre «{name}» sul proiettore",
     loadErrorToastGeneric: "Impossibile riprodurre un file sul proiettore",

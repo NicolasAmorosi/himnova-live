@@ -137,3 +137,14 @@ for (const name of [
     expect(box.right).toBeLessThanOrEqual(box.vw);
   });
 }
+
+test("a renderer cannot point LOGO at any file: worship://logo serves only what «Elegir…» picked", async ({ app }) => {
+  // 2026-11-10 review, agent6-03: `settings:set` took any path and the protocol served it back.
+  const secret = path.join(app.profile, "id_rsa");
+  fs.writeFileSync(secret, "-----BEGIN OPENSSH PRIVATE KEY-----");
+  await expect(app.invoke("settings:set", { "logo.path": secret })).rejects.toThrow();
+  const status = await app.control.evaluate(async () => (await fetch("worship://logo")).status);
+  expect(status).not.toBe(200);
+  // Clearing it stays allowed: «Quitar» in Settings does exactly that.
+  await app.invoke("settings:set", { "logo.path": null });
+});

@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import { renameSyncWithRetry } from "../fs-retry";
 import path from "node:path";
 import { IpcError } from "@shared/ipc/result";
 import { SONG_FILE_LIMITS, songFileFormat, type SongFileFormat } from "@shared/song-file-limits";
@@ -229,7 +230,9 @@ export function writeSongFile(id: number, song: ReadSong): void {
       // permissions, and the song is written all the same.
       console.warn("[songs] could not keep the song file's permissions", file, error);
     }
-    fs.renameSync(temporary, real);
+    // Windows refuses to replace a file another program holds — Defender or the indexer for a moment, Word or
+    // OneDrive for longer (2026-11-10 review, agent8-03).
+    renameSyncWithRetry(temporary, real);
   } catch (error) {
     console.warn("[songs] could not write the song file", file, error);
     fs.rmSync(temporary, { force: true });

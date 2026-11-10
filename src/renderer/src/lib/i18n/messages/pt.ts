@@ -715,6 +715,7 @@ const pt: Messages = {
     deckMusic: "{title} (música)",
     slideVideo: "{title} (vídeo do slide)",
     loadError: "Não foi possível reproduzir o arquivo",
+    showError: "Não foi possível mostrar: o arquivo sumiu ou está danificado",
     loadErrorRow: "Não foi possível reproduzir",
     loadErrorToast: "Não foi possível reproduzir “{name}” no projetor",
     loadErrorToastGeneric: "Não foi possível reproduzir um arquivo no projetor",

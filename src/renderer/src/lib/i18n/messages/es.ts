@@ -715,6 +715,7 @@ const es = {
     deckMusic: "{title} (música)",
     slideVideo: "{title} (video de la diapositiva)",
     loadError: "No se pudo reproducir el archivo",
+    showError: "No se pudo mostrar: el archivo ya no está o está dañado",
     loadErrorRow: "No se pudo reproducir",
     loadErrorToast: "No se pudo reproducir «{name}» en el proyector",
     loadErrorToastGeneric: "No se pudo reproducir un archivo en el proyector",

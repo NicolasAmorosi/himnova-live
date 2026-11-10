@@ -33,6 +33,12 @@ function assertValidSettings(partial: Partial<SettingsMap>): void {
         message: `Invalid value for setting ${key}: ${JSON.stringify(value)}`,
       });
     }
+    // `worship://logo` serves this file: only `files:setLogo`, which decodes the picture the operator chose, picks
+    // one. Here it can only be cleared (or left as it is) — any path a renderer wrote was served back to it
+    // (2026-11-10 review, agent6-03).
+    if (key === "logo.path" && value !== null && value !== getSettingsRepo().get("logo.path")) {
+      throw new IpcError({ code: "INVALID_SETTING", message: "logo.path is chosen through files:setLogo" });
+    }
   }
 }
 
