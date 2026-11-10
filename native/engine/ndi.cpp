@@ -1,5 +1,5 @@
 // The engine's NDI® output mode: Electron main draws the projection in an offscreen window and hands each
-// painted frame over as a shared GPU texture; this process reads it into memory and sends the latest one
+// painted frame over as a shared GPU texture; this process reads it into memory and sends every one, in order,
 // over NDI at a steady rate, so a crash in the NDI SDK takes down only the NDI output. The NDI runtime is
 // the user's own (ndi.video), loaded at run time; headers: NDI SDK 6.3.2.0 (MIT), native/ndi/include/.
 //
@@ -12,12 +12,14 @@
 //     {"ev":"done"}                              read the frame main is holding: it can release it now
 //     {"ev":"status","receivers":…}              on every change; with none, a new frame is encoded once, not repeated
 //     {"ev":"error","code":…,"detail":…}         ndi-runtime-missing (exit 3) · ndi-send (exit 4) · ndi-gpu
+#include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <cstddef>  // NULL, which the SDK headers use without including it
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <deque>
 #include <mutex>
 #include <string>
 #include <thread>
@@ -352,13 +354,25 @@ const NDIlib_v6* loadRuntime(const std::string& forced, const std::string& dir) 
   return nullptr;
 }
 
-// Three buffers: the reader fills one, the sender sends another, the third holds the latest whole frame.
-struct Latest {
+// The frames read and not sent yet, oldest first. The page paints at the output's rate on Chromium's clock and the
+// SDK sends at it on its own: two frames often land in one send period, and «only the latest» lost the first of
+// them — 0–27 % of a 30 fps video, by the phase between the two clocks (measured 2026-11-09). Queued, it waits a
+// period instead. Past MAX_WAITING the oldest goes, so a sender that falls behind costs frames, never latency.
+constexpr int MAX_WAITING = 3;
+struct Queue {
   std::mutex m;
-  std::vector<uint8_t> buf[3];
-  int w[3] = {0, 0, 0}, h[3] = {0, 0, 0};
-  int latest = -1, sending = -1, writing = 0;
-  unsigned seq = 0;  // frames read so far
+  static constexpr int N = MAX_WAITING + 2;  // + the one being read into, + the last sent (repeated while still)
+  std::vector<uint8_t> buf[N];
+  int w[N] = {}, h[N] = {};
+  std::deque<int> waiting;
+  int writing = 0, last = -1;
+  // Called with `m` held, `writing` just filled: queue it and pick a buffer nobody holds.
+  void push() {
+    waiting.push_back(writing);
+    if ((int)waiting.size() > MAX_WAITING) waiting.pop_front();
+    for (int i = 0; i < N; i++)
+      if (i != last && std::find(waiting.begin(), waiting.end(), i) == waiting.end()) { writing = i; return; }
+  }
 };
 
 }  // namespace
@@ -414,11 +428,12 @@ int ndiSendMain(int argc, char** argv) {
   emit("{\"ev\":\"ready\",\"runtime\":" + js(ndi->version()) + "}");
 
   const size_t capacity = (size_t)o.width * o.height * 4;
-  static Latest q;
+  static Queue q;
   for (auto& b : q.buf) b.resize(capacity);
   std::thread reader([&] {
     for (;;) {
       int w = 0, h = 0;
+      // `writing` is the reader's own: the sender only takes from `waiting`, and `push` never hands out `last`.
       int r = frames.next(q.buf[q.writing].data(), capacity, w, h);
       if (r < 0) break;
       emit("{\"ev\":\"done\"}");
@@ -426,10 +441,7 @@ int ndiSendMain(int argc, char** argv) {
       std::lock_guard<std::mutex> l(q.m);
       q.w[q.writing] = w;
       q.h[q.writing] = h;
-      q.latest = q.writing;
-      q.seq++;
-      for (int i = 0; i < 3; i++)
-        if (i != q.latest && i != q.sending) { q.writing = i; break; }
+      q.push();
     }
     quitting = true;
   });
@@ -448,31 +460,36 @@ int ndiSendMain(int argc, char** argv) {
   f.frame_rate_N = o.fps;
   f.frame_rate_D = 1;
   int receivers = -1;
-  unsigned sentSeq = 0;
   while (!quitting) {
     int now = ndi->send_get_no_connections(sender, receivers > 0 ? 0 : 100);
     if (now != receivers) {
       receivers = now;
       emit("{\"ev\":\"status\",\"receivers\":" + std::to_string(now) + "}");
     }
-    unsigned seq;
+    bool fresh = false;
+    int send;
     {
       std::lock_guard<std::mutex> l(q.m);
-      q.sending = q.latest;
-      seq = q.seq;
+      // Unwatched, only the newest matters: it is what the SDK hands the next receiver on connecting.
+      while (receivers == 0 && q.waiting.size() > 1) q.waiting.pop_front();
+      if (!q.waiting.empty()) {
+        q.last = q.waiting.front();
+        q.waiting.pop_front();
+        fresh = true;
+      }
+      send = q.last;
     }
-    // Watched: the latest frame at the steady rate receivers expect. Unwatched: each new frame once (main
-    // sends one every half second at most), only so the SDK has a recent one for the next receiver — it hands
-    // that over on connecting. Encoding at the full rate for nobody would cost a third of a core.
-    if (q.sending < 0 || (receivers == 0 && seq == sentSeq)) {
+    // Watched: the oldest waiting frame at the steady rate receivers expect, the last one again when the page
+    // is still. Unwatched: each new frame once (main sends one every half second at most) — encoding at the
+    // full rate for nobody would cost a third of a core.
+    if (send < 0 || (receivers == 0 && !fresh)) {
       if (receivers > 0) std::this_thread::sleep_for(std::chrono::milliseconds(5));
       continue;
     }
-    sentSeq = seq;
-    f.xres = q.w[q.sending];
-    f.yres = q.h[q.sending];
+    f.xres = q.w[send];
+    f.yres = q.h[send];
     f.line_stride_in_bytes = f.xres * 4;
-    f.p_data = q.buf[q.sending].data();
+    f.p_data = q.buf[send].data();
     ndi->send_send_video_v2(sender, &f);
   }
   ndi->send_destroy(sender);

@@ -82,8 +82,10 @@ and a link to ndi.video wherever NDI is used or chosen — the app, the landing 
   `useContentSize` and `setContentSize()` after creating it is what gives the whole picture.
 - **Frames travel as shared GPU textures** (`offscreen: { useSharedTexture: true }`, experimental in Electron): main
   hands each painted texture to `media-engine --ndi-send` and only passes a handle, so a slow church PC keeps its
-  main thread and an NDI crash takes down nothing else. The engine reads the pixels, sends the latest frame at a
-  steady rate (BGRX) and answers `done`; main holds one texture in flight and drops the paints of that moment. How
+  main thread and an NDI crash takes down nothing else. The engine reads the pixels, queues them (up to 3) and sends
+  every one, in order, at a steady rate (BGRX) — the last one again while the page is still — and answers `done`;
+  main holds one texture in flight and drops the paints of that moment. Sending only the latest lost 0–27 % of a
+  video's frames to the beat between Chromium's clock and the SDK's (see `.claude/knowledge`). How
   a texture crosses (`handles.node` exists on macOS and Linux only):
 
   | System | How it reaches the engine | How the engine reads it |
