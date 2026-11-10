@@ -64,6 +64,15 @@ describe("resolveLinkedAudio", () => {
     expect(resolveLinkedAudio(deck)).toBeNull();
   });
 
+  test("a MIDI file is never the deck's music: nothing can play it", () => {
+    expect(resolveLinkedAudio(folder("Himno 125.pps", "Himno 125.mid"))).toBeNull();
+  });
+
+  test("a WMA beside the MIDI is", () => {
+    const deck = folder("Himno 126.pps", "Himno 126.midi", "Himno 126.wma");
+    expect(resolveLinkedAudio(deck)).toBe(path.join(dir, "Himno 126.wma"));
+  });
+
   test("a folder with no audio at all resolves to null", () => {
     const deck = folder("Himno 410.pps", "Himno 411.pps");
     expect(resolveLinkedAudio(deck)).toBeNull();

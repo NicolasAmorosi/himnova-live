@@ -33,6 +33,10 @@ export const ASSET_EXTENSIONS: Record<AssetKind, readonly string[]> = {
   ppt: ["ppt", "pptx", "pptm", "pps", "ppsx", "ppsm", "odp", "pdf"],
 };
 
+/** The audio Chromium plays as it is: a deck's linked music in any other format (a `.wma`, an AIFF)
+ *  is played by the media engine (`engineLinkedAudioUrl`). */
+export const CHROMIUM_AUDIO_EXTENSIONS: ReadonlySet<string> = new Set(["mp3", "wav", "ogg", "m4a", "flac", "aac", "opus", "oga", "weba"]);
+
 // A `text` kind used to live here too: schema column, DTO, repo mapping,
 // preview, projector output — everything except a way to create one. It was
 // removed in 0009 rather than finished; an announcement is a PPT slide in
@@ -73,8 +77,9 @@ export const SLIDES_MODEL_VERSION = 3;
  *  it must not run on every switch between decks. Bump this whenever the
  *  matching rules in `linked-audio.ts` change, so assets linked under the
  *  old rules (see .claude/knowledge/linked-audio-single-file-fallback-and-manual-override.md)
- *  self-correct without the operator touching each one by hand. */
-export const LINKED_AUDIO_RESOLVER_VERSION = 1;
+ *  self-correct without the operator touching each one by hand. 2: a `.mid`/`.midi` is no longer
+ *  taken (2026-11-10). */
+export const LINKED_AUDIO_RESOLVER_VERSION = 2;
 export const SLIDES_THUMB_WIDTH = 320;
 
 /** Bump to invalidate every cached media thumbnail at once when the way they

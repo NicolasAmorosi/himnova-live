@@ -11,13 +11,9 @@ import { notifyMediaChanged } from "../../media/engine-assets";
 import { showOpenDialogFor } from "../open-dialog";
 import { mt } from "../../i18n";
 
-/** What a deck's linked soundtrack may be. Narrower than `ASSET_EXTENSIONS.audio`
- *  on purpose: `worship://linked-audio/<id>` serves the file itself, so only the
- *  formats Chromium plays as they are can be linked.
- *  ponytail: a WMA/AIFF soundtrack is refused — every linked audio in the real
- *  hymnal is an MP3 (1229 of 1229); give it an engine url (`engine-assets.ts`)
- *  if a church ever needs one. */
-const LINKABLE_AUDIO_EXTENSIONS = new Set(["mp3", "wav", "ogg", "oga", "opus", "m4a", "aac", "flac", "weba"]);
+/** What a deck's linked soundtrack may be: every audio the picker offers (A11: it offered a `.wma`
+ *  and then refused it). What Chromium cannot play goes to the media engine (`slides.repo.ts`). */
+const LINKABLE_AUDIO_EXTENSIONS: ReadonlySet<string> = new Set(ASSET_EXTENSIONS.audio);
 
 export const libraryHandlers: Pick<
   Handlers,

@@ -4,8 +4,8 @@ import { and, asc, eq, inArray, lt, notInArray, sql } from "drizzle-orm";
 import type Database from "better-sqlite3";
 import type { Db } from "../client";
 import { deckAudio, deckSlides, deckVideos, mediaAssets, slideDecks } from "../schema";
-import { slideModelUrl, slideThumbUrl, slideUrl, deckAudioUrl, deckVideoUrl, engineClipUrl, linkedAudioUrl } from "@shared/urls";
-import { SLIDES_CONVERTER_VERSION, SLIDES_NATIVE_VERSION, SLIDES_MODEL_VERSION } from "@shared/constants";
+import { slideModelUrl, slideThumbUrl, slideUrl, deckAudioUrl, deckVideoUrl, engineClipUrl, engineLinkedAudioUrl, linkedAudioUrl } from "@shared/urls";
+import { CHROMIUM_AUDIO_EXTENSIONS, SLIDES_CONVERTER_VERSION, SLIDES_NATIVE_VERSION, SLIDES_MODEL_VERSION } from "@shared/constants";
 import type { DeckDTO, DeckSlide, DeckSlideVideo, DeckSound, DeckStatus, SlideRect } from "@shared/types/deck";
 import { isSlideTransitionStyle, type SlideTransition } from "@shared/types/transition";
 
@@ -947,7 +947,11 @@ export class SlidesRepo {
         }
       : linkedAudioPath
         ? {
-            url: linkedAudioUrl(assetId),
+            // What Chromium never decodes goes to the media engine, like an embedded WMA: as an
+            // `<audio>` it failed silently and the synced hymn waited on slide 1 (A13).
+            url: CHROMIUM_AUDIO_EXTENSIONS.has(path.extname(linkedAudioPath).slice(1).toLowerCase())
+              ? linkedAudioUrl(assetId)
+              : engineLinkedAudioUrl(assetId),
             durationMs: null,
             origin: "linked",
             name: path.basename(linkedAudioPath),

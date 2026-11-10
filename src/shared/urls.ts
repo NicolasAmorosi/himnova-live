@@ -150,9 +150,15 @@ export function linkedAudioUrl(mediaAssetId: number): string {
   return `worship://linked-audio/${mediaAssetId}`;
 }
 
-/** The deck asset a `linkedAudioUrl` names, or null for any other url. */
+/** The same linked file when Chromium cannot play it (a `.wma` beside an old hymnal): the media engine
+ *  plays it live, as it does a deck's embedded WMA. */
+export function engineLinkedAudioUrl(mediaAssetId: number): string {
+  return `worship://engine/linked-audio/${mediaAssetId}`;
+}
+
+/** The deck asset a `linkedAudioUrl` or `engineLinkedAudioUrl` names, or null for any other url. */
 export function linkedAudioAssetIdOfUrl(url: string): number | null {
-  const match = /^worship:\/\/linked-audio\/(\d+)$/.exec(url);
+  const match = /^worship:\/\/(?:engine\/)?linked-audio\/(\d+)$/.exec(url);
   return match ? Number(match[1]) : null;
 }
 

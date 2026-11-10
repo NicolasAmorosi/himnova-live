@@ -61,7 +61,7 @@ function start(
 ): void {
   const assetId = engineAssetIdOfUrl(session.url);
   const clip = engineClipOfUrl(session.url);
-  // A deck's linked music, which only PREVIEW opens here (the projector plays it as an `<audio>`).
+  // A deck's linked music: PREVIEW's, and the live one when Chromium cannot play it (a `.wma`).
   const linked = linkedAudioAssetIdOfUrl(session.url);
   const file =
     assetId !== null
