@@ -46,6 +46,8 @@ export type VideoStreamFacts = {
   height: number;
   /** `smpte2084` (PQ) or `arib-std-b67` (HLG) mean HDR. */
   colorTransfer: string | null;
+  /** Fields, not frames (ffprobe's `field_order` tt/bb/tb/bt): a camcorder's 1080i. */
+  interlaced: boolean;
 };
 
 export type AudioStreamFacts = {
@@ -54,7 +56,8 @@ export type AudioStreamFacts = {
   channels: number;
 };
 
-export const MEDIA_PROBE_VERSION = 1;
+/** 2: `interlaced` (2026-11-10). */
+export const MEDIA_PROBE_VERSION = 2;
 
 const NATIVE_CONTAINERS = new Set(["mp4", "mov", "matroska", "webm", "ogg", "mp3", "wav", "flac", "aac"]);
 const NATIVE_AUDIO_CODECS = new Set(["aac", "mp3", "opus", "vorbis", "flac"]);
@@ -118,6 +121,7 @@ function toVideoFacts(s: Record<string, unknown>): VideoStreamFacts | null {
     width: num(s.width) ?? 0,
     height: num(s.height) ?? 0,
     colorTransfer: str(s.color_transfer),
+    interlaced: ["tt", "bb", "tb", "bt"].includes(str(s.field_order) ?? ""),
   };
 }
 
@@ -151,6 +155,7 @@ function normalizeVideo(v: Record<string, unknown>): VideoStreamFacts | null {
     width: num(v.width) ?? 0,
     height: num(v.height) ?? 0,
     colorTransfer: str(v.colorTransfer),
+    interlaced: v.interlaced === true,
   };
 }
 
@@ -166,6 +171,8 @@ function containerIs(container: string, names: ReadonlySet<string>): boolean {
 }
 
 function videoPlaysNatively(video: VideoStreamFacts, decoders: DecoderSupport): boolean {
+  // Chromium shows fields as they are, combed on every moving edge; the engine deinterlaces (2026-11-10 review).
+  if (video.interlaced) return false;
   const eightBit = video.pixFmt === "yuv420p" || video.pixFmt === "yuvj420p";
   const tenBit = video.pixFmt === "yuv420p10le";
   switch (video.codec) {

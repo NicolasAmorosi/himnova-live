@@ -148,9 +148,17 @@ describe("parseProbe / normalizeProbe", () => {
     expect(parseProbe(raw)).toEqual({
       container: "matroska,webm",
       durationSec: 10.5,
-      video: { index: 0, codec: "h264", pixFmt: "yuv420p", width: 1920, height: 1080, colorTransfer: null },
+      video: { index: 0, codec: "h264", pixFmt: "yuv420p", width: 1920, height: 1080, colorTransfer: null, interlaced: false },
       audio: { index: 2, codec: "aac", channels: 2 },
     });
+  });
+
+  test("an interlaced H.264 in an MP4 goes to the engine, which deinterlaces it; a progressive one does not", () => {
+    // A camcorder's 1080i in an .mp4: Chromium played it combed (2026-11-10 review, agent1v).
+    expect(native(ffprobe(MP4, v("h264", "yuv420p", { field_order: "tt" }), a("aac")))).toBe(false);
+    expect(native(ffprobe(MP4, v("h264", "yuv420p", { field_order: "bb" }), a("aac")))).toBe(false);
+    expect(native(ffprobe(MP4, v("h264", "yuv420p", { field_order: "progressive" }), a("aac")))).toBe(true);
+    expect(normalizeProbe(parseProbe(ffprobe(MP4, v("h264", "yuv420p", { field_order: "tt" }))))?.video?.interlaced).toBe(true);
   });
 
   test("a file with no usable stream has no probe", () => {
