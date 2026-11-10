@@ -84,15 +84,16 @@ function riedl(dir: string, sums: { ffmpeg: string; ffprobe: string }): Archive[
   }));
 }
 
-const ENGINE_RELEASE = "https://github.com/NicolasAmorosi/lumina-live/releases/download/engine-4";
+const ENGINE_RELEASE = "https://github.com/NicolasAmorosi/lumina-live/releases/download/engine-5";
 
-/** Release `engine-4`: `native/` as of the commit its tag points at — engine-3 with the NDI output sending every
- *  frame in order (a short queue) instead of only the latest one, which lost frames between Chromium's clock and the
- *  SDK's. Linux's is built on Ubuntu 22.04 and ships no libmpv: it loads the system's, .so.2 or .so.1. */
+/** Release `engine-5`: `native/` as of the commit its tag points at — engine-4 plus the NDI output's sound (captured
+ *  from the OS), a sender that quits cleanly, deinterlacing, a first frame twice as fast and a video's sound held to
+ *  meet its picture (65 ms; 40 on Windows). Linux's is built on Ubuntu 22.04 and ships no libmpv: it loads the
+ *  system's, .so.2 or .so.1. */
 const ENGINE: Record<string, Archive[]> = {
-  "darwin-arm64": engine("darwin-arm64", "a3c07021fcd94d3c7fcfcfa8627162e3b04f14cddbc13e4f3754f1b01e8d78df", ["media-engine", "handles.node", "libmpv.2.dylib"]),
-  "win32-x64": engine("win32-x64", "3a26ee11ef4ee970223f3d51cbe341a5e0f698cae3c74281bf0c890c0fa5786d", ["media-engine.exe", "libmpv-2.dll"]),
-  "linux-x64": engine("linux-x64", "d01fbd89cc85bf1735d870fbd6fa716052273dd3ba7835da7dce91d545d86983", ["media-engine", "handles.node"]),
+  "darwin-arm64": engine("darwin-arm64", "c70172ad78e1dc8157add39b246d20bb31377dd2891cd74a39c38c315eefaa11", ["media-engine", "handles.node", "libmpv.2.dylib"]),
+  "win32-x64": engine("win32-x64", "d7586f980b34d8392bf6d9a82e75432f42239fe215b633499677e5b94fe6094c", ["media-engine.exe", "libmpv-2.dll"]),
+  "linux-x64": engine("linux-x64", "78d1334054bbecd1b1da1493336017c5e56f9256abd5bb675d168abdaf4aca6c", ["media-engine", "handles.node"]),
 };
 
 function engine(target: string, sha256: string, files: string[]): Archive[] {
