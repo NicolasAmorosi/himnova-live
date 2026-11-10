@@ -9,6 +9,7 @@ import os from "node:os";
 import path from "node:path";
 import Database from "better-sqlite3";
 import { afterAll, beforeAll, describe, expect, test, vi } from "vitest";
+import { realMissing, realPath } from "../fixtures/real-material";
 import { openDatabase } from "../../src/main/db/client";
 import { runMigrations } from "../../src/main/db/migrate";
 import { SongsRepo } from "../../src/main/db/repositories/songs.repo";
@@ -573,12 +574,12 @@ describe("a song imported from a song file stays tied to it (owner, 2026-11-05)"
 
 /* ---------------------------------------------------------------------------
  * Song files written back and read again (2026-11-06: never lose what is in
- * the file). Real files are COPIED from the corpus on this Mac, never written.
+ * the file). Real files are COPIED from the corpus, never written.
  * ------------------------------------------------------------------------ */
 
-const FORMATS = "/Users/nicolasamorosi/Downloads/hasdlp-master/pruebas-formatos";
-const HASD = "/Users/nicolasamorosi/Downloads/hasdlp-master/HASD";
-const hasCorpus = fs.existsSync(FORMATS);
+const FORMATS = realPath("hasdlp-master/pruebas-formatos");
+const HASD = realPath("hasdlp-master/HASD");
+const hasCorpus = !realMissing(FORMATS);
 
 const fresh = (name: string) => fs.mkdtempSync(path.join(tmpDir, `${name}-`));
 /** A copy of a corpus file in `folder`. */
@@ -973,7 +974,7 @@ describe("a linked folder", () => {
     expect((await listSongFolder(folder))[0]).toMatchObject({ id: listed!.id, notes: "Capo 2", number: "12" });
   });
 
-  test.skipIf(!fs.existsSync(HASD) || !hasCorpus)("every format written back from a linked folder reads back as the edit", async () => {
+  test.skipIf(realMissing(HASD) || !hasCorpus)("every format written back from a linked folder reads back as the edit", async () => {
     const folder = fresh("formats");
     fs.copyFileSync(path.join(HASD, "5.xml"), path.join(folder, "5.xml"));
     copy("chordpro/cho/Silent Night.cho", folder);

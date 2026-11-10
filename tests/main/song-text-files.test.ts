@@ -7,6 +7,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterAll, describe, expect, test } from "vitest";
+import { realMissing, realPath } from "../fixtures/real-material";
 import { readChordPro, readSongSelect, readSongTextFiles } from "../../src/main/songs/text-files";
 import type { SongSection } from "../../src/shared/types/song";
 
@@ -248,9 +249,9 @@ describe("files", () => {
   });
 });
 
-const SWING_LOW = "/Users/nicolasamorosi/Downloads/hasdlp-master/pruebas-formatos/chordpro/chordpro/swing-low-openlp.chordpro";
+const SWING_LOW = realPath("hasdlp-master/pruebas-formatos/chordpro/chordpro/swing-low-openlp.chordpro");
 
-describe.skipIf(!fs.existsSync(SWING_LOW))("real files", () => {
+describe.skipIf(realMissing(SWING_LOW))("real files", () => {
   test("OpenLP's swing-low: verses 2 and 3 are verses, the chorus comes back after each", () => {
     const [read] = readChordPro(fs.readFileSync(SWING_LOW, "utf8"), "swing-low", "es");
     expect(read?.sections.filter((section) => section.type === "chorus").map((section) => section.slides[0]?.lines[0])).toEqual([
