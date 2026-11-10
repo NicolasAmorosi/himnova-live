@@ -48,7 +48,7 @@ function DisplayMap() {
               ? t("welcome.screens.roleProjector")
               : d.id === stageId
                 ? t("welcome.screens.roleStage")
-                : d.primary
+                : d.operator
                   ? t("welcome.screens.roleControl")
                   : null;
             return (
@@ -85,5 +85,9 @@ function DisplayMap() {
 async function projectOn(displayId: number): Promise<void> {
   const display = useDisplayStore.getState();
   await display.setDisplayId(displayId);
-  if (!useProjectionStore.getState().presentationOpen) await useDisplayStore.getState().open();
+  if (useProjectionStore.getState().presentationOpen) return;
+  await useDisplayStore.getState().open();
+  // LOGO, not the BLACK `open()` leaves: the step is for telling the walls apart by looking, and a
+  // black wall reads as a projector that is off. Main ignores this push if the window never opened.
+  if (useProjectionStore.getState().presentationOpen) useProjectionStore.getState().setOverlay("logo");
 }

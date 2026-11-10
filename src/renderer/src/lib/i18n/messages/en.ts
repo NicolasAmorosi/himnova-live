@@ -12,7 +12,7 @@ const en: Messages = {
     /** The name of a schedule never saved: not «New program», the button's command (2026-11-05). */
     untitled: "Untitled",
     closeDisplay: "Close projector",
-    primaryDisplay: "(main)",
+    controlDisplay: "(control screen)",
   },
   schedule: {
     title: "Schedule",
@@ -655,6 +655,7 @@ const en: Messages = {
     parallelNone: "None",
     parallelHint: "Also project every verse in another version, side by side",
     parallelOn: "Parallel with {name}",
+    parallelMismatch: "«{version}» numbers {chapter} differently: the verses go out alone, without the parallel column.",
   },
   deck: {
     title: "Presentation",
@@ -954,7 +955,7 @@ const en: Messages = {
       languageFailed: "Couldn't change the language",
     },
     display: "Projector screen",
-    displayDesc: "Where what's live is shown. Applies when the projector opens.",
+    displayDesc: "Where what's live is shown. Changing it moves the projector at once; the control screen gives a window you can move.",
     stageDisplay: "Stage screen",
     stageDisplayDesc: "For the musicians: what's live, what's next and the time.",
     stageDisplayHelp: "Under BLACK or LOGO it keeps showing the content and says so.",
@@ -1111,7 +1112,7 @@ const en: Messages = {
     internalsMedia: "chrome://media-internals",
     probe: "Test video",
     probeDesc: "Checks whether this computer plays video smoothly.",
-    probeHelp: "Plays a video from the library for a few seconds. It doesn't touch the projector.",
+    probeHelp: "Plays a video from the library for a few seconds. It doesn't touch the projector. Videos the app's own engine plays (AVI, WMV, MPG…) aren't measured here.",
     probeChoose: "Choose a video",
     probeNoVideos: "No videos in the library",
     probeRun: "Test",
@@ -1191,7 +1192,7 @@ const en: Messages = {
       map: "Your screens",
       roleProjector: "Projector",
       roleStage: "Musicians",
-      roleControl: "Main",
+      roleControl: "Control",
     },
     endings: {
       title: "What happens at the end?",

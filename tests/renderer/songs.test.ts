@@ -339,7 +339,7 @@ describe("measuring", () => {
     const display = (width: number, height: number) => ({
       id: 1,
       label: "",
-      primary: false,
+      operator: false,
       bounds: { x: 0, y: 0, width, height },
       scaleFactor: 1,
     });

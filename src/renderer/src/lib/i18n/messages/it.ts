@@ -12,7 +12,7 @@ const it: Messages = {
     /** The name of a schedule never saved: not «New program», the button's command (2026-11-05). */
     untitled: "Senza titolo",
     closeDisplay: "Chiudi proiezione",
-    primaryDisplay: "(principale)",
+    controlDisplay: "(schermo di controllo)",
   },
   schedule: {
     title: "Scaletta",
@@ -657,6 +657,7 @@ const it: Messages = {
     parallelNone: "Nessuna",
     parallelHint: "Proietta ogni versetto anche in un'altra versione, affiancata",
     parallelOn: "In parallelo con {name}",
+    parallelMismatch: "«{version}» numera {chapter} in un altro modo: i versetti escono da soli, senza la colonna in parallelo.",
   },
   deck: {
     title: "Presentazione",
@@ -958,7 +959,7 @@ const it: Messages = {
       languageFailed: "Impossibile cambiare la lingua",
     },
     display: "Schermo di proiezione",
-    displayDesc: "Dove si vede ciò che è in onda. Vale all'apertura della proiezione.",
+    displayDesc: "Dove si vede ciò che è in onda. Cambiarlo sposta subito la proiezione; lo schermo di controllo dà una finestra mobile.",
     stageDisplay: "Schermo del palco",
     stageDisplayDesc: "Per i musicisti: ciò che è in onda, ciò che segue e l'ora.",
     stageDisplayHelp: "Con NERO o LOGO continua a mostrare il contenuto e lo segnala.",
@@ -1115,7 +1116,7 @@ const it: Messages = {
     internalsMedia: "chrome://media-internals",
     probe: "Prova video",
     probeDesc: "Verifica se questo computer riproduce bene un video.",
-    probeHelp: "Riproduce per qualche secondo un video della libreria. Non tocca il proiettore.",
+    probeHelp: "Riproduce per qualche secondo un video della libreria. Non tocca il proiettore. I video che riproduce il motore dell'app (AVI, WMV, MPG…) non si misurano qui.",
     probeChoose: "Scegli un video",
     probeNoVideos: "Nessun video nella libreria",
     probeRun: "Prova",
@@ -1195,7 +1196,7 @@ const it: Messages = {
       map: "I tuoi schermi",
       roleProjector: "Proiettore",
       roleStage: "Musicisti",
-      roleControl: "Principale",
+      roleControl: "Controllo",
     },
     endings: {
       title: "Cosa succede alla fine?",

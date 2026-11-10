@@ -12,7 +12,7 @@ const pt: Messages = {
     /** The name of a schedule never saved: not «New program», the button's command (2026-11-05). */
     untitled: "Sem título",
     closeDisplay: "Fechar tela",
-    primaryDisplay: "(principal)",
+    controlDisplay: "(tela de controle)",
   },
   schedule: {
     title: "Roteiro",
@@ -656,6 +656,7 @@ const pt: Messages = {
     parallelNone: "Nenhuma",
     parallelHint: "Projetar cada versículo também em outra versão, lado a lado",
     parallelOn: "Em paralelo com {name}",
+    parallelMismatch: "«{version}» numera {chapter} de outra forma: os versículos saem sozinhos, sem a coluna em paralelo.",
   },
   deck: {
     title: "Apresentação",
@@ -955,7 +956,7 @@ const pt: Messages = {
       languageFailed: "Não foi possível mudar o idioma",
     },
     display: "Tela de projeção",
-    displayDesc: "Onde aparece o que está ao vivo. Vale ao abrir a projeção.",
+    displayDesc: "Onde aparece o que está ao vivo. Mudá-la move a projeção na hora; a tela de controle dá uma janela móvel.",
     stageDisplay: "Tela do palco",
     stageDisplayDesc: "Para os músicos: o que está ao vivo, o que vem depois e a hora.",
     stageDisplayHelp: "Com PRETO ou LOGO continua mostrando o conteúdo e avisa.",
@@ -1112,7 +1113,7 @@ const pt: Messages = {
     internalsMedia: "chrome://media-internals",
     probe: "Testar vídeo",
     probeDesc: "Verifica se este computador reproduz bem um vídeo.",
-    probeHelp: "Reproduz um vídeo da biblioteca por alguns segundos. Não mexe no projetor.",
+    probeHelp: "Reproduz um vídeo da biblioteca por alguns segundos. Não mexe no projetor. Os vídeos que o motor próprio do app reproduz (AVI, WMV, MPG…) não são medidos aqui.",
     probeChoose: "Escolha um vídeo",
     probeNoVideos: "Não há vídeos na biblioteca",
     probeRun: "Testar",
@@ -1192,7 +1193,7 @@ const pt: Messages = {
       map: "Suas telas",
       roleProjector: "Projetor",
       roleStage: "Músicos",
-      roleControl: "Principal",
+      roleControl: "Controle",
     },
     endings: {
       title: "O que acontece ao terminar?",

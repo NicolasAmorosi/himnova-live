@@ -5,6 +5,7 @@ import { mt } from "../i18n";
 import { trustWindow } from "../ipc/trusted-senders";
 import { getSettingsRepo } from "../services/repos";
 import { forwardKeysToControl } from "./projection-window";
+import { operatorDisplay } from "./control-window";
 import { chooseStageDisplay } from "./projector-display-choice";
 
 const PRELOAD = path.join(__dirname, "../preload/index.js");
@@ -32,7 +33,7 @@ export function syncStageWindow(): void {
     const displays = screen.getAllDisplays().map((candidate) => candidate.id);
     displayId = chooseStageDisplay(
       displays,
-      screen.getPrimaryDisplay().id,
+      operatorDisplay().id,
       settings.get("stage.displayId"),
       settings.get("projection.displayId"),
     );
@@ -65,7 +66,7 @@ export function stageSnapshot(): StageOutput | null {
 function createStageWindow(display: Electron.Display): BrowserWindow {
   // On the operator's own screen (one screen, or testing) a window they can
   // move, never a fullscreen one over the control window — the projector's rule.
-  const own = display.id === screen.getPrimaryDisplay().id;
+  const own = display.id === operatorDisplay().id;
   const win = new BrowserWindow({
     x: display.bounds.x,
     y: display.bounds.y,

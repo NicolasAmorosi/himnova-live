@@ -17,7 +17,7 @@ export function ScreenGroup({ description }: { description?: string }) {
   // choice off this list (the projector's now, or unplugged) reads «Ninguna»,
   // which is what is on (`chooseStageDisplay` in main); the setting stays, so
   // the stage comes back once the projector moves or the screen returns.
-  const stageDisplays = displays.filter((d) => d.primary || d.id !== displayId);
+  const stageDisplays = displays.filter((d) => d.operator || d.id !== displayId);
   const stageValue = stageDisplays.some((d) => d.id === stageDisplayId) ? String(stageDisplayId) : "none";
 
   return (
@@ -26,7 +26,7 @@ export function ScreenGroup({ description }: { description?: string }) {
         <Select
           onChange={(value) => void setDisplayId(Number(value))}
           options={displays.map((d) => ({
-            label: `${d.label}${d.primary ? ` ${t("header.primaryDisplay")}` : ""}`,
+            label: `${d.label}${d.operator ? ` ${t("header.controlDisplay")}` : ""}`,
             value: String(d.id),
           }))}
           value={displayId !== null ? String(displayId) : ""}
@@ -58,7 +58,7 @@ export function ScreenGroup({ description }: { description?: string }) {
           options={[
             { label: t("settings.stageNone"), value: "none" },
             ...stageDisplays.map((d) => ({
-              label: `${d.label}${d.primary ? ` ${t("header.primaryDisplay")}` : ""}`,
+              label: `${d.label}${d.operator ? ` ${t("header.controlDisplay")}` : ""}`,
               value: String(d.id),
             })),
           ]}

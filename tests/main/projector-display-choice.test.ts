@@ -1,18 +1,37 @@
 import { expect, test } from "vitest";
-import { chooseProjectorDisplay, chooseStageDisplay } from "../../src/main/windows/projector-display-choice";
+import { chooseProjectorMove, chooseStageDisplay } from "../../src/main/windows/projector-display-choice";
 
-test("the operator's chosen screen wins while it is connected", () => {
-  expect(chooseProjectorDisplay([1, 2, 3], 1, 3)).toBe(3);
+// Screens: 1 = the operator's (hosts the control window), 2 = the projector, 3 = a third one.
+
+test("back to the chosen screen as soon as it is connected again", () => {
+  expect(chooseProjectorMove([1, 2, 3], 1, 2, 2, [2])).toBeNull(); // already there
+  expect(chooseProjectorMove([1, 2, 3], 1, 2, 3, [2])).toBe(2);
+  // Hidden while it was gone: its screen comes back.
+  expect(chooseProjectorMove([1, 2], 1, 2, null, [2])).toBe(2);
 });
 
-test("otherwise the first screen that is not the operator's own", () => {
-  expect(chooseProjectorDisplay([1, 2, 3], 1, 9)).toBe(2);
-  expect(chooseProjectorDisplay([1, 2], 1, null)).toBe(2);
+test("a projector in standby with three screens never sends the service to the third", () => {
+  // 2 went away: the window is hidden; 3 was already there.
+  expect(chooseProjectorMove([1, 3], 1, 2, null, [])).toBeNull();
+  // 2 comes back: it goes there, not on to 3.
+  expect(chooseProjectorMove([1, 2, 3], 1, 2, null, [2])).toBe(2);
 });
 
-test("never the primary screen, even when it is the one chosen", () => {
-  expect(chooseProjectorDisplay([1], 1, 1)).toBeNull();
-  expect(chooseProjectorDisplay([1, 2], 1, 1)).toBe(2);
+test("a screen that just appeared receives it — a projector turned on late, or back under a new id", () => {
+  // The single-screen window on the operator's screen, the projector turned on.
+  expect(chooseProjectorMove([1, 2], 1, null, 1, [2])).toBe(2);
+  // The chosen projector came back as 4.
+  expect(chooseProjectorMove([1, 4], 1, 2, null, [4])).toBe(4);
+});
+
+test("never onto the operator's own screen or the stage's", () => {
+  expect(chooseProjectorMove([1], 1, 2, null, [])).toBeNull();
+  expect(chooseProjectorMove([1, 3], 1, 2, null, [3], 3)).toBeNull();
+  expect(chooseProjectorMove([1, 2, 3], 1, 3, 2, [3], 3)).toBeNull();
+});
+
+test("the operator's own screen chosen on purpose keeps its movable window there", () => {
+  expect(chooseProjectorMove([1, 2], 1, 1, 1, [2])).toBeNull();
 });
 
 test("the stage screen is the chosen one while it is connected", () => {

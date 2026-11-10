@@ -18,14 +18,14 @@ import type { DisplayInfo } from "@shared/types/display";
 const LAPTOP: DisplayInfo = {
   id: 1,
   label: "Built-in",
-  primary: true,
+  operator: true,
   bounds: { x: 0, y: 0, width: 1470, height: 956 },
   scaleFactor: 2,
 };
 const PROJECTOR: DisplayInfo = {
   id: 2,
   label: "Proyector",
-  primary: false,
+  operator: false,
   bounds: { x: 1470, y: 0, width: 1920, height: 1080 },
   scaleFactor: 1,
 };

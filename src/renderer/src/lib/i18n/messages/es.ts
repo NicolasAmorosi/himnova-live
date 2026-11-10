@@ -12,7 +12,7 @@ const es = {
     /** The name of a schedule never saved: not «New program», the button's command (2026-11-05). */
     untitled: "Sin título",
     closeDisplay: "Cerrar pantalla",
-    primaryDisplay: "(principal)",
+    controlDisplay: "(pantalla del control)",
   },
   schedule: {
     title: "Programa",
@@ -457,7 +457,7 @@ const es = {
     },
     fileUntied: "No se encontró el archivo de esta canción ({file}): quedó guardada solo en Lumina.",
     theme: "Tema",
-    themeHint: "Cómo se ve en el proyector. «Por defecto» sigue al de Ajustes ▸ Canciones.",
+    themeHint: "Cómo se ve en el proyector. «Por defecto» sigue al de Configuración ▸ Canciones.",
     themeDefault: "Por defecto",
     footer: {
       ccli: "CCLI n.º",
@@ -656,6 +656,7 @@ const es = {
     parallelNone: "Ninguna",
     parallelHint: "Proyectar cada versículo también en otra versión, lado a lado",
     parallelOn: "En paralelo con {name}",
+    parallelMismatch: "«{version}» numera {chapter} de otra forma: los versículos salen solos, sin la columna en paralelo.",
   },
   deck: {
     title: "Presentación",
@@ -960,7 +961,7 @@ const es = {
       languageFailed: "No se pudo cambiar el idioma",
     },
     display: "Pantalla de proyección",
-    displayDesc: "Donde se ve lo que está en vivo. Se aplica al abrir la proyección.",
+    displayDesc: "Donde se ve lo que está en vivo. Cambiarla mueve la proyección al instante; la pantalla del control da una ventana movible.",
     stageDisplay: "Pantalla de escenario",
     stageDisplayDesc: "Para los músicos: lo que está en vivo, lo que sigue y la hora.",
     stageDisplayHelp: "Con NEGRO o LOGO sigue mostrando el contenido y lo avisa.",
@@ -1117,7 +1118,7 @@ const es = {
     internalsMedia: "chrome://media-internals",
     probe: "Probar video",
     probeDesc: "Mide si este equipo reproduce bien un video.",
-    probeHelp: "Reproduce unos segundos un video de la biblioteca. No toca el proyector.",
+    probeHelp: "Reproduce unos segundos un video de la biblioteca. No toca el proyector. Los que reproduce el motor propio de la app (AVI, WMV, MPG…) no se miden acá.",
     probeChoose: "Elegí un video",
     probeNoVideos: "No hay videos en la biblioteca",
     probeRun: "Probar",
@@ -1204,7 +1205,7 @@ const es = {
       map: "Tus pantallas",
       roleProjector: "Proyector",
       roleStage: "Músicos",
-      roleControl: "Principal",
+      roleControl: "Control",
     },
     endings: {
       title: "¿Qué pasa al terminar?",

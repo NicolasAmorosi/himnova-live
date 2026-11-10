@@ -39,7 +39,7 @@ export function DoneStep({ go }: { go: (step: WelcomeStepId) => void }) {
     {
       step: "screens",
       label: t("welcome.steps.screens"),
-      value: projector && !projector.primary ? projector.label : t("welcome.done.noProjector"),
+      value: projector && !projector.operator ? projector.label : t("welcome.done.noProjector"),
     },
     {
       step: "endings",
