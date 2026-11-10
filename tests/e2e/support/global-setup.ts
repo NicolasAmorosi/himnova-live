@@ -154,6 +154,26 @@ export default function globalSetup(): void {
   );
   fs.writeFileSync(out("hymn.odp"), buildOdp(3, 2));
 
+  // For an NDI receiver (`ndi-receiver.spec.ts`): 1080p30 carrying each frame's number as a barcode on its top row
+  // (24 blocks of 64 px, white = 1, then a white and a black marker: `native/ndi-probe`), and a file that flashes
+  // white and beeps together once a second. Each as an MP4 (Chromium plays it) and as an AVI (the media engine).
+  const bar = [
+    "drawbox=x=0:y=0:w=1920:h=64:color=black:t=fill",
+    ...Array.from({ length: 24 }, (_, k) => `drawbox=x=${k * 64}:y=0:w=64:h=64:color=white:t=fill:enable='mod(floor(n/${2 ** k}),2)'`),
+    "drawbox=x=1536:y=0:w=64:h=64:color=white:t=fill",
+  ].join(",");
+  // No B-frames: an AVI keeps no presentation times, and the decoder then shows them two frames late — 65 ms of
+  // false lag between sound and picture (measured 2026-11-10).
+  const h264 = ["-c:v", "libx264", "-preset", "veryfast", "-pix_fmt", "yuv420p", "-g", "30", "-bf", "0"];
+  run("-f", "lavfi", "-i", "testsrc2=size=1920x1080:rate=30:duration=16", "-vf", bar, ...h264, "-b:v", "8M", out("ndi-bar.mp4"));
+  run("-i", out("ndi-bar.mp4"), "-c:v", "copy", "-bsf:v", "h264_mp4toannexb", out("ndi-bar.avi"));
+  fs.copyFileSync(out("ndi-bar.mp4"), out("ndi-bar-2.mp4"));
+  fs.copyFileSync(out("ndi-bar.avi"), out("ndi-bar-2.avi"));
+  const beep = ["-f", "lavfi", "-i", "aevalsrc='0.3*sin(2*PI*1000*t)*lt(mod(t,1),0.05)':s=48000:d=20"];
+  const flash = "color=c=0x282828:s=1920x1080:r=30:d=20,drawbox=x=0:y=0:w=1920:h=1080:color=white:t=fill:enable='lt(mod(n,30),2)'";
+  run("-f", "lavfi", "-i", flash, ...beep, ...h264, "-b:v", "2M", "-c:a", "aac", "-shortest", out("ndi-av.mp4"));
+  run("-i", out("ndi-av.mp4"), ...beep, "-map", "0:v", "-map", "1:a", "-c:v", "copy", "-bsf:v", "h264_mp4toannexb", "-c:a", "pcm_s16le", "-shortest", out("ndi-av.avi"));
+
   fs.writeFileSync(stamp, String(FIXTURE_VERSION));
 }
 

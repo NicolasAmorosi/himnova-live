@@ -11,6 +11,8 @@
 #   ./native/build.sh linux-x64      Docker (Ubuntu 22.04: its glibc 2.35 is the oldest the engine runs on; Debian 12's
 #                                    2.36 left arc4random@GLIBC_2.36 in the static libstdc++). The target uses the
 #                                    system's libmpv, .so.2 or .so.1, loaded at run time (native/engine/mpv-linux.cpp).
+#   ./native/build.sh ndi-probe <t>  The test receiver of tests/e2e/ndi-receiver.spec.ts (native/ndi-probe/), for darwin-arm64,
+#                                    win32-x64 or linux-x64, into native/.build/ndi-probe-<t>[.exe]. Never shipped.
 #   ./native/build.sh pack           Zips every target built here into native/.build/release/, the files of a
 #                                    Release `engine-<n>` (see scripts/fetch-binaries.ts), and prints their sha256.
 # A build leaves a `.local` marker: scripts/fetch-binaries.ts keeps it instead of the published engine.
@@ -30,7 +32,20 @@ if [[ ${1:-} == pack ]]; then
   done
   exit
 fi
-TARGET=${1:?usage: native/build.sh darwin-arm64|win32-x64|linux-x64|pack}
+if [[ ${1:-} == ndi-probe ]]; then
+  T=${2:?usage: native/build.sh ndi-probe darwin-arm64|win32-x64|linux-x64}
+  mkdir -p "$WORK"
+  SRC="native/ndi-probe/ndi-probe.cpp -I native/ndi/include"
+  case $T in
+  darwin-*) clang++ -O2 -std=c++17 -mmacosx-version-min=12.0 $SRC -o "$WORK/ndi-probe-$T" ;;
+  win32-x64) docker run --rm -v "$PWD:/w" -w /w lumina-mingw x86_64-w64-mingw32-g++-posix -O2 -std=c++17 -static -static-libgcc -static-libstdc++ $SRC -o "$WORK/ndi-probe-$T.exe" ;;
+  linux-x64) docker run --rm --platform linux/amd64 -v "$PWD:/w" -w /w lumina-linux-engine-build g++ -O2 -std=c++17 -static-libstdc++ -static-libgcc $SRC -ldl -o "$WORK/ndi-probe-$T" ;;
+  *) echo "unknown target $T"; exit 1 ;;
+  esac
+  ls -la "$WORK"/ndi-probe-"$T"*
+  exit
+fi
+TARGET=${1:?usage: native/build.sh darwin-arm64|win32-x64|linux-x64|ndi-probe <target>|pack}
 OUT=resources/engine/$TARGET
 NODE_INC=$(dirname "$(dirname "$(node -p process.execPath)")")/include/node
 FLAGS=(-O2 -std=c++17 -Wall -Wno-missing-field-initializers)
