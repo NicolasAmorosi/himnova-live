@@ -1,7 +1,7 @@
 import type { Worker } from "node:worker_threads";
 import { ooxmlDir } from "../paths";
 import createPptxWorker from "./pptx-worker?nodeWorker";
-import type { PptxRead, PptxReply, PptxRequest } from "./pptx-worker";
+import type { PptxClips, PptxExtract, PptxRead, PptxReply, PptxRequest } from "./pptx-worker";
 
 export type { PptxRead } from "./pptx-worker";
 
@@ -14,7 +14,7 @@ export type { PptxRead } from "./pptx-worker";
  */
 let worker: Worker | null = null;
 let nextId = 0;
-const waiting = new Map<number, { file: string; done: (read: PptxRead | null) => void }>();
+const waiting = new Map<number, { file: string; done: (reply: PptxReply | null) => void }>();
 
 function pptxWorker(): Worker {
   if (worker) return worker;
@@ -25,7 +25,7 @@ function pptxWorker(): Worker {
     const request = waiting.get(reply.id);
     waiting.delete(reply.id);
     if ("error" in reply) console.warn(`[slides] no reader could open ${request?.file}: ${reply.error}`);
-    request?.done("read" in reply ? reply.read : null);
+    request?.done(reply);
   });
   const lost = (why: string): void => {
     if (worker !== started) return;
@@ -42,10 +42,21 @@ function pptxWorker(): Worker {
   return started;
 }
 
-export function readPptx(sourcePath: string): Promise<PptxRead | null> {
+function ask(file: string, request: PptxRequest): Promise<PptxReply | null> {
   return new Promise((done) => {
-    const id = ++nextId;
-    waiting.set(id, { file: sourcePath, done });
-    pptxWorker().postMessage({ id, file: sourcePath } satisfies PptxRequest);
+    waiting.set(request.id, { file, done });
+    pptxWorker().postMessage(request);
   });
+}
+
+export async function readPptx(sourcePath: string): Promise<PptxRead | null> {
+  const reply = await ask(sourcePath, { id: ++nextId, file: sourcePath });
+  return reply && "read" in reply ? reply.read : null;
+}
+
+/** The deck's embedded sound and video, copied into its cache on the worker thread. `null` when the
+ *  worker could not (the deck then goes without them, as with a part that won't read). */
+export async function extractClips(extract: PptxExtract): Promise<PptxClips | null> {
+  const reply = await ask(extract.file, { id: ++nextId, extract });
+  return reply && "clips" in reply ? reply.clips : null;
 }

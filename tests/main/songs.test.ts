@@ -416,7 +416,7 @@ describe("a linked folder of song files (owner, 2026-11-05)", () => {
     expect(repo.search("roca").map((hit) => hit.songId)).not.toContain(roca.id);
 
     // Imported into the library, the same song is not a repeat of the folder's.
-    expect(importSongFiles([path.join(folder, "uno.cho")])).toEqual({ imported: 1, repeated: 0, problems: 0, unsupported: 0 });
+    expect(await importSongFiles([path.join(folder, "uno.cho")])).toEqual({ imported: 1, repeated: 0, problems: 0, unsupported: 0 });
 
     // Edited outside the app: read again, same row.
     const file = path.join(folder, "uno.cho");
@@ -472,7 +472,7 @@ describe("a song imported from a song file stays tied to it (owner, 2026-11-05)"
   <lyrics><verse name="v1"><lines>Jubilosos Te adoramos<br/>Deus da glória, Deus do amor</lines></verse></lyrics>
 </song>`;
     fs.writeFileSync(file, Buffer.from(xml, "latin1"));
-    expect(importSongFiles([file])).toEqual({ imported: 1, repeated: 0, problems: 0, unsupported: 0 });
+    expect(await importSongFiles([file])).toEqual({ imported: 1, repeated: 0, problems: 0, unsupported: 0 });
     const imported = titled("5 - Jubilosos Te Adoramos");
     expect(imported.file).toBe(file);
     expect(imported.sourceFolder).toBeNull();
@@ -503,7 +503,7 @@ describe("a song imported from a song file stays tied to it (owner, 2026-11-05)"
       file,
       "{title: Primera}\n{start_of_verse}\nUna línea primera\n{end_of_verse}\n{new_song}\n{title: Segunda}\n{start_of_verse}\nUna línea segunda\n{end_of_verse}\n",
     );
-    expect(importSongFiles([file]).imported).toBe(2);
+    expect((await importSongFiles([file])).imported).toBe(2);
     const segunda = titled("Segunda");
     expect(segunda.file).toBe(file);
     await save(segunda.id, (song) => ({ ...song, title: "Segunda (editada)" }));
@@ -554,7 +554,7 @@ describe("a song imported from a song file stays tied to it (owner, 2026-11-05)"
     fs.writeFileSync(file, "{title: Copia vieja}\n{start_of_verse}\nLa letra de la copia\n{end_of_verse}\n");
     const copy = repo.create(song("Copia vieja", "[Estrofa 1]\nLa letra de la copia"));
     expect(copy.file).toBeNull();
-    expect(importSongFiles([file])).toEqual({ imported: 0, repeated: 1, problems: 0, unsupported: 0 });
+    expect(await importSongFiles([file])).toEqual({ imported: 0, repeated: 1, problems: 0, unsupported: 0 });
     expect(repo.get(copy.id)?.file).toBe(file);
   });
 
@@ -618,7 +618,7 @@ Letra de la tercera
   test("a ChordPro file of several songs, one without words yet: editing another keeps it, from the library or a folder", async () => {
     const imported = path.join(fresh("cho-lib"), "cancionero.cho");
     fs.writeFileSync(imported, THREE);
-    expect(importSongFiles([imported])).toEqual({ imported: 2, repeated: 0, problems: 1, unsupported: 0 });
+    expect(await importSongFiles([imported])).toEqual({ imported: 2, repeated: 0, problems: 1, unsupported: 0 });
     writeBack(inLibrary("Tercera").id, (s) => ({ ...s, title: "Tercera (corregida)" }));
     expect(fs.readFileSync(imported, "utf8")).toContain("Tercera (corregida)");
     expect(fs.readFileSync(imported, "utf8")).toContain("{title: Segunda (sin letra todavía)}\n{artist: Alguien}");
@@ -692,7 +692,7 @@ Letra de la tercera
     expect(readOpenLyrics(xml)?.title).toBe("Canción — Благодать");
   });
 
-  test("re-importing a file a library copy already has: the copy takes the file's chords, authors and CCLI number, keeps its theme and notes", () => {
+  test("re-importing a file a library copy already has: the copy takes the file's chords, authors and CCLI number, keeps its theme and notes", async () => {
     const old = repo.create(
       song("Roca de la eternidad", "[Estrofa 1]\nRoca de la eternidad\nfuiste abierta tú por mí", { notes: "Despacio", themeId: someTheme().id }),
     );
@@ -701,7 +701,7 @@ Letra de la tercera
       file,
       "{title: Roca de la eternidad}\n{artist: Augustus Toplady}\n{ccli: 1234567}\n{start_of_verse: Verse 1}\n[G]Roca de la [D]eternidad\nfuiste [C]abierta tú por [G]mí\n{end_of_verse}\n",
     );
-    expect(importSongFiles([file])).toEqual({ imported: 0, repeated: 1, problems: 0, unsupported: 0 });
+    expect(await importSongFiles([file])).toEqual({ imported: 0, repeated: 1, problems: 0, unsupported: 0 });
     expect(repo.get(old.id)).toMatchObject({ file, authors: "Augustus Toplady", ccliNumber: "1234567", notes: "Despacio", themeId: someTheme().id });
     writeBack(old.id, (s) => ({ ...s, title: "Roca de la eternidad (Toplady)" }));
     const text = fs.readFileSync(file, "utf8");
@@ -710,7 +710,7 @@ Letra de la tercera
 });
 
 describe("re-importing a file of a library song: what the file lacks stays the library's (review 2026-11-06)", () => {
-  test("its number, notes, order, translation and chords stay; what it has (the authors) comes in", () => {
+  test("its number, notes, order, translation and chords stay; what it has (the authors) comes in", async () => {
     const sections = withTranslation(
       parseLyrics("[Estrofa 1]\n[G]Sublime gracia\n\n[Coro]\nAleluya", "es").sections,
       parseLyrics("[Estrofa 1]\nAmazing grace", "es").sections,
@@ -723,13 +723,13 @@ describe("re-importing a file of a library song: what the file lacks stays the l
       file,
       `<?xml version="1.0" encoding="UTF-8"?><song xmlns="http://openlyrics.info/namespace/2009/song" version="0.8"><properties><titles><title>Sublime gracia (copia)</title></titles><authors><author>John Newton</author></authors></properties><lyrics><verse name="v1"><lines>Sublime gracia</lines></verse><verse name="c1"><lines>Aleluya</lines></verse></lyrics></song>`,
     );
-    expect(importSongFiles([file])).toEqual({ imported: 0, repeated: 1, problems: 0, unsupported: 0 });
+    expect(await importSongFiles([file])).toEqual({ imported: 0, repeated: 1, problems: 0, unsupported: 0 });
     const after = repo.get(copy.id)!;
     expect(after).toMatchObject({ file, authors: "John Newton", number: "123", notes: "Cantar lento", order: ["v1", "c1", "v1", "c1", "c1"] });
     expect(after.sections).toEqual(copy.sections);
   });
 
-  test("a file that cuts or names the sections otherwise: the translation comes back line by line, OpenLyrics or ChordPro", () => {
+  test("a file that cuts or names the sections otherwise: the translation comes back line by line, OpenLyrics or ChordPro", async () => {
     // The copy: verse 1 in two translated slides, then a translated chorus.
     const sections = withTranslation(
       parseLyrics("[Estrofa 1]\nlinea a\n\nlinea b\n\n[Coro]\ncoro x", "es").sections,
@@ -748,7 +748,7 @@ describe("re-importing a file of a library song: what the file lacks stays the l
       xmlFile,
       `<?xml version="1.0" encoding="UTF-8"?><song xmlns="http://openlyrics.info/namespace/2009/song" version="0.8"><properties><titles><title>Uno traducida</title></titles></properties><lyrics><verse name="v1"><lines>linea a<br/>linea b</lines></verse><verse name="v2"><lines>coro x</lines></verse></lyrics></song>`,
     );
-    expect(importSongFiles([xmlFile])).toEqual({ imported: 0, repeated: 1, problems: 0, unsupported: 0 });
+    expect(await importSongFiles([xmlFile])).toEqual({ imported: 0, repeated: 1, problems: 0, unsupported: 0 });
     expect(slides(xml.id)).toEqual(expected);
     // ChordPro has no place for a translation: `fromFile` restores it the same way.
     const cho = repo.create(song("Dos traducida", "x", { sections }));
@@ -757,7 +757,7 @@ describe("re-importing a file of a library song: what the file lacks stays the l
       choFile,
       "{title: Dos traducida}\n{start_of_verse}\nlinea a\nlinea b\n{end_of_verse}\n{start_of_verse}\ncoro x\n{end_of_verse}\n",
     );
-    expect(importSongFiles([choFile])).toEqual({ imported: 0, repeated: 1, problems: 0, unsupported: 0 });
+    expect(await importSongFiles([choFile])).toEqual({ imported: 0, repeated: 1, problems: 0, unsupported: 0 });
     expect(slides(cho.id)).toEqual(expected);
   });
 });
@@ -1080,7 +1080,7 @@ describe("writing over the file", () => {
 
     const imported = path.join(fresh("symlink-link"), "importada.cho");
     fs.symlinkSync(real, imported);
-    expect(importSongFiles([imported]).imported).toBe(1);
+    expect((await importSongFiles([imported])).imported).toBe(1);
     writeBack(inLibrary("Enlazada (editada)").id, (s) => ({ ...s, title: "Por enlace" }));
     expect(fs.lstatSync(imported).isSymbolicLink()).toBe(true);
     expect(fs.readFileSync(real, "utf8")).toContain("Por enlace");
@@ -1097,44 +1097,44 @@ describe.skipIf(!hasCorpus)("imports of real files", () => {
     }
   };
 
-  test("OpenLP's songs.sqlite: honest counts, and a second import is all repeats", () => {
+  test("OpenLP's songs.sqlite: honest counts, and a second import is all repeats", async () => {
     const file = copy("openlp-sqlite/ftw-ingles/songs.sqlite", fresh("openlp"), "songs.sqlite");
-    const first = importSongFiles([file]);
+    const first = await importSongFiles([file]);
     expect(first.imported + first.repeated + first.problems).toBe(openLpRows(file));
     expect(first.imported).toBeGreaterThan(150);
-    expect(importSongFiles([file])).toEqual({ imported: 0, repeated: first.imported + first.repeated, problems: first.problems, unsupported: 0 });
+    expect(await importSongFiles([file])).toEqual({ imported: 0, repeated: first.imported + first.repeated, problems: first.problems, unsupported: 0 });
   });
 
-  test("OpenLP 1.9.7, 2.4.6 and the invalid-version 2.2 databases", () => {
+  test("OpenLP 1.9.7, 2.4.6 and the invalid-version 2.2 databases", async () => {
     for (const fixture of ["fixture-1.9.7", "fixture-2.4.6", "fixture-2.2-version-invalida"]) {
-      const result = importSongFiles([copy(`openlp-sqlite/${fixture}/songs.sqlite`, fresh(fixture), "songs.sqlite")]);
+      const result = await importSongFiles([copy(`openlp-sqlite/${fixture}/songs.sqlite`, fresh(fixture), "songs.sqlite")]);
       expect(result.imported + result.repeated, fixture).toBe(1);
     }
   });
 
-  test("EasyWorship 6, picked by either of its databases: three songs, Danish letters right; again = all repeats", () => {
+  test("EasyWorship 6, picked by either of its databases: three songs, Danish letters right; again = all repeats", async () => {
     const data = path.join(fresh("ew6"), "Databases", "Data");
     fs.mkdirSync(data, { recursive: true });
     for (const name of ["Songs.db", "SongWords.db"]) {
       fs.copyFileSync(path.join(FORMATS, "easyworship6/openlp-fixture/Databases/Data", name), path.join(data, name));
     }
-    const first = importSongFiles([path.join(data, "SongWords.db")]);
+    const first = await importSongFiles([path.join(data, "SongWords.db")]);
     expect(first.imported + first.repeated).toBe(3);
     expect(first.problems).toBe(1);
     const danish = repo.listLibrary().find((s) => s.title.startsWith("Vi pl"));
     expect(danish?.title).toMatch(/ø/);
     expect(JSON.stringify(danish)).not.toMatch(/Ã|�/);
-    expect(importSongFiles([path.join(data, "Songs.db")])).toEqual({ imported: 0, repeated: 3, problems: 1, unsupported: 0 });
+    expect(await importSongFiles([path.join(data, "Songs.db")])).toEqual({ imported: 0, repeated: 3, problems: 1, unsupported: 0 });
   });
 
-  test("EasyWorship 2009's Songs.DB is refused as an old EasyWorship, not as «no database here»", () => {
+  test("EasyWorship 2009's Songs.DB is refused as an old EasyWorship, not as «no database here»", async () => {
     const folder = fresh("ew2009");
     copy("easyworship2009-MB-formato-viejo/Songs.DB", folder);
     copy("easyworship2009-MB-formato-viejo/Songs.MB", folder);
-    expect(() => importSongFiles([path.join(folder, "Songs.DB")])).toThrow(expect.objectContaining({ code: "EW_OLD" }));
+    await expect(importSongFiles([path.join(folder, "Songs.DB")])).rejects.toMatchObject({ code: "EW_OLD" });
   });
 
-  test("other programs' files are counted apart from songs without words; every song file twice is all repeats", () => {
+  test("other programs' files are counted apart from songs without words; every song file twice is all repeats", async () => {
     const folder = fresh("all");
     const files: string[] = [];
     for (const sub of ["chordpro", "creados-a-mano", "openlyrics", "songselect", "otros-formatos"]) {
@@ -1146,17 +1146,17 @@ describe.skipIf(!hasCorpus)("imports of real files", () => {
         files.push(to);
       }
     }
-    const first = importSongFiles(files);
+    const first = await importSongFiles(files);
     expect(first.unsupported).toBeGreaterThanOrEqual(15);
     expect(first.problems).toBeLessThan(5);
-    const second = importSongFiles(files);
+    const second = await importSongFiles(files);
     expect(second).toEqual({ imported: 0, repeated: first.imported + first.repeated, problems: first.problems, unsupported: first.unsupported });
   });
 
-  test("the same file twice in one pick: one song, one repeat", () => {
+  test("the same file twice in one pick: one song, one repeat", async () => {
     const file = path.join(fresh("twice"), "dos-veces.cho");
     fs.writeFileSync(file, "{title: Dos veces}\n{start_of_verse}\nLa misma letra\n{end_of_verse}\n");
-    expect(importSongFiles([file, file])).toEqual({ imported: 1, repeated: 1, problems: 0, unsupported: 0 });
+    expect(await importSongFiles([file, file])).toEqual({ imported: 1, repeated: 1, problems: 0, unsupported: 0 });
   });
 
   test("a library song's file renamed: saved in the app and untied, the renamed file untouched", () => {

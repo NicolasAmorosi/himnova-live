@@ -19,15 +19,13 @@ import type { DeckRow, NewAudio, NewSlide, NewVideo } from "../db/repositories/s
 import { SlideError, isSlideError } from "./errors";
 import {
   containerKind,
-  extractAudioParts,
   placeAudio,
-  extractVideoParts,
   type ContainerKind,
   type PresentationMeta,
 } from "./pptx-metadata";
 import { readBinaryDeck, sniffUnreadableDeck, type BinaryDeck, type UnreadableDeckReason } from "./ppt-binary";
 import { encodeSlideLayers } from "./native-deck";
-import { readPptx, type PptxRead } from "./pptx-deck";
+import { extractClips, readPptx, type PptxRead } from "./pptx-deck";
 import { readPdfPages, shutdownRasterizer, type RasterLane } from "./rasterizer";
 import { hashFile } from "../media/content-hash";
 import { healDeckClips, isEngineClip, revertPlayableCopies } from "../media/deck-clips";
@@ -455,7 +453,14 @@ async function recordModelDeck(
   // Each sound on the slides it plays on (`placeAudio`), counted among the
   // slides drawn — which only the timings that lined up can say.
   const visibleOoxml = timingsUsable ? visibleMeta.map((slide) => slide.slideIndex) : null;
-  const audio: NewAudio[] = extractAudioParts(sourcePath, meta.audio, path.join(cacheDir, "audio")).flatMap(
+  const clips = (await extractClips({
+    file: sourcePath,
+    audio: meta.audio,
+    audioDir: path.join(cacheDir, "audio"),
+    video: meta.video.length > 0 && timingsUsable ? meta.video : [],
+    videoDir: path.join(cacheDir, "video"),
+  })) ?? { audio: [], video: [] };
+  const audio: NewAudio[] = clips.audio.flatMap(
     (extracted) => {
       const placed = placeAudio(extracted, visibleOoxml);
       if (!placed) return [];
@@ -477,7 +482,7 @@ async function recordModelDeck(
   if (meta.video.length > 0 && timingsUsable) {
     const positionByOoxml = new Map<number, number>();
     visibleMeta.forEach((slide, position) => positionByOoxml.set(slide.slideIndex, position + 1));
-    for (const extracted of extractVideoParts(sourcePath, meta.video, path.join(cacheDir, "video"))) {
+    for (const extracted of clips.video) {
       const slideIndex = positionByOoxml.get(extracted.slideIndex);
       if (slideIndex === undefined) continue;
       videos.push({
