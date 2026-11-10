@@ -29,7 +29,9 @@ export function LogoScene({ onImageError, output }: { onImageError?: ((url: stri
       ) : null}
       {scene.name ? (
         <div className="absolute inset-0 flex items-center justify-center px-[8cqw] text-center">
-          <p data-logo-name style={{ ...sceneTextCss(NAME_STYLE), lineHeight: 1.2 }}>
+          {/* `anywhere`: a web address as the church's name is one 48-letter word, and ran off both
+              sides of the wall the congregation waits in front of (2026-11-10 review, agent4-07). */}
+          <p data-logo-name style={{ ...sceneTextCss(NAME_STYLE), lineHeight: 1.2, overflowWrap: "anywhere" }}>
             {scene.name}
           </p>
         </div>

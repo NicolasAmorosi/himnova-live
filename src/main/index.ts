@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { registerWorshipScheme, registerWorshipProtocolHandler } from "./protocol/worship-protocol";
 import { openDatabase } from "./db/client";
-import { backupBeforeMigrate, runMigrations } from "./db/migrate";
+import { backupBeforeMigrate, repairDanglingReferences, runMigrations } from "./db/migrate";
 import { seedBuiltinBibles } from "./db/seed/seed-bible";
 import { seedUtilityScenes } from "./db/seed/seed-utility-scenes";
 import { seedSongThemes } from "./db/seed/seed-song-themes";
@@ -108,6 +108,8 @@ function initDatabase(): void {
   const { sqlite, db } = openDatabase(dbPath);
 
   try {
+    const repaired = repairDanglingReferences(sqlite);
+    if (repaired > 0) console.warn(`[db] repaired ${repaired} row(s) pointing at a deleted parent`);
     runMigrations(db, migrationsDir);
   } catch (error) {
     dialog.showErrorBox(

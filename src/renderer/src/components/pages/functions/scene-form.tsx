@@ -118,7 +118,9 @@ export function SceneForm({ addingImages, imageAssets, onAddImages, onChange, on
           </FieldRow>
         ) : null}
 
-        {value.tool === "clock" || value.tool === "stopwatch" ? (
+        {/* Each switch only where it changes something (A2): 12 hours is the clock's alone, and the
+            clock always shows its hours. */}
+        {value.tool === "clock" ? (
           <FieldRow label={t("scenes.hour12")}>
             <Switch
               checked={value.config.format.hour12}
@@ -136,12 +138,14 @@ export function SceneForm({ addingImages, imageAssets, onAddImages, onChange, on
           </FieldRow>
         ) : null}
 
-        <FieldRow description={t("scenes.hideZeroHoursHint")} label={t("scenes.hideZeroHours")}>
-          <Switch
-            checked={value.config.format.hideZeroHours}
-            onChange={(e) => patchFormat({ hideZeroHours: e.target.checked })}
-          />
-        </FieldRow>
+        {value.tool !== "clock" ? (
+          <FieldRow description={t("scenes.hideZeroHoursHint")} label={t("scenes.hideZeroHours")}>
+            <Switch
+              checked={value.config.format.hideZeroHours}
+              onChange={(e) => patchFormat({ hideZeroHours: e.target.checked })}
+            />
+          </FieldRow>
+        ) : null}
 
         {isCountdownTool(value.tool) ? (
           <FieldRow description={t("scenes.overrunHint")} label={t("scenes.overrun")}>

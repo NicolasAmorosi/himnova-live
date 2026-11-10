@@ -5,6 +5,7 @@ import { api } from "@renderer/lib/api";
 import { classifyVideoProbe, type VideoProbeReason, type VideoProbeVerdict } from "@renderer/lib/video-probe";
 import { assetUrl } from "@shared/urls";
 import type { MediaAsset } from "@shared/types/media";
+import { useEngineAssetsStore } from "@renderer/stores/engine-assets.store";
 import type { GpuStatus, VideoDecoderReport } from "@shared/types/system";
 
 /** How long the probe plays once it is actually playing: long enough for a
@@ -87,7 +88,11 @@ function reasonText(t: Translate, reason: VideoProbeReason): string {
 export function PerformanceDiagnostics() {
   const t = useT();
   const [gpu, setGpu] = useState<GpuStatus | null>(null);
-  const [videos, setVideos] = useState<MediaAsset[]>([]);
+  const [library, setVideos] = useState<MediaAsset[]>([]);
+  // What Chromium plays: the probe is a `<video>`, so a file the media engine plays never played
+  // here the way it plays live, and «failed» said nothing about it (A12).
+  const engine = useEngineAssetsStore((s) => s.engine);
+  const videos = library.filter((video) => !engine[video.id]);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [probeSrc, setProbeSrc] = useState<string | null>(null);
   const [result, setResult] = useState<ProbeResult | null>(null);

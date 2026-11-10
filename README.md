@@ -69,7 +69,7 @@ Windows, macOS and Linux · English, Spanish, Italian and Portuguese
 ## Download
 
 Installers are on [Releases](https://github.com/NicolasAmorosi/lumina-live/releases/latest): Windows
-(installer), macOS on Apple Silicon (`.dmg`) and Linux: a `.deb` for Ubuntu, Debian and Linux Mint,
+(installer), macOS 13 (Ventura) or later on Apple Silicon (`.dmg`) and Linux: a `.deb` for Ubuntu, Debian and Linux Mint,
 and an `AppImage` for other distributions. On Ubuntu 24.04 or later use the `.deb`: AppArmor won't
 let the AppImage start without `--no-sandbox`, which turns off a security protection. On Linux the
 files Lumina's media engine plays (AVI, WMV, WMA…) need the distribution's libmpv: the `.deb` installs

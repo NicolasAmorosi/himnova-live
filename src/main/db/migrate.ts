@@ -161,6 +161,41 @@ function pruneOldBackups(backupDir: string): void {
   }
 }
 
+/**
+ * Repairs every row that points at a parent that no longer exists, the way its foreign key would
+ * have on that parent's delete: `SET NULL` clears the column, anything else (`CASCADE`, `RESTRICT`)
+ * removes the row. Returns how many rows it touched, for the log.
+ *
+ * Run before `runMigrations`. A migration that rebuilds a table (`program_items` in 0009, 0011, 0015,
+ * 0019) copies it with foreign keys ON, and drizzle applies every pending migration in ONE
+ * transaction: a single dangling reference rolled the whole upgrade back, and the app showed the
+ * error and closed on every launch after — with a backup holding the same row (2026-11-10 review,
+ * agent6-02). Such rows have existed: the 184 orphan deck rows of 2026-09-15, cause never found.
+ */
+export function repairDanglingReferences(sqlite: Database.Database): number {
+  const violations = sqlite.pragma("foreign_key_check") as { table: string; rowid: number | null; fkid: number }[];
+  let repaired = 0;
+  for (const { table, rowid, fkid } of violations) {
+    if (rowid === null) continue;
+    const keys = sqlite.pragma(`foreign_key_list("${table.replace(/"/g, '""')}")`) as {
+      id: number;
+      from: string;
+      on_delete: string;
+    }[];
+    const key = keys.find((candidate) => candidate.id === fkid);
+    const quoted = `"${table.replace(/"/g, '""')}"`;
+    try {
+      if (key?.on_delete.toUpperCase() !== "SET NULL") throw new Error("not set null");
+      // A CHECK may forbid the null (a schedule row's kind needs its id): then it goes.
+      sqlite.prepare(`UPDATE ${quoted} SET "${key.from.replace(/"/g, '""')}" = NULL WHERE rowid = ?`).run(rowid);
+    } catch {
+      sqlite.prepare(`DELETE FROM ${quoted} WHERE rowid = ?`).run(rowid);
+    }
+    repaired += 1;
+  }
+  return repaired;
+}
+
 export function runMigrations(db: Db, migrationsFolder: string): void {
   migrate(db, { migrationsFolder });
 }
