@@ -13,7 +13,7 @@
 //     {"ev":"done"}                              read the frame main is holding: it can release it now
 //     {"ev":"status","receivers":…}              on every change; with none, a new frame is encoded once, not repeated
 //     {"ev":"audio","state":"on"|"off","detail":…,"level":…}  the sound: on (and its loudest sample in the last second,
-//                                                dBFS, once a second while watched), or off and why
+//                                                dBFS, once a second), or off and why
 //     {"ev":"error","code":…,"detail":…}         ndi-runtime-missing (exit 3) · ndi-send (exit 4) · ndi-gpu
 #include <algorithm>
 #include <atomic>
@@ -539,12 +539,11 @@ int ndiSendMain(int argc, char** argv) {
           auto now = std::chrono::steady_clock::now();
           if (now - lastLevel >= std::chrono::seconds(1)) {
             lastLevel = now;
+            // Watched or not: Settings shows it, and it is how a test hears the app's sound.
             float peak = audio.takePeak();
-            if (audio.watched) {
-              char db[32];
-              snprintf(db, sizeof db, "%.1f", peak > 0 ? 20 * std::log10(peak) : -120.0);
-              emit(std::string("{\"ev\":\"audio\",\"state\":\"on\",\"level\":") + db + "}");
-            }
+            char db[32];
+            snprintf(db, sizeof db, "%.1f", peak > 0 ? 20 * std::log10(peak) : -120.0);
+            emit(std::string("{\"ev\":\"audio\",\"state\":\"on\",\"level\":") + db + "}");
           }
           std::this_thread::sleep_for(std::chrono::milliseconds(5));
         }

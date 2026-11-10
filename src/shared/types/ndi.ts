@@ -39,7 +39,7 @@ export const NDI_AUDIO_DELAY_MIN_MS = -200;
 export const NDI_AUDIO_DELAY_MAX_MS = 400;
 export const NDI_AUDIO_DELAY_DEFAULT_MS = 0;
 
-/** The output's sound: going out (its loudest moment in the last second, dBFS, while someone watches), or
+/** The output's sound: going out (its loudest moment in the last second, dBFS), or
  *  impossible here and why (`detail`: macOS before 14.2, a Windows before 10 2004…). */
 export type NdiAudioStatus = { state: "on"; levelDb: number | null } | { state: "unavailable"; detail: string };
 
