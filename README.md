@@ -50,7 +50,7 @@ Windows, macOS and Linux · English, Spanish, Italian and Portuguese
 - **NDI® output:** the projector's picture as a video source on your local network, for OBS, vMix or any
   other NDI program — to stream the service with the lyrics and slides. Video only: the sound comes from
   your mixing desk. Turn it on in Settings › Projection; it needs NDI's free runtime, which you install
-  from [ndi.video](https://ndi.video/).
+  from [ndi.video](https://ndi.video/). 1080p needs a gigabit network cable; over Wi-Fi, use 720p.
 - **Timers** (countdown, clock, stopwatch) and **overlays** on top of what is projected (a lower third
   with the preacher's name, the church logo).
 - **BLACK and LOGO** pause whatever is playing and resume it where it was. Without a logo image, LOGO
