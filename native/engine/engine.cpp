@@ -113,7 +113,7 @@ struct Engine {
 static Engine E;
 // Seconds the sound of a video is held (see FILE_LOADED). ponytail: measured on the Mac; Windows and Linux use the
 // same until their own measurement says otherwise.
-static const char* AUDIO_DELAY = "0.050";
+static const char* AUDIO_DELAY = "0.065";
 
 static void onUpdate(void*) {
   { std::lock_guard<std::mutex> l(E.m); E.updated = true; }
@@ -389,8 +389,10 @@ int main(int argc, char** argv) {
         }
         // mpv puts the sound out as it renders the frame, but the frame still crosses main and the page before
         // it shows: measured on a Mac's screen and speakers (ScreenCaptureKit, 2026-11-10), the sound of an
-        // engine video came 61 ms before its picture, Chromium's 11 ms. Held this much, the two paths agree,
-        // in the room and over NDI (agent2-02). Only a file with a picture: a song alone has nothing to meet.
+        // engine video came 61 ms before its picture, Chromium's 11 ms (agent2-02). Held 50 ms it came −12 ms in
+        // the room, but over NDI, whose window paints at its own 30 Hz, −3…−47 ms by each start's phase; held
+        // 65 ms: +2 ms in the room, +3…+29 ms over NDI (EBU R37: −40…+60). Only a file with a picture: a song
+        // alone has nothing to meet.
         if (video > 0) set("audio-delay", AUDIO_DELAY);
         E.loaded = true;
         changed = true;
