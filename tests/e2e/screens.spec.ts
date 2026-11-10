@@ -113,7 +113,8 @@ test.describe("the welcome's map of screens", () => {
     await app.projector();
     await expectMovableOnControlScreen(app);
 
-    await app.kill();
+    // A movable window no longer stands between the operator and the app: quit it as they would.
+    await app.quit();
     const again = await relaunch(app);
     const welcomeAgain = again.control.getByRole("dialog", { name: "Bienvenida" });
     if (await welcomeAgain.isVisible().catch(() => false)) {
