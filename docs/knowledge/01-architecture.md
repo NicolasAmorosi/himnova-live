@@ -114,7 +114,7 @@ and a link to ndi.video wherever NDI is used or chosen — the app, the landing 
   `NSAudioCaptureUsageDescription`; earlier macOS is video only, and Settings says why), Linux the default output's
   monitor (the whole computer). Picture and sound are stamped on one clock — the picture when painted, the sound
   when played — and the sound leaves `ndi.output.audioDelayMs` late (0 by default, «Sincronía del sonido» in
-  Settings, −200…+400). The engine holds a video's own sound 65 ms (50 on Windows, `audio-delay`): +2 ms in the Mac's room, +3…+29 ms
+  Settings, −200…+400). The engine holds a video's own sound 65 ms (40 on Windows, `audio-delay`): +2 ms in the Mac's room, +3…+29 ms
   over NDI. Settings shows the sound's peak level once a second: a refused macOS permission sends silence.
 - **A Chromium video plays twice** — the projector's, whose sound the room hears and NDI captures, and the NDI
   window's, whose picture NDI sends — and each starts when its own pipeline is ready: 3 starts in 5 the sound came
