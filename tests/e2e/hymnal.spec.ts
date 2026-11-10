@@ -1,9 +1,8 @@
-import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
 import type { DeckDTO } from "../../src/shared/types/deck";
 import type { MediaAsset } from "../../src/shared/types/media";
-import { audioStates, expect, test } from "./support/app";
+import { realMissing, realPath } from "../fixtures/real-material";
+import { audioStates, expect, msUntilChange, test } from "./support/app";
 
 /**
  * The decks the app exists for: the church's hymnal, legacy OLE2 `.pps` files
@@ -13,10 +12,10 @@ import { audioStates, expect, test } from "./support/app";
  * when the machine has it — `WORSHIP_E2E_HYMNAL=<folder with 522.pps>` on the
  * church PC — and skips otherwise. The files are only read, never changed.
  */
-const HYMNAL = process.env["WORSHIP_E2E_HYMNAL"] ?? path.join(os.homedir(), "Downloads/PPT test/Himnario Nuevo Cantado");
+const HYMNAL = process.env["WORSHIP_E2E_HYMNAL"] ?? realPath("PPT test/Himnario Nuevo Cantado");
 const HYMN = path.join(HYMNAL, "522.pps");
 
-test.skip(!fs.existsSync(HYMN), `no hymnal at ${HYMNAL} (set WORSHIP_E2E_HYMNAL)`);
+test.skip(realMissing(HYMN), `no hymnal at ${HYMNAL} (set WORSHIP_E2E_HYMNAL or WORSHIP_REAL_DIR)`);
 
 /** The slide the projector shows now: the topmost deck image. */
 function projectedSlide(page: import("@playwright/test").Page): Promise<number | null> {
@@ -47,8 +46,11 @@ test("hymn 522 finds its song, keeps its timings and advances with the music", a
   await expect.poll(async () => (await audioStates(projector))[0]?.currentTime ?? 0).toBeGreaterThan(0.5);
   await expect(app.liveColumn().getByText("522 (música)")).toBeVisible();
   expect(await projectedSlide(projector)).toBe(1);
-  // 10.5 s on the first slide, by the deck's own clock.
-  await expect.poll(() => projectedSlide(projector), { timeout: 20_000 }).toBe(2);
+  // 10.5 s on the first slide, on the music's beat: the slide turns when the song is there, not «within 20 s».
+  expect((await msUntilChange(() => projectedSlide(projector), 1, 20_000)).value).toBe(2);
+  const turnedAt = (await audioStates(projector))[0]?.currentTime ?? 0;
+  expect(turnedAt).toBeGreaterThan(10.515 - 0.3);
+  expect(turnedAt).toBeLessThan(10.515 + 0.3);
 
   // NEGRO stops the song AND the slides; uncovering picks both up together.
   await app.control.locator("body").press("b");

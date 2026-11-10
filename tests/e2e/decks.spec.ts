@@ -9,7 +9,7 @@ import { fixture } from "./support/paths";
 import { buildPdf } from "./support/pdf";
 import { CM, buildPptx } from "./support/pptx";
 import { compoundFile } from "../fixtures/legacy-ppt";
-import { audioStates, engineCanvas, expect, moving, relaunch, test, videoStates, type WorshipApp } from "./support/app";
+import { audioStates, engineCanvas, expect, moving, msUntilChange, relaunch, test, videoStates, type WorshipApp } from "./support/app";
 
 /** A slide in the centre grid, once the deck is read. */
 const slideTile = (app: WorshipApp, n: number) =>
@@ -127,9 +127,12 @@ test("a .pptx with timings advances by itself", async ({ app }) => {
   await app.goLive();
   const projector = await app.projector();
   await expect.poll(() => projectedSlide(projector)).toBe(1);
-  // Two seconds a slide, from the deck's own timings.
-  await expect.poll(() => projectedSlide(projector), { timeout: 8_000 }).toBe(2);
-  await expect.poll(() => projectedSlide(projector), { timeout: 8_000 }).toBe(3);
+  // Two seconds a slide, from the deck's own timings: slide 2's whole time, measured (slide 1's began before we looked).
+  expect((await msUntilChange(() => projectedSlide(projector), 1, 8_000)).value).toBe(2);
+  const second = await msUntilChange(() => projectedSlide(projector), 2, 8_000);
+  expect(second.value).toBe(3);
+  expect(second.ms).toBeGreaterThan(1_700);
+  expect(second.ms).toBeLessThan(2_400);
 });
 
 test("the EN VIVO that opens the projector still gives slide 1 its whole time", async ({ app }) => {
@@ -356,7 +359,11 @@ test("a deck that advances by itself leaves the projector after its last slide",
   await app.goLive();
   const projector = await app.projector();
   await expect.poll(() => projectedSlide(projector), { timeout: 10_000 }).toBe(3);
-  await expect.poll(() => projectedSlide(projector), { timeout: 10_000 }).toBeNull();
+  // After the last slide's own two seconds, not «some time»; the ~100 ms of a poll's lag on the first read.
+  const off = await msUntilChange(() => projectedSlide(projector), 3, 10_000);
+  expect(off.value).toBeNull();
+  expect(off.ms).toBeGreaterThan(1_200);
+  expect(off.ms).toBeLessThan(2_400);
   await expect(app.liveColumn().getByRole("button", { name: "Siguiente" })).toHaveCount(0);
 });
 
