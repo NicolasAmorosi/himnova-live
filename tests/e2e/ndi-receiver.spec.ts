@@ -16,7 +16,9 @@ const PROBE = path.join(
   ".build",
   `ndi-probe-${process.platform}-${process.arch === "arm64" ? "arm64" : "x64"}${process.platform === "win32" ? ".exe" : ""}`,
 );
-const NAME = "Lumina E2E";
+// Its own name each run: an NDI finder still lists a source whose sender was killed — another computer's test run of
+// the same name, hours later, was found first and gave 0 frames.
+const NAME = `Lumina E2E ${process.pid}`;
 
 function probe<T>(...args: string[]): Promise<T> {
   return new Promise((resolve, reject) =>

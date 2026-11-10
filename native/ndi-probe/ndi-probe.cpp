@@ -4,12 +4,16 @@
 // the user's own, loaded at run time, as the app does. Build: native/build.sh ndi-probe <target>.
 //
 //   ndi-probe find <name> <seconds>                 {"name":…,"url":…} of the first source whose name contains <name>
-//   ndi-probe count <source> <url> <seconds>        video frames carrying their number as a barcode (24 blocks of 64 px
+//   ndi-probe count <source> <url> <seconds> [<frames>]
+//                                                   video frames carrying their number as a barcode (24 blocks of 64 px
 //                                                   on the top row at 1920, white = 1, then a white and a black marker):
-//                                                   {"received","fresh","skipped","repeats","nobar"}, after the first
-//                                                   second (the SDK hands a new receiver the frame it last sent)
+//                                                   {"received","fresh","skipped","repeats","nobar","wraps"}, after the
+//                                                   first second (the SDK hands a new receiver the frame it last sent).
+//                                                   Given the video's <frames>, a looping one counts the frames lost
+//                                                   across each wrap too: the end's and the start's
 //   ndi-probe avsync <source> <url> <seconds>       a file flashing white and beeping together: sound minus picture per
-//                                                   pair, by timecode, in ms — {"pairs","median","p10","p90","audioFrames"}
+//                                                   pair, by timecode, in ms — {"pairs","median","p10","p90","flashes",
+//                                                   "beeps","audioFrames"}
 #include <algorithm>
 #include <chrono>
 #include <cmath>
@@ -112,10 +116,10 @@ static long barcode(const NDIlib_video_frame_v2_t& v) {
   return n;
 }
 
-static int count(const NDIlib_v6* ndi, const char* source, const char* url, int seconds) {
+static int count(const NDIlib_v6* ndi, const char* source, const char* url, int seconds, long frames) {
   auto r = receive(ndi, source, url);
   if (!r) return 1;
-  long last = -1, received = 0, fresh = 0, skipped = 0, repeats = 0, nobar = 0;
+  long last = -1, received = 0, fresh = 0, skipped = 0, repeats = 0, nobar = 0, wraps = 0;
   auto start = Clock::now();
   while (since(start) < seconds + 1) {
     NDIlib_video_frame_v2_t v;
@@ -131,11 +135,16 @@ static int count(const NDIlib_v6* ndi, const char* source, const char* url, int 
     else if (n == last) repeats++;
     else {
       if (last >= 0 && n > last) skipped += n - last - 1;
+      if (last >= 0 && n < last && frames > 0) {
+        wraps++;
+        skipped += frames - 1 - last + n;
+      }
       fresh++;
       last = n;
     }
   }
-  printf("{\"received\":%ld,\"fresh\":%ld,\"skipped\":%ld,\"repeats\":%ld,\"nobar\":%ld}\n", received, fresh, skipped, repeats, nobar);
+  printf("{\"received\":%ld,\"fresh\":%ld,\"skipped\":%ld,\"repeats\":%ld,\"nobar\":%ld,\"wraps\":%ld}\n", received, fresh,
+         skipped, repeats, nobar, wraps);
   ndi->recv_destroy(r);
   return 0;
 }
@@ -146,6 +155,9 @@ static int avsync(const NDIlib_v6* ndi, const char* source, const char* url, int
   std::vector<double> flashes, beeps;
   bool bright = false;
   long quiet = 0, audioFrames = 0;
+  // The sound's level by the millisecond, windows running on across the receiver's frames.
+  double acc = 0, accStart = 0, onset = -1;
+  int accN = 0;
   auto start = Clock::now();
   while (since(start) < seconds) {
     NDIlib_video_frame_v2_t v;
@@ -164,12 +176,25 @@ static int avsync(const NDIlib_v6* ndi, const char* source, const char* url, int
       audioFrames++;
       const float* ch0 = (const float*)a.p_data;
       const int win = std::max(1, a.sample_rate / 1000);
-      for (int i = 0; i + win <= a.no_samples; i += win) {
-        double e = 0;
-        for (int k = 0; k < win; k++) e += ch0[i + k] * ch0[i + k];
-        double rms = std::sqrt(e / win);
-        if (rms > 0.02 && quiet > a.sample_rate / 5) beeps.push_back(a.timecode / 1e4 + (double)i / a.sample_rate * 1000);
-        quiet = rms < 0.005 ? quiet + win : 0;
+      for (int i = 0; i < a.no_samples; i++) {
+        if (accN == 0) accStart = a.timecode / 1e4 + (double)i / a.sample_rate * 1000;
+        acc += ch0[i] * ch0[i];
+        if (++accN < win) continue;
+        const double rms = std::sqrt(acc / accN), t = accStart;
+        acc = 0;
+        accN = 0;
+        if (rms > 0.02) {
+          if (quiet > a.sample_rate / 5) beeps.push_back(onset >= 0 ? onset : t);
+          quiet = 0;
+          onset = -1;
+        } else if (rms < 0.005) {
+          quiet += win;
+          onset = -1;
+        } else if (onset < 0) {
+          // A beep's first millisecond, caught half: it keeps the quiet before it, and gives the beep its start.
+          // Reset, it lost a beep in four on some starts (2026-11-10).
+          onset = t;
+        }
       }
       ndi->recv_free_audio_v3(r, &a);
     }
@@ -182,10 +207,10 @@ static int avsync(const NDIlib_v6* ndi, const char* source, const char* url, int
     if (std::fabs(best) < 500) d.push_back(best);
   }
   std::sort(d.begin(), d.end());
-  if (d.empty()) printf("{\"pairs\":0,\"audioFrames\":%ld}\n", audioFrames);
+  if (d.empty()) printf("{\"pairs\":0,\"flashes\":%zu,\"beeps\":%zu,\"audioFrames\":%ld}\n", flashes.size(), beeps.size(), audioFrames);
   else
-    printf("{\"pairs\":%zu,\"median\":%.1f,\"p10\":%.1f,\"p90\":%.1f,\"audioFrames\":%ld}\n", d.size(), d[d.size() / 2],
-           d[d.size() / 10], d[d.size() * 9 / 10], audioFrames);
+    printf("{\"pairs\":%zu,\"median\":%.1f,\"p10\":%.1f,\"p90\":%.1f,\"flashes\":%zu,\"beeps\":%zu,\"audioFrames\":%ld}\n",
+           d.size(), d[d.size() / 2], d[d.size() / 10], d[d.size() * 9 / 10], flashes.size(), beeps.size(), audioFrames);
   ndi->recv_destroy(r);
   return 0;
 }
@@ -200,7 +225,7 @@ int main(int argc, char** argv) {
   std::string mode = argc > 1 ? argv[1] : "";
   int rc = 2;
   if (mode == "find" && argc > 3) rc = find(ndi, argv[2], atoi(argv[3]));
-  else if (mode == "count" && argc > 4) rc = count(ndi, argv[2], argv[3], atoi(argv[4]));
+  else if (mode == "count" && argc > 4) rc = count(ndi, argv[2], argv[3], atoi(argv[4]), argc > 5 ? atol(argv[5]) : 0);
   else if (mode == "avsync" && argc > 4) rc = avsync(ndi, argv[2], argv[3], atoi(argv[4]));
   else printf("{\"error\":\"usage\"}\n");
   ndi->destroy();
