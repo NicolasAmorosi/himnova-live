@@ -11,6 +11,8 @@ import { api } from "@renderer/lib/api";
 import { useSettingsStore } from "@renderer/stores/settings.store";
 import { usePreviewStore } from "@renderer/stores/preview.store";
 import { sameBook } from "@shared/bible-canon";
+import { t } from "@renderer/lib/i18n/i18n-provider";
+import { toast } from "@renderer/lib/toast";
 
 /** A verse PREVIEW target is an index into the chapter loaded HERE, so a
  *  different chapter makes it name another verse: Juan 3:16 previewed, then
@@ -44,6 +46,43 @@ export function alignByNumber(
   return verses.map((verse) => byNumber.get(verse.verse) ?? null);
 }
 
+/**
+ * Whether another version's same chapter numbers its verses like `verses`: it ends on the same verse.
+ * Diodati 1885 numbers 44 chapters otherwise (its 1 S 24:1 is RV 1909's 23:29), and pairing those by
+ * number put another verse beside the one being read — such a chapter goes out in one column, with a
+ * word to the operator (owner, 2026-11-10). A verse a version leaves out INSIDE a chapter is not that:
+ * the chapter still ends where ours does, and that verse alone goes out without its twin.
+ */
+export function sameVersification(verses: readonly BibleVerseDTO[], twins: readonly BibleVerseDTO[]): boolean {
+  const last = (list: readonly BibleVerseDTO[]) => list.reduce((max, verse) => Math.max(max, verse.verse), 0);
+  return twins.length === 0 || verses.length === 0 || last(verses) === last(twins);
+}
+
+/** The operator hears it once per chapter and version, not on every verse stepped through. */
+const warnedVersification = new Set<string>();
+
+export function warnParallelVersification(versionId: number, versionName: string, chapterLabel: string): void {
+  const key = `${versionId}:${chapterLabel}`;
+  if (warnedVersification.has(key)) return;
+  warnedVersification.add(key);
+  toast.info(t("bible.parallelMismatch", { version: versionName, chapter: chapterLabel }));
+}
+
+/** `bookId`'s chapter in version `twinVersionId`, its book found by what it is (`sameBook`) — no
+ *  verses when that version lacks it. */
+export async function twinChapterVerses(
+  twinVersionId: number,
+  books: readonly BibleBookDTO[],
+  bookId: number,
+  chapter: number,
+): Promise<BibleVerseDTO[]> {
+  const book = books.find((b) => b.id === bookId);
+  if (!book) return [];
+  const theirs = await api.bible.books(twinVersionId);
+  const twin = theirs.find((b) => sameBook(b, theirs.length, book, books.length) && chapter <= b.chapterCount);
+  return twin ? api.bible.chapter(twin.id, chapter) : [];
+}
+
 type ParallelChapter = { versionId: number; verses: BibleVerseDTO[] } | null;
 
 /** The parallel version's same chapter, its book found by what it is
@@ -59,12 +98,9 @@ async function parallelChapter(
 ): Promise<ParallelChapter> {
   const setting = useSettingsStore.getState().settings["bible.parallelVersionId"];
   const parallelId = parallelVersionFor(setting, versions, versionId);
-  const book = books.find((b) => b.id === bookId);
-  if (parallelId === null || !book) return null;
+  if (parallelId === null || !books.some((b) => b.id === bookId)) return null;
   try {
-    const theirs = await api.bible.books(parallelId);
-    const twin = theirs.find((b) => sameBook(b, theirs.length, book, books.length) && chapter <= b.chapterCount);
-    return { versionId: parallelId, verses: twin ? await api.bible.chapter(twin.id, chapter) : [] };
+    return { versionId: parallelId, verses: await twinChapterVerses(parallelId, books, bookId, chapter) };
   } catch (error) {
     console.error("[bible] parallel chapter failed", error);
     return null;
@@ -74,10 +110,12 @@ async function parallelChapter(
 function parallelState(
   parallel: ParallelChapter,
   verses: readonly BibleVerseDTO[],
-): Pick<BibleStoreState, "parallelVersionId" | "parallelVerses"> {
+): Pick<BibleStoreState, "parallelVersionId" | "parallelVerses" | "parallelMismatch"> {
+  const aligned = parallel !== null && sameVersification(verses, parallel.verses);
   return {
     parallelVersionId: parallel?.versionId ?? null,
-    parallelVerses: parallel ? alignByNumber(verses, parallel.verses) : [],
+    parallelVerses: parallel && aligned ? alignByNumber(verses, parallel.verses) : [],
+    parallelMismatch: parallel !== null && !aligned,
   };
 }
 
@@ -95,6 +133,8 @@ type BibleStoreState = {
    *  version lacks: it goes out alone. */
   parallelVersionId: number | null;
   parallelVerses: (BibleVerseDTO | null)[];
+  /** The parallel version numbers this chapter otherwise (`sameVersification`): it goes out alone. */
+  parallelMismatch: boolean;
   favorites: BibleBookmark[];
   recents: BibleBookmark[];
 
@@ -124,6 +164,7 @@ export const useBibleStore = create<BibleStoreState>((set, get) => ({
   currentVerseIndex: null,
   parallelVersionId: null,
   parallelVerses: [],
+  parallelMismatch: false,
   favorites: [],
   recents: [],
 

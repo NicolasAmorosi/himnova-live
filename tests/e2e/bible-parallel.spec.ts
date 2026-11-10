@@ -8,7 +8,8 @@ const JUAN_3_17 = "Porque no envió Dios á su Hijo al mundo";
 const JOHN_3_16 = "For God so loved the world.";
 const JOHN_3_17 = "For God did not send his Son into the world to judge the world.";
 
-/** A second version, in another language: what «En paralelo» is for. */
+/** A second version, in another language: what «En paralelo» is for. John 3 whole, as RV 1909 numbers
+ *  it: a twin chapter that ends elsewhere goes out in one column (`sameVersification`). */
 async function importEnglish(app: WorshipApp) {
   const file = path.join(app.profile, "English.xml");
   fs.writeFileSync(
@@ -17,8 +18,9 @@ async function importEnglish(app: WorshipApp) {
 <XMLBIBLE biblename="English">
   <BIBLEBOOK bnumber="43" bname="John">
     <CHAPTER cnumber="3">
-      <VERS vnumber="16">${JOHN_3_16}</VERS>
-      <VERS vnumber="17">${JOHN_3_17}</VERS>
+${Array.from({ length: 36 }, (_, i) => i + 1)
+  .map((n) => `      <VERS vnumber="${n}">${n === 16 ? JOHN_3_16 : n === 17 ? JOHN_3_17 : `John 3:${n}.`}</VERS>`)
+  .join("\n")}
     </CHAPTER>
   </BIBLEBOOK>
 </XMLBIBLE>`,
@@ -85,4 +87,22 @@ test("«En paralelo»: a verse of the tab and a schedule row go out in two versi
   await again.control.getByRole("tabpanel", { name: "Biblia" }).getByRole("listitem").filter({ hasText: JUAN_3_17 }).dblclick();
   await expect(again.liveColumn().getByText(JUAN_3_17, { exact: false }).first()).toBeVisible();
   await expect(again.liveColumn().locator("[data-bible-parallel]")).toHaveCount(0);
+});
+
+test("«En paralelo» with a version that numbers the chapter otherwise: one column and a word to the operator", async ({ app }) => {
+  // The bundled Diodati 1885 numbers 1 Samuel 24 as the Hebrew does: its 24:1 is RV 1909's 23:29. Paired
+  // by number, the congregation read two different verses as the same one (2026-11-10 review, agent4-02).
+  await app.invoke("bible:installBundled", { code: "diodati1885" });
+  await app.control.reload();
+  await expect(app.control.getByRole("button", { name: "EN VIVO", exact: true })).toBeVisible();
+  await app.openChapter("1 Samuel 24");
+  const tab = app.control.getByRole("tabpanel", { name: "Biblia" });
+  await tab.getByRole("button", { name: "En paralelo" }).click();
+  await app.control.getByRole("menuitemradio", { name: "Diodati 1885" }).click();
+  await tab.getByRole("listitem").filter({ hasText: "Y como Saúl volvió de los Filisteos" }).dblclick();
+  const projector = await app.projector();
+  await expect(projector.getByText("Y como Saúl volvió de los Filisteos")).toBeVisible();
+  await expect(projector.locator("[data-bible-parallel]")).toHaveCount(0);
+  await expect(projector.getByText("POI Davide", { exact: false })).toHaveCount(0);
+  await expect(app.control.getByRole("status").filter({ hasText: "numera 1 Samuel 24 de otra forma" })).toBeVisible();
 });

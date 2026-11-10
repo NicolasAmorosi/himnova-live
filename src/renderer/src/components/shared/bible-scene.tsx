@@ -180,7 +180,10 @@ function useFittedTextSize(
     // refusing to save (see `normalizeAutoFit`); it simply means there is no
     // room to shrink into, which is the same outcome as the feature being off.
     if (!enabled || min >= max) {
-      for (const text of texts) text.style.fontSize = "";
+      // The size React would write, written here: clearing it ("") left the
+      // page's 16 px whenever `sizeCqw` already held `max`, since setting the
+      // same state renders nothing and React never puts the style back.
+      for (const text of texts) text.style.fontSize = `${max}cqw`;
       setSizeCqw(max);
       return;
     }
