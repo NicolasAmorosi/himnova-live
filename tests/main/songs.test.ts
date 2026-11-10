@@ -518,7 +518,7 @@ describe("a song imported from a song file stays tied to it (owner, 2026-11-05)"
     const folder = fs.mkdtempSync(path.join(tmpDir, "import-"));
     const file = path.join(folder, "roca.cho");
     fs.writeFileSync(file, "{title: Roca}\n{start_of_verse}\nRoca de la eternidad\n{end_of_verse}\n");
-    importSongFiles([file]);
+    await importSongFiles([file]);
     const roca = titled("Roca");
     fs.writeFileSync(file, "{title: Roca}\n{start_of_verse}\nRoca de los siglos\n{end_of_verse}\n");
     fs.utimesSync(file, new Date(), new Date(Date.now() + 5000));
@@ -537,7 +537,7 @@ describe("a song imported from a song file stays tied to it (owner, 2026-11-05)"
     const gone = path.join(folder, "se-va.cho");
     fs.writeFileSync(kept, "{title: Queda}\n{start_of_verse}\nEsta queda\n{end_of_verse}\n");
     fs.writeFileSync(gone, "{title: Se va}\n{start_of_verse}\nEsta se va\n{end_of_verse}\n");
-    importSongFiles([kept, gone]);
+    await importSongFiles([kept, gone]);
     fs.rmSync(gone);
     const saved = await save(titled("Se va").id, (song) => ({ ...song, title: "Se fue" }));
     expect(saved.title).toBe("Se fue");
@@ -564,7 +564,7 @@ describe("a song imported from a song file stays tied to it (owner, 2026-11-05)"
     const folder = fs.mkdtempSync(path.join(tmpDir, "both-"));
     const file = path.join(folder, "ambos.cho");
     fs.writeFileSync(file, "{title: Ambos}\n{start_of_verse}\nEn los dos lados\n{end_of_verse}\n");
-    importSongFiles([file]);
+    await importSongFiles([file]);
     const [inFolder] = await listSongFolder(folder);
     await save(titled("Ambos").id, (song) => ({ ...song, title: "Ambos (desde la biblioteca)" }));
     expect((await listSongFolder(folder)).find((s) => s.id === inFolder!.id)?.title).toBe("Ambos (desde la biblioteca)");
@@ -780,10 +780,10 @@ describe("the songs of a file find their rows by title, then by place", () => {
     ]);
   });
 
-  test("a library song: the first removed outside, the third saved twice — «Uno» is not turned into «Dos», nothing duplicated", () => {
+  test("a library song: the first removed outside, the third saved twice — «Uno» is not turned into «Dos», nothing duplicated", async () => {
     const file = path.join(fresh("shift-lib"), "tres.cho");
     fs.writeFileSync(file, make(["Uno", "Dos", "Tres"]));
-    importSongFiles([file]);
+    await importSongFiles([file]);
     const uno = inLibrary("Uno");
     const tres = inLibrary("Tres");
     fs.writeFileSync(file, make(["Dos", "Tres"]));
@@ -848,7 +848,7 @@ describe("the songs of a file find their rows by title, then by place", () => {
     // The library's.
     const imported = path.join(fresh("twins-lib"), "santos.cho");
     fs.writeFileSync(imported, SANTOS);
-    importSongFiles([imported]);
+    await importSongFiles([imported]);
     const [libFirst, libSecond] = pair(repo.listLibrary(), imported);
     writeBack(libFirst, (s) => ({ ...s, authors: "Autor Nuevo" }));
     expect(repo.get(libSecond)).toMatchObject({ authors: null });
@@ -867,7 +867,7 @@ describe("the songs of a file find their rows by title, then by place", () => {
     const both = path.join(bothFolder, "sanctus.cho");
     fs.writeFileSync(both, SANTOS.replaceAll("Santo", "Sanctus"));
     const [folderFirst, folderSecond] = pair(await listSongFolder(bothFolder), both);
-    importSongFiles([both]);
+    await importSongFiles([both]);
     const [, libraryCopy] = pair(repo.listLibrary(), both);
     writeBack(libraryCopy, (s) => ({ ...s, sections: parseLyrics("[Estrofa 1]\nSanctus segundo cambiado", "es").sections }));
     expect(words(folderSecond)).toBe("Sanctus segundo cambiado");
@@ -878,7 +878,7 @@ describe("the songs of a file find their rows by title, then by place", () => {
     const folder = fresh("both");
     const file = path.join(folder, "ambos.cho");
     fs.writeFileSync(file, "{title: Ambos}\n{start_of_verse}\nEn los dos lados\n{end_of_verse}\n");
-    importSongFiles([file]);
+    await importSongFiles([file]);
     const [inFolder] = await listSongFolder(folder);
     repo.update(inFolder!.id, { ...inFolder!, themeId: someTheme().id });
     writeBack(inLibrary("Ambos").id, (s) => ({ ...s, title: "Ambos (desde la biblioteca)" }));
@@ -1159,11 +1159,11 @@ describe.skipIf(!hasCorpus)("imports of real files", () => {
     expect(await importSongFiles([file, file])).toEqual({ imported: 1, repeated: 1, problems: 0, unsupported: 0 });
   });
 
-  test("a library song's file renamed: saved in the app and untied, the renamed file untouched", () => {
+  test("a library song's file renamed: saved in the app and untied, the renamed file untouched", async () => {
     const folder = fresh("untie");
     const file = path.join(folder, "mover.cho");
     fs.writeFileSync(file, "{title: Mover}\n{start_of_verse}\nUna letra para mover\n{end_of_verse}\n");
-    importSongFiles([file]);
+    await importSongFiles([file]);
     fs.renameSync(file, path.join(folder, "movido.cho"));
     expect(writeBack(inLibrary("Mover").id, (s) => ({ ...s, title: "Mover (editada)" })).file).toBeNull();
     expect(fs.readFileSync(path.join(folder, "movido.cho"), "utf8")).toContain("{title: Mover}");

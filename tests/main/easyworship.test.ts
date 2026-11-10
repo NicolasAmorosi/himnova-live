@@ -130,13 +130,13 @@ describe("the EasyWorship database", () => {
     expect(getSongsRepo().list().filter((s) => s.title === "Sublime gracia")).toHaveLength(2);
   });
 
-  test("a database that will not open says so", () => {
+  test("a database that will not open says so", async () => {
     const broken = path.join(tmpDir, "Broken");
     fs.mkdirSync(broken);
     fs.writeFileSync(path.join(broken, "Songs.db"), "not a database");
     fs.writeFileSync(path.join(broken, "SongWords.db"), "not a database");
     try {
-      importEasyWorshipFolder(broken);
+      await importEasyWorshipFolder(broken);
       throw new Error("expected EW_UNREADABLE");
     } catch (error) {
       expect((error as IpcError).code).toBe("EW_UNREADABLE");

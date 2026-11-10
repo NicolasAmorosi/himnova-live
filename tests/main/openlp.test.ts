@@ -171,7 +171,7 @@ describe("OpenLP's database", () => {
     new Database(other).exec("CREATE TABLE song (title TEXT)").close();
     for (const bad of [other, path.join(tmpDir, "missing.sqlite")]) {
       try {
-        importOpenLpDatabase(bad);
+        await importOpenLpDatabase(bad);
         throw new Error("expected OPENLP_UNREADABLE");
       } catch (error) {
         expect((error as IpcError).code).toBe("OPENLP_UNREADABLE");
