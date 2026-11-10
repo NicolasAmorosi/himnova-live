@@ -84,16 +84,15 @@ function riedl(dir: string, sums: { ffmpeg: string; ffprobe: string }): Archive[
   }));
 }
 
-const ENGINE_RELEASE = "https://github.com/NicolasAmorosi/lumina-live/releases/download/engine-3";
+const ENGINE_RELEASE = "https://github.com/NicolasAmorosi/lumina-live/releases/download/engine-4";
 
-/** Release `engine-3`: `native/` as of the commit its tag points at — engine-2 plus the NDI output mode
- *  (`--ndi-send`; the NDI runtime is the user's, loaded at run time), `handles.node`'s texture hand-over and
- *  the Windows engine's version resource. Linux's is built on Ubuntu 22.04 and ships no libmpv: it loads
- *  the system's, .so.2 or .so.1. */
+/** Release `engine-4`: `native/` as of the commit its tag points at — engine-3 with the NDI output sending every
+ *  frame in order (a short queue) instead of only the latest one, which lost frames between Chromium's clock and the
+ *  SDK's. Linux's is built on Ubuntu 22.04 and ships no libmpv: it loads the system's, .so.2 or .so.1. */
 const ENGINE: Record<string, Archive[]> = {
-  "darwin-arm64": engine("darwin-arm64", "22e505d16820405f4b38ca6169c1bf3adda6ac377ec39a83b664fe9c209354f4", ["media-engine", "handles.node", "libmpv.2.dylib"]),
-  "win32-x64": engine("win32-x64", "1cbfb86a7f3060f5f76cadd36760867f4b2a348fc87f2f94e8cc20b467b05df0", ["media-engine.exe", "libmpv-2.dll"]),
-  "linux-x64": engine("linux-x64", "4fc5e03a76050708a6bebc9fe85627cc47fbbd56ff23490a99be59f1102cf59a", ["media-engine", "handles.node"]),
+  "darwin-arm64": engine("darwin-arm64", "a3c07021fcd94d3c7fcfcfa8627162e3b04f14cddbc13e4f3754f1b01e8d78df", ["media-engine", "handles.node", "libmpv.2.dylib"]),
+  "win32-x64": engine("win32-x64", "3a26ee11ef4ee970223f3d51cbe341a5e0f698cae3c74281bf0c890c0fa5786d", ["media-engine.exe", "libmpv-2.dll"]),
+  "linux-x64": engine("linux-x64", "d01fbd89cc85bf1735d870fbd6fa716052273dd3ba7835da7dce91d545d86983", ["media-engine", "handles.node"]),
 };
 
 function engine(target: string, sha256: string, files: string[]): Archive[] {
