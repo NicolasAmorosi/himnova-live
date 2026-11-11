@@ -400,7 +400,7 @@ function EngineVideo({ className, frameKey, onFirstFrame, onFreezeFrame, paced, 
       const queue: OffscreenCanvas[] = [];
       const pacer = new FramePacer();
       off = window.worship.onVideoFrame(frameKey, (frame) => {
-        pacer.arrived(performance.now());
+        if (!pacer.arrived(performance.now())) return;
         const stage = free.pop() ?? queue.shift();
         const stageContext = stage?.getContext("2d");
         if (!stage || !stageContext) return;

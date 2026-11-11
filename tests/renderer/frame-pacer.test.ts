@@ -19,7 +19,10 @@ function play(fps: number, hz: number, jitterMs: number, seconds = 10, seed = 7)
   for (let tick = 0; tick < seconds * hz; tick += 1) {
     const now = (tick * 1000) / hz;
     while (next < arrivals.length && arrivals[next]! <= now) {
-      pacer.arrived(arrivals[next]!);
+      if (!pacer.arrived(arrivals[next]!)) {
+        next += 1;
+        continue;
+      }
       if (queue.length === 3) {
         queue.shift();
         dropped += 1;
@@ -39,10 +42,18 @@ test("30 fps on a 60 Hz projector: every frame up two refreshes, with ±6 ms of 
   expect(held.filter((n) => n !== 2).length).toBeLessThanOrEqual(2);
 });
 
-test("60 fps on 60 Hz: one refresh each, none lost", () => {
-  const { held, dropped } = play(60, 60, 5);
+test("60 fps on 60 Hz: every other frame, two refreshes each — a steady 30, never 60 with random losses", () => {
+  const { held, dropped, frames } = play(60, 60, 5);
   expect(dropped).toBe(0);
-  expect(held.every((n) => n === 1)).toBe(true);
+  expect(held.filter((n) => n !== 2).length).toBeLessThanOrEqual(2);
+  expect(frames).toBeGreaterThan(295);
+  expect(frames).toBeLessThan(305);
+});
+
+test("50 fps on 60 Hz: halved to 25, the 3–2 rhythm", () => {
+  const { held, dropped } = play(50, 60, 4);
+  expect(dropped).toBe(0);
+  expect(held.every((n) => n === 2 || n === 3)).toBe(true);
 });
 
 test("25 fps on 60 Hz: the 3–2 rhythm, none lost", () => {

@@ -12,20 +12,35 @@
  * 30 Hz NDI window): the cadence stays even whatever the arrival jitter. Two or more waiting means it is
  * behind, and the oldest goes up at once. Both intervals are measured, not assumed: a projector may run
  * at 50 or 75 Hz.
+ *
+ * A source faster than 40 fps goes up at half its rate, every other frame (owner, 2026-11-10): at 60 fps one
+ * page frame in five that Chromium starts ~8 ms late still lost 0.3–20 % of them on the Mac's projector, at
+ * random; a steady 30 never loses one. A `<video>` (Chromium's own path) keeps its 60.
  */
+/** Frames closer than this (ms) are a source over 40 fps: halved. */
+const HALVE_UNDER_MS = 25;
+
 export class FramePacer {
   private frameMs = 0;
   private refreshMs = 0;
   private lastArrival = -1;
   private lastTick = -1;
   private ticksSinceDraw = 0;
+  private skipNext = false;
 
-  /** A frame landed at `now` (ms). */
-  arrived(now: number): void {
+  /** A frame landed at `now` (ms): whether it is one to show (not the half of a fast source left out). */
+  arrived(now: number): boolean {
     const gap = now - this.lastArrival;
     // A pause, a seek or the first frame says nothing about the video's rate.
     if (this.lastArrival >= 0 && gap > 4 && gap < 250) this.frameMs = this.frameMs ? this.frameMs * 0.9 + gap * 0.1 : gap;
     this.lastArrival = now;
+    if (!this.halved()) return true;
+    this.skipNext = !this.skipNext;
+    return this.skipNext;
+  }
+
+  private halved(): boolean {
+    return this.frameMs > 0 && this.frameMs < HALVE_UNDER_MS;
   }
 
   /** An animation frame at `now` (ms), `queued` frames waiting: whether the oldest goes up now. */
@@ -35,7 +50,8 @@ export class FramePacer {
     this.lastTick = now;
     this.ticksSinceDraw += 1;
     if (queued === 0) return false;
-    const due = this.frameMs && this.refreshMs ? Math.max(1, Math.floor(this.frameMs / this.refreshMs + 0.25)) : 1;
+    const frameMs = this.halved() ? this.frameMs * 2 : this.frameMs;
+    const due = frameMs && this.refreshMs ? Math.max(1, Math.floor(frameMs / this.refreshMs + 0.25)) : 1;
     if (queued < 2 && this.ticksSinceDraw < due) return false;
     this.ticksSinceDraw = 0;
     return true;
