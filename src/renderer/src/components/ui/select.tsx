@@ -53,7 +53,7 @@ const sizes: Record<NonNullable<SelectProps["size"]>, string> = {
 };
 
 /**
- * A styled dropdown, not a native `<select>` — Lumina Live's identity (design
+ * A styled dropdown, not a native `<select>` — Himnova Live's identity (design
  * tokens, dark cabin theme) has to reach into the option list itself, which a
  * native listbox never lets a page style. Renders its menu through a portal
  * to `document.body`, positioned in viewport coordinates (`computeMenuPosition`),

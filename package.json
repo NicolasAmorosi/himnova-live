@@ -5,13 +5,13 @@
   "main": "./out/main/index.js",
   "author": "Nicolas Amorosi",
   "license": "GPL-3.0-or-later",
-  "homepage": "https://github.com/NicolasAmorosi/lumina-live#readme",
+  "homepage": "https://github.com/NicolasAmorosi/himnova-live#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/NicolasAmorosi/lumina-live.git"
+    "url": "git+https://github.com/NicolasAmorosi/himnova-live.git"
   },
   "bugs": {
-    "url": "https://github.com/NicolasAmorosi/lumina-live/issues"
+    "url": "https://github.com/NicolasAmorosi/himnova-live/issues"
   },
   "type": "module",
   "scripts": {
@@ -29,7 +29,7 @@
     "package": "npm run build && tsx scripts/fetch-binaries.ts && electron-builder",
     "package:win": "npm run build && tsx scripts/fetch-binaries.ts win32-x64 && electron-builder --win",
     "package:mac": "npm run build && tsx scripts/fetch-binaries.ts darwin-arm64 && electron-builder --mac",
-    "package:linux": "npm run build && tsx scripts/fetch-binaries.ts linux-x64 && electron-builder --linux -c.productName=lumina-live",
+    "package:linux": "npm run build && tsx scripts/fetch-binaries.ts linux-x64 && electron-builder --linux -c.productName=himnova-live",
     "package:dir": "npm run build && tsx scripts/fetch-binaries.ts && electron-builder --dir"
   },
   "dependencies": {
@@ -75,8 +75,8 @@
   },
   "build": {
     "appId": "com.worshipapp.app",
-    "productName": "Lumina Live",
-    "artifactName": "Lumina-Live-${os}-${arch}.${ext}",
+    "productName": "Himnova Live",
+    "artifactName": "Himnova-Live-${os}-${arch}.${ext}",
     "asar": true,
     "asarUnpack": [
       "**/node_modules/better-sqlite3/**"
@@ -143,8 +143,8 @@
       "identity": "-",
       "hardenedRuntime": false,
       "extendInfo": {
-        "NSLocalNetworkUsageDescription": "Lumina Live sends the projection to programs such as OBS over NDI on your local network.",
-        "NSAudioCaptureUsageDescription": "Lumina Live sends its own sound (videos, music, hymns) with the projection over NDI.",
+        "NSLocalNetworkUsageDescription": "Himnova Live sends the projection to programs such as OBS over NDI on your local network.",
+        "NSAudioCaptureUsageDescription": "Himnova Live sends its own sound (videos, music, hymns) with the projection over NDI.",
         "NSBonjourServices": [
           "_ndi._tcp"
         ]
@@ -188,7 +188,7 @@
       "synopsis": "Church presentation software",
       "desktop": {
         "entry": {
-          "Name": "Lumina Live"
+          "Name": "Himnova Live"
         }
       },
       "extraResources": [

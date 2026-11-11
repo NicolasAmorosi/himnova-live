@@ -178,7 +178,7 @@ const es = {
   // second caller appeared — a label the two features spell differently is a
   // label that drifts.
   style: {
-    /** The swatches of `ColorField`, all from the Lumina Live sheet. */
+    /** The swatches of `ColorField`, all from the 2026-10-22 identity sheet. */
     colors: {
       white: "Blanco",
       lightGray: "Gris claro",
@@ -444,9 +444,9 @@ const es = {
     },
     linkFolderHint: "Elegir una carpeta con canciones (OpenLyrics, ChordPro, SongSelect) y verlas acá",
     folderEmpty: "No hay canciones en esta carpeta",
-    folderEmptyHint: "Lumina lee los archivos OpenLyrics (.xml), ChordPro y SongSelect (.txt) de esta carpeta.",
+    folderEmptyHint: "Himnova lee los archivos OpenLyrics (.xml), ChordPro y SongSelect (.txt) de esta carpeta.",
     fileSaveHint: "Está atada a su archivo: guardar también escribe «{file}».",
-    fileLimits: "Este formato no guarda {fields}: quedan solo en Lumina.",
+    fileLimits: "Este formato no guarda {fields}: quedan solo en Himnova.",
     fileFields: {
       number: "el número",
       notes: "las notas",
@@ -455,7 +455,7 @@ const es = {
       slides: "los cortes de diapositiva",
       chords: "los acordes",
     },
-    fileUntied: "No se encontró el archivo de esta canción ({file}): quedó guardada solo en Lumina.",
+    fileUntied: "No se encontró el archivo de esta canción ({file}): quedó guardada solo en Himnova.",
     theme: "Tema",
     themeHint: "Cómo se ve en el proyector. «Por defecto» sigue al de Configuración ▸ Canciones.",
     themeDefault: "Por defecto",
@@ -546,7 +546,7 @@ const es = {
     discard: "Descartar cambios",
     deleteTitle: "¿Eliminar esta canción?",
     deleteBody: "La canción se borra de la biblioteca.",
-    deleteKeepsFile: "Su archivo queda en el disco: Lumina nunca borra un archivo.",
+    deleteKeepsFile: "Su archivo queda en el disco: Himnova nunca borra un archivo.",
     deleteLiveBody: "La canción está en vivo: queda en el proyector hasta que pases a otra cosa, y se borra de la biblioteca.",
     deleteInUseIntro: "Esta canción se usa en:",
     deleteInUseWarning: "Se va a quitar también de esos programas guardados.",
@@ -849,7 +849,7 @@ const es = {
       transition: "Transición",
       versions: "Agregar una versión",
       versionsInstalled: "Versiones instaladas",
-      versionsBundled: "Incluidas con Lumina Live",
+      versionsBundled: "Incluidas con Himnova Live",
       slidesCache: "Caché de diapositivas",
       slidesText: "Texto",
       interface: "Interfaz",
@@ -950,7 +950,7 @@ const es = {
       deleteDone: "Se eliminó «{name}»",
       deleteFailed: "No se pudo eliminar la versión",
       deleteBodyBundled:
-        "Se borran sus libros y sus versículos de esta computadora. Podés volver a instalarla cuando quieras desde «Incluidas con Lumina Live».",
+        "Se borran sus libros y sus versículos de esta computadora. Podés volver a instalarla cuando quieras desde «Incluidas con Himnova Live».",
       bundledDesc: "De dominio público o con licencia libre. Se instalan sin internet.",
       bundledLabel: "Versiones incluidas",
       install: "Instalar",
@@ -974,15 +974,15 @@ const es = {
       enabledDesc: "La imagen, tal como se ve en el proyector, con el sonido de la app.",
       enabledHelp:
         "El sonido de la app viaja con la imagen (se puede apagar abajo, si OBS lo toma de la consola). Hace falta el runtime gratuito de NDI instalado en esta computadora (ndi.video). El video pide una red rápida: conectá esta computadora y la que recibe por cable de red gigabit (1 Gbps); por Wi-Fi o con un cable de 100 Mbps, usá 720p. Una VPN (ZeroTier, Tailscale) en las dos computadoras puede llevarse la imagen por ella: apagala mientras uses NDI.",
-      firewall: "La primera vez, el Firewall de Windows pregunta por «Lumina Live media engine»: tocá «Permitir» o los demás equipos no reciben la imagen.",
-      localNetwork: "La primera vez, macOS pregunta si Lumina Live puede usar la red local: tocá «Permitir» o los demás equipos no reciben la imagen.",
+      firewall: "La primera vez, el Firewall de Windows pregunta por «Himnova Live media engine»: tocá «Permitir» o los demás equipos no reciben la imagen.",
+      localNetwork: "La primera vez, macOS pregunta si Himnova Live puede usar la red local: tocá «Permitir» o los demás equipos no reciben la imagen.",
       status: "Estado",
       states: {
         off: "Apagada",
         starting: "Arrancando…",
         sending:
           "{count, plural, =0 {Enviando · ningún programa la está recibiendo} one {Enviando · # programa la recibe} other {Enviando · # programas la reciben}}",
-        runtimeMissing: "Falta instalar NDI, que es gratis. Instalalo y cerrá y volvé a abrir Lumina Live.",
+        runtimeMissing: "Falta instalar NDI, que es gratis. Instalalo y cerrá y volvé a abrir Himnova Live.",
       },
       errors: {
         "ndi-send": "NDI no pudo crear la fuente.",
@@ -1000,7 +1000,7 @@ const es = {
       audio: "Sonido",
       audioDescWin: "El sonido de la app (videos, música, himnos), sin el resto de la computadora.",
       audioDescMac:
-        "El sonido de la app (videos, música, himnos). Pide macOS 14.2 o posterior, y la primera vez macOS pregunta si Lumina Live puede grabar el audio del sistema: tocá «Permitir».",
+        "El sonido de la app (videos, música, himnos). Pide macOS 14.2 o posterior, y la primera vez macOS pregunta si Himnova Live puede grabar el audio del sistema: tocá «Permitir».",
       audioDescLinux: "Todo el sonido de esta computadora: cerrá los demás programas que suenan.",
       audioDelay: "Sincronía del sonido",
       audioDelayDesc: "Si en el programa que recibe el sonido llega antes que la imagen, subilo; si llega después, bajalo.",
@@ -1018,7 +1018,7 @@ const es = {
     aboutTagline: "Proyección para iglesias",
     versionDesc: "La que hay que mencionar al reportar un problema.",
     onlineGuide: "Guía en línea",
-    onlineGuideDesc: "Cada función explicada paso a paso, en el sitio de Lumina Live. Necesita internet.",
+    onlineGuideDesc: "Cada función explicada paso a paso, en el sitio de Himnova Live. Necesita internet.",
     onlineGuideOpen: "Abrir en el navegador",
     welcome: "Guía de bienvenida",
     welcomeDesc: "La que se abre la primera vez: idioma, LOGO, pantallas, Biblias, NDI…",
@@ -1048,23 +1048,23 @@ const es = {
     updatesAutoCheck: "Buscar al abrir la app",
     updatesAutoCheckDesc: "Una vez por inicio, en silencio. Nunca descarga nada sin que lo pidas.",
     updatesState: {
-      unsupported: "Esta versión se actualiza desde la página de Lumina Live.",
+      unsupported: "Esta versión se actualiza desde la página de Himnova Live.",
       idle: "Compara esta versión con la última publicada en GitHub.",
       checking: "Buscando…",
       upToDate: "Tenés la última versión (buscada a las {time}).",
-      available: "Lumina Live {version} está disponible.",
-      downloading: "Descargando Lumina Live {version}…",
+      available: "Himnova Live {version} está disponible.",
+      downloading: "Descargando Himnova Live {version}…",
       ready:
-        "Lumina Live {version} está lista. Al instalarla, la app se cierra y vuelve a abrirse; si la computadora pide permiso, aceptalo.",
-      readyOnQuit: "Lumina Live {version} se instala al cerrar la app. Si la computadora pide permiso, aceptalo.",
+        "Himnova Live {version} está lista. Al instalarla, la app se cierra y vuelve a abrirse; si la computadora pide permiso, aceptalo.",
+      readyOnQuit: "Himnova Live {version} se instala al cerrar la app. Si la computadora pide permiso, aceptalo.",
       readyDmg:
-        "Lumina Live {version} está lista. Al abrir el instalador, la app se cierra: arrastrá Lumina Live a Aplicaciones y elegí «Reemplazar».",
+        "Himnova Live {version} está lista. Al abrir el instalador, la app se cierra: arrastrá Himnova Live a Aplicaciones y elegí «Reemplazar».",
       readyDmgOnQuit:
-        "El instalador de Lumina Live {version} se abre al cerrar la app: arrastrá Lumina Live a Aplicaciones y elegí «Reemplazar».",
+        "El instalador de Himnova Live {version} se abre al cerrar la app: arrastrá Himnova Live a Aplicaciones y elegí «Reemplazar».",
     },
     updatesErrors: {
       offline: "No se pudo buscar: no hay conexión a internet.",
-      notPublished: "La versión publicada todavía no se puede bajar desde la app. Está en la página de Lumina Live.",
+      notPublished: "La versión publicada todavía no se puede bajar desde la app. Está en la página de Himnova Live.",
       checksum: "La descarga llegó dañada. Probá de nuevo.",
       install: "No se pudo abrir el instalador.",
       unknown: "Algo falló al actualizar. El detalle quedó en los registros.",
@@ -1192,7 +1192,7 @@ const es = {
       done: "Listo",
     },
     hello: {
-      title: "Te damos la bienvenida a Lumina Live",
+      title: "Te damos la bienvenida a Himnova Live",
       subtitle: "Dejemos todo listo para tu primer culto. Son unos minutos y todo se puede cambiar después.",
       language: "Idioma",
       theme: "Apariencia",
@@ -1258,14 +1258,14 @@ const es = {
     },
     stream: {
       title: "Transmisión",
-      subtitle: "¿Transmiten el culto por internet? Lumina puede mandarle a OBS o vMix lo mismo que proyecta, por la red y con NDI®, sin placas de captura.",
+      subtitle: "¿Transmiten el culto por internet? Himnova puede mandarle a OBS o vMix lo mismo que proyecta, por la red y con NDI®, sin placas de captura.",
       question: "¿Transmiten el culto?",
       yes: "Sí, transmitimos",
       yesDesc: "Con OBS, vMix u otro programa",
       no: "Por ahora no",
       noDesc: "Se activa cuando quieras",
       howTitle: "Para verlo en OBS",
-      how1: "En esta computadora: si «Estado» pide NDI, tocá «Descargar NDI», instalalo y cerrá y volvé a abrir Lumina Live.",
+      how1: "En esta computadora: si «Estado» pide NDI, tocá «Descargar NDI», instalalo y cerrá y volvé a abrir Himnova Live.",
       how2: "En la computadora de OBS: instalá NDI y el complemento DistroAV.",
       how3: "En OBS: + en Fuentes ▸ NDI Source ▸ elegí «{name}».",
     },

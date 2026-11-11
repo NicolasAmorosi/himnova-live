@@ -114,8 +114,8 @@ high and medium findings. This was left open, each item with its reason:
   power plan; «Test video» with iPhone HEVC; audio
   output over HDMI; and the E2E suite against the installed `.exe` (`WORSHIP_E2E_EXECUTABLE`),
   with `WORSHIP_E2E_HYMNAL` pointing to that PC's hymnal folder so that `hymnal.spec.ts` runs too.
-  And, since the rebrand to **Lumina Live** (2026-10-22), that the new installer REPLACES the
-  WorshipApp one: a single shortcut, a single entry in «Installed apps», and that PC's schedules,
+  And, since the rebrands to **Lumina Live** (2026-10-22) and **Himnova Live** (2.8.0), that the new installer
+  REPLACES the previous one: a single shortcut, a single entry in «Installed apps», and that PC's schedules,
   library and Bibles present on the first start (`userData` stays in `%APPDATA%\worship-app`,
   same `appId`).
 - **Scenes and plates saved before the rebrand keep the ALPS colors** (`#04132b`, `#84adfc`, the
@@ -156,8 +156,8 @@ one for Ubuntu, Debian and Mint: its postinst leaves `chrome-sandbox` setuid roo
 namespaces are missing and installs an AppArmor profile with `userns` on Ubuntu 24.04+, so it
 opens with a double click and with the sandbox on. The AppImage can't do any of that: on Ubuntu
 23.10+ it needs `--no-sandbox` (the README says so) and it's left for the other distributions.
-`package:linux` installs to `/opt/lumina-live` (`-c.productName=lumina-live`): with the space in
-«Lumina Live» the setuid sandbox wouldn't start, and the E2E suite doesn't see it because
+`package:linux` installs to `/opt/himnova-live` (`-c.productName=himnova-live`): with the space in
+«Himnova Live» the setuid sandbox wouldn't start, and the E2E suite doesn't see it because
 Playwright adds `--no-sandbox` on Linux — see
 `.claude/knowledge/a-space-in-the-linux-install-path-breaks-the-suid-sandbox-and-playwright-never-tests-it.md`.
 Not yet tested on a real desktop Ubuntu (Docker has no AppArmor).

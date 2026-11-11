@@ -135,7 +135,7 @@ test("a library song's file deleted is saved with a warning; one changed meanwhi
   await edit(app, "Cambia");
   await field(app, "Título").fill("Cambia (mía)");
   await editor(app).getByRole("button", { name: "Guardar", exact: true }).click();
-  await expect(toast(app, /cambió fuera de Lumina/)).toBeVisible();
+  await expect(toast(app, /cambió fuera de Himnova/)).toBeVisible();
   expect(fs.readFileSync(changed, "utf8")).toContain("Cambiada afuera");
   await editor(app).getByRole("button", { name: "Guardar", exact: true }).click();
   await expect.poll(() => fs.readFileSync(changed, "utf8")).toContain("Cambia (mía)");
@@ -167,12 +167,12 @@ test("a linked song's file deleted or changed outside while it is open: saving s
   fs.appendFileSync(changed, "\n");
   const later = new Date(Date.now() + 5_000);
   fs.utimesSync(changed, later, later);
-  await field(app, "Título").fill("Cambiada en Lumina");
+  await field(app, "Título").fill("Cambiada en Himnova");
   await editor(app).getByRole("button", { name: "Guardar", exact: true }).click();
-  await expect(toast(app, "El archivo de esta canción cambió fuera de Lumina").first()).toBeVisible();
+  await expect(toast(app, "El archivo de esta canción cambió fuera de Himnova").first()).toBeVisible();
   expect(fs.readFileSync(changed, "utf8")).toContain("{title: Oh qué amigo}");
-  await save(app, "Cambiada en Lumina");
-  await expect.poll(() => fs.readFileSync(changed, "utf8")).toContain("{title: Cambiada en Lumina}");
+  await save(app, "Cambiada en Himnova");
+  await expect.poll(() => fs.readFileSync(changed, "utf8")).toContain("{title: Cambiada en Himnova}");
 });
 
 test("an imported hymn with a slide that starts with the word «Coro»: renaming it keeps its slides", async ({ app }) => {

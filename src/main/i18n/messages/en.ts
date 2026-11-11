@@ -1,7 +1,7 @@
 import type { MainMessages } from "./es";
 
 const en: MainMessages = {
-  window: { projectionTitle: "Lumina Live — Projection", stageTitle: "Lumina Live — Stage" },
+  window: { projectionTitle: "Himnova Live — Projection", stageTitle: "Himnova Live — Stage" },
   menu: {
     about: "About {app}",
     services: "Services",
@@ -37,6 +37,8 @@ const en: MainMessages = {
     dbErrorBackup: "A verified backup was kept at\n{path}",
     dbErrorNoBackup: "There's no backup from before this migration.",
     crashTitle: "Unexpected error",
+    formerAppTitle: "The previous version, «Lumina Live», was moved to the Trash",
+    formerAppDetail: "The app is now called Himnova Live: open it from Applications. Your programs, library and settings are as they were.",
   },
   filters: {
     all: "Supported files",
@@ -59,7 +61,7 @@ const en: MainMessages = {
     deckPassword:
       "The presentation has a password to open it. Open it in PowerPoint, remove the password (File ▸ Info ▸ Protect Presentation) and save it again.",
     deckOldFormat:
-      "This presentation is from PowerPoint 95 or earlier, a format Lumina Live doesn't read. Open it in a newer PowerPoint and save it as .pptx.",
+      "This presentation is from PowerPoint 95 or earlier, a format Himnova Live doesn't read. Open it in a newer PowerPoint and save it as .pptx.",
     notAPresentation:
       "The file couldn't be opened as a presentation: it may be damaged, or not be a presentation. Try opening it in PowerPoint and saving it again as .pptx.",
   },
@@ -105,11 +107,11 @@ const en: MainMessages = {
     invalidTheme: "The theme has invalid fields.",
     ewNotFound: "There is no EasyWorship song database there. Choose its Songs.db, in its profile's Databases\\Data folder.",
     ewUnreadable: "EasyWorship's song database couldn't be opened.",
-    ewOld: "That is the song database of an old EasyWorship (2009 or earlier), which Lumina can't read. Songs from EasyWorship 6 or 7 can be imported.",
+    ewOld: "That is the song database of an old EasyWorship (2009 or earlier), which Himnova can't read. Songs from EasyWorship 6 or 7 can be imported.",
     importPickTitle: "Import songs",
     importFilter: "Songs (OpenLyrics, SongSelect, ChordPro, OpenLP, EasyWorship)",
     fileMissing: "This song's file can't be found: it was moved or deleted.",
-    fileChanged: "This song's file changed outside Lumina. Saving again replaces it with what you are editing; closing without saving keeps the one on disk.",
+    fileChanged: "This song's file changed outside Himnova. Saving again replaces it with what you are editing; closing without saving keeps the one on disk.",
     fileUnwritable: "Couldn't write this song's file: is it open in another program, read-only, or without permission? Your edit is still here: close it and save again.",
     openLpUnreadable: "That file isn't an OpenLP song database (songs.sqlite), or it couldn't be opened.",
     usageSaveTitle: "Save the CCLI report",

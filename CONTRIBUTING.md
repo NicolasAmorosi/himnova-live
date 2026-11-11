@@ -1,13 +1,13 @@
-# Contributing to Lumina Live
+# Contributing to Himnova Live
 
-Thanks for wanting to help. Lumina Live runs in live services, so the priority is that nothing
+Thanks for wanting to help. Himnova Live runs in live services, so the priority is that nothing
 breaks in front of the congregation: we prefer a small, tested change over a big, ambitious one.
 
 By taking part you agree to follow the [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## Reporting a bug
 
-Open an [issue](https://github.com/NicolasAmorosi/lumina-live/issues/new/choose) with the version,
+Open an [issue](https://github.com/NicolasAmorosi/himnova-live/issues/new/choose) with the version,
 the operating system and, if you can, the file that failed and the logs (Settings › About › Open
 logs folder). Security problems go privately, see [`SECURITY.md`](SECURITY.md).
 

@@ -450,7 +450,7 @@ export class SongsRepo {
    * no longer has, and keeps its own to read the file again. The same song tied
    * the OTHER way — the file imported into the library and in a linked folder —
    * takes its words (`fromFile`), so saving from one side never reads as
-   * «changed outside Lumina» on the other: found by its block (`index`), its
+   * «changed outside Himnova» on the other: found by its block (`index`), its
    * old title as a check — never by the title alone, two songs of a file may
    * share one (a file's name is the title of every song without `{title}`),
    * nor among the saved row's own file's rows, which are other songs. The

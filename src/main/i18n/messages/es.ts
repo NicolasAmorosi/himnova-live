@@ -2,7 +2,7 @@
  *  the errors that reach a toast or a panel. Spanish is the reference locale,
  *  as in the renderer: `MainMessages` is this file's type. */
 const es = {
-  window: { projectionTitle: "Lumina Live — Proyección", stageTitle: "Lumina Live — Escenario" },
+  window: { projectionTitle: "Himnova Live — Proyección", stageTitle: "Himnova Live — Escenario" },
   menu: {
     about: "Acerca de {app}",
     services: "Servicios",
@@ -38,6 +38,8 @@ const es = {
     dbErrorBackup: "Se conservó una copia de seguridad verificada en\n{path}",
     dbErrorNoBackup: "No hay una copia de seguridad previa a esta migración.",
     crashTitle: "Error inesperado",
+    formerAppTitle: "La versión anterior, «Lumina Live», se movió a la Papelera",
+    formerAppDetail: "Ahora la app se llama Himnova Live: abrila desde Aplicaciones. Tus programas, la biblioteca y la configuración siguen como estaban.",
   },
   /** The file type names an open dialog lists (Windows and Linux show them). */
   filters: {
@@ -61,7 +63,7 @@ const es = {
     deckPassword:
       "La presentación tiene contraseña para abrirla. Abrila en PowerPoint, quitale la contraseña (Archivo ▸ Información ▸ Proteger presentación) y guardala de nuevo.",
     deckOldFormat:
-      "La presentación es de PowerPoint 95 o anterior, un formato que Lumina Live no lee. Abrila en un PowerPoint más nuevo y guardala como .pptx.",
+      "La presentación es de PowerPoint 95 o anterior, un formato que Himnova Live no lee. Abrila en un PowerPoint más nuevo y guardala como .pptx.",
     notAPresentation:
       "No se pudo abrir el archivo como presentación: puede estar dañado o no ser una presentación. Probá abrirlo en PowerPoint y guardarlo de nuevo como .pptx.",
   },
@@ -107,11 +109,11 @@ const es = {
     invalidTheme: "El tema tiene campos inválidos.",
     ewNotFound: "Ahí no hay una base de canciones de EasyWorship. Elegí su Songs.db, en la carpeta Databases\\Data de su perfil.",
     ewUnreadable: "No se pudo abrir la base de canciones de EasyWorship.",
-    ewOld: "Esa es la base de canciones de un EasyWorship viejo (2009 o anterior), que Lumina no lee. Desde EasyWorship 6 o 7 sí se importan.",
+    ewOld: "Esa es la base de canciones de un EasyWorship viejo (2009 o anterior), que Himnova no lee. Desde EasyWorship 6 o 7 sí se importan.",
     importPickTitle: "Elegí las canciones para importar",
     importFilter: "Canciones (OpenLyrics, SongSelect, ChordPro, OpenLP, EasyWorship)",
     fileMissing: "No se encuentra el archivo de esta canción: se movió o se borró.",
-    fileChanged: "El archivo de esta canción cambió fuera de Lumina. Si guardás de nuevo, lo reemplaza lo que estás editando; si cerrás sin guardar, queda el del disco.",
+    fileChanged: "El archivo de esta canción cambió fuera de Himnova. Si guardás de nuevo, lo reemplaza lo que estás editando; si cerrás sin guardar, queda el del disco.",
     fileUnwritable: "No se pudo escribir el archivo de esta canción: ¿está abierto en otro programa, es de solo lectura o falta permiso? Lo editado sigue acá: cerralo y guardá de nuevo.",
     openLpUnreadable: "Ese archivo no es una base de canciones de OpenLP (songs.sqlite) o no se pudo abrir.",
     usageSaveTitle: "Guardar el informe CCLI",

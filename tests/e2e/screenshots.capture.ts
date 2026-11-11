@@ -28,7 +28,7 @@ import { CONTENT, type Hymn } from "./screenshots.content";
  * next to a paragraph.
  */
 
-const MEDIA = path.join(os.tmpdir(), "lumina-screenshots-media");
+const MEDIA = path.join(os.tmpdir(), "himnova-screenshots-media");
 const OUT = path.join(ROOT, "docs/screenshots");
 /** The starter look's names, as each language's install writes them. */
 const LOOK: Record<Locale, (typeof mainEs)["look"]> = { es: mainEs.look, en: mainEn.look, it: mainIt.look, pt: mainPt.look };

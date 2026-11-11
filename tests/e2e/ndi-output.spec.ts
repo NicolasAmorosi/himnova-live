@@ -1,5 +1,5 @@
 // Settings ▸ Proyección ▸ «Salida NDI®». Runs on any machine: with an NDI runtime (installed, or
-// LUMINA_NDI_LIB=<path to it>) the output reports «Enviando»; without one it says what is missing and offers
+// HIMNOVA_NDI_LIB=<path to it>) the output reports «Enviando»; without one it says what is missing and offers
 // the download. Either way the projector is not touched. What reaches a receiver is checked by hand with a
 // real one (OBS), on the three systems.
 import { expect, test } from "./support/app";

@@ -29,7 +29,7 @@ import { paintVerdict } from "./ndi-pacing";
  *
  * One frame in flight: main holds the texture until the engine answers `done`, and drops the paints of
  * that moment (Chromium's pool is small and a held texture stalls it). With no receivers, a frame at most
- * every `IDLE_FRAME_MS`, encoded once. `LUMINA_NDI_LIB` points at a runtime that is not installed (tests).
+ * every `IDLE_FRAME_MS`, encoded once. `HIMNOVA_NDI_LIB` points at a runtime that is not installed (tests).
  */
 
 type Config = { name: string; width: number; height: number; fps: number; audio: boolean; audioDelayMs: number };
@@ -249,7 +249,7 @@ class NdiSender {
   ) {
     const args = ["--ndi-send", config.name, "--width", String(config.width), "--height", String(config.height), "--fps", String(config.fps)];
     if (config.audio) args.push("--audio", "1", "--audio-delay", String(config.audioDelayMs));
-    const lib = process.env["LUMINA_NDI_LIB"];
+    const lib = process.env["HIMNOVA_NDI_LIB"];
     if (lib) args.push("--ndi-lib", lib);
     serial++;
     if (process.platform === "win32") args.push("--parent", String(process.pid));
@@ -257,7 +257,7 @@ class NdiSender {
       this.machService = `com.worshipapp.ndi.${process.pid}.${serial}`;
       args.push("--mach-service", this.machService);
     } else {
-      this.socketPath = path.join(os.tmpdir(), `lumina-ndi-${process.pid}-${serial}.sock`);
+      this.socketPath = path.join(os.tmpdir(), `himnova-ndi-${process.pid}-${serial}.sock`);
       args.push("--fd-socket", this.socketPath);
     }
     this.child = spawn(enginePath, args, { windowsHide: true, stdio: ["pipe", "pipe", "pipe"] });

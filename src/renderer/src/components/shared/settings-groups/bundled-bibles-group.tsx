@@ -21,7 +21,7 @@ export function LanguageGroup({ children, label }: { children: ReactNode; label:
 }
 
 /**
- * «Included with Lumina Live»: the bundled Bibles by language — the interface's own first —, each with
+ * «Included with Himnova Live»: the bundled Bibles by language — the interface's own first —, each with
  * «Install». Settings ▸ Bible lists only the ones still to install (the installed ones are its list above);
  * the welcome lists them all, the installed ones marked so (owner, 2026-11-09: «like Settings, install and
  * go»). Removing one is Settings' job: it is the one that can say which saved programs cite it.

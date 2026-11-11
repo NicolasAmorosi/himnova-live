@@ -1,7 +1,7 @@
 import type { MainMessages } from "./es";
 
 const pt: MainMessages = {
-  window: { projectionTitle: "Lumina Live — Projeção", stageTitle: "Lumina Live — Palco" },
+  window: { projectionTitle: "Himnova Live — Projeção", stageTitle: "Himnova Live — Palco" },
   menu: {
     about: "Sobre o {app}",
     services: "Serviços",
@@ -37,6 +37,8 @@ const pt: MainMessages = {
     dbErrorBackup: "Uma cópia de segurança verificada foi mantida em\n{path}",
     dbErrorNoBackup: "Não há uma cópia de segurança anterior a esta migração.",
     crashTitle: "Erro inesperado",
+    formerAppTitle: "A versão anterior, «Lumina Live», foi movida para a Lixeira",
+    formerAppDetail: "Agora o app se chama Himnova Live: abra-o em Aplicativos. Seus programas, a biblioteca e as configurações continuam como estavam.",
   },
   filters: {
     all: "Arquivos compatíveis",
@@ -59,7 +61,7 @@ const pt: MainMessages = {
     deckPassword:
       "A apresentação tem senha para abrir. Abra-a no PowerPoint, remova a senha (Arquivo ▸ Informações ▸ Proteger Apresentação) e salve de novo.",
     deckOldFormat:
-      "A apresentação é do PowerPoint 95 ou anterior, um formato que o Lumina Live não lê. Abra-a em um PowerPoint mais novo e salve como .pptx.",
+      "A apresentação é do PowerPoint 95 ou anterior, um formato que o Himnova Live não lê. Abra-a em um PowerPoint mais novo e salve como .pptx.",
     notAPresentation:
       "Não foi possível abrir o arquivo como apresentação: ele pode estar corrompido ou não ser uma apresentação. Tente abri-lo no PowerPoint e salvá-lo de novo como .pptx.",
   },
@@ -105,11 +107,11 @@ const pt: MainMessages = {
     invalidTheme: "O tema tem campos inválidos.",
     ewNotFound: "Ali não há um banco de músicas do EasyWorship. Escolha o Songs.db dele, na pasta Databases\\Data do perfil dele.",
     ewUnreadable: "Não foi possível abrir o banco de músicas do EasyWorship.",
-    ewOld: "Esse é o banco de músicas de um EasyWorship antigo (2009 ou anterior), que o Lumina não lê. Do EasyWorship 6 ou 7, sim, dá para importar.",
+    ewOld: "Esse é o banco de músicas de um EasyWorship antigo (2009 ou anterior), que o Himnova não lê. Do EasyWorship 6 ou 7, sim, dá para importar.",
     importPickTitle: "Escolha as músicas para importar",
     importFilter: "Músicas (OpenLyrics, SongSelect, ChordPro, OpenLP, EasyWorship)",
     fileMissing: "O arquivo desta música não foi encontrado: foi movido ou apagado.",
-    fileChanged: "O arquivo desta música mudou fora do Lumina. Se salvar de novo, ele é substituído pelo que você está editando; se fechar sem salvar, fica o do disco.",
+    fileChanged: "O arquivo desta música mudou fora do Himnova. Se salvar de novo, ele é substituído pelo que você está editando; se fechar sem salvar, fica o do disco.",
     fileUnwritable: "Não foi possível gravar o arquivo desta música: está aberto em outro programa, é somente leitura ou falta permissão? A edição continua aqui: feche-o e salve de novo.",
     openLpUnreadable: "Esse arquivo não é um banco de músicas do OpenLP (songs.sqlite) ou não foi possível abri-lo.",
     usageSaveTitle: "Salvar o relatório CCLI",

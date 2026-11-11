@@ -12,7 +12,7 @@ if [ -f "$INDEX" ]; then
 fi
 
 CONTEXT=$(printf '%s\n' \
-  "Lumina Live — mandatory protocol for this session (see CLAUDE.md for the details):" \
+  "Himnova Live — mandatory protocol for this session (see CLAUDE.md for the details):" \
   "" \
   "1. CERTAINTY BEFORE CODE: before writing non-trivial code, list your assumptions and use" \
   "   AskUserQuestion until you reach ~99% certainty about what the user wants. Never" \

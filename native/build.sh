@@ -38,8 +38,8 @@ if [[ ${1:-} == ndi-probe ]]; then
   SRC="native/ndi-probe/ndi-probe.cpp -I native/ndi/include"
   case $T in
   darwin-*) clang++ -O2 -std=c++17 -mmacosx-version-min=12.0 $SRC -o "$WORK/ndi-probe-$T" ;;
-  win32-x64) docker run --rm -v "$PWD:/w" -w /w lumina-mingw x86_64-w64-mingw32-g++-posix -O2 -std=c++17 -static -static-libgcc -static-libstdc++ $SRC -o "$WORK/ndi-probe-$T.exe" ;;
-  linux-x64) docker run --rm --platform linux/amd64 -v "$PWD:/w" -w /w lumina-linux-engine-build g++ -O2 -std=c++17 -static-libstdc++ -static-libgcc $SRC -ldl -o "$WORK/ndi-probe-$T" ;;
+  win32-x64) docker run --rm -v "$PWD:/w" -w /w himnova-mingw x86_64-w64-mingw32-g++-posix -O2 -std=c++17 -static -static-libgcc -static-libstdc++ $SRC -o "$WORK/ndi-probe-$T.exe" ;;
+  linux-x64) docker run --rm --platform linux/amd64 -v "$PWD:/w" -w /w himnova-linux-engine-build g++ -O2 -std=c++17 -static-libstdc++ -static-libgcc $SRC -ldl -o "$WORK/ndi-probe-$T" ;;
   *) echo "unknown target $T"; exit 1 ;;
   esac
   ls -la "$WORK"/ndi-probe-"$T"*
@@ -84,10 +84,10 @@ win32-x64)
     echo "$MPV_SHA256  $WORK/$MPV_7Z" | shasum -a 256 -c -
     mkdir -p "$WORK/mpv-win" && tar -xf "$WORK/$MPV_7Z" -C "$WORK/mpv-win"
   fi
-  docker image inspect lumina-mingw >/dev/null 2>&1 ||
+  docker image inspect himnova-mingw >/dev/null 2>&1 ||
     printf 'FROM debian:trixie-slim\nRUN apt-get update && apt-get install -y --no-install-recommends g++-mingw-w64-x86-64-posix && rm -rf /var/lib/apt/lists/*\n' |
-    docker build -q -t lumina-mingw -
-  docker run --rm -v "$PWD:/w" -w /w lumina-mingw sh -c "
+    docker build -q -t himnova-mingw -
+  docker run --rm -v "$PWD:/w" -w /w himnova-mingw sh -c "
     x86_64-w64-mingw32-windres native/engine/media-engine.rc -O coff -o $WORK/media-engine-res.o &&
     x86_64-w64-mingw32-g++-posix ${FLAGS[*]} -static -static-libgcc -static-libstdc++ \
       native/engine/engine.cpp native/engine/gpu-windows.cpp native/engine/ndi.cpp native/engine/ndi-audio-windows.cpp $WORK/media-engine-res.o \
@@ -96,10 +96,10 @@ win32-x64)
   ;;
 linux-x64)
   mkdir -p "$WORK/node-include" && cp "$NODE_INC"/{node_api.h,node_api_types.h,js_native_api.h,js_native_api_types.h} "$WORK/node-include/"
-  docker image inspect lumina-linux-engine-build >/dev/null 2>&1 ||
+  docker image inspect himnova-linux-engine-build >/dev/null 2>&1 ||
     printf 'FROM ubuntu:22.04\nRUN apt-get update && apt-get install -y --no-install-recommends g++ libmpv-dev libegl-dev libgbm-dev libdrm-dev libgl-dev libopengl-dev && rm -rf /var/lib/apt/lists/*\n' |
-    docker build --platform linux/amd64 -q -t lumina-linux-engine-build -
-  docker run --rm --platform linux/amd64 -v "$PWD:/w" -w /w lumina-linux-engine-build sh -c "
+    docker build --platform linux/amd64 -q -t himnova-linux-engine-build -
+  docker run --rm --platform linux/amd64 -v "$PWD:/w" -w /w himnova-linux-engine-build sh -c "
     g++ ${FLAGS[*]} -static-libstdc++ -static-libgcc native/engine/engine.cpp native/engine/gpu-linux.cpp native/engine/mpv-linux.cpp \
       native/engine/ndi.cpp native/engine/ndi-audio-linux.cpp -I /usr/include/libdrm -I native/ndi/include -ldl -lEGL -lOpenGL -lgbm -lpthread -o $OUT/media-engine &&
     g++ ${FLAGS[*]} -shared -fPIC -static-libstdc++ -static-libgcc native/handles/handles.cpp -I $WORK/node-include -o $OUT/handles.node"

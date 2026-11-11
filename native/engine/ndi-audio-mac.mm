@@ -78,7 +78,7 @@ API_AVAILABLE(macos(14.2)) bool startTap(std::string& why) {
   NSString* output = defaultOutputUID();
   NSMutableDictionary* aggregate = [@{
     @kAudioAggregateDeviceUIDKey : NSUUID.UUID.UUIDString,
-    @kAudioAggregateDeviceNameKey : @"Lumina Live NDI",
+    @kAudioAggregateDeviceNameKey : @"Himnova Live NDI",
     @kAudioAggregateDeviceIsPrivateKey : @YES,
     @kAudioAggregateDeviceIsStackedKey : @NO,
     @kAudioAggregateDeviceTapAutoStartKey : @YES,

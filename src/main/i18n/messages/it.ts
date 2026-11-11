@@ -1,7 +1,7 @@
 import type { MainMessages } from "./es";
 
 const it: MainMessages = {
-  window: { projectionTitle: "Lumina Live — Proiezione", stageTitle: "Lumina Live — Palco" },
+  window: { projectionTitle: "Himnova Live — Proiezione", stageTitle: "Himnova Live — Palco" },
   menu: {
     about: "Informazioni su {app}",
     services: "Servizi",
@@ -37,6 +37,8 @@ const it: MainMessages = {
     dbErrorBackup: "È stata conservata una copia di backup verificata in\n{path}",
     dbErrorNoBackup: "Non esiste una copia di backup precedente a questa migrazione.",
     crashTitle: "Errore imprevisto",
+    formerAppTitle: "La versione precedente, «Lumina Live», è stata spostata nel Cestino",
+    formerAppDetail: "Ora l’app si chiama Himnova Live: aprila da Applicazioni. I tuoi programmi, la libreria e le impostazioni restano come erano.",
   },
   filters: {
     all: "File compatibili",
@@ -59,7 +61,7 @@ const it: MainMessages = {
     deckPassword:
       "La presentazione ha una password di apertura. Aprila in PowerPoint, rimuovi la password (File ▸ Informazioni ▸ Proteggi presentazione) e salvala di nuovo.",
     deckOldFormat:
-      "La presentazione è di PowerPoint 95 o precedente, un formato che Lumina Live non legge. Aprila in un PowerPoint più recente e salvala come .pptx.",
+      "La presentazione è di PowerPoint 95 o precedente, un formato che Himnova Live non legge. Aprila in un PowerPoint più recente e salvala come .pptx.",
     notAPresentation:
       "Impossibile aprire il file come presentazione: potrebbe essere danneggiato o non essere una presentazione. Prova ad aprirlo in PowerPoint e a salvarlo di nuovo come .pptx.",
   },
@@ -105,11 +107,11 @@ const it: MainMessages = {
     invalidTheme: "Il tema ha dei campi non validi.",
     ewNotFound: "Lì non c'è un database dei canti di EasyWorship. Scegli il suo Songs.db, nella cartella Databases\\Data del suo profilo.",
     ewUnreadable: "Non è stato possibile aprire il database dei canti di EasyWorship.",
-    ewOld: "Quello è il database dei canti di un EasyWorship vecchio (2009 o precedente), che Lumina non legge. Da EasyWorship 6 o 7 sì che si importano.",
+    ewOld: "Quello è il database dei canti di un EasyWorship vecchio (2009 o precedente), che Himnova non legge. Da EasyWorship 6 o 7 sì che si importano.",
     importPickTitle: "Scegli i canti da importare",
     importFilter: "Canti (OpenLyrics, SongSelect, ChordPro, OpenLP, EasyWorship)",
     fileMissing: "Il file di questo canto non si trova: è stato spostato o eliminato.",
-    fileChanged: "Il file di questo canto è cambiato fuori da Lumina. Se salvi di nuovo, lo sostituisce ciò che stai modificando; se chiudi senza salvare, resta quello sul disco.",
+    fileChanged: "Il file di questo canto è cambiato fuori da Himnova. Se salvi di nuovo, lo sostituisce ciò che stai modificando; se chiudi senza salvare, resta quello sul disco.",
     fileUnwritable: "Impossibile scrivere il file di questo canto: è aperto in un altro programma, è di sola lettura o manca il permesso? La modifica resta qui: chiudilo e salva di nuovo.",
     openLpUnreadable: "Quel file non è un database dei canti di OpenLP (songs.sqlite) o non è stato possibile aprirlo.",
     usageSaveTitle: "Salva il rapporto CCLI",

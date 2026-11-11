@@ -313,7 +313,7 @@ skipping keeps what was chosen and Escape does nothing.
   thing happens — only while the list is open, so it always ends practised. The work screen knows nothing
   about it — but for the Songs tab, whose choice is `ResourcePanel`'s own state: opening it calls
   `markFirstStep("song")`. `FirstStepsPanel` lives inside `#root`, so a modal makes it inert like the rest.
-- **The Bibles step** is Settings' «Included with Lumina Live» group (`settings-groups/bundled-bibles-group.tsx`),
+- **The Bibles step** is Settings' «Included with Himnova Live» group (`settings-groups/bundled-bibles-group.tsx`),
   which there also lists the installed ones as «Installed»; removing a version is only in Settings.
 - **Reopening it** and «Primeros pasos» live in Settings ▸ About's «Help» card, with «Online guide»
   (`system:openGuide`: the website's guide in the interface's language; the address is `SITE_URL` in

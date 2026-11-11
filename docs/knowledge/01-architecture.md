@@ -105,7 +105,7 @@ and a link to ndi.video wherever NDI is used or chosen — the app, the landing 
   app's name (the engine is a child), with the `NSLocalNetworkUsageDescription` of `mac.extendInfo`; until it is
   answered, or once denied, receivers see the source with no picture and the sender can't tell; switched back on in
   System Settings › Privacy & Security › Local Network, the picture returns with no restart (measured 2026-11-09). A dev run
-  from Terminal inherits Terminal's permission. Windows' firewall asks for `media-engine.exe`, named «Lumina Live
+  from Terminal inherits Terminal's permission. Windows' firewall asks for `media-engine.exe`, named «Himnova Live
   media engine» by its version resource (`native/engine/media-engine.rc`); without «Allow» nobody can connect.
   Settings says each one beside the switch; the installer creates no firewall rule (per-user, no admin).
 - **The sound is captured from the OS, inside the sender** (`native/engine/ndi-audio.h`): libmpv lends no audio, so

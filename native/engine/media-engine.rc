@@ -8,12 +8,12 @@ BEGIN
   BEGIN
     BLOCK "040904B0"
     BEGIN
-      VALUE "CompanyName", "Lumina Live"
-      VALUE "FileDescription", "Lumina Live media engine"
+      VALUE "CompanyName", "Himnova Live"
+      VALUE "FileDescription", "Himnova Live media engine"
       VALUE "InternalName", "media-engine"
       VALUE "LegalCopyright", "Nicolas Amorosi, GPL-3.0-or-later"
       VALUE "OriginalFilename", "media-engine.exe"
-      VALUE "ProductName", "Lumina Live"
+      VALUE "ProductName", "Himnova Live"
     END
   END
   BLOCK "VarFileInfo"

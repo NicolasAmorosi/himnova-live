@@ -450,7 +450,7 @@ function missingFaceDeck(file: string): void {
       "ppt/slides/slide1.xml": strToU8(
         `<p:sld ${ns}><p:cSld><p:spTree><p:sp><p:nvSpPr><p:cNvPr id="2" name="T"/><p:cNvSpPr txBox="1"/><p:nvPr/></p:nvSpPr>` +
           `<p:spPr><a:xfrm><a:off x="457200" y="457200"/><a:ext cx="8229600" cy="1828800"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></p:spPr>` +
-          `<p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:rPr sz="4000"><a:latin typeface="Lumina Missing Face"/></a:rPr><a:t>Sublime gracia</a:t></a:r></a:p></p:txBody></p:sp>` +
+          `<p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:rPr sz="4000"><a:latin typeface="Himnova Missing Face"/></a:rPr><a:t>Sublime gracia</a:t></a:r></a:p></p:txBody></p:sp>` +
           `</p:spTree></p:cSld></p:sld>`,
       ),
     }),
@@ -466,7 +466,7 @@ test("the fallback face chosen in Ajustes reaches a live model slide at once", a
   await app.goLive();
   const projector = await app.projector();
   const projectedFamily = () => projector.getByText("Sublime gracia").evaluate((el) => getComputedStyle(el).fontFamily);
-  await expect.poll(projectedFamily).toContain("Lumina Missing Face");
+  await expect.poll(projectedFamily).toContain("Himnova Missing Face");
   expect(await projectedFamily()).not.toContain("Montserrat");
 
   await app.control.getByRole("button", { name: "Configuración" }).click();
@@ -477,7 +477,7 @@ test("the fallback face chosen in Ajustes reaches a live model slide at once", a
 
   // After the file's own face, never instead of it, and with no relaunch.
   // (Chromium writes a one-word family back unquoted.)
-  await expect.poll(projectedFamily).toMatch(/"Lumina Missing Face".*\bMontserrat"?, sans-serif$/);
+  await expect.poll(projectedFamily).toMatch(/"Himnova Missing Face".*\bMontserrat"?, sans-serif$/);
 });
 
 test("a deck that won't open says why — in its panel, on PREVIEW, at EN VIVO — and never asks to install anything", async ({ app }) => {

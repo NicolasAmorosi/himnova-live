@@ -26,7 +26,7 @@
  * three zips, and their sha256 below.
  *
  * The FFmpeg builds are GPLv3, mpv is GPLv2 or later, and the engine is part of
- * Lumina Live (GPL-3.0-or-later). They run as separate processes, never linked
+ * Himnova Live (GPL-3.0-or-later). They run as separate processes, never linked
  * into the app; each folder's `NOTICE.txt` names the sources, which is what the
  * licenses ask of a binary redistributor.
  */
@@ -84,7 +84,7 @@ function riedl(dir: string, sums: { ffmpeg: string; ffprobe: string }): Archive[
   }));
 }
 
-const ENGINE_RELEASE = "https://github.com/NicolasAmorosi/lumina-live/releases/download/engine-5";
+const ENGINE_RELEASE = "https://github.com/NicolasAmorosi/himnova-live/releases/download/engine-5";
 
 /** Release `engine-5`: `native/` as of the commit its tag points at — engine-4 plus the NDI output's sound (captured
  *  from the OS), a sender that quits cleanly, deinterlacing, a first frame twice as fast and a video's sound held to

@@ -6,7 +6,7 @@
 `userData` is `<appData>/worship-app` (`~/Library/Application Support/worship-app`,
 `%APPDATA%\worship-app`), in dev and in the installer: Electron names it after the `name` in
 `package.json`, not after `build.productName` (which electron-builder doesn't copy into the
-package). That's why the rebrand to Lumina Live didn't move the data, and why `name` never changes.
+package). That's why neither rebrand (to Lumina Live, then to Himnova Live) moved the data, and why `name` never changes.
 `--user-data-dir` overrides it (that's how every E2E test runs).
 
 ## Why `better-sqlite3` and not `node:sqlite`
