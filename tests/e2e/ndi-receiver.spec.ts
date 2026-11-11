@@ -18,7 +18,7 @@ const PROBE = path.join(
 );
 // Its own name each run: an NDI finder still lists a source whose sender was killed — another computer's test run of
 // the same name, hours later, was found first and gave 0 frames.
-const NAME = `Lumina E2E ${process.pid}`;
+const NAME = `Himnova E2E ${process.pid}`;
 
 function probe<T>(...args: string[]): Promise<T> {
   return new Promise((resolve, reject) =>

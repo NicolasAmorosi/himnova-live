@@ -128,7 +128,7 @@ export type PlateUsage = {
   itemCount: number;
 };
 
-/** Default CONTENT values out of the Lumina Live sheet, the same category as
+/** Default CONTENT values out of the 2026-10-22 identity sheet, the same category as
  *  `DEFAULT_SCENE_STYLE`'s — see the note at the top of `scene-style.ts`. */
 export const DEFAULT_PLATE_STYLE: PlateStyle = {
   version: PLATE_STYLE_VERSION,

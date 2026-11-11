@@ -1,4 +1,4 @@
-// A test receiver for Lumina Live's NDI® output (tests/e2e/ndi-receiver.spec.ts): what a program like OBS gets,
+// A test receiver for Himnova Live's NDI® output (tests/e2e/ndi-receiver.spec.ts): what a program like OBS gets,
 // measured on the received frames themselves — never «frames received per second», which a sender repeating its
 // last frame keeps at 30 however broken the picture is (2.7.0 lost 0–27 % of a video that way). The NDI runtime is
 // the user's own, loaded at run time, as the app does. Build: native/build.sh ndi-probe <target>.
@@ -53,7 +53,7 @@ static const NDIlib_v6* load() {
   tries.push_back("libndi.so.6");
   tries.push_back("libndi.so.5");
 #endif
-  if (const char* forced = getenv("LUMINA_NDI_LIB")) tries.insert(tries.begin(), forced);
+  if (const char* forced = getenv("HIMNOVA_NDI_LIB")) tries.insert(tries.begin(), forced);
   for (auto& p : tries)
     if (void* h = openLib(p))
       for (const char* entry : {"NDIlib_v6_load", "NDIlib_v5_load"})

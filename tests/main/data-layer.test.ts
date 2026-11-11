@@ -190,6 +190,17 @@ describe("Settings and programs", () => {
     expect(Object.keys(fresh)).not.toContain("slides.warnMissingSoffice");
   });
 
+  test("an NDI name stored as the old product's reads as the new one; a chosen name stays", () => {
+    const store = (name: string) =>
+      sqlite
+        .prepare("INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES (?, ?, ?)")
+        .run("ndi.output.name", JSON.stringify(name), Date.now());
+    store("Lumina Live");
+    expect(new SettingsRepo(db).get("ndi.output.name")).toBe("Himnova Live");
+    store("Iglesia Central");
+    expect(new SettingsRepo(db).get("ndi.output.name")).toBe("Iglesia Central");
+  });
+
   test("favorite survives a re-save and is inherited by a duplicate", () => {
     const starred = programsRepo.setFavorite(saved.id, true);
     assert(starred.favorite === true, "setFavorite(true) did not stick");
@@ -865,7 +876,7 @@ describe("settings:set validators reject what the types cannot", () => {
     assert(valid("ndi.output.name", "Iglesia Central"), "a plain name must pass");
     assert(!valid("ndi.output.name", "   "), "a blank name must be rejected: receivers list the source by it");
     assert(!valid("ndi.output.name", "x".repeat(61)), "a name over 60 characters must be rejected");
-    assert(!valid("ndi.output.name", "Lumina\nLive"), "a control character must be rejected: the name is a program argument");
+    assert(!valid("ndi.output.name", "Himnova\nLive"), "a control character must be rejected: the name is a program argument");
     assert(valid("ndi.output.resolution", "720p") && !valid("ndi.output.resolution", "4k"), "only 720p and 1080p");
     assert(valid("ndi.output.fps", 60) && !valid("ndi.output.fps", "60") && !valid("ndi.output.fps", 25), "only the numbers 30 and 60");
   });

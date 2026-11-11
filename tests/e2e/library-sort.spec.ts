@@ -234,7 +234,7 @@ test("«Más nuevo primero» goes by when it was added to the library, not by th
   await seedKind(app, "image");
   // Added last of all, but its file is from 2010 — a hymn copied off an old
   // pendrive, which Explorer and Finder both copy keeping its date. New to
-  // Lumina all the same (owner, 2026-11-06).
+  // Himnova all the same (owner, 2026-11-06).
   const copiedToday = writeSeed(app, "image", { name: "Recién agregado", from: "photo.png", mtime: day("2010-05-05") });
   await app.invoke<MediaAsset[]>("library:add", { kind: "image", paths: [copiedToday] });
   await app.openResources("Medios", "Imágenes");

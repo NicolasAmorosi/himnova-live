@@ -18,7 +18,7 @@
  * break that rule: these are default *content* values, stored in a row and
  * editable by the operator — the same category as a program's name, not the
  * same category as a Tailwind class. Every default is a literal from the
- * Lumina Live identity sheet (see `docs/knowledge/06-ui-and-theme.md`), so a
+ * 2026-10-22 identity sheet (see `docs/knowledge/06-ui-and-theme.md`), so a
  * scene nobody customizes still looks like the rest of the app. They were the
  * ALPS palette's until 2026-10-22; a scene saved before keeps its own colours,
  * since defaults only dress what is created from now on.

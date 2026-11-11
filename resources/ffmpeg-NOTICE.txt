@@ -1,6 +1,6 @@
-Lumina Live ships FFmpeg 9.0.2 (ffmpeg and ffprobe) as separate executables. It runs them as child
+Himnova Live ships FFmpeg 9.0.2 (ffmpeg and ffprobe) as separate executables. It runs them as child
 processes to read what is inside video and audio files and to draw thumbnails of videos. FFmpeg is
-not linked into Lumina Live.
+not linked into Himnova Live.
 
 FFmpeg is licensed under the GNU General Public License, version 3 or later. The builds shipped here
 are configured with --enable-gpl --enable-version3 because they include libx264.

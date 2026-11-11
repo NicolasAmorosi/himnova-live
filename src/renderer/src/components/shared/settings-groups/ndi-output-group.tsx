@@ -16,7 +16,7 @@ import {
 } from "@shared/types/ndi";
 
 /** The first time the output reaches the network, Windows asks through its firewall and macOS through its
- *  Local Network privacy (for «Lumina Live»); until it is allowed, receivers see the source and no picture. */
+ *  Local Network privacy (for «Himnova Live»); until it is allowed, receivers see the source and no picture. */
 const ON_WINDOWS = navigator.userAgent.includes("Windows");
 const ON_MAC = navigator.userAgent.includes("Mac");
 

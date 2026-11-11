@@ -124,7 +124,7 @@ function reportFor(player: ProbePlayer): VideoDecoderReport {
 }
 
 /** The website, and its guide's path per language (the landing's `src/i18n/routing.ts`: Spanish at the root). */
-const SITE_URL = "https://lumina-live-site.vercel.app";
+const SITE_URL = "https://himnova-live.vercel.app";
 const GUIDE_PATH: Record<Locale, string> = { es: "/guia", en: "/en/guide", it: "/it/guida", pt: "/pt/guia" };
 
 export const systemHandlers: Pick<

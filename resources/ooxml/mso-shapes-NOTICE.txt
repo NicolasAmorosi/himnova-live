@@ -7,7 +7,7 @@ from LibreOffice's svx/source/customshapes/EnhancedCustomShapeGeometry.cxx:
   https://git.libreoffice.org/core/+/refs/heads/master/svx/source/customshapes/EnhancedCustomShapeGeometry.cxx
 
 That file is licensed under the Mozilla Public License, v. 2.0
-(https://mozilla.org/MPL/2.0/), which allows it to be combined with Lumina Live
+(https://mozilla.org/MPL/2.0/), which allows it to be combined with Himnova Live
 under the GNU GPL v3 or later (MPL-2.0, section 3.3). The source of the extracted
 data is the file above.
 

@@ -22,7 +22,7 @@ const updatesRow = (about: Locator) => about.getByRole("group", { name: /^Actual
 
 /** The release's installer: downloaded, checked against its sha512 and handed
  *  to `open` — the suite's own, below, which never mounts anything. */
-const DMG_NAME = "Lumina-Live-mac-arm64.dmg";
+const DMG_NAME = "Himnova-Live-mac-arm64.dmg";
 const DMG = Buffer.from("not a disk image, only bytes with a known sha512");
 const DMG_SHA512 = createHash("sha512").update(DMG).digest("base64");
 /** Where `mac-dmg.ts` keeps a download: the profile's own folder — so this suite never touches the download the
@@ -74,7 +74,7 @@ test("a build that cannot update itself says so and offers no check", async ({ a
   test.skip(!!process.env["WORSHIP_E2E_EXECUTABLE"], "only `out/` is a build without updates");
   const about = await openAbout(app);
   const row = updatesRow(about);
-  await expect(row).toContainText("Esta versión se actualiza desde la página de Lumina Live");
+  await expect(row).toContainText("Esta versión se actualiza desde la página de Himnova Live");
   await expect(row.getByRole("button", { name: "Buscar actualizaciones" })).toBeDisabled();
   // Nor does it offer to look on its own.
   await expect(about.getByRole("group", { name: "Buscar al abrir la app" })).toHaveCount(0);
@@ -149,7 +149,7 @@ test.describe("against a release server", () => {
     await expect(row.getByRole("button", { name: "Novedades" })).toHaveCount(0);
 
     await row.getByRole("button", { name: "Buscar actualizaciones" }).click();
-    await expect(row).toContainText("Lumina Live 99.0.0 está disponible.");
+    await expect(row).toContainText("Himnova Live 99.0.0 está disponible.");
     await expect(row.getByText("Nueva versión", { exact: true })).toBeVisible();
     await expect(row.getByRole("button", { name: "Novedades" })).toBeVisible();
   });
@@ -174,7 +174,7 @@ test.describe("against a release server", () => {
   test("a version found away from About is announced once, and «Ver» opens About on it", async ({ app }) => {
     yml = releaseYml("99.0.0");
     const { control } = app;
-    const toastText = toasts(app).filter({ hasText: "Lumina Live 99.0.0 está disponible." });
+    const toastText = toasts(app).filter({ hasText: "Himnova Live 99.0.0 está disponible." });
     // In place of the launch check, which the suite turns off.
     await app.invoke("updates:check");
     await expect(toastText).toBeVisible();
@@ -182,7 +182,7 @@ test.describe("against a release server", () => {
     await toastText.getByRole("button", { name: "Ver", exact: true }).click();
     const dialog = control.getByRole("dialog", { name: "Configuración" });
     await expect(dialog.getByRole("tab", { name: "Acerca de" })).toHaveAttribute("aria-selected", "true");
-    await expect(updatesRow(dialog)).toContainText("Lumina Live 99.0.0 está disponible.");
+    await expect(updatesRow(dialog)).toContainText("Himnova Live 99.0.0 está disponible.");
     await expect(toastText).toHaveCount(0);
     await control.keyboard.press("Escape");
     await expect(dialog).toBeHidden();
@@ -202,7 +202,7 @@ test.describe("against a release server", () => {
     const projector = await putPhotoLive(app);
 
     const row = await download(app);
-    await expect(row).toContainText("Lumina Live 99.0.0 está lista. Al abrir el instalador, la app se cierra");
+    await expect(row).toContainText("Himnova Live 99.0.0 está lista. Al abrir el instalador, la app se cierra");
 
     // The close's own question, before main starts anything: once the
     // installer runs there is no «Cancelar» left.
@@ -246,7 +246,7 @@ test.describe("against a release server", () => {
     await putPhotoLive(app);
     const row = await download(app);
     await row.getByRole("button", { name: "Al cerrar la app" }).click();
-    await expect(row).toContainText("El instalador de Lumina Live 99.0.0 se abre al cerrar la app");
+    await expect(row).toContainText("El instalador de Himnova Live 99.0.0 se abre al cerrar la app");
     await expect(row.getByRole("button", { name: "Al cerrar la app" })).toHaveCount(0);
 
     await app.quit("cancel");

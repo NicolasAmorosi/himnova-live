@@ -5,7 +5,7 @@ import { computeMenuPosition, useFollowTrigger, type MenuPosition } from "./floa
 import { useT, type MessageKey } from "@renderer/lib/i18n/i18n-provider";
 
 /**
- * The colours a scene can be painted with, straight out of the Lumina Live
+ * The colours a scene can be painted with, straight out of the 2026-10-22
  * identity sheet (see the palette table in `docs/knowledge/06-ui-and-theme.md`):
  * its neutrals, its blues, the accent, and the four indicators plus the flame.
  *

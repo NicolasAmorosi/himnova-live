@@ -131,7 +131,7 @@ const formatOf = (file: string, text: string): SongFileFormat =>
 
 /**
  * Saving a song tied to a file writes that file first, in its own format
- * (owner, 2026-11-05: «se edita en Lumina y se edita el archivo real, siempre
+ * (owner, 2026-11-05: «se edita en Himnova y se edita el archivo real, siempre
  * así»): a linked folder's song, or a library song imported from a song file.
  * Only when the edit changes something the file holds (owner, 2026-11-06): a
  * theme, or notes a ChordPro file has no place for, never touch it — asked of
@@ -220,7 +220,7 @@ export function writeSongFile(id: number, song: ReadSong): void {
     bom = format !== "openlyrics";
   }
   if (format === "openlyrics") text = withXmlEncoding(text, encoding);
-  const temporary = `${real}.lumina-tmp`;
+  const temporary = `${real}.himnova-tmp`;
   try {
     fs.writeFileSync(temporary, encodeText(text, encoding, bom)!);
     try {

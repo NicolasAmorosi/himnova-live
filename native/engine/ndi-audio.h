@@ -1,4 +1,4 @@
-// The app's own sound, captured for the NDI output's audio (ndi.cpp): what the room hears from Lumina — Chromium's
+// The app's own sound, captured for the NDI output's audio (ndi.cpp): what the room hears from Himnova — Chromium's
 // <video>/<audio> and every media engine — and nothing else on the computer. Each OS has its own way in:
 //   Windows 10 2004+  WASAPI process loopback of Electron main's process tree        ndi-audio-windows.cpp
 //   macOS 14.2+       a Core Audio process tap of main and its children               ndi-audio-mac.mm

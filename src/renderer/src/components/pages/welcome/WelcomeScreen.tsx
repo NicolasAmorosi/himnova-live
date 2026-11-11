@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useT } from "@renderer/lib/i18n/i18n-provider";
 import { Modal, ModalTitle } from "@renderer/components/shared/modal";
-import { BrandMark, Button, Caption, Icon, TabPanel, TabPanels, Tabs, Wordmark, type IconName } from "@renderer/components/ui";
+import { Button, Caption, Icon, TabPanel, TabPanels, Tabs, Wordmark, type IconName } from "@renderer/components/ui";
 import { useSettingsStore } from "@renderer/stores/settings.store";
 import { useUiStore } from "@renderer/stores/ui.store";
 import { BiblesStep } from "./BiblesStep";
@@ -72,8 +72,7 @@ export function WelcomeScreen() {
       <div className="flex min-h-0 flex-1">
         <nav aria-label={t("welcome.title")} className="flex w-60 shrink-0 flex-col border-r border-border bg-background">
           <div className="flex items-center gap-3 px-4 pt-5 pb-4">
-            <BrandMark className="size-9" />
-            <Wordmark className="text-xl" />
+            <Wordmark className="text-2xl" />
             <ModalTitle className="sr-only">{t("welcome.title")}</ModalTitle>
           </div>
           <Tabs

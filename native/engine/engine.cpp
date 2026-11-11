@@ -1,4 +1,4 @@
-// Lumina Live's media engine: one file, played by libmpv in its own process, its frames rendered into a
+// Himnova Live's media engine: one file, played by libmpv in its own process, its frames rendered into a
 // ring of GPU textures that Electron main imports (`sharedTexture`) and sends to every window that shows
 // it; the sound comes out of mpv itself. A crash here takes only this engine down. Main starts one
 // ahead of time (it costs 150–650 ms) and then gives it a file.

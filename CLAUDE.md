@@ -1,17 +1,17 @@
-# CLAUDE.md — Lumina Live (WorshipApp)
+# CLAUDE.md — Himnova Live (WorshipApp)
 
 Working guide for Claude Code in this repository. Read it before touching code.
 
-WorshipApp — the product has been called **Lumina Live** since 2026-10-22 and is open source
-(GPL-3.0-or-later) in the `lumina-live` repo; the packages and the internal identifiers stay as
-`worship*` — is a desktop projection app for churches, built with **Electron + TypeScript + React +
+WorshipApp — the product has been called **Himnova Live** since 2026-11-11 (2.8.0; **Lumina Live** from
+2026-10-22 to 2.7.2) and is open source (GPL-3.0-or-later) in the `himnova-live` repo; the packages and the
+internal identifiers stay as `worship*` — is a desktop projection app for churches, built with **Electron + TypeScript + React +
 Vite + Tailwind**, with **embedded SQLite** as its backend, meant as a replacement for EasyWorship.
 It drives two windows — control and projection — to show presentations (PowerPoint old and new,
 `.odp` and PDF, every one read and drawn by the app itself, with nothing else to install), video,
 images, audio, Bible verses (it ships nine public-domain or freely licensed versions in its four
 languages — a new profile gets its language's, any other installs from Settings with no internet —
-and any other version is imported) and songs (lyrics with sections, an order and named themes) during a service. Visual identity: Lumina Live's (navy + teal accent +
-the flame, identity sheet of 2026-10-22), with a switchable light/dark theme (dark by default, meant
+and any other version is imported) and songs (lyrics with sections, an order and named themes) during a service. Visual identity: navy + teal accent from the identity sheet of
+2026-10-22, and Himnova Live's mark (2026-11-11, «Colofón»: Literata's H re-cut so its crossbar is an arch, a door; foil gold on navy), with a switchable light/dark theme (dark by default, meant
 to be operated from a dark booth).
 
 It is the direct successor of the vanilla JS version of this same repo (retired on
@@ -79,7 +79,7 @@ answer, and ask about what does. Nothing is delivered half-done in silence.
 | Build | `electron-vite` (main + preload + renderer in a single config, HMR, correct dev-server URL) |
 | Language | TypeScript 5.9 strict (`strict`, `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`) |
 | UI | React 19 + Tailwind v4 (`@theme inline`, no `tailwind.config.js`) |
-| Identity | Lumina Live: palette from the identity sheet (`styles/globals.css`), Noto Sans + its ExtraCondensed cut for titles, logo in `assets/brand/` |
+| Identity | Palette from the 2026-10-22 identity sheet (`styles/globals.css`), Noto Sans + its ExtraCondensed cut for titles; Himnova Live's mark and wordmark drawn inline (`components/ui/brand.tsx`) |
 | UI utilities | `clsx` + `tailwind-merge` (`cn()`), `lucide-react` — **no cva, no Radix** |
 | State | Zustand (slices per domain) |
 | DB | `better-sqlite3` (Node-API, no native rebuild) + Drizzle ORM + FTS5 for the Bible |
@@ -250,7 +250,7 @@ just until it passes 4.5:1. And conversely, a fill with white text on top has to
 why `success` and `accent` are 6–8% darker than the sheet's value (invisible, measured), and the
 amber carries dark text, never white.
 
-Every color value comes from the Lumina Live identity sheet, or is a mix of two of
+Every color value comes from the 2026-10-22 identity sheet, or is a mix of two of
 its colors — never invented. Before adding one, read the palette table in
 `docs/knowledge/06-ui-and-theme.md`. Shapes do NOT come from the identity sheet any more (owner,
 2026-11-04: «less heavily rounded», GitHub's Primer): **four radii** — `rounded-sm` (4, something small
@@ -700,7 +700,7 @@ npm run package:win|mac|linux  # build + electron-builder for that platform
   reaches the projector as the `slide` output's `enter`, whose `seq` (`slideVideoEpoch`) is what
   `OutputView` compares, so a push re-sending the same slide plays nothing.
 - **The `name` in `package.json` (`worship-app`) and the `appId` (`com.worshipapp.app`) aren't
-  touched, even though the product is called Lumina Live.** Electron names the data folder after
+  touched, even though the product is called Himnova Live.** Electron names the data folder after
   `name` —the `productName` lives in `build`, belongs to electron-builder and doesn't reach the
   packaged `package.json`—, so the profile is `<appData>/worship-app` in dev and in the installer.
   Changing `name` leaves the church's service (programs, library, Bibles, settings) in a folder

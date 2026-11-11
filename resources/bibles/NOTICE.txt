@@ -1,4 +1,4 @@
-Lumina Live ships these Bible versions, public-domain or freely licensed classics. A version is copied
+Himnova Live ships these Bible versions, public-domain or freely licensed classics. A version is copied
 into the app's own database when it is installed (from Settings, or at first launch for the versions in
 the interface's language); the files here are never changed.
 

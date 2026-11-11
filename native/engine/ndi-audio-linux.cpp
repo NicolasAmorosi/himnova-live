@@ -57,7 +57,7 @@ bool startAppAudio(unsigned long, AudioSink* sink, std::string& why) {
   pa_sample_spec spec{5, rate, 2};
   pa_buffer_attr attr{(uint32_t)-1, (uint32_t)-1, (uint32_t)-1, (uint32_t)-1, frames * 8};
   int error = 0;
-  stream = simpleNew(nullptr, "Lumina Live", 2 /* PA_STREAM_RECORD */, "@DEFAULT_MONITOR@", "NDI audio", &spec, nullptr,
+  stream = simpleNew(nullptr, "Himnova Live", 2 /* PA_STREAM_RECORD */, "@DEFAULT_MONITOR@", "NDI audio", &spec, nullptr,
                      &attr, &error);
   if (!stream) {
     why = "pa_simple_new " + std::to_string(error);

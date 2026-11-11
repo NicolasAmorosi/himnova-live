@@ -54,7 +54,7 @@ export type LogoMode = (typeof LOGO_MODES)[number];
 export const logoModeOf = (mode: LogoMode | null, path: string | null): LogoMode => mode ?? (path ? "image" : "name");
 
 /** The faces a slide can fall back to when it names one this machine lacks:
- *  the open ones Lumina ships (`assets/fonts/slides/`), so the choice looks
+ *  the open ones Himnova ships (`assets/fonts/slides/`), so the choice looks
  *  the same on every machine a program is opened on. */
 export const SLIDE_FALLBACK_FONTS = [
   "Carlito",
@@ -272,7 +272,7 @@ export const DEFAULT_SETTINGS: SettingsMap = {
   "updates.announcedVersion": null,
   "programs.openId": null,
   "ndi.output.enabled": false,
-  "ndi.output.name": "Lumina Live",
+  "ndi.output.name": "Himnova Live",
   "ndi.output.resolution": "1080p",
   "ndi.output.fps": 30,
   "ndi.output.audio": true,
@@ -430,8 +430,16 @@ export function isSettingsKey(key: string): key is keyof SettingsMap {
  * and requiring an entry per key would mean fifteen identity functions.
  * `SettingsRepo.load` applies whatever it finds and leaves the rest alone.
  */
+/** The NDI source's factory name before the product became Himnova Live (2026-11-11). */
+const FORMER_NDI_NAME = "Lumina Live";
+
 export const SETTINGS_NORMALIZERS: {
   [K in keyof SettingsMap]?: (value: unknown) => SettingsMap[K];
 } = {
   "bible.style": normalizeBibleStyle,
+  // A profile that stored the old factory name follows the product's new one; a name the church chose stays.
+  "ndi.output.name": (v) =>
+    v === FORMER_NDI_NAME || !SETTINGS_VALIDATORS["ndi.output.name"](v)
+      ? DEFAULT_SETTINGS["ndi.output.name"]
+      : (v as string),
 };

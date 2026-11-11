@@ -6,7 +6,7 @@ test.use({ welcome: true });
 test("a new profile is welcomed, every step saves as it goes, and finishing opens «Primeros pasos»", async ({ app }) => {
   const welcome = app.control.getByRole("dialog", { name: "Bienvenida" });
   await expect(welcome).toBeVisible();
-  await expect(welcome.getByRole("heading", { name: "Te damos la bienvenida a Lumina Live" })).toBeVisible();
+  await expect(welcome.getByRole("heading", { name: "Te damos la bienvenida a Himnova Live" })).toBeVisible();
   // Escape must not throw the guide away.
   await app.control.keyboard.press("Escape");
   await expect(welcome).toBeVisible();

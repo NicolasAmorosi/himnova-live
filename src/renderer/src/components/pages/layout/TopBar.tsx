@@ -76,7 +76,7 @@ export function TopBar({ onOpenPrograms, onOpenSettings }: TopBarProps) {
             (2026-11-04 redesign, P7): saving Saturday's program was a 16 px
             icon, and the name floated in a capsule. */}
         <div className="flex min-w-0 items-center gap-1.5 px-3">
-          <BrandMark className="mr-1 size-7 shrink-0 rounded-md" />
+          <BrandMark className="mr-1" />
           <Tooltip content={t("settings.title")} floating>
             <IconButton aria-label={t("settings.title")} onClick={onOpenSettings} variant="ghost">
               <Icon name="settings" />

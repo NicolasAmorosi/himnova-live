@@ -17,7 +17,7 @@ import type { MediaAsset, MediaSortOrder } from "@shared/types/media";
  *  accented name after Z, which is what a church library is full of. */
 const collator = new Intl.Collator("es", { numeric: true, sensitivity: "base" });
 
-/** In «Biblioteca», «newest first» means newest in Lumina, not on the disk
+/** In «Biblioteca», «newest first» means newest in Himnova, not on the disk
  *  (owner, 2026-11-06): `createdAt` is when the asset joined the library
  *  (`MediaRepo` moves it when a linked folder's file is added), and the id
  *  breaks the tie of one import — every file of a chunk shares its timestamp —

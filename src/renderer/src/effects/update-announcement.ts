@@ -8,7 +8,7 @@ import { useUiStore } from "@renderer/stores/ui.store";
 let toastId: string | null = null;
 
 /**
- * «Lumina Live X is available», with «View», which opens Settings › About —
+ * «Himnova Live X is available», with «View», which opens Settings › About —
  * where downloading and installing live. Raised by whatever check finds the
  * version, which in practice is the one main runs on its own after launch.
  *

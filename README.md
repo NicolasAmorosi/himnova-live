@@ -1,24 +1,26 @@
-# Lumina Live
+# Himnova Live
+
+_Formerly **Lumina Live** (up to 2.7.2): same app, same repository, your data stays where it was._
 
 **Free and open-source church presentation software.** Slides, video, images, audio, the Bible and
 timers on a second screen, with the same two-step flow as EasyWorship: pick it, check the preview,
 and only then send it LIVE.
 
-**[Website](https://lumina-live-site.vercel.app/)** · **[Download](https://github.com/NicolasAmorosi/lumina-live/releases/latest)** ·
+**[Website](https://himnova-live.vercel.app/)** · **[Download](https://github.com/NicolasAmorosi/himnova-live/releases/latest)** ·
 Windows, macOS and Linux · English, Spanish, Italian and Portuguese
 
-![The Lumina Live control window: the schedule on the left, the preview in the middle and what is on the projector on the right](docs/screenshots/en/control-dark.webp)
+![The Himnova Live control window: the schedule on the left, the preview in the middle and what is on the projector on the right](docs/screenshots/en/control-dark.webp)
 
 ## Features
 
-- **Presentations** in `.ppt`, `.pptx`, `.pps`, `.ppsx`, `.odp` and `.pdf`, read and drawn by Lumina
+- **Presentations** in `.ppt`, `.pptx`, `.pps`, `.ppsx`, `.odp` and `.pdf`, read and drawn by Himnova
   itself — nothing else to install —, including `.pps` hymnals with auto-advance and music: each
   slide's timing and the embedded audio are kept. When a presentation runs out — by itself or a step past
   its last slide — and past a song's last slide, the projector shows the logo, goes black, starts over,
   stays on the last slide or moves on to the schedule's next item; a standalone audio stops, loops or plays
   the next one. Each is chosen once in Settings.
 - **Any video or audio.** Whatever the player can't decode (AVI, WMV, ProRes, AC3…) plays at once
-  through Lumina's own media engine, built on libmpv. Nothing is converted and the original file is
+  through Himnova's own media engine, built on libmpv. Nothing is converted and the original file is
   never touched. When a video ends, the projector shows the logo, goes black, loops it, holds its
   last frame or moves on to the schedule's next item — your choice in Settings.
 - **Bible** with full-text search (accent-insensitive), favourite passages and the ones that went live
@@ -60,7 +62,7 @@ Windows, macOS and Linux · English, Spanish, Italian and Portuguese
 - **A welcome on the first launch:** language and theme, your church's logo, the screens, what happens at
   the end of a video or a presentation, your folders, the Bibles and streaming — then a «First steps» list
   that ticks itself as you try each thing in the real app. It reopens from Settings › About, next to the
-  [online guide](https://lumina-live-site.vercel.app/en/guide).
+  [online guide](https://himnova-live.vercel.app/en/guide).
 - Saved programs, a media library that starts with the computer's Videos, Pictures, Music and Documents
   folders, light and dark themes.
 - **In English, Spanish, Italian and Portuguese.** The first launch follows the computer's language;
@@ -68,11 +70,11 @@ Windows, macOS and Linux · English, Spanish, Italian and Portuguese
 
 ## Download
 
-Installers are on [Releases](https://github.com/NicolasAmorosi/lumina-live/releases/latest): Windows
+Installers are on [Releases](https://github.com/NicolasAmorosi/himnova-live/releases/latest): Windows
 (installer), macOS 13 (Ventura) or later on Apple Silicon (`.dmg`) and Linux: a `.deb` for Ubuntu, Debian and Linux Mint,
 and an `AppImage` for other distributions. On Ubuntu 24.04 or later use the `.deb`: AppArmor won't
 let the AppImage start without `--no-sandbox`, which turns off a security protection. On Linux the
-files Lumina's media engine plays (AVI, WMV, WMA…) need the distribution's libmpv: the `.deb` installs
+files Himnova's media engine plays (AVI, WMV, WMA…) need the distribution's libmpv: the `.deb` installs
 it, and with the AppImage install `libmpv2` (`libmpv1` on Ubuntu 22.04) and `libopengl0`.
 
 - The installers **aren't signed yet**. On Windows: «More info» → «Run anyway». On macOS: System
@@ -80,7 +82,7 @@ it, and with the AppImage install `libmpv2` (`libmpv1` on Ubuntu 22.04) and `lib
 
 ## Updates
 
-Lumina Live updates itself from the app. Versions up to 2.2.0-beta.5 can't: download the new one
+Himnova Live updates itself from the app. Versions up to 2.2.0-beta.5 can't: download the new one
 from Releases once, and from then on it can.
 
 - **Checking.** About 10 seconds after it opens, the app asks GitHub whether this repository's
@@ -96,8 +98,8 @@ from Releases once, and from then on it can.
   updates ever shows on the projector.
 - **Windows** installs silently, and «Restart and update» opens the app again afterwards. If it was
   installed for all users, Windows asks for permission first.
-- **macOS:** without a paid Apple signature, macOS doesn't let an app replace itself. Lumina Live
-  downloads and checks the `.dmg` and opens it: drag Lumina Live to Applications and choose
+- **macOS:** without a paid Apple signature, macOS doesn't let an app replace itself. Himnova Live
+  downloads and checks the `.dmg` and opens it: drag Himnova Live to Applications and choose
   «Replace». Your programs, library and settings stay as they are.
 - **Linux:** the AppImage replaces itself; the `.deb` asks for your password to
   install.

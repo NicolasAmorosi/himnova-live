@@ -144,7 +144,7 @@ export class MediaEngine {
       if (orphanedWindowsHandles.length) args.push("--close-in-parent", orphanedWindowsHandles.join(","));
       orphanedWindowsHandles = [];
     } else if (process.platform === "linux") {
-      this.socketPath = path.join(os.tmpdir(), `lumina-engine-${process.pid}-${Date.now()}-${running.size}.sock`);
+      this.socketPath = path.join(os.tmpdir(), `himnova-engine-${process.pid}-${Date.now()}-${running.size}.sock`);
       this.server = handles<LinuxHandles>().listen(this.socketPath);
       args.push("--fd-socket", this.socketPath);
     }

@@ -96,7 +96,7 @@ SlideView (React, components/shared/slide-view/) ◄── worship://deck/<id>/<
   Liberation, `assets/fonts/slides/`); the open faces PowerPoint 365 fetches as cloud fonts (Open
   Sans, Montserrat, Source Sans Pro, with their per-weight family names) ship there as themselves.
   Office faces with no open twin (Candara, Agency FB…) are right on a PC with Office and a fallback
-  elsewhere: the face chosen in Settings ▸ Slides (`slides.fallbackFont`, one of the faces Lumina
+  elsewhere: the face chosen in Settings ▸ Slides (`slides.fallbackFont`, one of the faces Himnova
   ships, or the system's sans-serif by default — one for every face, owner 2026-10-28), placed after
   the file's face and its twins, never instead of them. It and `ui.locale` (the language chart
   numbers are written in — the interface's, not the system's) reach the slide as `SlideTextSettings`:

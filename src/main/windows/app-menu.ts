@@ -5,7 +5,7 @@ import { mt } from "../i18n";
  *  never ships `build.productName`), and it cannot be changed with
  *  `app.setName()` because it also names the userData folder. See
  *  `.claude/knowledge/electron-userdata-follows-package-name-not-build-productname.md`. */
-const PRODUCT_NAME = "Lumina Live";
+const PRODUCT_NAME = "Himnova Live";
 
 /**
  * The app's own menu, replacing Electron's default one.

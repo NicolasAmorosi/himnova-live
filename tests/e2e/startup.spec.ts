@@ -22,5 +22,5 @@ test("Ajustes › Acerca de names the product and the build that is running", as
   const dialog = app.control.getByRole("dialog");
   await dialog.getByRole("tab", { name: "Acerca de" }).click();
   await expect(dialog.getByText(version, { exact: true })).toBeVisible();
-  await expect(dialog.getByText("Lumina", { exact: true })).toBeVisible();
+  await expect(dialog.getByRole("img", { name: "Himnova Live" })).toBeVisible();
 });
