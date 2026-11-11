@@ -216,9 +216,12 @@
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "installerLanguages": [
-        "es"
+        "en_US",
+        "es_ES",
+        "it_IT",
+        "pt_BR"
       ],
-      "language": "3082"
+      "language": "1033"
     },
     "deb": {
       "depends": [
