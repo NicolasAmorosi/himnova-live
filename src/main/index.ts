@@ -57,6 +57,7 @@ import { engineAvailable, killAllEngines, prewarmEngine } from "./media/media-en
 import { stopDeckClips } from "./media/deck-clips";
 import { appendLogLine, installMainLog } from "./logging";
 import { initUpdates } from "./updates/updater";
+import { retireFormerMacApp } from "./updates/former-mac-app";
 
 /** Long enough to be safely past the first paint of the control window — the
  *  prune walks a directory and is worth nothing compared to the app being on
@@ -307,6 +308,7 @@ if (gotSingleInstanceLock) {
     // After the window, like every launch chore: the check itself waits ten
     // more seconds, and a failed one only reaches `main.log`.
     initUpdates();
+    void retireFormerMacApp();
 
     app.on("activate", () => {
       // Counts only windows the user can actually see: the rasterizer is a

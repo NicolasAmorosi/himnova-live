@@ -1,5 +1,6 @@
 import { expect, test } from "vitest";
 import { canCheck } from "../../src/shared/types/updates";
+import { formerBundlePath } from "../../src/main/updates/former-bundle";
 import {
   installerFile,
   loopbackFeedUrl,
@@ -71,16 +72,16 @@ test("the launch check follows the setting and the E2E switch", () => {
 
 test("each platform's installer is found by its extension in the release's files", () => {
   const files = [
-    { url: "Lumina-Live-linux-x86_64.AppImage" },
-    { url: "Lumina-Live-linux-amd64.deb" },
-    { url: "Lumina-Live-mac-arm64.dmg" },
-    { url: "Lumina-Live-win-x64.exe" },
+    { url: "Himnova-Live-linux-x86_64.AppImage" },
+    { url: "Himnova-Live-linux-amd64.deb" },
+    { url: "Himnova-Live-mac-arm64.dmg" },
+    { url: "Himnova-Live-win-x64.exe" },
   ];
-  expect(installerFile(files, ".dmg")?.url).toBe("Lumina-Live-mac-arm64.dmg");
-  expect(installerFile(files, ".exe")?.url).toBe("Lumina-Live-win-x64.exe");
-  expect(installerFile(files, ".appimage")?.url).toBe("Lumina-Live-linux-x86_64.AppImage");
-  expect(installerFile(files, ".deb")?.url).toBe("Lumina-Live-linux-amd64.deb");
-  expect(installerFile([{ url: "Lumina-Live-mac-arm64.zip" }], ".dmg")).toBeNull();
+  expect(installerFile(files, ".dmg")?.url).toBe("Himnova-Live-mac-arm64.dmg");
+  expect(installerFile(files, ".exe")?.url).toBe("Himnova-Live-win-x64.exe");
+  expect(installerFile(files, ".appimage")?.url).toBe("Himnova-Live-linux-x86_64.AppImage");
+  expect(installerFile(files, ".deb")?.url).toBe("Himnova-Live-linux-amd64.deb");
+  expect(installerFile([{ url: "Himnova-Live-mac-arm64.zip" }], ".dmg")).toBeNull();
 });
 
 test("the test feed is honoured only on loopback", () => {
@@ -93,4 +94,18 @@ test("the test feed is honoured only on loopback", () => {
   expect(loopbackFeedUrl("http://127.0.0.1.evil.example.com/")).toBeNull();
   expect(loopbackFeedUrl("file:///etc/passwd")).toBeNull();
   expect(loopbackFeedUrl("not a url")).toBeNull();
+});
+
+test("the old «Lumina Live.app» is looked for next to the running bundle, never in dev or as itself", () => {
+  expect(formerBundlePath("/Applications/Himnova Live.app/Contents/MacOS/Himnova Live")).toBe(
+    "/Applications/Lumina Live.app",
+  );
+  expect(formerBundlePath("/Users/x/Applications/Himnova Live.app/Contents/MacOS/Himnova Live")).toBe(
+    "/Users/x/Applications/Lumina Live.app",
+  );
+  // The old bundle running (a 2.7 opened by mistake would never get here, but a rename back must not trash itself).
+  expect(formerBundlePath("/Applications/Lumina Live.app/Contents/MacOS/Lumina Live")).toBeNull();
+  // Dev and E2E: Electron's own binary inside node_modules is an .app too — but not next to «Lumina Live.app»; a
+  // plain binary is not inside one at all.
+  expect(formerBundlePath("/home/x/himnova/node_modules/electron/dist/electron")).toBeNull();
 });
