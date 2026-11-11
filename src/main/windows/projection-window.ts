@@ -3,9 +3,13 @@ import path from "node:path";
 import { mt } from "../i18n";
 import { trustWindow } from "../ipc/trusted-senders";
 import { broadcast } from "../services/broadcast";
+import { operatorDisplay } from "./control-window";
 import { attachProjector } from "./projector-screen";
 
 const PRELOAD = path.join(__dirname, "../preload/index.js");
+/** The projector as a window: 16:9, like the stage's. */
+const WINDOWED_WIDTH = 800;
+const WINDOWED_HEIGHT = 450;
 
 /**
  * Recreated (not reused) on every `projection:open`, exactly like the legacy
@@ -15,24 +19,34 @@ const PRELOAD = path.join(__dirname, "../preload/index.js");
  */
 export function createProjectionWindow(displayId?: number): BrowserWindow {
   const displays = screen.getAllDisplays();
-  const primary = screen.getPrimaryDisplay();
+  const operator = operatorDisplay();
   const target =
     (displayId !== undefined && displays.find((d) => d.id === displayId)) ||
-    displays.find((d) => d.id !== primary.id) ||
-    primary;
+    displays.find((d) => d.id !== operator.id) ||
+    operator;
 
-  const singleMonitor = displays.length === 1;
+  // On the operator's own screen — one screen, or chosen there on purpose — a window they can move
+  // (owner, 2026-11-10): fullscreen and always on top it covered the control window, and with it the
+  // only way to close it. Centred on that screen: `center` does nothing next to an `x`/`y`, and left
+  // it in a corner, under the control window (A14).
+  const windowed = target.id === operator.id;
+  const area = target.workArea;
+  const bounds = windowed
+    ? {
+        x: area.x + Math.round((area.width - WINDOWED_WIDTH) / 2),
+        y: area.y + Math.round((area.height - WINDOWED_HEIGHT) / 2),
+        width: WINDOWED_WIDTH,
+        height: WINDOWED_HEIGHT,
+      }
+    : target.bounds;
 
   const win = new BrowserWindow({
-    x: target.bounds.x,
-    y: target.bounds.y,
-    width: singleMonitor ? 800 : target.bounds.width,
-    height: singleMonitor ? 600 : target.bounds.height,
-    center: singleMonitor,
-    frame: false,
-    fullscreen: !singleMonitor,
-    alwaysOnTop: !singleMonitor,
-    skipTaskbar: !singleMonitor,
+    ...bounds,
+    useContentSize: windowed,
+    frame: windowed,
+    fullscreen: !windowed,
+    alwaysOnTop: !windowed,
+    skipTaskbar: !windowed,
     backgroundColor: "#000000",
     title: mt("window.projectionTitle"),
     show: false,
@@ -70,7 +84,7 @@ export function createProjectionWindow(displayId?: number): BrowserWindow {
   // control window as if pressed there; before this, → and B did nothing until
   // the operator clicked back on the control window.
   forwardKeysToControl(win);
-  if (!singleMonitor) {
+  if (!windowed) {
     win.setAlwaysOnTop(true, "screen-saver");
   }
 

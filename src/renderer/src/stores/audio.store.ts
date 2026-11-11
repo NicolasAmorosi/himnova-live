@@ -79,6 +79,9 @@ type AudioStoreState = {
    *  already in the list but paused, so it plays again instead of stacking a
    *  second instance of the same audio. */
   restartTrack: (trackId: string, startAtSeconds: number) => void;
+  /** Points a live track at another url for the same file (the media engine took it): a new
+   *  element, from where it was meant to start. */
+  setUrl: (trackId: string, url: string) => void;
   /** Rewrites where the named tracks would resume from if their elements had
    *  to be mounted again — see `lib/actions/live-positions.ts`. Deliberately
    *  does NOT bump `epoch`: nothing should remount while the projection window
@@ -125,6 +128,11 @@ export const useAudioStore = create<AudioStoreState>()(
         tracks: state.tracks.map((t) =>
           t.trackId === trackId ? { ...t, epoch: nextEpoch(), paused: false, startAtSeconds } : t,
         ),
+      })),
+
+    setUrl: (trackId, url) =>
+      set((state) => ({
+        tracks: state.tracks.map((t) => (t.trackId === trackId ? { ...t, url, epoch: nextEpoch() } : t)),
       })),
 
     setStartPositions: (positions) =>

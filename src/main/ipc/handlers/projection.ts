@@ -6,7 +6,10 @@ import { broadcast } from "../../services/broadcast";
 import { pinDecks } from "../../slides/deck-service";
 import { commandLiveEngine, redrawEngineFrame, syncLiveEngine } from "../../media/engine-sessions";
 import { IpcError } from "@shared/ipc/result";
+import { deckIdOfUrl } from "@shared/urls";
+import { keepLiveDeckSource } from "../../protocol/worship-protocol";
 import { showOnStage, stageSnapshot } from "../../windows/stage-window";
+import { forwardMediaStatusToNdi } from "../../ndi/ndi-output";
 
 let currentProgramId: number | null = null;
 
@@ -97,6 +100,9 @@ export const projectionHandlers: Pick<
 
   "projection:show": (output) => {
     projectionState.send(output);
+    // The output names the deck the projector shows; its bytes must outlive its file.
+    const deckId = output.kind === "slide" ? deckIdOfUrl(output.url) : null;
+    if (deckId !== null) keepLiveDeckSource(deckId);
     syncLiveEngine();
     getHistoryRepo().record(output, currentProgramId);
     if (output.kind === "song") {
@@ -151,9 +157,11 @@ export const projectionHandlers: Pick<
   },
 
   /** The projection window describing its own media element; forwarded to the
-   *  control window, which owns the autoplay clock. */
+   *  control window, which owns the autoplay clock, and to the NDI window, whose
+   *  copy of a Chromium video follows it. */
   "projection:reportMediaStatus": (status) => {
     broadcast("media-status", status);
+    forwardMediaStatusToNdi(status);
   },
 
   /** A file the projector could not load or decode. Logged here as well as

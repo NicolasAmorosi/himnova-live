@@ -1,7 +1,8 @@
 import { app, BrowserWindow, screen } from "electron";
 import path from "node:path";
 import { trustWindow } from "../ipc/trusted-senders";
-import { registerBroadcastTarget } from "../services/broadcast";
+import { broadcast, controlWindows, registerBroadcastTarget } from "../services/broadcast";
+import { syncStageWindow } from "./stage-window";
 
 const PRELOAD = path.join(__dirname, "../preload/index.js");
 
@@ -42,6 +43,23 @@ export function createControlWindow(): BrowserWindow {
   }
 
   win.once("ready-to-show", () => win.show());
+  // The operator's screen is where this window is (`operatorDisplay`): dragged to another one,
+  // Settings' list of screens and the stage window follow.
+  let lastDisplayId = screen.getDisplayMatching(win.getBounds()).id;
+  win.on("moved", () => {
+    const id = screen.getDisplayMatching(win.getBounds()).id;
+    if (id === lastDisplayId) return;
+    lastDisplayId = id;
+    syncStageWindow();
+    broadcast("displays-changed", undefined);
+  });
 
   return win;
+}
+
+/** The screen the operator works on: the one hosting the control window. Not the OS's «primary»
+ *  screen — a church may well have made the projector its primary display (owner, 2026-11-10). */
+export function operatorDisplay(): Electron.Display {
+  const control = controlWindows()[0];
+  return control ? screen.getDisplayMatching(control.getBounds()) : screen.getPrimaryDisplay();
 }

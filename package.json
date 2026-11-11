@@ -144,6 +144,7 @@
       "hardenedRuntime": false,
       "extendInfo": {
         "NSLocalNetworkUsageDescription": "Lumina Live sends the projection to programs such as OBS over NDI on your local network.",
+        "NSAudioCaptureUsageDescription": "Lumina Live sends its own sound (videos, music, hymns) with the projection over NDI.",
         "NSBonjourServices": [
           "_ndi._tcp"
         ]

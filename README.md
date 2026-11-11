@@ -48,8 +48,8 @@ Windows, macOS and Linux · English, Spanish, Italian and Portuguese
   with the song's chords over its words, which the projector never shows. Chords come in from OpenLP,
   OpenLyrics and ChordPro, or are written in the lyrics as `[G]Amazing [C]grace`.
 - **NDI® output:** the projector's picture as a video source on your local network, for OBS, vMix or any
-  other NDI program — to stream the service with the lyrics and slides. Video only: the sound comes from
-  your mixing desk. Turn it on in Settings › Projection; it needs NDI's free runtime, which you install
+  other NDI program — to stream the service with the lyrics and slides, with the app's own sound (videos, music,
+  hymns; it can be turned off if the stream takes the sound from your mixing desk). Turn it on in Settings › Projection; it needs NDI's free runtime, which you install
   from [ndi.video](https://ndi.video/). 1080p needs a gigabit network cable; over Wi-Fi, use 720p.
 - **Timers** (countdown, clock, stopwatch) and **overlays** on top of what is projected (a lower third
   with the preacher's name, the church logo).
@@ -69,7 +69,7 @@ Windows, macOS and Linux · English, Spanish, Italian and Portuguese
 ## Download
 
 Installers are on [Releases](https://github.com/NicolasAmorosi/lumina-live/releases/latest): Windows
-(installer), macOS on Apple Silicon (`.dmg`) and Linux: a `.deb` for Ubuntu, Debian and Linux Mint,
+(installer), macOS 13 (Ventura) or later on Apple Silicon (`.dmg`) and Linux: a `.deb` for Ubuntu, Debian and Linux Mint,
 and an `AppImage` for other distributions. On Ubuntu 24.04 or later use the `.deb`: AppArmor won't
 let the AppImage start without `--no-sandbox`, which turns off a security protection. On Linux the
 files Lumina's media engine plays (AVI, WMV, WMA…) need the distribution's libmpv: the `.deb` installs

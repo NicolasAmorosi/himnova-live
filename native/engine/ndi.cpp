@@ -4,6 +4,7 @@
 // the user's own (ndi.video), loaded at run time; headers: NDI SDK 6.3.2.0 (MIT), native/ndi/include/.
 //
 //   media-engine --ndi-send <name> --width <w> --height <h> --fps <n> [--ndi-lib <path>]
+//                [--audio 1 --audio-delay <ms>]   the app's own sound too (ndi-audio.h), held <ms> to meet its picture
 //     Windows  --parent <pid>          stdin: «frame <NT handle value in main>» per frame
 //     macOS    --mach-service <name>   the IOSurface's mach port, one mach message per frame
 //     Linux    --fd-socket <path>      a SOCK_SEQPACKET socket: «w h modifier planes stride offset…» + the dmabuf fds
@@ -11,10 +12,13 @@
 //     {"ev":"ready","runtime":…}                 listening for frames
 //     {"ev":"done"}                              read the frame main is holding: it can release it now
 //     {"ev":"status","receivers":…}              on every change; with none, a new frame is encoded once, not repeated
+//     {"ev":"audio","state":"on"|"off","detail":…,"level":…}  the sound: on (and its loudest sample in the last second,
+//                                                dBFS, once a second), or off and why
 //     {"ev":"error","code":…,"detail":…}         ndi-runtime-missing (exit 3) · ndi-send (exit 4) · ndi-gpu
 #include <algorithm>
 #include <atomic>
 #include <chrono>
+#include <cmath>
 #include <cstddef>  // NULL, which the SDK headers use without including it
 #include <cstdio>
 #include <cstdlib>
@@ -28,6 +32,7 @@
 #include <Processing.NDI.Lib.h>
 
 #include "gpu.h"
+#include "ndi-audio.h"
 
 #ifndef _WIN32
 #include <dlfcn.h>
@@ -40,6 +45,8 @@ struct Options {
   std::string name, lib, macService, fdSocket;
   int width = 1920, height = 1080, fps = 30;
   unsigned long parentPid = 0;
+  bool audio = false;
+  int audioDelayMs = 0;
 };
 
 static std::atomic<bool> quitting{false};
@@ -364,6 +371,7 @@ struct Queue {
   static constexpr int N = MAX_WAITING + 2;  // + the one being read into, + the last sent (repeated while still)
   std::vector<uint8_t> buf[N];
   int w[N] = {}, h[N] = {};
+  int64_t tc[N] = {};  // when it was painted: the picture's moment, on the clock the sound is stamped with
   std::deque<int> waiting;
   int writing = 0, last = -1;
   // Called with `m` held, `writing` just filled: queue it and pick a buffer nobody holds.
@@ -372,6 +380,89 @@ struct Queue {
     if ((int)waiting.size() > MAX_WAITING) waiting.pop_front();
     for (int i = 0; i < N; i++)
       if (i != last && std::find(waiting.begin(), waiting.end(), i) == waiting.end()) { writing = i; return; }
+  }
+};
+
+// The app's sound on its way out: stamped with when the room heard it, and held back `delay` so it leaves with the
+// picture of that same moment, which waits in the queue above (painted → read → sent at the output's rate). Planar
+// float, NDI's own layout. While watched, a gap the capture left (Windows' loopback says nothing while the app is
+// silent) is filled with silence by the clock, so receivers never see the sound stop and start again.
+struct AudioOut : AudioSink {
+  struct Chunk {
+    int64_t tc;
+    int frames, channels, rate;
+    std::vector<float> planar;
+  };
+  std::mutex m;
+  std::deque<Chunk> q;
+  std::atomic<int64_t> delay{0};
+  std::atomic<bool> watched{false};
+  int64_t expected = 0;  // the timecode right after the last sample queued
+  int rate = 48000, channels = 2;
+  float peak = 0;
+
+  void queue(const float* in, int frames, int ch, int r, int64_t tc) {  // `m` held
+    Chunk c{tc, frames, ch, r, std::vector<float>((size_t)frames * ch, 0.f)};
+    if (in)
+      for (int i = 0; i < frames; i++)
+        for (int k = 0; k < ch; k++) {
+          float v = in[(size_t)i * ch + k];
+          c.planar[(size_t)k * frames + i] = v;
+          peak = std::max(peak, std::fabs(v));
+        }
+    q.push_back(std::move(c));
+    // Two seconds at most: a sender that stalls costs sound, never memory or latency.
+    while (q.size() > 400) q.pop_front();
+    expected = tc + (int64_t)frames * 10000000 / r;
+    rate = r;
+    channels = ch;
+  }
+  void push(const float* in, int frames, int ch, int r, int64_t tc) override {
+    if (frames <= 0 || ch <= 0 || r <= 0) return;
+    std::lock_guard<std::mutex> l(m);
+    // Captures overlap by a few samples at their joints (two clocks): what the timeline already has goes.
+    if (expected && tc < expected - 20000) {
+      int skip = (int)((expected - tc) * r / 10000000);
+      if (skip >= frames) return;
+      in += (size_t)skip * ch;
+      frames -= skip;
+      tc = expected;
+    }
+    fillUntil(tc);
+    queue(in, frames, ch, r, tc);
+  }
+  void fillUntil(int64_t until) {  // `m` held
+    if (!watched) return;
+    while (expected && until - expected > 100000) queue(nullptr, rate / 100, channels, rate, expected);  // 10 ms each
+  }
+  // Every few milliseconds: what is due goes out — or, unwatched, away.
+  void pump(const NDIlib_v6* ndi, NDIlib_send_instance_t sender) {
+    std::lock_guard<std::mutex> l(m);
+    int64_t now = nowTc(), d = delay;
+    if (watched) fillUntil(now - d - 500000);  // 50 ms of grace before inventing silence
+    while (!q.empty() && q.front().tc + d <= now) {
+      Chunk& c = q.front();
+      if (watched) {
+        NDIlib_audio_frame_v3_t f;
+        f.sample_rate = c.rate;
+        f.no_channels = c.channels;
+        f.no_samples = c.frames;
+        // Shifted with it too: a receiver that aligns by timecode (OBS by default) follows the same setting.
+        f.timecode = c.tc + d;
+        f.FourCC = NDIlib_FourCC_audio_type_FLTP;
+        f.p_data = (uint8_t*)c.planar.data();
+        f.channel_stride_in_bytes = c.frames * (int)sizeof(float);
+        ndi->send_send_audio_v3(sender, &f);
+      }
+      q.pop_front();
+    }
+    if (!watched) expected = 0;
+  }
+  float takePeak() {
+    std::lock_guard<std::mutex> l(m);
+    float p = peak;
+    peak = 0;
+    return p;
   }
 };
 
@@ -389,6 +480,8 @@ int ndiSendMain(int argc, char** argv) {
     else if (k == "--parent") o.parentPid = strtoul(v.c_str(), nullptr, 10);
     else if (k == "--mach-service") o.macService = v;
     else if (k == "--fd-socket") o.fdSocket = v;
+    else if (k == "--audio") o.audio = v == "1";
+    else if (k == "--audio-delay") o.audioDelayMs = std::clamp(atoi(v.c_str()), -500, 1000);
   }
   if (o.name.empty() || o.width < 16 || o.height < 16 || o.width > 3840 || o.height > 2160 || o.fps < 1 || o.fps > 60) {
     emitError("ndi-send", "bad arguments");
@@ -427,6 +520,39 @@ int ndiSendMain(int argc, char** argv) {
   }
   emit("{\"ev\":\"ready\",\"runtime\":" + js(ndi->version()) + "}");
 
+  static AudioOut audio;
+  audio.delay = (int64_t)o.audioDelayMs * 10000;
+  std::thread audioThread;
+  if (o.audio) {
+    std::string why;
+#ifdef _WIN32
+    unsigned long app = o.parentPid;
+#else
+    unsigned long app = (unsigned long)getppid();
+#endif
+    if (startAppAudio(app, &audio, why)) {
+      emit("{\"ev\":\"audio\",\"state\":\"on\"}");
+      audioThread = std::thread([&] {
+        auto lastLevel = std::chrono::steady_clock::now();
+        while (!quitting) {
+          audio.pump(ndi, sender);
+          auto now = std::chrono::steady_clock::now();
+          if (now - lastLevel >= std::chrono::seconds(1)) {
+            lastLevel = now;
+            // Watched or not: Settings shows it, and it is how a test hears the app's sound.
+            float peak = audio.takePeak();
+            char db[32];
+            snprintf(db, sizeof db, "%.1f", peak > 0 ? 20 * std::log10(peak) : -120.0);
+            emit(std::string("{\"ev\":\"audio\",\"state\":\"on\",\"level\":") + db + "}");
+          }
+          std::this_thread::sleep_for(std::chrono::milliseconds(5));
+        }
+      });
+    } else {
+      emit("{\"ev\":\"audio\",\"state\":\"off\",\"detail\":" + js(why) + "}");
+    }
+  }
+
   const size_t capacity = (size_t)o.width * o.height * 4;
   static Queue q;
   for (auto& b : q.buf) b.resize(capacity);
@@ -441,6 +567,7 @@ int ndiSendMain(int argc, char** argv) {
       std::lock_guard<std::mutex> l(q.m);
       q.w[q.writing] = w;
       q.h[q.writing] = h;
+      q.tc[q.writing] = nowTc();
       q.push();
     }
     quitting = true;
@@ -464,6 +591,7 @@ int ndiSendMain(int argc, char** argv) {
     int now = ndi->send_get_no_connections(sender, receivers > 0 ? 0 : 100);
     if (now != receivers) {
       receivers = now;
+      audio.watched = now > 0;
       emit("{\"ev\":\"status\",\"receivers\":" + std::to_string(now) + "}");
     }
     bool fresh = false;
@@ -490,8 +618,13 @@ int ndiSendMain(int argc, char** argv) {
     f.yres = q.h[send];
     f.line_stride_in_bytes = f.xres * 4;
     f.p_data = q.buf[send].data();
+    // When it was painted, not when it leaves: the sound is stamped the same way, so a receiver that aligns by
+    // timecode lines them up whatever the queue held. A still frame sent again is stamped now.
+    f.timecode = fresh ? q.tc[send] : nowTc();
     ndi->send_send_video_v2(sender, &f);
   }
+  if (audioThread.joinable()) audioThread.join();
+  if (o.audio) stopAppAudio();
   ndi->send_destroy(sender);
   ndi->destroy();
   // The reader may be blocked on its pipe, port or socket; the process is ending, which unblocks it.

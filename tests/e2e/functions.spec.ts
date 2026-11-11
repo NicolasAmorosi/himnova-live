@@ -1,5 +1,5 @@
 import type { Locator, Page } from "@playwright/test";
-import { expect, relaunch, test, type WorshipApp } from "./support/app";
+import { expect, msUntilChange, relaunch, test, type WorshipApp } from "./support/app";
 
 /** Seconds left on the projected countdown, read off its `m:ss`. */
 async function countdownSeconds(projector: Page): Promise<number | null> {
@@ -16,7 +16,11 @@ test("a countdown is projected and runs", async ({ app }) => {
   await expect.poll(() => countdownSeconds(projector)).not.toBeNull();
   const first = (await countdownSeconds(projector)) ?? 0;
   expect(first).toBeLessThanOrEqual(600);
-  await expect.poll(() => countdownSeconds(projector), { timeout: 5_000 }).toBeLessThan(first);
+  // One second a second: three seconds take 3 off (2–4 for where in its second each read falls), not «less».
+  await projector.waitForTimeout(3_000);
+  const later = (await countdownSeconds(projector)) ?? first;
+  expect(first - later).toBeGreaterThanOrEqual(2);
+  expect(first - later).toBeLessThanOrEqual(4);
 });
 
 test("a plate made in the editor goes up over what is live", async ({ app }) => {
@@ -173,7 +177,11 @@ test("a plate set to hide by itself goes down after its time", async ({ app }) =
     await editor.getByRole("group", { name: "Ocultar después de un tiempo" }).getByRole("switch").click();
     await editor.getByRole("slider", { name: "Tiempo en pantalla" }).fill("2");
   });
-  await expect(projector.getByText("Pr. Juan Pérez")).toHaveCount(0, { timeout: 6_000 });
+  // Its two seconds from GO LIVE, part of which went before it was seen: neither at once nor twice as long.
+  const down = await msUntilChange(() => projector.getByText("Pr. Juan Pérez").count(), 1, 6_000);
+  expect(down.value).toBe(0);
+  expect(down.ms).toBeGreaterThan(1_000);
+  expect(down.ms).toBeLessThan(2_600);
 });
 
 test("deleting a plate that is up takes it off the projector first", async ({ app }) => {

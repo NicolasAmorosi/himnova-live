@@ -185,6 +185,13 @@ The control is the single source of truth; the projection window has no state of
 `01-architecture.md` on the replay on `did-finish-load`). There is no Context or React state
 shared between windows — they are two separate renderer processes, and the only channel is IPC.
 
+**A media-engine frame goes up on the page's clock where the room looks** (`EngineVideo`, `paced` in the projector
+and the NDI window): copied into a three-canvas queue as it lands — the engine's texture goes back at once — and put
+up at an animation frame by `lib/frame-pacer.ts` (one video frame per its measured share of refreshes). Drawn as it
+landed, the canvas beat against the compositor and the NDI window's 30 Hz by each play's phase. The monitors still
+draw on arrival. `.claude/knowledge/engine-frames-drawn-as-they-land-beat-against-every-compositor.md` has what is
+left (60 fps on a late main frame) and the alternatives measured worse.
+
 The NDI® output (`01-architecture.md`) is a second, offscreen `ProjectionApp`: `projection.html?role=ndi` draws the
 same output, and `IS_NDI_OUTPUT` keeps it from reporting `media-status`/`media-error` (the panel would see every
 video twice) and from mounting audio tracks (main mutes it too). The projector stays the only window that reports.

@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { sharedTexture, type SharedTextureHandle, type WebContents } from "electron";
 import { engineDir, enginePath } from "../paths";
+import { jsonLineReader, mpvVolume } from "./engine-protocol";
 
 /**
  * The media engine (`native/engine/engine.cpp`): ONE file per process, played by libmpv, which also
@@ -78,12 +79,6 @@ export function handles<T extends MacHandles | LinuxHandles>(): T {
   return handlesAddon as T;
 }
 
-/** 0..1, as `HTMLMediaElement.volume` takes it (linear amplitude) → mpv's `volume`, which it cubes
- *  (`player/audio.c`): sent as it was, the panel's 30% played at 2.7% of full scale. */
-function mpvVolume(volume: number): number {
-  return Math.round(Math.cbrt(Math.min(1, Math.max(0, volume))) * 100);
-}
-
 /** A ring texture as `sharedTexture` imports it. */
 function pointerBuffer(value: string): Buffer {
   const b = Buffer.alloc(8);
@@ -128,7 +123,6 @@ export class MediaEngine {
   exited = false;
   private readonly child: ChildProcess;
   private events: EngineEvents = {};
-  private stdoutBuffer = "";
   private stderrTail = "";
   private socketPath: string | null = null;
   private server = -1;
@@ -157,7 +151,7 @@ export class MediaEngine {
     this.child = spawn(enginePath, args, { windowsHide: true, stdio: ["pipe", "pipe", "pipe"] });
     running.add(this);
     this.child.stdout?.setEncoding("utf8");
-    this.child.stdout?.on("data", (chunk: string) => this.onStdout(chunk));
+    this.child.stdout?.on("data", jsonLineReader<EngineEvent>((event) => this.onEvent(event)));
     this.child.stderr?.setEncoding("utf8");
     this.child.stderr?.on("data", (chunk: string) => {
       this.stderrTail = (this.stderrTail + chunk).slice(-STDERR_TAIL_BYTES);
@@ -169,7 +163,7 @@ export class MediaEngine {
     this.child.once("exit", (code, signal) => this.onExit(code, signal));
   }
 
-  /** `target` is what the renderer listens for (`window.worship.onVideoFrame`): one engine, one key. */
+    /** `target` is what the renderer listens for (`window.worship.onVideoFrame`): one engine, one key. */
   load(opts: EngineLoad, target: string, events: EngineEvents): void {
     if (this.loadedOnce) throw new Error("an engine plays one file");
     if (/[\r\n]/.test(opts.file)) throw new Error("a path with a line break");
@@ -179,7 +173,7 @@ export class MediaEngine {
     const volume = mpvVolume(opts.volume);
     const flag = (b: boolean) => (b ? "1" : "0");
     this.write(
-      `load ${Math.max(0, opts.startAtSeconds)} ${flag(opts.paused)} ${volume} ${flag(opts.loop)} ${flag(opts.audio)} ${opts.file}`,
+      `load ${Math.max(0, opts.startAtSeconds)} ${flag(opts.paused)} ${volume} ${flag(opts.loop)} ${flag(opts.audio)} ${longPathSafe(opts.file)}`,
     );
   }
 
@@ -227,22 +221,6 @@ export class MediaEngine {
 
   private write(line: string): void {
     if (!this.exited && this.child.stdin?.writable) this.child.stdin.write(line + "\n");
-  }
-
-  private onStdout(chunk: string): void {
-    this.stdoutBuffer += chunk;
-    const lines = this.stdoutBuffer.split("\n");
-    this.stdoutBuffer = lines.pop() ?? "";
-    for (const line of lines) {
-      if (!line.trim()) continue;
-      let event: EngineEvent;
-      try {
-        event = JSON.parse(line) as EngineEvent;
-      } catch {
-        continue;
-      }
-      this.onEvent(event);
-    }
   }
 
   private onEvent(event: EngineEvent): void {
@@ -345,4 +323,14 @@ export class MediaEngine {
       this.fail({ code: "engine-exit", detail: `exit ${signal ?? code}: ${this.stderrTail.trim().slice(-300)}` });
     this.events.exit?.();
   }
+}
+
+/** libmpv opens files within Windows' MAX_PATH (260) even where long paths are on: a video deep in a
+ *  church's OneDrive or SharePoint folder imported, probed and thumbnailed fine, then went live black and
+ *  silent (2026-11-10 review, agent8-02). The `\\?\` form has no such limit, and libmpv opens it, UNC
+ *  shares included (measured on Windows 11). Only for a long path: the short ones stay as they were. */
+export function longPathSafe(file: string, platform: NodeJS.Platform = process.platform): string {
+  if (platform !== "win32" || file.length < 240 || file.startsWith("\\\\?\\")) return file;
+  const full = path.win32.resolve(file);
+  return full.startsWith("\\\\") ? `\\\\?\\UNC\\${full.slice(2)}` : `\\\\?\\${full}`;
 }

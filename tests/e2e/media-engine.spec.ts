@@ -116,6 +116,17 @@ test("an engine that dies is reported and left to the operator", async ({ app })
   await expect.poll(() => moving(projector, "video:")).toBe(true);
 });
 
+test("a video whose picture the engine can't decode is reported, not left playing sound over black", async ({ app }) => {
+  // 2026-11-10 review, agent1-06: its sound played, the projector stayed black, nobody was told.
+  const [avi] = await app.addMedia("video", "no-picture.avi");
+  if (!avi) throw new Error("import failed");
+  await waitEngine(app, avi);
+  await app.previewFile("Videos", "no-picture");
+  await app.goLive();
+  await expect(app.control.getByText("No se pudo reproducir «no-picture» en el proyector")).toBeVisible();
+  await expect(app.liveColumn().getByText("No se pudo reproducir", { exact: true })).toBeVisible();
+});
+
 test("an MP4 that played sound over a black picture now shows its picture", async ({ app }) => {
   const [mp4] = await app.addMedia("video", "sound-over-black.mp4");
   if (!mp4) throw new Error("import failed");

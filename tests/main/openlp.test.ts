@@ -161,17 +161,17 @@ describe("OpenLP's database", () => {
     expect(readOpenLpDatabase(file).songs[0]).toMatchObject({ title: "Old", number: "45" });
   });
 
-  test("importing twice skips what is there; a file that is not OpenLP's says so", () => {
+  test("importing twice skips what is there; a file that is not OpenLP's says so", async () => {
     const file = path.join(tmpDir, "songs-import.sqlite");
     writeOpenLp24(file);
-    expect(importOpenLpDatabase(file)).toEqual({ imported: 2, repeated: 0, problems: 1, unsupported: 0 });
-    expect(importOpenLpDatabase(file)).toEqual({ imported: 0, repeated: 2, problems: 1, unsupported: 0 });
+    expect(await importOpenLpDatabase(file)).toEqual({ imported: 2, repeated: 0, problems: 1, unsupported: 0 });
+    expect(await importOpenLpDatabase(file)).toEqual({ imported: 0, repeated: 2, problems: 1, unsupported: 0 });
 
     const other = path.join(tmpDir, "not-openlp.sqlite");
     new Database(other).exec("CREATE TABLE song (title TEXT)").close();
     for (const bad of [other, path.join(tmpDir, "missing.sqlite")]) {
       try {
-        importOpenLpDatabase(bad);
+        await importOpenLpDatabase(bad);
         throw new Error("expected OPENLP_UNREADABLE");
       } catch (error) {
         expect((error as IpcError).code).toBe("OPENLP_UNREADABLE");
@@ -251,15 +251,15 @@ describe("OpenLyrics", () => {
     ]);
   });
 
-  test("files: one without lyrics is a problem, one not XML no song file at all; the rest come in once", () => {
+  test("files: one without lyrics is a problem, one not XML no song file at all; the rest come in once", async () => {
     const good = path.join(tmpDir, "gracia.xml");
     const empty = path.join(tmpDir, "empty.xml");
     const broken = path.join(tmpDir, "broken.xml");
     fs.writeFileSync(good, openLyrics(`<verse name="v1"><lines>Sublime gracia del Señor</lines></verse>`));
     fs.writeFileSync(empty, openLyrics(""));
     fs.writeFileSync(broken, "<song><lyrics><verse");
-    expect(importOpenLyricsFiles([good, empty, broken])).toEqual({ imported: 1, repeated: 0, problems: 1, unsupported: 1 });
-    expect(importOpenLyricsFiles([good])).toEqual({ imported: 0, repeated: 1, problems: 0, unsupported: 0 });
+    expect(await importOpenLyricsFiles([good, empty, broken])).toEqual({ imported: 1, repeated: 0, problems: 1, unsupported: 1 });
+    expect(await importOpenLyricsFiles([good])).toEqual({ imported: 0, repeated: 1, problems: 0, unsupported: 0 });
   });
 
   test("0.9 chords keep their kind: shortcode or formula, bass included; an unknown one keeps its root", () => {

@@ -9,6 +9,7 @@ import { DEFAULT_SETTINGS } from "@shared/types/settings";
 import { DEFAULT_SONG_THEME, type SongBackground } from "@shared/types/song";
 import type { TimerTool } from "@shared/types/timer";
 import type { MainMessages } from "../../i18n/messages/es";
+import { everyMainMessages } from "../../i18n";
 import type { MediaRepo } from "../repositories/media.repo";
 import type { OverlaysRepo } from "../repositories/overlays.repo";
 import type { SettingsRepo } from "../repositories/settings.repo";
@@ -183,12 +184,16 @@ function dressLogo(repos: Repos, dirs: Dirs, text: Text): void {
   if (night) repos.settings.setMany({ "logo.background": night });
 }
 
-/** «Noche» where version 1 put it in the library, or `null` once the operator deleted it.
- *  ponytail: looks it up under the CURRENT language's name — a profile seeded in another
- *  language falls back to black; search every dictionary's name if that ever matters. */
+/** «Noche» where version 1 put it in the library, or `null` once the operator deleted it. Under
+ *  any language's name, the current one first: the look is seeded in the OS's language and the
+ *  welcome invites another on the first launch — «Restaurar» then found no «Noche» and gave black
+ *  (2026-11-10 review, A15). */
 function nightBackground(media: MediaRepo, folder: string, text: Text) {
-  const night = path.join(folder, `${text.backgrounds.night}.webp`);
-  const asset = media.list("image").find((candidate) => candidate.path === night);
+  const names = [text, ...everyMainMessages().map((messages) => messages.look)].map((look) =>
+    path.join(folder, `${look.backgrounds.night}.webp`),
+  );
+  const images = media.list("image");
+  const asset = names.map((night) => images.find((candidate) => candidate.path === night)).find(Boolean);
   return asset ? ({ kind: "image", assetId: asset.id, fit: "cover" } as const) : null;
 }
 

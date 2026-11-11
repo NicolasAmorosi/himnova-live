@@ -36,10 +36,10 @@ export type ParsedReference = {
   verseTo: number | null;
 };
 
-/** «Juan 3:16-18», «Jn 3.16», «Jn 3,16», «1 Co 13», «1co13», «Juan» — and
+/** «Juan 3:16-18», «Jn 3.16», «Jn 3,16», «Juan 3 16», «1 Co 13», «1co13», «Juan» — and
  *  «Juan 3:» or «Juan 3:16-» half typed. The name is the shortest start that
- *  leaves a number after it, so «1 Juan 3» is «1 Juan», chapter 3. */
-const REFERENCE = /^(.+?)\s*(\d+)(?:\s*[:.,]\s*(?:(\d+)(?:\s*[-–]\s*(\d+)?)?)?)?$/;
+ *  leaves a number after it, so «1 Juan 3» is «1 Juan», chapter 3, and «1 Juan 3 2» its verse 2. */
+const REFERENCE = /^(.+?)\s*(\d+)(?:(?:\s*[:.,]\s*|\s+)(?:(\d+)(?:\s*[-–]\s*(\d+)?)?)?)?$/;
 
 export function parseReference(query: string): ParsedReference {
   const text = query.trim();
@@ -73,8 +73,16 @@ function rank(book: BibleBookDTO, forms: readonly string[], typed: string): numb
 /** The books what was typed may mean, best first (canonical order among
  *  equals), with the chapter and verses it named — only books that have that
  *  chapter. A verse is checked when the chapter is loaded: the books carry no
- *  verse counts. */
-export function matchReference(books: readonly BibleBookDTO[], query: string, locale: Locale): ReferenceMatch[] {
+ *  verse counts. A number alone is a verse of the `open` chapter (owner,
+ *  2026-11-10: the book and chapter pickers, then the verse typed here). */
+export function matchReference(
+  books: readonly BibleBookDTO[],
+  query: string,
+  locale: Locale,
+  open?: { book: BibleBookDTO; chapter: number },
+): ReferenceMatch[] {
+  const verse = /^\d+$/.test(query.trim()) ? Number(query.trim()) : 0;
+  if (open && verse > 0) return [{ name: "", book: open.book, chapter: open.chapter, verseFrom: verse, verseTo: null }];
   const reference = parseReference(query);
   const typed = compact(reference.name);
   if (!typed) return [];

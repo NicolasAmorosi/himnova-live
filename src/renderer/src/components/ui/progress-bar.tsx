@@ -30,10 +30,11 @@ export function ProgressBar({ className, tone = "accent", value, ...props }: Pro
       role="progressbar"
       {...props}
     >
-      <div
-        className={cn("h-full rounded-full transition-[width] duration-150", toneClassName[tone])}
-        style={{ width: `${pct}%` }}
-      />
+      {/* No transition: a width that animates is a layout and a paint every frame, and the time-to-next-slide bar
+          changes four times a second for the whole of every hymn — 21 % of a core of the control window plus 12 % of
+          the GPU process, against 3.4 % + 2.6 % without it (2026-11-10 review, agent7-01). Four steps a second
+          already read as continuous on a 4 px bar. */}
+      <div className={cn("h-full rounded-full", toneClassName[tone])} style={{ width: `${pct}%` }} />
     </div>
   );
 }

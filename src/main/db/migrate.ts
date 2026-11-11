@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import Database from "better-sqlite3";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
-import type { Db } from "./client";
+import { openDatabase, type Db } from "./client";
 
 /**
  * Whether `runMigrations` would actually apply anything.
@@ -161,6 +161,71 @@ function pruneOldBackups(backupDir: string): void {
   }
 }
 
+/**
+ * Repairs every row that points at a parent that no longer exists, the way its foreign key would
+ * have on that parent's delete: `SET NULL` clears the column, anything else (`CASCADE`, `RESTRICT`)
+ * removes the row. Returns how many rows it touched, for the log.
+ *
+ * Run before `runMigrations`. A migration that rebuilds a table (`program_items` in 0009, 0011, 0015,
+ * 0019) copies it with foreign keys ON, and drizzle applies every pending migration in ONE
+ * transaction: a single dangling reference rolled the whole upgrade back, and the app showed the
+ * error and closed on every launch after — with a backup holding the same row (2026-11-10 review,
+ * agent6-02). Such rows have existed: the 184 orphan deck rows of 2026-09-15, cause never found.
+ */
+export function repairDanglingReferences(sqlite: Database.Database): number {
+  const violations = sqlite.pragma("foreign_key_check") as { table: string; rowid: number | null; fkid: number }[];
+  let repaired = 0;
+  for (const { table, rowid, fkid } of violations) {
+    if (rowid === null) continue;
+    const keys = sqlite.pragma(`foreign_key_list("${table.replace(/"/g, '""')}")`) as {
+      id: number;
+      from: string;
+      on_delete: string;
+    }[];
+    const key = keys.find((candidate) => candidate.id === fkid);
+    const quoted = `"${table.replace(/"/g, '""')}"`;
+    try {
+      if (key?.on_delete.toUpperCase() !== "SET NULL") throw new Error("not set null");
+      // A CHECK may forbid the null (a schedule row's kind needs its id): then it goes.
+      sqlite.prepare(`UPDATE ${quoted} SET "${key.from.replace(/"/g, '""')}" = NULL WHERE rowid = ?`).run(rowid);
+    } catch {
+      sqlite.prepare(`DELETE FROM ${quoted} WHERE rowid = ?`).run(rowid);
+    }
+    repaired += 1;
+  }
+  return repaired;
+}
+
 export function runMigrations(db: Db, migrationsFolder: string): void {
   migrate(db, { migrationsFolder });
+}
+
+/**
+ * The launch's database, in the one safe order: the pre-migration snapshot is taken BEFORE the file is
+ * opened and migrated — afterwards nothing is pending, so `backupBeforeMigrate` rightly skips and the
+ * upgrade runs with no copy to go back to (2026-11-10 review, mutation M11). Rows pointing at nothing are
+ * repaired before migrating (`repairDanglingReferences`). A migration that fails is reported to
+ * `onFailure` with what the backup managed, then thrown on.
+ */
+export function openForLaunch(
+  dbFilePath: string,
+  backupDir: string,
+  migrationsFolder: string,
+  onFailure: (error: unknown, backup: BackupResult) => void,
+): { sqlite: Database.Database; db: Db; backup: BackupResult } {
+  // Kept and reported rather than assumed: the error box used to promise a backup unconditionally, which
+  // on the one morning it matters sends the operator looking for a file that may not be there.
+  const backup = backupBeforeMigrate(dbFilePath, backupDir, migrationsFolder);
+  if (backup.status === "failed") console.warn("[db] pre-migration backup failed:", backup.reason);
+
+  const { sqlite, db } = openDatabase(dbFilePath);
+  try {
+    const repaired = repairDanglingReferences(sqlite);
+    if (repaired > 0) console.warn(`[db] repaired ${repaired} row(s) pointing at a deleted parent`);
+    runMigrations(db, migrationsFolder);
+  } catch (error) {
+    onFailure(error, backup);
+    throw error;
+  }
+  return { sqlite, db, backup };
 }

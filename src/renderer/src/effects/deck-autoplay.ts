@@ -196,10 +196,20 @@ export function restartDeck(): void {
   state.setAutoplayMode("synced");
   if (state.liveDeck?.soundtrack) {
     useAudioStore.getState().setPaused(DECK_SOUNDTRACK_TRACK_ID, false);
-    void api.projection.mediaCommand({ target: DECK_AUDIO_TARGET, action: "restart" });
+    // Under BLACK/LOGO only rewind: «restart» is a `play()` in the projector,
+    // which beat the cover's declarative pause and sang behind the black.
+    // Uncovering resumes it from 0, and the slides with it (`isFrozenByCover`).
+    void api.projection.mediaCommand(
+      state.overlay === "none"
+        ? { target: DECK_AUDIO_TARGET, action: "restart" }
+        : { target: DECK_AUDIO_TARGET, action: "seek", timeSeconds: 0 },
+    );
   }
   if (state.liveDeck?.autoAdvance) {
     state.setAutoplay("playing");
+    // `setAutoplay` may already have armed the chain (its subscription);
+    // building on that deadline gave slide 1 two advances on every loop.
+    deadline = performance.now();
     if (!state.liveDeck.soundtrack) scheduleDetached();
   }
 }
@@ -261,6 +271,8 @@ export function startDeckAutoplay(): () => void {
       const state = useProjectionStore.getState();
       const deck = state.liveDeck;
       if (!deck?.soundtrack || state.base?.kind !== "deck") return;
+      // Another play's report (the previous deck's music, still in flight) is not this deck's clock.
+      if (status.epoch !== state.soundtrackEpoch) return;
 
       // Reopening the projection window mid-deck gives us a fresh <audio> that
       // starts at 0. Seek it back to where the current slide belongs — but only
@@ -328,11 +340,28 @@ export function startDeckAutoplay(): () => void {
     },
   );
 
+  // The music failed — a file the projector cannot open, an engine that died: a synced deck waited
+  // on a clock that never runs, stuck on slide 1 with «next in 2 s» frozen (2026-11-10 review, A13).
+  // It goes on with its slides' own timings, detached, as if the operator had taken it by hand.
+  // `setAutoplayMode` arms the chain itself (the subscription above), from this fresh deadline.
+  const unsubscribeError = useProjectionStore.subscribe(
+    (state) => state.mediaErrors[DECK_AUDIO_STATUS_KEY],
+    (error) => {
+      const state = useProjectionStore.getState();
+      if (!error || state.base?.kind !== "deck" || error.url !== state.liveDeck?.soundtrack?.url) return;
+      if (state.autoplayMode !== "synced") return;
+      navEpoch += 1;
+      deadline = performance.now();
+      state.setAutoplayMode("detached");
+    },
+  );
+
   return () => {
     // Always: these belong to this instance alone.
     unsubscribeDeck();
     unsubscribeStatus();
     unsubscribeOverlay();
+    unsubscribeError();
 
     // The shared scheduler state belongs to whichever instance is current —
     // resetting it from a superseded one would clear the live deck's clock.

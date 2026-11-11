@@ -1,5 +1,5 @@
 import { isEngineUrl } from "@shared/urls";
-import type { AudioTrackPush, ProjectionOutput } from "@shared/types/projection";
+import type { AudioTrackPush, MediaStatus, MediaTarget, ProjectionOutput } from "@shared/types/projection";
 
 /** What a live engine video session has to be right now (`engine-sessions.ts`). */
 export type LiveEngineState = {
@@ -78,6 +78,50 @@ export function liveEngineAudio(tracks: AudioTrackPush[], projectorOpen: boolean
   return tracks
     .filter((track) => isEngineUrl(track.url))
     .map((track) => ({ ...track, paused: track.paused || !projectorOpen }));
+}
+
+/** What a running engine session plays and was last told (`engine-sessions.ts`); `engine` is a `MediaEngine`. */
+export type EngineSession = {
+  engine: { setPaused(paused: boolean): void; setVolume(volume: number): void; setLoop(loop: boolean): void } | null;
+  url: string;
+  epoch: number;
+  paused: boolean;
+  volume: number;
+  loop: boolean;
+};
+
+/** Whether a running session keeps its engine for `want`: the same file in the same epoch only pauses,
+ *  resumes or changes its level, so BLACK/LOGO keep its position. Anything else is a new file in a new
+ *  engine — GO LIVE again is a new epoch (owner, 2026-10-30). */
+export function keepsSession(session: { url: string; epoch: number }, want: { url: string; epoch: number } | null): boolean {
+  return want !== null && want.epoch === session.epoch && want.url === session.url;
+}
+
+/** A live session already playing its file: only what can change without a new epoch. */
+export function applyToSession(session: EngineSession, want: { paused: boolean; volume: number; loop?: boolean }): void {
+  if (want.paused !== session.paused) session.engine?.setPaused(want.paused);
+  if (want.volume !== session.volume) session.engine?.setVolume(want.volume);
+  if (want.loop !== undefined && want.loop !== session.loop) session.engine?.setLoop(want.loop);
+  session.paused = want.paused;
+  session.volume = want.volume;
+  session.loop = want.loop ?? session.loop;
+}
+
+/** A live session's engine report as the control window hears it (`media-status`), the way the projector's
+ *  own elements report theirs: its end is what moves «Al terminar» and takes an ended video off the air. */
+export function liveMediaStatus(
+  target: MediaTarget,
+  epoch: number,
+  status: { time: number; duration: number; paused: boolean; ended: boolean },
+): MediaStatus {
+  return {
+    target,
+    epoch,
+    currentTimeSeconds: status.time,
+    durationSeconds: status.duration,
+    paused: status.paused,
+    ended: status.ended,
+  };
 }
 
 /** How long a live session that should play may keep the same position before it is nudged. */

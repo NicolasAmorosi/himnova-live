@@ -110,7 +110,7 @@ const pt: MainMessages = {
     importFilter: "Músicas (OpenLyrics, SongSelect, ChordPro, OpenLP, EasyWorship)",
     fileMissing: "O arquivo desta música não foi encontrado: foi movido ou apagado.",
     fileChanged: "O arquivo desta música mudou fora do Lumina. Se salvar de novo, ele é substituído pelo que você está editando; se fechar sem salvar, fica o do disco.",
-    fileUnwritable: "Não foi possível gravar o arquivo desta música (somente leitura ou sem permissão?).",
+    fileUnwritable: "Não foi possível gravar o arquivo desta música: está aberto em outro programa, é somente leitura ou falta permissão? A edição continua aqui: feche-o e salve de novo.",
     openLpUnreadable: "Esse arquivo não é um banco de músicas do OpenLP (songs.sqlite) ou não foi possível abri-lo.",
     usageSaveTitle: "Salvar o relatório CCLI",
     usageFileName: "Relatório CCLI",

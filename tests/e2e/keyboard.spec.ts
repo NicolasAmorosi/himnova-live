@@ -101,7 +101,7 @@ test("a tile reached with the arrows and then clicked gives Enter back to EN VIV
 const bibleSearch = (app: WorshipApp) =>
   app.control
     .getByRole("tabpanel", { name: "Biblia" })
-    .getByRole("textbox", { name: "Buscar libro y capítulo…" });
+    .getByRole("textbox", { name: "Libro, capítulo y versículo…" });
 const blackButton = (app: WorshipApp) => app.control.getByRole("button", { name: "NEGRO", exact: true }).first();
 
 test("a remote's PageDown/PageUp step the projected deck, even while typing in a text field", async ({ app }) => {

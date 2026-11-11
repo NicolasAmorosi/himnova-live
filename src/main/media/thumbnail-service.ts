@@ -1,5 +1,6 @@
 import { nativeImage } from "electron";
 import crypto from "node:crypto";
+import { renameWithRetry } from "../fs-retry";
 import fs from "node:fs";
 import path from "node:path";
 import { thumbCacheDir, thumbCachePath } from "../paths";
@@ -274,7 +275,7 @@ async function generate(
     const tmpPath = `${cachePath}.tmp-${crypto.randomUUID()}`;
     try {
       await fs.promises.writeFile(tmpPath, buffer);
-      await fs.promises.rename(tmpPath, cachePath);
+      await renameWithRetry(tmpPath, cachePath);
     } catch (error) {
       await fs.promises.rm(tmpPath, { force: true }).catch(() => undefined);
       throw error;

@@ -25,7 +25,7 @@ import type { AudioTrackPush, ProjectionMediaError, ProjectionOutput } from "@sh
  * soundtrack reacts to the cover; a standalone audio asset sent live is
  * intentionally independent of what's on screen (see `audio.store.ts`).
  */
-function toAudioTrackPush(track: LiveAudioTrack, covered: boolean, loopStandalone: boolean): AudioTrackPush {
+export function toAudioTrackPush(track: LiveAudioTrack, covered: boolean, loopStandalone: boolean): AudioTrackPush {
   return {
     trackId: track.trackId,
     url: track.url,

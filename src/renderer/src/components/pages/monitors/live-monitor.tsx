@@ -102,7 +102,8 @@ export function LiveMonitor() {
           `reportedErrorUrls`) and a LOGO with no logo to show
           (`noticeLabel`). */}
       <OutputView
-        errorLabel={t("media.loadError")}
+        // A slide or a picture is shown, not played: said as what it is (2026-11-10 review, agent5-08).
+        errorLabel={output.kind === "slide" || output.kind === "image" ? t("media.showError") : t("media.loadError")}
         liveVideoStatus={liveVideoStatus}
         mode="monitor"
         noticeDetail={

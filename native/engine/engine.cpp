@@ -111,6 +111,13 @@ struct Engine {
   std::atomic<int> started{0};
 };
 static Engine E;
+// Seconds the sound of a video is held (see FILE_LOADED), measured per system. ponytail: Linux has no measurement of
+// its own and takes the Mac's.
+#ifdef _WIN32
+static const char* AUDIO_DELAY = "0.040";
+#else
+static const char* AUDIO_DELAY = "0.065";
+#endif
 
 static void onUpdate(void*) {
   { std::lock_guard<std::mutex> l(E.m); E.updated = true; }
@@ -138,6 +145,10 @@ static void renderLoop(GpuOptions options) {
     emit("{\"ev\":\"ready\",\"gpu\":" + js(gpu.describe) + "}");
     E.started = 1;
     bool ringReady = false;
+    // A GPU that is gone (a driver reset, DEVICE_REMOVED) fails every frame in silence: the picture froze
+    // while the sound and the clock went on and nobody was told (2026-11-10 review, agent1-05).
+    int failures = 0;
+    const int maxFailures = 30;
     while (!E.quitting) {
       int w = 0, h = 0;
       {
@@ -156,11 +167,19 @@ static void renderLoop(GpuOptions options) {
       int slot = E.ring.acquire();
       if (slot < 0) break;
       std::vector<mpv_render_param> rp;
-      if (!gpu.beginFrame(slot, rp)) { E.ring.release(slot); continue; }
-      rp.push_back({MPV_RENDER_PARAM_INVALID, nullptr});
-      int re = mpv_render_context_render(rctx, rp.data());
-      gpu.endFrame(slot);
-      if (re < 0) { E.ring.release(slot); continue; }
+      bool began = gpu.beginFrame(slot, rp);
+      int re = -1;
+      if (began) {
+        rp.push_back({MPV_RENDER_PARAM_INVALID, nullptr});
+        re = mpv_render_context_render(rctx, rp.data());
+        gpu.endFrame(slot);
+      }
+      if (!began || re < 0) {
+        E.ring.release(slot);
+        if (++failures >= maxFailures) fail("engine-gpu", "the GPU failed " + std::to_string(failures) + " frames in a row");
+        continue;
+      }
+      failures = 0;
       emit("{\"ev\":\"frame\",\"slot\":" + std::to_string(slot) + "}");
       mpv_render_context_report_swap(rctx);
     }
@@ -176,15 +195,29 @@ static double prop(const char* name, double fallback = 0) {
   double v = fallback;
   return mpv_get_property(E.mpv, name, MPV_FORMAT_DOUBLE, &v) >= 0 ? v : fallback;
 }
-static bool flag(const char* name) {
-  int v = 0;
-  return mpv_get_property(E.mpv, name, MPV_FORMAT_FLAG, &v) >= 0 && v;
-}
 static void set(const char* name, const std::string& value) { mpv_set_property_string(E.mpv, name, value.c_str()); }
 
+// What the status reports, as mpv announces it (observed properties): never asked for while playing. A
+// synchronous `mpv_get_property` waits for the core, and on a file's first frame the core was waiting
+// for us to render it — into a ring this same thread had not made yet (2026-11-10 review, agent2-05).
+static struct {
+  double time = 0, duration = 0;
+  bool paused = false, ended = false;
+  int64_t dwidth = 0, dheight = 0;
+} seen;
+
 static void emitStatus() {
-  emit("{\"ev\":\"status\",\"time\":" + num(prop("time-pos")) + ",\"duration\":" + num(prop("duration")) + ",\"paused\":" +
-       boolean(flag("pause")) + ",\"ended\":" + boolean(flag("eof-reached")) + "}");
+  emit("{\"ev\":\"status\",\"time\":" + num(seen.time) + ",\"duration\":" + num(seen.duration) + ",\"paused\":" +
+       boolean(seen.paused) + ",\"ended\":" + boolean(seen.ended) + "}");
+}
+
+// The picture's size as displayed (aspect applied) is known: the ring can be made, once.
+static void askForRing() {
+  if (E.ringWidth || seen.dwidth <= 0 || seen.dheight <= 0) return;
+  int rw, rh;
+  fit((int)seen.dwidth, (int)seen.dheight, rw, rh);
+  { std::lock_guard<std::mutex> l(E.m); E.ringWidth = rw; E.ringHeight = rh; }
+  E.cv.notify_all();
 }
 
 // One command line from main. Returns false on `quit`.
@@ -197,7 +230,12 @@ static bool command(const std::string& line) {
   };
   size_t at = 0;
   std::string cmd = word(at);
-  if (cmd == "quit") return false;
+  if (cmd == "quit") {
+    // The picture goes at once; the core keeps playing until it is torn down (~0.25 s with sound):
+    // the room heard the video it had just left (2026-11-10 review, agent1-04).
+    set("mute", "yes");
+    return false;
+  }
   if (cmd == "release") E.ring.release(atoi(word(at).c_str()));
   else if (cmd == "pause") set("pause", word(at) == "1" ? "yes" : "no");
   else if (cmd == "volume") set("volume", word(at));
@@ -226,6 +264,29 @@ static bool command(const std::string& line) {
 }
 
 int main(int argc, char** argv) {
+#ifdef _WIN32
+  // Windows hands `argv` over in the ANSI code page: an NDI output named «Iglesia Ñandú» reached every
+  // receiver as invalid UTF-8, and anything outside that page as «?» (2026-11-10 review, agent8-01).
+  // The wide command line, as UTF-8, is what every other part of the engine expects.
+  std::vector<std::string> utf8Args;
+  std::vector<char*> utf8Argv;
+  {
+    int wargc = 0;
+    if (LPWSTR* wargv = CommandLineToArgvW(GetCommandLineW(), &wargc)) {
+      for (int i = 0; i < wargc; i++) {
+        int size = WideCharToMultiByte(CP_UTF8, 0, wargv[i], -1, nullptr, 0, nullptr, nullptr);
+        std::string arg(size > 0 ? size - 1 : 0, '\0');
+        if (size > 1) WideCharToMultiByte(CP_UTF8, 0, wargv[i], -1, arg.data(), size, nullptr, nullptr);
+        utf8Args.push_back(std::move(arg));
+      }
+      LocalFree(wargv);
+      for (auto& arg : utf8Args) utf8Argv.push_back(arg.data());
+      utf8Argv.push_back(nullptr);
+      argc = wargc;
+      argv = utf8Argv.data();
+    }
+  }
+#endif
   GpuOptions options;
   std::string closeHandles, logLevel = "error";
 #ifdef _WIN32
@@ -267,12 +328,21 @@ int main(int argc, char** argv) {
   if (!E.mpv) { emitError({"engine-gpu", "mpv_create"}); return 1; }
   const char* opts[][2] = {{"vo", "libmpv"}, {"hwdec", hwdec.c_str()}, {"keep-open", "yes"}, {"idle", "yes"},
                            {"terminal", "no"}, {"config", "no"}, {"input-default-bindings", "no"}, {"osc", "no"},
-                           {"load-scripts", "no"}, {"sub-auto", "no"}, {"audio-display", "no"}};
+                           {"load-scripts", "no"}, {"sub-auto", "no"}, {"audio-display", "no"},
+                           // An interlaced file (a DVD, a camcorder's 1080i) is shown deinterlaced, as the
+                           // conversion before 2.2.0 did with bwdif; a progressive one costs nothing. mpv
+                           // 0.41 defaults to `no`: every moving edge was combed (2026-11-10 review,
+                           // agent1-01). A libmpv too old for `auto` (Linux's system one) refuses it, harmless.
+                           {"deinterlace", "auto"}};
   for (auto& o : opts) mpv_set_option_string(E.mpv, o[0], o[1]);
   mpv_request_log_messages(E.mpv, logLevel.c_str());
   if (mpv_initialize(E.mpv) < 0) { emitError({"engine-gpu", "mpv_initialize"}); return 1; }
   mpv_observe_property(E.mpv, 0, "pause", MPV_FORMAT_FLAG);
   mpv_observe_property(E.mpv, 0, "eof-reached", MPV_FORMAT_FLAG);
+  mpv_observe_property(E.mpv, 0, "time-pos", MPV_FORMAT_DOUBLE);
+  mpv_observe_property(E.mpv, 0, "duration", MPV_FORMAT_DOUBLE);
+  mpv_observe_property(E.mpv, 0, "dwidth", MPV_FORMAT_INT64);
+  mpv_observe_property(E.mpv, 0, "dheight", MPV_FORMAT_INT64);
 
   std::thread renderer(renderLoop, options);
   std::thread input([] {
@@ -304,22 +374,39 @@ int main(int argc, char** argv) {
         mpv_get_property(E.mpv, "current-tracks/audio/id", MPV_FORMAT_INT64, &audio);
         emit("{\"ev\":\"loaded\",\"duration\":" + num(prop("duration")) + ",\"width\":" + std::to_string(w) + ",\"height\":" +
              std::to_string(h) + ",\"hasVideo\":" + boolean(video > 0) + ",\"hasAudio\":" + boolean(audio > 0) + "}");
+        // The ring from the container's picture now, as it will be displayed (pixel aspect, rotation).
+        // Waiting for `dwidth` cost 200 ms on every file: mpv only publishes it after the first frame is
+        // rendered, and its VO waits that long for a render into a ring that did not exist yet
+        // (2026-11-10 review, agent2-05; mpv's own log: «mpv_render_context_render() not being called»).
+        // Only when the container says its pixel aspect: an MPEG-2 (a DVD) keeps it in the stream, and
+        // its 720×576 is shown 1024×576 — that one still waits for `dwidth`, slower but right.
+        double par = 0;
+        if (video > 0 && w > 0 && h > 0 &&
+            mpv_get_property(E.mpv, "current-tracks/video/demux-par", MPV_FORMAT_DOUBLE, &par) >= 0 && par > 0) {
+          int64_t rotation = 0;
+          mpv_get_property(E.mpv, "current-tracks/video/demux-rotation", MPV_FORMAT_INT64, &rotation);
+          int64_t dw = std::llround(w * (par > 1 ? par : 1.0)), dh = std::llround(h / (par < 1 ? par : 1.0));
+          if (rotation % 180 == 90) std::swap(dw, dh);
+          seen.dwidth = dw;
+          seen.dheight = dh;
+          askForRing();
+        }
+        // mpv puts the sound out as it renders the frame, but the frame still crosses main and the page before
+        // it shows: measured on a Mac's screen and speakers (ScreenCaptureKit, 2026-11-10), the sound of an
+        // engine video came 61 ms before its picture, Chromium's 11 ms (agent2-02). Held 50 ms it came −12 ms in
+        // the room, but over NDI, whose window paints at its own 30 Hz, −3…−47 ms by each start's phase; held
+        // 65 ms: +2 ms in the room, +3…+29 ms over NDI (EBU R37: −40…+60). On Windows the same 65 ms gave
+        // +43…+60 ms over NDI, later than Chromium's +5…+39 there; 50 ms +7…+50; 40 ms +14…+31. Only a file
+        // with a picture: a song alone has nothing to meet.
+        if (video > 0) set("audio-delay", AUDIO_DELAY);
         E.loaded = true;
         changed = true;
         break;
       }
-      case MPV_EVENT_VIDEO_RECONFIG: {
-        // The ring is made once, for the picture as displayed (aspect applied).
-        int64_t w = 0, h = 0;
-        if (!E.ringWidth && mpv_get_property(E.mpv, "dwidth", MPV_FORMAT_INT64, &w) >= 0 && w > 0 &&
-            mpv_get_property(E.mpv, "dheight", MPV_FORMAT_INT64, &h) >= 0 && h > 0) {
-          int rw, rh;
-          fit((int)w, (int)h, rw, rh);
-          { std::lock_guard<std::mutex> l(E.m); E.ringWidth = rw; E.ringHeight = rh; }
-          E.cv.notify_all();
-        }
+      case MPV_EVENT_VIDEO_RECONFIG:
+        // The ring is made once, for the picture as displayed (aspect applied): `dwidth`/`dheight` below.
+        askForRing();
         break;
-      }
       case MPV_EVENT_END_FILE: {
         auto* ef = (mpv_event_end_file*)ev->data;
         if (ef->reason == MPV_END_FILE_REASON_ERROR)
@@ -334,7 +421,22 @@ int main(int argc, char** argv) {
         if (lm->log_level <= MPV_LOG_LEVEL_ERROR) lastError = text;
         break;
       }
-      case MPV_EVENT_PROPERTY_CHANGE:
+      case MPV_EVENT_PROPERTY_CHANGE: {
+        auto* pc = (mpv_event_property*)ev->data;
+        std::string name = pc->name;
+        bool has = pc->data != nullptr;
+        if (name == "time-pos") seen.time = has && pc->format == MPV_FORMAT_DOUBLE ? *(double*)pc->data : 0;
+        else if (name == "duration") seen.duration = has && pc->format == MPV_FORMAT_DOUBLE ? *(double*)pc->data : 0;
+        else if (name == "dwidth" || name == "dheight") {
+          (name == "dwidth" ? seen.dwidth : seen.dheight) = has && pc->format == MPV_FORMAT_INT64 ? *(int64_t*)pc->data : 0;
+          askForRing();
+        } else {
+          bool on = has && pc->format == MPV_FORMAT_FLAG && *(int*)pc->data;
+          (name == "pause" ? seen.paused : seen.ended) = on;
+          changed = true;  // the position moves every frame: only these are news on their own
+        }
+        break;
+      }
       case MPV_EVENT_PLAYBACK_RESTART:  // a seek landed: the scrubber is waiting for this position
         changed = true;
         break;

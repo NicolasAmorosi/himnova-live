@@ -1,6 +1,7 @@
 import { screen } from "electron";
 import type { Handlers } from "../register";
 import type { DisplayInfo } from "@shared/types/display";
+import { operatorDisplay } from "../../windows/control-window";
 
 /**
  * The label is what the operator picks a projector by in Settings → Screen,
@@ -31,7 +32,7 @@ function composeLabels(labels: string[]): string[] {
 export const displaysHandlers: Pick<Handlers, "displays:list"> = {
   "displays:list": (): DisplayInfo[] => {
     const displays = screen.getAllDisplays();
-    const primaryId = screen.getPrimaryDisplay().id;
+    const operatorId = operatorDisplay().id;
     const labels = composeLabels(
       displays.map((d) => {
         const resolution = `${d.bounds.width}x${d.bounds.height}`;
@@ -42,7 +43,7 @@ export const displaysHandlers: Pick<Handlers, "displays:list"> = {
     return displays.map((d, i) => ({
       id: d.id,
       label: labels[i] ?? `${d.bounds.width}x${d.bounds.height}`,
-      primary: d.id === primaryId,
+      operator: d.id === operatorId,
       bounds: d.bounds,
       scaleFactor: d.scaleFactor,
     }));

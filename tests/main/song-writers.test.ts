@@ -8,6 +8,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, test } from "vitest";
+import { realMissing, realPath } from "../fixtures/real-material";
 import { decodeText, encodeText, readText } from "../../src/main/decode-text";
 import { readOpenLyrics, readOpenLyricsFiles } from "../../src/main/songs/openlp";
 import {
@@ -223,11 +224,11 @@ describe("SongSelect", () => {
 });
 
 /* ---------------------------------------------------------------------------
- * Real files (this Mac only): read → write → read is a fixed point
+ * Real files (`tests/fixtures/real-material.ts`): read → write → read is a fixed point
  * ------------------------------------------------------------------------ */
 
-const HASD = "/Users/nicolasamorosi/Downloads/hasdlp-master/HASD";
-const FORMATS = "/Users/nicolasamorosi/Downloads/hasdlp-master/pruebas-formatos";
+const HASD = realPath("hasdlp-master/HASD");
+const FORMATS = realPath("hasdlp-master/pruebas-formatos");
 
 const filesIn = (folder: string, pattern: RegExp): string[] =>
   fs.existsSync(folder)
@@ -241,20 +242,20 @@ const filesIn = (folder: string, pattern: RegExp): string[] =>
 const words = <T extends { origin?: unknown }>({ origin: _origin, ...song }: T) => song;
 
 describe("real files", () => {
-  test.skipIf(!fs.existsSync(HASD))("the HASD hymnal (OpenLyrics 0.8, Windows-1252)", () => {
+  test.skipIf(realMissing(HASD))("the HASD hymnal (OpenLyrics 0.8, Windows-1252)", () => {
     const songs = readOpenLyricsFiles(filesIn(HASD, /\.xml$/i)).songs.map(words);
     expect(songs.length).toBeGreaterThan(600);
     for (const first of songs) expect(readOpenLyrics(writeOpenLyrics(first)), first.title).toEqual(first);
   });
 
-  test.skipIf(!fs.existsSync(FORMATS))("OpenLyrics files", () => {
+  test.skipIf(realMissing(FORMATS))("OpenLyrics files", () => {
     const files = [...filesIn(path.join(FORMATS, "openlyrics"), /\.xml$/i), ...filesIn(path.join(FORMATS, "creados-a-mano"), /\.xml$/i)];
     const songs = readOpenLyricsFiles(files).songs.map(words);
     expect(songs.length).toBeGreaterThan(40);
     for (const first of songs) expect(readOpenLyrics(writeOpenLyrics(first)), first.title).toEqual(first);
   });
 
-  test.skipIf(!fs.existsSync(FORMATS))("ChordPro files", () => {
+  test.skipIf(realMissing(FORMATS))("ChordPro files", () => {
     const files = [
       ...filesIn(path.join(FORMATS, "chordpro"), /\.(cho|chordpro|chopro|pro|crd)$/i),
       ...filesIn(path.join(FORMATS, "creados-a-mano"), /\.cho$/i),
@@ -270,7 +271,7 @@ describe("real files", () => {
     expect(read).toBeGreaterThan(20);
   });
 
-  test.skipIf(!fs.existsSync(FORMATS))("SongSelect files", () => {
+  test.skipIf(realMissing(FORMATS))("SongSelect files", () => {
     const files = [
       ...filesIn(path.join(FORMATS, "songselect"), /\.txt$/i),
       ...filesIn(path.join(FORMATS, "creados-a-mano"), /^songselect.*\.txt$/i),
@@ -401,7 +402,7 @@ describe("ChordPro rewritten in place", () => {
     expect(readSongText(reworded, "domingo", "es")[2]?.sections[0]?.slides.map((slide) => slide.lines)).toEqual([["Uno", "dos"], ["tres"]]);
   });
 
-  test.skipIf(!fs.existsSync(FORMATS))("real files: key, capo, tempo, tabs, grids and ABC stay", () => {
+  test.skipIf(realMissing(FORMATS))("real files: key, capo, tempo, tabs, grids and ABC stay", () => {
     const rewritten = (file: string, index = 0) => {
       const text = decodeText(fs.readFileSync(path.join(FORMATS, file)));
       const songs = readSongText(text, "f", "es");
@@ -479,7 +480,7 @@ describe("OpenLyrics rewritten in place", () => {
     expect(withXmlEncoding("<song/>", "windows-1251")).toBe('<?xml version="1.0" encoding="windows-1251"?>\n<song/>');
   });
 
-  test.skipIf(!fs.existsSync(FORMATS))("a real file: complex.xml keeps its alternate titles, songbook names, author types, themes, key, tempo", () => {
+  test.skipIf(realMissing(FORMATS))("a real file: complex.xml keeps its alternate titles, songbook names, author types, themes, key, tempo", () => {
     const xml = decodeText(fs.readFileSync(path.join(FORMATS, "openlyrics/openlyrics-ejemplos/complex.xml")));
     const written = rewriteOpenLyrics(xml, { ...readOpenLyrics(xml)!, title: "Edited" });
     for (const kept of ["Erstaunliche Anmut", "Songbook with Number", 'type="words"', "<theme>", "<key>", "<tempo"]) {

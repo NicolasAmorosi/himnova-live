@@ -1,12 +1,19 @@
 import { useEffect, useState } from "react";
 import { useT } from "@renderer/lib/i18n/i18n-provider";
-import { Button, Caption, DependentFields, FieldGroup, FieldRow, Input, Segmented, Switch } from "@renderer/components/ui";
+import { Button, Caption, DependentFields, FieldGroup, FieldRow, Input, Segmented, Slider, Switch } from "@renderer/components/ui";
 import { useSettingsStore } from "@renderer/stores/settings.store";
 import { useCommitOnUnmount } from "@renderer/lib/hooks/use-commit-on-unmount";
 import { api } from "@renderer/lib/api";
 import { onIpc } from "@renderer/lib/ipc";
 import { SETTINGS_VALIDATORS } from "@shared/types/settings";
-import { NDI_NAME_MAX_LENGTH, NDI_TRADEMARK, type NdiOutputStatus } from "@shared/types/ndi";
+import {
+  NDI_AUDIO_DELAY_MAX_MS,
+  NDI_AUDIO_DELAY_MIN_MS,
+  NDI_NAME_MAX_LENGTH,
+  NDI_TRADEMARK,
+  type NdiAudioStatus,
+  type NdiOutputStatus,
+} from "@shared/types/ndi";
 
 /** The first time the output reaches the network, Windows asks through its firewall and macOS through its
  *  Local Network privacy (for «Lumina Live»); until it is allowed, receivers see the source and no picture. */
@@ -41,6 +48,8 @@ export function NdiOutputGroup({ essentials = false }: { essentials?: boolean })
   const name = useSettingsStore((s) => s.settings["ndi.output.name"]);
   const resolution = useSettingsStore((s) => s.settings["ndi.output.resolution"]);
   const fps = useSettingsStore((s) => s.settings["ndi.output.fps"]);
+  const audio = useSettingsStore((s) => s.settings["ndi.output.audio"]);
+  const audioDelay = useSettingsStore((s) => s.settings["ndi.output.audioDelayMs"]);
   const update = useSettingsStore((s) => s.update);
   const [draft, setDraft] = useState(name);
 
@@ -55,6 +64,14 @@ export function NdiOutputGroup({ essentials = false }: { essentials?: boolean })
   }
   useCommitOnUnmount(commitName);
 
+  /** The level says the sound is really there: a refused permission on macOS sends silence, no error. */
+  function describeAudio(current: NdiAudioStatus): string {
+    if (current.state === "unavailable") return t("settings.ndi.audioStates.unavailable", { detail: current.detail });
+    if (current.levelDb === null) return t("settings.ndi.audioStates.on");
+    if (current.levelDb < -90) return t("settings.ndi.audioStates.silent");
+    return t("settings.ndi.audioStates.level", { level: String(Math.round(current.levelDb)) });
+  }
+
   function describe(current: NdiOutputStatus | null): string {
     switch (current?.state) {
       case undefined:
@@ -62,8 +79,10 @@ export function NdiOutputGroup({ essentials = false }: { essentials?: boolean })
         return t("settings.ndi.states.off");
       case "starting":
         return t("settings.ndi.states.starting");
-      case "sending":
-        return t("settings.ndi.states.sending", { count: current.receivers });
+      case "sending": {
+        const sending = t("settings.ndi.states.sending", { count: current.receivers });
+        return audio && current.audio ? `${sending}. ${describeAudio(current.audio)}` : sending;
+      }
       case "runtime-missing":
         return t("settings.ndi.states.runtimeMissing");
       case "error":
@@ -145,6 +164,31 @@ export function NdiOutputGroup({ essentials = false }: { essentials?: boolean })
                 value={String(fps) as "30" | "60"}
               />
             </FieldRow>
+            <FieldRow
+              description={
+                ON_WINDOWS ? t("settings.ndi.audioDescWin") : ON_MAC ? t("settings.ndi.audioDescMac") : t("settings.ndi.audioDescLinux")
+              }
+              label={t("settings.ndi.audio")}
+            >
+              <Switch
+                aria-label={t("settings.ndi.audio")}
+                checked={audio}
+                onChange={(e) => void update({ "ndi.output.audio": e.target.checked })}
+              />
+            </FieldRow>
+            <DependentFields enabled={audio}>
+              <FieldRow description={t("settings.ndi.audioDelayDesc")} label={t("settings.ndi.audioDelay")}>
+                <Slider
+                  label={t("settings.ndi.audioDelay")}
+                  max={NDI_AUDIO_DELAY_MAX_MS}
+                  min={NDI_AUDIO_DELAY_MIN_MS}
+                  onChange={(value) => void update({ "ndi.output.audioDelayMs": Math.round(value) })}
+                  step={10}
+                  unit=" ms"
+                  value={audioDelay}
+                />
+              </FieldRow>
+            </DependentFields>
           </>
         )}
       </DependentFields>

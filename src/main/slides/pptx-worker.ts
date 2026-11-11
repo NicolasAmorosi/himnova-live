@@ -4,7 +4,17 @@ import { parentPort, workerData } from "node:worker_threads";
 import { parsePresetDefinitions } from "./pptx/geometry";
 import { readPptxDeck, type PptxDeck, type PptxResources } from "./pptx/reader";
 import { parseTableStyles } from "./pptx/table-style";
-import { containerKind, readPresentationMeta, type PresentationMeta } from "./pptx-metadata";
+import {
+  containerKind,
+  extractAudioParts,
+  extractVideoParts,
+  readPresentationMeta,
+  type AudioRef,
+  type ExtractedAudio,
+  type ExtractedVideo,
+  type PresentationMeta,
+  type VideoRef,
+} from "./pptx-metadata";
 import { parseMsoShapes } from "./ppt/escher";
 import { readPptModelDeck } from "./ppt/model-reader";
 import type { PptResources } from "./ppt/reader";
@@ -27,8 +37,17 @@ export type PptxRead = {
   meta: PresentationMeta | null;
 };
 
-export type PptxRequest = { id: number; file: string };
-export type PptxReply = { id: number; read: PptxRead } | { id: number; error: string };
+/** The sound and video a deck embeds, copied out into its cache folder — here too, not on main: a
+ *  350 MB clip held main for 0.25–0.6 s, and every frame of a media-engine video on air crosses main,
+ *  so the projector froze (2026-11-10 review, agent6-01). */
+export type PptxExtract = { file: string; audio: AudioRef[]; audioDir: string; video: VideoRef[]; videoDir: string };
+export type PptxClips = { audio: ExtractedAudio[]; video: ExtractedVideo[] };
+
+export type PptxRequest = { id: number; file: string; extract?: undefined } | { id: number; extract: PptxExtract };
+export type PptxReply =
+  | { id: number; read: PptxRead }
+  | { id: number; clips: PptxClips }
+  | { id: number; error: string };
 
 const ooxmlDir = (workerData as { ooxmlDir: string }).ooxmlDir;
 type Resources = PptxResources & PptResources;
@@ -73,10 +92,16 @@ function read(file: string): PptxRead {
   };
 }
 
-parentPort?.on("message", ({ id, file }: PptxRequest) => {
+parentPort?.on("message", (request: PptxRequest) => {
+  const { id } = request;
   let reply: PptxReply;
   try {
-    reply = { id, read: read(file) };
+    if (request.extract) {
+      const { audio, audioDir, file, video, videoDir } = request.extract;
+      reply = { id, clips: { audio: extractAudioParts(file, audio, audioDir), video: extractVideoParts(file, video, videoDir) } };
+    } else {
+      reply = { id, read: read(request.file) };
+    }
   } catch (error) {
     reply = { id, error: String(error) };
   }

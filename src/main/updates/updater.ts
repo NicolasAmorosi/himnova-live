@@ -8,7 +8,7 @@ import { canCheck, type UpdateStatus, type UpdateStep } from "@shared/types/upda
 import { broadcast } from "../services/broadcast";
 import { getSettingsRepo } from "../services/repos";
 import { releaseForUpdate } from "../windows/close-guard";
-import { downloadDmg, openDmg } from "./mac-dmg";
+import { clearDownloadedDmg, downloadDmg, openDmg } from "./mac-dmg";
 import { installerFile, loopbackFeedUrl, shouldCheckOnLaunch, statusForError } from "./update-status";
 
 /**
@@ -53,6 +53,7 @@ export function getUpdateStatus(): UpdateStatus {
 }
 
 export function initUpdates(): void {
+  if (process.platform === "darwin") clearDownloadedDmg();
   const candidate = electronUpdater.autoUpdater;
   candidate.autoDownload = false;
   // Off until the operator picks «When the app closes»: on, any quit after a

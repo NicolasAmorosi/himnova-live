@@ -1,5 +1,13 @@
 import { claimLiveIntent } from "@renderer/lib/actions/live-intent";
-import { bibleVersionLabel, parallelAt, parallelVersionFor, useBibleStore } from "@renderer/stores/bible.store";
+import {
+  bibleVersionLabel,
+  parallelAt,
+  parallelVersionFor,
+  sameVersification,
+  twinChapterVerses,
+  useBibleStore,
+  warnParallelVersification,
+} from "@renderer/stores/bible.store";
 import { useProjectionStore } from "@renderer/stores/projection.store";
 import { useProgramStore } from "@renderer/stores/program.store";
 import { useSettingsStore } from "@renderer/stores/settings.store";
@@ -31,6 +39,14 @@ export async function scheduleItemParallel(item: BibleScheduleItem): Promise<Bib
     const books = await api.bible.books(bibleVersionId);
     const book = books.find((b) => b.id === bibleBookId);
     if (!book) return null;
+    const [ours, twins] = await Promise.all([
+      api.bible.chapter(book.id, chapter),
+      twinChapterVerses(parallelId, books, book.id, chapter),
+    ]);
+    if (!sameVersification(ours, twins)) {
+      warnParallelVersification(parallelId, bibleVersionLabel(versions, parallelId) ?? "", `${book.name} ${chapter}`);
+      return null;
+    }
     const abbrev = canonAbbrev(book, books.length);
     const passage = await api.bible.passage(parallelId, abbrev, chapter, verseFrom, verseTo ?? verseFrom);
     return passage && { ...passage, versionLabel: bibleVersionLabel(versions, parallelId) };
@@ -64,6 +80,13 @@ export function projectVerse(index: number): void {
   useProgramStore.getState().setActive(null);
   // Already loaded beside the chapter, so ←/→ never waits for it.
   const parallel = parallelAt(bible, index);
+  if (bible.parallelMismatch && bible.parallelVersionId !== null) {
+    warnParallelVersification(
+      bible.parallelVersionId,
+      bibleVersionLabel(versions, bible.parallelVersionId) ?? "",
+      `${verse.bookName} ${verse.chapter}`,
+    );
+  }
   useProjectionStore.getState().setBase({ kind: "bible", text: verse.text, reference, versionLabel, parallel });
   setCurrentVerseIndex(index);
   if (bookId !== null && chapter !== null) recordRecent(bookId, chapter, verse.verse, verse.verse);

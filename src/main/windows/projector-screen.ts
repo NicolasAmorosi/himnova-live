@@ -1,7 +1,8 @@
 import { powerSaveBlocker, screen, type BrowserWindow, type Display } from "electron";
 import { broadcast } from "../services/broadcast";
 import { getSettingsRepo } from "../services/repos";
-import { chooseProjectorDisplay } from "./projector-display-choice";
+import { operatorDisplay } from "./control-window";
+import { chooseProjectorMove } from "./projector-display-choice";
 import { syncStageWindow } from "./stage-window";
 
 /**
@@ -32,6 +33,8 @@ import { syncStageWindow } from "./stage-window";
 type Attached = { win: BrowserWindow; displayId: number; blocker: number; hidden: boolean };
 
 let attached: Attached | null = null;
+/** The screens of the last change, to tell the ones that just appeared (`chooseProjectorMove`). */
+let knownIds: number[] = [];
 
 /** Called for every new projection window, with the screen it was put on. A
  *  replaced window's `closed` arrives after the new one is attached, so it is
@@ -39,6 +42,7 @@ let attached: Attached | null = null;
 export function attachProjector(win: BrowserWindow, displayId: number): void {
   if (attached) powerSaveBlocker.stop(attached.blocker);
   attached = { win, displayId, blocker: powerSaveBlocker.start("prevent-display-sleep"), hidden: false };
+  knownIds = screen.getAllDisplays().map((display) => display.id);
   win.once("closed", () => {
     if (attached?.win !== win) return;
     powerSaveBlocker.stop(attached.blocker);
@@ -46,9 +50,9 @@ export function attachProjector(win: BrowserWindow, displayId: number): void {
   });
 }
 
-function preferredDisplayId(): number | null {
+function setting<K extends "projection.displayId" | "stage.displayId">(key: K): number | null {
   try {
-    return getSettingsRepo().get("projection.displayId");
+    return getSettingsRepo().get(key);
   } catch {
     return null;
   }
@@ -70,30 +74,33 @@ function place(current: Attached, display: Display): void {
 
 function onDisplaysChanged(): void {
   const current = attached;
+  const displays = screen.getAllDisplays();
+  const ids = displays.map((display) => display.id);
+  const addedIds = ids.filter((id) => !knownIds.includes(id));
+  knownIds = ids;
   if (current && !current.win.isDestroyed()) {
-    const displays = screen.getAllDisplays();
-    const primaryId = screen.getPrimaryDisplay().id;
-    const onItsScreen = displays.some((display) => display.id === current.displayId);
-
-    if (!onItsScreen && !current.hidden) {
+    if (!ids.includes(current.displayId) && !current.hidden) {
       current.hidden = true;
       current.win.hide();
       broadcast("projector-screen", { connected: false });
     }
 
-    // Back from hiding, or off the laptop onto a projector turned on later.
-    if (current.hidden || current.displayId === primaryId) {
-      const targetId = chooseProjectorDisplay(
-        displays.map((display) => display.id),
-        primaryId,
-        preferredDisplayId(),
-      );
-      const target = displays.find((display) => display.id === targetId);
-      if (target) {
-        const wasHidden = current.hidden;
-        place(current, target);
-        if (wasHidden) broadcast("projector-screen", { connected: true });
-      }
+    // Back to the chosen screen, or onto one that just appeared (a projector turned on after the
+    // app, or back under a new id) — never onto one that was already there (`chooseProjectorMove`).
+    const targetId = chooseProjectorMove(
+      ids,
+      operatorDisplay().id,
+      setting("projection.displayId"),
+      current.hidden ? null : current.displayId,
+      addedIds,
+      setting("stage.displayId"),
+    );
+    const target = displays.find((display) => display.id === targetId);
+    if (target) {
+      const wasHidden = current.hidden;
+      place(current, target);
+      // Said only when it is true: before, it was said as the window fell back to a third screen.
+      if (wasHidden) broadcast("projector-screen", { connected: true });
     }
   }
   syncStageWindow();

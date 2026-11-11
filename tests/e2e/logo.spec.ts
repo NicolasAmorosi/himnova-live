@@ -113,3 +113,38 @@ test("«Nombre sobre fondo» shows the church's name even with a logo image load
   await expect(logoOnProjector(projector)).toBeVisible();
   await expect(projector.locator("[data-logo-name]")).toHaveCount(0);
 });
+
+// A web address as the church's name is ONE word: at a fixed 5.5 cqw it ran off both sides of the wall the
+// congregation waits in front of (2026-11-10 review, agent4-07). A long name with spaces already wrapped.
+for (const name of [
+  "Iglesia Adventista del Séptimo Día Central de la Ciudad Autónoma de Buenos Aires",
+  "www.iglesiaadventistacentraldebuenosaires.org.ar",
+]) {
+  test(`LOGO's name «${name.slice(0, 24)}…» stays inside the projector`, async ({ app }) => {
+    await app.invoke("settings:set", { "logo.mode": "name", "logo.name": name });
+    await app.control.reload();
+    await expect(app.control.getByRole("button", { name: "EN VIVO", exact: true })).toBeVisible();
+    await app.control.locator("body").press("l");
+    const projector = await app.projector();
+    const text = projector.locator("[data-logo-name]").last();
+    await expect(text).toBeVisible();
+    const box = await text.evaluate((el) => {
+      const r = el.getBoundingClientRect();
+      return { left: r.left, right: r.right, scrollW: el.scrollWidth, clientW: el.clientWidth, vw: window.innerWidth };
+    });
+    expect(box.scrollW).toBeLessThanOrEqual(box.clientW + 1);
+    expect(box.left).toBeGreaterThanOrEqual(0);
+    expect(box.right).toBeLessThanOrEqual(box.vw);
+  });
+}
+
+test("a renderer cannot point LOGO at any file: worship://logo serves only what «Elegir…» picked", async ({ app }) => {
+  // 2026-11-10 review, agent6-03: `settings:set` took any path and the protocol served it back.
+  const secret = path.join(app.profile, "id_rsa");
+  fs.writeFileSync(secret, "-----BEGIN OPENSSH PRIVATE KEY-----");
+  await expect(app.invoke("settings:set", { "logo.path": secret })).rejects.toThrow();
+  const status = await app.control.evaluate(async () => (await fetch("worship://logo")).status);
+  expect(status).not.toBe(200);
+  // Clearing it stays allowed: «Quitar» in Settings does exactly that.
+  await app.invoke("settings:set", { "logo.path": null });
+});

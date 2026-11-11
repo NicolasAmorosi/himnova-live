@@ -52,10 +52,12 @@ function readOpenLp(file: string): SongsRead {
   }
 }
 
-export const importEasyWorshipFolder = (folder: string): SongImportResult => writeSongs(readEasyWorshipFolder(folder));
-export const importOpenLpDatabase = (file: string): SongImportResult => writeSongs(readOpenLp(file));
-export const importOpenLyricsFiles = (files: readonly string[]): SongImportResult => writeSongs(readOpenLyricsFiles(files));
-export const importSongTextFiles = (files: readonly string[]): SongImportResult =>
+const WRITE_CHUNK = 100;
+
+export const importEasyWorshipFolder = (folder: string): Promise<SongImportResult> => writeSongs(readEasyWorshipFolder(folder));
+export const importOpenLpDatabase = (file: string): Promise<SongImportResult> => writeSongs(readOpenLp(file));
+export const importOpenLyricsFiles = (files: readonly string[]): Promise<SongImportResult> => writeSongs(readOpenLyricsFiles(files));
+export const importSongTextFiles = (files: readonly string[]): Promise<SongImportResult> =>
   writeSongs(readSongTextFiles(files, getSettingsRepo().get("ui.locale")));
 
 /** EasyWorship's two databases: picking either one means its folder. */
@@ -68,7 +70,7 @@ const EASYWORSHIP_FILE = /^song(s|words)\.db$/i;
  * text for the rest. A database that cannot be read is a problem among the
  * rest; when nothing at all came in, its own error says why instead.
  */
-export function importSongFiles(files: readonly string[]): SongImportResult {
+export function importSongFiles(files: readonly string[]): Promise<SongImportResult> {
   const reads: SongsRead[] = [];
   let failure: IpcError | null = null;
   const extension = (file: string) => path.extname(file).slice(1).toLowerCase();
@@ -96,7 +98,7 @@ export function importSongFiles(files: readonly string[]): SongImportResult {
     problems: reads.reduce((sum, r) => sum + r.problems, 0),
     unsupported: reads.reduce((sum, r) => sum + (r.unsupported ?? 0), 0),
   };
-  if (failure && read.songs.length === 0) throw failure;
+  if (failure && read.songs.length === 0) return Promise.reject(failure);
   return writeSongs(read);
 }
 
@@ -161,27 +163,33 @@ function refreshedFrom(copy: Song, file: Omit<SongUpsert, "id">, format: SongFil
  * or saving it would write them out of the file. One transaction: an import
  * that fails halfway leaves the library as it was.
  */
-function writeSongs(read: SongsRead): SongImportResult {
+async function writeSongs(read: SongsRead): Promise<SongImportResult> {
   const repo = getSongsRepo();
   const known = new Map(repo.listLibrary().map((song) => [songIdentity(song), song]));
   let imported = 0;
   let repeated = 0;
-  getDbHandle().sqlite.transaction(() => {
-    for (const song of read.songs) {
-      const identity = songIdentity(song);
-      const existing = known.get(identity);
-      if (existing) {
-        if (song.origin && existing.file === null) {
-          const refreshed = repo.update(existing.id, refreshedFrom(existing, song, song.origin.format));
-          repo.tieToFile(existing.id, song.origin);
-          known.set(identity, { ...refreshed, file: song.origin.path });
+  // A hundred songs per transaction, the event loop let go between them: a whole songbook (1 207
+  // songs, ~0.3 ms each with the search index) in one held main ~0.33 s, and with it every frame of
+  // a media-engine video on air (2026-11-10 review, agent7-02) — the same as `library-import.ts`.
+  for (let start = 0; start < read.songs.length; start += WRITE_CHUNK) {
+    if (start > 0) await new Promise((resolve) => setImmediate(resolve));
+    getDbHandle().sqlite.transaction(() => {
+      for (const song of read.songs.slice(start, start + WRITE_CHUNK)) {
+        const identity = songIdentity(song);
+        const existing = known.get(identity);
+        if (existing) {
+          if (song.origin && existing.file === null) {
+            const refreshed = repo.update(existing.id, refreshedFrom(existing, song, song.origin.format));
+            repo.tieToFile(existing.id, song.origin);
+            known.set(identity, { ...refreshed, file: song.origin.path });
+          }
+          repeated += 1;
+          continue;
         }
-        repeated += 1;
-        continue;
+        known.set(identity, repo.create(song, song.origin));
+        imported += 1;
       }
-      known.set(identity, repo.create(song, song.origin));
-      imported += 1;
-    }
-  })();
+    })();
+  }
   return { imported, repeated, problems: read.problems, unsupported: read.unsupported ?? 0 };
 }

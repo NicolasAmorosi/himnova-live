@@ -21,6 +21,21 @@ export async function renameWithRetry(from: string, to: string): Promise<void> {
   }
 }
 
+/** `renameWithRetry` for a caller that cannot wait asynchronously: retried for at most half a second (it holds
+ *  main), which covers Defender's and the indexer's glance but not a program that keeps the file open. */
+export function renameSyncWithRetry(from: string, to: string): void {
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      fs.renameSync(from, to);
+      return;
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code;
+      if (attempt >= 4 || !code || !TRANSIENT_CODES.has(code)) throw error;
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 100);
+    }
+  }
+}
+
 /** Cleanup that must never fail the work it cleans up after: retried the way
  *  Node offers, then logged and dropped. */
 export function removeQuietly(target: string): void {

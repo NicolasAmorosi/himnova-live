@@ -7,7 +7,7 @@ export const ROOT = path.resolve(import.meta.dirname, "../../..");
 /** Generated once per machine by `global-setup.ts`, outside the repo. */
 export const FIXTURES_DIR = path.join(os.tmpdir(), "worship-e2e-fixtures");
 /** Bump when `global-setup.ts` changes what it generates. */
-export const FIXTURE_VERSION = 10;
+export const FIXTURE_VERSION = 13;
 
 export function fixture(name: string): string {
   return path.join(FIXTURES_DIR, name);

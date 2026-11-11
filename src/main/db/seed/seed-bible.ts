@@ -155,24 +155,35 @@ export function seedBibleFromFile(
     return { versionId, verseCount: totalVerses };
   });
 
-  return run();
+  // IMMEDIATE: the write lock from the start. Since installs run on worker threads with connections of their
+  // own, a deferred one that had read the sort order could not write after another install committed
+  // (SQLITE_BUSY_SNAPSHOT, which `busy_timeout` does not wait out).
+  return run.immediate();
 }
 
-/** Installs a version of the catalog, or re-seeds it when its file changed (the hash short-circuit makes an
- *  unchanged one a digest). Every bundled version is `isBuiltin`; its name is the file's own — the catalog's —
- *  unless the row was renamed. */
+/** What installs a version of the catalog, or re-seeds it when its file changed (the hash short-circuit makes
+ *  an unchanged one a digest). Every bundled version is `isBuiltin`; its name is the file's own — the
+ *  catalog's — unless the row was renamed. */
+function bundledSeed(biblesDir: string, bible: BundledBible): { filePath: string; options: SeedBibleOptions } {
+  return { filePath: path.join(biblesDir, bible.file), options: { code: bible.code, fallbackName: bible.name, isBuiltin: true } };
+}
+
 function seedBundled(db: Db, sqlite: Database.Database, biblesDir: string, bible: BundledBible) {
-  return seedBibleFromFile(db, sqlite, path.join(biblesDir, bible.file), {
-    code: bible.code,
-    fallbackName: bible.name,
-    isBuiltin: true,
-  });
+  const { filePath, options } = bundledSeed(biblesDir, bible);
+  return seedBibleFromFile(db, sqlite, filePath, options);
 }
 
-/** `bible:installBundled`: the version's id, installed now or already. */
-export function installBundledBible(db: Db, sqlite: Database.Database, biblesDir: string, code: string): number {
+/** The catalog's version `code` as `bible:installBundled` seeds it (on a worker: `seed-bible-thread.ts`). */
+export function bundledSeedFor(biblesDir: string, code: string): { filePath: string; options: SeedBibleOptions } {
   const bible = BUNDLED_BIBLES.find((entry) => entry.code === code);
-  const seeded = bible ? seedBundled(db, sqlite, biblesDir, bible) : null;
+  if (!bible) throw new BibleFormatError(mt("bible.bundledNotFound"));
+  return bundledSeed(biblesDir, bible);
+}
+
+/** A version of the catalog installed now or already, on this thread: its id. */
+export function installBundledBible(db: Db, sqlite: Database.Database, biblesDir: string, code: string): number {
+  const { filePath, options } = bundledSeedFor(biblesDir, code);
+  const seeded = seedBibleFromFile(db, sqlite, filePath, options);
   if (!seeded) throw new BibleFormatError(mt("bible.bundledNotFound"));
   return seeded.versionId;
 }

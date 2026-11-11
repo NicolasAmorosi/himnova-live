@@ -5,6 +5,7 @@ import { SongFirstSlide } from "@renderer/components/shared/song-slide-tile";
 import { useItemIconAndBadge } from "@renderer/lib/hooks/use-program-item-display";
 import { useMediaAsset } from "@renderer/lib/hooks/use-media-asset";
 import { failedThumbUrls, resolveThumbUrl } from "@renderer/lib/asset-thumb";
+import { useT } from "@renderer/lib/i18n/i18n-provider";
 import type { DeckStatusSummary } from "@shared/types/deck";
 import type { ProgramItemDTO } from "@shared/types/program";
 
@@ -20,6 +21,7 @@ export function ProgramItemThumb({
   deckStatus?: DeckStatusSummary | undefined;
   item: ProgramItemDTO;
 }) {
+  const t = useT();
   const { icon, badge } = useItemIconAndBadge(item);
   // The same picture the library tile shows: an image's or a video's cached
   // thumbnail, a deck's first slide. A missing file shows its icon instead.
@@ -36,6 +38,16 @@ export function ProgramItemThumb({
     : null;
   // A deck drawn from its model has no thumbnail image: its first slide is drawn.
   const modelUrl = shown ? (deckStatus?.modelUrl ?? null) : null;
+
+  // A file that is gone says so on its row, before anyone picks it: the operator reviewing the order of service
+  // saw the same row as every other, a generic icon in place of the picture (2026-11-10 review, agent5-07).
+  if (asset?.missingSince != null) {
+    return (
+      <span className="contents" title={t("preview.missingHint")}>
+        <RowThumb icon="alert" tone="danger" />
+      </span>
+    );
+  }
 
   return (
     <RowThumb

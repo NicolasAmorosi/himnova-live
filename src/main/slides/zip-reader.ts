@@ -1,5 +1,5 @@
 import fs from "node:fs";
-import { inflateSync } from "fflate";
+import { Inflate, inflateSync } from "fflate";
 
 /**
  * Reads a handful of named entries out of a zip without ever holding the
@@ -326,6 +326,9 @@ function readEntryData(fd: number, entry: CentralEntry, window: ReadWindow): Uin
  * back to letting it work the size out, rather than losing the part.
  */
 function inflateEntry(raw: Buffer, uncompressedSize: number): Uint8Array {
+  // A hostile archive of a few KB inflates to gigabytes (398 KB to 400 MB in main, measured: 2026-11-10 review,
+  // agent6-04). No part of a deck or a Bible module comes near this — a video is stored, not deflated.
+  if (uncompressedSize > MAX_INFLATED_BYTES) throw new ZipFormatError(`An entry of ${uncompressedSize} bytes`);
   if (uncompressedSize > 0) {
     try {
       return inflateSync(raw, { out: new Uint8Array(uncompressedSize) });
@@ -333,8 +336,25 @@ function inflateEntry(raw: Buffer, uncompressedSize: number): Uint8Array {
       /* fall through */
     }
   }
-  return inflateSync(raw);
+  // The directory lied about the size: inflated a piece at a time, never past the cap.
+  const pieces: Uint8Array[] = [];
+  let total = 0;
+  const inflater = new Inflate((piece) => {
+    total += piece.length;
+    if (total > MAX_INFLATED_BYTES) throw new ZipFormatError("An entry past the inflate cap");
+    pieces.push(piece);
+  });
+  inflater.push(raw, true);
+  const out = new Uint8Array(total);
+  let at = 0;
+  for (const piece of pieces) {
+    out.set(piece, at);
+    at += piece.length;
+  }
+  return out;
 }
+
+const MAX_INFLATED_BYTES = 256 * 1024 * 1024;
 
 /**
  * Inflates every entry of `filePath` whose name satisfies `wanted`, and

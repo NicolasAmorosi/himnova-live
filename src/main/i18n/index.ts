@@ -36,6 +36,12 @@ export function mainMessages(): MainMessages {
   return dictionaries[current];
 }
 
+/** Every language's dictionary, for a name that may have been written in any of them (a background
+ *  the starter look seeded before the operator changed language). */
+export function everyMainMessages(): MainMessages[] {
+  return Object.values(dictionaries);
+}
+
 export type MainMessageKey = MessagePaths<MainMessages>;
 
 export function mt(key: MainMessageKey, params?: TParams): string {

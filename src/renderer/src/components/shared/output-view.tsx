@@ -22,6 +22,8 @@ import { TimerScene } from "./timer-scene";
 import { SongScene } from "./song-scene";
 import { PlateLayer } from "./plate-layer";
 import { StageImage } from "./stage-image";
+import { FramePacer } from "@renderer/lib/frame-pacer";
+import { followProjector } from "@renderer/lib/follow-projector";
 import type {
   MediaStatus,
   ProjectionMediaError,
@@ -97,8 +99,9 @@ type LiveVideoProps = {
    *  report the new one. */
   epoch: number;
   /** The projector's own video reporting its real position (`mediaStatus`,
-   *  keyed "video") — only ever provided for `mode === "monitor"`. Drives the
-   *  LIVE monitor's drift correction; unused for "live"/"preview". */
+   *  keyed "video") — provided for `mode === "monitor"`, where it drives the
+   *  LIVE monitor's drift correction, and to the NDI window's "live" view,
+   *  whose copy follows it (`follow-projector.ts`). Never to the projector. */
   liveVideoStatus?: MediaStatus | null | undefined;
   mode: OutputViewMode;
   /** This element failed to load or decode. `code` is
@@ -288,6 +291,15 @@ function LiveVideo({
     }
   }, [mode, liveVideoStatus, epoch]);
 
+  // The NDI window's copy keeps step with the projector's, whose sound NDI sends (`follow-projector.ts`).
+  // Only it gets a status in "live" mode; the projector's own view never does.
+  useEffect(() => {
+    if (mode !== "live" || !liveVideoStatus || liveVideoStatus.epoch !== epoch) return;
+    const element = elementRef.current;
+    if (!element || !canResync(element) || liveVideoStatus.paused || liveVideoStatus.ended) return;
+    followProjector(element, liveVideoStatus.currentTimeSeconds, liveVideoStatus.durationSeconds, element.loop);
+  }, [mode, liveVideoStatus, epoch]);
+
   // The component is keyed by epoch at the call site, so this instance only
   // ever has one `startAtSeconds` for its whole lifetime — applying it once,
   // on mount, is correct without watching for later changes.
@@ -331,6 +343,9 @@ function LiveVideo({
 
 type EngineVideoProps = {
   className: string;
+  /** The projector and the NDI window: frames go up on the page's clock (`FramePacer`). A monitor
+   *  draws them as they land — its cadence nobody watches, and it costs the control window less. */
+  paced: boolean;
   /** What main sends this video's frames under (`liveEngineFrameKey`, `previewEngineFrameKey`). */
   frameKey: string;
   onFirstFrame?: (() => void) | undefined;
@@ -346,11 +361,12 @@ type EngineVideoProps = {
  * sounds it from the same output this view gets, so there is nothing here to
  * drive, and no second copy to keep in step in a monitor.
  *
- * Each frame is drawn as it lands and handed back at once (`onVideoFrame`):
- * the engine reuses its texture. The canvas starts at no size, so one that
+ * Each frame is copied as it lands and handed back at once (`onVideoFrame`):
+ * the engine reuses its texture. Where the room looks (`paced`), it goes up at
+ * an animation frame (`FramePacer`). The canvas starts at no size, so one that
  * never drew has no pixels for `captureFrame` to freeze on the way out.
  */
-function EngineVideo({ className, frameKey, onFirstFrame, onFreezeFrame, style }: EngineVideoProps) {
+function EngineVideo({ className, frameKey, onFirstFrame, onFreezeFrame, paced, style }: EngineVideoProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const firstFrameRef = useRef(onFirstFrame);
   firstFrameRef.current = onFirstFrame;
@@ -362,21 +378,56 @@ function EngineVideo({ className, frameKey, onFirstFrame, onFreezeFrame, style }
     const context = canvas?.getContext("2d");
     if (!canvas || !context) return;
     let first = true;
-    const off = window.worship.onVideoFrame(frameKey, (frame) => {
-      if (canvas.width !== frame.displayWidth || canvas.height !== frame.displayHeight) {
-        canvas.width = frame.displayWidth;
-        canvas.height = frame.displayHeight;
+    const present = (source: CanvasImageSource, width: number, height: number) => {
+      if (canvas.width !== width || canvas.height !== height) {
+        canvas.width = width;
+        canvas.height = height;
       }
-      context.drawImage(frame, 0, 0);
+      context.drawImage(source, 0, 0);
       if (first) {
         first = false;
         firstFrameRef.current?.();
       }
-    });
+    };
+    let raf = 0;
+    let off: () => void;
+    if (!paced) {
+      off = window.worship.onVideoFrame(frameKey, (frame) => present(frame, frame.displayWidth, frame.displayHeight));
+    } else {
+      // Each frame copied as it lands — the engine's texture goes back at once, its ring has six — and
+      // put up at an animation frame. Three copies: two waiting at most, the oldest dropped past that.
+      const free = [0, 1, 2].map(() => new OffscreenCanvas(1, 1));
+      const queue: OffscreenCanvas[] = [];
+      const pacer = new FramePacer();
+      off = window.worship.onVideoFrame(frameKey, (frame) => {
+        if (!pacer.arrived(performance.now())) return;
+        const stage = free.pop() ?? queue.shift();
+        const stageContext = stage?.getContext("2d");
+        if (!stage || !stageContext) return;
+        if (stage.width !== frame.displayWidth || stage.height !== frame.displayHeight) {
+          stage.width = frame.displayWidth;
+          stage.height = frame.displayHeight;
+        }
+        stageContext.drawImage(frame, 0, 0);
+        queue.push(stage);
+      });
+      const loop = (now: number) => {
+        if (pacer.tick(now, queue.length)) {
+          const stage = queue.shift()!;
+          present(stage, stage.width, stage.height);
+          free.push(stage);
+        }
+        raf = requestAnimationFrame(loop);
+      };
+      raf = requestAnimationFrame(loop);
+    }
     // A paused engine sends nothing: a projector rebuilt onto another screen
     // would stay black until play.
     void api.projection.wantVideoFrame(frameKey);
-    return off;
+    return () => {
+      off();
+      cancelAnimationFrame(raf);
+    };
     // Keyed by `frameKey` at the call site: one canvas, one stream of frames.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -509,6 +560,14 @@ function SlideVideoLayer({
     }
   }, [mode, status, epoch]);
 
+  // The NDI window's copy follows the projector's, like `LiveVideo`'s.
+  useEffect(() => {
+    if (mode !== "live" || !status || status.epoch !== epoch) return;
+    const element = elementRef.current;
+    if (!element || !canResync(element) || status.paused || status.ended) return;
+    followProjector(element, status.currentTimeSeconds, status.durationSeconds, element.loop);
+  }, [mode, status, epoch]);
+
   // Keyed by epoch at the call site, so this instance has exactly one
   // `startAtSeconds` for its whole life — applied once, on mount.
   useEffect(() => {
@@ -541,6 +600,7 @@ function SlideVideoLayer({
           <EngineVideo
             className="absolute object-contain"
             frameKey={liveEngineFrameKey("slideVideo", slideVideo.epoch)}
+            paced={mode === "live"}
             style={rectStyle}
           />
         ) : (
@@ -572,10 +632,12 @@ function SlideVideoLayer({
 function SongVideoLayer({
   covered,
   onError,
+  paced,
   songVideo,
 }: {
   covered: boolean;
   onError: (code: number | null) => void;
+  paced: boolean;
   songVideo: SongVideo;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -593,6 +655,7 @@ function SongVideoLayer({
         <EngineVideo
           className="absolute inset-0 size-full"
           frameKey={liveEngineFrameKey("songVideo", songVideo.epoch)}
+          paced={paced}
           style={fit}
         />
       ) : (
@@ -694,6 +757,7 @@ function OutputScene({ frozenFrame, mode, onImageError, output, posterUrl, video
         <StageImage
           className="size-full object-contain"
           decoding={mode === "live" ? "sync" : "async"}
+          holdLastGood
           onError={() => onImageError?.(output.url)}
           src={output.url}
         />
@@ -917,8 +981,9 @@ type OutputViewProps = {
    *  free of i18n — it also renders inside the projection window, which has
    *  no provider. Omit it (the projector does) and no notice is ever shown. */
   errorLabel?: string;
-  /** The projector's own video `mediaStatus` — only meaningful (and only ever
-   *  passed) for `mode === "monitor"`; drives `LiveVideo`'s drift correction. */
+  /** The projector's own video `mediaStatus` — passed for `mode === "monitor"`
+   *  (`LiveVideo`'s drift correction) and by the NDI window, whose copy follows
+   *  it; never by the projector itself. */
   liveVideoStatus?: MediaStatus | null;
   /**
    * "live" is the projection window itself: video autoplays and is wired to
@@ -952,8 +1017,7 @@ type OutputViewProps = {
    *  something the projector can't, and vice versa. */
   reportedErrorUrls?: readonly string[];
   /** The projector's report for the live slide's own video — the `SlideVideo`
-   *  counterpart of `liveVideoStatus`, and passed under the same rule: only in
-   *  `mode === "monitor"`. */
+   *  counterpart of `liveVideoStatus`, and passed under the same rule. */
   slideVideoStatus?: MediaStatus | null;
   /** The live slide's video element, so the projection window can route a
    *  `MediaCommand` to it. Separate from `videoRef` because the two are
@@ -1558,6 +1622,7 @@ export function OutputView({
           covered={output.kind !== "song"}
           key={songVideo.epoch}
           onError={handleSongVideoError}
+          paced={mode === "live"}
           songVideo={songVideo}
         />
       ) : null}
@@ -1592,6 +1657,7 @@ export function OutputView({
           key={engineFrameKey}
           onFirstFrame={() => handleVideoFirstFrame(output.videoUnderlay?.epoch ?? 0)}
           onFreezeFrame={shouldAnimate ? freezeFrame : undefined}
+          paced={mode === "live"}
           style={transitionStyle(videoRole, transition, output.kind !== "video" ? 0 : 1, held, incomingCovers)}
         />
       ) : output.videoUnderlay && videoMounted ? (

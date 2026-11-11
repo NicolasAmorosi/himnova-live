@@ -119,24 +119,24 @@ describe("the EasyWorship database", () => {
     expect(() => importEasyWorshipFolder(tmpDir)).toThrow(IpcError);
   });
 
-  test("importing twice skips what is already there; the same title with other words comes in", () => {
-    expect(importEasyWorshipFolder(path.join(tmpDir, "Default"))).toEqual({ imported: 2, repeated: 0, problems: 1, unsupported: 0 });
-    expect(importEasyWorshipFolder(data())).toEqual({ imported: 0, repeated: 2, problems: 1, unsupported: 0 });
+  test("importing twice skips what is already there; the same title with other words comes in", async () => {
+    expect(await importEasyWorshipFolder(path.join(tmpDir, "Default"))).toEqual({ imported: 2, repeated: 0, problems: 1, unsupported: 0 });
+    expect(await importEasyWorshipFolder(data())).toEqual({ imported: 0, repeated: 2, problems: 1, unsupported: 0 });
 
     const other = path.join(tmpDir, "Other", "Databases", "Data");
     writeEasyWorship(other, [{ title: "Sublime gracia", words: rtf("Verse 1\notra versión") }]);
-    expect(importEasyWorshipFolder(other)).toEqual({ imported: 1, repeated: 0, problems: 0, unsupported: 0 });
+    expect(await importEasyWorshipFolder(other)).toEqual({ imported: 1, repeated: 0, problems: 0, unsupported: 0 });
     expect(getSongsRepo().search("version").length).toBe(1);
     expect(getSongsRepo().list().filter((s) => s.title === "Sublime gracia")).toHaveLength(2);
   });
 
-  test("a database that will not open says so", () => {
+  test("a database that will not open says so", async () => {
     const broken = path.join(tmpDir, "Broken");
     fs.mkdirSync(broken);
     fs.writeFileSync(path.join(broken, "Songs.db"), "not a database");
     fs.writeFileSync(path.join(broken, "SongWords.db"), "not a database");
     try {
-      importEasyWorshipFolder(broken);
+      await importEasyWorshipFolder(broken);
       throw new Error("expected EW_UNREADABLE");
     } catch (error) {
       expect((error as IpcError).code).toBe("EW_UNREADABLE");

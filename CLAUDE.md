@@ -86,7 +86,7 @@ answer, and ask about what does. Nothing is delivered half-done in silence.
 | Packaging | `electron-builder` (nsis / ad-hoc signed dmg / AppImage + deb) |
 | Updates | `electron-updater` 6.8.9, from the GitHub release marked Latest; on macOS the app downloads and opens the `.dmg` itself |
 | Media probe + thumbnails | FFmpeg 9.0.2 (`ffmpeg` + `ffprobe`) **bundled**, pinned by sha256 and downloaded by `scripts/fetch-binaries.ts` (GPLv3, see `resources/ffmpeg-NOTICE.txt`) |
-| Media engine | Our own process on libmpv (`native/`), **prebuilt** per platform in this repo's GitHub Release `engine-<n>`, pinned by sha256 and downloaded by `scripts/fetch-binaries.ts` (see `resources/engine-NOTICE.txt`); the same binary sends the NDI® output (`--ndi-send`). `native/build.sh <target>` builds it locally (kept by the fetch: a `.local` marker) and `native/build.sh pack` zips a new release |
+| Media engine | Our own process on libmpv (`native/`), **prebuilt** per platform in this repo's GitHub Release `engine-<n>`, pinned by sha256 and downloaded by `scripts/fetch-binaries.ts` (see `resources/engine-NOTICE.txt`); the same binary sends the NDI® output (`--ndi-send`), the app's own sound included (captured from the OS: `native/engine/ndi-audio.h`). `native/build.sh <target>` builds it locally (kept by the fetch: a `.local` marker) and `native/build.sh pack` zips a new release |
 | E2E | Playwright 1.63 (`_electron`) against the built app or the installed one — `tests/e2e/` |
 
 ## Folder structure
@@ -362,7 +362,7 @@ npm install              # installs deps — better-sqlite3 ships prebuilt binar
 npm run dev               # electron-vite dev (HMR in the renderer, main restarts on watch)
 npm run typecheck          # tsc --noEmit over node (main+preload+shared) and web (renderer+shared)
 npm run lint                # eslint .
-npm run test                 # vitest run — 878 cases in two projects: `main` (Node: migrations, seed,
+npm run test                 # vitest run — 920 cases in two projects: `main` (Node: migrations, seed,
                               #   FTS5, repos and the library sweep, draft, settings and scene validators, WAL backup,
                               #   zip reader, the legacy-deck reader against an OLE2 file built in the test
                               #   (`tests/fixtures/legacy-ppt.ts`: pictures, master inheritance, what it refuses),
@@ -374,10 +374,13 @@ npm run test                 # vitest run — 878 cases in two projects: `main` 
                               #   slide transitions from OOXML, native deck rows, linked audio, urls, history prune, timer functions,
                               #   dragging a countdown, timer scenes as an order-of-service item,
                               #   video embedded in a slide: geometry, external rels and node by `spid`,
-                              #   verse style, the update errors and launch check, and the Bible format
+                              #   verse style, the update errors and launch check, the .dmg's sha512 check,
+                              #   backup-before-migrate at launch, the close guard's veto and 4 s grace, the 1.0 app's data,
+                              #   the engine's volume curve and stdout events, which engine sessions are kept, paused or
+                              #   report their end, `worship://`'s Range contract, NDI frame pacing, and the Bible format
                               #   readers against real files written on the fly: Zefania, USFX, OSIS,
                               #   SQLite modules, Latin-1 and .zip; every bundled bible read whole, a new profile per language)
-                              #   and `renderer` (jsdom: selectOutput —including slide video under
+                              #   and `renderer` (jsdom: the audio tracks pushed under BLACK/LOGO, selectOutput —including slide video under
                               #   BLACK and a slide's own way in, forward only—,
                               #   the dressed verse and its live restyling,
                               #   freezeLivePositions, live-intent, transport
@@ -417,7 +420,7 @@ npm run package:win|mac|linux  # build + electron-builder for that platform
 - **Local files are served through `worship://`** (`src/main/protocol/worship-protocol.ts`),
   resolving by `media_assets` id or by slides session — never by a filesystem path
   embedded in the URL. Don't reintroduce a hand-built `file:///`.
-- **`serveFile()` MUST honor `Range` (206 + `Accept-Ranges`).** Don't "simplify" it back to
+- **`serveFile()` (`protocol/serve-file.ts`) MUST honor `Range` (206 + `Accept-Ranges`).** Don't "simplify" it back to
   `net.fetch(file://…)`: that ignores the headers, leaves every video/audio **without seek** and
   breaks playback with `PIPELINE_ERROR_DECODE (-12909)` from misaligned data. Full diagnosis in
   [`.claude/knowledge/worship-protocol-range-and-video-lifecycle.md`](.claude/knowledge/worship-protocol-range-and-video-lifecycle.md).
@@ -667,8 +670,13 @@ npm run package:win|mac|linux  # build + electron-builder for that platform
   (`windows/projector-screen.ts`, pure rule in `projector-display-choice.ts`), without rebuilding the
   window. Closing it silenced the room: every `<audio>` of the service lives in that window. The
   control window only lists the screens again (`display.store.refresh`) and shows the warning; it
-  never moves the window, and nothing sends it to the main screen on its own. While it exists, a
-  `powerSaveBlocker` keeps the screens from turning off mid-sermon.
+  never moves the window, and nothing sends it to the main screen on its own. It goes back to its
+  chosen screen, or to one that just appeared — never to one that was already there (with three
+  screens a blink sent it to the stage's for good), and «back» is said only then
+  (`chooseProjectorMove`). **The operator's screen is the one hosting the control window, not the
+  OS's primary** (a church may make the projector primary): chosen as the projector's, or with one
+  screen, it is a framed, movable window centred there, never fullscreen or on top (owner,
+  2026-11-10). While it exists, a `powerSaveBlocker` keeps the screens from turning off mid-sermon.
 - **A slide is content, not a controlled slideshow — and every deck is read by the app itself,
   never converted by another program** (owner, 2026-11-03). Which reader, by what the bytes are
   (`containerKind`): a legacy `.ppt`/`.pps` made of pictures — the hymnal — is served picture by

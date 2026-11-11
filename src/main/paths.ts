@@ -61,6 +61,8 @@ export const legacyMediaLibraryPath = path.join(userDataDir, "media_library.json
  *  src/main/slides/. Never os.tmpdir(): that's what the COM-era exporter used
  *  and why its cache was lost on every restart. */
 export const slidesCacheDir = path.join(userDataDir, "slides-cache");
+/** A copy of the deck on air, read only once its own file is gone (`worship-protocol.ts`). */
+export const liveDeckDir = path.join(userDataDir, "live-deck");
 
 /** Generated library thumbnails (images and video first frames). Sharded one
  *  level by the first two characters of the key, because a church's media

@@ -6,7 +6,7 @@
  */
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import { selectOutput, useProjectionStore } from "@renderer/stores/projection.store";
-import { alignByNumber, parallelVersionFor, useBibleStore } from "@renderer/stores/bible.store";
+import { alignByNumber, parallelVersionFor, sameVersification, useBibleStore } from "@renderer/stores/bible.store";
 import { useSettingsStore } from "@renderer/stores/settings.store";
 import { useDisplayStore } from "@renderer/stores/display.store";
 import { usePreviewStore } from "@renderer/stores/preview.store";
@@ -87,6 +87,21 @@ beforeEach(() => {
   useBibleStore.setState({ versions: VERSIONS, versionId: 1, books: [book(43, 1, "Juan")] });
   usePreviewStore.getState().clear();
   useDisplayStore.setState({ openIfNeeded: async () => {} });
+});
+
+describe("versification", () => {
+  const chapter = (bookId: number, numbers: number[]) => numbers.map((n) => verse(bookId, n));
+
+  test("a twin chapter that ends elsewhere is numbered otherwise: one column, never a false pair", () => {
+    // Diodati's 1 S 24 starts at RV's 23:29, so it has one verse more.
+    expect(sameVersification(chapter(43, [1, 2, 3]), chapter(143, [1, 2, 3, 4]))).toBe(false);
+    expect(sameVersification(chapter(43, [1, 2, 3, 4]), chapter(143, [1, 2, 3]))).toBe(false);
+  });
+
+  test("a verse left out inside the chapter is a gap, still paired by number", () => {
+    expect(sameVersification(chapter(43, [1, 2, 3, 4]), chapter(143, [1, 2, 4]))).toBe(true);
+    expect(sameVersification(chapter(43, [1, 2, 3]), [])).toBe(true);
+  });
 });
 
 describe("the output", () => {

@@ -2,7 +2,8 @@ import { randomUUID } from "node:crypto";
 import path from "node:path";
 import type { Handlers } from "../register";
 import { getBibleRepo, getProgramsRepo, getSettingsRepo } from "../../services/repos";
-import { bibleFileHash, installBundledBible, seedBibleFromFile } from "../../db/seed/seed-bible";
+import { bibleFileHash, bundledSeedFor } from "../../db/seed/seed-bible";
+import { seedBibleOffThread } from "../../db/seed/seed-bible-thread";
 import { bibleImportFilters } from "../../db/seed/bible-formats";
 import { bundledBibleDTOs } from "../../db/seed/bundled-bibles";
 import { IpcError } from "@shared/ipc/result";
@@ -70,7 +71,7 @@ export const bibleHandlers: Pick<
     // Unlike the legacy import-bible, this NEVER writes into the app bundle —
     // the file is parsed in memory and only SQL rows land on disk, in userData.
     const code = `custom-${randomUUID().slice(0, 8)}`;
-    const seeded = seedBibleFromFile(dbRef.db, dbRef.sqlite, filePath, { code, fallbackName });
+    const seeded = await seedBibleOffThread(filePath, { code, fallbackName });
     if (!seeded) return null;
 
     return getBibleRepo().getVersion(seeded.versionId);
@@ -123,9 +124,11 @@ export const bibleHandlers: Pick<
 
   // Lands at the bottom of the list like an import (`nextSortOrder`); the
   // control window blocks a second click on the row while this runs.
-  "bible:installBundled": ({ code }) => {
+  "bible:installBundled": async ({ code }) => {
     if (!dbRef) throw new IpcError({ code: "DB_NOT_READY", message: "Database not ready" });
-    const version = getBibleRepo().getVersion(installBundledBible(dbRef.db, dbRef.sqlite, biblesDir, code));
+    const { filePath, options } = bundledSeedFor(biblesDir, code);
+    const seeded = await seedBibleOffThread(filePath, options);
+    const version = seeded ? getBibleRepo().getVersion(seeded.versionId) : null;
     if (!version) throw new IpcError({ code: "BIBLE_VERSION_NOT_FOUND", message: `Bible version ${code} not found` });
     return version;
   },

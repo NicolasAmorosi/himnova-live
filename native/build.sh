@@ -11,6 +11,8 @@
 #   ./native/build.sh linux-x64      Docker (Ubuntu 22.04: its glibc 2.35 is the oldest the engine runs on; Debian 12's
 #                                    2.36 left arc4random@GLIBC_2.36 in the static libstdc++). The target uses the
 #                                    system's libmpv, .so.2 or .so.1, loaded at run time (native/engine/mpv-linux.cpp).
+#   ./native/build.sh ndi-probe <t>  The test receiver of tests/e2e/ndi-receiver.spec.ts (native/ndi-probe/), for darwin-arm64,
+#                                    win32-x64 or linux-x64, into native/.build/ndi-probe-<t>[.exe]. Never shipped.
 #   ./native/build.sh pack           Zips every target built here into native/.build/release/, the files of a
 #                                    Release `engine-<n>` (see scripts/fetch-binaries.ts), and prints their sha256.
 # A build leaves a `.local` marker: scripts/fetch-binaries.ts keeps it instead of the published engine.
@@ -30,7 +32,20 @@ if [[ ${1:-} == pack ]]; then
   done
   exit
 fi
-TARGET=${1:?usage: native/build.sh darwin-arm64|win32-x64|linux-x64|pack}
+if [[ ${1:-} == ndi-probe ]]; then
+  T=${2:?usage: native/build.sh ndi-probe darwin-arm64|win32-x64|linux-x64}
+  mkdir -p "$WORK"
+  SRC="native/ndi-probe/ndi-probe.cpp -I native/ndi/include"
+  case $T in
+  darwin-*) clang++ -O2 -std=c++17 -mmacosx-version-min=12.0 $SRC -o "$WORK/ndi-probe-$T" ;;
+  win32-x64) docker run --rm -v "$PWD:/w" -w /w lumina-mingw x86_64-w64-mingw32-g++-posix -O2 -std=c++17 -static -static-libgcc -static-libstdc++ $SRC -o "$WORK/ndi-probe-$T.exe" ;;
+  linux-x64) docker run --rm --platform linux/amd64 -v "$PWD:/w" -w /w lumina-linux-engine-build g++ -O2 -std=c++17 -static-libstdc++ -static-libgcc $SRC -ldl -o "$WORK/ndi-probe-$T" ;;
+  *) echo "unknown target $T"; exit 1 ;;
+  esac
+  ls -la "$WORK"/ndi-probe-"$T"*
+  exit
+fi
+TARGET=${1:?usage: native/build.sh darwin-arm64|win32-x64|linux-x64|ndi-probe <target>|pack}
 OUT=resources/engine/$TARGET
 NODE_INC=$(dirname "$(dirname "$(node -p process.execPath)")")/include/node
 FLAGS=(-O2 -std=c++17 -Wall -Wno-missing-field-initializers)
@@ -51,9 +66,11 @@ darwin-*)
   else
     cp -a "$LIB"/*.dylib "$OUT/"
   fi
-  clang++ "${FLAGS[@]}" -Wno-multichar -Wno-deprecated-declarations -mmacosx-version-min=12.0 -I "$INC" \
-    -I native/ndi/include native/engine/engine.cpp native/engine/gpu-apple.cpp native/engine/ndi.cpp -L "$LIB" -lmpv -Wl,-rpath,"$RPATH" \
-    -framework OpenGL -framework IOSurface -framework CoreFoundation -o "$OUT/media-engine"
+  # ndi-audio-mac.mm: the NDI output's sound, a Core Audio process tap (macOS 14.2+, weak-linked below it).
+  clang++ "${FLAGS[@]}" -Wno-multichar -Wno-deprecated-declarations -mmacosx-version-min=12.0 -fobjc-arc -I "$INC" \
+    -I native/ndi/include native/engine/engine.cpp native/engine/gpu-apple.cpp native/engine/ndi.cpp native/engine/ndi-audio-mac.mm \
+    -L "$LIB" -lmpv -Wl,-rpath,"$RPATH" \
+    -framework OpenGL -framework IOSurface -framework CoreFoundation -framework CoreAudio -framework Foundation -o "$OUT/media-engine"
   clang++ "${FLAGS[@]}" -mmacosx-version-min=12.0 -bundle -undefined dynamic_lookup -I "$NODE_INC" \
     native/handles/handles.cpp -framework IOSurface -framework CoreFoundation -o "$OUT/handles.node"
   ;;
@@ -73,8 +90,8 @@ win32-x64)
   docker run --rm -v "$PWD:/w" -w /w lumina-mingw sh -c "
     x86_64-w64-mingw32-windres native/engine/media-engine.rc -O coff -o $WORK/media-engine-res.o &&
     x86_64-w64-mingw32-g++-posix ${FLAGS[*]} -static -static-libgcc -static-libstdc++ \
-      native/engine/engine.cpp native/engine/gpu-windows.cpp native/engine/ndi.cpp $WORK/media-engine-res.o \
-      -I $WORK/mpv-win/include -I native/ndi/include $WORK/mpv-win/libmpv.dll.a -ld3d11 -ldxgi -lwinmm -o $OUT/media-engine.exe"
+      native/engine/engine.cpp native/engine/gpu-windows.cpp native/engine/ndi.cpp native/engine/ndi-audio-windows.cpp $WORK/media-engine-res.o \
+      -I $WORK/mpv-win/include -I native/ndi/include $WORK/mpv-win/libmpv.dll.a -ld3d11 -ldxgi -lwinmm -lole32 -lmmdevapi -luuid -o $OUT/media-engine.exe"
   cp "$WORK/mpv-win/libmpv-2.dll" "$OUT/"
   ;;
 linux-x64)
@@ -84,7 +101,7 @@ linux-x64)
     docker build --platform linux/amd64 -q -t lumina-linux-engine-build -
   docker run --rm --platform linux/amd64 -v "$PWD:/w" -w /w lumina-linux-engine-build sh -c "
     g++ ${FLAGS[*]} -static-libstdc++ -static-libgcc native/engine/engine.cpp native/engine/gpu-linux.cpp native/engine/mpv-linux.cpp \
-      native/engine/ndi.cpp -I /usr/include/libdrm -I native/ndi/include -ldl -lEGL -lOpenGL -lgbm -lpthread -o $OUT/media-engine &&
+      native/engine/ndi.cpp native/engine/ndi-audio-linux.cpp -I /usr/include/libdrm -I native/ndi/include -ldl -lEGL -lOpenGL -lgbm -lpthread -o $OUT/media-engine &&
     g++ ${FLAGS[*]} -shared -fPIC -static-libstdc++ -static-libgcc native/handles/handles.cpp -I $WORK/node-include -o $OUT/handles.node"
   ;;
 *)

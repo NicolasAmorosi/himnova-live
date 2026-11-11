@@ -41,7 +41,8 @@ type DisplayStoreState = {
 
   /** Lists the available screens and resolves which one to target: the
    *  persisted `projection.displayId` setting when it still points at a
-   *  connected display, otherwise the first non-primary screen — the
+   *  connected display, otherwise the first that isn't the operator's own (the one
+   *  hosting the control window) — the
    *  projector, in every real setup. */
   load: () => Promise<void>;
   setDisplayId: (id: number) => Promise<void>;
@@ -80,7 +81,7 @@ export const useDisplayStore = create<DisplayStoreState>((set, get) => ({
         ]);
         const persisted = settings["projection.displayId"];
         const resolved =
-          displays.find((d) => d.id === persisted) ?? displays.find((d) => !d.primary) ?? displays[0];
+          displays.find((d) => d.id === persisted) ?? displays.find((d) => !d.operator) ?? displays[0];
         set({ displays, displayId: resolved?.id ?? null, loaded: true });
       } finally {
         loadInFlight = null;

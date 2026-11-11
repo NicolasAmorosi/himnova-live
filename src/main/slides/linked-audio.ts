@@ -1,6 +1,10 @@
 import fs from "node:fs";
 import path from "node:path";
 import { AUDIO_EXT, containerKind } from "./pptx-metadata";
+
+/** A sibling file is the deck's music only if something can play it: nothing synthesizes MIDI, and a
+ *  `.mid` named like the hymn left it mute and stuck on slide 1 (2026-11-10 review, A13). */
+const LINKED_AUDIO_EXT = new Set([...AUDIO_EXT].filter((ext) => ext !== "mid" && ext !== "midi"));
 import { readZipEntries } from "./zip-reader";
 import { readBinaryExternalPaths } from "./ppt-binary";
 
@@ -65,7 +69,7 @@ export function resolveLinkedAudio(presentationPath: string): string | null {
   const dir = path.dirname(presentationPath);
   const entries = listAudioDir(dir);
   if (!entries) return null;
-  const audioFiles = entries.filter((name) => AUDIO_EXT.has(extOf(name)));
+  const audioFiles = entries.filter((name) => LINKED_AUDIO_EXT.has(extOf(name)));
   if (audioFiles.length === 0) return null;
 
   const byNormalizedName = new Map(audioFiles.map((name) => [normalize(name), name]));
@@ -77,7 +81,7 @@ export function resolveLinkedAudio(presentationPath: string): string | null {
   }
 
   const base = path.basename(presentationPath, path.extname(presentationPath));
-  for (const ext of AUDIO_EXT) {
+  for (const ext of LINKED_AUDIO_EXT) {
     const match = byNormalizedName.get(normalize(`${base}.${ext}`));
     if (match) return path.join(dir, match);
   }
@@ -151,7 +155,7 @@ function extractAudioHintBasename(presentationPath: string): string | null {
   return null;
 }
 
-const AUDIO_EXT_PATTERN = [...AUDIO_EXT].join("|");
+const AUDIO_EXT_PATTERN = [...LINKED_AUDIO_EXT].join("|");
 // A run of printable characters ending in a known audio extension — loose on
 // purpose, this is a hint to look up by basename, never a path we open.
 const AUDIO_NAME_RE = new RegExp(`[^\\\\/:*?"<>|\\x00-\\x1f]{1,240}\\.(?:${AUDIO_EXT_PATTERN})`, "i");

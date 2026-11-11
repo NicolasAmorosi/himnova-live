@@ -1,6 +1,6 @@
 ## The NDI SDK hands the last frame it sent to every new receiver, however old
 **Area:** projection
-**Trigger:** changing when the NDI output sends frames (`native/engine/ndi.cpp`'s send loop, `IDLE_FRAME_MS` in `src/main/ndi/ndi-output.ts`), or a receiver that shows an old picture for an instant on connecting
+**Trigger:** changing when the NDI output sends frames (`native/engine/ndi.cpp`'s send loop, `IDLE_FRAME_MS` in `src/main/ndi/ndi-pacing.ts`), or a receiver that shows an old picture for an instant on connecting
 
 - An NDI sender with no connections that stops calling `send_send_video_v2` still keeps its last frame, and gives it to the next receiver **the moment it connects** (first frame in 0.01 s while the engine was sending nothing — measured 2026-11-09 with the engine driven by a C harness that went quiet).
 - With "nothing sent while nobody watches" (to save the encoder's third of a core), that frame was the last one anybody saw — minutes old. OBS with DistroAV can disconnect a hidden source and reconnect it on a scene change, so that stale frame goes **on air**.

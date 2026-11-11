@@ -1,19 +1,33 @@
 /**
- * Which screen the projection window belongs on, once the list of screens
- * changes: the one the operator chose (`projection.displayId`) when it is
- * connected, else the first screen that is not the operator's own. Never the
- * primary one — that is the laptop, and a fullscreen, always-on-top window
- * there covers the control window. `null` when there is no such screen.
+ * Where the projection window goes once the list of screens changes, or `null` to leave it where it
+ * is — on its screen, or hidden because its screen went away (`projector-screen.ts`).
+ *
+ * - The operator's chosen screen (`projection.displayId`) as soon as it is connected again.
+ * - Otherwise only a screen that has JUST appeared (`addedIds`): a projector turned on after the app
+ *   opened, or one back from standby under a new id. Never one that was already there: with three
+ *   screens, a projector going to standby sent the service to the third — a stage, a confidence
+ *   monitor — and left it there for the rest of the service (2026-11-10 review, `agent5-03`).
+ * - Never the operator's own screen (the one hosting the control window) nor the stage's: there a
+ *   fullscreen, always-on-top window covers what someone is reading. Unless the operator CHOSE their
+ *   own screen: then it is a movable window there, and stays (owner, 2026-11-10).
  *
  * Pure, so the rule is tested without Electron (`tests/main/projector-display-choice.test.ts`).
  */
-export function chooseProjectorDisplay(
+export function chooseProjectorMove(
   displayIds: readonly number[],
-  primaryId: number,
+  operatorId: number,
   preferredId: number | null,
+  /** The screen it is shown on; `null` while hidden. */
+  currentId: number | null,
+  addedIds: readonly number[],
+  stageId: number | null = null,
 ): number | null {
-  if (preferredId !== null && preferredId !== primaryId && displayIds.includes(preferredId)) return preferredId;
-  return displayIds.find((id) => id !== primaryId) ?? null;
+  // Chosen on purpose: a movable window on the operator's screen (owner, 2026-11-10), kept there.
+  if (preferredId === operatorId) return null;
+  const allowed = (id: number) => id !== operatorId && id !== stageId && displayIds.includes(id);
+  if (preferredId !== null && allowed(preferredId)) return preferredId === currentId ? null : preferredId;
+  if (currentId !== null && displayIds.includes(currentId) && currentId !== operatorId) return null;
+  return addedIds.find(allowed) ?? null;
 }
 
 /**
@@ -31,15 +45,15 @@ export function chooseProjectorDisplay(
  */
 export function chooseStageDisplay(
   displayIds: readonly number[],
-  primaryId: number,
+  operatorId: number,
   stageId: number | null,
   projectorPreferredId: number | null,
 ): number | null {
   if (stageId === null || !displayIds.includes(stageId)) return null;
-  if (stageId === primaryId) return stageId;
+  if (stageId === operatorId) return stageId;
   const projectorId =
     projectorPreferredId !== null && displayIds.includes(projectorPreferredId)
       ? projectorPreferredId
-      : (displayIds.find((id) => id !== primaryId) ?? null);
+      : (displayIds.find((id) => id !== operatorId) ?? null);
   return stageId === projectorId ? null : stageId;
 }

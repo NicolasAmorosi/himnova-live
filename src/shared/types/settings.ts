@@ -16,7 +16,16 @@ import {
 import type { SceneBackground } from "./scene-style";
 import { isSceneBackground } from "../style-validators";
 import { LOGO_URL } from "../urls";
-import { NDI_FRAME_RATES, NDI_NAME_MAX_LENGTH, NDI_RESOLUTIONS, type NdiFrameRate, type NdiResolution } from "./ndi";
+import {
+  NDI_AUDIO_DELAY_DEFAULT_MS,
+  NDI_AUDIO_DELAY_MAX_MS,
+  NDI_AUDIO_DELAY_MIN_MS,
+  NDI_FRAME_RATES,
+  NDI_NAME_MAX_LENGTH,
+  NDI_RESOLUTIONS,
+  type NdiFrameRate,
+  type NdiResolution,
+} from "./ndi";
 
 /** How a Functions list (time scenes, plates) is ordered: «own» is the order
  *  the operator gave it in its editor; the rest like Media's (owner,
@@ -203,6 +212,11 @@ export type SettingsMap = {
   "ndi.output.name": string;
   "ndi.output.resolution": NdiResolution;
   "ndi.output.fps": NdiFrameRate;
+  /** The app's own sound goes with the picture (`native/engine/ndi-audio.h`). */
+  "ndi.output.audio": boolean;
+  /** How long the sound is held to meet its picture, in ms: the picture waits in the sender's queue, the sound
+   *  does not (measured per system; adjustable, a real computer is never the one measured). */
+  "ndi.output.audioDelayMs": number;
   /** The welcome screen opens at the next launch (`WelcomeScreen`). Only a NEW profile is given `true`
    *  (`initDatabase`), so an install that updates never sees it on its own; closing it — finished or
    *  skipped — clears it. Reopened by hand from Settings ▸ About. */
@@ -261,6 +275,8 @@ export const DEFAULT_SETTINGS: SettingsMap = {
   "ndi.output.name": "Lumina Live",
   "ndi.output.resolution": "1080p",
   "ndi.output.fps": 30,
+  "ndi.output.audio": true,
+  "ndi.output.audioDelayMs": NDI_AUDIO_DELAY_DEFAULT_MS,
   "welcome.pending": false,
   "welcome.firstStepsOpen": false,
   "welcome.firstStepsDone": [],
@@ -386,6 +402,8 @@ export const SETTINGS_VALIDATORS: Record<keyof SettingsMap, (value: unknown) => 
     ![...v].some((c) => c.charCodeAt(0) < 0x20 || c.charCodeAt(0) === 0x7f),
   "ndi.output.resolution": isOneOf(NDI_RESOLUTIONS),
   "ndi.output.fps": (v) => (NDI_FRAME_RATES as readonly unknown[]).includes(v),
+  "ndi.output.audio": isBoolean,
+  "ndi.output.audioDelayMs": (v) => isNumberIn(NDI_AUDIO_DELAY_MIN_MS, NDI_AUDIO_DELAY_MAX_MS)(v) && Number.isInteger(v),
   "welcome.pending": isBoolean,
   "welcome.firstStepsOpen": isBoolean,
   "welcome.firstStepsDone": (v) => Array.isArray(v) && v.every(isOneOf(FIRST_STEP_IDS)),

@@ -200,7 +200,7 @@ export class WorshipApp {
   async openChapter(reference: string): Promise<void> {
     await this.openResources("Biblia");
     const panel = this.control.getByRole("tabpanel", { name: this.tr("Biblia") });
-    await panel.getByRole("textbox", { name: this.tr("Buscar libro y capítulo…") }).fill(reference);
+    await panel.getByRole("textbox", { name: this.tr("Libro, capítulo y versículo…") }).fill(reference);
     await expect(panel.getByRole("listitem").filter({ hasText: new RegExp(`^${reference}$`) })).toBeVisible();
     await this.control.keyboard.press("Enter");
   }
@@ -349,6 +349,21 @@ export async function moving(page: Page, prefix: string): Promise<boolean> {
   await page.waitForTimeout(400);
   const after = await engineCanvas(page, prefix);
   return before !== null && after !== null && before.width > 0 && before.sample !== after.sample;
+}
+
+/**
+ * How long until `read` gives something other than `from`, sampled every ~10 ms, and what it gave. For timings with
+ * two sides: «by 8 s» let a slide that lasts twice as long pass (2026-11-10 review, agent3-17).
+ */
+export async function msUntilChange<T>(read: () => Promise<T>, from: T, timeoutMs: number): Promise<{ ms: number; value: T }> {
+  const start = performance.now();
+  for (;;) {
+    const value = await read();
+    const ms = performance.now() - start;
+    if (value !== from) return { ms, value };
+    if (ms > timeoutMs) throw new Error(`still ${String(from)} after ${timeoutMs} ms`);
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
 }
 
 export function audioStates(page: Page) {
