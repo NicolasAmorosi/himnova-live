@@ -7,6 +7,7 @@ timers on a second screen, with the same two-step flow as EasyWorship: pick it, 
 and only then send it LIVE.
 
 **[Website](https://himnova-live.vercel.app/)** · **[Download](https://github.com/NicolasAmorosi/himnova-live/releases/latest)** ·
+**[Support](#support)** ·
 Windows, macOS and Linux · English, Spanish, Italian and Portuguese
 
 ![The Himnova Live control window: the schedule on the left, the preview in the middle and what is on the projector on the right](docs/screenshots/en/control-dark.webp)
@@ -103,6 +104,16 @@ from Releases once, and from then on it can.
   «Replace». Your programs, library and settings stay as they are.
 - **Linux:** the AppImage replaces itself; the `.deb` asks for your password to
   install.
+
+## Support
+
+Himnova Live is free, with no ads and no accounts. If it helps your church, you can help keep it going:
+
+- **[GitHub Sponsors](https://github.com/sponsors/NicolasAmorosi)**: by card, from any country.
+- **[Cafecito](https://cafecito.app/nicolasamorosi)**: in Argentine pesos, from Argentina.
+
+[Reporting a bug](https://github.com/NicolasAmorosi/himnova-live/issues/new?template=bug.yml) or
+[fixing a translation](https://github.com/NicolasAmorosi/himnova-live/issues/new?template=translation.yml) helps too.
 
 ## Development
 
