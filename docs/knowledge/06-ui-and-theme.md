@@ -16,20 +16,25 @@ Pieces copied almost verbatim because they solve a non-obvious problem:
 - `components/shared/modal/` → global stack + portal, so that only the top modal paints the
   backdrop when more than one is open.
 
-## Identity: Lumina Live
+## Identity: Himnova Live
 
-Since 2026-10-22 the product is called **Lumina Live** and has its own identity, which replaced
-the Adventist palette (ALPS/Denim) of earlier versions. The source is the «Identidad App Lumina
-Live» sheet (an Illustrator PDF, two pages: palette per mode, and logo + wordmark). Three things
-about that sheet that aren't visible at a glance and were found by reading the PDF's internals:
+Since 2026-11-11 the product is called **Himnova Live** (*himno* + *nova*, «a new song», Ps 96:1); it was
+**Lumina Live** from 2026-10-22 to 2.7.2, whose identity replaced the Adventist palette (ALPS/Denim) of earlier
+versions. The rename changed the **mark and the wordmark**; the **UI palette stays the one of the 2026-10-22
+identity sheet** (an Illustrator PDF: palette per mode, logo + wordmark), with what reading its internals found:
 
-- The **light mode Secondary** is labeled `#2f557f` (same as the Primary) but drawn
-  `#213c59`. The drawn value wins.
-- The sheet's typeface is **Noto Sans ExtraCondensed** (ExtraBold for titles and the wordmark,
-  SemiBold for labels). It's the same family as the app's text, in another width.
-- The logo is vector: a rounded rectangle `#162231` (radius 7.3%), a radial glow `#f7931e` at 8%,
-  and four flames — `#ffad40` at 31%, `#ffa92d`, `#e36520`, `#d14600`. «Live» is in `#d14600`.
-  It's traced as-is in `src/renderer/src/assets/brand/lumina-live-mark.svg`.
+- The **light mode Secondary** is labeled `#2f557f` (same as the Primary) but drawn `#213c59`. The drawn value wins.
+- The sheet's typeface is **Noto Sans ExtraCondensed** (ExtraBold for titles, SemiBold for labels): the same family
+  as the app's text, in another width. It still sets the app's titles.
+
+**The mark (2026-11-11, «Colofón»):** Literata's capital H re-cut by hand — the crossbar raised to 73 % and its
+underside an arch, so the letter is a door («Castillo fuerte es nuestro Dios», Ps 100:4); optical corrections (a
+crossbar thinner than the stems, the arch overshooting like Literata's «O»). Foil gold `#c6a15b` on navy (6.6:1); on
+white old gold `#8c6a2e` (5.0:1) — foil gold there is 2.4:1. The **wordmark** is «[H]imnova Live»: the mark is the
+name's raised initial, then «imnova Live» in Literata, outlined, in the text's colour. Two more drawings, hinted to the
+pixel: a 20 px one (the toolbar) and a 32 × 24 one (16/32/48 px, the OS icons). Red and teal never enter the brand.
+The sources (every variant, the round-by-round concepts, the OS icons' generator) are maintainer notes, outside
+this repo.
 
 ### The palette and its roles
 
@@ -156,14 +161,12 @@ the first render.
 
 ## The brand inside the app
 
-`components/ui/brand.tsx`: `BrandMark` (the logo SVG, as `<img alt="">` — it's an asset, its
-colors are the logo's and not the theme's, and it's the only place where a hex is legitimate) and
-`Wordmark` («Lumina / Live» in ExtraCondensed ExtraBold, line height 0.858 as on the sheet,
-«Live» in `text-brand-live`). It appears in two places, by the owner's decision: the symbol to the
-left of the TopBar and the header of **Settings ▸ About** (logo, name, version, logs). The logo's
-square is `#162231`, the same background as the dark theme: without a border only the flame was
-visible, floating. That's why `BrandMark` carries a 1 px inner outline in `brand-edge` (in dark,
-the same `#384f69` as the primary button's border, for the same reason; in light, transparent).
+`components/ui/brand.tsx`: `BrandMark` (the 20 px drawing inline, `currentColor`, in `text-muted-foreground`: on the
+toolbar it is a signature in the icons' grey, never a coloured button — the only colour on that bar is ON-AIR red) and
+`Wordmark` (the lockup inline: the initial in `fill-brand-mark`, gold on dark and old gold on light, the words in
+`currentColor`; `role="img"`, named «Himnova Live»; `font-size` sets its height). The mark sits at the left of the
+TopBar; the wordmark alone heads **Settings ▸ About** and the welcome's rail (never mark + wordmark side by side:
+the wordmark already starts with the mark).
 Never on the projector: with LOGO and no logo chosen the stage stays black; the congregation sees
 the church's brand and not the software's.
 
@@ -295,7 +298,7 @@ apart (`gap-8`), a group's title 8 px above its box. They were born inside Setti
 second consumer: it's literally the `CLAUDE.md` reuse rule firing. You add an option to an
 existing group, or open a new group; never a flat list of rows.
 
-`ColorField` is the color control. It picks from the Lumina Live sheet's swatches (neutrals,
+`ColorField` is the color control. It picks from the 2026-10-22 identity sheet's swatches (neutrals,
 blues, accent, indicators and the flame, with the sheet's EXACT values and not the interface's
 AA-adjusted ones: on the projector the color belongs to the brand) or accepts a custom hex, and
 **only emits `#rrggbb`** — a single canonical form, because two spellings of the same color in
@@ -305,7 +308,7 @@ panel and every dialog in this app clips its overflow.
 
 The hex values in `color-field.tsx`, in `DEFAULT_SCENE_STYLE` and in `DEFAULT_BIBLE_STYLE`
 **don't violate** the "no hardcoded colors in a component" rule —and since 2026-10-22 they also
-come from the Lumina Live sheet; a scene saved earlier keeps its own—: they're CONTENT values,
+come from the 2026-10-22 identity sheet; a scene saved earlier keeps its own—: they're CONTENT values,
 stored in a row and editable by the operator —the same category as a schedule's name—, and they
 end up in an inline `style` on the projector's stage, which has no theme. An INTERFACE color
 still always comes from a semantic token.
@@ -408,7 +411,7 @@ overscan that means the first and last lines cut in half.
 The `TopBar` is a **3-column grid identical to the `<main>`'s** below it (`grid-cols-3`), so each
 group of controls sits exactly above the column it acts on, regardless of the window's width:
 
-- **Column 1** (above Schedule/Resources): the Lumina Live symbol, the gear icon (Settings), the
+- **Column 1** (above Schedule/Resources): the Himnova Live mark, the gear icon (Settings), the
   current schedule's name as plain text, **«Save» with its word** (it was a 16 px icon), and two
   icons: new schedule, and the saved schedules (`pages/programs/ProgramsModal.tsx`).
 - **Column 2** (above Slides): a single **GO LIVE** button that calls

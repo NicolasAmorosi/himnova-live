@@ -3,7 +3,6 @@ import { NDI_TRADEMARK } from "@shared/types/ndi";
 import { useI18n, type Translate } from "@renderer/lib/i18n/i18n-provider";
 import {
   Badge,
-  BrandMark,
   Button,
   Caption,
   FieldGroup,
@@ -110,7 +109,6 @@ export function AboutSection() {
   return (
     <div className="flex flex-col gap-8">
       <div className="flex items-center gap-5 py-2">
-        <BrandMark className="size-20" />
         <div className="flex flex-col gap-2">
           <Wordmark className="text-5xl" />
           <Caption className="select-text">

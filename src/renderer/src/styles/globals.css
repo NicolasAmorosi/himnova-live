@@ -151,7 +151,7 @@
 }
 
 /*
- * Palette: the Lumina Live identity sheet ("Identidad App Lumina Live.pdf",
+ * Palette: the 2026-10-22 identity sheet ("Identidad App Lumina Live.pdf",
  * 2026-10-22). Every hue below is a value from that sheet, or a step derived
  * from two of them — never an invented colour:
  *
@@ -211,9 +211,8 @@
   --wa-primary: #2f557f;
   --wa-primary-hover: #3b5f87;
   --wa-primary-border: #3b5f87;
-  /* The mark's tile IS the background (#162231): on the toolbar only the flame
-   * showed. Same problem as the primary, same edge. */
-  --wa-brand-edge: #384f69;
+  /* The Himnova Live mark's foil gold on the navy (6.6:1). */
+  --wa-brand-mark: #c6a15b;
   --wa-secondary: #8299b2;
   --wa-secondary-hover: #91a5bb;
   --wa-secondary-foreground: #162231;
@@ -271,8 +270,8 @@
   --wa-primary: #2f557f;
   --wa-primary-hover: #213c59;
   --wa-primary-border: #2f557f;
-  /* A navy tile on white needs no edge. */
-  --wa-brand-edge: transparent;
+  /* Foil gold on white is 2.4:1: the old gold (5.0:1), as the brand sheet sets it. */
+  --wa-brand-mark: #8c6a2e;
   --wa-secondary: #213c59;
   --wa-secondary-hover: #182d44;
   --wa-secondary-foreground: #ffffff;
@@ -346,10 +345,8 @@
   /* Red, reserved for ONE meaning: content is on the projector right now. */
   --color-on-air: var(--wa-on-air);
   --color-on-air-foreground: #ffffff;
-  /* The "Live" of the wordmark and the flame's core. Logo-only: it is the
-   * same in both themes, like the logo, and never a UI state. */
-  --color-brand-live: #d14600;
-  --color-brand-edge: var(--wa-brand-edge);
+  /* The wordmark's initial (`Wordmark`). Logo-only, never a UI state. */
+  --color-brand-mark: var(--wa-brand-mark);
 
   --color-badge-ppt: var(--wa-badge-ppt);
   --color-badge-video: var(--wa-badge-video);
