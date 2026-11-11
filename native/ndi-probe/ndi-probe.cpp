@@ -134,10 +134,12 @@ static int count(const NDIlib_v6* ndi, const char* source, const char* url, int 
     if (n < 0) nobar++;
     else if (n == last) repeats++;
     else {
+      if (last >= 0 && n > last + 1) fprintf(stderr, "skip %ld->%ld\n", last, n);
       if (last >= 0 && n > last) skipped += n - last - 1;
       if (last >= 0 && n < last && frames > 0) {
         wraps++;
         skipped += frames - 1 - last + n;
+        fprintf(stderr, "wrap %ld->%ld\n", last, n);
       }
       fresh++;
       last = n;
