@@ -424,7 +424,11 @@ become one space (eBible's USFX wraps some verses mid-sentence).
 
 They are copied into the tables when installed, not at build time — that way an app update never
 overwrites the user's DB. `bible:import` does exactly the same: it parses the file in memory and
-inserts rows. **It never writes a file inside the app directory** — the legacy bug of
+inserts rows. Both run **on a worker thread with a connection of its own** (`seed-bible-worker.ts`, since
+2026-11-10): on main they held it ~260 ms, and every media-engine frame crosses main — a video on air froze.
+The seed's transaction is `IMMEDIATE` because of that second connection (see
+[`.claude/knowledge/a-second-sqlite-connection-turns-a-deferred-read-then-write-into-busy-snapshot.md`](../../.claude/knowledge/a-second-sqlite-connection-turns-a-deferred-read-then-write-into-busy-snapshot.md)).
+The launch's seed (`seedBuiltinBibles`) stays on main: nothing is on air yet. **It never writes a file inside the app directory** — the legacy bug of
 `import-bible` writing to `data/bible/` (broken in a packaged install because of permissions) does
 not exist in this design.
 
