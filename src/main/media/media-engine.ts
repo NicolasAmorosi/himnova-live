@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { sharedTexture, type SharedTextureHandle, type WebContents } from "electron";
 import { engineDir, enginePath } from "../paths";
+import { jsonLineReader, mpvVolume } from "./engine-protocol";
 
 /**
  * The media engine (`native/engine/engine.cpp`): ONE file per process, played by libmpv, which also
@@ -78,12 +79,6 @@ export function handles<T extends MacHandles | LinuxHandles>(): T {
   return handlesAddon as T;
 }
 
-/** 0..1, as `HTMLMediaElement.volume` takes it (linear amplitude) → mpv's `volume`, which it cubes
- *  (`player/audio.c`): sent as it was, the panel's 30% played at 2.7% of full scale. */
-function mpvVolume(volume: number): number {
-  return Math.round(Math.cbrt(Math.min(1, Math.max(0, volume))) * 100);
-}
-
 /** A ring texture as `sharedTexture` imports it. */
 function pointerBuffer(value: string): Buffer {
   const b = Buffer.alloc(8);
@@ -128,7 +123,6 @@ export class MediaEngine {
   exited = false;
   private readonly child: ChildProcess;
   private events: EngineEvents = {};
-  private stdoutBuffer = "";
   private stderrTail = "";
   private socketPath: string | null = null;
   private server = -1;
@@ -157,7 +151,7 @@ export class MediaEngine {
     this.child = spawn(enginePath, args, { windowsHide: true, stdio: ["pipe", "pipe", "pipe"] });
     running.add(this);
     this.child.stdout?.setEncoding("utf8");
-    this.child.stdout?.on("data", (chunk: string) => this.onStdout(chunk));
+    this.child.stdout?.on("data", jsonLineReader<EngineEvent>((event) => this.onEvent(event)));
     this.child.stderr?.setEncoding("utf8");
     this.child.stderr?.on("data", (chunk: string) => {
       this.stderrTail = (this.stderrTail + chunk).slice(-STDERR_TAIL_BYTES);
@@ -227,22 +221,6 @@ export class MediaEngine {
 
   private write(line: string): void {
     if (!this.exited && this.child.stdin?.writable) this.child.stdin.write(line + "\n");
-  }
-
-  private onStdout(chunk: string): void {
-    this.stdoutBuffer += chunk;
-    const lines = this.stdoutBuffer.split("\n");
-    this.stdoutBuffer = lines.pop() ?? "";
-    for (const line of lines) {
-      if (!line.trim()) continue;
-      let event: EngineEvent;
-      try {
-        event = JSON.parse(line) as EngineEvent;
-      } catch {
-        continue;
-      }
-      this.onEvent(event);
-    }
   }
 
   private onEvent(event: EngineEvent): void {

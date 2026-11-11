@@ -15,7 +15,7 @@ import { afterAll, beforeAll, describe, expect, test } from "vitest";
 import Database from "better-sqlite3";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import { openDatabase } from "../../src/main/db/client";
-import { backupBeforeMigrate, repairDanglingReferences, runMigrations } from "../../src/main/db/migrate";
+import { backupBeforeMigrate, openForLaunch, repairDanglingReferences, runMigrations } from "../../src/main/db/migrate";
 import { ProgramsRepo } from "../../src/main/db/repositories/programs.repo";
 
 const drizzleDir = path.join(process.cwd(), "drizzle");
@@ -235,12 +235,10 @@ test("a profile one migration behind is backed up, then migrated without losing 
   const before = userTableCounts(old.sqlite);
   old.sqlite.close();
 
-  // The launch of the new release: a verified snapshot first, because a migration IS pending.
-  const backup = backupBeforeMigrate(dbFile, backups, drizzleDir);
-  expect(backup.status).toBe("ok");
-
-  const fresh = openDatabase(dbFile);
-  runMigrations(fresh.db, drizzleDir);
+  // The launch of the new release, as `index.ts` runs it: a verified snapshot first, because a migration IS
+  // pending. Fails if the launch migrates before the backup (M11): nothing is pending by then, so no copy.
+  const fresh = openForLaunch(dbFile, backups, drizzleDir, () => {});
+  expect(fresh.backup.status).toBe("ok");
   const after = userTableCounts(fresh.sqlite);
   fresh.sqlite.close();
   for (const [table, rows] of Object.entries(before)) expect({ table, rows: after[table] }).toEqual({ table, rows });

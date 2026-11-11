@@ -1,7 +1,5 @@
 import fs from "node:fs";
-import { legacySettingsPath, legacyMediaLibraryPath } from "../paths";
 import type { SettingsRepo } from "../db/repositories/settings.repo";
-import { importPaths } from "./library-import";
 
 type LegacySettings = { logoPath?: string | null };
 type LegacyMediaLibrary = {
@@ -18,8 +16,12 @@ type LegacyMediaLibrary = {
  *
  * Renames the source to `*.migrated` afterwards so this never runs twice and
  * the original stays around as a safety net.
+ *
+ * The file (`paths.ts`' `legacySettingsPath`) and, below, the importer are
+ * passed in so that nothing here imports `electron`: tested in
+ * `tests/main/migrate-legacy-data.test.ts`.
  */
-export function migrateLegacySettingsIfPresent(settingsRepo: SettingsRepo): void {
+export function migrateLegacySettingsIfPresent(settingsRepo: Pick<SettingsRepo, "setMany">, legacySettingsPath: string): void {
   if (!fs.existsSync(legacySettingsPath)) return;
   try {
     const legacy = JSON.parse(fs.readFileSync(legacySettingsPath, "utf-8")) as LegacySettings;
@@ -49,7 +51,11 @@ export function migrateLegacySettingsIfPresent(settingsRepo: SettingsRepo): void
  * file is still there and the next launch redoes it — and the import is an
  * upsert, so redoing it costs nothing.
  */
-export async function migrateLegacyMediaIfPresent(): Promise<void> {
+export async function migrateLegacyMediaIfPresent(
+  legacyMediaLibraryPath: string,
+  /** `library-import.ts`' `importPaths`. */
+  importPaths: (paths: string[], kind: "video" | "image" | "audio", opts: { inLibrary: boolean }) => Promise<unknown>,
+): Promise<void> {
   if (!fs.existsSync(legacyMediaLibraryPath)) return;
 
   let legacy: LegacyMediaLibrary;

@@ -13,6 +13,8 @@ import { getSettingsRepo } from "../services/repos";
 import { enginePath } from "../paths";
 import { engineAvailable, handles, type LinuxHandles, type MacHandles } from "../media/media-engine";
 import { syncLiveEngine } from "../media/engine-sessions";
+import { jsonLineReader } from "../media/engine-protocol";
+import { paintVerdict } from "./ndi-pacing";
 
 /**
  * The NDI® output (plan `2026-11-09-ndi`, phase 1): the projection drawn a second time in an offscreen
@@ -44,12 +46,6 @@ let leaving: Promise<void> = Promise.resolve();
 const QUIT_GRACE_MS = 1000;
 
 const RESTART_DELAY_MS = 2000;
-/** With nobody watching, a frame at most this often. The NDI SDK hands the last frame it sent to every new
- *  receiver the moment it connects (measured 2026-11-09), and OBS can reconnect on every scene change:
- *  never sending would put a picture from minutes ago on air. The engine encodes these once each. */
-const IDLE_FRAME_MS = 500;
-/** A dropped paint whose page then went still is drawn again after this. */
-const SETTLE_MS = 100;
 const PRELOAD = path.join(__dirname, "../preload/index.js");
 
 function setStatus(next: NdiOutputStatus): void {
@@ -243,7 +239,6 @@ class NdiSender {
   private socketFd = -1;
   private readonly machService: string = "";
   private readonly socketPath: string = "";
-  private stdout = "";
   private stderrTail = "";
   private killed = false;
   private readonly gone: Promise<void>;
@@ -267,7 +262,7 @@ class NdiSender {
     }
     this.child = spawn(enginePath, args, { windowsHide: true, stdio: ["pipe", "pipe", "pipe"] });
     this.child.stdout?.setEncoding("utf8");
-    this.child.stdout?.on("data", (chunk: string) => this.onStdout(chunk));
+    this.child.stdout?.on("data", jsonLineReader<SenderEvent>((event) => this.onEvent(event)));
     this.child.stderr?.setEncoding("utf8");
     this.child.stderr?.on("data", (chunk: string) => {
       this.stderrTail = (this.stderrTail + chunk).slice(-STDERR_TAIL_BYTES);
@@ -282,14 +277,19 @@ class NdiSender {
 
   /** Takes the texture (true) until the engine has read it, or leaves it to the caller to release. */
   offer(texture: OffscreenSharedTexture): boolean {
-    if (!this.ready) return false;
-    const idleWait = this.receivers === 0 ? IDLE_FRAME_MS - (Date.now() - this.lastIdleFrame) : 0;
-    if (this.pending || idleWait > 0) {
+    const verdict = paintVerdict({
+      ready: this.ready,
+      inFlight: this.pending !== null,
+      receivers: this.receivers,
+      msSinceIdleFrame: Date.now() - this.lastIdleFrame,
+    });
+    if (!verdict.send) {
       // If the page goes still now, this was its last picture (the end of a fade): draw it again then.
-      this.settleTimer ??= setTimeout(() => {
-        this.settleTimer = null;
-        this.events.redraw();
-      }, Math.max(idleWait, SETTLE_MS));
+      if (verdict.redrawInMs !== null)
+        this.settleTimer ??= setTimeout(() => {
+          this.settleTimer = null;
+          this.events.redraw();
+        }, verdict.redrawInMs);
       return false;
     }
     const { handle, codedSize } = texture.textureInfo;
@@ -339,21 +339,6 @@ class NdiSender {
   private release(): void {
     this.pending?.release();
     this.pending = null;
-  }
-
-  private onStdout(chunk: string): void {
-    this.stdout += chunk;
-    const lines = this.stdout.split("\n");
-    this.stdout = lines.pop() ?? "";
-    for (const line of lines) {
-      let event: SenderEvent;
-      try {
-        event = JSON.parse(line) as SenderEvent;
-      } catch {
-        continue;
-      }
-      this.onEvent(event);
-    }
   }
 
   private onEvent(event: SenderEvent): void {

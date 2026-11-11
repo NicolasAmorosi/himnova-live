@@ -1,13 +1,13 @@
 ## Vetoing a window's `close` during a quit cancels the whole quit — `will-quit` never comes, and `win.close()` does not bring it back
 **Area:** build, data
-**Trigger:** touching `app.on("will-quit")`/`app.on("before-quit")` in `src/main/index.ts`, anything in `src/main/windows/close-guard.ts`, or any cleanup that is supposed to run "on exit"; also before writing a CDP/automated test that closes the control window.
+**Trigger:** touching `app.on("will-quit")`/`app.on("before-quit")` in `src/main/index.ts`, anything in `src/main/windows/close-guard.ts` or `close-gate.ts`, or any cleanup that is supposed to run "on exit"; also before writing a CDP/automated test that closes the control window.
 
 - **Claim:** `event.preventDefault()` inside `win.on("close")` does not *postpone* a quit, it
   **aborts** it. Electron stops the sequence there: no further windows are closed, `will-quit`
   never fires, and the app stays alive. Releasing the window afterwards with `win.close()` closes
   only that window — on macOS the app then lives on with no window at all, which looks exactly like
   a clean exit from the outside. To actually finish what the operator asked for, the answer has to
-  call **`app.quit()` again**; `close-guard.ts` captures the intent in `PendingClose.wasQuit` for
+  call **`app.quit()` again**; `close-gate.ts` captures the intent in the pending close's `wasQuit` for
   precisely that reason.
 
 - **What this cost, measured on 2026-09-14.** `closeDatabase()` was wired to `will-quit` (to

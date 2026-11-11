@@ -6,10 +6,13 @@ import { broadcast, controlWindows } from "../services/broadcast";
 import { projectionState } from "../services/projection-state";
 import { takeEngine, type EngineEvents, type MediaEngine } from "./media-engine";
 import {
+  applyToSession,
+  keepsSession,
   liveEngineAudio,
   liveEngineSlideVideo,
   liveEngineSongVideo,
   liveEngineState,
+  liveMediaStatus,
   watchStall,
   type LiveEngineState,
   type StallWatch,
@@ -100,14 +103,7 @@ function liveEvents(session: Session, target: MediaTarget, isCurrent: () => bool
         if (nudge === "resume") session.engine?.setPaused(false);
         else session.engine?.seek(status.time);
       }
-      broadcast("media-status", {
-        target,
-        epoch: session.epoch,
-        currentTimeSeconds: status.time,
-        durationSeconds: status.duration,
-        paused: status.paused,
-        ended: status.ended,
-      });
+      broadcast("media-status", liveMediaStatus(target, session.epoch, status));
     },
     error: (error) => {
       if (!isCurrent()) return;
@@ -136,28 +132,17 @@ function pictureExpected(
   };
 }
 
-/** A live session already playing its file: only what can change without a new epoch. */
-function apply(session: Session, want: { paused: boolean; volume: number; loop?: boolean }): void {
-  if (want.paused !== session.paused) session.engine?.setPaused(want.paused);
-  if (want.volume !== session.volume) session.engine?.setVolume(want.volume);
-  if (want.loop !== undefined && want.loop !== session.loop) session.engine?.setLoop(want.loop);
-  session.paused = want.paused;
-  session.volume = want.volume;
-  session.loop = want.loop ?? session.loop;
-}
-
 function syncAudio(projectorOpen: boolean): void {
   const want = new Map(liveEngineAudio(projectionState.getSnapshot().audioTracks, projectorOpen).map((t) => [t.trackId, t]));
   for (const [trackId, session] of audio) {
-    const track = want.get(trackId);
-    if (track && track.epoch === session.epoch && track.url === session.url) continue;
+    if (keepsSession(session, want.get(trackId) ?? null)) continue;
     session.engine?.quit();
     audio.delete(trackId);
   }
   for (const track of want.values()) {
     const existing = audio.get(track.trackId);
     if (existing) {
-      apply(existing, track);
+      applyToSession(existing, track);
       continue;
     }
     const session: Session = { engine: null, url: track.url, epoch: track.epoch, paused: track.paused, volume: track.volume, loop: track.loop };
@@ -169,7 +154,7 @@ function syncAudio(projectorOpen: boolean): void {
 
 function syncVideo(target: VideoTarget, want: LiveEngineState | null, windows: (BrowserWindow | null)[]): void {
   let session = videos[target];
-  if (session && (!want || want.epoch !== session.epoch || want.url !== session.url)) {
+  if (session && !keepsSession(session, want)) {
     session.engine?.quit();
     session = videos[target] = null;
   }
@@ -194,7 +179,7 @@ function syncVideo(target: VideoTarget, want: LiveEngineState | null, windows: (
         : liveEvents(fresh, { kind: target }, isCurrent);
     start(fresh, { startAtSeconds: want.startAtSeconds, audio: target !== "songVideo" }, liveEngineFrameKey(target, want.epoch), events);
   } else {
-    apply(session, want);
+    applyToSession(session, want);
   }
   // The projector, and the control window's LIVE monitor: one decode, the same frame on both.
   for (const win of windows) if (win) session.engine?.show(win.webContents);
@@ -229,7 +214,7 @@ export function setPreviewVideo(video: PreviewEngineVideo | null, contents: WebC
   }
   if (!video) return;
   if (preview) {
-    apply(preview, { paused: video.paused, volume: video.volume });
+    applyToSession(preview, { paused: video.paused, volume: video.volume });
     return;
   }
   // Audio decoded at PREVIEW's own volume, 0 to start (owner, 2026-11-05: «todo

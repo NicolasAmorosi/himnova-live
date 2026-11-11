@@ -1,9 +1,9 @@
 import { app, net } from "electron";
 import { spawn } from "node:child_process";
-import { createHash } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { saveVerified } from "./verified-download";
 
 /**
  * macOS updates without Squirrel.
@@ -47,38 +47,13 @@ export async function downloadDmg(
   fs.rmSync(dir, { recursive: true, force: true });
   fs.mkdirSync(dir, { recursive: true });
   const target = path.join(dir, path.basename(new URL(url).pathname));
-  const partial = `${target}.part`;
 
   const response = await net.fetch(url);
   if (!response.ok || !response.body) {
     throw Object.assign(new Error(`Cannot download ${url}: HTTP ${response.status}`), { statusCode: response.status });
   }
-  const total = Number(response.headers.get("content-length")) || size;
-  const hash = createHash("sha512");
-  const file = await fs.promises.open(partial, "w");
   // Node types the fetch body as a stream of `any`; it is bytes.
-  const reader: ReadableStreamDefaultReader<Uint8Array> = response.body.getReader();
-  let received = 0;
-  try {
-    for (let chunk = await reader.read(); !chunk.done; chunk = await reader.read()) {
-      hash.update(chunk.value);
-      await file.write(chunk.value);
-      received += chunk.value.byteLength;
-      onProgress(total > 0 ? Math.min(100, (received / total) * 100) : 0, received, total);
-    }
-  } finally {
-    await file.close();
-  }
-
-  const actual = hash.digest("base64");
-  if (actual !== sha512) {
-    fs.rmSync(partial, { force: true });
-    throw Object.assign(new Error(`sha512 checksum mismatch, expected ${sha512}, got ${actual}`), {
-      code: "ERR_CHECKSUM_MISMATCH",
-    });
-  }
-  fs.renameSync(partial, target);
-  return target;
+  return saveVerified(response.body, target, sha512, Number(response.headers.get("content-length")) || size, onProgress);
 }
 
 /** Synchronous and detached on purpose: «When the app closes» calls it from

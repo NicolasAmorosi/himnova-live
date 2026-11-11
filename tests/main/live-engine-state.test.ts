@@ -1,10 +1,13 @@
 import { expect, test } from "vitest";
 import {
   ENGINE_STALL_MS,
+  applyToSession,
+  keepsSession,
   liveEngineAudio,
   liveEngineSlideVideo,
   liveEngineSongVideo,
   liveEngineState,
+  liveMediaStatus,
   watchStall,
   type StallWatch,
 } from "../../src/main/media/live-engine-state";
@@ -131,4 +134,34 @@ test("a song's video background: silent, looping, paused under BLACK or with no 
   expect(liveEngineSongVideo(live, false)?.paused).toBe(true);
   // One Chromium plays needs no engine.
   expect(liveEngineSongVideo({ ...live, songVideo: { ...songVideo, url: assetUrl(9) } }, true)).toBeNull();
+});
+
+test("BLACK pauses the running engine in place, and GO LIVE again is a new engine", () => {
+  const sent: string[] = [];
+  const engine = {
+    setPaused: (paused: boolean) => void sent.push(`pause ${paused}`),
+    setVolume: (volume: number) => void sent.push(`volume ${volume}`),
+    setLoop: (loop: boolean) => void sent.push(`loop ${loop}`),
+  };
+  const session = { engine, url: engineAssetUrl(7), epoch: 3, paused: false, volume: 0.5, loop: false };
+  const black = liveEngineState(videoOutput(engineAssetUrl(7), { kind: "black" }), true);
+  // Fails if BLACK starts the file over in a new engine: the video would lose its position.
+  expect(keepsSession(session, black)).toBe(true);
+  applyToSession(session, black!);
+  // Fails if the engine is not paused (its sound goes on under BLACK) or is sent what did not change.
+  expect(sent).toEqual(["pause true"]);
+  // Fails if a new epoch (GO LIVE again) kept the old engine where it was.
+  expect(keepsSession(session, { ...black!, epoch: 4 })).toBe(false);
+});
+
+test("an engine file's end reaches the control window", () => {
+  // Fails if `ended` is lost (M04): an AVI that finished stays frozen on air and «Al terminar» never runs.
+  expect(liveMediaStatus({ kind: "video" }, 3, { time: 8, duration: 8, paused: true, ended: true })).toEqual({
+    target: { kind: "video" },
+    epoch: 3,
+    currentTimeSeconds: 8,
+    durationSeconds: 8,
+    paused: true,
+    ended: true,
+  });
 });

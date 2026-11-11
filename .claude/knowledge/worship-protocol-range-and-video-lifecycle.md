@@ -1,6 +1,6 @@
 ## `worship://` needs real Range support — and the projector's `<video>` lifecycle
 
-**Area:** main (`protocol/worship-protocol.ts`) | renderer (`components/shared/output-view.tsx`,
+**Area:** main (`protocol/worship-protocol.ts`, `serveFile` in `protocol/serve-file.ts`) | renderer (`components/shared/output-view.tsx`,
 `stores/projection.store.ts`, `shared/types/projection.ts`)
 **Trigger:** Any report of "the video plays for a second and freezes", a video that won't play
 after a few tries, broken/impossible seeking, a video progress bar that can't scrub, or before

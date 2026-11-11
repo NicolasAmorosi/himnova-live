@@ -1,6 +1,7 @@
 import { app, BrowserWindow, type Event, type WebContents } from "electron";
 import { broadcast } from "../services/broadcast";
 import type { CloseDecision } from "@shared/types/window";
+import { CloseGate } from "./close-gate";
 
 /**
  * Closing the control window is the control window's decision, not main's.
@@ -10,35 +11,10 @@ import type { CloseDecision } from "@shared/types/window";
  * knows. So main never asks itself "is there unsaved work?" — it vetoes the
  * close once, tells the control window the operator wants out, and waits to be
  * told what to do. Only the renderer can put the question to the operator, in
- * the app's own language, next to a Save button that actually works.
- *
- * The grace timer is the other half of the contract: a renderer that is
- * wedged, crashed, or simply has no listener must never make the app
- * unquittable. By the time it fires, the draft autosave (`program:saveDraft`)
- * has already put the schedule on disk, so closing without an answer loses
- * nothing.
+ * the app's own language, next to a Save button that actually works. The rules
+ * — the veto, the answers and the grace timer — are `CloseGate`'s.
  */
-const GRACE_MS = 4_000;
-
-/**
- * A close that has been vetoed and is waiting on the renderer.
- *
- * `wasQuit` is the part that is easy to get wrong. Vetoing a window's `close`
- * during a quit does not merely delay it — it CANCELS the whole quit, and
- * `will-quit` never runs. So the answer "yes, close" has to resume the quit
- * with `app.quit()` rather than just `win.close()`, or the app lives on with
- * no window: on macOS that looks like a clean exit while the process is still
- * there, and every `will-quit` chore (closing the database, which is what
- * checkpoints the WAL) is silently skipped. The intent is captured HERE, on
- * the pending close, because the global flag gets cleared while the operator
- * is still reading the dialog.
- */
-type PendingClose = { timer: NodeJS.Timeout | null; wasQuit: boolean };
-
-/** Windows already cleared to close, so the `close` that `resolve` itself
- *  triggers passes straight through instead of asking a second time. */
-const cleared = new WeakSet<WebContents>();
-const pending = new WeakMap<WebContents, PendingClose>();
+const gates = new WeakMap<WebContents, CloseGate>();
 
 /** Set by `holdQuitUntilAnswered`, consumed by the next vetoed close. */
 let quitRequested = false;
@@ -64,7 +40,7 @@ let guarded: BrowserWindow | null = null;
  */
 export function holdQuitUntilAnswered(event: Event): boolean {
   const win = guarded;
-  if (!win || win.isDestroyed() || cleared.has(win.webContents)) return false;
+  if (!win || win.isDestroyed() || gates.get(win.webContents)?.cleared) return false;
   event.preventDefault();
   quitRequested = true;
   win.close();
@@ -78,58 +54,32 @@ export function holdQuitUntilAnswered(event: Event): boolean {
  * question would offer a «Cancel» that cancels nothing, with the projector on.
  */
 export function releaseForUpdate(): void {
-  if (guarded && !guarded.isDestroyed()) cleared.add(guarded.webContents);
+  const gate = guarded && !guarded.isDestroyed() ? gates.get(guarded.webContents) : undefined;
+  if (gate) gate.cleared = true;
 }
 
 export function installCloseGuard(win: BrowserWindow): void {
   guarded = win;
+  const gate = new CloseGate({
+    ask: () => {
+      // Captured onto the pending close; the flag itself must not survive to
+      // colour an unrelated close later on.
+      quitRequested = false;
+      broadcast("close-requested", undefined);
+    },
+    close: () => win.close(),
+    quit: () => app.quit(),
+    alive: () => !win.isDestroyed(),
+  });
+  gates.set(win.webContents, gate);
   win.on("close", (event) => {
-    if (cleared.has(win.webContents)) return;
-    event.preventDefault();
-    // Already asked and still waiting: swallow the repeat rather than
-    // restarting the grace period on every impatient Cmd+Q.
-    if (pending.has(win.webContents)) return;
-
-    pending.set(win.webContents, {
-      wasQuit: quitRequested,
-      timer: setTimeout(() => {
-        const entry = pending.get(win.webContents);
-        if (entry) entry.timer = null;
-        if (!win.isDestroyed()) resolveClose(win, "close");
-      }, GRACE_MS),
-    });
-    // Captured onto the pending close; the flag itself must not survive to
-    // colour an unrelated close later on.
-    quitRequested = false;
-    broadcast("close-requested", undefined);
+    if (!gate.onClose(quitRequested)) event.preventDefault();
   });
 }
 
-/**
- * The control window's answer.
- *
- * - `"close"`: go ahead (the operator confirmed, or there was nothing to lose).
- * - `"hold"`: a dialog is on screen — drop the grace timer so the window is
- *   never closed out from under a question the operator is still reading, but
- *   keep the pending close so the answer still knows it came from a quit.
- * - `"cancel"`: the operator said no. Forget everything, so the next close
- *   asks again instead of finding a stale pending record and staying silent.
- */
+/** The control window's answer (`CloseGate.resolve`). A window with no guard just closes on "close". */
 export function resolveClose(win: BrowserWindow, decision: CloseDecision): void {
-  const entry = pending.get(win.webContents);
-  if (decision === "hold") {
-    if (entry?.timer) {
-      clearTimeout(entry.timer);
-      entry.timer = null;
-    }
-    return;
-  }
-
-  if (entry?.timer) clearTimeout(entry.timer);
-  pending.delete(win.webContents);
-  if (decision === "cancel") return;
-
-  cleared.add(win.webContents);
-  if (entry?.wasQuit) app.quit();
-  else win.close();
+  const gate = gates.get(win.webContents);
+  if (gate) gate.resolve(decision);
+  else if (decision === "close") win.close();
 }

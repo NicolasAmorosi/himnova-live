@@ -2,8 +2,7 @@ import { app, BrowserWindow, dialog } from "electron";
 import fs from "node:fs";
 import path from "node:path";
 import { registerWorshipScheme, registerWorshipProtocolHandler } from "./protocol/worship-protocol";
-import { openDatabase } from "./db/client";
-import { backupBeforeMigrate, repairDanglingReferences, runMigrations } from "./db/migrate";
+import { openForLaunch } from "./db/migrate";
 import { seedBuiltinBibles } from "./db/seed/seed-bible";
 import { seedUtilityScenes } from "./db/seed/seed-utility-scenes";
 import { seedSongThemes } from "./db/seed/seed-song-themes";
@@ -22,6 +21,7 @@ import {
   migrateLegacySettingsIfPresent,
   migrateLegacyMediaIfPresent,
 } from "./services/migrate-legacy-data";
+import { importPaths } from "./services/library-import";
 import { setBibleDb } from "./ipc/handlers/bible";
 import { registerAllIpcHandlers } from "./ipc";
 import { createControlWindow } from "./windows/control-window";
@@ -99,19 +99,7 @@ function initDatabase(): void {
   // migration-failure dialog below is said before they can.
   setMainLocale(systemLocale());
 
-  // Kept and reported rather than assumed: the error box below used to promise
-  // a backup unconditionally, which on the one morning it matters sends the
-  // operator looking for a file that may not be there.
-  const backup = backupBeforeMigrate(dbPath, dbBackupDir, migrationsDir);
-  if (backup.status === "failed") console.warn("[db] pre-migration backup failed:", backup.reason);
-
-  const { sqlite, db } = openDatabase(dbPath);
-
-  try {
-    const repaired = repairDanglingReferences(sqlite);
-    if (repaired > 0) console.warn(`[db] repaired ${repaired} row(s) pointing at a deleted parent`);
-    runMigrations(db, migrationsDir);
-  } catch (error) {
+  const { sqlite, db } = openForLaunch(dbPath, dbBackupDir, migrationsDir, (error, backup) => {
     dialog.showErrorBox(
       mt("dialogs.dbErrorTitle"),
       [
@@ -124,8 +112,7 @@ function initDatabase(): void {
     );
     // Explained already: `reportCrash` still logs it, without a second dialog.
     crashDialogShown = true;
-    throw error;
-  }
+  });
 
   initRepos(db, sqlite);
   // A new install starts in the OS's language; every other one keeps its own,
@@ -147,7 +134,7 @@ function initDatabase(): void {
   // deleted across launches. After the locale too: a new profile gets the
   // bundled versions of its language. See `seedBuiltinBibles`.
   seedBuiltinBibles(db, sqlite, biblesDir, getSettingsRepo(), isNewProfile);
-  migrateLegacySettingsIfPresent(getSettingsRepo());
+  migrateLegacySettingsIfPresent(getSettingsRepo(), legacySettingsPath);
   // After `initRepos`, unlike the Bible seed above: this one needs two
   // repositories rather than a raw handle, and the flag it reads lives in
   // `settings`.
@@ -283,7 +270,7 @@ if (gotSingleInstanceLock) {
     // The other half of the legacy import (`media_library.json`). Off the
     // startup path: it is a whole library's worth of files, and the rows it
     // creates reach an open window through `library-changed`.
-    void migrateLegacyMediaIfPresent().catch((error: unknown) => {
+    void migrateLegacyMediaIfPresent(legacyMediaLibraryPath, importPaths).catch((error: unknown) => {
       console.warn("[legacy] media migration failed", error);
     });
 
