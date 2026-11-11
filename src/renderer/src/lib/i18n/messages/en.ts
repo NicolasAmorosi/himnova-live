@@ -968,7 +968,7 @@ const en: Messages = {
       enabledDesc: "The picture exactly as the projector shows it, with the app's sound.",
       enabledHelp:
         "The app's sound travels with the picture (it can be turned off below, if OBS takes it from the mixing desk). This computer needs NDI's free runtime installed (ndi.video). Video needs a fast network: connect this computer and the receiving one with a gigabit (1 Gbps) network cable; over Wi-Fi or a 100 Mbps cable, use 720p. A VPN (ZeroTier, Tailscale) on both computers can carry the picture through itself: turn it off while you use NDI.",
-      firewall: "The first time, Windows Firewall asks about “Himnova Live media engine”: press “Allow”, or other computers won't receive the picture.",
+      firewall: "The first time, Windows Firewall asks about “Himnova Live media engine”: press “Allow access” (“Allow” on Windows 11), or other computers won't receive the picture.",
       localNetwork: "The first time, macOS asks whether Himnova Live may use the local network: press “Allow”, or other computers won't receive the picture.",
       status: "Status",
       states: {
@@ -1022,7 +1022,7 @@ const en: Messages = {
     logs: "Logs",
     logsDesc: "main.log and crash.log, to send when something goes wrong.",
     logsOpen: "Open logs folder",
-    license: "Licence",
+    license: "License",
     licenseDesc: "Free software: anyone may use, study, change and share it.",
     sourceCode: "Source code",
     trademarks: "Trademarks",

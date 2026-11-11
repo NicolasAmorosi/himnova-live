@@ -969,7 +969,7 @@ const pt: Messages = {
       enabledDesc: "A imagem, exatamente como o projetor mostra, com o som do app.",
       enabledHelp:
         "O som do app viaja com a imagem (dá para desligar abaixo, se o OBS o pega da mesa de som). Este computador precisa do runtime gratuito do NDI instalado (ndi.video). O vídeo pede uma rede rápida: conecte este computador e o que recebe com cabo de rede gigabit (1 Gbps); por Wi-Fi ou com um cabo de 100 Mbps, use 720p. Uma VPN (ZeroTier, Tailscale) nos dois computadores pode levar a imagem por ela: desligue-a enquanto usar NDI.",
-      firewall: "Na primeira vez, o Firewall do Windows pergunta sobre “Himnova Live media engine”: clique em “Permitir”, senão os outros computadores não recebem a imagem.",
+      firewall: "Na primeira vez, o Firewall do Windows pergunta sobre “Himnova Live media engine”: clique em “Permitir acesso” (“Permitir” no Windows 11), senão os outros computadores não recebem a imagem.",
       localNetwork: "Na primeira vez, o macOS pergunta se o Himnova Live pode usar a rede local: clique em “Permitir”, senão os outros computadores não recebem a imagem.",
       status: "Status",
       states: {
@@ -1271,7 +1271,7 @@ const pt: Messages = {
       },
       move: {
         title: "Avance",
-        body: "As setas ou um passador de slides avançam slides e versículos. Numa música: 1–9 estrofes, C coro, P ponte.",
+        body: "As setas ou um passador de slides avançam slides e versículos. Numa música: 1–9 estrofes, C refrão, P ponte.",
       },
       practice: "Praticar",
       firstSteps: "Mostrar “Primeiros passos”",
