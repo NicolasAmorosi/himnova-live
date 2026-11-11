@@ -1,6 +1,6 @@
 {
   "name": "worship-app",
-  "version": "2.7.2",
+  "version": "2.8.0",
   "description": "Free and open-source church presentation software: slides, video, Bible and timers on a second screen.",
   "main": "./out/main/index.js",
   "author": "Nicolas Amorosi",
