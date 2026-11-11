@@ -403,6 +403,9 @@ npm run test:e2e              # build + Playwright: 268 walkthroughs of the real
                               #   it also runs the real hymnal (`hymnal.spec.ts`). The suite runs the app in
                               #   Spanish on purpose (`--lang=es`, `tests/e2e/support/app.ts`): its locators are
                               #   the `es.ts` strings, so they stay in Spanish
+npm run tutorials             # build + Playwright: films the landing's tutorial videos off the real app in the four
+                              #   languages (`tests/e2e/tutorials.record.ts`, captions in `tutorials.content.ts`) into
+                              #   $TMPDIR/himnova-tutorials (TUTORIALS=song,bible TUTORIAL_LOCALES=es pick); composed outside this repo
 npm run fetch:binaries        # FFmpeg + media engine for this machine (the postinstall and every package:* also do it)
 npm run db:generate            # drizzle-kit generate — new migration after editing db/schema.ts
 npm run build                 # electron-vite build

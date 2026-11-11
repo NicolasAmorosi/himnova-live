@@ -972,7 +972,7 @@ const it: Messages = {
       enabledDesc: "L'immagine, esattamente come la mostra il proiettore, con il suono dell'app.",
       enabledHelp:
         "Il suono dell'app viaggia con l'immagine (si può spegnere qui sotto, se OBS lo prende dal mixer). Su questo computer serve il runtime gratuito di NDI (ndi.video). Il video richiede una rete veloce: collega questo computer e quello che riceve con un cavo di rete gigabit (1 Gbps); via Wi-Fi o con un cavo da 100 Mbps, usa 720p. Una VPN (ZeroTier, Tailscale) su entrambi i computer può far passare l'immagine da lì: spegnila mentre usi NDI.",
-      firewall: "La prima volta, Windows Firewall chiede di «Himnova Live media engine»: premi «Consenti», altrimenti gli altri computer non ricevono l'immagine.",
+      firewall: "La prima volta, Windows Firewall chiede di «Himnova Live media engine»: premi «Consenti accesso» («Consenti» su Windows 11), altrimenti gli altri computer non ricevono l'immagine.",
       localNetwork: "La prima volta, macOS chiede se Himnova Live può usare la rete locale: premi «Consenti», altrimenti gli altri computer non ricevono l'immagine.",
       status: "Stato",
       states: {
@@ -1270,7 +1270,7 @@ const it: Messages = {
       live: { title: "Proietta", body: "Invio, un doppio clic o IN ONDA lo manda al proiettore." },
       cover: {
         title: "Copri",
-        body: "NERO oscura lo schermo e LOGO mostra la tua chiesa. Premilo di nuovo e torna ciò che c'era.",
+        body: "NERO oscura lo schermo e LOGO mostra la tua chiesa. Con LIVE torna quello che c'era.",
       },
       move: {
         title: "Avanza",

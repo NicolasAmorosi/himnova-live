@@ -37,7 +37,7 @@ const en: MainMessages = {
     dbErrorBackup: "A verified backup was kept at\n{path}",
     dbErrorNoBackup: "There's no backup from before this migration.",
     crashTitle: "Unexpected error",
-    formerAppTitle: "The previous version, «Lumina Live», was moved to the Trash",
+    formerAppTitle: "The previous version, “Lumina Live”, was moved to the Trash",
     formerAppDetail: "The app is now called Himnova Live: open it from Applications. Your programs, library and settings are as they were.",
   },
   filters: {

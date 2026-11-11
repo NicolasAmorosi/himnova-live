@@ -63,8 +63,8 @@ export const CONTENT: Record<Locale, Content> = {
         name: "Anuncios de la semana",
         slides: [
           { title: "Anuncios", credit: "Esta semana en la iglesia" },
-          { title: "Reunión de jóvenes", credit: "Sábado · 18:00 · Salón principal" },
-          { title: "Cena de camaradería", credit: "Domingo · 20:30 · Traé algo para compartir" },
+          { title: "Reunión de jóvenes", credit: "18:00 · Salón principal" },
+          { title: "Cena de camaradería", credit: "20:30 · Traé algo para compartir" },
         ],
       },
       sermon: {
@@ -115,8 +115,8 @@ export const CONTENT: Record<Locale, Content> = {
         name: "This week's announcements",
         slides: [
           { title: "Announcements", credit: "This week at church" },
-          { title: "Youth meeting", credit: "Saturday · 6:00 pm · Main hall" },
-          { title: "Fellowship dinner", credit: "Sunday · 8:30 pm · Bring something to share" },
+          { title: "Youth meeting", credit: "6:00 pm · Main hall" },
+          { title: "Fellowship dinner", credit: "8:30 pm · Bring something to share" },
         ],
       },
       sermon: {
@@ -179,8 +179,8 @@ export const CONTENT: Record<Locale, Content> = {
         name: "Avvisi della settimana",
         slides: [
           { title: "Avvisi", credit: "Questa settimana in chiesa" },
-          { title: "Incontro dei giovani", credit: "Sabato · 18:00 · Salone principale" },
-          { title: "Cena fraterna", credit: "Domenica · 20:30 · Porta qualcosa da condividere" },
+          { title: "Incontro dei giovani", credit: "18:00 · Salone principale" },
+          { title: "Cena fraterna", credit: "20:30 · Porta qualcosa da condividere" },
         ],
       },
       sermon: {
@@ -245,8 +245,8 @@ export const CONTENT: Record<Locale, Content> = {
         name: "Avisos da semana",
         slides: [
           { title: "Avisos", credit: "Esta semana na igreja" },
-          { title: "Reunião de jovens", credit: "Sábado · 18:00 · Salão principal" },
-          { title: "Jantar de confraternização", credit: "Domingo · 20:30 · Traga algo para compartilhar" },
+          { title: "Reunião de jovens", credit: "18:00 · Salão principal" },
+          { title: "Jantar de confraternização", credit: "20:30 · Traga algo para compartilhar" },
         ],
       },
       sermon: {

@@ -24,6 +24,7 @@
     "test:watch": "vitest",
     "test:e2e": "npm run build && playwright test",
     "screenshots": "npm run build && playwright test -c playwright.screenshots.config.ts",
+    "tutorials": "npm run build && playwright test -c playwright.tutorials.config.ts",
     "db:generate": "drizzle-kit generate",
     "fetch:binaries": "tsx scripts/fetch-binaries.ts",
     "package": "npm run build && tsx scripts/fetch-binaries.ts && electron-builder",
