@@ -37,7 +37,7 @@ const pt: MainMessages = {
     dbErrorBackup: "Uma cópia de segurança verificada foi mantida em\n{path}",
     dbErrorNoBackup: "Não há uma cópia de segurança anterior a esta migração.",
     crashTitle: "Erro inesperado",
-    formerAppTitle: "A versão anterior, «Lumina Live», foi movida para a Lixeira",
+    formerAppTitle: "A versão anterior, “Lumina Live”, foi movida para a Lixeira",
     formerAppDetail: "Agora o app se chama Himnova Live: abra-o em Aplicativos. Seus programas, a biblioteca e as configurações continuam como estavam.",
   },
   filters: {

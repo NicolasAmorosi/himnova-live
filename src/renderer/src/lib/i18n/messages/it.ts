@@ -1270,7 +1270,7 @@ const it: Messages = {
       live: { title: "Proietta", body: "Invio, un doppio clic o IN ONDA lo manda al proiettore." },
       cover: {
         title: "Copri",
-        body: "NERO oscura lo schermo e LOGO mostra la tua chiesa. Premilo di nuovo e torna ciò che c'era.",
+        body: "NERO oscura lo schermo e LOGO mostra la tua chiesa. Con LIVE torna quello che c'era.",
       },
       move: {
         title: "Avanza",

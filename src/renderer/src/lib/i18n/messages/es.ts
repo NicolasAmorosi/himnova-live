@@ -1279,7 +1279,7 @@ const es = {
       live: { title: "Proyectá", body: "Enter, doble clic o EN VIVO lo manda al proyector." },
       cover: {
         title: "Tapá",
-        body: "NEGRO deja la pantalla en negro y LOGO muestra tu iglesia. Tocalo de nuevo y vuelve lo que estaba.",
+        body: "NEGRO deja la pantalla en negro y LOGO muestra tu iglesia. Con VIVO vuelve lo que estaba.",
       },
       move: {
         title: "Avanzá",
