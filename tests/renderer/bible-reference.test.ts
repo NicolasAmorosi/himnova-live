@@ -95,6 +95,20 @@ test("a whole reference: chapter and verses, with any separator, half typed too"
   expect(parseReference("Juan 3:")).toMatchObject({ name: "Juan", chapter: 3, verseFrom: null });
   expect(parseReference("Juan 3:18-16")).toMatchObject({ verseFrom: 18, verseTo: null });
   expect(matchReference(rv1909, "Jn 3:16-18", "es")[0]).toMatchObject({ book: { name: "Juan" }, chapter: 3, verseFrom: 16, verseTo: 18 });
+  // A space is a separator too (owner, 2026-11-10): typed fast, «Juan 3 16» was book «Juan 3», chapter 16 — nothing.
+  expect(parseReference("Juan 3 16")).toEqual({ name: "Juan", chapter: 3, verseFrom: 16, verseTo: null });
+  expect(parseReference("1 Juan 3 2")).toEqual({ name: "1 Juan", chapter: 3, verseFrom: 2, verseTo: null });
+  expect(parseReference("Sal 119 105-112")).toEqual({ name: "Sal", chapter: 119, verseFrom: 105, verseTo: 112 });
+});
+
+test("a number alone is a verse of the open chapter, and without one it is still a book's start", () => {
+  const juan = rv1909[42]!;
+  expect(matchReference(rv1909, "16", "es", { book: juan, chapter: 3 })).toEqual([
+    { name: "", book: juan, chapter: 3, verseFrom: 16, verseTo: null },
+  ]);
+  expect(matchReference(rv1909, "1 Co 13", "es", { book: juan, chapter: 3 })[0]).toMatchObject({ book: { name: "1 Corintios" } });
+  expect(matchReference(rv1909, "0", "es", { book: juan, chapter: 3 })).not.toContainEqual(expect.objectContaining({ verseFrom: 0 }));
+  expect(matchReference(rv1909, "2", "es")[0]).toMatchObject({ book: { name: "2 Samuel" } });
 });
 
 test("the same book across versions: by canonical position, or by abbreviation in a partial one", () => {

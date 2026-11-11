@@ -632,7 +632,7 @@ const es = {
     book: "Libro...",
     chapter: "Cap...",
     search: "Buscar texto…",
-    referenceSearch: "Buscar libro y capítulo…",
+    referenceSearch: "Libro, capítulo y versículo…",
     searchMode: "Modo de búsqueda",
     modeReference: "Referencia",
     modeText: "Texto",

@@ -79,7 +79,7 @@ test("an order of service survives the app being killed", async ({ app }) => {
 
 test("typing in a search box never presses a shortcut", async ({ app }) => {
   const projector = await verseLive(app);
-  const search = app.control.getByRole("textbox", { name: "Buscar libro y capítulo…" });
+  const search = app.control.getByRole("textbox", { name: "Libro, capítulo y versículo…" });
   await search.fill("");
   await search.pressSequentially("lbl b");
   await app.control.waitForTimeout(500);

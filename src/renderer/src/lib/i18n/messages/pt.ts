@@ -632,7 +632,7 @@ const pt: Messages = {
     book: "Livro…",
     chapter: "Cap…",
     search: "Buscar texto…",
-    referenceSearch: "Buscar livro e capítulo…",
+    referenceSearch: "Livro, capítulo e versículo…",
     searchMode: "Modo de busca",
     modeReference: "Referência",
     modeText: "Texto",

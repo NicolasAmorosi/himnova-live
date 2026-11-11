@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes, KeyboardEvent as ReactKeyboardEvent } from "react";
+import type { ButtonHTMLAttributes, KeyboardEvent as ReactKeyboardEvent, Ref } from "react";
 import { Fragment, useContext, useEffect, useId, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useT } from "@renderer/lib/i18n/i18n-provider";
@@ -28,9 +28,15 @@ type SelectProps = Omit<ButtonHTMLAttributes<HTMLButtonElement>, "onChange" | "t
    *  inside the picker, not in a button that did not fit beside it). It sits
    *  at index `visible.length` of the keyboard's highlight. */
   action?: SelectAction | undefined;
-  onChange: (value: string) => void;
+  /** What the filter box leaves for a query (`searchable`): by default the options whose label contains it. The
+   *  Bible's book picker ranks by the abbreviations an operator types («apoc», «1 co», «jn»). */
+  filter?: (options: readonly SelectOption[], query: string) => readonly SelectOption[];
+  /** `byKeyboard`: picked with Enter or Space, not clicked — the trigger has the focus back. */
+  onChange: (value: string, byKeyboard: boolean) => void;
   options: SelectOption[];
   placeholder?: string;
+  /** The trigger: its `click()` opens the menu, as a click does. */
+  ref?: Ref<HTMLButtonElement>;
   /** Puts a filter box at the top of the menu, for a list nobody can scan —
    *  the machine's installed font families. It REPLACES the type-ahead: with a
    *  real text field open, a letter belongs to the query, not to a jump. Off by
@@ -67,9 +73,11 @@ export function Select({
   action,
   className,
   disabled,
+  filter = filterOptions,
   onChange,
   options,
   placeholder,
+  ref,
   searchable = false,
   size = "sm",
   value,
@@ -96,8 +104,8 @@ export function Select({
    *  screen, which is how a keyboard commit picks the wrong font. */
   const ordered = useMemo(() => orderByGroup(options), [options]);
   const visible = useMemo(
-    () => (searchable ? filterOptions(ordered, query) : ordered),
-    [ordered, query, searchable],
+    () => (searchable ? filter(ordered, query) : ordered),
+    [filter, ordered, query, searchable],
   );
 
   /** Rows the highlight walks: the visible options, then the action. */
@@ -197,8 +205,10 @@ export function Select({
     }
     const option = visible[index];
     if (!option || option.disabled) return;
-    onChange(option.value);
+    // Closed first, like the action above: the focus it gives back is the trigger's, and a caller that moves it
+    // on (the Bible's chapter picker hands it to the search field) must have the last word.
     closeMenu(refocusTrigger);
+    onChange(option.value, refocusTrigger);
   }
 
   function moveHighlight(delta: number) {
@@ -214,7 +224,8 @@ export function Select({
     });
   }
 
-  function handleTypeahead(char: string) {
+  /** Whether `char` jumped to an option: the key was the list's, not a shortcut's (a digit jumps a live song). */
+  function handleTypeahead(char: string): boolean {
     const state = typeaheadRef.current;
     window.clearTimeout(state.timer);
     state.buffer += char.toLowerCase();
@@ -230,9 +241,10 @@ export function Select({
       if (option && !option.disabled && option.label.toLowerCase().startsWith(state.buffer)) {
         if (open) setHighlightedIndex(index);
         else openMenu(index);
-        return;
+        return true;
       }
     }
+    return false;
   }
 
   function handleQueryChange(next: string) {
@@ -240,7 +252,7 @@ export function Select({
     // The highlight is an index into a list that just changed under it, so it
     // is re-seeded rather than kept: Enter must commit the row the operator is
     // looking at, which after typing is the first match.
-    setHighlightedIndex(firstEnabledIndex(filterOptions(ordered, next)));
+    setHighlightedIndex(firstEnabledIndex(filter(ordered, next)));
   }
 
   function handleKeyDown(e: ReactKeyboardEvent<HTMLElement>) {
@@ -303,7 +315,9 @@ export function Select({
         closeMenu(searchable);
         break;
       default:
-        if (!searchable && e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) handleTypeahead(e.key);
+        if (!searchable && e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey && handleTypeahead(e.key)) {
+          e.preventDefault();
+        }
     }
   }
 
@@ -322,7 +336,11 @@ export function Select({
       disabled={disabled}
       onClick={() => (open ? setOpen(false) : openMenu())}
       onKeyDown={handleKeyDown}
-      ref={triggerRef}
+      ref={(element) => {
+        triggerRef.current = element;
+        if (typeof ref === "function") ref(element);
+        else if (ref) ref.current = element;
+      }}
       role="combobox"
       type="button"
       {...props}

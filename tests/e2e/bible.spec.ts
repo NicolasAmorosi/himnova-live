@@ -377,7 +377,7 @@ async function saveProgramAs(app: WorshipApp, name: string) {
 
 test("the reference finder reads Spanish abbreviations and whole references as the book they mean", async ({ app }) => {
   await app.openChapter("Juan 3");
-  const search = bibleTab(app).getByRole("textbox", { name: "Buscar libro y capítulo…" });
+  const search = bibleTab(app).getByRole("textbox", { name: "Libro, capítulo y versículo…" });
   const first = bibleTab(app).getByRole("listitem").first();
   // The standard Spanish abbreviations, as RVR, NVI and DHH print them.
   for (const [typed, book] of [
@@ -403,6 +403,32 @@ test("the reference finder reads Spanish abbreviations and whole references as t
     await search.fill(typed);
     await expect(first, typed).toContainText("Juan 3");
   }
+});
+
+test("the pickers are typed: a book by its abbreviation, its chapter, then the verse in the search field (owner, 2026-11-10)", async ({ app }) => {
+  const { control } = app;
+  await app.openResources("Biblia");
+  const tab = bibleTab(app);
+  await tab.getByRole("combobox", { name: "Libro" }).click();
+  await control.keyboard.type("apoc");
+  await control.keyboard.press("Enter");
+  await expect(tab.getByRole("combobox", { name: "Libro" })).toHaveText("Apocalipsis");
+  // Picked with the keyboard, the chapter's picker opened by itself with its filter focused: «2» lists 2, 12, 20–22 and the 2 is the pick.
+  await control.keyboard.type("2");
+  await control.keyboard.press("Enter");
+  await expect(tab.getByRole("combobox", { name: "Capítulo" })).toHaveText("2");
+  await expect(tab.getByRole("listitem").first()).toContainText("al ángel de la iglesia en EFESO");
+  // Picked with the keyboard, the chapter hands the keys to the search field: a number alone is its verse.
+  const search = tab.getByRole("textbox", { name: "Libro, capítulo y versículo…" });
+  await expect(search).toBeFocused();
+  await control.keyboard.type("10");
+  await expect(tab.getByRole("listitem")).toHaveText(["Apocalipsis 2:10"]);
+  await control.keyboard.press("Enter");
+  await expect(control.getByText("Apocalipsis 2:10").first()).toBeVisible();
+  expect(app.hasProjector()).toBe(false);
+  // «Juan 3 16», with a space: the verse too.
+  await search.fill("Juan 3 16");
+  await expect(tab.getByRole("listitem").first()).toHaveText("Juan 3:16");
 });
 
 test("a word search finds without accents, and quotes or search operators typed in it break nothing", async ({ app }) => {

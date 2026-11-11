@@ -633,7 +633,7 @@ const it: Messages = {
     book: "Libro…",
     chapter: "Cap…",
     search: "Cerca nel testo…",
-    referenceSearch: "Cerca libro e capitolo…",
+    referenceSearch: "Libro, capitolo e versetto…",
     searchMode: "Modalità di ricerca",
     modeReference: "Riferimento",
     modeText: "Testo",

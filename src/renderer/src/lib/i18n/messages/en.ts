@@ -631,7 +631,7 @@ const en: Messages = {
     book: "Book…",
     chapter: "Ch…",
     search: "Search text…",
-    referenceSearch: "Find book and chapter…",
+    referenceSearch: "Book, chapter and verse…",
     searchMode: "Search mode",
     modeReference: "Reference",
     modeText: "Text",

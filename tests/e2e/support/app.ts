@@ -200,7 +200,7 @@ export class WorshipApp {
   async openChapter(reference: string): Promise<void> {
     await this.openResources("Biblia");
     const panel = this.control.getByRole("tabpanel", { name: this.tr("Biblia") });
-    await panel.getByRole("textbox", { name: this.tr("Buscar libro y capítulo…") }).fill(reference);
+    await panel.getByRole("textbox", { name: this.tr("Libro, capítulo y versículo…") }).fill(reference);
     await expect(panel.getByRole("listitem").filter({ hasText: new RegExp(`^${reference}$`) })).toBeVisible();
     await this.control.keyboard.press("Enter");
   }

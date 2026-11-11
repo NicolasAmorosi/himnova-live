@@ -14,6 +14,7 @@ import {
   Select,
   Segmented,
   Tooltip,
+  type SelectOption,
 } from "@renderer/components/ui";
 import { ModalBoundary } from "@renderer/components/shared/modal-boundary";
 import { PanelBody, PanelFooter } from "@renderer/components/shared/panel";
@@ -79,6 +80,15 @@ export function BibleBrowser() {
   const versionOptions = useMemo(() => bibleVersionOptions(versions, locale), [versions, locale]);
   const [pendingBook, setPendingBook] = useState("");
   const [pendingChapter, setPendingChapter] = useState("");
+  /** Typing through the pickers (owner, 2026-11-10): a book picked with the keyboard opens the chapter's, and a
+   *  chapter picked with it hands the keys to the search field, where a number alone is a verse of it. */
+  const chapterPickerRef = useRef<HTMLButtonElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
+  const [chapterPickerWanted, setChapterPickerWanted] = useState(0);
+  useEffect(() => {
+    // After the render that gave the chapter picker its book's chapters: before it, it was disabled or listed the last book's.
+    if (chapterPickerWanted) chapterPickerRef.current?.click();
+  }, [chapterPickerWanted]);
   // The pickers follow the chapter the tab holds, wherever it was loaded from:
   // a search hit, a bookmark, a verse picked in PREVIEW from a schedule row.
   // Not while the operator is choosing a book and has no chapter yet.
@@ -100,14 +110,26 @@ export function BibleBrowser() {
   const previewIndex = target?.kind === "verse" ? target.verseIndex : null;
   const searching = searchMode === "text" ? query.trim().length >= MIN_TEXT_QUERY_LENGTH : query.trim().length > 0;
 
+  const loadedBook = books.find((b) => b.id === loadedBookId);
   const referenceMatches = useMemo(
-    () => (searchMode === "reference" ? matchReference(books, query, locale) : []),
-    [books, locale, query, searchMode],
+    () =>
+      searchMode === "reference"
+        ? matchReference(books, query, locale, loadedBook && loadedChapter !== null ? { book: loadedBook, chapter: loadedChapter } : undefined)
+        : [],
+    [books, loadedBook, loadedChapter, locale, query, searchMode],
+  );
+  // The book picker's filter ranks like the search field: «apoc», «1 co», «jn» (owner, 2026-11-10).
+  const bookFilter = useMemo(
+    () => (options: readonly SelectOption[], text: string) => {
+      if (!text.trim()) return options;
+      const byId = new Map(options.map((option) => [option.value, option]));
+      return matchReference(books, text, locale).flatMap((match) => byId.get(String(match.book.id)) ?? []);
+    },
+    [books, locale],
   );
 
   const resultCount = searchMode === "text" ? searchResults.length : referenceMatches.length;
 
-  const loadedBook = books.find((b) => b.id === loadedBookId);
   const previewedVerse = previewIndex !== null ? verses[previewIndex] : undefined;
   const previewedIsFavorite =
     loadedBook !== undefined &&
@@ -297,28 +319,40 @@ export function BibleBrowser() {
           <Select
             aria-label={t("bible.bookLabel")}
             className="min-w-0"
-            onChange={(value) => {
+            filter={bookFilter}
+            onChange={(value, byKeyboard) => {
               setPendingBook(value);
               setPendingChapter("");
+              // Not after a click: the mouse's last pick leaves the keys to the projector (owner, 2026-11-03).
+              if (byKeyboard) setChapterPickerWanted((n) => n + 1);
             }}
             options={books.map((b) => ({ label: b.name, value: String(b.id) }))}
             placeholder={t("bible.book")}
+            searchable
             size="sm"
             value={pendingBook}
           />
+          {/* Its filter puts the chapter typed first: no number containing «3» is smaller than 3. */}
           <Select
             aria-label={t("bible.chapterLabel")}
             className="min-w-0"
             disabled={!selectedBook}
-            onChange={(value) => {
+            onChange={(value, byKeyboard) => {
               setPendingChapter(value);
               void setBookAndChapter(Number(pendingBook), Number(value));
+              if (byKeyboard) {
+                setSearchMode("reference");
+                setQuery("");
+                searchRef.current?.focus();
+              }
             }}
             options={Array.from({ length: selectedBook?.chapterCount ?? 0 }, (_, i) => ({
               label: String(i + 1),
               value: String(i + 1),
             }))}
             placeholder={t("bible.chapter")}
+            ref={chapterPickerRef}
+            searchable
             size="sm"
             value={pendingChapter}
           />
@@ -355,6 +389,7 @@ export function BibleBrowser() {
               }}
               onKeyDown={handleSearchKeyDown}
               placeholder={searchMode === "reference" ? t("bible.referenceSearch") : t("bible.search")}
+              ref={searchRef}
               value={query}
             />
           </div>
