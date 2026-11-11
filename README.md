@@ -30,7 +30,8 @@ Windows, macOS and Linux · English, Spanish, Italian and Portuguese
   1885, Almeida 1911 and Bíblia Livre —: a new install gets those of its language, and any other installs
   with one click, no internet. **Two versions side by side** for a bilingual service: two columns on the
   projector, each with its own reference. Import other versions in JSON, Zefania, USFX, OSIS or MyBible/MySword
-  modules.
+  modules. The Reina-Valera 1960 is still under copyright, so it can't ship with the app; a file of it imports
+  like any other.
 - **Songs:** type or paste the lyrics — with headers like `[Verse 1]` or `[Chorus]` in English, Spanish,
   Italian or Portuguese, or none, and the block that repeats becomes the chorus — and the app builds the
   slides. One order per song, as chips you drag or a line like `V1 C V2 C B C`. **Every slide of a song is
@@ -72,7 +73,7 @@ Windows, macOS and Linux · English, Spanish, Italian and Portuguese
 ## Download
 
 Installers are on [Releases](https://github.com/NicolasAmorosi/himnova-live/releases/latest): Windows
-(installer), macOS 13 (Ventura) or later on Apple Silicon (`.dmg`) and Linux: a `.deb` for Ubuntu, Debian and Linux Mint,
+10 or 11, 64-bit (installer), macOS 13 (Ventura) or later on Apple Silicon (`.dmg`) and Linux: a `.deb` for Ubuntu, Debian and Linux Mint,
 and an `AppImage` for other distributions. On Ubuntu 24.04 or later use the `.deb`: AppArmor won't
 let the AppImage start without `--no-sandbox`, which turns off a security protection. On Linux the
 files Himnova's media engine plays (AVI, WMV, WMA…) need the distribution's libmpv: the `.deb` installs
