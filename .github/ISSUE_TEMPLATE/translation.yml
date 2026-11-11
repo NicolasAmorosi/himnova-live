@@ -1,0 +1,44 @@
+name: Fix a translation
+description: A word or sentence that is wrong, sounds unnatural or isn't translated — in the app, the website or the guide. Write in any language.
+labels: [translation]
+body:
+  - type: dropdown
+    id: language
+    attributes:
+      label: Language
+      options: [Español, English, Italiano, Português (Brasil)]
+    validations:
+      required: true
+  - type: dropdown
+    id: where
+    attributes:
+      label: Where
+      options: [The app, The website, The online guide]
+    validations:
+      required: true
+  - type: input
+    id: place
+    attributes:
+      label: Where exactly
+      description: The screen or menu (Settings › Projection, the Bible tab…), or the page's address.
+    validations:
+      required: true
+  - type: textarea
+    id: now
+    attributes:
+      label: What it says
+    validations:
+      required: true
+  - type: textarea
+    id: should
+    attributes:
+      label: What it should say
+      description: And why, if it isn't obvious — a term your church uses, a typo, a label that doesn't fit.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Only for the app — Settings › About.
+      placeholder: 2.8.0
