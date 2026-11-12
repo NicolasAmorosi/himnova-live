@@ -5,7 +5,7 @@
 // picture until the new video has a frame — never black in between — and the video starts at its own pace.
 // The probe and the output's setup: `support/ndi.ts`.
 import { expect, test, type WorshipApp } from "./support/app";
-import { receiveFrames, source, type NdiSource, type ReceivedFrame } from "./support/ndi";
+import { probe, receiveFrames, source, type NdiSource, type ReceivedFrame } from "./support/ndi";
 
 /** A frame darker than this is black (the probe's mean luma: black is ~16, `testsrc2` and `photo.png` well over 60). */
 const BLACK_LUMA = 30;
@@ -81,4 +81,45 @@ test("an engine video replacing another: the last frame stays until the new firs
   await app.control.waitForTimeout(2000);
   const { frames, liveAt } = await startOver(app, ndi!, "ndi-bar-2");
   check(frames, liveAt, "replacing a video");
+});
+
+test("a cut into an engine video: the picture stays until its first frame, then the clip with its sound in sync", async ({ app }) => {
+  test.setTimeout(120_000);
+  const ndi = await source(app);
+  test.skip(!ndi, "no NDI runtime on this computer");
+  // Main's setting, read by the control window when it loads.
+  await app.invoke("settings:set", { "projection.transition.style": "none" });
+  await app.control.reload();
+  await expect(app.control.getByRole("button", { name: "EN VIVO", exact: true })).toBeVisible();
+  await app.addMedia("image", "photo.png");
+  // A white flash and a beep together, the first at 0:00 — the clip's very first frame is a flash.
+  await app.addMedia("video", "ndi-av.avi");
+  await goLiveWith(app, "Imágenes", "photo");
+  await app.projector();
+  await app.control.waitForTimeout(1000);
+  await app.previewFile("Videos", "ndi-av");
+  const received = receiveFrames(ndi!, 6);
+  const sync = probe<{ pairs: number; first: number; flashes: number; beeps: number }>("avsync", ndi!.name, ndi!.url, "6");
+  await app.control.waitForTimeout(1500);
+  await app.goLive();
+  const liveAt = Date.now();
+  const after = (await received).filter((f) => f.t >= liveAt);
+  const av = await sync;
+  const first = after.findIndex((f) => f.luma > 150);
+  const waiting = after.slice(0, Math.max(first, 0));
+  console.log(
+    `[ndi-start] cut: first frame ${first >= 0 ? after[first]!.t - liveAt : "-"} ms after «EN VIVO», ${waiting.length} frames ` +
+      `waiting (min luma ${Math.min(...waiting.map((f) => f.luma), 255)}), sound minus picture at 0:01 ${av.first} ms (${av.pairs} pairs, ${av.flashes} flashes, ${av.beeps} beeps)`,
+  );
+  expect(first, "the clip reached the receiver").toBeGreaterThanOrEqual(0);
+  expect(waiting.filter((f) => f.luma < BLACK_LUMA).length, "black frames between the photo and the clip").toBe(0);
+  // GO LIVE plays the engine PREVIEW already opened (owner, 2026-11-12): ~0.1 s on the Mac. One opening the file then
+  // took 0.23 s here, and 0.8–1.2 s on a Windows PC.
+  expect(after[first]!.t - liveAt, "ms from «EN VIVO» to the clip's first frame").toBeLessThanOrEqual(200);
+  // Its sound, which starts at PREVIEW's level (0), at the live one — and in step from the first second, by EBU R37 as
+  // `ndi-receiver.spec.ts` holds the rest of a clip. 0:00's own beep never reaches a receiver (2026-11-12, any
+  // engine start), so the first pair is 0:01's.
+  expect(av.pairs, "flashes and beeps paired").toBeGreaterThanOrEqual(3);
+  expect(av.first).toBeGreaterThanOrEqual(-45);
+  expect(av.first).toBeLessThanOrEqual(65);
 });

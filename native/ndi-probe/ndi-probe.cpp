@@ -12,8 +12,9 @@
 //                                                   Given the video's <frames>, a looping one counts the frames lost
 //                                                   across each wrap too: the end's and the start's
 //   ndi-probe avsync <source> <url> <seconds>       a file flashing white and beeping together: sound minus picture per
-//                                                   pair, by timecode, in ms — {"pairs","median","p10","p90","flashes",
-//                                                   "beeps","audioFrames"}
+//                                                   pair, by timecode, in ms — {"pairs","median","p10","p90","first",
+//                                                   "flashes","beeps","audioFrames"}; "first" is the earliest pair's,
+//                                                   the start's when connected before it (tests/e2e/ndi-start.spec.ts)
 //   ndi-probe frames <source> <url> <seconds>       one line per video frame as it lands, from the first one:
 //                                                   {"t": wall clock ms, "n": its barcode or -1, "luma": mean, ~16 black}
 //                                                   (tests/e2e/ndi-start.spec.ts: connected BEFORE «EN VIVO»)
@@ -232,11 +233,12 @@ static int avsync(const NDIlib_v6* ndi, const char* source, const char* url, int
       if (std::fabs(t - u) < std::fabs(best)) best = t - u;
     if (std::fabs(best) < 500) d.push_back(best);
   }
+  const double first = d.empty() ? 0 : d.front();  // beeps are in order
   std::sort(d.begin(), d.end());
   if (d.empty()) printf("{\"pairs\":0,\"flashes\":%zu,\"beeps\":%zu,\"audioFrames\":%ld}\n", flashes.size(), beeps.size(), audioFrames);
   else
-    printf("{\"pairs\":%zu,\"median\":%.1f,\"p10\":%.1f,\"p90\":%.1f,\"flashes\":%zu,\"beeps\":%zu,\"audioFrames\":%ld}\n",
-           d.size(), d[d.size() / 2], d[d.size() / 10], d[d.size() * 9 / 10], flashes.size(), beeps.size(), audioFrames);
+    printf("{\"pairs\":%zu,\"median\":%.1f,\"p10\":%.1f,\"p90\":%.1f,\"first\":%.1f,\"flashes\":%zu,\"beeps\":%zu,\"audioFrames\":%ld}\n",
+           d.size(), d[d.size() / 2], d[d.size() / 10], d[d.size() * 9 / 10], first, flashes.size(), beeps.size(), audioFrames);
   ndi->recv_destroy(r);
   return 0;
 }
