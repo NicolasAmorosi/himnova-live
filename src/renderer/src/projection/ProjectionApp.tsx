@@ -5,6 +5,7 @@ import { OutputView } from "@renderer/components/shared/output-view";
 import { useMediaStatusReporter } from "./use-media-status-reporter";
 import { INSTANT_TRANSITION } from "@shared/types/projection";
 import { isEngineUrl } from "@shared/urls";
+import { releaseMedia } from "@renderer/lib/release-media";
 import type {
   AudioTrackPush,
   MediaCommand,
@@ -54,6 +55,15 @@ type AudioTrackElementProps = {
 function AudioTrackElement({ registry, track }: AudioTrackElementProps) {
   const elementRef = useRef<HTMLAudioElement | null>(null);
   useMediaStatusReporter(elementRef, track.trackId, track.epoch);
+
+  // Keyed by track and epoch, so this is the element for its whole life; captured on mount because an
+  // unmount's cleanup runs after React detached the ref.
+  useEffect(() => {
+    const element = elementRef.current;
+    return () => {
+      if (element) releaseMedia(element);
+    };
+  }, []);
 
   useEffect(() => {
     const element = elementRef.current;

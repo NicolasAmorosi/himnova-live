@@ -24,6 +24,7 @@ import { PlateLayer } from "./plate-layer";
 import { StageImage } from "./stage-image";
 import { FramePacer } from "@renderer/lib/frame-pacer";
 import { followProjector } from "@renderer/lib/follow-projector";
+import { releaseMedia } from "@renderer/lib/release-media";
 import type {
   MediaStatus,
   ProjectionMediaError,
@@ -227,11 +228,14 @@ function LiveVideo({
   // that removes this element — a passive effect's would run after the browser
   // has already painted the frame where the video is simply gone, which is the
   // black flash this exists to remove. Read through `freezeRef` so a changed
-  // callback never re-arms it mid-playback.
+  // callback never re-arms it mid-playback. The player goes only after its
+  // last frame is taken.
   useLayoutEffect(
     () => () => {
       const element = lastElementRef.current;
-      if (element) freezeRef.current?.(element);
+      if (!element) return;
+      freezeRef.current?.(element);
+      releaseMedia(element);
     },
     [],
   );
@@ -571,6 +575,15 @@ function SlideVideoLayer({
     followProjector(element, status.currentTimeSeconds, status.durationSeconds, element.loop);
   }, [mode, status, epoch]);
 
+  // Captured on mount: by the time an unmount's cleanup runs, React has
+  // already detached the ref.
+  useEffect(() => {
+    const element = elementRef.current;
+    return () => {
+      if (element) releaseMedia(element);
+    };
+  }, []);
+
   // Keyed by epoch at the call site, so this instance has exactly one
   // `startAtSeconds` for its whole life — applied once, on mount.
   useEffect(() => {
@@ -650,6 +663,15 @@ function SongVideoLayer({
     if (covered) element.pause();
     else element.play().catch(() => undefined);
   }, [covered]);
+  // Captured on mount (the ref is detached before an unmount's cleanup runs).
+  // An engine background has no element, and a theme changed to another file
+  // reuses this one with a new `src`, which drops the old player by itself.
+  useEffect(() => {
+    const element = videoRef.current;
+    return () => {
+      if (element) releaseMedia(element);
+    };
+  }, []);
   const fit = { objectFit: songVideo.fit } as const;
   return (
     <div className="absolute inset-0" data-song-video="">

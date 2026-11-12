@@ -56,7 +56,11 @@ const bridge = {
     let listeners = frameListeners.get(key);
     if (!listeners) frameListeners.set(key, (listeners = new Set()));
     listeners.add(callback);
-    return () => listeners.delete(callback);
+    // One key per playback: an empty set left behind would pile up for the whole service.
+    return () => {
+      listeners.delete(callback);
+      if (!listeners.size && frameListeners.get(key) === listeners) frameListeners.delete(key);
+    };
   },
 };
 
