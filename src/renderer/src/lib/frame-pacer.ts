@@ -19,6 +19,10 @@
  */
 /** Frames closer than this (ms) are a source over 40 fps: halved. */
 const HALVE_UNDER_MS = 25;
+/** The rate is seeded by the median of the first this-many intervals, not by the first one: an engine starts
+ *  with 2–3 frames ~2–9 ms apart, and a rate seeded by that burst halved a 30 fps clip for its first ~0.6 s (the
+ *  2 h soak, 2026-11-11: 0, 1, 5, 6, 8, 10, 10, 12… on every engine start). */
+const RATE_SEED_GAPS = 5;
 
 export class FramePacer {
   private frameMs = 0;
@@ -27,12 +31,18 @@ export class FramePacer {
   private lastTick = -1;
   private ticksSinceDraw = 0;
   private skipNext = false;
+  private seedGaps: number[] = [];
 
   /** A frame landed at `now` (ms): whether it is one to show (not the half of a fast source left out). */
   arrived(now: number): boolean {
     const gap = now - this.lastArrival;
     // A pause, a seek or the first frame says nothing about the video's rate.
-    if (this.lastArrival >= 0 && gap > 4 && gap < 250) this.frameMs = this.frameMs ? this.frameMs * 0.9 + gap * 0.1 : gap;
+    if (this.lastArrival >= 0 && gap > 4 && gap < 250) {
+      if (this.frameMs) this.frameMs = this.frameMs * 0.9 + gap * 0.1;
+      else if (this.seedGaps.push(gap) === RATE_SEED_GAPS) {
+        this.frameMs = this.seedGaps.sort((a, b) => a - b)[RATE_SEED_GAPS >> 1]!;
+      }
+    }
     this.lastArrival = now;
     if (!this.halved()) return true;
     this.skipNext = !this.skipNext;
