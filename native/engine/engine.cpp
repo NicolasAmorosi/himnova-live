@@ -47,6 +47,37 @@ void closeInParent(unsigned long parentPid, const std::vector<unsigned long long
 #endif
 int ndiSendMain(int argc, char** argv);
 
+#ifdef __APPLE__
+#include <CoreAudio/CoreAudio.h>
+#include <unistd.h>
+
+#include <cstring>
+
+// The NDI output's sound tap (ndi-audio-mac.mm) can only add a process Core Audio already knows, and a process
+// becomes known when it first plays: each new engine joined the tap 300–400 ms into its video, and that much of its
+// first sound never reached NDI (measured 2026-11-12; 70–83 ms for an engine that had played before). 100 ms of
+// silence on the default output when the engine starts, before any file, makes it known. Windows and Linux capture
+// the process tree and lost nothing.
+static void becomeKnownToCoreAudio() {
+  AudioObjectID out = kAudioObjectUnknown;
+  UInt32 size = sizeof out;
+  AudioObjectPropertyAddress a{kAudioHardwarePropertyDefaultOutputDevice, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMain};
+  if (AudioObjectGetPropertyData(kAudioObjectSystemObject, &a, 0, nullptr, &size, &out) != noErr || out == kAudioObjectUnknown) return;
+  AudioDeviceIOProcID proc = nullptr;
+  auto silence = [](AudioObjectID, const AudioTimeStamp*, const AudioBufferList*, const AudioTimeStamp*, AudioBufferList* o,
+                    const AudioTimeStamp*, void*) -> OSStatus {
+    for (UInt32 i = 0; i < o->mNumberBuffers; i++) memset(o->mBuffers[i].mData, 0, o->mBuffers[i].mDataByteSize);
+    return noErr;
+  };
+  if (AudioDeviceCreateIOProcID(out, silence, nullptr, &proc) != noErr) return;
+  if (AudioDeviceStart(out, proc) == noErr) {
+    usleep(100000);
+    AudioDeviceStop(out, proc);
+  }
+  AudioDeviceDestroyIOProcID(out, proc);
+}
+#endif
+
 static std::mutex outMutex;
 // Also used by ndi.cpp, the NDI output mode.
 void emit(const std::string& json) {
@@ -324,6 +355,9 @@ int main(int argc, char** argv) {
   if (!handles.empty()) closeInParent(options.parentPid, handles);
 #endif
 
+#ifdef __APPLE__
+  std::thread(becomeKnownToCoreAudio).detach();
+#endif
   E.mpv = mpv_create();
   if (!E.mpv) { emitError({"engine-gpu", "mpv_create"}); return 1; }
   const char* opts[][2] = {{"vo", "libmpv"}, {"hwdec", hwdec.c_str()}, {"keep-open", "yes"}, {"idle", "yes"},
