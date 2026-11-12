@@ -14,6 +14,9 @@
 //   ndi-probe avsync <source> <url> <seconds>       a file flashing white and beeping together: sound minus picture per
 //                                                   pair, by timecode, in ms — {"pairs","median","p10","p90","flashes",
 //                                                   "beeps","audioFrames"}
+//   ndi-probe frames <source> <url> <seconds>       one line per video frame as it lands, from the first one:
+//                                                   {"t": wall clock ms, "n": its barcode or -1, "luma": mean, ~16 black}
+//                                                   (tests/e2e/ndi-start.spec.ts: connected BEFORE «EN VIVO»)
 #include <algorithm>
 #include <chrono>
 #include <cmath>
@@ -151,6 +154,31 @@ static int count(const NDIlib_v6* ndi, const char* source, const char* url, int 
   return 0;
 }
 
+/** The picture's mean luma on a grid below the barcode row: ~16 is black. */
+static double meanLuma(const NDIlib_video_frame_v2_t& v) {
+  double sum = 0;
+  int n = 0;
+  for (int y = v.yres / 8; y < v.yres; y += v.yres / 8)
+    for (int x = 8; x < v.xres; x += v.xres / 32, n++) sum += luma(v, x, y);
+  return n ? sum / n : 0;
+}
+
+static int frames(const NDIlib_v6* ndi, const char* source, const char* url, int seconds) {
+  auto r = receive(ndi, source, url);
+  if (!r) return 1;
+  auto start = Clock::now();
+  while (since(start) < seconds) {
+    NDIlib_video_frame_v2_t v;
+    if (ndi->recv_capture_v3(r, &v, nullptr, nullptr, 200) != NDIlib_frame_type_video) continue;
+    const long long t = std::chrono::duration_cast<std::chrono::milliseconds>(
+                            std::chrono::system_clock::now().time_since_epoch()).count();
+    printf("{\"t\":%lld,\"n\":%ld,\"luma\":%.0f}\n", t, barcode(v), meanLuma(v));
+    ndi->recv_free_video_v2(r, &v);
+  }
+  ndi->recv_destroy(r);
+  return 0;
+}
+
 static int avsync(const NDIlib_v6* ndi, const char* source, const char* url, int seconds) {
   auto r = receive(ndi, source, url);
   if (!r) return 1;
@@ -166,11 +194,7 @@ static int avsync(const NDIlib_v6* ndi, const char* source, const char* url, int
     NDIlib_audio_frame_v3_t a;
     auto type = ndi->recv_capture_v3(r, &v, &a, nullptr, 200);
     if (type == NDIlib_frame_type_video) {
-      double sum = 0;
-      int n = 0;
-      for (int y = v.yres / 8; y < v.yres; y += v.yres / 8)
-        for (int x = 8; x < v.xres; x += v.xres / 32, n++) sum += luma(v, x, y);
-      double l = n ? sum / n : 0;
+      const double l = meanLuma(v);
       if (!bright && l > 150) flashes.push_back(v.timecode / 1e4);
       bright = l > 150 ? true : l < 100 ? false : bright;
       ndi->recv_free_video_v2(r, &v);
@@ -229,6 +253,7 @@ int main(int argc, char** argv) {
   if (mode == "find" && argc > 3) rc = find(ndi, argv[2], atoi(argv[3]));
   else if (mode == "count" && argc > 4) rc = count(ndi, argv[2], argv[3], atoi(argv[4]), argc > 5 ? atol(argv[5]) : 0);
   else if (mode == "avsync" && argc > 4) rc = avsync(ndi, argv[2], argv[3], atoi(argv[4]));
+  else if (mode == "frames" && argc > 4) rc = frames(ndi, argv[2], argv[3], atoi(argv[4]));
   else printf("{\"error\":\"usage\"}\n");
   ndi->destroy();
   return rc;

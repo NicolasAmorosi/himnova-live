@@ -2,49 +2,9 @@
 // picture. Not the status label `ndi-output.spec.ts` reads, nor frames received per second — both said «fine» while
 // 2.7.0 lost 0–27 % of a video and 2.7.1 lost up to 37 % of an engine one (2026-11-10 review, agent3-02/agent2-01).
 // The frame loss depended on the phase each playback started with: each case starts two plays.
-//
-// Needs the NDI runtime (skipped without one, like the output itself) and the probe built for this computer:
-// `native/build.sh ndi-probe <darwin-arm64|win32-x64|linux-x64>` — a missing probe FAILS, never skips.
-import { execFile } from "node:child_process";
-import fs from "node:fs";
-import path from "node:path";
+// The probe and the output's setup: `support/ndi.ts`.
 import { expect, test, type WorshipApp } from "./support/app";
-
-const PROBE = path.join(
-  process.cwd(),
-  "native",
-  ".build",
-  `ndi-probe-${process.platform}-${process.arch === "arm64" ? "arm64" : "x64"}${process.platform === "win32" ? ".exe" : ""}`,
-);
-// Its own name each run: an NDI finder still lists a source whose sender was killed — another computer's test run of
-// the same name, hours later, was found first and gave 0 frames.
-const NAME = `Himnova E2E ${process.pid}`;
-
-function probe<T>(...args: string[]): Promise<T> {
-  return new Promise((resolve, reject) =>
-    execFile(PROBE, args, { timeout: 60_000 }, (_error, out) => {
-      const line = String(out).trim().split("\n").at(-1) ?? "";
-      try {
-        resolve(JSON.parse(line) as T);
-      } catch {
-        reject(new Error(`ndi-probe ${args[0]}: ${String(out)}`));
-      }
-    }),
-  );
-}
-
-/** The output on, with its sound; `null` when this computer has no NDI runtime. */
-async function source(app: WorshipApp): Promise<{ name: string; url: string } | null> {
-  await app.invoke("settings:set", { "ndi.output.name": NAME, "ndi.output.audio": true, "ndi.output.audioDelayMs": 0 });
-  await app.invoke("settings:set", { "ndi.output.enabled": true });
-  const state = async () => (await app.invoke<{ state: string }>("ndi:getStatus")).state;
-  await expect.poll(state, { timeout: 30_000 }).toMatch(/sending|runtime-missing/);
-  if ((await state()) === "runtime-missing") return null;
-  expect(fs.existsSync(PROBE), `the NDI test receiver is not built: native/build.sh ndi-probe (${PROBE})`).toBe(true);
-  const found = await probe<{ name: string | null; url: string }>("find", `(${NAME})`, "10");
-  expect(found.name, `«${NAME}» is not listed by an NDI finder`).not.toBeNull();
-  return { name: found.name!, url: found.url };
-}
+import { probe, source } from "./support/ndi";
 
 async function live(app: WorshipApp, file: string, name: string) {
   await app.addMedia("video", file);
