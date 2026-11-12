@@ -2,7 +2,7 @@ import { spawn, type ChildProcess } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { sharedTexture, type SharedTextureHandle, type WebContents } from "electron";
+import { app, sharedTexture, type SharedTextureHandle, type WebContents } from "electron";
 import { engineCacheDir, engineDir, enginePath } from "../paths";
 import { jsonLineReader, mpvVolume } from "./engine-protocol";
 
@@ -45,7 +45,7 @@ export type EngineEvents = {
 };
 
 type EngineEvent =
-  | { ev: "ready"; gpu: string }
+  | { ev: "ready"; gpu: string; adapter?: "" | "match" | "none" }
   | ({ ev: "loaded" } & EngineLoaded)
   | { ev: "slots"; width: number; height: number; handles: (number | string | { stride: number; size: number })[] }
   | { ev: "frame"; slot: number }
@@ -113,10 +113,64 @@ export function prewarmEngine(): void {
   if (!spare || spare.exited) spare = new MediaEngine();
 }
 
-/** At startup: the shader cache's folder, then a spare. */
+/** The card Chromium draws with, as `--adapter` reads it (Windows, Linux); null on macOS or when none is active. */
+let engineAdapter: string | null = null;
+let loggedGpu = "";
+
+async function chromiumAdapter(): Promise<string | null> {
+  if (process.platform === "darwin") return null;
+  type Device = {
+    active?: boolean;
+    vendorId?: number;
+    deviceId?: number;
+    subSysId?: number;
+    revision?: number;
+    deviceString?: string;
+  };
+  const info = (await app.getGPUInfo("complete")) as { gpuDevice?: Device[] };
+  const d = info.gpuDevice?.find((device) => device.active === true);
+  // On WARP (Chromium's software D3D11) the ids read 0xffff:0xffff and only the name says so; DXGI lists WARP as
+  // 0x1414:0x8c (measured 2026-11-12, --use-angle=d3d11-warp).
+  if (d?.vendorId === 0xffff && d.deviceString?.includes("Microsoft Basic Render Driver")) return "5140:140:0:0";
+  // subSysId arrives signed: Electron cuts its int64 to an int.
+  return d ? [d.vendorId ?? 0, d.deviceId ?? 0, (d.subSysId ?? 0) >>> 0, d.revision ?? 0].join(":") : null;
+}
+
+/**
+ * Engines open the card Chromium draws with: the shared textures only open on the card that made them, and on a
+ * laptop with two cards each process may get a different one (2026-11-12 GPU report; owner: automatic, no picker).
+ * Read again when the GPU process dies, which can move Chromium to another card or to WARP; a spare started for
+ * the old card is replaced. The first spare waits for the answer.
+ */
 export function startEngines(): void {
   fs.mkdirSync(engineCacheDir, { recursive: true });
-  prewarmEngine();
+  const follow = async (): Promise<void> => {
+    const adapter = await chromiumAdapter().catch((error: unknown) => {
+      console.warn("[engine] getGPUInfo failed", error);
+      return null;
+    });
+    if (adapter !== engineAdapter) {
+      engineAdapter = adapter;
+      spare?.kill();
+      spare = null;
+    }
+    prewarmEngine();
+  };
+  if (process.platform !== "darwin") {
+    app.on("child-process-gone", (_event, details) => {
+      if (details.type === "GPU") void follow();
+    });
+  }
+  void follow();
+}
+
+/** Once per card, and a warning when the app's card was not found (the engine then used the default one). */
+function logEngineGpu(gpu: string, adapter: string | undefined): void {
+  const line = `${gpu} (${adapter || "default card"})`;
+  if (line === loggedGpu) return;
+  loggedGpu = line;
+  if (adapter === "none") console.warn(`[engine] the app's card ${engineAdapter} was not found: the engine uses ${gpu}`);
+  else console.info(`[engine] gpu: ${line}`);
 }
 
 /** Synchronous, for `before-quit`: `.claude/knowledge/nothing-asynchronous-survives-before-quit.md`. */
@@ -147,6 +201,7 @@ export class MediaEngine {
 
   constructor() {
     const args = ["--max-width", "1920", "--max-height", "1080", "--cache-dir", engineCacheDir];
+    if (engineAdapter) args.push("--adapter", engineAdapter);
     if (process.platform === "win32") {
       args.push("--parent", String(process.pid));
       if (orphanedWindowsHandles.length) args.push("--close-in-parent", orphanedWindowsHandles.join(","));
@@ -253,7 +308,7 @@ export class MediaEngine {
   private onEvent(event: EngineEvent): void {
     switch (event.ev) {
       case "ready":
-        return;
+        return logEngineGpu(event.gpu, event.adapter);
       case "loaded":
         this.loadedInfo = event;
         return this.events.loaded?.(event);

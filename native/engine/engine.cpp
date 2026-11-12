@@ -7,7 +7,7 @@
 //   load <startAt> <paused 0|1> <volume 0-100> <loop 0|1> <audio 0|1> <path…>   (once per engine)
 //   pause 0|1 · volume <0-100> · loop 0|1 · seek <seconds> exact|keyframes · release <slot> · quit
 // Engine → main (stdout), JSON:
-//   {"ev":"ready","gpu":…}                          the device is up, waiting for `load`
+//   {"ev":"ready","gpu":…,"adapter":""|"match"|"none"}  the device is up, waiting for `load`
 //   {"ev":"loaded","duration":…,"width":…,"height":…,"hasVideo":…,"hasAudio":…}
 //   {"ev":"slots","width":…,"height":…,"handles":[…]} the ring, made for this file's picture
 //   {"ev":"frame","slot":…}                         main hands it back with `release <slot>`
@@ -17,7 +17,7 @@
 // Args: [--parent <pid>] (Windows) [--fd-socket <path>] (Linux) [--max-width 1920 --max-height 1080]
 //       [--slots 6] [--hwdec …] [--close-in-parent <handle,…>] (Windows: a dead engine's ring)
 //       [--log-level error|warn|info|v|debug] (mpv's log on stderr; main keeps its tail for errors)
-//       [--cache-dir <shader cache>]
+//       [--adapter vendor:device:subsys:revision] (Windows, Linux: Chromium's card) [--cache-dir <shader cache>]
 // `--ndi-send <name> …` as the first argument runs the NDI output mode instead: see ndi.cpp.
 #include <mpv/client.h>
 #include <mpv/render.h>
@@ -174,7 +174,7 @@ static void renderLoop(GpuOptions options) {
     int e = mpv_render_context_create(&rctx, E.mpv, params.data());
     if (e < 0) fail("engine-gpu", std::string("mpv_render_context_create: ") + mpv_error_string(e));
     mpv_render_context_set_update_callback(rctx, onUpdate, nullptr);
-    emit("{\"ev\":\"ready\",\"gpu\":" + js(gpu.describe) + "}");
+    emit("{\"ev\":\"ready\",\"gpu\":" + js(gpu.describe) + ",\"adapter\":" + js(gpu.adapterResult) + "}");
     E.started = 1;
     bool ringReady = false;
     // A GPU that is gone (a driver reset, DEVICE_REMOVED) fails every frame in silence: the picture froze
@@ -345,6 +345,7 @@ int main(int argc, char** argv) {
     else if (k == "--hwdec") hwdec = v;
     else if (k == "--close-in-parent") closeHandles = v;
     else if (k == "--log-level") logLevel = v;
+    else if (k == "--adapter") options.adapter = v;
     else if (k == "--cache-dir") cacheDir = v;
   }
 #ifdef _WIN32

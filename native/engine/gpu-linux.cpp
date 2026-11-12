@@ -16,6 +16,7 @@
 #include <unistd.h>
 
 #include <cerrno>
+#include <cstdio>
 #include <cstring>
 
 #ifndef GL_FRAMEBUFFER
@@ -68,8 +69,28 @@ Gpu::~Gpu() {
   delete s;
 }
 
+// /sys/class/drm/renderD*/device/{vendor,device} hold "0x8086\n".
+static unsigned sysHex(const std::string& path) {
+  unsigned v = 0;
+  if (FILE* f = fopen(path.c_str(), "r")) {
+    if (fscanf(f, "%x", &v) != 1) v = 0;
+    fclose(f);
+  }
+  return v;
+}
+
 void Gpu::init() {
   std::string node;
+  // The render node of the card Chromium draws with: a dmabuf from another card imports as nothing.
+  unsigned vendor = 0, device = 0;
+  if (sscanf(options.adapter.c_str(), "%u:%u", &vendor, &device) == 2) {
+    for (int i = 128; i < 136 && s->fd < 0; i++) {
+      std::string sys = "/sys/class/drm/renderD" + std::to_string(i) + "/device/";
+      if (sysHex(sys + "vendor") == vendor && sysHex(sys + "device") == device)
+        s->fd = open((node = "/dev/dri/renderD" + std::to_string(i)).c_str(), O_RDWR | O_CLOEXEC);
+    }
+    adapterResult = s->fd >= 0 ? "match" : "none";
+  }
   for (int i = 128; i < 136 && s->fd < 0; i++) s->fd = open((node = "/dev/dri/renderD" + std::to_string(i)).c_str(), O_RDWR | O_CLOEXEC);
   if (s->fd < 0) fail("engine-gpu", "no /dev/dri/renderD* could be opened");
   if (!(s->gbm = gbm_create_device(s->fd))) fail("engine-gpu", "gbm_create_device");

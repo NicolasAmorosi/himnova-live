@@ -1113,7 +1113,7 @@ const en: Messages = {
     liveVideoMotionHelp: "The LIVE monitor shows the video's thumbnail instead of playing a second copy.",
     gpu: "Graphics card",
     gpuDesc: "The one the app uses to draw and decode video.",
-    gpuHelp: "On a laptop with two graphics cards, choose the dedicated one in Windows Settings › System › Display › Graphics.",
+    gpuHelp: "On a laptop with two graphics cards, choose the dedicated one for Himnova Live in Windows Settings › System › Display › Graphics. All video follows that choice.",
     gpuUnknown: "Couldn't read it",
     gpuInactive: "{name} (not in use)",
     videoDecode: "Hardware video decoding",

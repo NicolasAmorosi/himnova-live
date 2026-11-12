@@ -247,3 +247,23 @@ test("«Repetir en bucle» loops an engine video too: past its end it starts ove
   await expect.poll(() => moving(projector, "video:")).toBe(true);
   await expect(app.control.getByRole("button", { name: "LOGO", exact: true }).first()).not.toHaveAttribute("aria-pressed", "true");
 });
+
+// The engine's textures only open on the card that made them, so it opens Chromium's (engine-7). A PC with one card
+// can still put Chromium elsewhere: on WARP, whose ids read 0xffff:0xffff. Before engine-7 this drew black.
+test.describe("on Windows, with Chromium on WARP", () => {
+  test.skip(process.platform !== "win32", "WARP is Windows' software D3D11");
+  test.use({ chromiumArgs: ["--use-angle=d3d11-warp"] });
+
+  test("an engine video opens WARP too, and its picture moves on the projector", async ({ app }) => {
+    const [avi] = await app.addMedia("video", "long-xvid.avi");
+    if (!avi) throw new Error("import failed");
+    await waitEngine(app, avi);
+    await app.previewFile("Videos", "long-xvid");
+    await app.goLive();
+    const projector = await app.projector();
+    await expect.poll(async () => (await engineCanvas(projector, "video:"))?.width ?? 0).toBe(1920);
+    await expect.poll(() => moving(projector, "video:"), { timeout: 15_000 }).toBe(true);
+    // From main.log, not the app's stdout: the spare can say it before the test listens.
+    expect(fs.readFileSync(path.join(app.profile, "main.log"), "utf8")).toContain("[engine] gpu: D3D11 Microsoft Basic Render Driver (match)");
+  });
+});

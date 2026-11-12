@@ -1117,7 +1117,7 @@ const it: Messages = {
     liveVideoMotionHelp: "Il monitor IN ONDA mostra la miniatura del video invece di riprodurne una seconda copia.",
     gpu: "Scheda video",
     gpuDesc: "Quella che l'app usa per disegnare e decodificare i video.",
-    gpuHelp: "Su un portatile con due schede video, quella dedicata si sceglie nelle impostazioni di Windows, alla pagina Grafica.",
+    gpuHelp: "Su un portatile con due schede video, quella dedicata si sceglie per Himnova Live nelle impostazioni di Windows, alla pagina Grafica. Tutti i video seguono quella scelta.",
     gpuUnknown: "Non rilevata",
     gpuInactive: "{name} (non in uso)",
     videoDecode: "Decodifica video hardware",

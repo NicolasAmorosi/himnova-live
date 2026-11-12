@@ -265,7 +265,7 @@ if (gotSingleInstanceLock) {
     // window to report what this machine decodes (`engine:reportDecoders`).
     initEngineAssets();
     // A media engine started ahead of time, so the first video it plays does not pay for the
-    // process (150–650 ms).
+    // process (150–650 ms), on the card the app draws with.
     if (engineAvailable()) startEngines();
 
     // The other half of the legacy import (`media_library.json`). Off the
