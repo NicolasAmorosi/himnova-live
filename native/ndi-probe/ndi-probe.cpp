@@ -13,11 +13,15 @@
 //                                                   across each wrap too: the end's and the start's
 //   ndi-probe avsync <source> <url> <seconds>       a file flashing white and beeping together: sound minus picture per
 //                                                   pair, by timecode, in ms — {"pairs","median","p10","p90","first",
-//                                                   "flashes","beeps","audioFrames"}; "first" is the earliest pair's,
-//                                                   the start's when connected before it (tests/e2e/ndi-start.spec.ts)
+//                                                   "flashes","beeps","audioFrames","list"}; "first" is the earliest
+//                                                   pair's, the start's when connected before it, and "list" every pair
+//                                                   as [its flash's timecode in ms, sound minus picture] (ndi-start.spec)
 //   ndi-probe frames <source> <url> <seconds>       one line per video frame as it lands, from the first one:
 //                                                   {"t": wall clock ms, "n": its barcode or -1, "luma": mean, ~16 black}
 //                                                   (tests/e2e/ndi-start.spec.ts: connected BEFORE «EN VIVO»)
+//   ndi-probe record <source> <url> <seconds> <file> every frame as it lands, by timecode (ms): {"v":…,"n":barcode,
+//                                                   "luma":…} and {"a":…,"s":samples,"r":rate}; each audio frame's
+//                                                   first channel appended to <file> as raw 32-bit floats
 #include <algorithm>
 #include <chrono>
 #include <cmath>
@@ -180,6 +184,29 @@ static int frames(const NDIlib_v6* ndi, const char* source, const char* url, int
   return 0;
 }
 
+static int record(const NDIlib_v6* ndi, const char* source, const char* url, int seconds, const char* file) {
+  FILE* out = fopen(file, "wb");
+  auto r = out ? receive(ndi, source, url) : nullptr;
+  if (!r) return 1;
+  auto start = Clock::now();
+  while (since(start) < seconds) {
+    NDIlib_video_frame_v2_t v;
+    NDIlib_audio_frame_v3_t a;
+    auto type = ndi->recv_capture_v3(r, &v, &a, nullptr, 200);
+    if (type == NDIlib_frame_type_video) {
+      printf("{\"v\":%.1f,\"n\":%ld,\"luma\":%.0f}\n", v.timecode / 1e4, barcode(v), meanLuma(v));
+      ndi->recv_free_video_v2(r, &v);
+    } else if (type == NDIlib_frame_type_audio) {
+      printf("{\"a\":%.1f,\"s\":%d,\"r\":%d}\n", a.timecode / 1e4, a.no_samples, a.sample_rate);
+      fwrite(a.p_data, sizeof(float), (size_t)a.no_samples, out);
+      ndi->recv_free_audio_v3(r, &a);
+    }
+  }
+  fclose(out);
+  ndi->recv_destroy(r);
+  return 0;
+}
+
 static int avsync(const NDIlib_v6* ndi, const char* source, const char* url, int seconds) {
   auto r = receive(ndi, source, url);
   if (!r) return 1;
@@ -227,18 +254,24 @@ static int avsync(const NDIlib_v6* ndi, const char* source, const char* url, int
     }
   }
   std::vector<double> d;
+  std::string list;
   for (double t : beeps) {
     double best = 1e18;
     for (double u : flashes)
       if (std::fabs(t - u) < std::fabs(best)) best = t - u;
-    if (std::fabs(best) < 500) d.push_back(best);
+    if (std::fabs(best) >= 500) continue;
+    d.push_back(best);
+    char pair[64];
+    snprintf(pair, sizeof pair, "%s[%.1f,%.1f]", list.empty() ? "" : ",", t - best, best);
+    list += pair;
   }
   const double first = d.empty() ? 0 : d.front();  // beeps are in order
   std::sort(d.begin(), d.end());
   if (d.empty()) printf("{\"pairs\":0,\"flashes\":%zu,\"beeps\":%zu,\"audioFrames\":%ld}\n", flashes.size(), beeps.size(), audioFrames);
   else
-    printf("{\"pairs\":%zu,\"median\":%.1f,\"p10\":%.1f,\"p90\":%.1f,\"first\":%.1f,\"flashes\":%zu,\"beeps\":%zu,\"audioFrames\":%ld}\n",
-           d.size(), d[d.size() / 2], d[d.size() / 10], d[d.size() * 9 / 10], first, flashes.size(), beeps.size(), audioFrames);
+    printf("{\"pairs\":%zu,\"median\":%.1f,\"p10\":%.1f,\"p90\":%.1f,\"first\":%.1f,\"flashes\":%zu,\"beeps\":%zu,\"audioFrames\":%ld,\"list\":[%s]}\n",
+           d.size(), d[d.size() / 2], d[d.size() / 10], d[d.size() * 9 / 10], first, flashes.size(), beeps.size(), audioFrames,
+           list.c_str());
   ndi->recv_destroy(r);
   return 0;
 }
@@ -256,6 +289,7 @@ int main(int argc, char** argv) {
   else if (mode == "count" && argc > 4) rc = count(ndi, argv[2], argv[3], atoi(argv[4]), argc > 5 ? atol(argv[5]) : 0);
   else if (mode == "avsync" && argc > 4) rc = avsync(ndi, argv[2], argv[3], atoi(argv[4]));
   else if (mode == "frames" && argc > 4) rc = frames(ndi, argv[2], argv[3], atoi(argv[4]));
+  else if (mode == "record" && argc > 5) rc = record(ndi, argv[2], argv[3], atoi(argv[4]), argv[5]);
   else printf("{\"error\":\"usage\"}\n");
   ndi->destroy();
   return rc;
