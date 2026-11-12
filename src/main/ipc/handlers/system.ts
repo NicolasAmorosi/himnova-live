@@ -12,8 +12,8 @@ import {
   type VideoDecoderReport,
 } from "@shared/types/system";
 
-/** PCI vendor ids, for the platforms whose basic GPU info carries no device
- *  name (macOS reports only ids). */
+/** PCI vendor ids, for the platforms whose GPU info carries no device name
+ *  (macOS reports only ids). */
 const GPU_VENDORS: Record<number, string> = {
   0x8086: "Intel",
   0x10de: "NVIDIA",
@@ -21,6 +21,11 @@ const GPU_VENDORS: Record<number, string> = {
   0x106b: "Apple",
   0x5143: "Qualcomm",
 };
+
+/** Software renderers Chromium lists next to the real GPUs: Windows' Microsoft
+ *  Basic Render Driver (WARP) and Google's SwiftShader. Not a card the
+ *  operator can choose, so they are named only when they are the one drawing. */
+const SOFTWARE_RENDERER_VENDORS = new Set([0x1414, 0x1ae0]);
 
 type GpuDevice = { active?: boolean; vendorId?: number; deviceId?: number; deviceString?: string };
 
@@ -145,13 +150,17 @@ export const systemHandlers: Pick<
     if (failure) throw new IpcError({ code: "OPEN_FAILED", message: failure });
   },
   "system:gpuStatus": async (): Promise<GpuStatus> => {
-    const info = (await app.getGPUInfo("basic")) as { gpuDevice?: GpuDevice[] };
+    // "complete", not "basic": on Windows the basic info is collected in main and never marks the GPU in use, so
+    // the one card a PC has read «(not in use)» (measured on an RTX 4060 Ti, 2026-11-12).
+    const info = (await app.getGPUInfo("complete")) as { gpuDevice?: GpuDevice[] };
     const features = app.getGPUFeatureStatus();
     return {
-      devices: (info.gpuDevice ?? []).map((device) => ({
-        name: deviceName(device),
-        active: device.active === true,
-      })),
+      devices: (info.gpuDevice ?? [])
+        .filter((device) => device.active === true || !SOFTWARE_RENDERER_VENDORS.has(device.vendorId ?? 0))
+        .map((device) => ({
+          name: deviceName(device),
+          active: device.active === true,
+        })),
       videoDecode: features.video_decode,
       gpuCompositing: features.gpu_compositing,
     };
