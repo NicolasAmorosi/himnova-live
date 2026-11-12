@@ -151,9 +151,9 @@ export const projectionHandlers: Pick<
     syncLiveEngine();
   },
 
-  "projection:wantVideoFrame": (req) => {
+  "projection:wantVideoFrame": (req, ev) => {
     if (typeof req?.key !== "string") throw new IpcError({ code: "INVALID_ARGUMENT", message: "Invalid frame key." });
-    redrawEngineFrame(req.key);
+    redrawEngineFrame(req.key, ev.sender);
   },
 
   /** The projection window describing its own media element; forwarded to the

@@ -43,6 +43,8 @@ type Session = {
   volume: number;
   loop: boolean;
   stall?: StallWatch | null;
+  /** Kept paused, whatever the output says, until these windows mount the canvas its frames go to. */
+  hold?: { waiting: Set<number>; timer: NodeJS.Timeout };
 };
 
 type VideoTarget = "video" | "slideVideo" | "songVideo";
@@ -53,6 +55,13 @@ const videos: Record<VideoTarget, Session | null> = { video: null, slideVideo: n
 /** By `trackId`. Audio has no picture, so no window is shown its frames. */
 const audio = new Map<string, Session>();
 let preview: Session | null = null;
+/** What PREVIEW last asked for, and from which window: GO LIVE takes its engine and starts it another. */
+let previewAsked: { video: PreviewEngineVideo; contents: WebContents } | null = null;
+
+/** The longest a live video taken from PREVIEW waits paused for the projector and the NDI window to mount its
+ *  canvas. A cap and not a promise, like the projector's own hold: a window that never asks (hidden, occluded)
+ *  must not keep the room silent. */
+const SHOWN_CAP_MS = 1000;
 
 /** `session.engine` playing `session.url`, or none when the url names no file — then `events.error`
  *  says so, like the engine itself would. */
@@ -177,10 +186,18 @@ function syncVideo(target: VideoTarget, want: LiveEngineState | null, windows: (
             },
           }
         : liveEvents(fresh, { kind: target }, isCurrent);
-    start(fresh, { startAtSeconds: want.startAtSeconds, audio: target !== "songVideo" }, liveEngineFrameKey(target, want.epoch), events);
-  } else {
-    applyToSession(session, want);
+    const frameKey = liveEngineFrameKey(target, want.epoch);
+    const taken = target === "video" ? takePreviewEngine(want.url, want.startAtSeconds) : null;
+    if (taken) {
+      // What that engine was last told, so only the differences are sent.
+      Object.assign(fresh, { engine: taken.engine, paused: taken.paused, volume: taken.volume, loop: taken.loop });
+      taken.engine.retarget(frameKey, events);
+      if (!want.paused) holdUntilShown(fresh);
+    } else {
+      start(fresh, { startAtSeconds: want.startAtSeconds, audio: target !== "songVideo" }, frameKey, events);
+    }
   }
+  applyToSession(session, session.hold ? { ...want, paused: true } : want);
   // The projector, and the control window's LIVE monitor: one decode, the same frame on both.
   for (const win of windows) if (win) session.engine?.show(win.webContents);
 }
@@ -207,7 +224,49 @@ export function commandLiveEngine(command: MediaCommand): boolean {
   return true;
 }
 
+/**
+ * GO LIVE on the video PREVIEW shows: its engine, which already opened the file, drew its first frame and has its
+ * sound ready where the operator left it (owner, 2026-11-12). On a Windows PC a cold start was 0.8–1.2 s to the first
+ * frame over NDI. PREVIEW starts another, paused at the same point — a moment without picture only the operator
+ * sees. None when that engine failed or is gone: then the live one opens the file itself, as before.
+ */
+function takePreviewEngine(url: string, atSeconds: number): (Session & { engine: MediaEngine }) | null {
+  const session = preview;
+  const asked = previewAsked;
+  if (!session?.engine?.usable || session.url !== url || !asked?.video.picture) return null;
+  preview = null;
+  // Where the live one starts: «Al terminar» sends the next row from 0:00, which PREVIEW may hold elsewhere. Within
+  // half a second it is PREVIEW's own point, a status or two behind the engine (~4 a second while it plays).
+  if (Math.abs(session.engine.position - atSeconds) > 0.5) session.engine.seek(atSeconds);
+  // Paused: GO LIVE stops PREVIEW's playback (`stopPreviewPlayback`), whichever of the two messages lands first.
+  setPreviewVideo({ ...asked.video, paused: true, startAtSeconds: atSeconds }, asked.contents);
+  return { ...session, engine: session.engine };
+}
+
+/** The room must not hear a video before it sees it: an engine taken from PREVIEW is already open, so it would
+ *  sound the instant it is told to play, before the projector and the NDI window have even mounted its canvas. */
+function holdUntilShown(session: Session): void {
+  const waiting = new Set([projectionState.getWindow(), ...projectionState.getMirrors()].flatMap((win) => (win ? [win.webContents.id] : [])));
+  if (!waiting.size) return;
+  const timer = setTimeout(() => {
+    if (videos.video === session) console.warn(`[engine] live video played after ${SHOWN_CAP_MS} ms unseen: ${session.url}`);
+    releaseHold(session);
+  }, SHOWN_CAP_MS);
+  session.hold = { waiting, timer };
+}
+
+function releaseHold(session: Session): void {
+  if (!session.hold) return;
+  clearTimeout(session.hold.timer);
+  delete session.hold;
+  if (videos.video !== session) return;
+  syncLiveEngine();
+  // Paused meanwhile (NEGRO, the operator): the frame its windows asked for, which the hold did not draw.
+  if (session.paused) session.engine?.redraw();
+}
+
 export function setPreviewVideo(video: PreviewEngineVideo | null, contents: WebContents): void {
+  previewAsked = video ? { video, contents } : null;
   if (preview && preview.url !== video?.url) {
     preview.engine?.quit();
     preview = null;
@@ -243,11 +302,14 @@ export function seekPreviewVideo(seconds: number): void {
   preview?.engine?.seek(seconds);
 }
 
-/** `projection:wantVideoFrame`: a canvas for these frames just mounted. */
-export function redrawEngineFrame(key: string): void {
+/** `projection:wantVideoFrame`: a canvas for these frames just mounted in `sender`. */
+export function redrawEngineFrame(key: string, sender: WebContents): void {
   for (const target of ["video", "slideVideo", "songVideo"] as const) {
     const session = videos[target];
-    if (session && key === liveEngineFrameKey(target, session.epoch)) session.engine?.redraw();
+    if (!session || key !== liveEngineFrameKey(target, session.epoch)) continue;
+    // Held, playing is what draws it — for every window.
+    if (!session.hold) session.engine?.redraw();
+    else if (session.hold.waiting.delete(sender.id) && !session.hold.waiting.size) releaseHold(session);
   }
   if (preview && key === previewEngineFrameKey(preview.url)) preview.engine?.redraw();
 }

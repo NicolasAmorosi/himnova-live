@@ -43,6 +43,30 @@ test("an AVI plays through the media engine at once", async ({ app }) => {
   await expect.poll(async () => Number(await position.getAttribute("aria-valuenow"))).toBeGreaterThan(0);
 });
 
+test("GO LIVE takes the engine PREVIEW opened, and PREVIEW gets one of its own again", async ({ app }) => {
+  const [avi] = await app.addMedia("video", "long-xvid.avi");
+  if (!avi) throw new Error("import failed");
+  await waitEngine(app, avi);
+  await app.previewFile("Videos", "long-xvid");
+  await expect.poll(async () => (await engineCanvas(app.control, "preview:"))?.width ?? 0).toBe(1920);
+  await app.goLive();
+  const projector = await app.projector();
+  await expect.poll(() => moving(projector, "video:")).toBe(true);
+
+  // PREVIEW's scrubber moves a new engine of PREVIEW's, paused — never the one now on air.
+  const before = (await engineCanvas(app.control, "preview:"))?.sample;
+  const scrubber = app.previewColumn().getByRole("slider", { name: "Posición de long-xvid" });
+  await scrubber.focus();
+  await scrubber.press("End");
+  await expect.poll(async () => (await engineCanvas(app.control, "preview:"))?.sample).not.toBe(before);
+  expect(await moving(app.control, "preview:")).toBe(false);
+  const position = app.liveColumn().getByRole("slider", { name: "Posición de long-xvid" });
+  const live = Number(await position.getAttribute("aria-valuenow"));
+  expect(live).toBeLessThan(Number(await scrubber.getAttribute("aria-valuemax")) / 2);
+  await expect.poll(async () => Number(await position.getAttribute("aria-valuenow"))).toBeGreaterThan(live);
+  expect(await moving(projector, "video:")).toBe(true);
+});
+
 test("NEGRO pauses an engine video where it is, and uncovering resumes it", async ({ app }) => {
   const [avi] = await app.addMedia("video", "long-xvid.avi");
   if (!avi) throw new Error("import failed");

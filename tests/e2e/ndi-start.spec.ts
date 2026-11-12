@@ -16,11 +16,14 @@ async function goLiveWith(app: WorshipApp, inner: "Videos" | "Imágenes", name: 
   return Date.now();
 }
 
-/** Receives from 1.5 s before «EN VIVO» on `name` to ~6.5 s after; returns the frames and when it went live. */
+/** `name` in PREVIEW, as an operator looks at it before sending it; then received from 1.5 s before «EN VIVO» to
+ *  ~6.5 s after. Returns the frames and when it went live. */
 async function startOver(app: WorshipApp, ndi: NdiSource, name: string) {
+  await app.previewFile("Videos", name);
   const received = receiveFrames(ndi, 8);
   await app.control.waitForTimeout(1500);
-  const liveAt = await goLiveWith(app, "Videos", name);
+  await app.goLive();
+  const liveAt = Date.now();
   return { frames: await received, liveAt };
 }
 

@@ -250,6 +250,27 @@ test("«Pasar al siguiente del programa» sends the next row that shows somethin
   expect(await audioStates(projector)).toEqual([]);
 });
 
+test("«Pasar al siguiente del programa» starts the next video from 0:00, with PREVIEW holding it elsewhere", async ({ app }) => {
+  await chooseVideoEnd(app, "Pasar al siguiente del programa");
+  await addToSchedule(app, "clip.mp4", "long-xvid.avi");
+  // long-xvid plays through the media engine: GO LIVE takes over the one PREVIEW opened, wherever it stands.
+  await expect.poll(async () => (await app.invoke<number[]>("engine:assets")).length, { timeout: 30_000 }).toBe(1);
+  await scheduleRow(app, "clip").dblclick();
+  const projector = await app.projector();
+  // The operator looks ahead: the next row in PREVIEW, moved to its end.
+  await scheduleRow(app, "long-xvid").click();
+  const scrubber = app.previewColumn().getByRole("slider", { name: "Posición de long-xvid" });
+  await expect.poll(async () => Number(await scrubber.getAttribute("aria-valuemax"))).toBeGreaterThan(5);
+  await scrubber.focus();
+  await scrubber.press("End");
+  await expect.poll(async () => Number(await scrubber.getAttribute("aria-valuenow"))).toBeGreaterThan(5);
+  await playToEnd(projector);
+  const position = app.liveColumn().getByRole("slider", { name: "Posición de long-xvid" });
+  await expect.poll(async () => Number(await position.getAttribute("aria-valuenow"))).toBeGreaterThan(0);
+  expect(Number(await position.getAttribute("aria-valuenow"))).toBeLessThan(3);
+  await expect(rail(scheduleRow(app, "long-xvid"))).toHaveCount(1);
+});
+
 test("«Pasar al siguiente del programa» after the last row shows the logo", async ({ app }) => {
   await chooseVideoEnd(app, "Pasar al siguiente del programa");
   await addToSchedule(app, "photo.png", "clip.mp4");

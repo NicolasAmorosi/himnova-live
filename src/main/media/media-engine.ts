@@ -135,7 +135,9 @@ export class MediaEngine {
   private readonly targets = new Map<WebContents, { busy: boolean }>();
   private targetKey = "";
   private loadedOnce = false;
+  private loadedInfo: EngineLoaded | null = null;
   private lastStatus: EngineStatus | null = null;
+  private failed = false;
 
   constructor() {
     const args = ["--max-width", "1920", "--max-height", "1080"];
@@ -175,6 +177,25 @@ export class MediaEngine {
     this.write(
       `load ${Math.max(0, opts.startAtSeconds)} ${flag(opts.paused)} ${volume} ${flag(opts.loop)} ${flag(opts.audio)} ${longPathSafe(opts.file)}`,
     );
+  }
+
+  /** Still playing its file, with nothing gone wrong: one another session may take over (`retarget`). */
+  get usable(): boolean {
+    return this.loadedOnce && !this.exited && !this.failed;
+  }
+
+  /** Where it last said it stands, in seconds (0 before it says). */
+  get position(): number {
+    return this.lastStatus?.time ?? 0;
+  }
+
+  /** Hands this engine, file and all, to another session — PREVIEW's to the live one (owner, 2026-11-12): its
+   *  frames go under `target` from now on, and `events` hear again what it already said. */
+  retarget(target: string, events: EngineEvents): void {
+    this.targetKey = target;
+    this.events = events;
+    if (this.loadedInfo) events.loaded?.(this.loadedInfo);
+    if (this.lastStatus) events.status?.(this.lastStatus);
   }
 
   show(contents: WebContents): void {
@@ -228,6 +249,7 @@ export class MediaEngine {
       case "ready":
         return;
       case "loaded":
+        this.loadedInfo = event;
         return this.events.loaded?.(event);
       case "slots":
         return this.onSlots(event);
@@ -302,6 +324,7 @@ export class MediaEngine {
   }
 
   private fail(error: EngineError): void {
+    this.failed = true;
     this.events.error?.(error);
   }
 
