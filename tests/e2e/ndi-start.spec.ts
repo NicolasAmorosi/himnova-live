@@ -123,3 +123,30 @@ test("a cut into an engine video: the picture stays until its first frame, then 
   expect(av.first).toBeGreaterThanOrEqual(-45);
   expect(av.first).toBeLessThanOrEqual(65);
 });
+
+// The NDI window decodes its own copy of a Chromium video, which follows the projector's — whose sound NDI sends. The
+// first play after the app opens usually puts the copy ahead (12 of 14 measured): +109…+246 ms at 0:01, and still
+// +13…+128 at 0:02 while it could slow down only 10 %. Three fresh apps, so a broken follow is all but sure to show.
+// 0:00's own pair comes before the projector has said where it is, so the one that counts is 0:01's.
+for (const start of [1, 2, 3])
+  test(`a Chromium video over NDI: its sound in step with its picture from the first second (${start})`, async ({ app }) => {
+    test.setTimeout(120_000);
+    const ndi = await source(app);
+    test.skip(!ndi, "no NDI runtime on this computer");
+    await app.addMedia("image", "photo.png");
+    await app.addMedia("video", "ndi-av.mp4");
+    await goLiveWith(app, "Imágenes", "photo");
+    await app.projector();
+    await app.control.waitForTimeout(1000);
+    await app.previewFile("Videos", "ndi-av");
+    const sync = probe<{ list: [number, number][] }>("avsync", ndi!.name, ndi!.url, "6");
+    await app.control.waitForTimeout(1500);
+    await app.goLive();
+    const liveAt = Date.now();
+    const pairs = (await sync).list;
+    console.log(`[ndi-start] chromium: ${pairs.map(([t, d]) => `${((t - liveAt) / 1000).toFixed(1)}s ${d}`).join(", ")}`);
+    const second = pairs.find(([t]) => t >= liveAt + 700);
+    expect(second, "0:01's flash and beep reached the receiver").toBeDefined();
+    expect(second![1]).toBeGreaterThanOrEqual(-45);
+    expect(second![1]).toBeLessThanOrEqual(65);
+  });
