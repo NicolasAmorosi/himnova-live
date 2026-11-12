@@ -17,6 +17,7 @@
 // Args: [--parent <pid>] (Windows) [--fd-socket <path>] (Linux) [--max-width 1920 --max-height 1080]
 //       [--slots 6] [--hwdec …] [--close-in-parent <handle,…>] (Windows: a dead engine's ring)
 //       [--log-level error|warn|info|v|debug] (mpv's log on stderr; main keeps its tail for errors)
+//       [--cache-dir <shader cache>]
 // `--ndi-send <name> …` as the first argument runs the NDI output mode instead: see ndi.cpp.
 #include <mpv/client.h>
 #include <mpv/render.h>
@@ -319,7 +320,7 @@ int main(int argc, char** argv) {
   }
 #endif
   GpuOptions options;
-  std::string closeHandles, logLevel = "error";
+  std::string closeHandles, logLevel = "error", cacheDir;
 #ifdef _WIN32
   std::string hwdec = "d3d11va";
   timeBeginPeriod(1);
@@ -344,6 +345,7 @@ int main(int argc, char** argv) {
     else if (k == "--hwdec") hwdec = v;
     else if (k == "--close-in-parent") closeHandles = v;
     else if (k == "--log-level") logLevel = v;
+    else if (k == "--cache-dir") cacheDir = v;
   }
 #ifdef _WIN32
   std::vector<unsigned long long> handles;
@@ -369,6 +371,8 @@ int main(int argc, char** argv) {
                            // agent1-01). A libmpv too old for `auto` (Linux's system one) refuses it, harmless.
                            {"deinterlace", "auto"}};
   for (auto& o : opts) mpv_set_option_string(E.mpv, o[0], o[1]);
+  // Compiled shaders kept between engines: libmpv with config=no has no cache dir of its own.
+  if (!cacheDir.empty()) mpv_set_option_string(E.mpv, "gpu-shader-cache-dir", cacheDir.c_str());
   mpv_request_log_messages(E.mpv, logLevel.c_str());
   if (mpv_initialize(E.mpv) < 0) { emitError({"engine-gpu", "mpv_initialize"}); return 1; }
   mpv_observe_property(E.mpv, 0, "pause", MPV_FORMAT_FLAG);

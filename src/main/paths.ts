@@ -76,6 +76,10 @@ export const thumbCacheDir = path.join(userDataDir, "thumb-cache");
  *  (`main/media/engine-assets.ts`): the media engine plays those files now. */
 export const convertedMediaDir = path.join(userDataDir, "converted-media");
 
+/** The media engine's compiled shaders (mpv's `gpu-shader-cache-dir`), kept between engines: on Windows each one
+ *  compiled them again at every start. Derived data, like the thumbnails. */
+export const engineCacheDir = path.join(userDataDir, "engine-cache");
+
 export function thumbCachePath(key: string): string {
   return path.join(thumbCacheDir, key.slice(0, 2), `${key}.jpg`);
 }

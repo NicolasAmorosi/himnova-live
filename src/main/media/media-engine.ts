@@ -3,7 +3,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { sharedTexture, type SharedTextureHandle, type WebContents } from "electron";
-import { engineDir, enginePath } from "../paths";
+import { engineCacheDir, engineDir, enginePath } from "../paths";
 import { jsonLineReader, mpvVolume } from "./engine-protocol";
 
 /**
@@ -113,6 +113,12 @@ export function prewarmEngine(): void {
   if (!spare || spare.exited) spare = new MediaEngine();
 }
 
+/** At startup: the shader cache's folder, then a spare. */
+export function startEngines(): void {
+  fs.mkdirSync(engineCacheDir, { recursive: true });
+  prewarmEngine();
+}
+
 /** Synchronous, for `before-quit`: `.claude/knowledge/nothing-asynchronous-survives-before-quit.md`. */
 export function killAllEngines(): void {
   for (const engine of running) engine.kill();
@@ -140,7 +146,7 @@ export class MediaEngine {
   private failed = false;
 
   constructor() {
-    const args = ["--max-width", "1920", "--max-height", "1080"];
+    const args = ["--max-width", "1920", "--max-height", "1080", "--cache-dir", engineCacheDir];
     if (process.platform === "win32") {
       args.push("--parent", String(process.pid));
       if (orphanedWindowsHandles.length) args.push("--close-in-parent", orphanedWindowsHandles.join(","));

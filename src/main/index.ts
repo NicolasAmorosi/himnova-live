@@ -53,7 +53,7 @@ import { startLibrarySweepScheduler } from "./services/library-sweeper";
 import { pruneThumbCache } from "./media/thumbnail-service";
 import { backfillContentHashes } from "./media/content-hash";
 import { initEngineAssets, shutdownEngineAssets } from "./media/engine-assets";
-import { engineAvailable, killAllEngines, prewarmEngine } from "./media/media-engine";
+import { engineAvailable, killAllEngines, startEngines } from "./media/media-engine";
 import { stopDeckClips } from "./media/deck-clips";
 import { appendLogLine, installMainLog } from "./logging";
 import { initUpdates } from "./updates/updater";
@@ -266,7 +266,7 @@ if (gotSingleInstanceLock) {
     initEngineAssets();
     // A media engine started ahead of time, so the first video it plays does not pay for the
     // process (150–650 ms).
-    if (engineAvailable()) prewarmEngine();
+    if (engineAvailable()) startEngines();
 
     // The other half of the legacy import (`media_library.json`). Off the
     // startup path: it is a whole library's worth of files, and the rows it
