@@ -128,10 +128,15 @@ static int count(const NDIlib_v6* ndi, const char* source, const char* url, int 
   auto r = receive(ndi, source, url);
   if (!r) return 1;
   long last = -1, received = 0, fresh = 0, skipped = 0, repeats = 0, nobar = 0, wraps = 0;
+  // From the first frame, not from the connection: a new receiver sometimes got its first frame ~1 s late, and then
+  // counted 211 of 241 frames numbered without a gap while a receiver connected all along got every one
+  // (2026-11-12, Windows soak v2). Without any frame, the same seconds from the connection.
   auto start = Clock::now();
+  bool first = true;
   while (since(start) < seconds + 1) {
     NDIlib_video_frame_v2_t v;
     if (ndi->recv_capture_v3(r, &v, nullptr, nullptr, 200) != NDIlib_frame_type_video) continue;
+    if (first) start = Clock::now(), first = false;
     long n = barcode(v);
     ndi->recv_free_video_v2(r, &v);
     if (since(start) < 1) {
