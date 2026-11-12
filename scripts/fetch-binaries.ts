@@ -84,16 +84,17 @@ function riedl(dir: string, sums: { ffmpeg: string; ffprobe: string }): Archive[
   }));
 }
 
-const ENGINE_RELEASE = "https://github.com/NicolasAmorosi/himnova-live/releases/download/engine-6";
+const ENGINE_RELEASE = "https://github.com/NicolasAmorosi/himnova-live/releases/download/engine-7";
 
-/** Release `engine-5`: `native/` as of the commit its tag points at — engine-4 plus the NDI output's sound (captured
- *  from the OS), a sender that quits cleanly, deinterlacing, a first frame twice as fast and a video's sound held to
- *  meet its picture (65 ms; 40 on Windows). Linux's is built on Ubuntu 22.04 and ships no libmpv: it loads the
- *  system's, .so.2 or .so.1. */
+/** Release `engine-7`: `native/` as of the commit its tag points at. engine-6 (engine-5 under the new name: the NDI
+ *  output's sound captured from the OS, a sender that quits cleanly, deinterlacing, a fast first frame, a video's sound
+ *  held to meet its picture) plus the app's graphics card (`--adapter`, WARP included), a shader cache (`--cache-dir`)
+ *  and, on macOS, 100 ms of silence at start so the NDI sound tap has the engine before its video. Linux's is built on
+ *  Ubuntu 22.04 and ships no libmpv: it loads the system's, .so.2 or .so.1. */
 const ENGINE: Record<string, Archive[]> = {
-  "darwin-arm64": engine("darwin-arm64", "b333cba71de26c57ea16e9dc9f67ad664cb68ff5aac9edf54ff502a197c6c42b", ["media-engine", "handles.node", "libmpv.2.dylib"]),
-  "win32-x64": engine("win32-x64", "6cda69654ae8bedf2669c31c633d7c202975c995e14fed1e352430160a759c6a", ["media-engine.exe", "libmpv-2.dll"]),
-  "linux-x64": engine("linux-x64", "5a2b286861be4cb239c83c34539e80e1b55f1d81c09bec7fc69e24a8cbc955dd", ["media-engine", "handles.node"]),
+  "darwin-arm64": engine("darwin-arm64", "dd9314f7bda60cec5e27f9c1a6053e5280c75c76abd84ba001b1239abb98f66d", ["media-engine", "handles.node", "libmpv.2.dylib"]),
+  "win32-x64": engine("win32-x64", "4b3574124dec031be25353a62395c77c7b2627ac39d69c3e248d37b8e8d82df6", ["media-engine.exe", "libmpv-2.dll"]),
+  "linux-x64": engine("linux-x64", "1106e40d20abe933d00d5d8021c40e32f0a5fa5bec4965a548c9a13df1d6deb3", ["media-engine", "handles.node"]),
 };
 
 function engine(target: string, sha256: string, files: string[]): Archive[] {
