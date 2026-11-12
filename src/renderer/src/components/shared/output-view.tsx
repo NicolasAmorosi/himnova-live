@@ -41,8 +41,11 @@ const MONITOR_DRIFT_THRESHOLD_SECONDS = 0.35;
 /** The longest a transition into a new video waits for that video's first
  *  frame before fading anyway — see the video hold in `OutputView`. A cap and
  *  not a promise: a file that takes longer than this to show anything is
- *  better faded in late than left holding the previous scene indefinitely. */
-const VIDEO_READY_TIMEOUT_MS = 1000;
+ *  better faded in late than left holding the previous scene indefinitely.
+ *  3 s, not 1 (owner, 2026-11-12): the room keeps the previous picture until
+ *  the new one has a frame, never black in between — at 1 s, every engine
+ *  start on the owner's Windows PC (~1.45 s) faded to black first. */
+const VIDEO_READY_TIMEOUT_MS = 3000;
 
 export type OutputViewMode = "live" | "preview" | "monitor";
 
