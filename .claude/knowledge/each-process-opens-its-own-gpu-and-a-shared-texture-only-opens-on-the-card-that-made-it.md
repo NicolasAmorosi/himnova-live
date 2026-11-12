@@ -1,0 +1,10 @@
+## Each process opens its own GPU, and a shared texture only opens on the card that made it
+**Area:** projection
+**Trigger:** an engine video black with its sound (a laptop with two cards, a PC on WARP); Diagnostics naming the wrong card or every card «unused»; touching `chromiumAdapter()` in `src/main/media/media-engine.ts`, `native/engine/gpu-windows.cpp` / `gpu-linux.cpp` or the GPU row in `src/main/ipc/handlers/system.ts`
+
+- Believed: the media engine and Chromium draw on «the» GPU. True: every executable gets the adapter Windows (or Mesa) hands it by default, and an NT handle / dmabuf of a shared texture only opens on the adapter that created it. On a hybrid laptop Chromium's GPU process and `media-engine.exe` can land on different cards: Chromium cannot open the engine's ring and the video is **black with sound, no error**. The NDI sender survives only because `ndi.cpp` falls back to `openOnAnyAdapter`. Since `engine-7` main passes Chromium's card as `--adapter` and the engine logs `[engine] gpu: … (match)` in `main.log` (a warning when it was not found).
+- `app.getGPUInfo("basic")` on Windows is collected in main and **never marks the active device**: an RTX 4060 Ti that drew everything read «(sin usar)». Use `"complete"` (async, from the GPU process). Its `subSysId` arrives **signed** (Electron cuts the int64 to an int): `>>> 0` before comparing with DXGI.
+- With Chromium on WARP (`--use-angle=d3d11-warp`, or a PC without a driver) the active device reads **`vendorId`/`deviceId` 0xffff:0xffff** and only `deviceString` («Microsoft Basic Render Driver») tells; DXGI lists the same WARP as `0x1414:0x8c`. The first `engine-7` matched nothing there and stayed black. Measured 2026-11-12 on the owner's Windows PC; `media-engine.spec` «on Windows, with Chromium on WARP…» fails with the old code.
+- Chromium may move to another card or to WARP when its GPU process dies: re-read on `child-process-gone` (type `GPU`) and drop a spare engine started for the old card.
+
+**Last updated:** 2026-11-12
