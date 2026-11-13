@@ -99,7 +99,12 @@ test("a cut into an engine video: the picture stays until its first frame, then 
   await app.control.waitForTimeout(1000);
   await app.previewFile("Videos", "ndi-av");
   const received = receiveFrames(ndi!, 6);
-  const sync = probe<{ pairs: number; first: number; flashes: number; beeps: number }>("avsync", ndi!.name, ndi!.url, "6");
+  const sync = probe<{ pairs: number; first: number; flashes: number; beeps: number; list: [number, number][] }>(
+    "avsync",
+    ndi!.name,
+    ndi!.url,
+    "6",
+  );
   await app.control.waitForTimeout(1500);
   await app.goLive();
   const liveAt = Date.now();
@@ -107,9 +112,15 @@ test("a cut into an engine video: the picture stays until its first frame, then 
   const av = await sync;
   const first = after.findIndex((f) => f.luma > 150);
   const waiting = after.slice(0, Math.max(first, 0));
+  // 0:01's pair, by its time. Linux's capture hears the whole computer from the first instant, so 0:00's beep arrives
+  // there too, paired with the first frame the cut shows ~0.1 s late: −31…−76 ms, taken for 0:01's by `first` until
+  // 2026-11-13. On macOS and Windows 0:00's beep never reaches a receiver (any engine start).
+  const atOne = av.list.find(([flash]) => flash >= liveAt + 500);
+  const atZero = av.list.find(([flash]) => flash < liveAt + 500);
   console.log(
     `[ndi-start] cut: first frame ${first >= 0 ? after[first]!.t - liveAt : "-"} ms after «EN VIVO», ${waiting.length} frames ` +
-      `waiting (min luma ${Math.min(...waiting.map((f) => f.luma), 255)}), sound minus picture at 0:01 ${av.first} ms (${av.pairs} pairs, ${av.flashes} flashes, ${av.beeps} beeps)`,
+      `waiting (min luma ${Math.min(...waiting.map((f) => f.luma), 255)}), sound minus picture at 0:01 ${atOne?.[1] ?? "-"} ms` +
+      `${atZero ? `, at 0:00 ${atZero[1]} ms` : ""} (${av.pairs} pairs, ${av.flashes} flashes, ${av.beeps} beeps)`,
   );
   expect(first, "the clip reached the receiver").toBeGreaterThanOrEqual(0);
   expect(waiting.filter((f) => f.luma < BLACK_LUMA).length, "black frames between the photo and the clip").toBe(0);
@@ -117,11 +128,11 @@ test("a cut into an engine video: the picture stays until its first frame, then 
   // took 0.23 s here, and 0.8–1.2 s on a Windows PC.
   expect(after[first]!.t - liveAt, "ms from «EN VIVO» to the clip's first frame").toBeLessThanOrEqual(200);
   // Its sound, which starts at PREVIEW's level (0), at the live one — and in step from the first second, by EBU R37 as
-  // `ndi-receiver.spec.ts` holds the rest of a clip. 0:00's own beep never reaches a receiver (2026-11-12, any
-  // engine start), so the first pair is 0:01's.
+  // `ndi-receiver.spec.ts` holds the rest of a clip.
   expect(av.pairs, "flashes and beeps paired").toBeGreaterThanOrEqual(3);
-  expect(av.first).toBeGreaterThanOrEqual(-45);
-  expect(av.first).toBeLessThanOrEqual(65);
+  expect(atOne, "a flash and a beep paired at 0:01").toBeDefined();
+  expect(atOne![1]).toBeGreaterThanOrEqual(-45);
+  expect(atOne![1]).toBeLessThanOrEqual(65);
 });
 
 // The NDI window decodes its own copy of a Chromium video, which follows the projector's — whose sound NDI sends. The
