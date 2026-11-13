@@ -12,7 +12,7 @@ import {
   Wordmark,
 } from "@renderer/components/ui";
 import { ConfirmModal } from "@renderer/components/shared/modal";
-import { quitRisks } from "@renderer/effects/draft-autosave";
+import { quitRiskText, quitRisks } from "@renderer/effects/draft-autosave";
 import { api } from "@renderer/lib/api";
 import { onIpc } from "@renderer/lib/ipc";
 import { toast } from "@renderer/lib/toast";
@@ -257,13 +257,7 @@ export function AboutSection() {
       <ConfirmModal
         confirmLabel={installLabel}
         danger
-        description={[
-          risks?.unsaved ? t("schedule.closeConfirmBody") : null,
-          risks?.editor ? t("schedule.closeEditorBody") : null,
-          risks?.onAir ? t("schedule.closeOnAirBody") : null,
-        ]
-          .filter(Boolean)
-          .join(" ")}
+        description={quitRiskText(risks)}
         onConfirm={() => api.updates.install("now")}
         onOpenChange={(open) => {
           if (!open) setRisks(null);

@@ -3,6 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { registerWorshipScheme, registerWorshipProtocolHandler } from "./protocol/worship-protocol";
 import { openForLaunch } from "./db/migrate";
+import { applyPendingRestore } from "./db/backups";
 import { seedBuiltinBibles } from "./db/seed/seed-bible";
 import { seedUtilityScenes } from "./db/seed/seed-utility-scenes";
 import { seedSongThemes } from "./db/seed/seed-song-themes";
@@ -100,6 +101,9 @@ function initDatabase(): void {
   // migration-failure dialog below is said before they can.
   setMainLocale(systemLocale());
 
+  // A copy the operator chose to restore (Settings) takes the database's place before anything opens it;
+  // the migrations below then bring an older one up to date.
+  applyPendingRestore(dbPath, dbBackupDir);
   const { sqlite, db } = openForLaunch(dbPath, dbBackupDir, migrationsDir, (error, backup) => {
     dialog.showErrorBox(
       mt("dialogs.dbErrorTitle"),

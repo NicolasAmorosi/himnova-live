@@ -35,7 +35,8 @@ import { useLibraryStore } from "@renderer/stores/library.store";
 import { useUiStore } from "@renderer/stores/ui.store";
 import { startProjectionEffects } from "@renderer/effects/projection-sync";
 import { startLibrarySyncEffects } from "@renderer/effects/library-sync";
-import { startDraftAutosave } from "@renderer/effects/draft-autosave";
+import { quitRiskText, startDraftAutosave } from "@renderer/effects/draft-autosave";
+import { announceLaunchRestore } from "@renderer/lib/actions/backups";
 import { startStageSync } from "@renderer/effects/stage-sync";
 import { startEngineAssetsSync } from "@renderer/effects/engine-assets-sync";
 import { startUpdateAnnouncement } from "@renderer/effects/update-announcement";
@@ -124,6 +125,8 @@ export function App() {
   useEffect(() => {
     void (async () => {
       await loadSettings();
+      // A copy restored before this launch is said once the language is known.
+      void announceLaunchRestore();
       const { settings } = useSettingsStore.getState();
       useLibraryStore
         .getState()
@@ -353,13 +356,7 @@ export function App() {
         <ConfirmModal
           confirmLabel={t("schedule.closeAnyway")}
           danger
-          description={[
-            closeGuard?.unsaved ? t("schedule.closeConfirmBody") : null,
-            closeGuard?.editor ? t("schedule.closeEditorBody") : null,
-            closeGuard?.onAir ? t("schedule.closeOnAirBody") : null,
-          ]
-            .filter(Boolean)
-            .join(" ")}
+          description={quitRiskText(closeGuard)}
           onConfirm={async () => {
             closeConfirmedRef.current = true;
             await api.window.closeDecision("close");

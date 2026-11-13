@@ -589,6 +589,30 @@ when the newest copy there is 24 h old (or dated in the future: a clock set back
 Their own folder, so they never rotate out the pre-migration copies. It costs a launch about 0.45 s once a
 day on a 90 MB profile with nine Bibles (measured 2026-11-13); a typical one is a fraction of that.
 
+**Settings › Backups** (2.9.0, owner 2026-11-13: its own section; `db/backups.ts`). «Hacer una copia» takes the same
+snapshot into `daily/` (it counts within the 7) on a worker thread (`backup-worker.ts`): on that 90 MB profile
+`VACUUM INTO` held a thread 453 ms and `integrity_check` 486 ms, and every engine frame crosses main.
+«Restaurar…» lists every kind (daily, before an update, before a restore), newest first, each with its programs
+and songs counted (a read-only open, a few ms), or takes a `.db` picked anywhere («Elegir otra copia…»).
+
+**A restore never touches the open database.** The chosen copy is STAGED at `backups/restore-pending/worship.db`
+(its own folder: at the top of `backups/` it would read as a pre-migration copy and be rotated out): a fresh
+snapshot of it (never the file itself: a USB stick may be gone at the next launch, and a database left open
+elsewhere has its newest rows in its `-wal`), verified, with Himnova's tables and no migration newer than this
+build's journal, its date kept. Refused copies stage nothing and say why (`BACKUP_REFUSED`, worded by main).
+Then the app restarts: the control window asks first what a quit puts at risk (`quitRisks`, like «Restart and
+update»), so main's quit skips the close guard (`releaseForUpdate`; asked again there, a «Cancel» would leave
+the copy staged for whatever launch came next) and relaunches: `app.relaunch()`, except in an AppImage, where it
+never came back (its relaunch helper runs from the mount that goes with the process), so a detached shell outside
+the mount closes what it inherited, waits for the PID and runs `$APPIMAGE` (`startAfterExit`). At the next launch, before `openForLaunch`, `applyPendingRestore` copies what is there now to
+`before-restore/` (the last 3; without it nothing is replaced), deletes the `-wal` and `-shm` (a `-wal` left next
+to the restored file would be replayed onto it; the quit checkpointed it and the copy above holds it anyway) and
+renames the staged file over `worship.db`. The migrations then run as on any launch: a copy from before an update
+takes its pre-migration snapshot and comes up to date. The control window says it once
+(`backups:launchRestore`). The relaunch was verified outside Playwright (its loader waits for a debugger, so a
+relaunched E2E app never starts): the window back with the copy in place in 1.5 s on the Mac, 1.7 s with the Linux
+unpacked binary and 2 s with the AppImage (2026-11-13).
+
 ## Defensive Bible parsing (the JSON path)
 
 `src/main/db/seed/bible-formats/json.ts` tolerates the same variants as the legacy version:

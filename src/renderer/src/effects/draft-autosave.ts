@@ -1,4 +1,5 @@
 import { api } from "@renderer/lib/api";
+import { t } from "@renderer/lib/i18n/i18n-provider";
 import { onIpc } from "@renderer/lib/ipc";
 import { hasUnsavedChanges, toUpsertItems } from "@renderer/lib/actions/programs";
 import { useProgramStore } from "@renderer/stores/program.store";
@@ -73,6 +74,18 @@ export function quitRisks(): CloseGuardReasons | null {
   const editor = useUiStore.getState().unsavedEditors > 0;
   const onAir = isOnAir();
   return unsaved || editor || onAir ? { unsaved, editor, onAir } : null;
+}
+
+/** What a quit puts at risk, in words: the question every quit asks (closing, «Restart and update»,
+ *  restoring a copy). */
+export function quitRiskText(risks: CloseGuardReasons | null): string {
+  return [
+    risks?.unsaved ? t("schedule.closeConfirmBody") : null,
+    risks?.editor ? t("schedule.closeEditorBody") : null,
+    risks?.onAir ? t("schedule.closeOnAirBody") : null,
+  ]
+    .filter(Boolean)
+    .join(" ");
 }
 
 /**

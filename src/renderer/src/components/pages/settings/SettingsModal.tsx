@@ -7,6 +7,7 @@ import { BibleSection } from "./sections/bible-section";
 import { SongsSection } from "./sections/songs-section";
 import { SlidesSection } from "./sections/slides-section";
 import { SystemSection } from "./sections/system-section";
+import { BackupsSection } from "./sections/backups-section";
 import { AboutSection } from "./sections/about-section";
 import { useUiStore, type SettingsSection } from "@renderer/stores/ui.store";
 
@@ -48,6 +49,7 @@ export function SettingsModal() {
     { icon: "bible", label: t("settings.sections.bible"), value: "bible" },
     { icon: "song", label: t("settings.sections.songs"), value: "songs" },
     { icon: "settings", label: t("settings.sections.system"), value: "system" },
+    { icon: "backup", label: t("settings.sections.backups"), value: "backups" },
     { icon: "info", label: t("settings.sections.about"), value: "about" },
   ];
 
@@ -95,6 +97,8 @@ export function SettingsModal() {
                     <SongsSection />
                   ) : value === "system" ? (
                     <SystemSection />
+                  ) : value === "backups" ? (
+                    <BackupsSection />
                   ) : (
                     <AboutSection />
                   )}

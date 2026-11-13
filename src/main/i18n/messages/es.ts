@@ -95,6 +95,13 @@ const es = {
   programs: {
     notFound: "El programa ya no existe.",
   },
+  backups: {
+    failed: "No se pudo hacer la copia.",
+    unreadable: "No se pudo leer ese archivo: no es una copia de Himnova Live.",
+    damaged: "Esa copia está dañada y no se puede restaurar.",
+    notHimnova: "Ese archivo no es una copia de Himnova Live.",
+    newer: "Esa copia es de una versión más nueva de Himnova Live. Actualizá la app y probá de nuevo.",
+  },
   scenes: {
     invalid: "La escena tiene campos inválidos.",
     invalidName: "El nombre de la escena no es válido.",

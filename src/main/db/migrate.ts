@@ -16,12 +16,9 @@ import { openDatabase, type Db } from "./client";
 function hasPendingMigrations(dbFilePath: string, migrationsFolder: string): boolean {
   let journalMax: number;
   try {
-    const journal = JSON.parse(
-      fs.readFileSync(path.join(migrationsFolder, "meta", "_journal.json"), "utf-8"),
-    ) as { entries?: { when: number }[] };
-    const entries = journal.entries ?? [];
-    if (entries.length === 0) return false;
-    journalMax = Math.max(...entries.map((e) => e.when));
+    const newest = journalNewest(migrationsFolder);
+    if (newest === null) return false;
+    journalMax = newest;
   } catch {
     // No journal we can read: assume the worst and take the backup.
     return true;
@@ -45,6 +42,17 @@ function hasPendingMigrations(dbFilePath: string, migrationsFolder: string): boo
   }
 
   return journalMax > applied;
+}
+
+/** The newest migration this build knows (its journal's latest `when`); `null` when it has none. Throws when
+ *  the journal cannot be read. A database whose `__drizzle_migrations` holds a later one was written by a
+ *  newer build. */
+export function journalNewest(migrationsFolder: string): number | null {
+  const journal = JSON.parse(fs.readFileSync(path.join(migrationsFolder, "meta", "_journal.json"), "utf-8")) as {
+    entries?: { when: number }[];
+  };
+  const entries = journal.entries ?? [];
+  return entries.length === 0 ? null : Math.max(...entries.map((e) => e.when));
 }
 
 /**
@@ -101,7 +109,7 @@ export function dailyBackup(dbFilePath: string, dailyDir: string, now = new Date
   return takeSnapshot(dbFilePath, dailyDir, 7, now);
 }
 
-function listBackups(dir: string): string[] {
+export function listBackups(dir: string): string[] {
   try {
     return fs.readdirSync(dir).filter((f) => f.endsWith(".db")).sort();
   } catch {
@@ -109,7 +117,7 @@ function listBackups(dir: string): string[] {
   }
 }
 
-function takeSnapshot(dbFilePath: string, dir: string, keep: number, now: Date): BackupResult {
+export function takeSnapshot(dbFilePath: string, dir: string, keep: number, now: Date): BackupResult {
   const stamp = now.toISOString().replace(/[:.]/g, "-");
   const dest = path.join(dir, `worship-${stamp}.db`);
 
@@ -151,7 +159,7 @@ function takeSnapshot(dbFilePath: string, dir: string, keep: number, now: Date):
  * consistent, defragmented file, and refuses to overwrite an existing path —
  * which the timestamped name already guarantees.
  */
-function writeSnapshot(dbFilePath: string, dest: string): void {
+export function writeSnapshot(dbFilePath: string, dest: string): void {
   const sqlite = new Database(dbFilePath);
   try {
     sqlite.pragma("busy_timeout = 5000");
@@ -164,7 +172,7 @@ function writeSnapshot(dbFilePath: string, dest: string): void {
 /** A backup nobody has read is an assumption. `integrity_check` against the
  *  copy — not the original — is what turns it into a fact, and on a file this
  *  size it costs milliseconds. */
-function verifySnapshot(dest: string): void {
+export function verifySnapshot(dest: string): void {
   const sqlite = new Database(dest, { readonly: true });
   try {
     const rows = sqlite.pragma("integrity_check") as { integrity_check?: string }[];

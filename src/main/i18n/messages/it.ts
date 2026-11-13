@@ -93,6 +93,13 @@ const it: MainMessages = {
   programs: {
     notFound: "La scaletta non esiste più.",
   },
+  backups: {
+    failed: "Impossibile fare la copia.",
+    unreadable: "Impossibile leggere quel file: non è una copia di Himnova Live.",
+    damaged: "Quella copia è danneggiata e non si può ripristinare.",
+    notHimnova: "Quel file non è una copia di Himnova Live.",
+    newer: "Quella copia è di una versione più recente di Himnova Live. Aggiorna l’app e riprova.",
+  },
   scenes: {
     invalid: "La scena ha dei campi non validi.",
     invalidName: "Il nome della scena non è valido.",

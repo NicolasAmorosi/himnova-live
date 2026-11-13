@@ -93,6 +93,13 @@ const en: MainMessages = {
   programs: {
     notFound: "The schedule no longer exists.",
   },
+  backups: {
+    failed: "Couldn't make the backup.",
+    unreadable: "Couldn't read that file: it isn't a Himnova Live backup.",
+    damaged: "That backup is damaged and can't be restored.",
+    notHimnova: "That file isn't a Himnova Live backup.",
+    newer: "That backup is from a newer version of Himnova Live. Update the app and try again.",
+  },
   scenes: {
     invalid: "The scene has invalid fields.",
     invalidName: "The scene name isn't valid.",

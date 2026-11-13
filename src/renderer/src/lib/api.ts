@@ -185,6 +185,14 @@ export const api = {
     getStatus: () => invoke("ndi:getStatus", undefined),
     openRuntimePage: () => invoke("ndi:openRuntimePage", undefined),
   },
+  backups: {
+    list: () => invoke("backups:list", undefined),
+    create: () => invoke("backups:create", undefined),
+    pick: () => invoke("backups:pick", undefined),
+    restore: (path: string) => invoke("backups:restore", { path }),
+    openFolder: () => invoke("backups:openFolder", undefined),
+    launchRestore: () => invoke("backups:launchRestore", undefined),
+  },
   updates: {
     getStatus: () => invoke("updates:getStatus", undefined),
     check: () => invoke("updates:check", undefined),
