@@ -1,7 +1,7 @@
 import { selectOutput, type ProjectionStoreState } from "@renderer/stores/projection.store";
 import { slideAt, stepSong, type SongPosition } from "@shared/song-jump";
 import { passageReference, type BibleVerseDTO } from "@shared/types/bible";
-import { INSTANT_TRANSITION, type ProjectionOutput, type StageOutput } from "@shared/types/projection";
+import type { ProjectionOutput, StageOutput } from "@shared/types/projection";
 import { resolveStageLayout, stageThresholds } from "@shared/stage";
 import type { SettingsMap } from "@shared/types/settings";
 import type { CountdownClock, StageMessage, StageTextSize } from "@shared/types/stage";
@@ -23,13 +23,17 @@ export type StageControls = {
 const TEXT_SCALE: Record<StageTextSize, number> = { small: 0.8, normal: 1, large: 1.25 };
 
 /** What the projector would show with nothing covering it: no BLACK or LOGO,
- *  no plates, and cut rather than faded — the band reads, it does not watch.
- *  A verse in its own version only: two columns in a frame this size are two
- *  columns nobody on the platform can read. */
+ *  no plates, and a short crossfade between scenes whatever the projector's
+ *  own transition is — on the stage every change eases (owner, 2026-11-13),
+ *  and never slowly: the band reads, it does not watch. A verse in its own
+ *  version only: two columns in a frame this size are two columns nobody on
+ *  the platform can read. */
+const STAGE_FADE_MS = 300;
+
 function uncovered(state: ProjectionStoreState): ProjectionOutput {
   const output = selectOutput({ ...state, overlay: "none" });
   const own = output.kind === "bible" ? { ...output, parallel: null } : output;
-  return { ...own, plates: [], transition: INSTANT_TRANSITION };
+  return { ...own, plates: [], transition: { epoch: state.sceneEpoch, style: "crossfade", durationMs: STAGE_FADE_MS } };
 }
 
 /** A song slide with its chords, for the musicians: the slide of the live song

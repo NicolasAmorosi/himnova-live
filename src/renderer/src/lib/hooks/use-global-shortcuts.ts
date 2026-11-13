@@ -8,7 +8,7 @@ import { advanceVerse } from "@renderer/lib/actions/bible";
 import { removeSelected } from "@renderer/lib/actions/remove-selected";
 import { onIpc } from "@renderer/lib/ipc";
 import { useSettingsStore } from "@renderer/stores/settings.store";
-import { FOCUS_STAGE_MESSAGE, useStageStore } from "@renderer/stores/stage.store";
+import { focusStageMessage } from "@renderer/stores/stage.store";
 import { isPointerFocused, trackFocusModality } from "@renderer/lib/focus-modality";
 
 const ARROW_KEYS_LIST: string[] = ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"];
@@ -99,15 +99,9 @@ function suppressesKey(target: EventTarget | null, key: string): boolean {
   return role !== null && ARROW_CONSUMING_ROLES.has(role) && ARROW_KEYS.has(key);
 }
 
-function focusStageMessage(): void {
-  if (useSettingsStore.getState().settings["stage.displayId"] === null) return;
-  const stage = useStageStore.getState();
-  const focus = () => void window.dispatchEvent(new Event(FOCUS_STAGE_MESSAGE));
-  // At once when the field is there: a letter typed right after M must land in it, not be a shortcut (a «b» was
-  // BLACK). Closed, the card mounts on the next render, so the focus waits a frame.
-  if (stage.panelOpen) return focus();
-  stage.setPanelOpen(true);
-  requestAnimationFrame(focus);
+/** M: the stage panel's message, only while a stage screen is assigned. */
+function stageMessageKey(): void {
+  if (useSettingsStore.getState().settings["stage.displayId"] !== null) focusStageMessage();
 }
 
 function black(): void {
@@ -138,8 +132,8 @@ const ACTIONS: Record<string, () => void> = {
   l: logo,
   L: logo,
   // The stage panel's message field (owner, 2026-11-13), unfolding the panel first.
-  m: focusStageMessage,
-  M: focusStageMessage,
+  m: stageMessageKey,
+  M: stageMessageKey,
   Enter: () => void goLive(),
 };
 

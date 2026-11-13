@@ -135,6 +135,13 @@ const pt: Messages = {
     messageHelp: "Só o palco vê. Enter mostra; Esc tira.",
     screenLost: "A tela do palco foi desconectada. Ela volta sozinha assim que for conectada.",
     screenBack: "A tela do palco voltou",
+    pin: "Fixar o painel: não fecha ao clicar fora",
+    unpin: "Soltar o painel: fecha ao clicar fora",
+    quickStart: "{minutes} min",
+    quickStartHint: "Iniciar uma contagem de {minutes} minutos",
+    quickMessage: "Mensagem",
+    quickMessageHint: "Escrever uma mensagem para o palco (M)",
+    quickView: "Visão do palco: {view}",
   },
   status: {
     black: "PRETO",

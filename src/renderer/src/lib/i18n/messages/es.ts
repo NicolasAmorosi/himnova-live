@@ -136,6 +136,13 @@ const es = {
     messageHelp: "Solo lo ve el escenario. Enter lo muestra; Esc lo quita.",
     screenLost: "Se desconectó la pantalla del escenario. Vuelve sola en cuanto se conecte.",
     screenBack: "Volvió la pantalla del escenario",
+    pin: "Fijar el panel: no se cierra al tocar afuera",
+    unpin: "Soltar el panel: se cierra al tocar afuera",
+    quickStart: "{minutes} min",
+    quickStartHint: "Iniciar una cuenta de {minutes} minutos",
+    quickMessage: "Mensaje",
+    quickMessageHint: "Escribir un mensaje al escenario (M)",
+    quickView: "Vista del escenario: {view}",
   },
   status: {
     black: "NEGRO",

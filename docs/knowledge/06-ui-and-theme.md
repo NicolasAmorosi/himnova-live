@@ -482,16 +482,24 @@ projector and the stage are now, and opening or closing the projector; its secon
 stage panel's monitor (sized at that screen's own proportion). Everything inside is in units of its own box
 (`container-type: size`, so `cqh` is safe there: no `OutputView` above it) and it sets `data-theme="dark"` on
 itself, so the panel's monitor in the light theme still shows the stage's colours. Two views: «Musicians»
-(what is live, the time, what follows; a running countdown beside the time, as large) and «Pastor» (the countdown
-as large as fits, the time, what is live small); the message is a band at the foot of both.
+(what is live, the time, what follows; with a countdown, the count takes the time's place and the time goes small
+beside «Sigue») and «Pastor» (the countdown as large as fits, the time, what is live small); the message is a band
+at the foot of both. **Every change on it eases** (owner, 2026-11-13): `Swap` fades the old out and then the new in,
+in one grid cell (the view, the count and the time, the notices), the countdown's colours are a `transition-colors`
+on a box that never changes size, the message band eases its height (`interpolate-size`) so what is above moves
+instead of jumping, and the frames crossfade 300 ms between scenes (`lib/stage-output.ts`).
 
 The stage panel (`pages/stage/StagePanel.tsx`, owner 2026-11-13: «like a chat window») is a bar (`h-strip`) at the
-foot of the left column: the dot, the countdown with its pause, the message with its ✕. Opened, it is a card over
-the column (`absolute`, `rounded-t-xl`, `shadow-overlay`, the `stage-card-in/out` animation in `globals.css`) that
-covers it instead of squeezing it: the monitor at the stage screen's proportion, the view, the countdown (readout
+foot of the left column: its name and the arrow at the ends, and the quick actions centred between them — the
+countdown with −1, pause and +1 (or «30 min», which starts one), the message with its ✕ (or «Mensaje», which opens
+the card on its field) and the view. Opened, it is a card over the column (`absolute`, `rounded-t-xl`,
+`shadow-overlay`) that grows up out of the bar (`.wa-stage-card`: its height eased from the bar's to `auto`, its
+content clipped until it settles so no scrollbar flashes) and covers the column instead of squeezing it: the monitor at the stage screen's proportion, the view, the countdown (readout
 and its state, −1 / Start-Pause / +1, the lengths and an «other» field for minutes or `hh:mm`, Restart and Remove
 in the section's title) and the message (what is on the stage now, the ready phrases, a field with Urgent and
-Show). Its arrow, Esc or a press anywhere else folds it. Its tooltips are `floating`: in-flow bubbles widened the
+Show; its «Quitar» is in the section's title, and the message on the stage is marked among the phrases, so nothing
+grows). Its arrow, Esc or a press anywhere else folds it, unless it is pinned (the pin in its title, for the
+session). Its tooltips are `floating`: in-flow bubbles widened the
 card's scroll area. Measured 2026-11-13: 607 px tall at 1366×768, no scroll.
 
 ### Toasts: every one goes, with its time drawn

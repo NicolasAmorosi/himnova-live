@@ -142,6 +142,14 @@
   transition: height 220ms cubic-bezier(0.4, 0, 1, 1);
 }
 
+/* Everything else that changes on the stage (`StageView`'s `Swap`): the view, the count and the time, the notices. */
+@keyframes stage-fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes stage-fade-out { from { opacity: 1; } to { opacity: 0; } }
+.wa-stage-fade-in { animation: stage-fade-in 400ms ease-out both; }
+/* Fade through: out first, then in, never both at once (a double image). */
+.wa-stage-fade-out { animation: stage-fade-out 220ms ease-in both; }
+.wa-stage-fade-in-after { animation: stage-fade-in 320ms ease-out 200ms both; }
+
 /* The stage's message band (`StageView`): it eases open at the foot, so what is above moves up smoothly instead of
  * jumping, fades in, and only then blinks; taken off, it eases closed the same way. */
 .wa-stage-band {

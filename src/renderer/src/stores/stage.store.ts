@@ -23,6 +23,10 @@ type StageStoreState = {
   /** The panel's card is open (`StagePanel`). Never remembered across launches: an overlay over the left column. */
   panelOpen: boolean;
   setPanelOpen: (open: boolean) => void;
+  /** Pinned, the card stays open when the operator presses elsewhere (owner, 2026-11-13); its arrow and Esc still
+   *  fold it. For this session. */
+  panelPinned: boolean;
+  setPanelPinned: (pinned: boolean) => void;
   /** The message field's text and urgency, kept while the panel folds. */
   draft: string;
   draftUrgent: boolean;
@@ -54,6 +58,8 @@ export const useStageStore = create<StageStoreState>((set, get) => ({
   draftUrgent: false,
   panelOpen: false,
   setPanelOpen: (panelOpen) => set({ panelOpen }),
+  panelPinned: false,
+  setPanelPinned: (panelPinned) => set({ panelPinned }),
 
   armCountdown: (totalMs) => set({ countdown: { clock: { mode: "countdown", state: "held", remainingMs: totalMs }, totalMs } }),
 
@@ -108,3 +114,14 @@ export const useStageStore = create<StageStoreState>((set, get) => ({
 
   clearMessage: () => set({ message: null }),
 }));
+
+/** Opens the stage panel's card and puts the keyboard in its message field: the M key and the bar's «Mensaje». At once
+ *  when the card is open, so a letter typed right after it lands in the field and is never a shortcut (a «b» was
+ *  BLACK); closed, the card mounts on the next render, so the focus waits a frame. */
+export function focusStageMessage(): void {
+  const stage = useStageStore.getState();
+  const focus = () => void window.dispatchEvent(new Event(FOCUS_STAGE_MESSAGE));
+  if (stage.panelOpen) return focus();
+  stage.setPanelOpen(true);
+  requestAnimationFrame(focus);
+}

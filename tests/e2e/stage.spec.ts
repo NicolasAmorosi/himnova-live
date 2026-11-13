@@ -25,7 +25,8 @@ test("the stage screen shows the live verse and the next, and keeps it under NEG
   const stage = await opened;
   await stage.waitForLoadState("domcontentloaded");
   // The time, before anything is live.
-  await expect(stage.locator("time")).toHaveText(/\d{1,2}:\d{2}/);
+  // The one staying (the view fades in from the one it replaces, which leaves first in the DOM).
+  await expect(stage.locator("time").last()).toHaveText(/\d{1,2}:\d{2}/);
 
   await app.openChapter("Juan 3");
   await app.control.getByRole("listitem").filter({ hasText: JUAN_3_16 }).click();
@@ -196,4 +197,43 @@ test("«Automática» shows the musicians' view while a chapter's verse is live,
   await expect(stage.getByText("Sigue", { exact: true })).toBeVisible();
   await app.liveColumn().getByRole("button", { name: "Sacar del aire" }).first().click();
   await expect(stage.getByText("Sigue", { exact: true })).toBeHidden();
+});
+
+test("the folded bar's quick actions, the count in the time's place for the musicians, and a pinned card", async ({ app }) => {
+  const bar = app.control.getByRole("region", { name: "Escenario" });
+  const card = app.control.getByRole("dialog", { name: "Escenario" });
+  const opened = app.electron.waitForEvent("window", { predicate: isStage });
+  await chooseStageScreen(app, true);
+  const stage = await opened;
+  await stage.waitForLoadState("domcontentloaded");
+
+  // One press: a 30-minute count, running; −1/+1 and pause beside it.
+  await bar.getByRole("button", { name: "Iniciar una cuenta de 30 minutos" }).click();
+  await expect(stage.getByRole("timer")).toHaveText(/^29:5\d$/);
+  await bar.getByRole("button", { name: "Un minuto más" }).click();
+  await expect(stage.getByRole("timer")).toHaveText(/^30:5\d$/);
+  await bar.getByRole("button", { name: "Pausar la cuenta" }).click();
+  await expect(bar.getByRole("button", { name: "Seguir la cuenta" })).toBeVisible();
+
+  // The musicians' view with a count: the count where the time was, the time small beside «Sigue».
+  await bar.getByRole("button", { name: /^Vista del escenario/ }).click();
+  await app.control.getByRole("menuitemradio", { name: "Músicos" }).click();
+  await expect(stage.getByText("Sigue", { exact: true })).toBeVisible();
+  await expect(stage.getByRole("timer")).toHaveText(/^30:5\d$/);
+  await expect(stage.locator("time")).toHaveCount(1);
+
+  // «Mensaje» opens the card with the keyboard in the field.
+  await bar.getByRole("button", { name: "Mensaje" }).click();
+  await expect(card.getByRole("textbox", { name: "Mensaje al escenario" })).toBeFocused();
+
+  // Pinned, a press elsewhere leaves it open; let go, the next one folds it.
+  const main = (await app.control.locator("main").boundingBox())!;
+  const elsewhere = () => app.control.mouse.click(main.x + main.width / 2, main.y + 20);
+  await card.getByRole("button", { name: "Fijar el panel: no se cierra al tocar afuera" }).click();
+  await elsewhere();
+  await app.control.waitForTimeout(500);
+  await expect(card).toBeVisible();
+  await card.getByRole("button", { name: "Soltar el panel: se cierra al tocar afuera" }).click();
+  await elsewhere();
+  await expect(card).toHaveCount(0);
 });

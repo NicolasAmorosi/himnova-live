@@ -135,6 +135,13 @@ const en: Messages = {
     messageHelp: "Only the stage sees it. Enter shows it; Esc takes it off.",
     screenLost: "The stage screen was disconnected. It comes back on its own as soon as it's connected.",
     screenBack: "The stage screen is back",
+    pin: "Pin the panel: it stays open when you click elsewhere",
+    unpin: "Unpin the panel: it closes when you click elsewhere",
+    quickStart: "{minutes} min",
+    quickStartHint: "Start a {minutes}-minute countdown",
+    quickMessage: "Message",
+    quickMessageHint: "Write a message to the stage (M)",
+    quickView: "Stage view: {view}",
   },
   status: {
     black: "BLACK",
