@@ -17,6 +17,7 @@ export function DoneStep({ go }: { go: (step: WelcomeStepId) => void }) {
   const displayId = useDisplayStore((state) => state.displayId);
   const versions = useBibleStore((state) => state.versions);
   const projector = displays.find((d) => d.id === displayId);
+  const stage = displays.find((d) => d.id === s["stage.displayId"]);
   const logoMode = logoModeOf(s["logo.mode"], s["logo.path"]);
   const folders = Object.values(s["library.linkedFolders"]).flat().length + s["songs.linkedFolders"].length;
   const logoOutput = useLogoPreview();
@@ -39,7 +40,10 @@ export function DoneStep({ go }: { go: (step: WelcomeStepId) => void }) {
     {
       step: "screens",
       label: t("welcome.steps.screens"),
-      value: projector && !projector.operator ? projector.label : t("welcome.done.noProjector"),
+      value: [
+        projector && !projector.operator ? projector.label : t("welcome.done.noProjector"),
+        ...(stage ? [t("welcome.done.stage", { name: stage.label })] : []),
+      ].join(" · "),
     },
     {
       step: "endings",

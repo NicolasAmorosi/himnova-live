@@ -237,7 +237,7 @@ test("the open projector keeps the display awake, and closing it lets it sleep",
 
   await app.control.getByRole("button", { name: "Configuración" }).click();
   const settings = app.control.getByRole("dialog", { name: "Configuración" });
-  await settings.getByRole("tab", { name: "Proyección" }).click();
+  await settings.getByRole("tab", { name: "Pantallas" }).click();
   await settings.getByRole("button", { name: "Cerrar pantalla" }).click();
   await expect.poll(() => app.hasProjector()).toBe(false);
   await expect.poll(() => holdsDisplay(app.mainPid)).toBe(false);

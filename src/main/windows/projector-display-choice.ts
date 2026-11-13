@@ -1,3 +1,5 @@
+import { projectorDisplayFor } from "@shared/display-roles";
+
 /**
  * Where the projection window goes once the list of screens changes, or `null` to leave it where it
  * is — on its screen, or hidden because its screen went away (`projector-screen.ts`).
@@ -26,7 +28,9 @@ export function chooseProjectorMove(
   if (preferredId === operatorId) return null;
   const allowed = (id: number) => id !== operatorId && id !== stageId && displayIds.includes(id);
   if (preferredId !== null && allowed(preferredId)) return preferredId === currentId ? null : preferredId;
-  if (currentId !== null && displayIds.includes(currentId) && currentId !== operatorId) return null;
+  if (currentId !== null && displayIds.includes(currentId) && currentId !== operatorId && currentId !== stageId) return null;
+  // On the stage's screen, where it fell before a stage was assigned there: off it, onto any screen it may use.
+  if (currentId !== null && currentId === stageId) return displayIds.find(allowed) ?? null;
   return addedIds.find(allowed) ?? null;
 }
 
@@ -36,8 +40,8 @@ export function chooseProjectorMove(
  * it would cover what the congregation watches, and before the service it
  * would BE what they watch: the projector opens on the first GO LIVE, the
  * stage as soon as its screen is there. The projector's screen is where GO
- * LIVE opens it (`display.store`'s rule: its chosen screen while connected,
- * else the first that is not the operator's own). A stage chosen there stays
+ * LIVE opens it (`projectorDisplayFor`: its chosen screen while connected,
+ * else the first that is neither the operator's nor the stage's). A stage chosen there stays
  * off rather than jumping to a screen nobody chose, and comes back on its own
  * once the projector moves elsewhere (owner, 2026-11-06). The operator's own
  * screen is the exception: there both are movable windows (one screen,
@@ -51,9 +55,5 @@ export function chooseStageDisplay(
 ): number | null {
   if (stageId === null || !displayIds.includes(stageId)) return null;
   if (stageId === operatorId) return stageId;
-  const projectorId =
-    projectorPreferredId !== null && displayIds.includes(projectorPreferredId)
-      ? projectorPreferredId
-      : (displayIds.find((id) => id !== operatorId) ?? null);
-  return stageId === projectorId ? null : stageId;
+  return stageId === projectorDisplayFor(displayIds, operatorId, projectorPreferredId, stageId) ? null : stageId;
 }

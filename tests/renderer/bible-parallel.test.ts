@@ -12,6 +12,7 @@ import { useDisplayStore } from "@renderer/stores/display.store";
 import { usePreviewStore } from "@renderer/stores/preview.store";
 import { useProgramStore } from "@renderer/stores/program.store";
 import { bibleOutputFor } from "@renderer/lib/bible-output";
+import { DEFAULT_SETTINGS } from "@shared/types/settings";
 import { stageOutputFor } from "@renderer/lib/stage-output";
 import { advanceVerse, projectVerse } from "@renderer/lib/actions/bible";
 import { goLive } from "@renderer/lib/actions/playback";
@@ -130,7 +131,11 @@ describe("the output", () => {
     useProjectionStore.getState().setBase({ kind: "bible", text: "Jesús lloró.", reference: "Juan 11:35", versionLabel: null, parallel: JOHN });
     const words = { black: "NEGRO", logo: "LOGO", lyricsHidden: "", next: "" };
     const next = { verses: [verse(43, 35), verse(43, 36)], currentVerseIndex: 0 };
-    const stage = stageOutputFor(useProjectionStore.getState(), next, null, words);
+    const stage = stageOutputFor(useProjectionStore.getState(), next, null, words, {
+      countdown: null,
+      message: null,
+      settings: DEFAULT_SETTINGS,
+    });
     expect(stage.current).toMatchObject({ kind: "bible", text: "Jesús lloró.", parallel: null });
     expect(stage.next).toMatchObject({ kind: "bible", text: "43:36", parallel: null });
   });

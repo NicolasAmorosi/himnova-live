@@ -8,7 +8,7 @@ import { commandLiveEngine, redrawEngineFrame, syncLiveEngine } from "../../medi
 import { IpcError } from "@shared/ipc/result";
 import { deckIdOfUrl } from "@shared/urls";
 import { keepLiveDeckSource } from "../../protocol/worship-protocol";
-import { showOnStage, stageSnapshot } from "../../windows/stage-window";
+import { showOnStage, stageShown, stageSnapshot } from "../../windows/stage-window";
 import { forwardMediaStatusToNdi } from "../../ndi/ndi-output";
 
 let currentProgramId: number | null = null;
@@ -40,6 +40,7 @@ export const projectionHandlers: Pick<
   | "projection:wantVideoFrame"
   | "stage:show"
   | "stage:getSnapshot"
+  | "stage:shown"
 > = {
   "projection:open": ({ displayId }) => {
     const existing = projectionState.getWindow();
@@ -134,6 +135,7 @@ export const projectionHandlers: Pick<
 
   "stage:show": (output) => showOnStage(output),
   "stage:getSnapshot": () => stageSnapshot(),
+  "stage:shown": () => stageShown(),
 
   "projection:getSnapshot": (_req, ev) => {
     mountWaiters.get(ev.sender.id)?.();

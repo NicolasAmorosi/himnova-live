@@ -17,7 +17,7 @@ async function videoLive(app: WorshipApp, name = "clip") {
   return projector;
 }
 
-async function openSettings(app: WorshipApp, section: "Proyección" | "Diapositivas" | "Biblia" | "Sistema") {
+async function openSettings(app: WorshipApp, section: "Proyección" | "Pantallas" | "Diapositivas" | "Biblia" | "Sistema") {
   await app.control.getByRole("button", { name: "Configuración" }).click();
   const dialog = app.control.getByRole("dialog", { name: "Configuración" });
   await dialog.getByRole("tab", { name: section }).click();
@@ -171,7 +171,7 @@ test("closing and reopening the projector from Ajustes keeps the video where it 
   const first = await videoLive(app);
   await expect.poll(async () => (await videoStates(first))[0]?.currentTime ?? 0).toBeGreaterThan(2.5);
 
-  const settings = await openSettings(app, "Proyección");
+  const settings = await openSettings(app, "Pantallas");
   await settings.getByRole("button", { name: "Cerrar pantalla" }).click();
   await expect.poll(() => app.hasProjector()).toBe(false);
   // Read once the window is gone: this is where the operator stopped it.

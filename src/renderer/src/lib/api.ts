@@ -28,6 +28,7 @@ import type { DecoderSupport } from "@shared/types/media";
 export const api = {
   displays: {
     list: () => invoke("displays:list", undefined),
+    identify: (screens: { id: number; number: number; name: string }[]) => invoke("displays:identify", screens),
   },
   projection: {
     open: (displayId: number) => invoke("projection:open", { displayId }),
@@ -64,6 +65,7 @@ export const api = {
   stage: {
     show: (output: StageOutput) => invoke("stage:show", output),
     getSnapshot: () => invoke("stage:getSnapshot", undefined),
+    shown: () => invoke("stage:shown", undefined),
   },
   bible: {
     versions: () => invoke("bible:versions", undefined),

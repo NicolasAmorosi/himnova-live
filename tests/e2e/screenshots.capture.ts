@@ -164,13 +164,18 @@ for (const locale of LOCALES) {
       await songSlides.getByRole("listitem").nth(2).getByRole("button").click();
       await shoot("songs", { x: 533, y: 0, width: 1067, height: 688 });
 
-      // The musicians' screen, picked in Ajustes ▸ Proyección: the song's slide on air and the next.
+      // The stage screen, picked in Ajustes ▸ Pantallas on the control window's own screen: the song's slide on
+      // air and the next.
       const stageOpened = app.electron.waitForEvent("window", { predicate: (page) => page.url().endsWith("/stage.html") });
       await control.getByRole("button", { name: tr("Configuración") }).click();
       const settings = control.getByRole("dialog", { name: tr("Configuración") });
-      await settings.getByRole("tab", { name: tr("Proyección") }).click();
-      await settings.getByRole("combobox", { name: tr("Pantalla de escenario") }).click();
-      await control.getByRole("option").nth(1).click();
+      await settings.getByRole("tab", { name: tr("Pantallas") }).click();
+      await settings
+        .getByRole("group")
+        .filter({ hasText: tr("Esta pantalla tiene la ventana de control") })
+        .getByRole("combobox")
+        .click();
+      await control.getByRole("option", { name: tr("Escenario"), exact: true }).click();
       await control.keyboard.press("Escape");
       const stageWindow = await stageOpened;
       const stageScreen = await layOut(stageWindow, 1920, 1080, 1);

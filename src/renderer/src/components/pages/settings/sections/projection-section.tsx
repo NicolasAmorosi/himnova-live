@@ -2,7 +2,6 @@ import { useT } from "@renderer/lib/i18n/i18n-provider";
 import { Button, FieldGroup, FieldRow, Icon, Select, Slider } from "@renderer/components/ui";
 import { LogoGroup } from "@renderer/components/shared/settings-groups/logo-group";
 import { NdiOutputGroup } from "@renderer/components/shared/settings-groups/ndi-output-group";
-import { ScreenGroup } from "@renderer/components/shared/settings-groups/screen-group";
 import { transitionDurationOptions, transitionStyleOptions } from "@renderer/lib/transition";
 import { useSettingsStore } from "@renderer/stores/settings.store";
 import { useProjectionStore } from "@renderer/stores/projection.store";
@@ -15,8 +14,8 @@ import {
   type VideoEndAction,
 } from "@shared/types/projection";
 
-/** Everything about what the projector shows: which screen, the fallback
- *  logo, and clearing whatever is currently live. */
+/** Everything about what the projector shows: NDI, the fallback logo, and
+ *  clearing whatever is currently live. Which screen is Settings ▸ Screens'. */
 export function ProjectionSection() {
   const t = useT();
   const base = useProjectionStore((s) => s.base);
@@ -31,8 +30,6 @@ export function ProjectionSection() {
 
   return (
     <div className="flex flex-col gap-8">
-      <ScreenGroup />
-
       <NdiOutputGroup />
 
       <LogoGroup />

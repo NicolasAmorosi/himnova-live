@@ -126,12 +126,24 @@ GO LIVE, even of the same deck) and the transport's restart start them all over.
 sounds from the deck store, not from `liveDeck`: `liveDeck` is the deck as it went live, and a WMA
 the media engine takes afterwards only reaches the deck store (`deck-updated`).
 
-`src/renderer/src/effects/stage-sync.ts` builds the musicians' screen (`stageOutputFor`,
+`src/renderer/src/effects/stage-sync.ts` builds the stage screen (`stageOutputFor`,
 `lib/stage-output.ts`) while one is chosen: the live content with nothing covering it, the slide or
 verse → would bring (`stepSong` for a song, the Bible tab's cursor for a verse — a program's verse
 hands its chapter to the tab as it goes live, `handLiveItemToTab`), and BLACK, LOGO or hidden lyrics named as a `notice` rather than shown (owner,
 2026-11-05: the band still needs the words). It rebuilds only when an input changes by reference,
-like `selectOutputMemo`.
+like `selectOutputMemo`, and keeps what it sent in `stage.store`'s `output`, which the stage panel's monitor
+draws: never a second build.
+
+**The stage panel** (`components/pages/stage/StagePanel.tsx`, the foot of the left column, only while a stage
+screen is assigned; plan 2026-11-13) runs what the stage says — never Settings (owner). `stores/stage.store.ts`
+holds a manual countdown (a `TimerClock` mark plus its length: one push per change, none per second, the stage
+ticks it itself with `useTimerNow`), one message at a time (`seq` makes a new one blink three times; urgent
+blinks until taken off) and the message field's draft. It travels in the `StageOutput` as state, never as a
+command. The layout is a setting (`stage.layout`): «auto» is resolved before it leaves (`resolveStageLayout`:
+the preacher's while the countdown runs, the musicians' otherwise). The countdown's colour is
+`countdownTone`, by what the stage SHOWS, so the colour and the digits change on the same frame; its thresholds
+shrink for short counts (`stageThresholds`). M focuses the message field (`use-global-shortcuts`), at once
+when the panel is open, so a letter typed right after it is never a shortcut.
 
 `src/renderer/src/effects/end-of-playback.ts` takes off the air, on its own, a video or an
 auto-advancing deck that finished playing by itself, leaving the logo scene

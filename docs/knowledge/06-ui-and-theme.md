@@ -463,12 +463,26 @@ verse, and the keyboard arrows (↑/↓, global shortcut) cover the same thing.
 
 ### Screen and projection startup
 
-`stores/display.store.ts` replaces the old `use-displays.ts` hook: it lists the screens, resolves
-which one to use (the one persisted in `settings['projection.displayId']`, if it's still
-connected; otherwise, the first non-primary one) and exposes `open()/close()`. The app calls
-`open()` automatically at startup (`app/App.tsx`) — **the projection window opens on its own and
-starts on BLACK**, never showing the last content from a previous service. The operator
-cuts/restarts it from Settings, not manually from the TopBar.
+`stores/display.store.ts` lists the screens and resolves which one the projector uses
+(`projectorDisplayFor`: the one persisted in `settings['projection.displayId']` while it is connected,
+otherwise the first that is neither the operator's nor the stage's) and exposes `open()/close()`. **Nothing opens
+at startup**: the operator's first GO LIVE, BLACK or LOGO opens the projector (`openIfNeeded`). Settings ▸
+Screens (`components/shared/settings-groups/screen-group.tsx`, shared with the welcome's «Pantallas» step) holds
+the map, one role per screen (Projector / Stage / Not used, excluding each other), «Identificar», where the
+projector and the stage are now, and opening or closing the projector; its second group dresses the stage
+(text size, clock, chords, colour thresholds, ready phrases).
+
+### The stage screen and its panel
+
+`StageView` (`components/shared/stage-view.tsx`) is the stage screen, drawn the same by its window and by the
+stage panel's monitor (sized at that screen's own proportion). Everything inside is in units of its own box
+(`container-type: size`, so `cqh` is safe there: no `OutputView` above it) and it sets `data-theme="dark"` on
+itself, so the panel's monitor in the light theme still shows the stage's colours. Two layouts: «Musicians»
+(what is live, the time, what follows; a countdown small) and «Preacher» (the countdown as large as fits, the
+time, what is live small); the message is a band at the foot of both. The panel at the foot of the left column
+is a bar (`h-strip`: the dot, the countdown while folded, the message with its age, the layout, the fold) over a
+grid whose monitor spans the three rows beside it; in a column under 24rem the message row takes the whole
+width and two lengths hide (`@container/stage`). Measured 2026-11-13: 180 px open at 1366×768 and 1000×700.
 
 - **The work screen's chrome (2026-11-04 redesign, F4):** a column header is the title plus its data in
   quiet text (`PanelHeader`'s `meta`), never a pill — only what asks the operator to act stays a

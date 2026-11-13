@@ -3,7 +3,7 @@ import { broadcast } from "../services/broadcast";
 import { getSettingsRepo } from "../services/repos";
 import { operatorDisplay } from "./control-window";
 import { chooseProjectorMove } from "./projector-display-choice";
-import { syncStageWindow } from "./stage-window";
+import { refitStageWindow, syncStageWindow } from "./stage-window";
 
 /**
  * What the projection window needs from the operating system while it exists,
@@ -103,11 +103,31 @@ function onDisplaysChanged(): void {
       if (wasHidden) broadcast("projector-screen", { connected: true });
     }
   }
-  syncStageWindow();
+  syncStageWindow(true);
+  broadcast("displays-changed", undefined);
+}
+
+/** A screen changed size (another resolution, rotated): the fullscreen windows on it are fitted again — Windows
+ *  and Linux leave them at the old size, half off the picture or with a strip of desktop showing. */
+function onDisplayMetricsChanged(_event: unknown, display: Display, changed: string[]): void {
+  if (!changed.includes("bounds")) return;
+  const current = attached;
+  if (
+    process.platform !== "darwin" &&
+    current &&
+    !current.win.isDestroyed() &&
+    !current.hidden &&
+    current.displayId === display.id &&
+    current.win.isFullScreen()
+  ) {
+    place(current, display);
+  }
+  refitStageWindow(display);
   broadcast("displays-changed", undefined);
 }
 
 export function watchDisplays(): void {
   screen.on("display-added", onDisplaysChanged);
   screen.on("display-removed", onDisplaysChanged);
+  screen.on("display-metrics-changed", onDisplayMetricsChanged);
 }

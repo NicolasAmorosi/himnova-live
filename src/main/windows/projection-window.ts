@@ -5,6 +5,8 @@ import { trustWindow } from "../ipc/trusted-senders";
 import { broadcast } from "../services/broadcast";
 import { operatorDisplay } from "./control-window";
 import { attachProjector } from "./projector-screen";
+import { getSettingsRepo } from "../services/repos";
+import { projectorDisplayFor } from "@shared/display-roles";
 
 const PRELOAD = path.join(__dirname, "../preload/index.js");
 /** The projector as a window: 16:9, like the stage's. */
@@ -20,10 +22,15 @@ const WINDOWED_HEIGHT = 450;
 export function createProjectionWindow(displayId?: number): BrowserWindow {
   const displays = screen.getAllDisplays();
   const operator = operatorDisplay();
-  const target =
-    (displayId !== undefined && displays.find((d) => d.id === displayId)) ||
-    displays.find((d) => d.id !== operator.id) ||
-    operator;
+  let stageId: number | null = null;
+  try {
+    stageId = getSettingsRepo().get("stage.displayId");
+  } catch {
+    // Settings not ready: no stage to keep clear of.
+  }
+  const ids = displays.map((d) => d.id);
+  const chosen = projectorDisplayFor(ids, operator.id, displayId ?? null, stageId);
+  const target = displays.find((d) => d.id === chosen) ?? operator;
 
   // On the operator's own screen — one screen, or chosen there on purpose — a window they can move
   // (owner, 2026-11-10): fullscreen and always on top it covered the control window, and with it the

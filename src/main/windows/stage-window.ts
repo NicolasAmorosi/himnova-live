@@ -1,8 +1,9 @@
-import { app, BrowserWindow, screen } from "electron";
+import { app, BrowserWindow, powerSaveBlocker, screen, type Display } from "electron";
 import path from "node:path";
 import type { StageOutput } from "@shared/types/projection";
 import { mt } from "../i18n";
 import { trustWindow } from "../ipc/trusted-senders";
+import { broadcast } from "../services/broadcast";
 import { getSettingsRepo } from "../services/repos";
 import { forwardKeysToControl } from "./projection-window";
 import { operatorDisplay } from "./control-window";
@@ -22,11 +23,17 @@ const PRELOAD = path.join(__dirname, "../preload/index.js");
  * changes and when a screen comes or goes. A screen that disappears closes it
  * (there is nothing in it to lose, unlike the projector's audio); one that
  * comes back reopens it. Never on the projector's screen (`chooseStageDisplay`).
+ * Whether it is on screen is told to the control window (`stage-screen`): the
+ * stage panel's dot, and a toast when a screen coming or going is the reason.
+ * While it exists the screens stay awake, as they do while the projector
+ * exists: the band reads the time long before the first GO LIVE.
  */
-let current: { win: BrowserWindow; displayId: number } | null = null;
+let current: { win: BrowserWindow; displayId: number; blocker: number } | null = null;
 let lastOutput: StageOutput | null = null;
+let shown = false;
 
-export function syncStageWindow(): void {
+/** `byScreens`: called because a screen came or went, not because a setting changed. */
+export function syncStageWindow(byScreens = false): void {
   let displayId: number | null = null;
   try {
     const settings = getSettingsRepo();
@@ -41,15 +48,37 @@ export function syncStageWindow(): void {
     // Settings not ready: nothing to show yet.
   }
   const display = screen.getAllDisplays().find((candidate) => candidate.id === displayId);
-  if (current && !current.win.isDestroyed() && current.displayId === display?.id) return;
-  closeStageWindow();
-  if (display) current = { win: createStageWindow(display), displayId: display.id };
+  if (!(current && !current.win.isDestroyed() && current.displayId === display?.id)) {
+    closeStageWindow();
+    if (display) {
+      const win = createStageWindow(display);
+      current = { win, displayId: display.id, blocker: powerSaveBlocker.start("prevent-display-sleep") };
+    }
+  }
+  const now = current !== null;
+  if (now === shown) return;
+  shown = now;
+  broadcast("stage-screen", { shown, byScreens });
+}
+
+/** Whether the stage window is on screen now (the stage panel's dot, at mount). */
+export function stageShown(): boolean {
+  return shown;
 }
 
 export function closeStageWindow(): void {
   const open = current;
   current = null;
-  if (open && !open.win.isDestroyed()) open.win.close();
+  if (!open) return;
+  powerSaveBlocker.stop(open.blocker);
+  if (!open.win.isDestroyed()) open.win.close();
+}
+
+/** Its screen changed size (another resolution, a rotated monitor): fullscreen there again. macOS resizes a
+ *  fullscreen window on its own; Windows and Linux leave it at the old size. */
+export function refitStageWindow(display: Display): void {
+  if (process.platform === "darwin" || !current || current.win.isDestroyed() || current.displayId !== display.id) return;
+  if (current.win.isFullScreen()) current.win.setBounds(display.bounds);
 }
 
 export function showOnStage(output: StageOutput): void {
@@ -92,7 +121,11 @@ function createStageWindow(display: Electron.Display): BrowserWindow {
   forwardKeysToControl(win);
   win.on("page-title-updated", (event) => event.preventDefault());
   win.once("closed", () => {
-    if (current?.win === win) current = null;
+    if (current?.win !== win) return;
+    powerSaveBlocker.stop(current.blocker);
+    current = null;
+    shown = false;
+    broadcast("stage-screen", { shown, byScreens: false });
   });
 
   const devServerUrl = process.env["ELECTRON_RENDERER_URL"];

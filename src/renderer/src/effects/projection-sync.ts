@@ -234,6 +234,7 @@ export function startProjectionEffects(): () => void {
   // notice stays until it is true again.
   let screenLostToastId: string | null = null;
   const unsubscribeProjectorScreen = onIpc("projector-screen", ({ connected }) => {
+    useDisplayStore.setState({ projectorHidden: !connected });
     if (screenLostToastId !== null) toast.dismiss(screenLostToastId);
     screenLostToastId = null;
     if (connected) toast.success(t("projector.screenBack"));

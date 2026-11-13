@@ -2,10 +2,25 @@ import { selectOutput, type ProjectionStoreState } from "@renderer/stores/projec
 import { slideAt, stepSong, type SongPosition } from "@shared/song-jump";
 import { passageReference, type BibleVerseDTO } from "@shared/types/bible";
 import { INSTANT_TRANSITION, type ProjectionOutput, type StageOutput } from "@shared/types/projection";
+import { resolveStageLayout, stageThresholds } from "@shared/stage";
+import type { SettingsMap } from "@shared/types/settings";
+import type { CountdownClock, StageMessage, StageTextSize } from "@shared/types/stage";
 
 /** The Bible tab's cursor: a verse projected from it can tell what follows. */
 export type StageBibleCursor = { verses: readonly BibleVerseDTO[]; currentVerseIndex: number | null };
 export type StageWords = { black: string; logo: string; lyricsHidden: string; next: string };
+
+/** What the stage panel set (the stage store) and how Settings ▸ Screens dresses it. */
+export type StageControls = {
+  countdown: { clock: CountdownClock; totalMs: number } | null;
+  message: StageMessage | null;
+  settings: Pick<
+    SettingsMap,
+    "stage.layout" | "stage.textSize" | "stage.clockFormat" | "stage.chords" | "stage.warnMs" | "stage.alertMs" | "ui.locale"
+  >;
+};
+
+const TEXT_SCALE: Record<StageTextSize, number> = { small: 0.8, normal: 1, large: 1.25 };
 
 /** What the projector would show with nothing covering it: no BLACK or LOGO,
  *  no plates, and cut rather than faded — the band reads, it does not watch.
@@ -66,19 +81,33 @@ export function stageOutputFor(
   bible: StageBibleCursor,
   posterUrl: string | null,
   words: StageWords,
+  controls: StageControls,
 ): StageOutput {
   const { base, overlay } = state;
+  const { settings } = controls;
   const lyricsHidden = base?.kind === "song" && base.lyricsHidden;
+  const chords = (output: ProjectionOutput | null, position: SongPosition | null) =>
+    settings["stage.chords"] ? withChords(output, state, position) : output;
+  const countdown = controls.countdown && {
+    clock: controls.countdown.clock,
+    ...stageThresholds(controls.countdown.totalMs, settings["stage.warnMs"], settings["stage.alertMs"]),
+  };
+  const clockFormat = settings["stage.clockFormat"];
   return {
-    current: withChords(
+    current: chords(
       base === null ? null : uncovered(lyricsHidden ? { ...state, base: { ...base, lyricsHidden: false } } : state),
-      state,
       base?.kind === "song" ? base : null,
     ),
-    next: withChords(nextOutput(state, bible), state, base?.kind === "song" ? stepSong(base.song, base, 1) : null),
+    next: chords(nextOutput(state, bible), base?.kind === "song" ? stepSong(base.song, base, 1) : null),
     videoStill: { posterUrl, videoUrl: base?.kind === "video" ? base.url : null },
     notice:
       overlay === "black" ? words.black : overlay === "logo" ? words.logo : lyricsHidden ? words.lyricsHidden : null,
     nextLabel: words.next,
+    countdown,
+    message: controls.message,
+    layout: resolveStageLayout(settings["stage.layout"], countdown),
+    // «Auto» is the language's: 12 hours in English.
+    hour12: clockFormat === "auto" ? settings["ui.locale"] === "en" : clockFormat === "12h",
+    textScale: TEXT_SCALE[settings["stage.textSize"]],
   };
 }

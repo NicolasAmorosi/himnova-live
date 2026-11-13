@@ -68,6 +68,8 @@ import type { BackupEntry, LaunchRestore } from "../types/backups";
  */
 export type IpcContract = {
   "displays:list": { req: void; res: DisplayInfo[] };
+  /** «Identificar»: each screen shows its number (the map's) and its name for a few seconds. */
+  "displays:identify": { req: { id: number; number: number; name: string }[]; res: void };
 
   /** `false` when the window closed before its page mounted: `projection-closed`
    *  has already told the control, which must not then mark the projector open. */
@@ -105,6 +107,8 @@ export type IpcContract = {
    *  keeps the last one for a stage window that opens later. */
   "stage:show": { req: StageOutput; res: void };
   "stage:getSnapshot": { req: void; res: StageOutput | null };
+  /** Whether the stage window is on screen now; later changes come as `stage-screen`. */
+  "stage:shown": { req: void; res: boolean };
 
   /** The PREVIEW monitor's video when the media engine plays it, or `null`
    *  when it shows anything else. Declarative: main loads a new url, and only
@@ -466,6 +470,9 @@ export type IpcEvents = {
   /** The projection window's screen went away (it is hidden, still playing)
    *  or came back (it is fullscreen on it again). */
   "projector-screen": { connected: boolean };
+  /** The stage window appeared or went away (`windows/stage-window.ts`); `byScreens` when a screen coming or
+   *  going is why, which is what the control window says in a toast. */
+  "stage-screen": { shown: boolean; byScreens: boolean };
   "media-status": MediaStatus;
   "media-error": ProjectionMediaError;
   /** The PREVIEW monitor's engine (`preview:setVideo`), ~4/s. */

@@ -37,8 +37,10 @@ and the user DB live) are resolved in a single file, `src/main/paths.ts` — don
 As in the legacy version (removed from the repo on 2026-10-22; still in git history at
 `90d3821`): `createControlWindow()` (1400×900, minimum 1000×700, background `#162231`) and
 `createProjectionWindow(displayId?)`, which is **recreated** (not reused) on every
-`projection:open` and falls back to 800×600, centered, without `alwaysOnTop` when only one monitor
-is connected. The minimize/restore sync between both windows lives in `main/index.ts`
+`projection:open` and, on the operator's own screen (one monitor, or chosen there), is a framed, movable
+800×450 window centred there, without `alwaysOnTop`. With no chosen screen connected it opens on the first that
+is neither the operator's nor the stage's (`shared/display-roles.ts`, `projectorDisplayFor`, shared with the
+control window's `display.store`). The minimize/restore sync between both windows lives in `main/index.ts`
 (`wireMinimizeRestoreSync`).
 
 Because the projection window is destroyed and recreated, main keeps the last `ProjectionOutput`
@@ -47,20 +49,29 @@ reopening the projection leaves it black even though the control believes it is 
 something.
 
 **The stage window** (2026-11-05, `main/windows/stage-window.ts`, page `stage.html` →
-`StageApp`) is the musicians' screen: what is live, what comes next and the time, on the screen
-chosen in Settings ▸ Projection (`stage.displayId`, `null` = none). Unlike the projector it exists
+`StageApp`) is the stage screen, for the musicians and the preacher: `StageView`
+(`components/shared/stage-view.tsx`) of the last `StageOutput`, on the screen given the «Escenario» role in
+Settings ▸ Screens (`stage.displayId`, `null` = none). Unlike the projector it exists
 whenever that screen is connected — `syncStageWindow()` decides, called when the control window
 opens, when its setting or the projector's changes and when a screen comes or goes — but never on the
 projector's screen (`chooseStageDisplay`, owner 2026-11-06): fullscreen and on top it would cover it, and
-before the first GO LIVE it would be what the room sees. A choice that becomes the projector's leaves the
-stage off (Settings, which no longer lists that screen, reads «Ninguna») until the projector moves; the
-operator's own screen takes both, as movable windows. It plays nothing: a video is
+before the first GO LIVE it would be what the room sees. The roles exclude each other in Settings
+(`lib/actions/screen-roles.ts`: the projector given the stage's screen leaves the stage without one, the stage
+given the projector's moves the projector, each said in a toast); the operator's own screen takes both, as
+movable windows. While it exists a `powerSaveBlocker` keeps the screens awake, as the projector's does, and
+whether it is on screen reaches the control window as `stage-screen` (the stage panel's dot; a toast when a
+screen coming or going is why). It plays nothing: a video is
 its poster (`OutputView`'s `videoStill`), so it has no audio, no media commands and no engine
 session. The control window builds its picture (`lib/stage-output.ts`, pushed by
 `effects/stage-sync.ts` through `stage:show`); main keeps the last one for a window that opens
 later (`stage:getSnapshot`). On the operator's own screen it is a movable 800×450 window, never a
 fullscreen one over the control window. Its keys are forwarded to the control window, like the
-projector's.
+projector's. A screen that changes size (`display-metrics-changed`) gets its fullscreen windows fitted again
+on Windows and Linux; macOS does it by itself.
+
+**«Identificar»** (Settings ▸ Screens, `windows/identify-displays.ts`): a small window per screen, over
+everything and never focused, shows the map's number and the screen's name for three seconds. The numbers come
+from the control window, so the map and the walls cannot disagree.
 
 ## The NDI® output
 

@@ -1,3 +1,4 @@
+import type { Locator } from "@playwright/test";
 import { expect, relaunch, test, type WorshipApp } from "./support/app";
 
 /**
@@ -55,6 +56,28 @@ async function expectMovableOnControlScreen(app: WorshipApp) {
   expect(Math.abs(centre.y - (area.y + area.height / 2))).toBeLessThan(40);
 }
 
+/** Settings ▸ Screens: the row of the screen that hosts the control window, and the other one. */
+const ownScreenRow = (settings: Locator) => settings.getByRole("group").filter({ hasText: "Esta pantalla tiene la ventana de control" });
+const otherScreenRow = (settings: Locator) =>
+  settings.getByRole("group").filter({ hasText: /^2 · / }).filter({ hasNotText: "Esta pantalla tiene la ventana de control" });
+
+async function screensSettings(app: WorshipApp): Promise<Locator> {
+  await app.control.getByRole("button", { name: "Configuración" }).click();
+  const settings = app.control.getByRole("dialog", { name: "Configuración" });
+  await settings.getByRole("tab", { name: "Pantallas" }).click();
+  return settings;
+}
+
+async function pickRole(app: WorshipApp, row: Locator, role: "Proyector" | "Escenario" | "Sin uso"): Promise<void> {
+  await row.getByRole("combobox").click();
+  await app.control.getByRole("option", { name: role, exact: true }).click();
+}
+
+const stageOpen = (app: WorshipApp) =>
+  app.electron.evaluate(({ BrowserWindow }) =>
+    BrowserWindow.getAllWindows().some((w) => !w.isDestroyed() && w.webContents.getURL().endsWith("/stage.html")),
+  );
+
 async function verseLive(app: WorshipApp) {
   await app.openChapter("Juan 3");
   await app.control.getByRole("listitem").filter({ hasText: JUAN_3_16 }).click();
@@ -81,9 +104,9 @@ test("Settings: the control screen chosen as the projector's gives a movable win
   await verseLive(app);
   await app.control.getByRole("button", { name: "Configuración" }).click();
   const settings = app.control.getByRole("dialog", { name: "Configuración" });
-  await settings.getByRole("tab", { name: "Proyección" }).click();
-  await settings.getByRole("combobox", { name: "Pantalla de proyección" }).click();
-  await app.control.getByRole("option").filter({ hasText: "(pantalla del control)" }).first().click();
+  await settings.getByRole("tab", { name: "Pantallas" }).click();
+  await ownScreenRow(settings).getByRole("combobox").click();
+  await app.control.getByRole("option", { name: "Proyector", exact: true }).click();
   await expectMovableOnControlScreen(app);
 });
 
@@ -168,4 +191,56 @@ test("three screens: the projector's screen blinks off and on, the window goes b
   await expect(app.control.getByRole("status").filter({ hasText: "Volvió la pantalla del proyector" })).toBeVisible();
   const back = (await projectorWindow(app))!.bounds;
   expect({ x: back.x, y: back.y }).toEqual({ x: onProjector.x, y: onProjector.y });
+});
+
+test("the roles exclude each other: the stage given the projector's screen moves the projector, and back, each said", async ({
+  app,
+}) => {
+  test.skip((await app.invoke<unknown[]>("displays:list")).length < 2, "needs two screens");
+  const settings = await screensSettings(app);
+  const other = otherScreenRow(settings);
+  await expect(other.getByRole("combobox")).toHaveText(/Proyector/);
+
+  await pickRole(app, other, "Escenario");
+  await expect(app.control.getByRole("status").filter({ hasText: /^El proyector pasó a / })).toBeVisible();
+  await expect(other.getByRole("combobox")).toHaveText(/Escenario/);
+  await expect(ownScreenRow(settings).getByRole("combobox")).toHaveText(/Proyector/);
+  await expect.poll(() => stageOpen(app)).toBe(true);
+  await expect(settings.getByRole("list", { name: "Ahora" })).toContainText("Escenario visible en 2");
+
+  await pickRole(app, other, "Proyector");
+  await expect(app.control.getByRole("status").filter({ hasText: "pasó a ser el proyector: el escenario quedó sin pantalla" })).toBeVisible();
+  await expect.poll(() => stageOpen(app)).toBe(false);
+  expect((await app.invoke<Record<string, unknown>>("settings:get"))["stage.displayId"]).toBeNull();
+});
+
+test("a projector never chosen opens beside the stage, never on its screen", async ({ app }) => {
+  test.skip((await app.invoke<unknown[]>("displays:list")).length < 2, "needs two screens");
+  // The second screen is the stage's and the projector was never chosen: before, GO LIVE opened the projector on
+  // «the first screen that is not the operator's» — the stage's — and the stage went off.
+  const otherId = await app.electron.evaluate(({ BrowserWindow, screen }) => {
+    const control = screen.getDisplayMatching(BrowserWindow.getAllWindows()[0]!.getBounds());
+    return screen.getAllDisplays().find((d) => d.id !== control.id)!.id;
+  });
+  await app.invoke("settings:set", { "projection.displayId": null, "stage.displayId": otherId });
+  await app.control.reload();
+  await expect.poll(() => stageOpen(app)).toBe(true);
+  await verseLive(app);
+  await expectMovableOnControlScreen(app);
+  expect(await stageOpen(app)).toBe(true);
+});
+
+test("«Identificar» puts each screen's number on it for a few seconds, the map's numbers", async ({ app }) => {
+  const count = (await app.invoke<unknown[]>("displays:list")).length;
+  const settings = await screensSettings(app);
+  await settings.getByRole("button", { name: "Identificar" }).click();
+  const shown = () =>
+    app.electron.evaluate(({ BrowserWindow }) =>
+      BrowserWindow.getAllWindows()
+        .filter((w) => !w.isDestroyed() && w.webContents.getURL().startsWith("data:text/html"))
+        .map((w) => decodeURIComponent(w.webContents.getURL()).match(/line-height:1">(\d+)</)?.[1]),
+    );
+  await expect.poll(shown).toHaveLength(count);
+  expect((await shown()).sort()).toEqual(Array.from({ length: count }, (_, i) => String(i + 1)));
+  await expect.poll(shown, { timeout: 6_000 }).toHaveLength(0);
 });

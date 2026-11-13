@@ -4,6 +4,7 @@
  * `selectOutput` switch (renderer/stores/projection.store.ts) is a compile error,
  * not a runtime "stuck on logo" bug like the old `restorePrevious()`.
  */
+import type { StageCountdown, StageLayout, StageMessage } from "./stage";
 import type { BibleStyle } from "./bible-style";
 import type { SlideRect } from "./deck";
 import type { PlateKind, PlatePosition, PlateStyle } from "./overlay";
@@ -501,4 +502,13 @@ export type StageOutput = {
   notice: string | null;
   /** The caption over `next`, in the operator's language. */
   nextLabel: string;
+  /** The preacher's countdown (the stage panel), or `null` when none is set. */
+  countdown: StageCountdown | null;
+  /** The message to the platform, a band in both layouts; `null` when none. */
+  message: StageMessage | null;
+  /** Already resolved: «Auto» never reaches the stage. */
+  layout: StageLayout;
+  hour12: boolean;
+  /** The size of everything the stage writes itself (time, countdown, message), from Settings ▸ Screens. */
+  textScale: number;
 };

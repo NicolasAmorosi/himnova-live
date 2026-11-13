@@ -117,6 +117,15 @@
   50%, 100% { opacity: 0; }
 }
 
+/* The stage screen (`StageView`): a message that appears, the countdown entering red and reaching zero blink
+ * three times and then stay legible; an urgent message keeps blinking (plan 2026-11-13 §2.4). */
+@keyframes stage-blink {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.15; }
+}
+.wa-stage-blink { animation: stage-blink 0.7s ease-in-out 3; }
+.wa-stage-blink-forever { animation: stage-blink 1s ease-in-out infinite; }
+
 /* A `StageSketch` playing its «before» (something on the projector, its progress filling) and then showing
  * what comes after it — the «Al terminar» choices of the welcome. Only the chosen card plays. */
 @keyframes sketch-before {

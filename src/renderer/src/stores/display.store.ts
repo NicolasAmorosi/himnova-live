@@ -8,6 +8,7 @@ import { useSettingsStore } from "@renderer/stores/settings.store";
 import { t } from "@renderer/lib/i18n/i18n-provider";
 import { toast } from "@renderer/lib/toast";
 import type { DisplayInfo } from "@shared/types/display";
+import { projectorDisplayFor } from "@shared/display-roles";
 
 /** Dedupes concurrent `load()` calls. The app boots one at startup and
  *  `openIfNeeded()` needs one whenever the operator's first GO LIVE beats it —
@@ -29,7 +30,7 @@ function warnNoScreen(): void {
   toast.warning(t("projector.noScreen"), {
     action: {
       label: t("projector.chooseScreen"),
-      onClick: () => useUiStore.getState().openSettings("projection"),
+      onClick: () => useUiStore.getState().openSettings("screens"),
     },
   });
 }
@@ -38,12 +39,14 @@ type DisplayStoreState = {
   displays: DisplayInfo[];
   displayId: number | null;
   loaded: boolean;
+  /** The projector's screen went away and main hid its window, still playing (`projector-screen`). */
+  projectorHidden: boolean;
 
-  /** Lists the available screens and resolves which one to target: the
-   *  persisted `projection.displayId` setting when it still points at a
-   *  connected display, otherwise the first that isn't the operator's own (the one
-   *  hosting the control window) — the
-   *  projector, in every real setup. */
+  /** Lists the available screens and resolves which one to target
+   *  (`projectorDisplayFor`): the persisted `projection.displayId` while it is
+   *  connected, otherwise the first that is neither the operator's own (the one
+   *  hosting the control window) nor the stage's — the projector, in every
+   *  real setup. */
   load: () => Promise<void>;
   setDisplayId: (id: number) => Promise<void>;
   /** Opens the projection window on the resolved display and immediately
@@ -69,6 +72,7 @@ export const useDisplayStore = create<DisplayStoreState>((set, get) => ({
   displays: [],
   displayId: null,
   loaded: false,
+  projectorHidden: false,
 
   load: async () => {
     loadInFlight ??= (async () => {
@@ -79,10 +83,14 @@ export const useDisplayStore = create<DisplayStoreState>((set, get) => ({
             ? Promise.resolve(useSettingsStore.getState().settings)
             : api.settings.get(),
         ]);
-        const persisted = settings["projection.displayId"];
-        const resolved =
-          displays.find((d) => d.id === persisted) ?? displays.find((d) => !d.operator) ?? displays[0];
-        set({ displays, displayId: resolved?.id ?? null, loaded: true });
+        const operatorId = displays.find((d) => d.operator)?.id ?? displays[0]?.id ?? -1;
+        const displayId = projectorDisplayFor(
+          displays.map((d) => d.id),
+          operatorId,
+          settings["projection.displayId"],
+          settings["stage.displayId"],
+        );
+        set({ displays, displayId, loaded: true });
       } finally {
         loadInFlight = null;
       }

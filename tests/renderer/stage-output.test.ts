@@ -5,7 +5,8 @@
 import { beforeEach, describe, expect, test } from "vitest";
 import { buildCumulativeMs, selectOutput, useProjectionStore, type LiveDeck } from "@renderer/stores/projection.store";
 import { resolveSong } from "@renderer/stores/song.store";
-import { stageOutputFor, type StageBibleCursor } from "@renderer/lib/stage-output";
+import { stageOutputFor, type StageBibleCursor, type StageControls } from "@renderer/lib/stage-output";
+import { DEFAULT_SETTINGS } from "@shared/types/settings";
 import { parseLyrics } from "@shared/song-text";
 import { DEFAULT_SONG_THEME } from "@shared/types/song";
 import { slideUrl } from "@shared/urls";
@@ -15,8 +16,10 @@ const initialState = useProjectionStore.getState();
 const WORDS = { black: "NEGRO", logo: "LOGO", lyricsHidden: "LETRA OCULTA", next: "Sigue" };
 const NO_CURSOR: StageBibleCursor = { verses: [], currentVerseIndex: null };
 
-const stage = (bible: StageBibleCursor = NO_CURSOR, poster: string | null = null) =>
-  stageOutputFor(useProjectionStore.getState(), bible, poster, WORDS);
+const NO_CONTROLS: StageControls = { countdown: null, message: null, settings: DEFAULT_SETTINGS };
+
+const stage = (bible: StageBibleCursor = NO_CURSOR, poster: string | null = null, controls = NO_CONTROLS) =>
+  stageOutputFor(useProjectionStore.getState(), bible, poster, WORDS, controls);
 
 function liveDeck(slideCount: number, slideIndex: number) {
   const slides = Array.from({ length: slideCount }, (_, i) => ({
@@ -144,5 +147,42 @@ describe("the stage display", () => {
       next: null,
       videoStill: { posterUrl: "worship://thumb/3", videoUrl: "worship://asset/3" },
     });
+  });
+
+  test("chords off in Settings ▸ Screens: the stage shows the words alone", () => {
+    liveSong(1);
+    const off = { ...NO_CONTROLS, settings: { ...DEFAULT_SETTINGS, "stage.chords": false } };
+    expect(stage(NO_CURSOR, null, off).current).not.toHaveProperty("chords");
+    expect(stage(NO_CURSOR, null, off).next).not.toHaveProperty("chords");
+  });
+});
+
+describe("the stage panel's controls", () => {
+  const running = { clock: { mode: "countdown", state: "running", endsAtMs: 2_000_000 }, totalMs: 30 * 60_000 } as const;
+  const held = { clock: { mode: "countdown", state: "held", remainingMs: 30 * 60_000 }, totalMs: 30 * 60_000 } as const;
+
+  test("«Auto» is the preacher's while the countdown runs, the musicians' otherwise; a hand-picked one stays", () => {
+    expect(stage().layout).toBe("musicians");
+    expect(stage(NO_CURSOR, null, { ...NO_CONTROLS, countdown: running }).layout).toBe("preacher");
+    expect(stage(NO_CURSOR, null, { ...NO_CONTROLS, countdown: held }).layout).toBe("musicians");
+    const musicians = { ...NO_CONTROLS, countdown: running, settings: { ...DEFAULT_SETTINGS, "stage.layout": "musicians" as const } };
+    expect(stage(NO_CURSOR, null, musicians).layout).toBe("musicians");
+  });
+
+  test("the countdown travels as its mark with its thresholds, the message as it was set", () => {
+    const out = stage(NO_CURSOR, null, { ...NO_CONTROLS, countdown: running, message: { text: "Último coro", urgent: false, seq: 4 } });
+    expect(out.countdown).toEqual({ clock: running.clock, warnMs: 5 * 60_000, alertMs: 60_000 });
+    expect(out.message).toEqual({ text: "Último coro", urgent: false, seq: 4 });
+    // A ten-minute count: amber at 2:00, red at 0:30.
+    const short = { ...NO_CONTROLS, countdown: { ...held, totalMs: 10 * 60_000 } };
+    expect(stage(NO_CURSOR, null, short).countdown).toMatchObject({ warnMs: 2 * 60_000, alertMs: 30_000 });
+  });
+
+  test("the clock: the language's by default (12 hours in English), or the one chosen", () => {
+    expect(stage().hour12).toBe(false);
+    expect(stage(NO_CURSOR, null, { ...NO_CONTROLS, settings: { ...DEFAULT_SETTINGS, "ui.locale": "en" } }).hour12).toBe(true);
+    const twelve = { ...NO_CONTROLS, settings: { ...DEFAULT_SETTINGS, "stage.clockFormat": "12h" as const } };
+    expect(stage(NO_CURSOR, null, twelve).hour12).toBe(true);
+    expect(stage(NO_CURSOR, null, { ...NO_CONTROLS, settings: { ...DEFAULT_SETTINGS, "stage.textSize": "large" } }).textScale).toBe(1.25);
   });
 });
