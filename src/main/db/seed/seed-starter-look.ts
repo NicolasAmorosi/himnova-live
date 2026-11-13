@@ -188,19 +188,34 @@ function dressLogo(repos: Repos, dirs: Dirs, text: Text): void {
  * Points the backgrounds `addBackgrounds` copied at this profile's copies after the profile moved to another
  * computer or user. Their rows keep the absolute path, the old user's name inside, so every one read «not
  * found», and the song themes, the verse, LOGO and the time scenes over them went black (2026-11-13 plan,
- * 2.8.1). Only a missing row whose path ends in `<profile folder>/backgrounds/<file>`, with that file in this
- * profile: never a church's own «backgrounds» folder. Either separator, since the profile may come from
- * Windows. Returns how many it moved.
+ * 2.8.1). Only a missing row whose path ends in `<profile folder>/backgrounds/<file>`: never a church's own
+ * «backgrounds» folder. Either separator, since the profile may come from Windows. A file this profile lacks
+ * is copied back from `shipped` under its old name: a copy restored on a computer in another language
+ * (2026-11-13) has «Noche.webp» where this profile seeded «Night.webp». Returns how many it moved.
  */
-export function reattachBackgrounds(media: MediaRepo, folder: string): number {
+export function reattachBackgrounds(media: MediaRepo, folder: string, shipped: string): number {
   const profile = path.basename(path.dirname(folder));
+  // «Noche» → night, in every language the look was ever seeded in.
+  const ids = new Map(
+    everyMainMessages().flatMap((messages) => Object.entries(messages.look.backgrounds).map(([id, name]) => [name, id])),
+  );
   let moved = 0;
   for (const asset of [...media.list("image"), ...media.list("video")]) {
     const parts = asset.path.split(/[\\/]/);
-    const target = path.join(folder, parts.at(-1)!);
+    const file = parts.at(-1)!;
+    const target = path.join(folder, file);
     if (parts.at(-3) !== profile || parts.at(-2) !== path.basename(folder) || asset.path === target) continue;
-    if (fs.existsSync(asset.path) || !fs.existsSync(target)) continue;
+    if (fs.existsSync(asset.path)) continue;
+    const ext = path.extname(file);
+    const id = ids.get(path.basename(file, ext));
+    const source = id === undefined ? null : path.join(shipped, `${id}${ext}`);
+    const missing = !fs.existsSync(target);
+    if (missing && !(source && fs.existsSync(source))) continue;
     try {
+      if (missing) {
+        fs.mkdirSync(folder, { recursive: true });
+        fs.copyFileSync(source!, target);
+      }
       media.relocate(asset.id, target);
       moved += 1;
     } catch (error) {

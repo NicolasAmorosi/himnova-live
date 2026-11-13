@@ -147,7 +147,7 @@ function initDatabase(): void {
   // After the legacy settings: the theme copies the verse's style.
   seedSongThemes(getSongsRepo(), getSettingsRepo());
   // Before the look: version 2 finds «Noche» by its path in this profile.
-  const reattached = reattachBackgrounds(getMediaRepo(), profileBackgroundsDir);
+  const reattached = reattachBackgrounds(getMediaRepo(), profileBackgroundsDir, backgroundsDir);
   if (reattached > 0) console.warn(`[look] ${reattached} background(s) pointed at this profile's copies`);
   // After both: it adds to the song themes and dresses the time scenes. The
   // E2E suite starts from a bare profile unless a spec asks for the look.

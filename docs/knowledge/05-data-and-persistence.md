@@ -232,8 +232,12 @@ again), and the E2E harness skips it with `--no-starter-look`.
 Their rows hold the absolute path, the user's name inside, so a profile copied to another computer or
 user found every one «No encontrado», and every look over them black. `reattachBackgrounds` (2.8.1) runs
 at every launch before the look: a MISSING row whose path ends in `<profile folder>/backgrounds/<file>`
-(either separator) is `relocate`d to this profile's copy of that file, if there is one. The profile
-folder's name is part of the match on purpose: a church's own folder called `backgrounds` is never touched.
+(either separator) is `relocate`d to this profile's copy of that file. When this profile has no file of
+that name, one that is a factory background's name in any language is copied back from
+`resources/backgrounds/` first: a copy restored on a computer in another language (2.9.0) points at
+«Noche.webp» where the new profile seeded «Night.webp». The profile folder's name is part of the match on
+purpose: a church's own folder called `backgrounds` is never touched, nor a file whose name is no
+background of the app's.
 
 On an existing install it only ADDS, and restyles what is still exactly as it came (owner): the verse's
 style when it deep-equals `DEFAULT_BIBLE_STYLE`, a time scene's when it deep-equals a FACTORY style —

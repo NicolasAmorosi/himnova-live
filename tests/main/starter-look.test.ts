@@ -18,6 +18,7 @@ import {
 } from "../../src/main/db/seed/seed-starter-look";
 import { seedUtilityScenes } from "../../src/main/db/seed/seed-utility-scenes";
 import mainEs from "../../src/main/i18n/messages/es";
+import mainPt from "../../src/main/i18n/messages/pt";
 import {
   getMediaRepo,
   getOverlaysRepo,
@@ -215,12 +216,40 @@ describe("a profile moved to another computer", () => {
     const sky = rows.find((row) => path.basename(row.path) === "Cielo.webp")!;
     move.run(ownFolder, ownFolder, sky.id);
 
-    expect(reattachBackgrounds(getMediaRepo(), folder)).toBe(rows.length - 1);
+    expect(reattachBackgrounds(getMediaRepo(), folder, backgroundsDir)).toBe(rows.length - 1);
     for (const row of rows) {
       const expected = row.id === sky.id ? ownFolder : path.join(folder, path.basename(row.path));
       expect(getMediaRepo().getPathById(row.id)).toBe(expected);
     }
     expect(factoryVerseStyle(getMediaRepo(), folder, mainEs.look).background.kind).toBe("image");
-    expect(reattachBackgrounds(getMediaRepo(), folder)).toBe(0);
+    expect(reattachBackgrounds(getMediaRepo(), folder, backgroundsDir)).toBe(0);
+  });
+  test("restored on a computer in another language, the backgrounds it lacks come back from the app's own files", () => {
+    const { dir, seed, sqlite } = profile();
+    seed(true);
+    const folder = path.join(dir, "backgrounds");
+    // This profile was seeded in Spanish; the copy came from a Portuguese one at another user's.
+    const rows = sqlite.prepare("SELECT id, path FROM media_assets").all() as { id: number; path: string }[];
+    const move = sqlite.prepare("UPDATE media_assets SET path = ?, path_key = ? WHERE id = ?");
+    const pt = Object.fromEntries(Object.entries(mainEs.look.backgrounds).map(([id, name]) => [name, mainPt.look.backgrounds[id as keyof typeof mainPt.look.backgrounds]]));
+    for (const row of rows) {
+      const ext = path.extname(row.path);
+      const old = `C:\\Users\\Ana\\AppData\\Roaming\\${path.basename(dir)}\\backgrounds\\${pt[path.basename(row.path, ext)]}${ext}`;
+      move.run(old, old, row.id);
+    }
+
+    expect(reattachBackgrounds(getMediaRepo(), folder, backgroundsDir)).toBe(rows.length);
+    for (const row of rows) {
+      const ext = path.extname(row.path);
+      const moved = getMediaRepo().getPathById(row.id)!;
+      expect(moved).toBe(path.join(folder, `${pt[path.basename(row.path, ext)]}${ext}`));
+      const id = Object.entries(mainPt.look.backgrounds).find(([, name]) => `${name}${ext}` === path.basename(moved))![0];
+      expect(fs.readFileSync(moved).equals(fs.readFileSync(path.join(backgroundsDir, `${id}${ext}`)))).toBe(true);
+    }
+    // A name that is no background of the app's is left alone.
+    const own = `C:\\Users\\Ana\\AppData\\Roaming\\${path.basename(dir)}\\backgrounds\\Bautismo.webp`;
+    move.run(own, own, rows[0]!.id);
+    expect(reattachBackgrounds(getMediaRepo(), folder, backgroundsDir)).toBe(0);
+    expect(getMediaRepo().getPathById(rows[0]!.id)).toBe(own);
   });
 });
