@@ -562,6 +562,12 @@ the three slots with post-migration copies and **rotated out the only copy this 
 keep**. It showed in the user's real folder: the 3 copies were from the same day and the same size,
 all after the last migration.
 
+**And once a day** (2.8.1): a month without migrations left a month-old copy as the newest. At launch,
+before the database opens, `dailyBackup` takes the same verified snapshot into `userData/backups/daily/`
+when the newest copy there is 24 h old (or dated in the future: a clock set back), keeping the last 7.
+Their own folder, so they never rotate out the pre-migration copies. It costs a launch about 0.45 s once a
+day on a 90 MB profile with nine Bibles (measured 2026-11-13); a typical one is a fraction of that.
+
 ## Defensive Bible parsing (the JSON path)
 
 `src/main/db/seed/bible-formats/json.ts` tolerates the same variants as the legacy version:

@@ -78,12 +78,43 @@ export function backupBeforeMigrate(
 ): BackupResult {
   if (!fs.existsSync(dbFilePath)) return { status: "skipped" };
   if (!hasPendingMigrations(dbFilePath, migrationsFolder)) return { status: "skipped" };
-  fs.mkdirSync(backupDir, { recursive: true });
+  return takeSnapshot(dbFilePath, backupDir, 3, new Date());
+}
 
-  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-  const dest = path.join(backupDir, `worship-${stamp}.db`);
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * A verified copy at launch when the newest one in `dailyDir` is a day old, keeping the last 7.
+ *
+ * `backupBeforeMigrate` only copies when an update brings migrations: a month without one left a month-old
+ * copy as the newest (2026-11-13 plan, 2.8.1). Its own folder, so these never rotate out the pre-migration
+ * copies. A newest copy dated in the future (a clock set back) counts as stale, or none would ever be taken.
+ */
+export function dailyBackup(dbFilePath: string, dailyDir: string, now = new Date()): BackupResult {
+  if (!fs.existsSync(dbFilePath)) return { status: "skipped" };
+  const newest = Math.max(
+    ...listBackups(dailyDir).map((name) => fs.statSync(path.join(dailyDir, name)).mtimeMs),
+    Number.NEGATIVE_INFINITY,
+  );
+  const age = now.getTime() - newest;
+  if (age >= 0 && age < DAY_MS) return { status: "skipped" };
+  return takeSnapshot(dbFilePath, dailyDir, 7, now);
+}
+
+function listBackups(dir: string): string[] {
+  try {
+    return fs.readdirSync(dir).filter((f) => f.endsWith(".db")).sort();
+  } catch {
+    return [];
+  }
+}
+
+function takeSnapshot(dbFilePath: string, dir: string, keep: number, now: Date): BackupResult {
+  const stamp = now.toISOString().replace(/[:.]/g, "-");
+  const dest = path.join(dir, `worship-${stamp}.db`);
 
   try {
+    fs.mkdirSync(dir, { recursive: true });
     writeSnapshot(dbFilePath, dest);
     verifySnapshot(dest);
   } catch (error) {
@@ -97,7 +128,7 @@ export function backupBeforeMigrate(
     return { status: "failed", reason: error instanceof Error ? error.message : String(error) };
   }
 
-  pruneOldBackups(backupDir);
+  pruneOldBackups(dir, keep, dest);
   return { status: "ok", path: dest };
 }
 
@@ -146,13 +177,11 @@ function verifySnapshot(dest: string): void {
 
 /** Best-effort: a backup that cannot be deleted (read-only, held open by an
  *  antivirus on Windows: `EPERM`/`EBUSY`) costs some disk, and must never cost
- *  the launch the fresh backup was taken for. */
-function pruneOldBackups(backupDir: string): void {
-  const existing = fs
-    .readdirSync(backupDir)
-    .filter((f) => f.endsWith(".db"))
-    .sort();
-  for (const stale of existing.slice(0, Math.max(0, existing.length - 3))) {
+ *  the launch the fresh backup was taken for. Ordered by name (the stamp); the
+ *  fresh one is always kept, even when a clock set back names it oldest. */
+function pruneOldBackups(backupDir: string, keep: number, fresh: string): void {
+  const older = listBackups(backupDir).filter((f) => path.join(backupDir, f) !== fresh);
+  for (const stale of older.slice(0, Math.max(0, older.length - (keep - 1)))) {
     try {
       fs.unlinkSync(path.join(backupDir, stale));
     } catch (error) {
@@ -217,6 +246,8 @@ export function openForLaunch(
   // on the one morning it matters sends the operator looking for a file that may not be there.
   const backup = backupBeforeMigrate(dbFilePath, backupDir, migrationsFolder);
   if (backup.status === "failed") console.warn("[db] pre-migration backup failed:", backup.reason);
+  const daily = dailyBackup(dbFilePath, path.join(backupDir, "daily"));
+  if (daily.status === "failed") console.warn("[db] daily backup failed:", daily.reason);
 
   const { sqlite, db } = openDatabase(dbFilePath);
   try {
