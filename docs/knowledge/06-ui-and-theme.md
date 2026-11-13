@@ -467,7 +467,7 @@ verse, and the keyboard arrows (↑/↓, global shortcut) cover the same thing.
 (`projectorDisplayFor`: the one persisted in `settings['projection.displayId']` while it is connected,
 otherwise the first that is neither the operator's nor the stage's) and exposes `open()/close()`. **The projector
 opens by itself** (`autoOpen`, owner 2026-11-13), like the stage: at launch and when its screen appears, on the LOGO
-since nothing is live yet — never on the operator's own screen (with one screen it waits for the projector), and not
+since nothing is live yet, never on the operator's own screen (with one screen it waits for the projector), and not
 again this session once the operator closed it; GO LIVE, BLACK and LOGO still open it (`openIfNeeded`). The E2E
 suite launches with `--no-auto-projector` (its specs were written against a closed projector; `screens.spec.ts`
 turns it back on). Settings ▸
@@ -490,7 +490,7 @@ on a box that never changes size, the message band eases its height (`interpolat
 instead of jumping, and the frames crossfade 300 ms between scenes (`lib/stage-output.ts`).
 
 The stage panel (`pages/stage/StagePanel.tsx`, owner 2026-11-13: «like a chat window») is a bar (`h-strip`) at the
-foot of the left column: its name and the arrow at the ends, and the quick actions centred between them — the
+foot of the left column: its name and the arrow at the ends, and the quick actions centred between them: the
 countdown with −1, pause and +1 (or «30 min», which starts one), the message with its ✕ (or «Mensaje», which opens
 the card on its field) and the view. Opened, it is a card over the column (`absolute`, `rounded-t-xl`,
 `shadow-overlay`) that grows up out of the bar (`.wa-stage-card`: its height eased from the bar's to `auto`, its
