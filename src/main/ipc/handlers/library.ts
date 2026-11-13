@@ -1,9 +1,10 @@
 import path from "node:path";
 import fs from "node:fs";
-import { ASSET_EXTENSIONS } from "@shared/constants";
+import { ASSET_EXTENSIONS, type AssetKind } from "@shared/constants";
 import { IpcError } from "@shared/ipc/result";
 import type { Handlers } from "../register";
-import { getMediaRepo, getProgramsRepo } from "../../services/repos";
+import { getMediaRepo, getProgramsRepo, getSettingsRepo, getSongsRepo } from "../../services/repos";
+import { followMove, moveBetween, namesOf, type PathMove } from "../../services/relocate-move";
 import { removeMediaAsset } from "../../services/media-asset-removal";
 import { importPaths } from "../../services/library-import";
 import { broadcast } from "../../services/broadcast";
@@ -23,6 +24,7 @@ export const libraryHandlers: Pick<
   | "library:remove"
   | "library:usages"
   | "library:relocate"
+  | "library:relocateFolder"
   | "library:setLinkedAudio"
   | "library:listFolder"
 > = {
@@ -80,13 +82,24 @@ export const libraryHandlers: Pick<
     }
 
     const relocated = getMediaRepo().relocate(id, chosen);
-    // The grids, the preview and the schedule all read `missingSince`, and
-    // none of them asked for this — the operator repaired the file from
-    // whichever one happened to be on screen.
-    if (relocated) broadcast("library-changed", { kind: asset.kind });
-    // Other bytes, so another probe — and maybe a conversion.
-    if (relocated) notifyMediaChanged();
-    return relocated;
+    if (!relocated) return null;
+    // The folders the file moved with: the rest of what they held moves too.
+    const { fixed } = await followFrom(
+      moveBetween(namesOf(asset.path).slice(0, -1), namesOf(chosen).slice(0, -1)),
+      [asset.kind],
+    );
+    return { asset: relocated, more: fixed.size };
+  },
+
+  "library:relocateFolder": async ({ path: folder }, ev) => {
+    const result = await showOpenDialogFor(ev.sender, {
+      properties: ["openDirectory"],
+      defaultPath: path.dirname(folder),
+    });
+    if (result.canceled || result.filePaths.length === 0) return null;
+    const chosen = result.filePaths[0]!;
+    const { fixed } = await followFrom(moveBetween(namesOf(folder), namesOf(chosen)), []);
+    return { name: path.basename(chosen), more: fixed.size - (fixed.has(folder) ? 1 : 0) };
   },
 
   "library:setLinkedAudio": ({ id, path: audioPath }) => {
@@ -129,3 +142,18 @@ export const libraryHandlers: Pick<
     return importPaths(matched, kind, { inLibrary: false, emitChanged: false });
   },
 };
+
+/** `move`'s consequences (none for `null`), and the news of every library kind
+ *  that changed, `alsoChanged` included: the grids, the preview and the
+ *  schedule all read `missingSince`, and none of them asked for this: the
+ *  operator repaired it from whichever one happened to be on screen. */
+async function followFrom(move: PathMove | null, alsoChanged: readonly AssetKind[]) {
+  const followed = move
+    ? await followMove(move, { media: getMediaRepo(), songs: getSongsRepo(), settings: getSettingsRepo() })
+    : { fixed: new Set<string>(), kinds: new Set<AssetKind>() };
+  const kinds = new Set([...followed.kinds, ...alsoChanged]);
+  for (const kind of kinds) broadcast("library-changed", { kind });
+  // Other bytes, so another probe.
+  if (kinds.size > 0) notifyMediaChanged();
+  return followed;
+}

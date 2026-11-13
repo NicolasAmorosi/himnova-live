@@ -376,7 +376,22 @@ privacy permission of that folder. Songs has no system folder and starts empty. 
 harness) keeps the library bare.
 
 A linked folder that isn't there (`library:listFolder`) answers `FOLDER_MISSING`, not an empty
-list: the two were indistinguishable. And no import accepts a `._x.pps` (the AppleDouble that
+list: the two were indistinguishable. Its view offers «Buscar la carpeta…» (`library:relocateFolder`).
+
+**One relocation follows the whole move** (owner, 2026-11-13; `services/relocate-move.ts`). «Relocalizar…» on a
+missing file and «Buscar la carpeta…» on a missing linked folder both take the move from the old path to the new one:
+their common trailing folder names dropped (`moveBetween`: `D:\Iglesia\Videos` → `E:\Iglesia\Videos` is `D:` →
+`E:`; `C:\Users\juan\Videos` → `C:\Users\maria\Videos` is the user folder). Every path the app keeps under the old
+part is then tried under the new one: library rows (any `in_library`, merged by `relocate` when the new path is a row
+already), a deck's operator-chosen soundtrack (the automatic one re-resolves itself), Media's and Songs' linked folders
+and the views open on them, folder songs (`source_folder`, so their ids and the programs singing them stay) and library
+songs tied to a file. A path changes **only when its old place is gone and its twin is there**, so nothing that still
+works is touched and nothing points at a file that does not exist. Paths are split on either separator, so a Windows
+profile opened on a Mac or Linux follows too. The stats are asynchronous and in chunks (a gone drive answers slowly);
+the rows move in one transaction (`relocateMany`). Song rows move before the settings: `song:list` lets go of the songs
+of a folder no longer linked. A folder linked by hand at the new place keeps its own songs and is not linked twice.
+
+And no import accepts a `._x.pps` (the AppleDouble that
 macOS leaves on a FAT/exFAT USB stick), a `~$x.pptx` (PowerPoint's lock file) or a file whose
 extension doesn't belong to its `kind` (`importable` in `library-import.ts`).
 

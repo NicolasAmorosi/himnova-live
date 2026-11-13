@@ -150,6 +150,101 @@ test("a file moved away is shown missing and relocated without losing its row", 
   await expect.poll(async () => (await videoStates(projector))[0]?.currentTime ?? 0).toBeGreaterThan(0.3);
 });
 
+test("a whole folder moved: relocating one file finds the rest of it, its linked folder too (2026-11-13)", async ({ app }) => {
+  const church = path.join(app.profile, "Iglesia");
+  const videos = path.join(church, "Videos");
+  for (const [name, as] of [
+    ["clip.mp4", "Videos/clip.mp4"],
+    ["clip.mp4", "Videos/clip2.mp4"],
+    ["photo.png", "Fotos/sub/foto.png"],
+  ] as const) {
+    fs.mkdirSync(path.dirname(path.join(church, as)), { recursive: true });
+    fs.copyFileSync(fixture(name), path.join(church, as));
+  }
+  await app.invoke<MediaAsset[]>("library:add", { kind: "video", paths: [path.join(videos, "clip.mp4"), path.join(videos, "clip2.mp4")] });
+  await app.invoke<MediaAsset[]>("library:add", { kind: "image", paths: [path.join(church, "Fotos", "sub", "foto.png")] });
+  await app.openResources("Medios", "Videos");
+  await app.answerOpenDialog(videos);
+  await panel(app, "Videos").getByRole("button", { name: "Vincular carpeta" }).click();
+  await expect.poll(() => tileNames(app, "Videos")).toEqual(expect.arrayContaining(["clip", "clip2"]));
+  await app.previewFile("Videos", "clip");
+  await panel(app, "Videos").getByRole("button", { name: "Agregar al programa" }).click();
+  await app.quit("close");
+
+  // The whole church folder moved while the app was closed (another drive, another computer).
+  const movedChurch = path.join(app.profile, "Movida", "Iglesia");
+  fs.mkdirSync(path.dirname(movedChurch), { recursive: true });
+  fs.renameSync(church, movedChurch);
+
+  const again = await relaunch(app);
+  await again.openResources("Medios", "Videos");
+  await expect(panel(again, "Videos").getByText("No se pudo leer la biblioteca")).toBeVisible();
+  await again.control.getByRole("main").getByRole("list").first().getByRole("listitem").filter({ hasText: "clip" }).click();
+  await again.answerOpenDialog(path.join(movedChurch, "Videos", "clip.mp4"));
+  await again.previewColumn().getByRole("button", { name: "Relocalizar…" }).click();
+  // clip2, the photo two folders away and the linked folder.
+  await expect(
+    toast(again, "«clip» quedó apuntando al archivo nuevo. También se encontraron 3 más que se movieron con él."),
+  ).toBeVisible();
+
+  await expect(panel(again, "Videos").getByRole("combobox", { name: "Origen" })).toHaveText("Videos");
+  await expect.poll(() => tileNames(again, "Videos")).toEqual(expect.arrayContaining(["clip", "clip2"]));
+  await expect(panel(again, "Videos").getByText("No encontrado")).toHaveCount(0);
+  await again.openResources("Medios", "Imágenes");
+  await expect(panel(again, "Imágenes").getByRole("button", { name: "foto" })).not.toContainText("No encontrado");
+  const listed = await again.invoke<MediaAsset[]>("library:list", { kind: "video" });
+  expect(listed.map((asset) => asset.path).sort()).toEqual([
+    path.join(movedChurch, "Videos", "clip.mp4"),
+    path.join(movedChurch, "Videos", "clip2.mp4"),
+  ]);
+});
+
+test("a linked folder that moved is found with «Buscar la carpeta…», in Media and in Songs (2026-11-13)", async ({ app }) => {
+  const photos = path.join(app.profile, "Medios", "Fotos");
+  fs.mkdirSync(photos, { recursive: true });
+  fs.copyFileSync(fixture("photo.png"), path.join(photos, "foto.png"));
+  const hymns = path.join(app.profile, "Cantos", "Himnario");
+  fs.mkdirSync(hymns, { recursive: true });
+  fs.writeFileSync(path.join(hymns, "primera.cho"), "{title: Primera}\n{start_of_verse}\nLetra de la primera\n{end_of_verse}\n");
+
+  await app.openResources("Medios", "Imágenes");
+  await app.answerOpenDialog(photos);
+  await panel(app, "Imágenes").getByRole("button", { name: "Vincular carpeta" }).click();
+  await expect.poll(() => tileNames(app, "Imágenes")).toEqual(["foto"]);
+  const songsTab = app.control.getByRole("tabpanel", { name: "Canciones" });
+  await app.openResources("Canciones");
+  await app.answerOpenDialog(hymns);
+  await songsTab.getByRole("button", { name: "Vincular carpeta" }).click();
+  await expect(songsTab.getByRole("list", { name: "Canciones" }).getByRole("listitem").filter({ hasText: "Primera" })).toBeVisible();
+  await app.quit("close");
+
+  const movedPhotos = path.join(app.profile, "Medios nuevos", "Fotos");
+  const movedHymns = path.join(app.profile, "Cantos nuevos", "Himnario");
+  for (const [from, to] of [
+    [photos, movedPhotos],
+    [hymns, movedHymns],
+  ] as const) {
+    fs.mkdirSync(path.dirname(to), { recursive: true });
+    fs.renameSync(from, to);
+  }
+
+  const again = await relaunch(app);
+  await again.openResources("Medios", "Imágenes");
+  await again.answerOpenDialog(movedPhotos);
+  await panel(again, "Imágenes").getByRole("button", { name: "Buscar la carpeta…" }).click();
+  await expect(toast(again, "Se encontró la carpeta «Fotos».")).toBeVisible();
+  await expect.poll(() => tileNames(again, "Imágenes")).toEqual(["foto"]);
+  await expect(panel(again, "Imágenes").getByRole("combobox", { name: "Origen" })).toHaveText("Fotos");
+
+  const songsAgain = again.control.getByRole("tabpanel", { name: "Canciones" });
+  await again.openResources("Canciones");
+  await again.answerOpenDialog(movedHymns);
+  await songsAgain.getByRole("button", { name: "Buscar la carpeta…" }).click();
+  await expect(toast(again, "Se encontró la carpeta «Himnario».")).toBeVisible();
+  await expect(songsAgain.getByRole("list", { name: "Canciones" }).getByRole("listitem").filter({ hasText: "Primera" })).toBeVisible();
+  await expect(songsAgain.getByRole("combobox", { name: "Origen" })).toHaveText(/Himnario/);
+});
+
 test("a file the projector cannot play is reported in the control window, never on the projector", async ({ app }) => {
   const file = copyFixture(app, "clip.mp4");
   await app.invoke<MediaAsset[]>("library:add", { kind: "video", paths: [file] });

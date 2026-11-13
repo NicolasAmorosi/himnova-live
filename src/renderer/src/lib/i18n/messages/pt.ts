@@ -109,6 +109,11 @@ const pt: Messages = {
     removeBlocked: "Não dá para remover: ele é usado em um roteiro salvo.",
     relocated: "“{name}” agora aponta para o novo arquivo",
     relocateFailed: "Não foi possível apontar para o novo arquivo",
+    relocatedMore:
+      "“{name}” agora aponta para o novo arquivo. {count, plural, one {Também foi encontrado mais # que se moveu junto.} other {Também foram encontrados mais # que se moveram junto.}}",
+    folderRelocated:
+      "Pasta “{name}” encontrada. {count, plural, =0 {} one {E mais # que se moveu junto.} other {E mais # que se moveram junto.}}",
+    relocateFolderFailed: "Não foi possível apontar para a nova pasta",
     removeUndo: "“{name}” foi removido da biblioteca.",
     removeUndoGeneric: "O recurso foi removido da biblioteca.",
     removeAnyway: "Remover mesmo assim",
@@ -128,11 +133,12 @@ const pt: Messages = {
     },
     missing: "Não encontrado",
     relocate: "Localizar…",
+    relocateFolder: "Localizar pasta…",
     importing: "Importando {done} de {total}…",
     loading: "Lendo a pasta…",
     loadFailed: "Não foi possível ler a biblioteca",
     folderMissing:
-      "A pasta não está disponível. Se for um pendrive ou um disco externo, conecte-o; se a letra da unidade mudou, vincule a pasta de novo.",
+      "A pasta não está disponível. Se for um pendrive ou um disco externo, conecte-o; se você a moveu ou a letra da unidade mudou, encontre-a com “Localizar pasta…”.",
   },
   preview: {
     placeholder: "Nada no preview",

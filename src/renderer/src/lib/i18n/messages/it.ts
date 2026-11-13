@@ -109,6 +109,11 @@ const it: Messages = {
     removeBlocked: "Impossibile rimuoverlo: è usato in una scaletta salvata.",
     relocated: "«{name}» ora punta al nuovo file",
     relocateFailed: "Impossibile aggiornare la posizione del file",
+    relocatedMore:
+      "«{name}» ora punta al nuovo file. {count, plural, one {Trovato anche # altro elemento spostato insieme.} other {Trovati anche altri # elementi spostati insieme.}}",
+    folderRelocated:
+      "Cartella «{name}» trovata. {count, plural, =0 {} one {E # altro elemento spostato insieme.} other {E altri # elementi spostati insieme.}}",
+    relocateFolderFailed: "Impossibile aggiornare la posizione della cartella",
     removeUndo: "Hai rimosso «{name}» dalla libreria.",
     removeUndoGeneric: "Risorsa rimossa dalla libreria.",
     removeAnyway: "Rimuovi comunque",
@@ -128,11 +133,12 @@ const it: Messages = {
     },
     missing: "Non trovato",
     relocate: "Individua…",
+    relocateFolder: "Individua cartella…",
     importing: "Importazione {done} di {total}…",
     loading: "Lettura della cartella…",
     loadFailed: "Impossibile leggere la libreria",
     folderMissing:
-      "La cartella non è disponibile. Se è una chiavetta USB o un disco esterno, collegalo; se ha cambiato lettera, ricollega la cartella.",
+      "La cartella non è disponibile. Se è una chiavetta USB o un disco esterno, collegalo; se l'hai spostata o ha cambiato lettera, trovala con «Individua cartella…».",
   },
   preview: {
     placeholder: "Niente in anteprima",

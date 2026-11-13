@@ -569,10 +569,9 @@ export class MediaRepo {
    * tolerate an asset that is gone, and a linked-folder duplicate is not what
    * an operator picks as a background.
    */
-  relocate(id: number, newPath: string): MediaAsset | null {
+  relocate(id: number, newPath: string, stat: fs.Stats = fs.statSync(newPath)): MediaAsset | null {
     const row = this.db.select().from(mediaAssets).where(eq(mediaAssets.id, id)).get();
     if (!row) return null;
-    const stat = fs.statSync(newPath);
     const mtimeMs = Math.trunc(stat.mtimeMs);
     const now = Date.now();
     const pathKey = toPathKey(newPath);
@@ -626,5 +625,34 @@ export class MediaRepo {
       missingSince: null,
       updatedAt: now,
     });
+  }
+
+  /** Every row's file and its operator-chosen soundtrack: what a move of
+   *  their folders (`services/relocate-move.ts`) may have left behind. */
+  pathRows(): { id: number; path: string; linkedAudioPath: string | null; linkedAudioManual: number }[] {
+    return this.db
+      .select({
+        id: mediaAssets.id,
+        path: mediaAssets.path,
+        linkedAudioPath: mediaAssets.linkedAudioPath,
+        linkedAudioManual: mediaAssets.linkedAudioManual,
+      })
+      .from(mediaAssets)
+      .all();
+  }
+
+  /** `relocate` for many rows at once, in ONE transaction (nested ones become
+   *  savepoints): a whole moved drive is hundreds of rows, and one commit each
+   *  held main, and with it the projector, for seconds. The stats were taken
+   *  already, asynchronously. Returns the kinds that changed. */
+  relocateMany(moves: readonly { id: number; path: string; stat: fs.Stats }[]): Set<AssetKind> {
+    const kinds = new Set<AssetKind>();
+    this.sqlite.transaction(() => {
+      for (const move of moves) {
+        const asset = this.relocate(move.id, move.path, move.stat);
+        if (asset) kinds.add(asset.kind);
+      }
+    })();
+    return kinds;
   }
 }

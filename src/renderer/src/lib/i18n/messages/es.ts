@@ -108,6 +108,11 @@ const es = {
     removeBlocked: "No se puede quitar: se usa en un programa guardado.",
     relocated: "«{name}» quedó apuntando al archivo nuevo",
     relocateFailed: "No se pudo relocalizar el archivo",
+    relocatedMore:
+      "«{name}» quedó apuntando al archivo nuevo. {count, plural, one {También se encontró # más que se movió con él.} other {También se encontraron # más que se movieron con él.}}",
+    folderRelocated:
+      "Se encontró la carpeta «{name}». {count, plural, =0 {} one {Y # más que se movió con ella.} other {Y # más que se movieron con ella.}}",
+    relocateFolderFailed: "No se pudo relocalizar la carpeta",
     removeUndo: "Se quitó «{name}» de la biblioteca.",
     removeUndoGeneric: "Se quitó el recurso de la biblioteca.",
     removeAnyway: "Quitar igualmente",
@@ -127,11 +132,12 @@ const es = {
     },
     missing: "No encontrado",
     relocate: "Relocalizar…",
+    relocateFolder: "Buscar la carpeta…",
     importing: "Importando {done} de {total}…",
     loading: "Leyendo la carpeta…",
     loadFailed: "No se pudo leer la biblioteca",
     folderMissing:
-      "La carpeta no está disponible. Si es un pendrive o un disco externo, conectalo; si cambió de letra, volvé a vincular la carpeta.",
+      "La carpeta no está disponible. Si es un pendrive o un disco externo, conectalo; si la moviste o cambió de letra, buscala con «Buscar la carpeta…».",
   },
   preview: {
     placeholder: "Nada en vista previa",

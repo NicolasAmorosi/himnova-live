@@ -109,6 +109,11 @@ const en: Messages = {
     removeBlocked: "Can't remove it: it's used in a saved schedule.",
     relocated: "“{name}” now points to the new file",
     relocateFailed: "Couldn't update the file's location",
+    relocatedMore:
+      "“{name}” now points to the new file. {count, plural, one {# more that moved with it was found too.} other {# more that moved with it were found too.}}",
+    folderRelocated:
+      "Found the folder “{name}”. {count, plural, =0 {} one {And # more that moved with it.} other {And # more that moved with it.}}",
+    relocateFolderFailed: "Couldn't update the folder's location",
     removeUndo: "Removed “{name}” from the library.",
     removeUndoGeneric: "Removed the item from the library.",
     removeAnyway: "Remove anyway",
@@ -128,11 +133,12 @@ const en: Messages = {
     },
     missing: "Missing",
     relocate: "Locate…",
+    relocateFolder: "Locate folder…",
     importing: "Importing {done} of {total}…",
     loading: "Reading the folder…",
     loadFailed: "Couldn't read the library",
     folderMissing:
-      "The folder isn't available. If it's on a USB drive or an external disk, plug it in; if its drive letter changed, link the folder again.",
+      "The folder isn't available. If it's on a USB drive or an external disk, plug it in; if you moved it or its drive letter changed, find it with “Locate folder…”.",
   },
   preview: {
     placeholder: "Nothing in preview",

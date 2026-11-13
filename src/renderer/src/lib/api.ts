@@ -102,6 +102,7 @@ export const api = {
       invoke("library:remove", { id, ...(force !== undefined ? { force } : {}) }),
     usages: (id: number) => invoke("library:usages", { id }),
     relocate: (id: number) => invoke("library:relocate", { id }),
+    relocateFolder: (path: string) => invoke("library:relocateFolder", { path }),
     setLinkedAudio: (id: number, path: string | null) =>
       invoke("library:setLinkedAudio", { id, path }),
     listFolder: (kind: AssetKind, path: string) => invoke("library:listFolder", { kind, path }),
