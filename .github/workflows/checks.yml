@@ -1,0 +1,44 @@
+# The floor every push and pull request must clear, on the three systems the app ships for.
+# It does not replace the E2E suite against the packaged app: that needs a real GPU, NDI and
+# displays, and runs on the maintainer's machines before a release.
+name: Checks
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: checks-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      # Windows runners convert line endings on checkout; the song and Bible readers are tested byte by byte.
+      - run: git config --global core.autocrlf false
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      # What the postinstall downloads (FFmpeg and the media engine, up to 210 MB per system),
+      # pinned by URL and sha256 in this script, so its hash is the key.
+      - uses: actions/cache@v6
+        with:
+          path: |
+            resources/ffmpeg
+            resources/engine
+          key: binaries-${{ runner.os }}-${{ hashFiles('scripts/fetch-binaries.ts') }}
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build

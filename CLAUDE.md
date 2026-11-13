@@ -733,9 +733,10 @@ something behaved before: `git show 90d3821:legacy/src/js/app.js`.
 - `git` is active; commit/push only if the user asks.
 - Plans, audits and the brand sources are maintainer notes and **aren't published**:
   they live in the maintainer's workspace, outside this repo (`../docs/plans/`, `../docs/auditorias/`).
-- There's no CI configured — that's the user's decision, not a pending item.
-  `npm run typecheck && npm run lint && npm run test` is the minimum bar before calling
-  a task done, and it runs by hand. Before a release, also `npm run test:e2e` and the same suite against
+- CI (`.github/workflows/checks.yml`, since 2026-11-13) runs typecheck, lint, Vitest and the build on
+  Linux, Windows and macOS on every push and pull request. It does not build installers or run E2E.
+  `npm run typecheck && npm run lint && npm run test` is still the minimum bar before calling
+  a task done, run by hand before committing. Before a release, also `npm run test:e2e` and the same suite against
   the package (`WORSHIP_E2E_EXECUTABLE`).
 - A release is published as **Latest, never as a prerelease**, and it carries the three
   `latest*.yml` and the `.blockmap` files next to the installers, uploaded in the same
