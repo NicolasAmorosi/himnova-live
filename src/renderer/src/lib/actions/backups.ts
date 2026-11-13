@@ -8,7 +8,7 @@ import type { BackupEntry } from "@shared/types/backups";
 /** A copy's date and time, in the interface's language. */
 export function backupWhen(takenAt: number): string {
   const locale = useSettingsStore.getState().settings["ui.locale"];
-  return new Intl.DateTimeFormat(locale, { dateStyle: "long", timeStyle: "short" }).format(takenAt);
+  return new Intl.DateTimeFormat(locale, { dateStyle: "long", timeStyle: "medium" }).format(takenAt);
 }
 
 /** «Hacer una copia»: taken off main's thread, said when done. */
