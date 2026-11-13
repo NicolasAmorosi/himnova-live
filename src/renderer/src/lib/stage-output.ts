@@ -8,7 +8,7 @@ import type { CountdownClock, StageMessage, StageTextSize } from "@shared/types/
 
 /** The Bible tab's cursor: a verse projected from it can tell what follows. */
 export type StageBibleCursor = { verses: readonly BibleVerseDTO[]; currentVerseIndex: number | null };
-export type StageWords = { black: string; lyricsHidden: string; next: string };
+export type StageWords = { next: string };
 
 /** What the stage panel set (the stage store) and how Settings ▸ Screens dresses it. */
 export type StageControls = {
@@ -16,24 +16,34 @@ export type StageControls = {
   message: StageMessage | null;
   settings: Pick<
     SettingsMap,
-    "stage.layout" | "stage.textSize" | "stage.clockFormat" | "stage.chords" | "stage.warnMs" | "stage.alertMs" | "ui.locale"
+    | "stage.layout"
+    | "stage.mirror"
+    | "stage.textSize"
+    | "stage.clockFormat"
+    | "stage.chords"
+    | "stage.warnMs"
+    | "stage.alertMs"
+    | "ui.locale"
   >;
 };
 
 const TEXT_SCALE: Record<StageTextSize, number> = { small: 0.8, normal: 1, large: 1.25 };
 
-/** What the projector would show with nothing covering it: no BLACK or LOGO,
- *  no plates, and a short crossfade between scenes whatever the projector's
- *  own transition is — on the stage every change eases (owner, 2026-11-13),
- *  and never slowly: the band reads, it does not watch. A verse in its own
- *  version only: two columns in a frame this size are two columns nobody on
- *  the platform can read. */
+/** On the stage every change eases (owner, 2026-11-13), and never slowly: the band reads, it does not watch. */
 const STAGE_FADE_MS = 300;
 
-function uncovered(state: ProjectionStoreState): ProjectionOutput {
-  const output = selectOutput({ ...state, overlay: "none" });
+/** What the projector shows, BLACK and LOGO included, as the stage draws it: a short crossfade between scenes
+ *  whatever the projector's own transition is, no plates, and a verse in its own version only — two columns in a
+ *  frame this size are two columns nobody on the platform can read. */
+function onStage(state: ProjectionStoreState): ProjectionOutput {
+  const output = selectOutput(state);
   const own = output.kind === "bible" ? { ...output, parallel: null } : output;
   return { ...own, plates: [], transition: { epoch: state.sceneEpoch, style: "crossfade", durationMs: STAGE_FADE_MS } };
+}
+
+/** What the projector would show with nothing covering it: what comes next. */
+function uncovered(state: ProjectionStoreState): ProjectionOutput {
+  return onStage({ ...state, overlay: "none" });
 }
 
 /** A song slide with its chords, for the musicians: the slide of the live song
@@ -76,9 +86,8 @@ function nextOutput(state: ProjectionStoreState, bible: StageBibleCursor): Proje
 }
 
 /**
- * The musicians' screen (`StageOutput`): what is live and what comes next,
- * with the cover named rather than shown. `posterUrl` is the live video's
- * thumbnail, fetched by the caller: the stage shows a video as its poster.
+ * The musicians' screen (`StageOutput`): what the projector shows and what comes next. `posterUrl` is the live
+ * video's thumbnail, fetched by the caller: the stage shows a video as its poster.
  */
 export function stageOutputFor(
   state: ProjectionStoreState,
@@ -87,34 +96,33 @@ export function stageOutputFor(
   words: StageWords,
   controls: StageControls,
 ): StageOutput {
-  const { base, overlay } = state;
+  const { base } = state;
   const { settings } = controls;
-  const lyricsHidden = base?.kind === "song" && base.lyricsHidden;
-  const chords = (output: ProjectionOutput | null, position: SongPosition | null) =>
-    settings["stage.chords"] ? withChords(output, state, position) : output;
+  const withStageChords = <T extends ProjectionOutput | null>(output: T, position: SongPosition | null): T =>
+    settings["stage.chords"] ? (withChords(output, state, position) as T) : output;
   const countdown = controls.countdown && {
     clock: controls.countdown.clock,
     ...stageThresholds(controls.countdown.totalMs, settings["stage.warnMs"], settings["stage.alertMs"]),
   };
   const clockFormat = settings["stage.clockFormat"];
+  // Followed: a song, a presentation, or a verse whose chapter the Bible tab holds (a next is known).
+  const layout = settings["stage.mirror"]
+    ? "projector"
+    : resolveStageLayout(
+        settings["stage.layout"],
+        base?.kind === "deck" || base?.kind === "song" || (base?.kind === "bible" && bible.currentVerseIndex !== null),
+      );
+  // Hidden lyrics are the one cover the band does not get, and without a word (owner, 2026-11-13).
+  const shown = base?.kind === "song" && base.lyricsHidden ? { ...state, base: { ...base, lyricsHidden: false } } : state;
   return {
-    current: chords(
-      base === null ? null : uncovered(lyricsHidden ? { ...state, base: { ...base, lyricsHidden: false } } : state),
-      base?.kind === "song" ? base : null,
-    ),
-    next: chords(nextOutput(state, bible), base?.kind === "song" ? stepSong(base.song, base, 1) : null),
+    // A copy of the projector is exactly its picture: plates, both versions of a verse, its own transition.
+    current: layout === "projector" ? selectOutput(state) : withStageChords(onStage(shown), base?.kind === "song" ? base : null),
+    next: withStageChords(nextOutput(state, bible), base?.kind === "song" ? stepSong(base.song, base, 1) : null),
     videoStill: { posterUrl, videoUrl: base?.kind === "video" ? base.url : null },
-    // LOGO is not said: it changes nothing for whoever reads the stage (owner, 2026-11-13). BLACK and hidden
-    // lyrics are, because the band keeps reading words the room is not seeing.
-    notice: overlay === "black" ? words.black : lyricsHidden ? words.lyricsHidden : null,
     nextLabel: words.next,
     countdown,
     message: controls.message,
-    // Followed: a song, a presentation, or a verse whose chapter the Bible tab holds (a next is known).
-    layout: resolveStageLayout(
-      settings["stage.layout"],
-      base?.kind === "deck" || base?.kind === "song" || (base?.kind === "bible" && bible.currentVerseIndex !== null),
-    ),
+    layout,
     // «Auto» is the language's: 12 hours in English.
     hour12: clockFormat === "auto" ? settings["ui.locale"] === "en" : clockFormat === "12h",
     textScale: TEXT_SCALE[settings["stage.textSize"]],

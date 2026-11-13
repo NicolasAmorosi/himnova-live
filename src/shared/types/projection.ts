@@ -486,25 +486,26 @@ export type OverlayState = "none" | "black" | "logo";
 /**
  * What the musicians' screen shows, built by the control window
  * (`lib/stage-output.ts`) and drawn by `StageApp` — which, like the projector,
- * resolves nothing. Under BLACK, LOGO or hidden lyrics the stage keeps the
- * content and says so (`notice`): the band still needs the words the
- * congregation is not seeing (owner, 2026-11-05).
+ * resolves nothing. Its picture of what is live is the projector's: BLACK and
+ * LOGO show as themselves, never named (owner, 2026-11-13); hidden lyrics are
+ * the one cover it lifts, without a word, because the band still needs them.
  */
 export type StageOutput = {
-  /** What is live, uncovered; `null` when nothing is. */
-  current: ProjectionOutput | null;
+  /** What the projector shows (BLACK and LOGO included); LOGO or black when nothing is live. Its plates only as a
+   *  copy of the projector («projector»): over a frame this size they hide the words the band reads. */
+  current: ProjectionOutput;
   /** The next slide or verse, the one → would bring; `null` when there is none. */
   next: ProjectionOutput | null;
   /** A live full-screen video as its poster (`OutputView`'s `videoStill`):
-   *  the stage decodes no video, a slide's included. */
+   *  the stage decodes no video, a slide's included — except as a copy of the
+   *  projector («projector»), which plays them as the projector does. */
   videoStill: { posterUrl: string | null; videoUrl: string | null };
-  /** «NEGRO» or the hidden lyrics, in the operator's language (LOGO is not said: owner, 2026-11-13). */
-  notice: string | null;
   /** The caption over `next`, in the operator's language. */
   nextLabel: string;
   /** The preacher's countdown (the stage panel), or `null` when none is set. */
   countdown: StageCountdown | null;
-  /** The message to the platform, a band in both layouts; `null` when none. */
+  /** The message to the platform, a band in both the musicians' and the preacher's view (never over a copy of the
+   *  projector); `null` when none. */
   message: StageMessage | null;
   /** Already resolved: «Auto» never reaches the stage. */
   layout: StageLayout;

@@ -2,12 +2,15 @@ import { useEffect, useState } from "react";
 import { api } from "@renderer/lib/api";
 import { onIpc } from "@renderer/lib/ipc";
 import { StageView } from "@renderer/components/shared/stage-view";
+import { ProjectorCopy } from "@renderer/components/shared/projector-copy";
 import type { StageOutput } from "@shared/types/projection";
 
 /**
  * The stage screen (musicians and preacher): `StageView` of the last `StageOutput`, like the projector a pure
  * function of what the control window decided (`lib/stage-output.ts`). It plays nothing — a video is its poster,
- * a song's video background its still —, `next` included.
+ * a song's video background its still —, `next` included. As «Proyector» it is a copy of the projector
+ * (`ProjectorCopy`), which plays what the projector plays, silent: main counts this window among the projector's
+ * mirrors only then (`stage-window.ts`).
  */
 export function StageApp() {
   const [stage, setStage] = useState<StageOutput | null>(null);
@@ -27,7 +30,7 @@ export function StageApp() {
 
   return (
     <main className="h-screen w-screen">
-      <StageView stage={stage} />
+      <StageView copy={<ProjectorCopy />} stage={stage} />
     </main>
   );
 }

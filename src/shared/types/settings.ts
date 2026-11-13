@@ -105,6 +105,9 @@ export type SettingsMap = {
   "stage.displayId": number | null;
   /** The stage panel (work screen, foot of the left column): the view the operator picked, «auto» by default. */
   "stage.layout": StageLayoutChoice;
+  /** Settings ▸ Screens' «Copia del proyector»: the stage's screen copies the projector, always, and the work screen
+   *  shows no stage panel (owner, 2026-11-13). */
+  "stage.mirror": boolean;
   /** Settings ▸ Screens ▸ Stage: the size of the time, countdown and message on the stage. */
   "stage.textSize": StageTextSize;
   "stage.clockFormat": StageClockFormat;
@@ -264,6 +267,7 @@ export const DEFAULT_SETTINGS: SettingsMap = {
   "projection.displayId": null,
   "stage.displayId": null,
   "stage.layout": "auto",
+  "stage.mirror": false,
   "stage.textSize": "normal",
   "stage.clockFormat": "auto",
   "stage.chords": true,
@@ -398,6 +402,7 @@ export const SETTINGS_VALIDATORS: Record<keyof SettingsMap, (value: unknown) => 
   "projection.displayId": isDisplayId,
   "stage.displayId": isDisplayId,
   "stage.layout": isOneOf(STAGE_LAYOUT_CHOICES),
+  "stage.mirror": isBoolean,
   "stage.textSize": isOneOf(STAGE_TEXT_SIZES),
   "stage.clockFormat": isOneOf(STAGE_CLOCK_FORMATS),
   "stage.chords": isBoolean,

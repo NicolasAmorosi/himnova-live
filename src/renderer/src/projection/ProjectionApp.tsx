@@ -9,7 +9,6 @@ import { releaseMedia } from "@renderer/lib/release-media";
 import type {
   AudioTrackPush,
   MediaCommand,
-  MediaStatus,
   ProjectionMediaError,
   ProjectionOutput,
 } from "@shared/types/projection";
@@ -20,13 +19,6 @@ import type {
 function reportMediaError(error: ProjectionMediaError): void {
   void api.projection.reportMediaError(error);
 }
-
-/** This page as the NDI® output's offscreen copy of the projection (`main/ndi/ndi-output.ts`): the same
- *  pixels, but it is not the projector — it reports nothing (the panel would see every video twice),
- *  mounts no audio track (main mutes it too: the room hears the projector) and its errors are the
- *  projector's to report. */
-const IS_NDI_OUTPUT = new URLSearchParams(window.location.search).get("role") === "ndi";
-const NO_ELEMENT: RefObject<HTMLMediaElement | null> = { current: null };
 
 type AudioTrackElementProps = {
   /** The shared `trackId -> element` map `media-command` routes through. Passed
@@ -231,29 +223,15 @@ export function ProjectionApp() {
     [],
   );
 
-  // The NDI window's copies of the projector's Chromium videos follow the projector's own reports
-  // (`follow-projector.ts`): its picture is what NDI sends, the projector's sound is what NDI captures.
-  const [projectorVideo, setProjectorVideo] = useState<MediaStatus | null>(null);
-  const [projectorSlideVideo, setProjectorSlideVideo] = useState<MediaStatus | null>(null);
-  useEffect(() => {
-    if (!IS_NDI_OUTPUT) return;
-    return onIpc("media-status", (status) => {
-      if (status.target.kind === "video") setProjectorVideo(status);
-      else if (status.target.kind === "slideVideo") setProjectorSlideVideo(status);
-    });
-  }, []);
-
-  useMediaStatusReporter(IS_NDI_OUTPUT ? NO_ELEMENT : videoRef, null, output.videoUnderlay?.epoch ?? 0);
-  useMediaStatusReporter(IS_NDI_OUTPUT ? NO_ELEMENT : slideVideoRef, null, output.slideVideo?.epoch ?? 0, "slideVideo");
+  useMediaStatusReporter(videoRef, null, output.videoUnderlay?.epoch ?? 0);
+  useMediaStatusReporter(slideVideoRef, null, output.slideVideo?.epoch ?? 0, "slideVideo");
 
   return (
     <div className="h-screen w-screen bg-black">
       <OutputView
         key={hasRealOutput ? "live" : "placeholder"}
         mode="live"
-        {...(IS_NDI_OUTPUT
-          ? { liveVideoStatus: projectorVideo, slideVideoStatus: projectorSlideVideo }
-          : { onMediaError: reportMediaError })}
+        onMediaError={reportMediaError}
         output={output}
         slideVideoRef={slideVideoRef}
         videoRef={videoRef}
@@ -264,7 +242,7 @@ export function ProjectionApp() {
           fresh GO LIVE on the same asset bumps the epoch), never merely
           because BLACK/LOGO or a pause toggled. A track the media engine
           plays has no element at all: main plays it, sound included. */}
-      {tracks.filter((track) => !IS_NDI_OUTPUT && !isEngineUrl(track.url)).map((track) => (
+      {tracks.filter((track) => !isEngineUrl(track.url)).map((track) => (
         <AudioTrackElement
           key={`${track.trackId}:${track.epoch}`}
           registry={audioRefs.current}

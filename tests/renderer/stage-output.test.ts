@@ -1,6 +1,7 @@
 /**
- * The musicians' screen (`stageOutputFor`): what is live, uncovered, and what
- * → would bring — and BLACK, LOGO or hidden lyrics named, never shown.
+ * The musicians' screen (`stageOutputFor`): what the projector shows (BLACK and
+ * LOGO as themselves, never named; hidden lyrics lifted), what → would bring,
+ * and «Proyector», the projector's own picture.
  */
 import { beforeEach, describe, expect, test } from "vitest";
 import { buildCumulativeMs, selectOutput, useProjectionStore, type LiveDeck } from "@renderer/stores/projection.store";
@@ -13,7 +14,7 @@ import { slideUrl } from "@shared/urls";
 import type { BibleVerseDTO } from "@shared/types/bible";
 
 const initialState = useProjectionStore.getState();
-const WORDS = { black: "NEGRO", lyricsHidden: "LETRA OCULTA", next: "Sigue" };
+const WORDS = { next: "Sigue" };
 const NO_CURSOR: StageBibleCursor = { verses: [], currentVerseIndex: null };
 
 const NO_CONTROLS: StageControls = { countdown: null, message: null, settings: DEFAULT_SETTINGS };
@@ -86,8 +87,9 @@ beforeEach(() => {
 });
 
 describe("the stage display", () => {
-  test("with nothing live: no frames and no notice", () => {
-    expect(stage()).toMatchObject({ current: null, next: null, notice: null, nextLabel: "Sigue" });
+  test("with nothing live: what the projector shows (black, or LOGO), and nothing next", () => {
+    expect(stage()).toMatchObject({ current: { kind: "logo" }, next: null, nextLabel: "Sigue" });
+    expect(stage()).not.toHaveProperty("notice");
   });
 
   test("a deck: the live slide and the next one, none after the last", () => {
@@ -119,17 +121,30 @@ describe("the stage display", () => {
     expect(stage().current).toMatchObject({ kind: "song", lines: ["puente"], chords: [[{ at: 0, name: "Em" }]] });
   });
 
-  test("BLACK and LOGO keep the content; BLACK is named, LOGO is not (it changes nothing for the stage)", () => {
+  test("BLACK and LOGO show as themselves, never named (owner, 2026-11-13); what comes next stays", () => {
     liveSong(1);
     useProjectionStore.getState().setOverlay("black");
-    expect(stage()).toMatchObject({ current: { kind: "song", lines: ["uno"] }, notice: "NEGRO" });
+    expect(stage()).toMatchObject({ current: { kind: "black" }, next: { kind: "song", lines: ["dos"] } });
     useProjectionStore.getState().setOverlay("logo");
-    expect(stage()).toMatchObject({ current: { kind: "song", lines: ["uno"] }, notice: null });
+    expect(stage().current.kind).toBe(selectOutput(useProjectionStore.getState()).kind);
+    expect(stage().current.kind).not.toBe("song");
   });
 
-  test("hidden lyrics stay on the stage, named", () => {
+  test("hidden lyrics stay on the stage, without a word", () => {
     liveSong(1, true);
-    expect(stage()).toMatchObject({ current: { kind: "song", lines: ["uno"] }, notice: "LETRA OCULTA" });
+    expect(stage()).toMatchObject({ current: { kind: "song", lines: ["uno"] } });
+  });
+
+  test("«Proyector» (the panel's view, or Settings' copy of the projector) is exactly the projector's picture", () => {
+    liveSong(1, true, "[Estrofa 1]\n[G]uno\n\ndos");
+    const projector = { ...NO_CONTROLS, settings: { ...DEFAULT_SETTINGS, "stage.layout": "projector" as const } };
+    const copy = stage(NO_CURSOR, null, projector);
+    expect(copy.layout).toBe("projector");
+    // Hidden lyrics stay hidden and no chords: what the room sees.
+    expect(copy.current).toEqual(selectOutput(useProjectionStore.getState()));
+    // Settings' copy wins over whatever view the panel had.
+    const mirror = { ...NO_CONTROLS, settings: { ...DEFAULT_SETTINGS, "stage.mirror": true, "stage.layout": "musicians" as const } };
+    expect(stage(NO_CURSOR, null, mirror).layout).toBe("projector");
   });
 
   test("a verse from the Bible tab: the next verse of its chapter", () => {

@@ -6,8 +6,9 @@ import type { TimerClock } from "./timer";
  */
 
 /** «Auto» (the default) is the preacher's layout unless a song, a presentation or a chapter's verse is live
- *  (`resolveStageLayout`). */
-export const STAGE_LAYOUT_CHOICES = ["auto", "musicians", "preacher"] as const;
+ *  (`resolveStageLayout`). «Projector» is a copy of the projector and nothing else: no countdown, no message (owner,
+ *  2026-11-13), the same view Settings ▸ Screens' «Copia del proyector» locks the screen to. */
+export const STAGE_LAYOUT_CHOICES = ["auto", "musicians", "preacher", "projector"] as const;
 export type StageLayoutChoice = (typeof STAGE_LAYOUT_CHOICES)[number];
 export type StageLayout = Exclude<StageLayoutChoice, "auto">;
 

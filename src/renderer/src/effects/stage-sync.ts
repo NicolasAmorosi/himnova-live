@@ -2,7 +2,7 @@ import { api } from "@renderer/lib/api";
 import { t } from "@renderer/lib/i18n/i18n-provider";
 import { stageOutputFor } from "@renderer/lib/stage-output";
 import { useBibleStore } from "@renderer/stores/bible.store";
-import { useProjectionStore } from "@renderer/stores/projection.store";
+import { selectOutputMemo, useProjectionStore } from "@renderer/stores/projection.store";
 import { useSettingsStore } from "@renderer/stores/settings.store";
 import { useStageStore } from "@renderer/stores/stage.store";
 import { assetThumbUrl, assetThumbVersion } from "@shared/urls";
@@ -50,11 +50,8 @@ export function startStageSync(): () => void {
     }
     const posterUrl = posterFor(projection.base?.kind === "video" ? projection.base.assetId : null);
     const inputs = [
-      projection.base,
-      projection.overlay,
-      projection.liveDeck,
-      projection.bibleStyle,
-      projection.slideText,
+      // What the projector shows (the stage draws it, covered or copied whole) and what comes next.
+      selectOutputMemo(projection),
       verses,
       currentVerseIndex,
       posterUrl,
@@ -63,6 +60,7 @@ export function startStageSync(): () => void {
       countdown,
       message,
       settings["stage.layout"],
+      settings["stage.mirror"],
       settings["stage.textSize"],
       settings["stage.clockFormat"],
       settings["stage.chords"],
@@ -75,7 +73,7 @@ export function startStageSync(): () => void {
       projection,
       { verses, currentVerseIndex },
       posterUrl,
-      { black: t("status.black"), lyricsHidden: t("stage.lyricsHidden"), next: t("stage.next") },
+      { next: t("stage.next") },
       {
         countdown,
         message: message && { text: message.text, urgent: message.urgent, seq: message.seq },

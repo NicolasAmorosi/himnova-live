@@ -35,7 +35,8 @@ type AppShellProps = {
  */
 export function AppShell({ onOpenPrograms, onOpenSettings }: AppShellProps) {
   // The stage panel only with a stage screen assigned: a church with two screens sees nothing new.
-  const hasStage = useSettingsStore((s) => s.settings["stage.displayId"] !== null);
+  // As a copy of the projector the stage has nothing to run (owner, 2026-11-13).
+  const hasStage = useSettingsStore((s) => s.settings["stage.displayId"] !== null && !s.settings["stage.mirror"]);
   return (
     <div className="flex h-screen flex-col bg-background">
       <TopBar onOpenPrograms={onOpenPrograms} onOpenSettings={onOpenSettings} />

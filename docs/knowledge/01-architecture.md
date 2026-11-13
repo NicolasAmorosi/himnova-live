@@ -63,7 +63,12 @@ movable windows. While it exists a `powerSaveBlocker` keeps the screens awake, a
 whether it is on screen reaches the control window as `stage-screen` (the stage panel's dot; a toast when a
 screen coming or going is why). It plays nothing: a video is
 its poster (`OutputView`'s `videoStill`), so it has no audio, no media commands and no engine
-session. The control window builds its picture (`lib/stage-output.ts`, pushed by
+session. **Except as «Proyector»** (the panel's view, or Settings' «Copia del proyector» role, `stage.mirror`, which
+locks it there and hides the panel; owner 2026-11-13): then it draws `ProjectorCopy` (the NDI window's copy of the
+projector, `components/shared/projector-copy.tsx`) and main counts it among `projectionState`'s mirrors
+(`syncCopy`, keyed on the `StageOutput`'s resolved layout), so it gets the projector's pushes, its `media-status`
+and the engine's frames; leaving the view takes it out again and `showOnly` stops the frames. Its window is always
+muted. The control window builds its picture (`lib/stage-output.ts`, pushed by
 `effects/stage-sync.ts` through `stage:show`); main keeps the last one for a window that opens
 later (`stage:getSnapshot`). On the operator's own screen it is a movable 800×450 window, never a
 fullscreen one over the control window. Its keys are forwarded to the control window, like the
@@ -84,9 +89,10 @@ licence asks for «NDI®», the trademark line (`NDI_TRADEMARK`, `shared/types/n
 and a link to ndi.video wherever NDI is used or chosen — the app, the landing and its guide.
 
 - **Its own offscreen window, not a capture of the projector's.** `main/ndi/ndi-output.ts` loads
-  `projection.html?role=ndi` at the output's size and registers it as a **mirror** in `projectionState`: it gets
-  every `display-content` and `media-command` the projector gets, never the audio tracks, and reports nothing
-  (`04-renderer-state.md`). The engine's videos reach it like any other window (`syncLiveEngine()`). It keeps
+  `projection.html?role=ndi` (`ProjectorCopy`) at the output's size and registers it as a **mirror** in
+  `projectionState`: it gets every `display-content`, `media-command` and video `media-status` the projector gets,
+  never the audio tracks, and reports nothing (`04-renderer-state.md`). The stage window as «Proyector» is the
+  other mirror. The engine's videos reach it like any other window (`syncLiveEngine()`). It keeps
   working with the projector hidden, but with no projector open the videos pause as they always have, and NDI shows
   that (owner, 2026-11-09). It is created after the control window's `did-finish-load` (Playwright takes the first
   window that loads as the control one) and `userFacingWindows()` skips it.

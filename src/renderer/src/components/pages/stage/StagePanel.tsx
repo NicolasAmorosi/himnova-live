@@ -1,12 +1,22 @@
-import { useCallback, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type MouseEvent,
+  type ReactNode,
+} from "react";
 import { useT } from "@renderer/lib/i18n/i18n-provider";
 import { cn } from "@renderer/lib/utils";
 import { useTimerNow } from "@renderer/lib/hooks/use-timer-now";
-import { Button, Caption, Icon, IconButton, Input, Menu, Segmented, Title, Tooltip } from "@renderer/components/ui";
+import { Button, Caption, Icon, IconButton, Input, Segmented, Title, Token, Tooltip } from "@renderer/components/ui";
 import { StageView } from "@renderer/components/shared/stage-view";
 import { useDisplayStore } from "@renderer/stores/display.store";
 import { useSettingsStore } from "@renderer/stores/settings.store";
-import { FOCUS_STAGE_MESSAGE, focusStageMessage, useStageStore } from "@renderer/stores/stage.store";
+import { FOCUS_STAGE_MESSAGE, useStageStore } from "@renderer/stores/stage.store";
 import { countdownTone, formatCountdown, stageThresholds, type CountdownTone } from "@shared/stage";
 import { formatSignedSeconds, parseDuration, parseMinuteOfDay } from "@shared/timer";
 import {
@@ -71,121 +81,136 @@ function MessageAge({ since }: { since: number }) {
   return <span className="shrink-0 tabular-nums">{t("stagePanel.visibleFor", { time })}</span>;
 }
 
+/** Where the stage is, in a word: «Hasta las 19:34», «En pausa»… */
+function useCountdownState(phase: CountdownPhase, endsAt: number | null): string {
+  const t = useT();
+  return phase === "running" && endsAt !== null
+    ? t("stagePanel.states.running", { time: new Date(endsAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) })
+    : t(`stagePanel.states.${phase}`);
+}
+
 function StatusDot() {
   const t = useT();
   const shown = useStageStore((s) => s.shown);
+  const stageId = useSettingsStore((s) => s.settings["stage.displayId"]);
+  const name = useDisplayStore((s) => s.displays.find((d) => d.id === stageId)?.label.split(" · ")[0]);
+  const label = shown ? t("stagePanel.shownOn", { name: name ?? "" }) : t("stagePanel.notShown");
   return (
-    <span
-      aria-label={shown ? t("stagePanel.shown") : t("stagePanel.notShown")}
-      className={cn("size-2 shrink-0 rounded-full", shown ? "bg-success" : "bg-danger")}
-      role="img"
-    />
+    <Tooltip content={label} floating>
+      <span aria-label={label} className={cn("size-2 shrink-0 rounded-full", shown ? "bg-success" : "bg-danger")} role="img" />
+    </Tooltip>
   );
 }
 
 const setOpen = (open: boolean) => useStageStore.getState().setPanelOpen(open);
 
-const QUICK_MINUTES = 30;
+/** A press on a chip's ✕ or a button of the head acts on that, never also on the whole head. */
+const only = (action: () => void) => (e: MouseEvent) => {
+  e.stopPropagation();
+  action();
+};
 
-/**
- * Folded, the panel is this bar at the foot of the left column: its name (with whether the stage is on screen) and
- * the arrow at the ends, and the quick actions centred between them (owner, 2026-11-13): the countdown with −1,
- * pause and +1 (or a 30-minute one to start), the message with its ✕ (or one to write), and the view.
- */
-function StageBar() {
+/** The countdown the stage shows, as it stands — its colour, running or held, and how it reads — with its ✕. */
+function CountdownChip() {
   const t = useT();
-  const message = useStageStore((s) => s.message);
-  const shown = useStageStore((s) => s.shown);
-  const choice = useSettingsStore((s) => s.settings["stage.layout"]);
-  const update = useSettingsStore((s) => s.update);
-  const { countdown, phase, text, tone } = useCountdown();
-  const { armCountdown, clearMessage, nudgeCountdown, toggleCountdown } = useStageStore.getState();
+  const { countdown, endsAt, phase, text, tone } = useCountdown();
+  const state = useCountdownState(phase, endsAt);
+  if (!countdown || !text) return null;
   const running = phase === "running" || phase === "over";
-  const quick = (label: string, hint: string, onClick: () => void, children: ReactNode) => (
-    <Tooltip content={hint} floating>
-      <Button aria-label={label} className="h-7 px-1.5" onClick={onClick} size="xs" variant="ghost">
-        {children}
-      </Button>
-    </Tooltip>
-  );
-
   return (
-    <section
-      aria-label={t("stagePanel.title")}
-      className="@container/bar flex h-strip shrink-0 items-center gap-1 border-t border-border bg-surface px-1.5"
-    >
-      <Tooltip content={shown ? t("stagePanel.shown") : t("stagePanel.notShown")} floating>
-        <button
-          className="focus-ring flex h-8 shrink-0 cursor-pointer items-center gap-2 rounded-md px-1.5 hover:bg-muted"
-          onClick={() => setOpen(true)}
-          type="button"
-        >
-          <StatusDot />
-          <Title as="h2">{t("stagePanel.title")}</Title>
-        </button>
+    <Token aria-label={t("stagePanel.countdown")} className="gap-1 pr-0.5 pl-1.5" role="group">
+      <Tooltip content={state} floating>
+        <span className={cn("flex items-center gap-1 tabular-nums", running ? TONE_INK[tone] : "text-muted-foreground")}>
+          <Icon className="size-3.5" name={running ? "timer" : "pause"} />
+          <span role="timer">{text}</span>
+        </span>
       </Tooltip>
-      <div className="flex min-w-0 flex-1 items-center justify-center gap-1">
-        {countdown && text ? (
-          <span aria-label={t("stagePanel.countdown")} className="flex shrink-0 items-center" role="group">
-            {quick(t("stagePanel.minus"), t("stagePanel.minus"), () => nudgeCountdown(-60_000), "−1")}
-            <span className={cn("px-1 text-sm font-semibold tabular-nums", TONE_INK[tone])} role="timer">
-              {text}
-            </span>
-            {quick(
-              running ? t("stagePanel.pause") : t("stagePanel.resume"),
-              running ? t("stagePanel.pause") : t("stagePanel.resume"),
-              toggleCountdown,
-              <Icon name={running ? "pause" : "play"} />,
-            )}
-            {quick(t("stagePanel.plus"), t("stagePanel.plus"), () => nudgeCountdown(60_000), "+1")}
-          </span>
-        ) : (
-          quick(
-            t("stagePanel.quickStartHint", { minutes: QUICK_MINUTES }),
-            t("stagePanel.quickStartHint", { minutes: QUICK_MINUTES }),
-            () => {
-              armCountdown(QUICK_MINUTES * 60_000);
-              toggleCountdown();
-            },
-            <>
-              <Icon name="timer" /> {t("stagePanel.quickStart", { minutes: QUICK_MINUTES })}
-            </>,
-          )
-        )}
-        <span aria-hidden className="mx-0.5 h-4 w-px shrink-0 bg-border" />
-        {message ? (
-          <span className="flex min-w-0 items-center gap-0.5">
-            <Icon className={message.urgent ? "text-danger-ink" : "text-warning-ink"} name="alert" />
-            {/* The text where there is room; the ✕ always. */}
-            <span className="min-w-0 truncate text-xs @max-[26rem]/bar:hidden">{message.text}</span>
-            <Tooltip content={t("stagePanel.removeMessage")} floating>
-              <IconButton aria-label={t("stagePanel.removeMessage")} onClick={clearMessage} size="xs" variant="ghost">
-                <Icon name="close" />
-              </IconButton>
-            </Tooltip>
-          </span>
-        ) : (
-          quick(t("stagePanel.quickMessage"), t("stagePanel.quickMessageHint"), focusStageMessage, (
-            <>
-              <Icon name="message" /> <span className="@max-[26rem]/bar:hidden">{t("stagePanel.quickMessage")}</span>
-            </>
-          ))
-        )}
-        <Menu<StageLayoutChoice>
-          icon="columns"
-          label={t("stagePanel.quickView", { view: t(`stagePanel.layouts.${choice}`) })}
-          onSelect={(value) => void update({ "stage.layout": value })}
-          options={STAGE_LAYOUT_CHOICES.map((value) => ({ label: t(`stagePanel.layouts.${value}`), value }))}
+      <Tooltip content={t("stagePanel.clearCountdown")} floating>
+        <IconButton
+          aria-label={t("stagePanel.clearCountdown")}
+          onClick={only(() => useStageStore.getState().clearCountdown())}
           size="xs"
-          value={choice}
-        />
-      </div>
-      <Tooltip align="end" content={t("stagePanel.open")} floating>
-        <IconButton aria-expanded={false} aria-label={t("stagePanel.open")} onClick={() => setOpen(true)} variant="ghost">
-          <Icon name="chevronUp" />
+          variant="ghost"
+        >
+          <Icon className="size-3.5" name="close" />
         </IconButton>
       </Tooltip>
-    </section>
+    </Token>
+  );
+}
+
+/** The message on the stage, with its ✕: the text where there is room. */
+function MessageChip() {
+  const t = useT();
+  const message = useStageStore((s) => s.message);
+  if (!message) return null;
+  return (
+    <Token className="min-w-0 shrink gap-1 pr-0.5 pl-1.5">
+      <Tooltip content={message.text} floating>
+        <span className="flex min-w-0 items-center gap-1">
+          <Icon className={cn("size-3.5", message.urgent ? "text-danger-ink" : "text-warning-ink")} name="alert" />
+          <span className="min-w-0 truncate @max-[24rem]/head:hidden">{message.text}</span>
+        </span>
+      </Tooltip>
+      <Tooltip content={t("stagePanel.removeMessage")} floating>
+        <IconButton
+          aria-label={t("stagePanel.removeMessage")}
+          onClick={only(() => useStageStore.getState().clearMessage())}
+          size="xs"
+          variant="ghost"
+        >
+          <Icon className="size-3.5" name="close" />
+        </IconButton>
+      </Tooltip>
+    </Token>
+  );
+}
+
+/**
+ * The panel's head, the same folded (the bar at the foot of the left column) and opened (the card's top): what is
+ * on the stage — the countdown and the message, each with its ✕ — the pin and the arrow, nothing else (owner,
+ * 2026-11-13: the same buttons either way). A press anywhere on it opens or folds the card; the keyboard has the
+ * arrow.
+ */
+function StageHead({ open }: { open: boolean }) {
+  const t = useT();
+  const pinned = useStageStore((s) => s.panelPinned);
+  // Pinned from the bar, it opens: a pinned card that is not there means nothing.
+  const pin = () => {
+    useStageStore.getState().setPanelPinned(!pinned);
+    if (!pinned) setOpen(true);
+  };
+  return (
+    /* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- the
+       whole head is a shortcut for the mouse; the keyboard's way is its arrow, a real button inside it. */
+    <div
+      className="@container/head flex h-strip shrink-0 cursor-pointer items-center gap-1.5 pr-1.5 pl-3 transition-colors hover:bg-hover"
+      onClick={() => setOpen(!open)}
+    >
+      <StatusDot />
+      <Title as="h2" className="shrink-0">
+        {t("stagePanel.title")}
+      </Title>
+      <div className="flex min-w-0 flex-1 items-center gap-1.5 pl-1">
+        <CountdownChip />
+        <MessageChip />
+      </div>
+      <Tooltip align="end" content={pinned ? t("stagePanel.unpin") : t("stagePanel.pin")} floating>
+        <IconButton aria-label={pinned ? t("stagePanel.unpin") : t("stagePanel.pin")} onClick={only(pin)} toggled={pinned} variant="ghost">
+          <Icon name="pin" />
+        </IconButton>
+      </Tooltip>
+      <Tooltip align="end" content={open ? t("stagePanel.close") : t("stagePanel.open")} floating>
+        <IconButton
+          aria-expanded={open}
+          aria-label={open ? t("stagePanel.close") : t("stagePanel.open")}
+          onClick={only(() => setOpen(!open))}
+          variant="ghost"
+        >
+          <Icon name={open ? "chevronDown" : "chevronUp"} />
+        </IconButton>
+      </Tooltip>
+    </div>
   );
 }
 
@@ -216,32 +241,26 @@ function MonitorSection() {
   const [w, h] = display ? [display.bounds.width, display.bounds.height] : [16, 9];
   return (
     <div className="flex flex-col gap-2 p-3">
-      {/* The whole width, never taller than 10rem: at that screen's proportion either way. */}
+      {/* The whole width, never taller than 15rem: at that screen's proportion either way. */}
       <div
         aria-label={t("stagePanel.monitor")}
-        className="mx-auto overflow-hidden rounded-md border border-border"
+        className="mx-auto overflow-hidden rounded-md border border-border bg-clip-padding"
         role="img"
-        style={{ aspectRatio: `${w} / ${h}`, width: `min(100%, calc(10rem * ${w} / ${h}))` }}
+        style={{ aspectRatio: `${w} / ${h}`, width: `min(100%, calc(15rem * ${w} / ${h}))` }}
       >
         <StageView stage={output} />
       </div>
-      {/* Which view is on is the monitor above; «?» says what «Automática» does. */}
-      <div className="flex items-center gap-2">
-        <Caption className="flex shrink-0 items-center gap-1">
-          {t("stagePanel.layoutLabel")}
-          <Tooltip floating content={t("stagePanel.autoHint")}>
-            <Icon className="size-3.5 text-subtle" name="help" />
-          </Tooltip>
-        </Caption>
-        <Segmented<StageLayoutChoice>
-          className="min-w-0 flex-1"
-          label={t("stagePanel.layout")}
-          onChange={(value) => void update({ "stage.layout": value })}
-          options={STAGE_LAYOUT_CHOICES.map((value) => ({ label: t(`stagePanel.layouts.${value}`), value }))}
-          size="xs"
-          value={choice}
-        />
-      </div>
+      {/* Which view is on is the monitor above; the line under it says what the chosen one shows — two lines' room
+          whatever it says, so the card never changes height with the view. */}
+      <Segmented<StageLayoutChoice>
+        className="w-full"
+        label={t("stagePanel.layout")}
+        onChange={(value) => void update({ "stage.layout": value })}
+        options={STAGE_LAYOUT_CHOICES.map((value) => ({ label: t(`stagePanel.layouts.${value}`), value }))}
+        size="xs"
+        value={choice}
+      />
+      <Caption className="line-clamp-2 h-[2lh] font-normal">{t(`stagePanel.layoutHints.${choice}`)}</Caption>
     </div>
   );
 }
@@ -249,8 +268,7 @@ function MonitorSection() {
 function CountdownSection() {
   const t = useT();
   const { countdown, endsAt, phase, text, tone } = useCountdown();
-  const { armCountdown, clearCountdown, countdownUntil, nudgeCountdown, resetCountdown, toggleCountdown } =
-    useStageStore.getState();
+  const { armCountdown, countdownUntil, nudgeCountdown, resetCountdown, toggleCountdown } = useStageStore.getState();
   const [other, setOther] = useState("");
   const running = phase === "running" || phase === "over";
 
@@ -268,25 +286,16 @@ function CountdownSection() {
     }
     setOther("");
   };
-  const state =
-    phase === "running" && endsAt !== null
-      ? t("stagePanel.states.running", {
-          time: new Date(endsAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-        })
-      : t(`stagePanel.states.${phase}`);
+  const state = useCountdownState(phase, endsAt);
   const mainLabel = running ? t("stagePanel.pause") : phase === "paused" ? t("stagePanel.resume") : t("stagePanel.start");
 
   return (
     <Section
       actions={
-        <>
-          <Button disabled={phase === "none" || phase === "armed"} onClick={resetCountdown} size="xs" variant="ghost">
-            <Icon name="restart" /> {t("stagePanel.reset")}
-          </Button>
-          <Button aria-label={t("stagePanel.clearCountdown")} disabled={!countdown} onClick={clearCountdown} size="xs" variant="ghost">
-            <Icon name="close" /> {t("stagePanel.remove")}
-          </Button>
-        </>
+        // Taking it off the stage is the ✕ of its chip, in the head.
+        <Button disabled={phase === "none" || phase === "armed"} onClick={resetCountdown} size="xs" variant="ghost">
+          <Icon name="restart" /> {t("stagePanel.reset")}
+        </Button>
       }
       title={t("stagePanel.countdown")}
     >
@@ -411,16 +420,12 @@ function MessageSection() {
   return (
     <Section
       actions={
-        <>
-          {message ? (
-            <Caption className="font-normal">
-              <MessageAge since={message.since} />
-            </Caption>
-          ) : null}
-          <Button aria-label={t("stagePanel.removeMessage")} disabled={!message} onClick={clearMessage} size="xs" variant="ghost">
-            <Icon name="close" /> {t("stagePanel.remove")}
-          </Button>
-        </>
+        // Taking it off the stage is the ✕ of its chip, in the head (and Esc in the field).
+        message ? (
+          <Caption className="font-normal">
+            <MessageAge since={message.since} />
+          </Caption>
+        ) : null
       }
       title={t("stagePanel.message")}
     >
@@ -479,16 +484,12 @@ function MessageSection() {
 
 /**
  * Opened, the panel is a card over the left column, like a chat window (owner, 2026-11-13): it grows out of the
- * bar, and its arrow, Esc or a press anywhere else folds it back. It covers the column rather than squeezing it,
+ * bar with the same head on top, and the head, Esc or a press anywhere else folds it back. It covers the column rather than squeezing it,
  * which is what gives its controls room.
  */
 function StageCard({ closing, onClosed }: { closing: boolean; onClosed: () => void }) {
   const t = useT();
   const card = useRef<HTMLDivElement>(null);
-  const stageId = useSettingsStore((s) => s.settings["stage.displayId"]);
-  const shown = useStageStore((s) => s.shown);
-  const where = useDisplayStore((s) => s.displays.find((d) => d.id === stageId)?.label.split(" · ")[0]);
-  const pinned = useStageStore((s) => s.panelPinned);
   // While it grows (or folds) its content is clipped, never scrolled: a scrollbar that showed for the growth and
   // then went away made it jerk (owner, 2026-11-13).
   const [settled, setSettled] = useState(false);
@@ -535,27 +536,7 @@ function StageCard({ closing, onClosed }: { closing: boolean; onClosed: () => vo
       ref={card}
       role="dialog"
     >
-      <div className="flex h-strip shrink-0 items-center gap-2 pr-1.5 pl-3">
-        <StatusDot />
-        <Title as="h2">{t("stagePanel.title")}</Title>
-        <Caption className="min-w-0 truncate font-normal">{shown && where ? where : t("stagePanel.noScreen")}</Caption>
-        <span className="flex-1" />
-        <Tooltip align="end" content={pinned ? t("stagePanel.unpin") : t("stagePanel.pin")} floating>
-          <IconButton
-            aria-label={pinned ? t("stagePanel.unpin") : t("stagePanel.pin")}
-            onClick={() => useStageStore.getState().setPanelPinned(!pinned)}
-            toggled={pinned}
-            variant="ghost"
-          >
-            <Icon name="pin" />
-          </IconButton>
-        </Tooltip>
-        <Tooltip floating align="end" content={t("stagePanel.close")}>
-          <IconButton aria-expanded aria-label={t("stagePanel.close")} onClick={() => setOpen(false)} variant="ghost">
-            <Icon name="chevronDown" />
-          </IconButton>
-        </Tooltip>
-      </div>
+      <StageHead open={!closing} />
       <div className={cn("min-h-0 border-t border-border", settled && !closing ? "overflow-y-auto" : "overflow-hidden")}>
         <MonitorSection />
         <CountdownSection />
@@ -568,8 +549,8 @@ function StageCard({ closing, onClosed }: { closing: boolean; onClosed: () => vo
 /**
  * «Escenario» (plan 2026-11-13 §2.4): the stage screen run from the work screen — a manual countdown for the
  * preacher, a message to the platform and the view, beside a monitor of what the stage shows. Only while a stage
- * screen is assigned: a church with two screens sees nothing new. A bar at the foot of the left column; opened, a
- * card over it (`StageCard`), never remembered across launches.
+ * screen is assigned, and not as a copy of the projector: a church with two screens sees nothing new. A bar at the
+ * foot of the left column (`StageHead`); opened, a card over it (`StageCard`), never remembered across launches.
  */
 export function StagePanel() {
   const open = useStageStore((s) => s.panelOpen);
@@ -577,9 +558,12 @@ export function StagePanel() {
   const [mounted, setMounted] = useState(open);
   if (open && !mounted) setMounted(true);
   const unmount = useCallback(() => setMounted(false), []);
+  const t = useT();
   return (
     <>
-      <StageBar />
+      <section aria-label={t("stagePanel.title")} className="shrink-0 border-t border-border bg-surface">
+        <StageHead open={false} />
+      </section>
       {mounted ? <StageCard closing={!open} onClosed={unmount} /> : null}
     </>
   );

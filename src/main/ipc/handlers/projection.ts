@@ -9,7 +9,6 @@ import { IpcError } from "@shared/ipc/result";
 import { deckIdOfUrl } from "@shared/urls";
 import { keepLiveDeckSource } from "../../protocol/worship-protocol";
 import { showOnStage, stageShown, stageSnapshot } from "../../windows/stage-window";
-import { forwardMediaStatusToNdi } from "../../ndi/ndi-output";
 
 let currentProgramId: number | null = null;
 
@@ -161,11 +160,12 @@ export const projectionHandlers: Pick<
   },
 
   /** The projection window describing its own media element; forwarded to the
-   *  control window, which owns the autoplay clock, and to the NDI window, whose
-   *  copy of a Chromium video follows it. */
+   *  control window, which owns the autoplay clock, and to the projector's copies
+   *  (the NDI window, the stage as «Proyector»), whose Chromium videos follow it. */
   "projection:reportMediaStatus": (status) => {
     broadcast("media-status", status);
-    forwardMediaStatusToNdi(status);
+    if (status.target.kind === "audio") return;
+    for (const win of projectionState.getMirrors()) win.webContents.send("media-status", status);
   },
 
   /** A file the projector could not load or decode. Logged here as well as

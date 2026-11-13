@@ -1,7 +1,7 @@
 import type { Page } from "@playwright/test";
 import { parseLyrics } from "../../src/shared/song-text";
 import { DEFAULT_SONG_THEME } from "../../src/shared/types/song";
-import { expect, relaunch, test, type WorshipApp } from "./support/app";
+import { engineCanvas, expect, moving, relaunch, test, videoStates, type WorshipApp } from "./support/app";
 
 const JUAN_3_16 = "Porque de tal manera amó Dios al mundo";
 const JUAN_3_17 = "Porque no envió Dios á su Hijo al mundo";
@@ -10,16 +10,17 @@ const isStage = (page: Page) => page.url().endsWith("/stage.html");
 
 /** Settings ▸ Screens: the operator's own screen as the stage (`on`, a movable window there) or back to «Solo
  *  control». The one screen every machine has, so the suite runs anywhere. */
-async function chooseStageScreen(app: WorshipApp, on: boolean): Promise<void> {
+async function chooseStageScreen(app: WorshipApp, on: boolean | "Copia del proyector"): Promise<void> {
   await app.control.getByRole("button", { name: "Configuración" }).click();
   const settings = app.control.getByRole("dialog", { name: "Configuración" });
   await settings.getByRole("tab", { name: "Pantallas" }).click();
   await settings.getByRole("group").filter({ hasText: "Esta pantalla tiene la ventana de control" }).getByRole("combobox").click();
-  await app.control.getByRole("option", { name: on ? "Escenario" : "Solo control", exact: true }).click();
+  const role = on === true ? "Escenario" : on === false ? "Solo control" : on;
+  await app.control.getByRole("option", { name: role, exact: true }).click();
   await app.control.keyboard.press("Escape");
 }
 
-test("the stage screen shows the live verse and the next, and keeps it under NEGRO", async ({ app }) => {
+test("the stage screen shows the live verse and the next; under NEGRO it shows black, without a word", async ({ app }) => {
   const opened = app.electron.waitForEvent("window", { predicate: isStage });
   await chooseStageScreen(app, true);
   const stage = await opened;
@@ -34,9 +35,11 @@ test("the stage screen shows the live verse and the next, and keeps it under NEG
   await expect(stage.getByText(JUAN_3_16, { exact: false })).toBeVisible();
   await expect(stage.getByText(JUAN_3_17, { exact: false })).toBeVisible();
 
+  // What the projector shows, as it shows it (owner, 2026-11-13): the next verse stays.
   await app.control.getByRole("button", { name: "NEGRO", exact: true }).click();
-  await expect(stage.getByText("NEGRO", { exact: true })).toBeVisible();
-  await expect(stage.getByText(JUAN_3_16, { exact: false })).toBeVisible();
+  await expect(stage.getByText(JUAN_3_16, { exact: false })).toBeHidden();
+  await expect(stage.getByText(JUAN_3_17, { exact: false })).toBeVisible();
+  await expect(stage.getByText("NEGRO", { exact: true })).toHaveCount(0);
 
   // «Solo control» closes it.
   const closed = stage.waitForEvent("close");
@@ -121,8 +124,9 @@ test("the stage panel: only with a stage screen; its countdown and message reach
   await stage.waitForLoadState("domcontentloaded");
   await expect(bar).toBeVisible();
 
-  // «Automática» is the pastor's with nothing that has a next: the time large, no «Sigue».
-  await bar.getByRole("button", { name: "Abrir el panel del escenario" }).click();
+  // «Auto» is the pastor's with nothing that has a next: the time large, no «Sigue». A press anywhere on the bar opens
+  // the card.
+  await bar.getByRole("heading", { name: "Escenario" }).click();
   await expect(card).toBeVisible();
   await expect(stage.getByText("Sigue", { exact: true })).toBeHidden();
 
@@ -155,6 +159,7 @@ test("the stage panel: only with a stage screen; its countdown and message reach
   // A ready phrase is one click; the operator's own words come back as one.
   await card.getByRole("button", { name: "Más despacio", exact: true }).click();
   await expect(stage.getByRole("status")).toHaveText("Más despacio");
+  // Its ✕ is in the head, the same folded or opened.
   await card.getByRole("button", { name: "Quitar el mensaje del escenario" }).click();
   await expect(stage.getByRole("status")).toHaveCount(0);
   await card.getByRole("button", { name: "Más despacio", exact: true }).click();
@@ -165,13 +170,20 @@ test("the stage panel: only with a stage screen; its countdown and message reach
   await card.getByRole("button", { name: "Músicos", exact: true }).click();
   await expect(stage.getByText("Sigue", { exact: true })).toBeVisible();
   await expect(stage.getByRole("status")).toHaveText("Más despacio");
-  await card.getByRole("button", { name: "Automática", exact: true }).click();
+  // «Proyector»: a copy of the projector, without the count or the message.
+  await card.getByRole("button", { name: "Proyector", exact: true }).click();
+  await expect(stage.getByRole("status")).toHaveCount(0);
+  await expect(stage.getByRole("timer")).toHaveCount(0);
+  await card.getByRole("button", { name: "Auto", exact: true }).click();
 
-  // A press anywhere else folds it, with its animation; the bar keeps the count and the message.
+  // A press anywhere else folds it, with its animation; the bar keeps the count and the message, each with its ✕.
   await app.control.getByRole("heading", { name: "Programa" }).click();
   await expect(card).toHaveCount(0);
   await expect(bar.getByText("Más despacio")).toBeVisible();
   await expect(bar.getByText(/^\d{2}:\d{2}$/)).toBeVisible();
+  await bar.getByRole("button", { name: "Quitar la cuenta" }).click();
+  await expect(stage.getByRole("timer")).toHaveCount(0);
+  await expect(card).toHaveCount(0);
 
   // M opens it and puts the keyboard in the message: what follows is typed, not a shortcut (B is BLACK).
   await app.control.locator("body").press("m");
@@ -186,7 +198,7 @@ test("the stage panel: only with a stage screen; its countdown and message reach
   await expect(bar).toHaveCount(0);
 });
 
-test("«Automática» shows the musicians' view while a chapter's verse is live, and the pastor's once it is off", async ({ app }) => {
+test("«Auto» shows the musicians' view while a chapter's verse is live, and the pastor's once it is off", async ({ app }) => {
   const opened = app.electron.waitForEvent("window", { predicate: isStage });
   await chooseStageScreen(app, true);
   const stage = await opened;
@@ -199,41 +211,100 @@ test("«Automática» shows the musicians' view while a chapter's verse is live,
   await expect(stage.getByText("Sigue", { exact: true })).toBeHidden();
 });
 
-test("the folded bar's quick actions, the count in the time's place for the musicians, and a pinned card", async ({ app }) => {
+test("the bar and the card share one head, the count in the time's place for the musicians, and a pinned card", async ({
+  app,
+}) => {
   const bar = app.control.getByRole("region", { name: "Escenario" });
   const card = app.control.getByRole("dialog", { name: "Escenario" });
   const opened = app.electron.waitForEvent("window", { predicate: isStage });
   await chooseStageScreen(app, true);
   const stage = await opened;
   await stage.waitForLoadState("domcontentloaded");
+  // Nothing on the stage: the head holds only its name, the pin and the arrow.
+  await expect(bar.getByRole("button")).toHaveCount(2);
 
-  // One press: a 30-minute count, running; −1/+1 and pause beside it.
-  await bar.getByRole("button", { name: "Iniciar una cuenta de 30 minutos" }).click();
-  await expect(stage.getByRole("timer")).toHaveText(/^29:5\d$/);
-  await bar.getByRole("button", { name: "Un minuto más" }).click();
-  await expect(stage.getByRole("timer")).toHaveText(/^30:5\d$/);
-  await bar.getByRole("button", { name: "Pausar la cuenta" }).click();
-  await expect(bar.getByRole("button", { name: "Seguir la cuenta" })).toBeVisible();
+  // The pin on the folded bar opens the card, pinned.
+  await bar.getByRole("button", { name: "Fijar el panel: no se cierra al tocar afuera" }).click();
+  await expect(card).toBeVisible();
+  await card.getByRole("button", { name: "30 minutos" }).click();
+  await card.getByRole("button", { name: "Iniciar la cuenta" }).click();
 
   // The musicians' view with a count: the count where the time was, the time small beside «Sigue».
-  await bar.getByRole("button", { name: /^Vista del escenario/ }).click();
-  await app.control.getByRole("menuitemradio", { name: "Músicos" }).click();
+  await card.getByRole("button", { name: "Músicos", exact: true }).click();
   await expect(stage.getByText("Sigue", { exact: true })).toBeVisible();
-  await expect(stage.getByRole("timer")).toHaveText(/^30:5\d$/);
+  await expect(stage.getByRole("timer")).toHaveText(/^29:5\d$/);
   await expect(stage.locator("time")).toHaveCount(1);
-
-  // «Mensaje» opens the card with the keyboard in the field.
-  await bar.getByRole("button", { name: "Mensaje" }).click();
-  await expect(card.getByRole("textbox", { name: "Mensaje al escenario" })).toBeFocused();
 
   // Pinned, a press elsewhere leaves it open; let go, the next one folds it.
   const main = (await app.control.locator("main").boundingBox())!;
   const elsewhere = () => app.control.mouse.click(main.x + main.width / 2, main.y + 20);
-  await card.getByRole("button", { name: "Fijar el panel: no se cierra al tocar afuera" }).click();
   await elsewhere();
   await app.control.waitForTimeout(500);
   await expect(card).toBeVisible();
   await card.getByRole("button", { name: "Soltar el panel: se cierra al tocar afuera" }).click();
   await elsewhere();
   await expect(card).toHaveCount(0);
+  // Folded, the same head: the count with its ✕, the pin and the arrow.
+  await expect(bar.getByRole("timer")).toHaveText(/^29:\d\d$/);
+  await expect(bar.getByRole("button")).toHaveCount(3);
+});
+
+test("Settings' «Copia del proyector»: the stage screen copies the projector and the work screen has no stage panel", async ({
+  app,
+}) => {
+  const opened = app.electron.waitForEvent("window", { predicate: isStage });
+  await chooseStageScreen(app, "Copia del proyector");
+  const stage = await opened;
+  await stage.waitForLoadState("domcontentloaded");
+  await expect(app.control.getByRole("region", { name: "Escenario" })).toHaveCount(0);
+  await app.openChapter("Juan 3");
+  await app.control.getByRole("listitem").filter({ hasText: JUAN_3_16 }).click();
+  await app.goLive();
+  // The projector's verse, and nothing of the stage's own: no next, no time.
+  await expect(stage.getByText(JUAN_3_16, { exact: false })).toBeVisible();
+  await expect(stage.getByText(JUAN_3_17, { exact: false })).toHaveCount(0);
+  await expect(stage.locator("time")).toHaveCount(0);
+  await app.control.getByRole("button", { name: "NEGRO", exact: true }).click();
+  await expect(stage.getByText(JUAN_3_16, { exact: false })).toBeHidden();
+});
+
+test("«Proyector» plays what the projector plays: an engine video's frames move there, a Chromium video keeps step, silent", async ({
+  app,
+}) => {
+  const [mp4, avi] = await app.addMedia("video", "clip.mp4", "long-xvid.avi");
+  if (!mp4 || !avi) throw new Error("import failed");
+  await expect.poll(async () => (await app.invoke<number[]>("engine:assets")).includes(avi.id), { timeout: 30_000 }).toBe(true);
+  const opened = app.electron.waitForEvent("window", { predicate: isStage });
+  await chooseStageScreen(app, true);
+  const stage = await opened;
+  await stage.waitForLoadState("domcontentloaded");
+  const bar = app.control.getByRole("region", { name: "Escenario" });
+  const card = app.control.getByRole("dialog", { name: "Escenario" });
+  await bar.getByRole("heading", { name: "Escenario" }).click();
+  await card.getByRole("button", { name: "Proyector", exact: true }).click();
+  await card.getByRole("button", { name: "Cerrar el panel del escenario" }).click();
+  await expect(card).toHaveCount(0);
+
+  // The engine's: its frames reach the stage as they reach the projector, and they move.
+  await app.previewFile("Videos", "long-xvid");
+  await app.goLive();
+  await expect.poll(async () => (await engineCanvas(stage, "video:"))?.width ?? 0).toBe(1920);
+  await expect.poll(() => moving(stage, "video:")).toBe(true);
+
+  // Chromium's: a copy that follows the projector's own reports, never a sound.
+  await app.previewFile("Videos", "clip");
+  await app.goLive();
+  const projector = await app.projector();
+  await expect.poll(async () => (await videoStates(stage)).some((v) => !v.paused && v.currentTime > 1)).toBe(true);
+  const [mine] = (await videoStates(stage)).filter((v) => !v.paused);
+  const [theirs] = (await videoStates(projector)).filter((v) => !v.paused);
+  expect(Math.abs(mine!.currentTime - theirs!.currentTime)).toBeLessThan(0.5);
+  expect(await app.electron.evaluate(({ BrowserWindow }) =>
+    BrowserWindow.getAllWindows().find((w) => w.webContents.getURL().endsWith("/stage.html"))?.webContents.isAudioMuted(),
+  )).toBe(true);
+
+  // Back to the musicians: the stage stops being a copy and decodes nothing.
+  await bar.getByRole("heading", { name: "Escenario" }).click();
+  await card.getByRole("button", { name: "Músicos", exact: true }).click();
+  await expect.poll(async () => (await videoStates(stage)).length).toBe(0);
 });

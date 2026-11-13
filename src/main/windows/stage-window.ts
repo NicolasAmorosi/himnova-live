@@ -5,6 +5,8 @@ import { mt } from "../i18n";
 import { trustWindow } from "../ipc/trusted-senders";
 import { broadcast } from "../services/broadcast";
 import { getSettingsRepo } from "../services/repos";
+import { projectionState } from "../services/projection-state";
+import { syncLiveEngine } from "../media/engine-sessions";
 import { forwardKeysToControl } from "./projection-window";
 import { operatorDisplay } from "./control-window";
 import { chooseStageDisplay } from "./projector-display-choice";
@@ -16,7 +18,8 @@ const PRELOAD = path.join(__dirname, "../preload/index.js");
  * screen chosen in Settings ▸ Projection (`stage.displayId`). Unlike the
  * projector it is open whenever that screen is connected — the band reads the
  * time before anything goes live — and it plays nothing: a video shows as its
- * poster, so there is no media, no audio and no engine to keep in step.
+ * poster, so there is no media, no audio and no engine to keep in step. Except
+ * as «Proyector», a copy of the projector (`syncCopy`), always silent.
  *
  * `syncStageWindow` is the one place that decides whether it exists and where:
  * called when the control window opens, when its setting or the projector's
@@ -53,6 +56,7 @@ export function syncStageWindow(byScreens = false): void {
     if (display) {
       const win = createStageWindow(display);
       current = { win, displayId: display.id, blocker: powerSaveBlocker.start("prevent-display-sleep") };
+      syncCopy();
     }
   }
   const now = current !== null;
@@ -84,6 +88,20 @@ export function refitStageWindow(display: Display): void {
 export function showOnStage(output: StageOutput): void {
   lastOutput = output;
   if (current && !current.win.isDestroyed()) current.win.webContents.send("stage-content", output);
+  syncCopy();
+}
+
+/** As «Proyector» the stage is a copy of the projector (`ProjectorCopy`): one of its mirrors, so it gets the
+ *  projector's pushes, its reports and the engine's frames — and only then, so the musicians' and the preacher's
+ *  views decode nothing. */
+function syncCopy(): void {
+  const win = current?.win;
+  if (!win || win.isDestroyed()) return;
+  const copy = lastOutput?.layout === "projector";
+  if (copy === projectionState.isMirror(win)) return;
+  if (copy) projectionState.addMirror(win);
+  else projectionState.removeMirror(win);
+  syncLiveEngine();
 }
 
 /** Pulled by the stage window once mounted, for the reason `projectionState`'s
@@ -118,6 +136,8 @@ function createStageWindow(display: Electron.Display): BrowserWindow {
     },
   });
   trustWindow(win);
+  // Never a sound: as a copy of the projector it plays what the projector plays, and the room hears the projector.
+  win.webContents.setAudioMuted(true);
   forwardKeysToControl(win);
   win.on("page-title-updated", (event) => event.preventDefault());
   win.once("closed", () => {

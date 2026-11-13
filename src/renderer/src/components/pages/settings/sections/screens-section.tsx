@@ -97,10 +97,12 @@ function StageOptionsGroup() {
 
 /** Settings ▸ Screens (plan 2026-11-13 §2.4): what each screen does, and how the stage is dressed. */
 export function ScreensSection() {
+  // A copy of the projector shows nothing of the stage's own.
+  const mirror = useSettingsStore((s) => s.settings["stage.mirror"]);
   return (
     <div className="flex flex-col gap-8">
       <ScreenGroup />
-      <StageOptionsGroup />
+      {mirror ? null : <StageOptionsGroup />}
     </div>
   );
 }

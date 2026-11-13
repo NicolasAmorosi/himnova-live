@@ -54,6 +54,15 @@ class ProjectionState {
     win.once("closed", () => this.mirrors.delete(win));
   }
 
+  /** The stage screen stops being a copy of the projector («Proyector» left): no more pushes or videos for it. */
+  removeMirror(win: BrowserWindow): void {
+    this.mirrors.delete(win);
+  }
+
+  isMirror(win: BrowserWindow): boolean {
+    return this.mirrors.has(win);
+  }
+
   getMirrors(): BrowserWindow[] {
     return [...this.mirrors].filter((win) => !win.isDestroyed());
   }

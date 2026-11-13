@@ -17,6 +17,7 @@ export function DisplayMap({ onPick }: { onPick?: (displayId: number) => void })
   const displays = useDisplayStore((s) => s.displays);
   const projectorId = useDisplayStore((s) => s.displayId);
   const stageId = useSettingsStore((s) => s.settings["stage.displayId"]);
+  const mirror = useSettingsStore((s) => s.settings["stage.mirror"]);
   if (displays.length === 0) return null;
   const left = Math.min(...displays.map((d) => d.bounds.x));
   const top = Math.min(...displays.map((d) => d.bounds.y));
@@ -31,15 +32,8 @@ export function DisplayMap({ onPick }: { onPick?: (displayId: number) => void })
         style={{ aspectRatio: `${width} / ${height}`, width: `min(100%, calc(13rem * ${width} / ${height}))` }}
       >
         {displays.map((d, index) => {
-          const role = screenRole(d.id, projectorId, stageId, d.operator);
-          const badge =
-            role === "projector"
-              ? t("settings.screens.roles.projector")
-              : role === "stage"
-                ? t("settings.screens.roles.stage")
-                : d.operator
-                  ? t("welcome.screens.roleControl")
-                  : null;
+          const role = screenRole(d.id, projectorId, stageId, mirror, d.operator);
+          const badge = role !== "none" ? t(`settings.screens.roles.${role}`) : d.operator ? t("welcome.screens.roleControl") : null;
           const body = (
             <Box className={cn("flex size-full flex-col items-center justify-center gap-1 p-1", onPick && "hover:bg-hover")}>
               <Title as="h3">{index + 1}</Title>
@@ -88,14 +82,16 @@ function RoleRows() {
   const displays = useDisplayStore((s) => s.displays);
   const projectorId = useDisplayStore((s) => s.displayId);
   const stageId = useSettingsStore((s) => s.settings["stage.displayId"]);
+  const mirror = useSettingsStore((s) => s.settings["stage.mirror"]);
   return (
     <>
       {displays.map((d, index) => {
-        const role = screenRole(d.id, projectorId, stageId, d.operator);
+        const role = screenRole(d.id, projectorId, stageId, mirror, d.operator);
         // The projector always has a screen: its own row offers no «none».
         const options: { label: string; value: ScreenRole }[] = [
           { label: t("settings.screens.roles.projector"), value: "projector" },
           { label: t("settings.screens.roles.stage"), value: "stage" },
+          { label: t("settings.screens.roles.mirror"), value: "mirror" },
           ...(role === "projector"
             ? []
             : [{ label: d.operator ? t("settings.screens.roles.control") : t("settings.screens.roles.none"), value: "none" as const }]),
@@ -127,6 +123,7 @@ function OutputStatus() {
   const open = useProjectionStore((s) => s.presentationOpen);
   const stageId = useSettingsStore((s) => s.settings["stage.displayId"]);
   const stageShown = useStageStore((s) => s.shown);
+  const mirror = useSettingsStore((s) => s.settings["stage.mirror"]);
   const number = (id: number | null) => displays.findIndex((d) => d.id === id) + 1;
   const projector = !open
     ? t("settings.screens.projectorClosed")
@@ -137,7 +134,7 @@ function OutputStatus() {
     stageId === null
       ? t("settings.screens.stageNone")
       : stageShown
-        ? t("settings.screens.stageShown", { number: number(stageId) })
+        ? t(mirror ? "settings.screens.stageMirrored" : "settings.screens.stageShown", { number: number(stageId) })
         : t("settings.screens.stageWaiting");
   return (
     <ul aria-label={t("settings.screens.status")} className="flex flex-col gap-1 text-sm text-muted-foreground">

@@ -74,10 +74,11 @@ function Swap({ children, className, swapKey }: { children: ReactNode; className
   );
 }
 
-/** A 16:9 frame drawn by the projector's own renderer, as a muted monitor. */
+/** A 16:9 frame drawn by the projector's own renderer, as a muted monitor. Its edge and corners are in the stage's
+ *  own units, so the panel's small monitor is a true picture of it and not a box of thick lines. */
 function Frame({ output, videoStill }: { output: ProjectionOutput | null; videoStill: StageOutput["videoStill"] | undefined }) {
   return (
-    <div className="w-full overflow-hidden rounded-md border border-white/25 bg-black">
+    <div className="wa-stage-frame w-full overflow-hidden bg-black">
       <div className="aspect-video w-full">
         {output ? <OutputView mode="monitor" output={output} videoStill={videoStill} /> : null}
       </div>
@@ -89,14 +90,15 @@ function Clock({ hour12, cqw }: { hour12: boolean; cqw: number }) {
   const format = hour12 ? FORMAT_12 : FORMAT_24;
   const now = useTimerNow(WALL, format);
   return (
-    <time className="leading-none font-semibold tabular-nums" style={sized(cqw)}>
+    <time className="block leading-none font-semibold tabular-nums" style={sized(cqw)}>
       {formatWallClock(now, format)}
     </time>
   );
 }
 
 /** The count, coloured by what is left; it blinks three times entering red and again at zero (`key` remounts it,
- *  which restarts the animation). Past zero it keeps counting up, red: it never stops nor disappears. */
+ *  which restarts the animation). Past zero it keeps counting up, red: it never stops nor disappears. Its fill's
+ *  padding is given back as a negative margin, so its digits stand exactly where the time's stood. */
 function Countdown({ countdown, cqw, fit = false }: { countdown: StageCountdown; cqw: number; fit?: boolean }) {
   const now = useTimerNow(countdown.clock, COUNTDOWN_FORMAT);
   const tone = countdownTone(countdown, now);
@@ -109,14 +111,14 @@ function Countdown({ countdown, cqw, fit = false }: { countdown: StageCountdown;
     // The colour eases on this one; the blink restarts on the inner one (`key`), which inherits it.
     <span
       className={cn(
-        "inline-block rounded-md px-[0.15em] leading-none font-bold tabular-nums transition-colors duration-700",
+        "-mx-[0.15em] flex rounded-md px-[0.15em] leading-none font-bold tabular-nums transition-colors duration-700",
         TONE_CLASS[tone],
       )}
       data-tone={tone}
       role="timer"
       style={style}
     >
-      <span className={cn("inline-block", (tone === "alert" || tone === "over") && "wa-stage-blink")} key={tone}>
+      <span className={cn("block", (tone === "alert" || tone === "over") && "wa-stage-blink")} key={tone}>
         {text}
       </span>
     </span>
@@ -162,17 +164,12 @@ function MessageBand({ message }: { message: StageMessage | null }) {
   );
 }
 
-function Notice({ text }: { text: string }) {
-  return (
-    <span className="rounded-md bg-on-air px-[1cqw] py-[0.4cqw] font-bold" style={sized(1.8)}>
-      {text}
-    </span>
-  );
-}
+/** A line `cqw` high whatever it holds: the time, the count or nothing take the same room, so nothing around moves. */
+const line = (cqw: number): CSSProperties => ({ height: `calc(${cqw}cqw * var(--stage-scale))` });
 
 /** What is live (large) and what comes next. With a countdown, the count takes the time's place and the time
  *  goes small beside «Sigue» (owner, 2026-11-13): in «Auto» a verse projected mid-sermon brings this view, and the
- *  pastor still reads the count from the pulpit. */
+ *  pastor still reads the count from the pulpit. Every line keeps its height through that change. */
 function Musicians({ stage }: { stage: StageOutput | null }) {
   const countdown = stage?.countdown ?? null;
   const hour12 = stage?.hour12 ?? false;
@@ -180,14 +177,13 @@ function Musicians({ stage }: { stage: StageOutput | null }) {
     <div className="grid h-full grid-cols-[3fr_2fr] items-center gap-[2cqw] p-[2cqw]">
       <Frame output={stage?.current ?? null} videoStill={stage?.videoStill} />
       <aside className="flex min-w-0 flex-col gap-[1.5cqw]">
-        <div className="flex items-center justify-between gap-[1cqw]">
-          <Swap swapKey={countdown ? "countdown" : "clock"}>
+        <div style={line(7)}>
+          <Swap className="h-full items-center justify-items-start" swapKey={countdown ? "countdown" : "clock"}>
             {countdown ? <Countdown countdown={countdown} cqw={7} /> : <Clock cqw={7} hour12={hour12} />}
           </Swap>
-          <Swap swapKey={stage?.notice ?? "none"}>{stage?.notice ? <Notice text={stage.notice} /> : null}</Swap>
         </div>
-        <div className="flex items-baseline justify-between gap-[1cqw]">
-          <p className="font-medium tracking-wide text-white/60 uppercase" style={sized(1.6)}>
+        <div className="flex items-center justify-between gap-[1cqw]" style={line(2.6)}>
+          <p className="leading-none font-medium tracking-wide text-white/60 uppercase" style={sized(1.6)}>
             {stage?.nextLabel}
           </p>
           <Swap swapKey={countdown ? "clock" : "none"}>
@@ -204,7 +200,8 @@ function Musicians({ stage }: { stage: StageOutput | null }) {
   );
 }
 
-/** The countdown as large as fits, the time, and what is live small. Without a countdown, the time takes its place. */
+/** The countdown as large as fits, and below it the time and what the projector shows — always, black and LOGO
+ *  included (owner, 2026-11-13). Without a countdown, the time takes its place. */
 function Preacher({ stage }: { stage: StageOutput }) {
   const countdown = stage.countdown;
   return (
@@ -213,18 +210,10 @@ function Preacher({ stage }: { stage: StageOutput }) {
         {countdown ? <Countdown countdown={countdown} cqw={24} fit /> : <Clock cqw={18} hour12={stage.hour12} />}
       </Swap>
       <div className="flex items-end justify-between gap-[2cqw]">
-        <div className="flex flex-col items-start gap-[1cqw]">
-          <Swap swapKey={stage.notice ?? "none"}>{stage.notice ? <Notice text={stage.notice} /> : null}</Swap>
-          <Swap swapKey={countdown ? "clock" : "none"}>{countdown ? <Clock cqw={6} hour12={stage.hour12} /> : null}</Swap>
+        <Swap swapKey={countdown ? "clock" : "none"}>{countdown ? <Clock cqw={6} hour12={stage.hour12} /> : null}</Swap>
+        <div className="w-[30cqw] shrink-0">
+          <Frame output={stage.current} videoStill={stage.videoStill} />
         </div>
-        {/* Nothing live, no empty frame. */}
-        <Swap swapKey={stage.current ? "frame" : "none"}>
-          {stage.current ? (
-            <div className="w-[30cqw] shrink-0">
-              <Frame output={stage.current} videoStill={stage.videoStill} />
-            </div>
-          ) : null}
-        </Swap>
       </div>
     </div>
   );
@@ -234,8 +223,13 @@ function Preacher({ stage }: { stage: StageOutput }) {
  * The stage screen, drawn the same by its window and by the stage panel's monitor — the rule that monitors never
  * lie to the operator. Everything is in units of its own box (`container-type: size`), never of the window, and in
  * the dark theme's colours whatever the control window's theme is. A pure function of the `StageOutput`.
+ *
+ * «Projector» is a copy of the projector and nothing else. `copy` draws it: the stage window passes the projector's
+ * own picture (`ProjectorCopy`, its videos playing); without it — the panel's monitor — it is `current`, a video as
+ * its poster.
  */
-export function StageView({ stage, className }: { stage: StageOutput | null; className?: string }) {
+export function StageView({ stage, className, copy }: { stage: StageOutput | null; className?: string; copy?: ReactNode }) {
+  const layout = stage?.layout ?? "musicians";
   return (
     <div
       className={cn("size-full overflow-hidden bg-black text-white [container-type:size]", className)}
@@ -244,10 +238,16 @@ export function StageView({ stage, className }: { stage: StageOutput | null; cla
     >
       <div className="flex size-full flex-col">
         {/* Switching views is a crossfade, never a cut. */}
-        <Swap className="min-h-0 flex-1 grid-rows-[minmax(0,1fr)]" swapKey={stage?.layout ?? "musicians"}>
-          {stage?.layout === "preacher" ? <Preacher stage={stage} /> : <Musicians stage={stage} />}
+        <Swap className="min-h-0 flex-1 grid-rows-[minmax(0,1fr)]" swapKey={layout}>
+          {stage && layout === "projector" ? (
+            (copy ?? <OutputView mode="monitor" output={stage.current} videoStill={stage.videoStill} />)
+          ) : stage && layout === "preacher" ? (
+            <Preacher stage={stage} />
+          ) : (
+            <Musicians stage={stage} />
+          )}
         </Swap>
-        <MessageBand message={stage?.message ?? null} />
+        <MessageBand message={layout === "projector" ? null : (stage?.message ?? null)} />
       </div>
     </div>
   );

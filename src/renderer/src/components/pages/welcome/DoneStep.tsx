@@ -42,7 +42,7 @@ export function DoneStep({ go }: { go: (step: WelcomeStepId) => void }) {
       label: t("welcome.steps.screens"),
       value: [
         projector && !projector.operator ? projector.label : t("welcome.done.noProjector"),
-        ...(stage ? [t("welcome.done.stage", { name: stage.label })] : []),
+        ...(stage ? [t(s["stage.mirror"] ? "welcome.done.mirror" : "welcome.done.stage", { name: stage.label })] : []),
       ].join(" · "),
     },
     {

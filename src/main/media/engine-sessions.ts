@@ -198,15 +198,15 @@ function syncVideo(target: VideoTarget, want: LiveEngineState | null, windows: (
     }
   }
   applyToSession(session, session.hold ? { ...want, paused: true } : want);
-  // The projector, and the control window's LIVE monitor: one decode, the same frame on both.
-  for (const win of windows) if (win) session.engine?.show(win.webContents);
+  // The projector, its copies and the control window's LIVE monitor: one decode, the same frame on all.
+  session.engine?.showOnly(windows.flatMap((win) => (win ? [win.webContents] : [])));
 }
 
 /** Called whenever the output, the audio tracks or the projector window change. */
 export function syncLiveEngine(): void {
   const projector = projectionState.getWindow();
   const { output } = projectionState.getSnapshot();
-  // The NDI output draws the projector's picture, its videos included.
+  // The NDI output and the stage as «Proyector» draw the projector's picture, its videos included.
   const windows = [projector, ...projectionState.getMirrors(), ...controlWindows()];
   syncAudio(projector !== null);
   syncVideo("video", liveEngineState(output, projector !== null), windows);
