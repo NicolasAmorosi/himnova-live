@@ -229,6 +229,12 @@ overlays, and on a NEW install `songs.defaultThemeId` = the first new theme. It 
 seeds, in one transaction, once per `look.seeded` version (a number, so a later look can be offered
 again), and the E2E harness skips it with `--no-starter-look`.
 
+Their rows hold the absolute path, the user's name inside, so a profile copied to another computer or
+user found every one «No encontrado», and every look over them black. `reattachBackgrounds` (2.8.1) runs
+at every launch before the look: a MISSING row whose path ends in `<profile folder>/backgrounds/<file>`
+(either separator) is `relocate`d to this profile's copy of that file, if there is one. The profile
+folder's name is part of the match on purpose: a church's own folder called `backgrounds` is never touched.
+
 On an existing install it only ADDS, and restyles what is still exactly as it came (owner): the verse's
 style when it deep-equals `DEFAULT_BIBLE_STYLE`, a time scene's when it deep-equals a FACTORY style —
 today's `DEFAULT_SCENE_STYLE` or the pre-rebrand one (`#04132b`, `#84adfc`, `#f5f5f5`). That second

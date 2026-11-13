@@ -10,7 +10,12 @@ import { afterEach, describe, expect, test } from "vitest";
 import { openDatabase } from "../../src/main/db/client";
 import { runMigrations } from "../../src/main/db/migrate";
 import { seedSongThemes } from "../../src/main/db/seed/seed-song-themes";
-import { factoryVerseStyle, seedStarterLook, STARTER_LOOK_VERSION } from "../../src/main/db/seed/seed-starter-look";
+import {
+  factoryVerseStyle,
+  reattachBackgrounds,
+  seedStarterLook,
+  STARTER_LOOK_VERSION,
+} from "../../src/main/db/seed/seed-starter-look";
 import { seedUtilityScenes } from "../../src/main/db/seed/seed-utility-scenes";
 import mainEs from "../../src/main/i18n/messages/es";
 import {
@@ -59,7 +64,7 @@ function profile() {
       mainEs.look,
       isNewProfile,
     );
-  return { dir, seed };
+  return { dir, seed, sqlite };
 }
 
 describe("the starter look", () => {
@@ -186,5 +191,36 @@ describe("the verse's «Restaurar»", () => {
     const night = getMediaRepo().list("image").find((asset) => asset.name === "Noche");
     getMediaRepo().remove(night!.id);
     expect(factoryVerseStyle(getMediaRepo(), folder, mainEs.look)).toEqual(DEFAULT_BIBLE_STYLE);
+  });
+});
+
+describe("a profile moved to another computer", () => {
+  test("its backgrounds point at this profile's copies; a church's own «backgrounds» folder is left alone", () => {
+    const { dir, seed, sqlite } = profile();
+    seed(true);
+    const folder = path.join(dir, "backgrounds");
+    const profileName = path.basename(dir);
+    const rows = sqlite.prepare("SELECT id, path FROM media_assets").all() as { id: number; path: string }[];
+    const move = sqlite.prepare("UPDATE media_assets SET path = ?, path_key = ? WHERE id = ?");
+    // As another user left them: half on Windows, half on a Mac.
+    rows.forEach((row, index) => {
+      const file = path.basename(row.path);
+      const old =
+        index % 2
+          ? `C:\\Users\\Ana\\AppData\\Roaming\\${profileName}\\backgrounds\\${file}`
+          : `/Users/ana/Library/Application Support/${profileName}/backgrounds/${file}`;
+      move.run(old, old, row.id);
+    });
+    const ownFolder = "/Volumes/Iglesia/backgrounds/Cielo.webp";
+    const sky = rows.find((row) => path.basename(row.path) === "Cielo.webp")!;
+    move.run(ownFolder, ownFolder, sky.id);
+
+    expect(reattachBackgrounds(getMediaRepo(), folder)).toBe(rows.length - 1);
+    for (const row of rows) {
+      const expected = row.id === sky.id ? ownFolder : path.join(folder, path.basename(row.path));
+      expect(getMediaRepo().getPathById(row.id)).toBe(expected);
+    }
+    expect(factoryVerseStyle(getMediaRepo(), folder, mainEs.look).background.kind).toBe("image");
+    expect(reattachBackgrounds(getMediaRepo(), folder)).toBe(0);
   });
 });

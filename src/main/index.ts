@@ -6,7 +6,7 @@ import { openForLaunch } from "./db/migrate";
 import { seedBuiltinBibles } from "./db/seed/seed-bible";
 import { seedUtilityScenes } from "./db/seed/seed-utility-scenes";
 import { seedSongThemes } from "./db/seed/seed-song-themes";
-import { seedStarterLook } from "./db/seed/seed-starter-look";
+import { reattachBackgrounds, seedStarterLook } from "./db/seed/seed-starter-look";
 import {
   initRepos,
   getSongsRepo,
@@ -142,6 +142,9 @@ function initDatabase(): void {
   seedUtilityScenes(getUtilityRepo(), getSettingsRepo());
   // After the legacy settings: the theme copies the verse's style.
   seedSongThemes(getSongsRepo(), getSettingsRepo());
+  // Before the look: version 2 finds «Noche» by its path in this profile.
+  const reattached = reattachBackgrounds(getMediaRepo(), profileBackgroundsDir);
+  if (reattached > 0) console.warn(`[look] ${reattached} background(s) pointed at this profile's copies`);
   // After both: it adds to the song themes and dresses the time scenes. The
   // E2E suite starts from a bare profile unless a spec asks for the look.
   if (!process.argv.includes("--no-starter-look")) {
