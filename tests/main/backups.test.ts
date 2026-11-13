@@ -85,6 +85,19 @@ describe("staging a copy", () => {
 
     expect(fs.existsSync(path.dirname(staged))).toBe(false);
   });
+
+  test("a copy that stops half-way is never what the next launch swaps in", () => {
+    const profile = fresh("profile");
+    const dbFile = profileDb(path.join(profile, "worship.db"), "Culto de hoy");
+    const backups = path.join(profile, "backups");
+    // What a refusal Windows could not delete, or a throw mid-copy, would leave behind.
+    const staged = stagedRestorePath(backups);
+    fs.mkdirSync(path.dirname(staged), { recursive: true });
+    fs.copyFileSync(profileDb(fresh("ajena.db"), "De otra iglesia"), `${staged}.partial`);
+
+    expect(applyPendingRestore(dbFile, backups)).toBeNull();
+    expect(programNames(dbFile)).toEqual(["Culto de hoy"]);
+  });
 });
 
 describe("applying it at launch", () => {

@@ -75,35 +75,47 @@ const REQUIRED_TABLES = ["settings", "media_assets", "programs", "__drizzle_migr
  * large file: run off the main thread (`backup-worker.ts`).
  */
 export function stageRestore(source: string, staged: string, newestMigration: number | null): RestoreRefusal | null {
-  fs.rmSync(path.dirname(staged), { recursive: true, force: true });
-  fs.mkdirSync(path.dirname(staged), { recursive: true });
-  const refuse = (why: RestoreRefusal): RestoreRefusal => {
-    fs.rmSync(path.dirname(staged), { recursive: true, force: true });
-    return why;
-  };
+  const dir = path.dirname(staged);
+  fs.rmSync(dir, { recursive: true, force: true });
+  fs.mkdirSync(dir, { recursive: true });
+  // Built under another name and renamed only once it passed: whatever stops half-way (a refusal, a throw, a
+  // file Windows will not delete) leaves nothing `applyPendingRestore` would swap in for the church's database.
+  const partial = `${staged}.partial`;
+  const refused = checkCopy(source, partial, newestMigration);
+  if (refused) {
+    // Every handle on the copy is closed by now: on Windows an open file cannot be deleted (CI, 2026-11-13).
+    fs.rmSync(dir, { recursive: true, force: true });
+    return refused;
+  }
+  fs.utimesSync(partial, new Date(), fs.statSync(source).mtime);
+  fs.renameSync(partial, staged);
+  return null;
+}
+
+/** Snapshots `source` to `dest` and says why it cannot be restored, if it cannot. Closes what it opens. */
+function checkCopy(source: string, dest: string, newestMigration: number | null): RestoreRefusal | null {
   try {
-    writeSnapshot(source, staged);
+    writeSnapshot(source, dest);
   } catch {
-    return refuse("unreadable");
+    return "unreadable";
   }
   try {
-    verifySnapshot(staged);
+    verifySnapshot(dest);
   } catch {
-    return refuse("damaged");
+    return "damaged";
   }
-  const sqlite = new Database(staged, { readonly: true });
+  const sqlite = new Database(dest, { readonly: true });
   try {
     const tables = new Set(
       (sqlite.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all() as { name: string }[]).map((row) => row.name),
     );
-    if (!REQUIRED_TABLES.every((table) => tables.has(table))) return refuse("notHimnova");
+    if (!REQUIRED_TABLES.every((table) => tables.has(table))) return "notHimnova";
     const row = sqlite.prepare("SELECT MAX(created_at) AS newest FROM __drizzle_migrations").get() as { newest: number | null };
-    if (newestMigration !== null && (row.newest ?? 0) > newestMigration) return refuse("newer");
+    if (newestMigration !== null && (row.newest ?? 0) > newestMigration) return "newer";
+    return null;
   } finally {
     sqlite.close();
   }
-  fs.utimesSync(staged, new Date(), fs.statSync(source).mtime);
-  return null;
 }
 
 let launchRestore: LaunchRestore | null = null;

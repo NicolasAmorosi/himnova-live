@@ -1057,7 +1057,8 @@ describe("writing over the file", () => {
     expect(fs.readFileSync(file, "utf8")).toContain("{title: Compartida (2)}");
   });
 
-  test("a file's permissions are kept when it is written", async () => {
+  // Windows has no POSIX mode bits to keep.
+  test.skipIf(process.platform === "win32")("a file's permissions are kept when it is written", async () => {
     const folder = fresh("mode");
     const file = path.join(folder, "permisos.cho");
     fs.writeFileSync(file, "{title: Permisos}\n{start_of_verse}\nUna\n{end_of_verse}\n");
