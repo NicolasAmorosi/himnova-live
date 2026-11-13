@@ -125,8 +125,6 @@ const en: Messages = {
     customPlaceholder: "min or hh:mm",
     presets: "Lengths",
     message: "Message to the stage",
-    onStage: "On the stage",
-    urgentBadge: "Urgent",
     messagePlaceholder: "Type a message…",
     urgent: "Urgent: blinks until you take it off",
     show: "Show",

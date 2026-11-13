@@ -33,6 +33,7 @@ export const api = {
   projection: {
     open: (displayId: number) => invoke("projection:open", { displayId }),
     close: () => invoke("projection:close", undefined),
+    autoOpen: () => invoke("projection:autoOpen", undefined),
     show: (output: ProjectionOutput) => invoke("projection:show", output),
     mediaCommand: (command: MediaCommand) => invoke("projection:mediaCommand", command),
     setAudioTracks: (tracks: AudioTrackPush[]) => invoke("projection:setAudioTracks", tracks),

@@ -8,7 +8,7 @@ import type { CountdownClock, StageMessage, StageTextSize } from "@shared/types/
 
 /** The Bible tab's cursor: a verse projected from it can tell what follows. */
 export type StageBibleCursor = { verses: readonly BibleVerseDTO[]; currentVerseIndex: number | null };
-export type StageWords = { black: string; logo: string; lyricsHidden: string; next: string };
+export type StageWords = { black: string; lyricsHidden: string; next: string };
 
 /** What the stage panel set (the stage store) and how Settings ▸ Screens dresses it. */
 export type StageControls = {
@@ -100,8 +100,9 @@ export function stageOutputFor(
     ),
     next: chords(nextOutput(state, bible), base?.kind === "song" ? stepSong(base.song, base, 1) : null),
     videoStill: { posterUrl, videoUrl: base?.kind === "video" ? base.url : null },
-    notice:
-      overlay === "black" ? words.black : overlay === "logo" ? words.logo : lyricsHidden ? words.lyricsHidden : null,
+    // LOGO is not said: it changes nothing for whoever reads the stage (owner, 2026-11-13). BLACK and hidden
+    // lyrics are, because the band keeps reading words the room is not seeing.
+    notice: overlay === "black" ? words.black : lyricsHidden ? words.lyricsHidden : null,
     nextLabel: words.next,
     countdown,
     message: controls.message,

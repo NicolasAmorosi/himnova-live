@@ -465,8 +465,12 @@ verse, and the keyboard arrows (↑/↓, global shortcut) cover the same thing.
 
 `stores/display.store.ts` lists the screens and resolves which one the projector uses
 (`projectorDisplayFor`: the one persisted in `settings['projection.displayId']` while it is connected,
-otherwise the first that is neither the operator's nor the stage's) and exposes `open()/close()`. **Nothing opens
-at startup**: the operator's first GO LIVE, BLACK or LOGO opens the projector (`openIfNeeded`). Settings ▸
+otherwise the first that is neither the operator's nor the stage's) and exposes `open()/close()`. **The projector
+opens by itself** (`autoOpen`, owner 2026-11-13), like the stage: at launch and when its screen appears, on the LOGO
+since nothing is live yet — never on the operator's own screen (with one screen it waits for the projector), and not
+again this session once the operator closed it; GO LIVE, BLACK and LOGO still open it (`openIfNeeded`). The E2E
+suite launches with `--no-auto-projector` (its specs were written against a closed projector; `screens.spec.ts`
+turns it back on). Settings ▸
 Screens (`components/shared/settings-groups/screen-group.tsx`, shared with the welcome's «Pantallas» step) holds
 the map, one role per screen (Projector / Stage / Not used, excluding each other), «Identificar», where the
 projector and the stage are now, and opening or closing the projector; its second group dresses the stage

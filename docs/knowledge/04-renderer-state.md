@@ -129,8 +129,8 @@ the media engine takes afterwards only reaches the deck store (`deck-updated`).
 `src/renderer/src/effects/stage-sync.ts` builds the stage screen (`stageOutputFor`,
 `lib/stage-output.ts`) while one is chosen: the live content with nothing covering it, the slide or
 verse → would bring (`stepSong` for a song, the Bible tab's cursor for a verse — a program's verse
-hands its chapter to the tab as it goes live, `handLiveItemToTab`), and BLACK, LOGO or hidden lyrics named as a `notice` rather than shown (owner,
-2026-11-05: the band still needs the words). It rebuilds only when an input changes by reference,
+hands its chapter to the tab as it goes live, `handLiveItemToTab`), and BLACK or hidden lyrics named as a `notice` rather than shown (owner,
+2026-11-05: the band still needs the words; LOGO is not named, owner 2026-11-13: it changes nothing for the stage). It rebuilds only when an input changes by reference,
 like `selectOutputMemo`, and keeps what it sent in `stage.store`'s `output`, which the stage panel's monitor
 draws: never a second build.
 

@@ -75,7 +75,7 @@ export function startStageSync(): () => void {
       projection,
       { verses, currentVerseIndex },
       posterUrl,
-      { black: t("status.black"), logo: t("status.logo"), lyricsHidden: t("stage.lyricsHidden"), next: t("stage.next") },
+      { black: t("status.black"), lyricsHidden: t("stage.lyricsHidden"), next: t("stage.next") },
       {
         countdown,
         message: message && { text: message.text, urgent: message.urgent, seq: message.seq },

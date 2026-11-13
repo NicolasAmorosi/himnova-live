@@ -1,8 +1,8 @@
-import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { useT } from "@renderer/lib/i18n/i18n-provider";
 import { cn } from "@renderer/lib/utils";
 import { useTimerNow } from "@renderer/lib/hooks/use-timer-now";
-import { Badge, Button, Caption, Icon, IconButton, Input, Segmented, Title, Tooltip } from "@renderer/components/ui";
+import { Button, Caption, Icon, IconButton, Input, Segmented, Title, Tooltip } from "@renderer/components/ui";
 import { StageView } from "@renderer/components/shared/stage-view";
 import { useDisplayStore } from "@renderer/stores/display.store";
 import { useSettingsStore } from "@renderer/stores/settings.store";
@@ -366,41 +366,51 @@ function MessageSection() {
     }
   };
 
+  // The operator's own words first, newest first: the one just written is the one marked.
+  const chips = [...recent, ...phrases];
   return (
-    <Section title={t("stagePanel.message")}>
-      {message ? (
-        <div
-          aria-label={t("stagePanel.onStage")}
-          className={cn(
-            "flex h-9 items-center gap-2 rounded-md border pr-1 pl-2.5",
-            message.urgent ? "border-danger-ink" : "border-warning-ink",
-          )}
-          role="status"
-        >
-          <Icon className={message.urgent ? "text-danger-ink" : "text-warning-ink"} name="alert" />
-          <span className="min-w-0 flex-1 truncate text-sm font-medium">{message.text}</span>
-          {message.urgent ? <Badge variant="danger">{t("stagePanel.urgentBadge")}</Badge> : null}
-          <Caption className="font-normal">
-            <MessageAge since={message.since} />
-          </Caption>
-          <Button aria-label={t("stagePanel.removeMessage")} onClick={clearMessage} size="xs" variant="outline">
-            {t("stagePanel.remove")}
+    <Section
+      actions={
+        <>
+          {message ? (
+            <Caption className="font-normal">
+              <MessageAge since={message.since} />
+            </Caption>
+          ) : null}
+          <Button aria-label={t("stagePanel.removeMessage")} disabled={!message} onClick={clearMessage} size="xs" variant="ghost">
+            <Icon name="close" /> {t("stagePanel.remove")}
           </Button>
-        </div>
-      ) : null}
-      <div aria-label={t("stagePanel.phrases")} className="flex flex-wrap gap-1" role="group">
-        {[...phrases, ...recent].map((text) => (
-          <Button
-            aria-pressed={message?.text === text}
-            className={cn(message?.text === text && "border-accent bg-active")}
-            key={text}
-            onClick={() => send(text)}
-            size="xs"
-            variant="outline"
-          >
-            {text}
-          </Button>
-        ))}
+        </>
+      }
+      title={t("stagePanel.message")}
+    >
+      {/* Always two rows high, whatever is showing: more phrases scroll inside, and the card never grows. */}
+      <div
+        aria-label={t("stagePanel.phrases")}
+        className="flex h-[3.75rem] flex-wrap content-start gap-1 overflow-y-auto"
+        role="group"
+      >
+        {chips.map((text) => {
+          const on = message?.text === text;
+          return (
+            <Button
+              aria-pressed={on}
+              className={cn(on && "border-accent bg-active")}
+              key={text}
+              onClick={() => send(text)}
+              size="xs"
+              variant="outline"
+            >
+              {on ? (
+                <span
+                  aria-hidden
+                  className={cn("size-1.5 shrink-0 rounded-full", message.urgent ? "bg-danger" : "bg-warning")}
+                />
+              ) : null}
+              {text}
+            </Button>
+          );
+        })}
       </div>
       <div className="flex items-center gap-1">
         <Input
@@ -439,6 +449,13 @@ function StageCard({ closing, onClosed }: { closing: boolean; onClosed: () => vo
   const shown = useStageStore((s) => s.shown);
   const where = useDisplayStore((s) => s.displays.find((d) => d.id === stageId)?.label.split(" · ")[0]);
 
+  // Folded even if its transition never ends (a window the OS is not drawing).
+  useEffect(() => {
+    if (!closing) return;
+    const timer = setTimeout(onClosed, 400);
+    return () => clearTimeout(timer);
+  }, [closing, onClosed]);
+
   useEffect(() => {
     if (closing) return;
     const onPointerDown = (e: PointerEvent) => {
@@ -454,11 +471,11 @@ function StageCard({ closing, onClosed }: { closing: boolean; onClosed: () => vo
     <div
       aria-label={t("stagePanel.title")}
       className={cn(
-        "absolute inset-x-0 bottom-0 z-30 flex max-h-full flex-col overflow-hidden rounded-t-xl border border-b-0 border-border bg-surface shadow-overlay",
-        closing ? "wa-stage-card-out" : "wa-stage-card-in",
+        "wa-stage-card absolute inset-x-0 bottom-0 z-30 flex max-h-full flex-col overflow-hidden rounded-t-xl border border-b-0 border-border bg-surface shadow-overlay",
+        closing && "wa-stage-card-closing",
       )}
-      onAnimationEnd={(e) => {
-        if (closing && e.target === e.currentTarget) onClosed();
+      onTransitionEnd={(e) => {
+        if (closing && e.target === e.currentTarget && e.propertyName === "height") onClosed();
       }}
       onKeyDown={(e) => {
         if (e.key === "Escape") setOpen(false);
@@ -497,10 +514,11 @@ export function StagePanel() {
   // Kept mounted while it folds, until its closing animation ends.
   const [mounted, setMounted] = useState(open);
   if (open && !mounted) setMounted(true);
+  const unmount = useCallback(() => setMounted(false), []);
   return (
     <>
       <StageBar />
-      {mounted ? <StageCard closing={!open} onClosed={() => setMounted(false)} /> : null}
+      {mounted ? <StageCard closing={!open} onClosed={unmount} /> : null}
     </>
   );
 }

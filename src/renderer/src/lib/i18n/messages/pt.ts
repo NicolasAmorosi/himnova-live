@@ -125,8 +125,6 @@ const pt: Messages = {
     customPlaceholder: "min ou hh:mm",
     presets: "Durações",
     message: "Mensagem para o palco",
-    onStage: "No palco",
-    urgentBadge: "Urgente",
     messagePlaceholder: "Escreva uma mensagem…",
     urgent: "Urgente: pisca até você tirá-la",
     show: "Mostrar",

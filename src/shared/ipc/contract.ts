@@ -75,6 +75,9 @@ export type IpcContract = {
    *  has already told the control, which must not then mark the projector open. */
   "projection:open": { req: { displayId: number }; res: boolean };
   "projection:close": { req: void; res: void };
+  /** Whether the projector opens by itself (at launch, and when its screen appears): `false` only under the E2E
+   *  suite's `--no-auto-projector`, written against a closed projector. */
+  "projection:autoOpen": { req: void; res: boolean };
   "projection:show": { req: ProjectionOutput; res: void };
   "projection:mediaCommand": { req: MediaCommand; res: void };
   /** The full set of audio tracks that should exist in the projection window

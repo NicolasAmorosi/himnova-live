@@ -126,17 +126,41 @@
 .wa-stage-blink { animation: stage-blink 0.7s ease-in-out 3; }
 .wa-stage-blink-forever { animation: stage-blink 1s ease-in-out infinite; }
 
-/* The stage panel's card (`StagePanel`): it grows out of its bar and folds back into it. */
-@keyframes stage-card-in {
-  from { opacity: 0; transform: translateY(16px) scale(0.98); }
-  to   { opacity: 1; transform: none; }
+/* The stage panel's card (`StagePanel`): it grows up out of its bar, the title rising and the controls showing
+ * under it, and folds back down into the bar (owner, 2026-11-13). Its height eases between the bar's and its own
+ * (`interpolate-size`, so `auto` is a height a transition can reach). */
+.wa-stage-card {
+  interpolate-size: allow-keywords;
+  height: auto;
+  transition: height 280ms cubic-bezier(0.2, 0, 0, 1);
 }
-@keyframes stage-card-out {
-  from { opacity: 1; transform: none; }
-  to   { opacity: 0; transform: translateY(16px) scale(0.98); }
+@starting-style {
+  .wa-stage-card { height: var(--spacing-strip); }
 }
-.wa-stage-card-in { animation: stage-card-in 200ms cubic-bezier(0.2, 0, 0, 1); transform-origin: bottom center; }
-.wa-stage-card-out { animation: stage-card-out 150ms ease-in forwards; transform-origin: bottom center; }
+.wa-stage-card-closing {
+  height: var(--spacing-strip);
+  transition: height 220ms cubic-bezier(0.4, 0, 1, 1);
+}
+
+/* The stage's message band (`StageView`): it eases open at the foot, so what is above moves up smoothly instead of
+ * jumping, fades in, and only then blinks; taken off, it eases closed the same way. */
+.wa-stage-band {
+  interpolate-size: allow-keywords;
+  height: auto;
+  opacity: 1;
+  overflow: hidden;
+  transition: height 360ms cubic-bezier(0.2, 0, 0, 1), opacity 360ms ease;
+}
+@starting-style {
+  .wa-stage-band { height: 0; opacity: 0; }
+}
+.wa-stage-band-leaving {
+  height: 0;
+  opacity: 0;
+  transition: height 300ms cubic-bezier(0.4, 0, 1, 1), opacity 240ms ease-in;
+}
+.wa-stage-band .wa-stage-blink { animation-delay: 360ms; }
+.wa-stage-band .wa-stage-blink-forever { animation-delay: 360ms; }
 
 /* A `StageSketch` playing its «before» (something on the projector, its progress filling) and then showing
  * what comes after it — the «Al terminar» choices of the welcome. Only the chosen card plays. */
@@ -169,7 +193,7 @@
    * toast still goes after its time. */
   .wa-toast-countdown { animation: none; }
   .wa-modal-enter, .wa-backdrop-enter, .wa-screen-enter, .wa-screen-exit { animation-duration: 1ms; }
-  .wa-stage-card-in, .wa-stage-card-out { animation-duration: 1ms; }
+  .wa-stage-card, .wa-stage-card-closing { transition-duration: 1ms; }
 }
 
 /*

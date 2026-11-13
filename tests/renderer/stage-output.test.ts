@@ -13,7 +13,7 @@ import { slideUrl } from "@shared/urls";
 import type { BibleVerseDTO } from "@shared/types/bible";
 
 const initialState = useProjectionStore.getState();
-const WORDS = { black: "NEGRO", logo: "LOGO", lyricsHidden: "LETRA OCULTA", next: "Sigue" };
+const WORDS = { black: "NEGRO", lyricsHidden: "LETRA OCULTA", next: "Sigue" };
 const NO_CURSOR: StageBibleCursor = { verses: [], currentVerseIndex: null };
 
 const NO_CONTROLS: StageControls = { countdown: null, message: null, settings: DEFAULT_SETTINGS };
@@ -119,12 +119,12 @@ describe("the stage display", () => {
     expect(stage().current).toMatchObject({ kind: "song", lines: ["puente"], chords: [[{ at: 0, name: "Em" }]] });
   });
 
-  test("BLACK and LOGO keep the content and name the cover", () => {
+  test("BLACK and LOGO keep the content; BLACK is named, LOGO is not (it changes nothing for the stage)", () => {
     liveSong(1);
     useProjectionStore.getState().setOverlay("black");
     expect(stage()).toMatchObject({ current: { kind: "song", lines: ["uno"] }, notice: "NEGRO" });
     useProjectionStore.getState().setOverlay("logo");
-    expect(stage()).toMatchObject({ current: { kind: "song", lines: ["uno"] }, notice: "LOGO" });
+    expect(stage()).toMatchObject({ current: { kind: "song", lines: ["uno"] }, notice: null });
   });
 
   test("hidden lyrics stay on the stage, named", () => {

@@ -126,8 +126,6 @@ const es = {
     customPlaceholder: "min o hh:mm",
     presets: "Duraciones",
     message: "Mensaje al escenario",
-    onStage: "En el escenario",
-    urgentBadge: "Urgente",
     messagePlaceholder: "Escribí un mensaje…",
     urgent: "Urgente: parpadea hasta que lo quites",
     show: "Mostrar",

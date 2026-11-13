@@ -135,18 +135,27 @@ test("the stage panel: only with a stage screen; its countdown and message reach
   await card.getByRole("button", { name: "Un minuto más" }).click();
   await expect(stage.getByRole("timer")).toHaveText(/^30:5\d$/);
 
-  // A message: Enter shows it at the foot of the stage; Esc with nothing typed takes it off.
+  // A message: Enter shows it at the foot of the stage; Esc with nothing typed takes it off, and so does the
+  // section's «Quitar».
   const field = card.getByRole("textbox", { name: "Mensaje al escenario" });
   await field.fill("Último coro");
   await field.press("Enter");
   await expect(stage.getByRole("status")).toHaveText("Último coro");
-  await expect(card.getByRole("status", { name: "En el escenario" })).toContainText("Último coro");
+  // The one on the stage is marked among the phrases: what was written by hand becomes one.
+  await expect(card.getByRole("button", { name: "Último coro", exact: true })).toHaveAttribute("aria-pressed", "true");
   await expect(field).toHaveValue("");
+  const height = (await card.boundingBox())!.height;
   await field.press("Escape");
   await expect(stage.getByRole("status")).toHaveCount(0);
   await expect(card).toBeVisible();
+  // Nothing in the card grows or shrinks with a message.
+  expect((await card.boundingBox())!.height).toBe(height);
 
   // A ready phrase is one click; the operator's own words come back as one.
+  await card.getByRole("button", { name: "Más despacio", exact: true }).click();
+  await expect(stage.getByRole("status")).toHaveText("Más despacio");
+  await card.getByRole("button", { name: "Quitar el mensaje del escenario" }).click();
+  await expect(stage.getByRole("status")).toHaveCount(0);
   await card.getByRole("button", { name: "Más despacio", exact: true }).click();
   await expect(stage.getByRole("status")).toHaveText("Más despacio");
   await expect(card.getByRole("button", { name: "Último coro", exact: true })).toBeVisible();

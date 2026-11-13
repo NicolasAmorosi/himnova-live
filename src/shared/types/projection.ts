@@ -498,7 +498,7 @@ export type StageOutput = {
   /** A live full-screen video as its poster (`OutputView`'s `videoStill`):
    *  the stage decodes no video, a slide's included. */
   videoStill: { posterUrl: string | null; videoUrl: string | null };
-  /** «NEGRO», «LOGO» or the hidden lyrics, in the operator's language. */
+  /** «NEGRO» or the hidden lyrics, in the operator's language (LOGO is not said: owner, 2026-11-13). */
   notice: string | null;
   /** The caption over `next`, in the operator's language. */
   nextLabel: string;

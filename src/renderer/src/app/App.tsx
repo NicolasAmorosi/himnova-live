@@ -134,10 +134,13 @@ export function App() {
           settings["library.activeView"],
           settings["library.linkedFolders"],
         );
-      // Nothing opens the projection window on launch any more — it was
-      // unreliable. The operator's first tap on BLACK, LOGO or GO LIVE opens
-      // it on demand (see display.store's `openIfNeeded`).
       await useDisplayStore.getState().load();
+      // The projector opens by itself, like the stage (owner, 2026-11-13), on the LOGO: nothing is live yet. Not
+      // awaited: the rest of the launch does not wait for its window.
+      void api.projection
+        .autoOpen()
+        .then((enabled) => useDisplayStore.getState().autoOpen(enabled))
+        .catch((error: unknown) => console.warn("[projector] auto open failed", error));
       // A new profile is welcomed — once the screens are known, which its «Pantallas» step lists.
       if (settings["welcome.pending"]) useUiStore.getState().openWelcome();
       // After the settings, never before: `loadVersions` settles on

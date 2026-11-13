@@ -1,4 +1,4 @@
-import type { CSSProperties } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import { cn } from "@renderer/lib/utils";
 import { useTimerNow } from "@renderer/lib/hooks/use-timer-now";
 import { OutputView } from "@renderer/components/shared/output-view";
@@ -71,21 +71,41 @@ function Countdown({ countdown, cqw, fit = false }: { countdown: StageCountdown;
   );
 }
 
-/** A band at the foot, in both layouts and whatever they hold: one message at a time, until it is taken off. */
-function MessageBand({ message }: { message: StageMessage }) {
+/** A band at the foot, in both views and whatever they hold: one message at a time, until it is taken off. It
+ *  eases open (and closed: the last message stays drawn while it leaves), then blinks three times — or, urgent,
+ *  until it is taken off. */
+function MessageBand({ message }: { message: StageMessage | null }) {
+  const [drawn, setDrawn] = useState(message);
+  // A new message (or the same one changed: a new `seq`) is drawn at once; none keeps the last one while it leaves.
+  if (message !== null && message.seq !== drawn?.seq) setDrawn(message);
+  const leaving = message === null && drawn !== null;
+  // A transition that never ends (a hidden window draws nothing) must not keep it on the stage.
+  useEffect(() => {
+    if (!leaving) return;
+    const timer = setTimeout(() => setDrawn(null), 500);
+    return () => clearTimeout(timer);
+  }, [leaving]);
+  if (!drawn) return null;
   return (
     <div
-      className={cn(
-        "shrink-0 px-[2cqw] py-[1.2cqw] text-center leading-tight font-bold [overflow-wrap:anywhere]",
-        message.urgent
-          ? "wa-stage-blink-forever bg-danger text-danger-foreground"
-          : "wa-stage-blink bg-warning text-warning-foreground",
-      )}
-      key={message.seq}
-      role="status"
-      style={sized(4.5)}
+      className={cn("wa-stage-band shrink-0", leaving && "wa-stage-band-leaving")}
+      onTransitionEnd={(e) => {
+        if (leaving && e.target === e.currentTarget && e.propertyName === "height") setDrawn(null);
+      }}
     >
-      <span className="line-clamp-2">{message.text}</span>
+      <div
+        className={cn(
+          "px-[2cqw] py-[1.2cqw] text-center leading-tight font-bold [overflow-wrap:anywhere]",
+          drawn.urgent
+            ? "wa-stage-blink-forever bg-danger text-danger-foreground"
+            : "wa-stage-blink bg-warning text-warning-foreground",
+        )}
+        key={drawn.seq}
+        role="status"
+        style={sized(4.5)}
+      >
+        <span className="line-clamp-2">{drawn.text}</span>
+      </div>
     </div>
   );
 }
@@ -139,9 +159,12 @@ function Preacher({ stage }: { stage: StageOutput }) {
           {stage.notice ? <Notice text={stage.notice} /> : null}
           {stage.countdown ? <Clock cqw={6} hour12={stage.hour12} /> : null}
         </div>
-        <div className="w-[30cqw] shrink-0">
-          <Frame output={stage.current} videoStill={stage.videoStill} />
-        </div>
+        {/* Nothing live, no empty frame. */}
+        {stage.current ? (
+          <div className="w-[30cqw] shrink-0">
+            <Frame output={stage.current} videoStill={stage.videoStill} />
+          </div>
+        ) : null}
       </div>
     </div>
   );
@@ -163,7 +186,7 @@ export function StageView({ stage, className }: { stage: StageOutput | null; cla
         <div className="min-h-0 flex-1">
           {stage?.layout === "preacher" ? <Preacher stage={stage} /> : <Musicians stage={stage} />}
         </div>
-        {stage?.message ? <MessageBand message={stage.message} /> : null}
+        <MessageBand message={stage?.message ?? null} />
       </div>
     </div>
   );

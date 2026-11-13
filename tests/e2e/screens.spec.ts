@@ -276,3 +276,44 @@ test("minimizing the control window leaves the projector on its screen (owner, 2
     BrowserWindow.getAllWindows().find((w) => w.webContents.getURL().endsWith("/index.html"))!.restore(),
   );
 });
+
+test.describe("the projector opens by itself (owner, 2026-11-13)", () => {
+  // With the starter look, as a church starts: the LOGO scene has its background (a bare profile's is black).
+  test.use({ chromiumArgs: ["--auto-projector"], starterLook: true });
+
+  test("at launch, on its screen and on the LOGO, and again on the next launch", async ({ app }) => {
+    test.skip((await app.invoke<unknown[]>("displays:list")).length < 2, "with one screen it waits for the projector");
+    const projector = await app.projector();
+    await expect.poll(async () => (await projectorWindow(app))?.fullScreen).toBe(true);
+    // Nothing is live: the projector shows what nothing live shows, the LOGO scene, never a black that looks off.
+    await expect(app.control.getByRole("button", { name: "VIVO", exact: true })).toBeDisabled();
+    await expect
+      .poll(() =>
+        projector.evaluate(
+          () =>
+            document.querySelectorAll("img").length +
+            [...document.querySelectorAll("*")].filter((e) => getComputedStyle(e).backgroundImage !== "none").length,
+        ),
+      )
+      .toBeGreaterThan(0);
+    await app.quit();
+    const again = await relaunch(app);
+    await again.projector();
+    await expect.poll(async () => (await projectorWindow(again))?.visible).toBe(true);
+  });
+
+  test("closed by the operator, a screen coming or going does not open it again", async ({ app }) => {
+    test.skip((await app.invoke<unknown[]>("displays:list")).length < 2, "needs two screens");
+    await app.projector();
+    const settings = await screensSettings(app);
+    await settings.getByRole("button", { name: "Cerrar pantalla" }).click();
+    await expect.poll(() => app.hasProjector()).toBe(false);
+    // A screen change: the control window lists the screens again (`displays-changed`).
+    await app.electron.evaluate(({ BrowserWindow }) => {
+      const control = BrowserWindow.getAllWindows().find((w) => w.webContents.getURL().endsWith("/index.html"))!;
+      control.webContents.send("displays-changed");
+    });
+    await app.control.waitForTimeout(1500);
+    expect(app.hasProjector()).toBe(false);
+  });
+});

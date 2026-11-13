@@ -37,6 +37,9 @@ const FLAGS = [
   "--no-welcome",
   // …and links the computer's own Videos, Pictures, Music and Documents in Media: not this machine's.
   "--no-system-folders",
+  // The suite was written against a projector that opens on the first GO LIVE, BLACK or LOGO; `screens.spec.ts`
+  // turns the launch's own opening back on.
+  "--no-auto-projector",
 ];
 
 /** What the renderer's global handlers log before showing the "error
@@ -97,7 +100,13 @@ export class WorshipApp {
     // Every test starts a new profile, and a new profile starts in the OS's
     // language (`main/i18n/system-locale.ts`): pinned, so the suite reads the
     // same Spanish on any machine — or `locale`, for the screenshots.
-    const dropped = [launchCheck && "--no-update-check", starterLook && "--no-starter-look", welcome && "--no-welcome"];
+    const dropped = [
+      launchCheck && "--no-update-check",
+      starterLook && "--no-starter-look",
+      welcome && "--no-welcome",
+      // `test.use({ chromiumArgs: ["--auto-projector"] })`: the projector opens by itself, as it does for a church.
+      chromiumArgs.includes("--auto-projector") && "--no-auto-projector",
+    ];
     const flags = [...FLAGS.filter((flag) => !dropped.includes(flag)), `--lang=${locale}`, ...chromiumArgs];
     const app = await electron.launch({
       cwd: ROOT,

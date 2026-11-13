@@ -31,6 +31,7 @@ export const projectionHandlers: Pick<
   Handlers,
   | "projection:open"
   | "projection:close"
+  | "projection:autoOpen"
   | "projection:show"
   | "projection:mediaCommand"
   | "projection:setAudioTracks"
@@ -134,6 +135,7 @@ export const projectionHandlers: Pick<
   },
 
   "stage:show": (output) => showOnStage(output),
+  "projection:autoOpen": () => !process.argv.includes("--no-auto-projector"),
   "stage:getSnapshot": () => stageSnapshot(),
   "stage:shown": () => stageShown(),
 
