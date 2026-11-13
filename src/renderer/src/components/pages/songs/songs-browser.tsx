@@ -31,6 +31,7 @@ import {
   type SongDeleteTarget,
 } from "@renderer/lib/actions/songs";
 import { goLive } from "@renderer/lib/actions/playback";
+import { relocateFolder } from "@renderer/lib/actions/relocate-asset";
 import { useDebouncedCallback } from "@renderer/lib/hooks/use-debounced-callback";
 import { findSong, sortSongs, useSongStore } from "@renderer/stores/song.store";
 import { useSettingsStore } from "@renderer/stores/settings.store";
@@ -196,9 +197,14 @@ export function SongsBrowser() {
         {folder !== null && listing === "missing" ? (
           <LoadingState
             action={
-              <Button onClick={() => void refreshSongFolder(folder)} size="sm" variant="outline">
-                {t("common.retry")}
-              </Button>
+              <>
+                <Button onClick={() => void relocateFolder(folder)} size="sm" variant="outline">
+                  <Icon name="folder" /> {t("library.relocateFolder")}
+                </Button>
+                <Button onClick={() => void refreshSongFolder(folder)} size="sm" variant="outline">
+                  {t("common.retry")}
+                </Button>
+              </>
             }
             hint={t("library.folderMissing")}
             icon="alert"

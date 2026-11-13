@@ -534,4 +534,35 @@ export class SongsRepo {
     }
     this.db.delete(songThemes).where(eq(songThemes.id, id)).run();
   }
+
+  /** The folders of linked folders' songs, and the files library songs are
+   *  tied to: what a move of their folders may have left behind. */
+  sourcePaths(): { folders: string[]; files: string[] } {
+    const rows = this.db.select({ folder: songs.sourceFolder, file: songs.filePath }).from(songs).all();
+    return {
+      folders: [...new Set(rows.flatMap((row) => (row.folder === null ? [] : [row.folder])))],
+      files: [...new Set(rows.flatMap((row) => (row.folder === null && row.file !== null ? [row.file] : [])))],
+    };
+  }
+
+  /** A move of song folders and files (`services/relocate-move.ts`), keeping
+   *  every song's id: the saved programs that sing them, and its file written
+   *  back where it now is. A folder already known at its new place (linked
+   *  there by hand before) keeps its own rows: moving the old ones in would
+   *  read each song twice. */
+  relocateSources(folders: ReadonlyMap<string, string>, files: ReadonlyMap<string, string>): void {
+    this.sqlite.transaction(() => {
+      for (const [before, after] of folders) {
+        if (this.db.select({ id: songs.id }).from(songs).where(eq(songs.sourceFolder, after)).get()) continue;
+        this.db.update(songs).set({ sourceFolder: after }).where(eq(songs.sourceFolder, before)).run();
+      }
+      for (const [before, after] of files) {
+        this.db
+          .update(songs)
+          .set({ filePath: after })
+          .where(and(isNull(songs.sourceFolder), eq(songs.filePath, before)))
+          .run();
+      }
+    })();
+  }
 }

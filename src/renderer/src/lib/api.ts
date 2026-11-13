@@ -102,6 +102,7 @@ export const api = {
       invoke("library:remove", { id, ...(force !== undefined ? { force } : {}) }),
     usages: (id: number) => invoke("library:usages", { id }),
     relocate: (id: number) => invoke("library:relocate", { id }),
+    relocateFolder: (path: string) => invoke("library:relocateFolder", { path }),
     setLinkedAudio: (id: number, path: string | null) =>
       invoke("library:setLinkedAudio", { id, path }),
     listFolder: (kind: AssetKind, path: string) => invoke("library:listFolder", { kind, path }),
@@ -183,6 +184,14 @@ export const api = {
   ndi: {
     getStatus: () => invoke("ndi:getStatus", undefined),
     openRuntimePage: () => invoke("ndi:openRuntimePage", undefined),
+  },
+  backups: {
+    list: () => invoke("backups:list", undefined),
+    create: () => invoke("backups:create", undefined),
+    pick: () => invoke("backups:pick", undefined),
+    restore: (path: string) => invoke("backups:restore", { path }),
+    openFolder: () => invoke("backups:openFolder", undefined),
+    launchRestore: () => invoke("backups:launchRestore", undefined),
   },
   updates: {
     getStatus: () => invoke("updates:getStatus", undefined),

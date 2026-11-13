@@ -1,5 +1,6 @@
 import {
   AlarmClock,
+  DatabaseBackup,
   House,
   Keyboard,
   MousePointerClick,
@@ -150,6 +151,7 @@ const icons = {
   restart: RotateCcw,
   refresh: RefreshCw,
   save: Save,
+  backup: DatabaseBackup,
   search: Search,
   settings: Settings,
   prev: SkipBack,

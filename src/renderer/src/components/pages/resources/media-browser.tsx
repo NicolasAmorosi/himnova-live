@@ -22,6 +22,7 @@ import { toast } from "@renderer/lib/toast";
 import { previewAsset } from "@renderer/lib/actions/preview";
 import { goLive } from "@renderer/lib/actions/playback";
 import { removeAsset } from "@renderer/lib/actions/remove-asset";
+import { relocateFolder } from "@renderer/lib/actions/relocate-asset";
 import {
   addLinkedFolder,
   removeLinkedFolder,
@@ -370,15 +371,22 @@ export function MediaBrowser({ active, kind }: { active: boolean; kind: AssetKin
         {viewAssets.length === 0 && status?.error ? (
           <LoadingState
             action={
-              <Button
-                onClick={() =>
-                  isFolderView ? void refreshFolder(kind, activeView) : void refresh(kind)
-                }
-                size="sm"
-                variant="outline"
-              >
-                {t("common.retry")}
-              </Button>
+              <>
+                {isFolderView ? (
+                  <Button onClick={() => void relocateFolder(activeView)} size="sm" variant="outline">
+                    <Icon name="folder" /> {t("library.relocateFolder")}
+                  </Button>
+                ) : null}
+                <Button
+                  onClick={() =>
+                    isFolderView ? void refreshFolder(kind, activeView) : void refresh(kind)
+                  }
+                  size="sm"
+                  variant="outline"
+                >
+                  {t("common.retry")}
+                </Button>
+              </>
             }
             hint={status.error}
             icon="alert"

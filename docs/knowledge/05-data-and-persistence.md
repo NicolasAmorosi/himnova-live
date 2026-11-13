@@ -232,8 +232,12 @@ again), and the E2E harness skips it with `--no-starter-look`.
 Their rows hold the absolute path, the user's name inside, so a profile copied to another computer or
 user found every one «No encontrado», and every look over them black. `reattachBackgrounds` (2.8.1) runs
 at every launch before the look: a MISSING row whose path ends in `<profile folder>/backgrounds/<file>`
-(either separator) is `relocate`d to this profile's copy of that file, if there is one. The profile
-folder's name is part of the match on purpose: a church's own folder called `backgrounds` is never touched.
+(either separator) is `relocate`d to this profile's copy of that file. When this profile has no file of
+that name, one that is a factory background's name in any language is copied back from
+`resources/backgrounds/` first: a copy restored on a computer in another language (2.9.0) points at
+«Noche.webp» where the new profile seeded «Night.webp». The profile folder's name is part of the match on
+purpose: a church's own folder called `backgrounds` is never touched, nor a file whose name is no
+background of the app's.
 
 On an existing install it only ADDS, and restyles what is still exactly as it came (owner): the verse's
 style when it deep-equals `DEFAULT_BIBLE_STYLE`, a time scene's when it deep-equals a FACTORY style —
@@ -376,7 +380,22 @@ privacy permission of that folder. Songs has no system folder and starts empty. 
 harness) keeps the library bare.
 
 A linked folder that isn't there (`library:listFolder`) answers `FOLDER_MISSING`, not an empty
-list: the two were indistinguishable. And no import accepts a `._x.pps` (the AppleDouble that
+list: the two were indistinguishable. Its view offers «Buscar la carpeta…» (`library:relocateFolder`).
+
+**One relocation follows the whole move** (owner, 2026-11-13; `services/relocate-move.ts`). «Relocalizar…» on a
+missing file and «Buscar la carpeta…» on a missing linked folder both take the move from the old path to the new one:
+their common trailing folder names dropped (`moveBetween`: `D:\Iglesia\Videos` → `E:\Iglesia\Videos` is `D:` →
+`E:`; `C:\Users\juan\Videos` → `C:\Users\maria\Videos` is the user folder). Every path the app keeps under the old
+part is then tried under the new one: library rows (any `in_library`, merged by `relocate` when the new path is a row
+already), a deck's operator-chosen soundtrack (the automatic one re-resolves itself), Media's and Songs' linked folders
+and the views open on them, folder songs (`source_folder`, so their ids and the programs singing them stay) and library
+songs tied to a file. A path changes **only when its old place is gone and its twin is there**, so nothing that still
+works is touched and nothing points at a file that does not exist. Paths are split on either separator, so a Windows
+profile opened on a Mac or Linux follows too. The stats are asynchronous and in chunks (a gone drive answers slowly);
+the rows move in one transaction (`relocateMany`). Song rows move before the settings: `song:list` lets go of the songs
+of a folder no longer linked. A folder linked by hand at the new place keeps its own songs and is not linked twice.
+
+And no import accepts a `._x.pps` (the AppleDouble that
 macOS leaves on a FAT/exFAT USB stick), a `~$x.pptx` (PowerPoint's lock file) or a file whose
 extension doesn't belong to its `kind` (`importable` in `library-import.ts`).
 
@@ -573,6 +592,30 @@ before the database opens, `dailyBackup` takes the same verified snapshot into `
 when the newest copy there is 24 h old (or dated in the future: a clock set back), keeping the last 7.
 Their own folder, so they never rotate out the pre-migration copies. It costs a launch about 0.45 s once a
 day on a 90 MB profile with nine Bibles (measured 2026-11-13); a typical one is a fraction of that.
+
+**Settings › Backups** (2.9.0, owner 2026-11-13: its own section; `db/backups.ts`). «Hacer una copia» takes the same
+snapshot into `daily/` (it counts within the 7) on a worker thread (`backup-worker.ts`): on that 90 MB profile
+`VACUUM INTO` held a thread 453 ms and `integrity_check` 486 ms, and every engine frame crosses main.
+«Restaurar…» lists every kind (daily, before an update, before a restore), newest first, each with its programs
+and songs counted (a read-only open, a few ms), or takes a `.db` picked anywhere («Elegir otra copia…»).
+
+**A restore never touches the open database.** The chosen copy is STAGED at `backups/restore-pending/worship.db`
+(its own folder: at the top of `backups/` it would read as a pre-migration copy and be rotated out): a fresh
+snapshot of it (never the file itself: a USB stick may be gone at the next launch, and a database left open
+elsewhere has its newest rows in its `-wal`), verified, with Himnova's tables and no migration newer than this
+build's journal, its date kept. Refused copies stage nothing and say why (`BACKUP_REFUSED`, worded by main).
+Then the app restarts: the control window asks first what a quit puts at risk (`quitRisks`, like «Restart and
+update»), so main's quit skips the close guard (`releaseForUpdate`; asked again there, a «Cancel» would leave
+the copy staged for whatever launch came next) and relaunches: `app.relaunch()`, except in an AppImage, where it
+never came back (its relaunch helper runs from the mount that goes with the process), so a detached shell outside
+the mount closes what it inherited, waits for the PID and runs `$APPIMAGE` (`startAfterExit`). At the next launch, before `openForLaunch`, `applyPendingRestore` copies what is there now to
+`before-restore/` (the last 3; without it nothing is replaced), deletes the `-wal` and `-shm` (a `-wal` left next
+to the restored file would be replayed onto it; the quit checkpointed it and the copy above holds it anyway) and
+renames the staged file over `worship.db`. The migrations then run as on any launch: a copy from before an update
+takes its pre-migration snapshot and comes up to date. The control window says it once
+(`backups:launchRestore`). The relaunch was verified outside Playwright (its loader waits for a debugger, so a
+relaunched E2E app never starts): the window back with the copy in place in 1.5 s on the Mac, 1.7 s with the Linux
+unpacked binary and 2 s with the AppImage (2026-11-13).
 
 ## Defensive Bible parsing (the JSON path)
 

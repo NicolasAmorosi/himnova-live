@@ -116,10 +116,9 @@ test.describe("the welcome's map of screens", () => {
     // A movable window no longer stands between the operator and the app: quit it as they would.
     await app.quit();
     const again = await relaunch(app);
-    const welcomeAgain = again.control.getByRole("dialog", { name: "Bienvenida" });
-    if (await welcomeAgain.isVisible().catch(() => false)) {
-      await welcomeAgain.getByRole("button", { name: "Saltar la bienvenida" }).click();
-    }
+    // Never closed, the welcome opens again (`welcome.pending`) once the settings load, after EN VIVO shows:
+    // looked for with `isVisible()`, a slow launch found nothing, and the welcome then swallowed the «l» below.
+    await again.control.getByRole("dialog", { name: "Bienvenida" }).getByRole("button", { name: "Saltar la bienvenida" }).click();
     await expect(again.control.getByRole("button", { name: "EN VIVO", exact: true })).toBeVisible();
     await again.control.locator("body").press("l");
     await again.projector();

@@ -3,6 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { registerWorshipScheme, registerWorshipProtocolHandler } from "./protocol/worship-protocol";
 import { openForLaunch } from "./db/migrate";
+import { applyPendingRestore } from "./db/backups";
 import { seedBuiltinBibles } from "./db/seed/seed-bible";
 import { seedUtilityScenes } from "./db/seed/seed-utility-scenes";
 import { seedSongThemes } from "./db/seed/seed-song-themes";
@@ -100,6 +101,9 @@ function initDatabase(): void {
   // migration-failure dialog below is said before they can.
   setMainLocale(systemLocale());
 
+  // A copy the operator chose to restore (Settings) takes the database's place before anything opens it;
+  // the migrations below then bring an older one up to date.
+  applyPendingRestore(dbPath, dbBackupDir);
   const { sqlite, db } = openForLaunch(dbPath, dbBackupDir, migrationsDir, (error, backup) => {
     dialog.showErrorBox(
       mt("dialogs.dbErrorTitle"),
@@ -143,7 +147,7 @@ function initDatabase(): void {
   // After the legacy settings: the theme copies the verse's style.
   seedSongThemes(getSongsRepo(), getSettingsRepo());
   // Before the look: version 2 finds «Noche» by its path in this profile.
-  const reattached = reattachBackgrounds(getMediaRepo(), profileBackgroundsDir);
+  const reattached = reattachBackgrounds(getMediaRepo(), profileBackgroundsDir, backgroundsDir);
   if (reattached > 0) console.warn(`[look] ${reattached} background(s) pointed at this profile's copies`);
   // After both: it adds to the song themes and dresses the time scenes. The
   // E2E suite starts from a bare profile unless a spec asks for the look.

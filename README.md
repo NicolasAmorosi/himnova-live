@@ -61,6 +61,9 @@ Windows, macOS and Linux · English, Spanish, Italian and Portuguese
   shows your church's name over a background of your choice.
 - **Built for a live service:** if the projector disconnects, the picture comes back by itself when
   it reconnects; the schedule saves itself; closing the app by accident asks first.
+- **Backups and moved files:** a verified copy of everything once a day, or whenever you want, in
+  Settings › Backups, and restored from there (also a copy on a USB drive, on another computer). When
+  your files moved to another folder, drive or computer, locating one of them finds the rest.
 - **A welcome on the first launch:** language and theme, your church's logo, the screens, what happens at
   the end of a video or a presentation, your folders, the Bibles and streaming — then a «First steps» list
   that ticks itself as you try each thing in the real app. It reopens from Settings › About, next to the

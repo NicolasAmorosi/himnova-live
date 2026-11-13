@@ -11,7 +11,7 @@ type LoadingStateTone = "busy" | "queued" | "failed";
 type LoadingStateSurface = "stage" | "panel";
 
 type LoadingStateProps = {
-  /** A `<Button>` — cancel, retry. */
+  /** A `<Button>` or two: cancel, retry, locate. */
   action?: ReactNode;
   className?: string;
   hint?: string | undefined;
@@ -94,7 +94,7 @@ export function LoadingState({
           screen prints `error.message` — the one string the operator has to
           be able to copy to report what happened. */}
       {hint ? <p className={cn("text-xs select-text", surfaceHintClassName[surface])}>{hint}</p> : null}
-      {action ? <div className="mt-1">{action}</div> : null}
+      {action ? <div className="mt-1 flex flex-wrap justify-center gap-2">{action}</div> : null}
     </div>
   );
 }

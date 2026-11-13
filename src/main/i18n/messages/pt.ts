@@ -93,6 +93,13 @@ const pt: MainMessages = {
   programs: {
     notFound: "O roteiro não existe mais.",
   },
+  backups: {
+    failed: "Não foi possível fazer a cópia.",
+    unreadable: "Não foi possível ler esse arquivo: não é uma cópia do Himnova Live.",
+    damaged: "Essa cópia está danificada e não pode ser restaurada.",
+    notHimnova: "Esse arquivo não é uma cópia do Himnova Live.",
+    newer: "Essa cópia é de uma versão mais nova do Himnova Live. Atualize o app e tente de novo.",
+  },
   scenes: {
     invalid: "A cena tem campos inválidos.",
     invalidName: "O nome da cena não é válido.",

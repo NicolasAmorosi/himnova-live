@@ -58,6 +58,7 @@ import type {
 import type { CloseDecision } from "../types/window";
 import type { UpdateStatus } from "../types/updates";
 import type { NdiOutputStatus } from "../types/ndi";
+import type { BackupEntry, LaunchRestore } from "../types/backups";
 
 /**
  * The single source of truth for every main<->renderer call. Add a channel here
@@ -229,7 +230,14 @@ export type IpcContract = {
    *  drawn over it — shown to the operator before a removal, so a forced
    *  delete never takes away something they were not told about. */
   "library:usages": { req: { id: number }; res: MediaAssetUsages };
-  "library:relocate": { req: { id: number }; res: MediaAsset | null };
+  /** Points a missing row at the file the operator picks, keeping its id;
+   *  `more` = what else the same move fixed (`services/relocate-move.ts`).
+   *  `null` = the dialog was closed. */
+  "library:relocate": { req: { id: number }; res: { asset: MediaAsset; more: number } | null };
+  /** A linked folder that is gone, found where the operator picks: it and
+   *  everything else the same move left behind. `name` = the chosen folder's;
+   *  `more` = what else it fixed. `null` = the dialog was closed. */
+  "library:relocateFolder": { req: { path: string }; res: { name: string; more: number } | null };
   /** Manual override for a `ppt` asset's linked soundtrack — `path: null`
    *  clears it back to automatic resolution (`linked-audio.ts`). Never
    *  triggers a deck reconversion: the linked audio is served by reference,
@@ -383,6 +391,20 @@ export type IpcContract = {
   /** Opens the folder holding `main.log` and `crash.log` in the OS's file
    *  manager — what an operator sends along when something failed. */
   "system:openLogsFolder": { req: void; res: void };
+
+  /** Every copy of the database the app keeps (daily, before an update, before a restore), newest first. */
+  "backups:list": { req: void; res: BackupEntry[] };
+  /** A verified copy now, with the daily ones (the last 7 kept), taken off the main thread. */
+  "backups:create": { req: void; res: BackupEntry };
+  /** A copy file anywhere else (a USB stick, another computer), picked in the native dialog; `null` = closed. */
+  "backups:pick": { req: void; res: BackupEntry | null };
+  /** Stages `path` and restarts the app, which swaps it in before opening the database. Throws
+   *  `BACKUP_REFUSED` with the reason (damaged, not Himnova's, from a newer version). The control window
+   *  asks about what a quit puts at risk BEFORE calling it: this quit does not ask again. */
+  "backups:restore": { req: { path: string }; res: void };
+  "backups:openFolder": { req: void; res: void };
+  /** What the restore before this launch did, once (the control window says it); `null` = there was none. */
+  "backups:launchRestore": { req: void; res: LaunchRestore | null };
   /** Opens the app's public repository in the default browser — «Acerca de»'s
    *  «Código fuente». A fixed address: the renderer never names a URL. */
   "system:openSourceCode": { req: void; res: void };

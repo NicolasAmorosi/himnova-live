@@ -16,6 +16,7 @@ import { engineAssetsHandlers } from "./handlers/engine-assets";
 import { updatesHandlers } from "./handlers/updates";
 import { previewHandlers } from "./handlers/preview";
 import { ndiHandlers } from "./handlers/ndi";
+import { backupsHandlers } from "./handlers/backups";
 
 /**
  * Assembling the object literal AS `Handlers` is what makes a missing or
@@ -41,6 +42,7 @@ export function registerAllIpcHandlers(): void {
     ...updatesHandlers,
     ...previewHandlers,
     ...ndiHandlers,
+    ...backupsHandlers,
   };
   registerHandlers(handlers);
 }
