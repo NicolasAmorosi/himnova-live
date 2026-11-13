@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode, type Ref } from "react";
+import { flushSync } from "react-dom";
 import { Icon } from "@renderer/components/ui";
 import { cn } from "@renderer/lib/utils";
 import { frameCaptureSize } from "@renderer/lib/frame-capture";
@@ -24,6 +25,7 @@ import { PlateLayer } from "./plate-layer";
 import { StageImage } from "./stage-image";
 import { FramePacer } from "@renderer/lib/frame-pacer";
 import { followProjector } from "@renderer/lib/follow-projector";
+import { releaseMedia } from "@renderer/lib/release-media";
 import type {
   MediaStatus,
   ProjectionMediaError,
@@ -41,8 +43,11 @@ const MONITOR_DRIFT_THRESHOLD_SECONDS = 0.35;
 /** The longest a transition into a new video waits for that video's first
  *  frame before fading anyway — see the video hold in `OutputView`. A cap and
  *  not a promise: a file that takes longer than this to show anything is
- *  better faded in late than left holding the previous scene indefinitely. */
-const VIDEO_READY_TIMEOUT_MS = 1000;
+ *  better faded in late than left holding the previous scene indefinitely.
+ *  3 s, not 1 (owner, 2026-11-12): the room keeps the previous picture until
+ *  the new one has a frame, never black in between — at 1 s, every engine
+ *  start on the owner's Windows PC (~1.45 s) faded to black first. */
+const VIDEO_READY_TIMEOUT_MS = 3000;
 
 export type OutputViewMode = "live" | "preview" | "monitor";
 
@@ -224,11 +229,14 @@ function LiveVideo({
   // that removes this element — a passive effect's would run after the browser
   // has already painted the frame where the video is simply gone, which is the
   // black flash this exists to remove. Read through `freezeRef` so a changed
-  // callback never re-arms it mid-playback.
+  // callback never re-arms it mid-playback. The player goes only after its
+  // last frame is taken.
   useLayoutEffect(
     () => () => {
       const element = lastElementRef.current;
-      if (element) freezeRef.current?.(element);
+      if (!element) return;
+      freezeRef.current?.(element);
+      releaseMedia(element);
     },
     [],
   );
@@ -568,6 +576,15 @@ function SlideVideoLayer({
     followProjector(element, status.currentTimeSeconds, status.durationSeconds, element.loop);
   }, [mode, status, epoch]);
 
+  // Captured on mount: by the time an unmount's cleanup runs, React has
+  // already detached the ref.
+  useEffect(() => {
+    const element = elementRef.current;
+    return () => {
+      if (element) releaseMedia(element);
+    };
+  }, []);
+
   // Keyed by epoch at the call site, so this instance has exactly one
   // `startAtSeconds` for its whole life — applied once, on mount.
   useEffect(() => {
@@ -647,6 +664,15 @@ function SongVideoLayer({
     if (covered) element.pause();
     else element.play().catch(() => undefined);
   }, [covered]);
+  // Captured on mount (the ref is detached before an unmount's cleanup runs).
+  // An engine background has no element, and a theme changed to another file
+  // reuses this one with a new `src`, which drops the old player by itself.
+  useEffect(() => {
+    const element = videoRef.current;
+    return () => {
+      if (element) releaseMedia(element);
+    };
+  }, []);
   const fit = { objectFit: songVideo.fit } as const;
   return (
     <div className="absolute inset-0" data-song-video="">
@@ -1298,7 +1324,9 @@ export function OutputView({
 
   function handleVideoFirstFrame(epoch: number) {
     readyVideoEpochRef.current = epoch;
-    if (holdRef.current?.epoch === epoch) releaseHold();
+    // Committed now, in the frame that drew it: a render later the canvas has drawn the next frames out of
+    // sight — a cut showed a clip from its third frame.
+    if (holdRef.current?.epoch === epoch) flushSync(releaseHold);
   }
 
   // A LAYOUT effect, so the layers change in the same frame as the push. The
@@ -1336,7 +1364,21 @@ export function OutputView({
     // Whatever this push is, it replaces the scene an earlier hold was for.
     cancelHold();
 
-    if (!shouldAnimate || sameContent || !layerTransition || !isAnimatable(layerTransition)) {
+    // A new video waits for its first frame with the previous picture on, cut or fade (owner, 2026-11-12: never
+    // black in between) — see the video hold above.
+    const incomingVideoEpoch = output.kind === "video" ? output.videoUnderlay?.epoch : undefined;
+    const holdsForVideo =
+      videoMounted &&
+      incomingVideoEpoch !== undefined &&
+      incomingVideoEpoch !== topRef.current.output.videoUnderlay?.epoch &&
+      readyVideoEpochRef.current !== incomingVideoEpoch;
+
+    if (
+      !shouldAnimate ||
+      sameContent ||
+      !layerTransition ||
+      (!isAnimatable(layerTransition) && !holdsForVideo)
+    ) {
       // Content-only refresh: same layer, same key, no animation. This is
       // what keeps navigating within a live deck/verse, a pause toggle, or
       // an overlay's own `covered` prop an instant, un-keyed swap — exactly
@@ -1384,13 +1426,8 @@ export function OutputView({
     // the worst symptom this component can produce.
     //
     // A hold defers it: the fallback is armed by `releaseHold`, and the hold's
-    // own cap is a `setTimeout` for the same occluded-window reason.
-    const incomingVideoEpoch = output.kind === "video" ? output.videoUnderlay?.epoch : undefined;
-    const holdsForVideo =
-      videoMounted &&
-      incomingVideoEpoch !== undefined &&
-      incomingVideoEpoch !== outgoing.output.videoUnderlay?.epoch &&
-      readyVideoEpochRef.current !== incomingVideoEpoch;
+    // own cap is a `setTimeout` for the same occluded-window reason. A cut
+    // held this way is two layers too, and its release is the cut itself.
     if (holdsForVideo) {
       if (leaveTimerRef.current !== null) {
         clearTimeout(leaveTimerRef.current);

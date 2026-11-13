@@ -6,7 +6,7 @@ import { openForLaunch } from "./db/migrate";
 import { seedBuiltinBibles } from "./db/seed/seed-bible";
 import { seedUtilityScenes } from "./db/seed/seed-utility-scenes";
 import { seedSongThemes } from "./db/seed/seed-song-themes";
-import { seedStarterLook } from "./db/seed/seed-starter-look";
+import { reattachBackgrounds, seedStarterLook } from "./db/seed/seed-starter-look";
 import {
   initRepos,
   getSongsRepo,
@@ -53,7 +53,7 @@ import { startLibrarySweepScheduler } from "./services/library-sweeper";
 import { pruneThumbCache } from "./media/thumbnail-service";
 import { backfillContentHashes } from "./media/content-hash";
 import { initEngineAssets, shutdownEngineAssets } from "./media/engine-assets";
-import { engineAvailable, killAllEngines, prewarmEngine } from "./media/media-engine";
+import { engineAvailable, killAllEngines, startEngines } from "./media/media-engine";
 import { stopDeckClips } from "./media/deck-clips";
 import { appendLogLine, installMainLog } from "./logging";
 import { initUpdates } from "./updates/updater";
@@ -142,6 +142,9 @@ function initDatabase(): void {
   seedUtilityScenes(getUtilityRepo(), getSettingsRepo());
   // After the legacy settings: the theme copies the verse's style.
   seedSongThemes(getSongsRepo(), getSettingsRepo());
+  // Before the look: version 2 finds «Noche» by its path in this profile.
+  const reattached = reattachBackgrounds(getMediaRepo(), profileBackgroundsDir);
+  if (reattached > 0) console.warn(`[look] ${reattached} background(s) pointed at this profile's copies`);
   // After both: it adds to the song themes and dresses the time scenes. The
   // E2E suite starts from a bare profile unless a spec asks for the look.
   if (!process.argv.includes("--no-starter-look")) {
@@ -265,8 +268,8 @@ if (gotSingleInstanceLock) {
     // window to report what this machine decodes (`engine:reportDecoders`).
     initEngineAssets();
     // A media engine started ahead of time, so the first video it plays does not pay for the
-    // process (150–650 ms).
-    if (engineAvailable()) prewarmEngine();
+    // process (150–650 ms), on the card the app draws with.
+    if (engineAvailable()) startEngines();
 
     // The other half of the legacy import (`media_library.json`). Off the
     // startup path: it is a whole library's worth of files, and the rows it

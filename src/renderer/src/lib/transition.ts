@@ -104,7 +104,8 @@ export function randomBarDelays(seed: number, durationMs: number): number[] {
  * own keyframes regardless of when it starts — is what actually fades the
  * very first frame.
  *
- * `held` pauses the animation at its start without changing anything else.
+ * `held` pauses the animation at its start without changing anything else —
+ * or, for a cut, keeps the entering side out of sight.
  *
  * `incomingCovers` says the entering side paints every pixel of the stage —
  * the projector's scenes, which are whole pictures stacked on each other. A
@@ -122,7 +123,8 @@ export function transitionStyle(
   incomingCovers = false,
 ): CSSProperties {
   if (role === "steady" || !isAnimatable(transition)) {
-    return { zIndex: LAYER_Z[role], opacity: restOpacity };
+    // A cut held for a video's first frame: what enters stays out of sight until then.
+    return { zIndex: LAYER_Z[role], opacity: held && role === "entering" ? 0 : restOpacity };
   }
   // Random bars: the entering side reveals itself bar by bar (`SceneLayer`),
   // so the layer itself stays put; the leaving side holds under it for the

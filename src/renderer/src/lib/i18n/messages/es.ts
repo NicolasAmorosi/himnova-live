@@ -1119,7 +1119,7 @@ const es = {
     liveVideoMotionHelp: "El monitor EN VIVO muestra la miniatura del video en lugar de reproducir una segunda copia.",
     gpu: "Placa de video",
     gpuDesc: "La que usa la app para dibujar y decodificar video.",
-    gpuHelp: "En una notebook con dos placas, la dedicada se elige en la configuración de gráficos de Windows.",
+    gpuHelp: "En una notebook con dos placas, la dedicada se elige para Himnova Live en la configuración de gráficos de Windows. Todo el video sigue esa elección.",
     gpuUnknown: "No se pudo leer",
     gpuInactive: "{name} (sin usar)",
     videoDecode: "Decodificación de video por hardware",

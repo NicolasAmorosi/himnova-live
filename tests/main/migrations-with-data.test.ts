@@ -15,7 +15,13 @@ import { afterAll, beforeAll, describe, expect, test } from "vitest";
 import Database from "better-sqlite3";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import { openDatabase } from "../../src/main/db/client";
-import { backupBeforeMigrate, openForLaunch, repairDanglingReferences, runMigrations } from "../../src/main/db/migrate";
+import {
+  backupBeforeMigrate,
+  dailyBackup,
+  openForLaunch,
+  repairDanglingReferences,
+  runMigrations,
+} from "../../src/main/db/migrate";
 import { ProgramsRepo } from "../../src/main/db/repositories/programs.repo";
 
 const drizzleDir = path.join(process.cwd(), "drizzle");
@@ -245,4 +251,36 @@ test("a profile one migration behind is backed up, then migrated without losing 
 
   // The next launch has nothing pending: no copy that would rotate the pre-migration one out.
   expect(backupBeforeMigrate(dbFile, backups, drizzleDir).status).toBe("skipped");
+});
+
+test("a daily copy at launch once a day, the last 7 kept, the pre-migration copies left alone", () => {
+  const dbFile = path.join(tmp, "daily.db");
+  const backups = path.join(tmp, "backups-daily");
+  const daily = path.join(backups, "daily");
+  const first = openDatabase(dbFile);
+  runMigrations(first.db, drizzleDir);
+  first.sqlite.close();
+  fs.mkdirSync(backups, { recursive: true });
+  const preMigration = path.join(backups, "worship-2026-01-01T00-00-00-000Z.db");
+  fs.writeFileSync(preMigration, "");
+
+  // Two launches the same day: one copy, verified and readable.
+  openForLaunch(dbFile, backups, drizzleDir, () => {}).sqlite.close();
+  openForLaunch(dbFile, backups, drizzleDir, () => {}).sqlite.close();
+  expect(fs.readdirSync(daily)).toHaveLength(1);
+
+  // A launch a day for nine days: the seven newest stay.
+  const day = 24 * 60 * 60 * 1000;
+  const taken = [1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => dailyBackup(dbFile, daily, new Date(Date.now() + n * day)));
+  expect(taken.every((result) => result.status === "ok")).toBe(true);
+  const kept = fs.readdirSync(daily).sort();
+  expect(kept).toEqual(taken.slice(2).map((result) => path.basename((result as { path: string }).path)).sort());
+
+  // A clock set back a month still copies, and the copy it names oldest survives the rotation.
+  const back = dailyBackup(dbFile, daily, new Date(Date.now() - 30 * day));
+  expect(back.status).toBe("ok");
+  expect(fs.existsSync((back as { path: string }).path)).toBe(true);
+  expect(fs.readdirSync(daily)).toHaveLength(7);
+
+  expect(fs.readdirSync(backups).filter((f) => f.endsWith(".db"))).toEqual([path.basename(preMigration)]);
 });

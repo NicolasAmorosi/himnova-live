@@ -68,6 +68,7 @@ export class WorshipApp {
     readonly locale: Locale,
     readonly starterLook: boolean,
     readonly welcome: boolean,
+    readonly chromiumArgs: string[],
   ) {
     this.exited = new Promise((resolve) =>
       electron.process().once("exit", () => {
@@ -85,6 +86,7 @@ export class WorshipApp {
     locale: Locale = "es",
     starterLook = false,
     welcome = false,
+    chromiumArgs: string[] = [],
   ): Promise<WorshipApp> {
     // `WORSHIP_E2E_EXECUTABLE` runs the suite against an INSTALLED build
     // (`release/mac-arm64/Himnova Live.app/Contents/MacOS/Himnova Live`, or
@@ -96,7 +98,7 @@ export class WorshipApp {
     // language (`main/i18n/system-locale.ts`): pinned, so the suite reads the
     // same Spanish on any machine — or `locale`, for the screenshots.
     const dropped = [launchCheck && "--no-update-check", starterLook && "--no-starter-look", welcome && "--no-welcome"];
-    const flags = [...FLAGS.filter((flag) => !dropped.includes(flag)), `--lang=${locale}`];
+    const flags = [...FLAGS.filter((flag) => !dropped.includes(flag)), `--lang=${locale}`, ...chromiumArgs];
     const app = await electron.launch({
       cwd: ROOT,
       ...(executable
@@ -112,7 +114,7 @@ export class WorshipApp {
 
     const control = await app.firstWindow();
     await expect(control.getByRole("button", { name: translate("EN VIVO", locale), exact: true })).toBeVisible();
-    return new WorshipApp(app, control, profile, log, await app.evaluate(() => process.pid), locale, starterLook, welcome);
+    return new WorshipApp(app, control, profile, log, await app.evaluate(() => process.pid), locale, starterLook, welcome, chromiumArgs);
   }
 
   /** `text`, written as the app's Spanish, in this app's language — see `translate`. */
@@ -386,6 +388,7 @@ type Fixtures = {
   launchCheck: boolean;
   starterLook: boolean;
   welcome: boolean;
+  chromiumArgs: string[];
 };
 
 export const test = base.extend<Fixtures>({
@@ -395,6 +398,8 @@ export const test = base.extend<Fixtures>({
   starterLook: [false, { option: true }],
   /** Whether `app` starts with the first-run welcome screen, as a church's first launch does. */
   welcome: [false, { option: true }],
+  /** Extra Chromium switches for `app`, e.g. `--use-angle=d3d11-warp` to draw on WARP. */
+  chromiumArgs: [[], { option: true }],
   /** The language `app` starts in (`--lang`). Spanish, which the specs are written in. */
   appLocale: ["es", { option: true }],
   // A fresh profile per test, removed afterwards. Playwright requires the
@@ -409,8 +414,8 @@ export const test = base.extend<Fixtures>({
     fs.rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
   },
 
-  app: async ({ appLocale, profileDir, launchCheck, starterLook, welcome }, use, testInfo) => {
-    const app = await WorshipApp.launch(profileDir, launchCheck, appLocale, starterLook, welcome);
+  app: async ({ appLocale, profileDir, launchCheck, starterLook, welcome, chromiumArgs }, use, testInfo) => {
+    const app = await WorshipApp.launch(profileDir, launchCheck, appLocale, starterLook, welcome, chromiumArgs);
     await use(app);
     // Whatever app the test ended with — it may have relaunched — is the one
     // registered last; tests that relaunch call `adopt` below.
@@ -439,7 +444,7 @@ const adopted = new Map<string, WorshipApp>();
  *  the new instance too. The new one starts like the old one — with the
  *  starter look if that one had it, as a church's next morning would. */
 export async function relaunch(app: WorshipApp): Promise<WorshipApp> {
-  const next = await WorshipApp.launch(app.profile, false, app.locale, app.starterLook, app.welcome);
+  const next = await WorshipApp.launch(app.profile, false, app.locale, app.starterLook, app.welcome, app.chromiumArgs);
   adopted.set(test.info().testId, next);
   return next;
 }

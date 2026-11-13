@@ -229,6 +229,12 @@ overlays, and on a NEW install `songs.defaultThemeId` = the first new theme. It 
 seeds, in one transaction, once per `look.seeded` version (a number, so a later look can be offered
 again), and the E2E harness skips it with `--no-starter-look`.
 
+Their rows hold the absolute path, the user's name inside, so a profile copied to another computer or
+user found every one «No encontrado», and every look over them black. `reattachBackgrounds` (2.8.1) runs
+at every launch before the look: a MISSING row whose path ends in `<profile folder>/backgrounds/<file>`
+(either separator) is `relocate`d to this profile's copy of that file, if there is one. The profile
+folder's name is part of the match on purpose: a church's own folder called `backgrounds` is never touched.
+
 On an existing install it only ADDS, and restyles what is still exactly as it came (owner): the verse's
 style when it deep-equals `DEFAULT_BIBLE_STYLE`, a time scene's when it deep-equals a FACTORY style —
 today's `DEFAULT_SCENE_STYLE` or the pre-rebrand one (`#04132b`, `#84adfc`, `#f5f5f5`). That second
@@ -561,6 +567,12 @@ survive an exit, that's the fastest way to tell this broke.
 the three slots with post-migration copies and **rotated out the only copy this function exists to
 keep**. It showed in the user's real folder: the 3 copies were from the same day and the same size,
 all after the last migration.
+
+**And once a day** (2.8.1): a month without migrations left a month-old copy as the newest. At launch,
+before the database opens, `dailyBackup` takes the same verified snapshot into `userData/backups/daily/`
+when the newest copy there is 24 h old (or dated in the future: a clock set back), keeping the last 7.
+Their own folder, so they never rotate out the pre-migration copies. It costs a launch about 0.45 s once a
+day on a 90 MB profile with nine Bibles (measured 2026-11-13); a typical one is a fraction of that.
 
 ## Defensive Bible parsing (the JSON path)
 

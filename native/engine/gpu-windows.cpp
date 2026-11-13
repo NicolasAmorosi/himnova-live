@@ -9,6 +9,8 @@
 #include <d3d11.h>
 #include <dxgi1_2.h>
 
+#include <cstdio>
+
 // From mpv's include/mpv/render_d3d11.h (ISC), which the Windows dev package leaves out.
 struct mpv_d3d11_init_params { void* device; };
 struct mpv_d3d11_fbo { void* tex; };
@@ -21,6 +23,24 @@ struct Gpu::State {
   std::vector<Target> ring;
   mpv_d3d11_fbo fbo{};
 };
+
+// The adapter Chromium reports, by the four numbers both read from DXGI_ADAPTER_DESC. WARP (Chromium's
+// fallback) is enumerated too, so a software Chromium gets a software engine: slow, but a picture.
+static IDXGIAdapter1* findAdapter(const std::string& want) {
+  unsigned vendor = 0, device = 0, subsys = 0, revision = 0;
+  if (sscanf(want.c_str(), "%u:%u:%u:%u", &vendor, &device, &subsys, &revision) != 4) return nullptr;
+  IDXGIFactory1* factory = nullptr;
+  if (FAILED(CreateDXGIFactory1(__uuidof(IDXGIFactory1), (void**)&factory))) return nullptr;
+  IDXGIAdapter1* found = nullptr;
+  IDXGIAdapter1* a = nullptr;
+  for (UINT i = 0; !found && factory->EnumAdapters1(i, &a) != DXGI_ERROR_NOT_FOUND; i++) {
+    DXGI_ADAPTER_DESC1 d{};
+    if (SUCCEEDED(a->GetDesc1(&d)) && d.VendorId == vendor && d.DeviceId == device && d.SubSysId == subsys && d.Revision == revision) found = a;
+    else a->Release();
+  }
+  factory->Release();
+  return found;
+}
 
 static std::string hex(HRESULT hr) { char b[16]; snprintf(b, sizeof b, "0x%08lx", (unsigned long)hr); return b; }
 
@@ -36,9 +56,18 @@ Gpu::~Gpu() {
 void Gpu::init() {
   if (!(s->parent = OpenProcess(PROCESS_DUP_HANDLE, FALSE, (DWORD)options.parentPid)))
     fail("engine-gpu", "OpenProcess(parent) " + std::to_string(GetLastError()));
+  IDXGIAdapter1* chosen = options.adapter.empty() ? nullptr : findAdapter(options.adapter);
+  if (!options.adapter.empty()) adapterResult = chosen ? "match" : "none";
+  // An explicit adapter needs D3D_DRIVER_TYPE_UNKNOWN. WARP has no video support: then without it, and
+  // mpv decodes in software.
   D3D_FEATURE_LEVEL level;
-  HRESULT hr = D3D11CreateDevice(nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr, D3D11_CREATE_DEVICE_VIDEO_SUPPORT | D3D11_CREATE_DEVICE_BGRA_SUPPORT,
-                                 nullptr, 0, D3D11_SDK_VERSION, &s->dev, &level, nullptr);
+  auto create = [&](UINT video) {
+    return D3D11CreateDevice(chosen, chosen ? D3D_DRIVER_TYPE_UNKNOWN : D3D_DRIVER_TYPE_HARDWARE, nullptr,
+                             video | D3D11_CREATE_DEVICE_BGRA_SUPPORT, nullptr, 0, D3D11_SDK_VERSION, &s->dev, &level, nullptr);
+  };
+  HRESULT hr = create(D3D11_CREATE_DEVICE_VIDEO_SUPPORT);
+  if (FAILED(hr) && chosen) hr = create(0);
+  if (chosen) chosen->Release();
   if (FAILED(hr)) fail("engine-gpu", "D3D11CreateDevice " + hex(hr));
   IDXGIDevice* dxgi = nullptr;
   IDXGIAdapter* adapter = nullptr;

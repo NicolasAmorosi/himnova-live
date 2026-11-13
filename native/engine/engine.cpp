@@ -7,7 +7,7 @@
 //   load <startAt> <paused 0|1> <volume 0-100> <loop 0|1> <audio 0|1> <path…>   (once per engine)
 //   pause 0|1 · volume <0-100> · loop 0|1 · seek <seconds> exact|keyframes · release <slot> · quit
 // Engine → main (stdout), JSON:
-//   {"ev":"ready","gpu":…}                          the device is up, waiting for `load`
+//   {"ev":"ready","gpu":…,"adapter":""|"match"|"none"}  the device is up, waiting for `load`
 //   {"ev":"loaded","duration":…,"width":…,"height":…,"hasVideo":…,"hasAudio":…}
 //   {"ev":"slots","width":…,"height":…,"handles":[…]} the ring, made for this file's picture
 //   {"ev":"frame","slot":…}                         main hands it back with `release <slot>`
@@ -17,6 +17,7 @@
 // Args: [--parent <pid>] (Windows) [--fd-socket <path>] (Linux) [--max-width 1920 --max-height 1080]
 //       [--slots 6] [--hwdec …] [--close-in-parent <handle,…>] (Windows: a dead engine's ring)
 //       [--log-level error|warn|info|v|debug] (mpv's log on stderr; main keeps its tail for errors)
+//       [--adapter vendor:device:subsys:revision] (Windows, Linux: Chromium's card) [--cache-dir <shader cache>]
 // `--ndi-send <name> …` as the first argument runs the NDI output mode instead: see ndi.cpp.
 #include <mpv/client.h>
 #include <mpv/render.h>
@@ -46,6 +47,37 @@
 void closeInParent(unsigned long parentPid, const std::vector<unsigned long long>& handles);
 #endif
 int ndiSendMain(int argc, char** argv);
+
+#ifdef __APPLE__
+#include <CoreAudio/CoreAudio.h>
+#include <unistd.h>
+
+#include <cstring>
+
+// The NDI output's sound tap (ndi-audio-mac.mm) can only add a process Core Audio already knows, and a process
+// becomes known when it first plays: each new engine joined the tap 300–400 ms into its video, and that much of its
+// first sound never reached NDI (measured 2026-11-12; 70–83 ms for an engine that had played before). 100 ms of
+// silence on the default output when the engine starts, before any file, makes it known. Windows and Linux capture
+// the process tree and lost nothing.
+static void becomeKnownToCoreAudio() {
+  AudioObjectID out = kAudioObjectUnknown;
+  UInt32 size = sizeof out;
+  AudioObjectPropertyAddress a{kAudioHardwarePropertyDefaultOutputDevice, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMain};
+  if (AudioObjectGetPropertyData(kAudioObjectSystemObject, &a, 0, nullptr, &size, &out) != noErr || out == kAudioObjectUnknown) return;
+  AudioDeviceIOProcID proc = nullptr;
+  auto silence = [](AudioObjectID, const AudioTimeStamp*, const AudioBufferList*, const AudioTimeStamp*, AudioBufferList* o,
+                    const AudioTimeStamp*, void*) -> OSStatus {
+    for (UInt32 i = 0; i < o->mNumberBuffers; i++) memset(o->mBuffers[i].mData, 0, o->mBuffers[i].mDataByteSize);
+    return noErr;
+  };
+  if (AudioDeviceCreateIOProcID(out, silence, nullptr, &proc) != noErr) return;
+  if (AudioDeviceStart(out, proc) == noErr) {
+    usleep(100000);
+    AudioDeviceStop(out, proc);
+  }
+  AudioDeviceDestroyIOProcID(out, proc);
+}
+#endif
 
 static std::mutex outMutex;
 // Also used by ndi.cpp, the NDI output mode.
@@ -142,7 +174,7 @@ static void renderLoop(GpuOptions options) {
     int e = mpv_render_context_create(&rctx, E.mpv, params.data());
     if (e < 0) fail("engine-gpu", std::string("mpv_render_context_create: ") + mpv_error_string(e));
     mpv_render_context_set_update_callback(rctx, onUpdate, nullptr);
-    emit("{\"ev\":\"ready\",\"gpu\":" + js(gpu.describe) + "}");
+    emit("{\"ev\":\"ready\",\"gpu\":" + js(gpu.describe) + ",\"adapter\":" + js(gpu.adapterResult) + "}");
     E.started = 1;
     bool ringReady = false;
     // A GPU that is gone (a driver reset, DEVICE_REMOVED) fails every frame in silence: the picture froze
@@ -288,7 +320,7 @@ int main(int argc, char** argv) {
   }
 #endif
   GpuOptions options;
-  std::string closeHandles, logLevel = "error";
+  std::string closeHandles, logLevel = "error", cacheDir;
 #ifdef _WIN32
   std::string hwdec = "d3d11va";
   timeBeginPeriod(1);
@@ -313,6 +345,8 @@ int main(int argc, char** argv) {
     else if (k == "--hwdec") hwdec = v;
     else if (k == "--close-in-parent") closeHandles = v;
     else if (k == "--log-level") logLevel = v;
+    else if (k == "--adapter") options.adapter = v;
+    else if (k == "--cache-dir") cacheDir = v;
   }
 #ifdef _WIN32
   std::vector<unsigned long long> handles;
@@ -324,6 +358,9 @@ int main(int argc, char** argv) {
   if (!handles.empty()) closeInParent(options.parentPid, handles);
 #endif
 
+#ifdef __APPLE__
+  std::thread(becomeKnownToCoreAudio).detach();
+#endif
   E.mpv = mpv_create();
   if (!E.mpv) { emitError({"engine-gpu", "mpv_create"}); return 1; }
   const char* opts[][2] = {{"vo", "libmpv"}, {"hwdec", hwdec.c_str()}, {"keep-open", "yes"}, {"idle", "yes"},
@@ -335,6 +372,8 @@ int main(int argc, char** argv) {
                            // agent1-01). A libmpv too old for `auto` (Linux's system one) refuses it, harmless.
                            {"deinterlace", "auto"}};
   for (auto& o : opts) mpv_set_option_string(E.mpv, o[0], o[1]);
+  // Compiled shaders kept between engines: libmpv with config=no has no cache dir of its own.
+  if (!cacheDir.empty()) mpv_set_option_string(E.mpv, "gpu-shader-cache-dir", cacheDir.c_str());
   mpv_request_log_messages(E.mpv, logLevel.c_str());
   if (mpv_initialize(E.mpv) < 0) { emitError({"engine-gpu", "mpv_initialize"}); return 1; }
   mpv_observe_property(E.mpv, 0, "pause", MPV_FORMAT_FLAG);

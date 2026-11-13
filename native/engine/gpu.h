@@ -18,6 +18,10 @@ struct Fail {
 struct GpuOptions {
   unsigned long parentPid = 0;  // Windows: the handles are duplicated into this process
   std::string fdSocket;         // Linux: the dmabuf fds go to main over this Unix socket
+  // Windows, Linux: the card Chromium draws with, "vendor:device:subsys:revision" (decimal, from
+  // app.getGPUInfo). The shared textures only open on the card that made them: an engine on another
+  // card would draw black under its sound (2026-11-12 GPU report, from the code). Empty: the default card.
+  std::string adapter;
 };
 
 struct Gpu {
@@ -37,6 +41,8 @@ struct Gpu {
   // Windows: closes the handles duplicated into main, so the textures don't outlive the engine.
   void releaseShared();
   std::string describe;
+  // "" (no --adapter), "match" (that card) or "none" (not found: the default card, as before engine-7).
+  std::string adapterResult;
 
  private:
   struct State;
