@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import type { Locator } from "@playwright/test";
+import Database from "better-sqlite3";
 import { fixture } from "./support/paths";
 import { expect, relaunch, test, type WorshipApp } from "./support/app";
 
@@ -82,6 +83,25 @@ test("a file that is not a Himnova copy is refused, and nothing restarts", async
   await expect(toast(app, "No se pudo leer ese archivo: no es una copia de Himnova Live.")).toBeVisible();
   await expect(dialog).toBeVisible();
   expect(fs.existsSync(path.join(app.profile, "backups", "restore-pending"))).toBe(false);
+});
+
+test("another app's database is refused, and the next launch still opens the church's own", async ({ app }) => {
+  await app.invoke("programs:save", { name: "Culto de hoy", items: [] });
+  // A real SQLite file, opened and read to the end: the path that left the copy staged on Windows (2.9.0).
+  const other = path.join(app.profile, "contactos.db");
+  const sqlite = new Database(other);
+  sqlite.exec("CREATE TABLE contacts (name TEXT)");
+  sqlite.close();
+  const dialog = await openRestore(app);
+  await app.answerOpenDialog(other);
+  await dialog.getByRole("button", { name: "Elegir otra copia…" }).click();
+  await dialog.getByRole("button", { name: "Restaurar y reiniciar" }).click();
+
+  await expect(toast(app, "Ese archivo no es una copia de Himnova Live.")).toBeVisible();
+  expect(fs.existsSync(path.join(app.profile, "backups", "restore-pending"))).toBe(false);
+  await app.quit();
+  const again = await relaunch(app);
+  expect(await programs(again)).toEqual(["Culto de hoy"]);
 });
 
 test("with unsaved work, restoring asks first, and «Cancelar» keeps everything as it was", async ({ app }) => {
