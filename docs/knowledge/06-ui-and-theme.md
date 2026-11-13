@@ -477,64 +477,18 @@ projector and the stage are now, and opening or closing the projector; its secon
 `StageView` (`components/shared/stage-view.tsx`) is the stage screen, drawn the same by its window and by the
 stage panel's monitor (sized at that screen's own proportion). Everything inside is in units of its own box
 (`container-type: size`, so `cqh` is safe there: no `OutputView` above it) and it sets `data-theme="dark"` on
-itself, so the panel's monitor in the light theme still shows the stage's colours. Two layouts: «Musicians»
-(what is live, the time, what follows; a countdown small) and «Preacher» (the countdown as large as fits, the
-time, what is live small); the message is a band at the foot of both. The panel at the foot of the left column
-is a bar (`h-strip`: the dot, the countdown while folded, the message with its age, the layout, the fold) over a
-grid whose monitor spans the three rows beside it; in a column under 24rem the message row takes the whole
-width and two lengths hide (`@container/stage`). Measured 2026-11-13: 180 px open at 1366×768 and 1000×700.
+itself, so the panel's monitor in the light theme still shows the stage's colours. Two views: «Musicians»
+(what is live, the time, what follows; a running countdown beside the time, as large) and «Pastor» (the countdown
+as large as fits, the time, what is live small); the message is a band at the foot of both.
 
-- **The work screen's chrome (2026-11-04 redesign, F4):** a column header is the title plus its data in
-  quiet text (`PanelHeader`'s `meta`), never a pill — only what asks the operator to act stays a
-  badge (the schedule's «Not saved», a damaged slide). The panel footers are neutral (`ghost`):
-  colour no longer carries meaning, and a tab's own tools — «Importar», «Temas», the verse's
-  «Estilo», «Escenas», «Placas» — are icons with a tooltip (owner, 2026-11-05: «me gustan solo los
-  íconos», reversing the redesign's words). «Agregar» (add to schedule) is the one with its word: an
-  `outline` button at the right of each resource footer — neutral, so GO LIVE is the one strong
-  button of the work screen (owner's D13). The schedule's tools are a vertical strip of icons on the
-  list's right, like EasyWorship's (owner's D19, then «a la derecha»). Media and Songs share one
-  filter bar (`shared/library-filter-bar.tsx`): order, folder, search, add a folder; and a folder view's
-  footer starts with its refresh (`FolderRefreshButton`, owner 2026-11-06), which also reads the folder on
-  screen again when the window comes back to the front — nothing watches the disk. A tooltip goes
-  the moment its trigger is pressed and stays away until the pointer leaves, never shows over the menu its
-  trigger opened (`aria-expanded`), and goes when the window loses focus — a native picker took the pointer
-  without a `pointerleave` and left the bubble stuck (owner, 2026-11-05). Empty states carry no buttons. The transport boxes (`MediaPanel`) have no border
-  of their own — the card's fill sets them apart —, an `EmptyState` shows its icon without a disc,
-  everything that takes content off the projector — the transports' button, the LIVE panel's rows,
-  Settings' button — is «Sacar del aire» with the `offAir` icon (owner's D12), never the ✕ that
-  clears PREVIEW; a song's sections are one box everywhere (`Button outline xs`, and `Token` for
-  the order's removable chips); and the LIVE monitor's «No logo» notice appears only once LOGO is pressed, in a neutral band
-  (`OutputView`'s `notice` tone): resting on a missing logo is how every launch starts.
-- **`schedule/`**: the order of service. Click = preview, double click = live, drag = reorder.
-  Every row leads with a small 16:9 picture (`RowThumb`, since 2.2.1): the same thumbnail the
-  library tile shows (`lib/asset-thumb.ts`), a deck's first slide from one `deck:statuses`
-  round-trip for the whole schedule, and the kind's icon in the corner over it; with no picture
-  (audio, verse, time scene, plate, a missing file) the kind's tinted icon fills the same box, so
-  every row keeps one height.
-- **`resources/`**: a single tabbed browser for **everything** projectable, Bible included
-  (`variant="underline"` of `Tabs`, GitHub's UnderlineNav; the second level is a `segment`). An asset can be previewed and projected without being in the
-  schedule — that's what EW's resources area does.
-- **`slides/`**: the grid of what the item in preview can put on screen — the slides of a deck,
-  the verses of a chapter, or the file itself if it's a single one. It's also the only place that
-  triggers conversions (`useDeck`). Everything that can grow —a deck's slides, a chapter's
-  verses— is painted with **`VirtualGrid`**, with the geometry in
-  `components/ui/slide-grid.geometry.ts`: gap 12, minimum width 144 for verses and **2 fixed
-  columns** for a deck (`columns`, mutually exclusive with `minItemWidth`), so that a PPT's slides
-  look large instead of a small N-column grid. `SlideGrid` (`slide-grid.tsx`) remained only for
-  single-tile grids that never grow: the scheduled verse, a text item, a standalone asset.
-- **`monitors/`**: the LIVE monitor on top (the `Monitor` primitive; the PREVIEW one moved to the
-  center column, next to what it previews), below it the `deck-transport.tsx` and
-  `verse-transport.tsx` transports and `live-media-panel.tsx` as sibling rows —never as the
-  monitor's footer, so they can't shrink the stage, and never inside the scrolling body: the row
-  right under each monitor has to land on the same pixel as its twin across, for every kind of
-  content, which `media.spec.ts` asserts. The media panel caps itself at 40% of the column and
-  scrolls on its own—, and at the end `live-content-grid.tsx`: the same grid as the center, but of
-  what **is on air**. Clicking a tile calls `gotoSlide()`/`projectVerse()` and jumps there
-  instantly (this is live, not preview: there's no second stage), and the grid **follows** the
-  projector on its own (`scrollToIndex` of `VirtualGrid`), auto-advance included — virtualized, a
-  tile outside the mounted window doesn't exist, so without that a long deck would leave the
-  operator looking at a part of the service that has already passed. It's a different component
-  from `deck-slides.tsx`, which navigates the deck *in preview*, not the one on air.
+The stage panel (`pages/stage/StagePanel.tsx`, owner 2026-11-13: «like a chat window») is a bar (`h-strip`) at the
+foot of the left column: the dot, the countdown with its pause, the message with its ✕. Opened, it is a card over
+the column (`absolute`, `rounded-t-xl`, `shadow-overlay`, the `stage-card-in/out` animation in `globals.css`) that
+covers it instead of squeezing it: the monitor at the stage screen's proportion, the view, the countdown (readout
+and its state, −1 / Start-Pause / +1, the lengths and an «other» field for minutes or `hh:mm`, Restart and Remove
+in the section's title) and the message (what is on the stage now, the ready phrases, a field with Urgent and
+Show). Its arrow, Esc or a press anywhere else folds it. Its tooltips are `floating`: in-flow bubbles widened the
+card's scroll area. Measured 2026-11-13: 607 px tall at 1366×768, no scroll.
 
 ### Toasts: every one goes, with its time drawn
 

@@ -8,7 +8,7 @@ import { advanceVerse } from "@renderer/lib/actions/bible";
 import { removeSelected } from "@renderer/lib/actions/remove-selected";
 import { onIpc } from "@renderer/lib/ipc";
 import { useSettingsStore } from "@renderer/stores/settings.store";
-import { FOCUS_STAGE_MESSAGE } from "@renderer/stores/stage.store";
+import { FOCUS_STAGE_MESSAGE, useStageStore } from "@renderer/stores/stage.store";
 import { isPointerFocused, trackFocusModality } from "@renderer/lib/focus-modality";
 
 const ARROW_KEYS_LIST: string[] = ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"];
@@ -100,13 +100,13 @@ function suppressesKey(target: EventTarget | null, key: string): boolean {
 }
 
 function focusStageMessage(): void {
-  const { settings, update } = useSettingsStore.getState();
-  if (settings["stage.displayId"] === null) return;
+  if (useSettingsStore.getState().settings["stage.displayId"] === null) return;
+  const stage = useStageStore.getState();
   const focus = () => void window.dispatchEvent(new Event(FOCUS_STAGE_MESSAGE));
   // At once when the field is there: a letter typed right after M must land in it, not be a shortcut (a «b» was
-  // BLACK). Folded, the field mounts on the next render, so the focus waits a frame.
-  if (settings["stage.panelOpen"]) return focus();
-  void update({ "stage.panelOpen": true });
+  // BLACK). Closed, the card mounts on the next render, so the focus waits a frame.
+  if (stage.panelOpen) return focus();
+  stage.setPanelOpen(true);
   requestAnimationFrame(focus);
 }
 

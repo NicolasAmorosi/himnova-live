@@ -204,7 +204,8 @@ test("the roles exclude each other: the stage given the projector's screen moves
   await pickRole(app, other, "Escenario");
   await expect(app.control.getByRole("status").filter({ hasText: /^El proyector pasó a / })).toBeVisible();
   await expect(other.getByRole("combobox")).toHaveText(/Escenario/);
-  await expect(ownScreenRow(settings).getByRole("combobox")).toHaveText(/Proyector/);
+  // Onto another screen: a third if there is one, else the operator's own (as a window). One projector, always.
+  await expect(settings.getByRole("combobox").filter({ hasText: /^Proyector$/ })).toHaveCount(1);
   await expect.poll(() => stageOpen(app)).toBe(true);
   await expect(settings.getByRole("list", { name: "Ahora" })).toContainText("Escenario visible en 2");
 
@@ -226,7 +227,18 @@ test("a projector never chosen opens beside the stage, never on its screen", asy
   await app.control.reload();
   await expect.poll(() => stageOpen(app)).toBe(true);
   await verseLive(app);
-  await expectMovableOnControlScreen(app);
+  const screens = (await app.invoke<unknown[]>("displays:list")).length;
+  if (screens === 2) {
+    // Nowhere else: a movable window on the operator's own screen.
+    await expectMovableOnControlScreen(app);
+  } else {
+    // A third screen: fullscreen there, and not the stage's.
+    const on = await app.electron.evaluate(({ BrowserWindow, screen }) => {
+      const w = BrowserWindow.getAllWindows().find((win) => !win.isDestroyed() && win.webContents.getURL().endsWith("/projection.html"))!;
+      return screen.getDisplayMatching(w.getBounds()).id;
+    });
+    expect(on).not.toBe(otherId);
+  }
   expect(await stageOpen(app)).toBe(true);
 });
 
@@ -243,4 +255,24 @@ test("«Identificar» puts each screen's number on it for a few seconds, the map
   await expect.poll(shown).toHaveLength(count);
   expect((await shown()).sort()).toEqual(Array.from({ length: count }, (_, i) => String(i + 1)));
   await expect.poll(shown, { timeout: 6_000 }).toHaveLength(0);
+});
+
+test("minimizing the control window leaves the projector on its screen (owner, 2026-11-13)", async ({ app }) => {
+  test.skip((await app.invoke<unknown[]>("displays:list")).length < 2, "needs two screens: on one, the projector is the operator's window");
+  await verseLive(app);
+  await app.electron.evaluate(({ BrowserWindow }) =>
+    BrowserWindow.getAllWindows().find((w) => w.webContents.getURL().endsWith("/index.html"))!.minimize(),
+  );
+  await expect
+    .poll(() => app.electron.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().find((w) => w.webContents.getURL().endsWith("/index.html"))!.isMinimized()))
+    .toBe(true);
+  await app.control.waitForTimeout(500);
+  const projector = await app.electron.evaluate(({ BrowserWindow }) => {
+    const w = BrowserWindow.getAllWindows().find((win) => !win.isDestroyed() && win.webContents.getURL().endsWith("/projection.html"))!;
+    return { minimized: w.isMinimized(), visible: w.isVisible() };
+  });
+  expect(projector).toEqual({ minimized: false, visible: true });
+  await app.electron.evaluate(({ BrowserWindow }) =>
+    BrowserWindow.getAllWindows().find((w) => w.webContents.getURL().endsWith("/index.html"))!.restore(),
+  );
 });

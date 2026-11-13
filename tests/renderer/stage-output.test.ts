@@ -161,11 +161,20 @@ describe("the stage panel's controls", () => {
   const running = { clock: { mode: "countdown", state: "running", endsAtMs: 2_000_000 }, totalMs: 30 * 60_000 } as const;
   const held = { clock: { mode: "countdown", state: "held", remainingMs: 30 * 60_000 }, totalMs: 30 * 60_000 } as const;
 
-  test("«Auto» is the preacher's while the countdown runs, the musicians' otherwise; a hand-picked one stays", () => {
-    expect(stage().layout).toBe("musicians");
+  test("«Auto»: the preacher's, unless a song, a presentation or a chapter's verse is live (its last slide too)", () => {
+    expect(stage().layout).toBe("preacher");
     expect(stage(NO_CURSOR, null, { ...NO_CONTROLS, countdown: running }).layout).toBe("preacher");
-    expect(stage(NO_CURSOR, null, { ...NO_CONTROLS, countdown: held }).layout).toBe("musicians");
-    const musicians = { ...NO_CONTROLS, countdown: running, settings: { ...DEFAULT_SETTINGS, "stage.layout": "musicians" as const } };
+    liveSong(1);
+    expect(stage().layout).toBe("musicians");
+    liveDeck(2, 2); // the last slide: nothing follows, and the musicians keep it large
+    expect(stage().next).toBeNull();
+    expect(stage().layout).toBe("musicians");
+    useProjectionStore.getState().setBase({ kind: "bible", text: "dieciséis", reference: "Juan 3:16", versionLabel: null });
+    expect(stage({ verses: [verse(16, "dieciséis")], currentVerseIndex: 0 }).layout).toBe("musicians");
+    // A program's verse whose chapter is not in the tab: nothing known to follow.
+    expect(stage(NO_CURSOR).layout).toBe("preacher");
+    const musicians = { ...NO_CONTROLS, settings: { ...DEFAULT_SETTINGS, "stage.layout": "musicians" as const } };
+    useProjectionStore.getState().setBase({ kind: "video", assetId: 3, url: "worship://asset/3", epoch: 1, startAtSeconds: 0 });
     expect(stage(NO_CURSOR, null, musicians).layout).toBe("musicians");
   });
 

@@ -169,14 +169,15 @@ function initDatabase(): void {
 }
 
 function wireMinimizeRestoreSync(controlWindow: BrowserWindow): void {
-  // The projection window loses `alwaysOnTop` on some platforms when the OS
-  // minimizes/restores its owning process — reasserted here on restore.
-  controlWindow.on("minimize", () => projectionState.getWindow()?.minimize());
+  // Minimizing the control window leaves the projector — and the stage — where they are (owner, 2026-11-13: it
+  // used to take the projector down with it, and the room lost the picture). The projection window can lose
+  // `alwaysOnTop` on some platforms when the OS minimizes/restores its owning process: reasserted on restore.
   controlWindow.on("restore", () => {
     const win = projectionState.getWindow();
     if (!win) return;
-    win.restore();
-    win.setAlwaysOnTop(true, "screen-saver");
+    if (win.isMinimized()) win.restore();
+    // Only the fullscreen one: on the operator's own screen it is a movable window, never on top.
+    if (win.isFullScreen()) win.setAlwaysOnTop(true, "screen-saver");
   });
   controlWindow.on("closed", () => {
     projectionState.getWindow()?.close();
@@ -198,8 +199,7 @@ function userFacingWindows(): BrowserWindow[] {
  *  A single entry point on purpose: `app.on("activate")` used to call
  *  `createControlWindow()` directly, which quietly skipped
  *  `wireMinimizeRestoreSync` — so after closing and reopening the app on
- *  macOS, minimizing no longer took the projection down with it and closing
- *  the control window left the projector on screen. */
+ *  macOS, closing the control window left the projector on screen. */
 function openControlWindow(): BrowserWindow {
   const win = createControlWindow();
   wireMinimizeRestoreSync(win);

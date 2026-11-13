@@ -98,17 +98,26 @@ function Notice({ text }: { text: string }) {
   );
 }
 
-/** What is live (large), the time, and what comes next. A countdown the operator keeps here shows small. */
+/** What is live (large), the time, and what comes next. A countdown sits beside the time, as large: in «Auto» a
+ *  verse projected mid-sermon brings this layout, and the preacher still has to read it from the pulpit. */
 function Musicians({ stage }: { stage: StageOutput | null }) {
   return (
     <div className="grid h-full grid-cols-[3fr_2fr] items-center gap-[2cqw] p-[2cqw]">
       <Frame output={stage?.current ?? null} videoStill={stage?.videoStill} />
       <aside className="flex min-w-0 flex-col gap-[1.5cqw]">
         <div className="flex items-center justify-between gap-[1cqw]">
-          <Clock cqw={7} hour12={stage?.hour12 ?? false} />
-          {stage?.notice ? <Notice text={stage.notice} /> : null}
+          <Clock cqw={stage?.countdown ? 6 : 7} hour12={stage?.hour12 ?? false} />
+          {stage?.countdown ? (
+            <Countdown countdown={stage.countdown} cqw={6} />
+          ) : stage?.notice ? (
+            <Notice text={stage.notice} />
+          ) : null}
         </div>
-        {stage?.countdown ? <Countdown countdown={stage.countdown} cqw={4} /> : null}
+        {stage?.countdown && stage.notice ? (
+          <div>
+            <Notice text={stage.notice} />
+          </div>
+        ) : null}
         <p className="font-medium tracking-wide text-white/60 uppercase" style={sized(1.6)}>
           {stage?.nextLabel}
         </p>

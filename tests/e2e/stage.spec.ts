@@ -108,60 +108,83 @@ test("a song's video background is drawn on the stage screen as its still, never
   await expect(stage.locator("[data-song-video] video")).toHaveCount(0);
 });
 
-test("the stage panel: only with a stage screen; its countdown and message reach the stage, and it switches layouts", async ({
+test("the stage panel: only with a stage screen; its countdown and message reach the stage, and it switches views", async ({
   app,
 }) => {
-  const panel = app.control.getByRole("region", { name: "Escenario" });
-  await expect(panel).toHaveCount(0);
+  const bar = app.control.getByRole("region", { name: "Escenario" });
+  const card = app.control.getByRole("dialog", { name: "Escenario" });
+  await expect(bar).toHaveCount(0);
   const opened = app.electron.waitForEvent("window", { predicate: isStage });
   await chooseStageScreen(app, true);
   const stage = await opened;
   await stage.waitForLoadState("domcontentloaded");
-  await expect(panel).toBeVisible();
+  await expect(bar).toBeVisible();
 
-  // A countdown armed is the musicians' layout still, its number small by the clock; started, the preacher's.
-  await panel.getByRole("button", { name: "30 minutos" }).click();
-  await expect(stage.getByRole("timer")).toHaveText("30:00");
-  await expect(stage.getByText("Sigue", { exact: true })).toBeVisible();
-  await panel.getByRole("button", { name: "Iniciar la cuenta" }).click();
-  await expect(stage.getByRole("timer")).toHaveText(/^29:5\d$/);
+  // «Automática» is the pastor's with nothing that has a next: the time large, no «Sigue».
+  await bar.getByRole("button", { name: "Abrir el panel del escenario" }).click();
+  await expect(card).toBeVisible();
   await expect(stage.getByText("Sigue", { exact: true })).toBeHidden();
-  // The monitor in the panel is the stage's own picture.
-  await expect(panel.getByRole("img", { name: "Lo que se ve en el escenario" }).getByRole("timer")).toHaveText(/^29:5\d$/);
-  await panel.getByRole("button", { name: "Un minuto más" }).click();
+
+  // A countdown armed, then started: the stage counts it large; the card's monitor is the stage's own picture.
+  await card.getByRole("button", { name: "30 minutos" }).click();
+  await expect(stage.getByRole("timer")).toHaveText("30:00");
+  await expect(card.getByText("Lista para iniciar")).toBeVisible();
+  await card.getByRole("button", { name: "Iniciar la cuenta" }).click();
+  await expect(stage.getByRole("timer")).toHaveText(/^29:5\d$/);
+  await expect(card.getByRole("img", { name: "Lo que se ve en el escenario" }).getByRole("timer")).toHaveText(/^29:5\d$/);
+  await card.getByRole("button", { name: "Un minuto más" }).click();
   await expect(stage.getByRole("timer")).toHaveText(/^30:5\d$/);
 
-  // A message: Enter shows it, at the foot, in either layout; Esc with nothing typed takes it off.
-  const field = panel.getByRole("textbox", { name: "Mensaje al escenario" });
+  // A message: Enter shows it at the foot of the stage; Esc with nothing typed takes it off.
+  const field = card.getByRole("textbox", { name: "Mensaje al escenario" });
   await field.fill("Último coro");
   await field.press("Enter");
   await expect(stage.getByRole("status")).toHaveText("Último coro");
+  await expect(card.getByRole("status", { name: "En el escenario" })).toContainText("Último coro");
   await expect(field).toHaveValue("");
-  await panel.getByRole("button", { name: /^Diseño del escenario/ }).click();
-  await app.control.getByRole("menuitemradio", { name: "Músicos" }).click();
-  await expect(stage.getByText("Sigue", { exact: true })).toBeVisible();
-  await expect(stage.getByRole("status")).toHaveText("Último coro");
   await field.press("Escape");
   await expect(stage.getByRole("status")).toHaveCount(0);
+  await expect(card).toBeVisible();
 
   // A ready phrase is one click; the operator's own words come back as one.
-  await panel.getByRole("button", { name: "Más despacio", exact: true }).click();
+  await card.getByRole("button", { name: "Más despacio", exact: true }).click();
   await expect(stage.getByRole("status")).toHaveText("Más despacio");
-  await expect(panel.getByRole("button", { name: "Último coro", exact: true })).toBeVisible();
+  await expect(card.getByRole("button", { name: "Último coro", exact: true })).toBeVisible();
 
-  // Folded it keeps its bar, and the fold is remembered.
-  await panel.getByRole("button", { name: "Plegar el panel del escenario" }).click();
-  await expect(field).toHaveCount(0);
-  await expect(panel.getByText("Más despacio")).toBeVisible();
-  expect((await app.invoke<Record<string, unknown>>("settings:get"))["stage.panelOpen"]).toBe(false);
+  // «Músicos» by hand: what is live, what follows, the countdown small; the message stays.
+  await card.getByRole("button", { name: "Músicos", exact: true }).click();
+  await expect(stage.getByText("Sigue", { exact: true })).toBeVisible();
+  await expect(stage.getByRole("status")).toHaveText("Más despacio");
+  await card.getByRole("button", { name: "Automática", exact: true }).click();
 
-  // M unfolds it and puts the keyboard in the message: what follows is typed, not a shortcut (B is BLACK).
+  // A press anywhere else folds it, with its animation; the bar keeps the count and the message.
+  await app.control.getByRole("heading", { name: "Programa" }).click();
+  await expect(card).toHaveCount(0);
+  await expect(bar.getByText("Más despacio")).toBeVisible();
+  await expect(bar.getByText(/^\d{2}:\d{2}$/)).toBeVisible();
+
+  // M opens it and puts the keyboard in the message: what follows is typed, not a shortcut (B is BLACK).
   await app.control.locator("body").press("m");
   await expect(field).toBeFocused();
   await app.control.keyboard.type("Hablar más alto");
   await expect(field).toHaveValue("Hablar más alto");
   await expect(app.control.getByRole("button", { name: "NEGRO", exact: true })).not.toHaveAttribute("aria-pressed", "true");
+  await card.getByRole("button", { name: "Cerrar el panel del escenario" }).click();
+  await expect(card).toHaveCount(0);
 
   await chooseStageScreen(app, false);
-  await expect(panel).toHaveCount(0);
+  await expect(bar).toHaveCount(0);
+});
+
+test("«Automática» shows the musicians' view while a chapter's verse is live, and the pastor's once it is off", async ({ app }) => {
+  const opened = app.electron.waitForEvent("window", { predicate: isStage });
+  await chooseStageScreen(app, true);
+  const stage = await opened;
+  await stage.waitForLoadState("domcontentloaded");
+  await app.openChapter("Juan 3");
+  await app.control.getByRole("listitem").filter({ hasText: JUAN_3_16 }).click();
+  await app.goLive();
+  await expect(stage.getByText("Sigue", { exact: true })).toBeVisible();
+  await app.liveColumn().getByRole("button", { name: "Sacar del aire" }).first().click();
+  await expect(stage.getByText("Sigue", { exact: true })).toBeHidden();
 });

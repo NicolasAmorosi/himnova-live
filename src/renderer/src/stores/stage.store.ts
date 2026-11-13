@@ -20,6 +20,9 @@ type StageStoreState = {
   output: StageOutput | null;
   /** Whether the stage window is on its screen (main's `stage-screen`): the panel's dot. */
   shown: boolean;
+  /** The panel's card is open (`StagePanel`). Never remembered across launches: an overlay over the left column. */
+  panelOpen: boolean;
+  setPanelOpen: (open: boolean) => void;
   /** The message field's text and urgency, kept while the panel folds. */
   draft: string;
   draftUrgent: boolean;
@@ -49,6 +52,8 @@ export const useStageStore = create<StageStoreState>((set, get) => ({
   shown: false,
   draft: "",
   draftUrgent: false,
+  panelOpen: false,
+  setPanelOpen: (panelOpen) => set({ panelOpen }),
 
   armCountdown: (totalMs) => set({ countdown: { clock: { mode: "countdown", state: "held", remainingMs: totalMs }, totalMs } }),
 

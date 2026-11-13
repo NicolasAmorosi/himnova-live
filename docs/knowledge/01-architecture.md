@@ -40,8 +40,9 @@ As in the legacy version (removed from the repo on 2026-10-22; still in git hist
 `projection:open` and, on the operator's own screen (one monitor, or chosen there), is a framed, movable
 800×450 window centred there, without `alwaysOnTop`. With no chosen screen connected it opens on the first that
 is neither the operator's nor the stage's (`shared/display-roles.ts`, `projectorDisplayFor`, shared with the
-control window's `display.store`). The minimize/restore sync between both windows lives in `main/index.ts`
-(`wireMinimizeRestoreSync`).
+control window's `display.store`). Minimizing the control window leaves the projector and the stage on their
+screens (owner, 2026-11-13); its restore only reasserts the fullscreen projector's `alwaysOnTop`, and closing it
+closes them (`wireMinimizeRestoreSync` in `main/index.ts`).
 
 Because the projection window is destroyed and recreated, main keeps the last `ProjectionOutput`
 sent (`src/main/services/projection-state.ts`) and replays it on `did-finish-load` — otherwise,

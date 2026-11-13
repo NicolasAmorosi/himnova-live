@@ -139,11 +139,13 @@ screen is assigned; plan 2026-11-13) runs what the stage says — never Settings
 holds a manual countdown (a `TimerClock` mark plus its length: one push per change, none per second, the stage
 ticks it itself with `useTimerNow`), one message at a time (`seq` makes a new one blink three times; urgent
 blinks until taken off) and the message field's draft. It travels in the `StageOutput` as state, never as a
-command. The layout is a setting (`stage.layout`): «auto» is resolved before it leaves (`resolveStageLayout`:
-the preacher's while the countdown runs, the musicians' otherwise). The countdown's colour is
+command. The view is a setting (`stage.layout`): «auto» is resolved before it leaves (`resolveStageLayout`:
+the pastor's, unless a song, a presentation or a verse whose chapter the Bible tab holds is live, its last slide
+included; owner, 2026-11-13). The countdown's colour is
 `countdownTone`, by what the stage SHOWS, so the colour and the digits change on the same frame; its thresholds
-shrink for short counts (`stageThresholds`). M focuses the message field (`use-global-shortcuts`), at once
-when the panel is open, so a letter typed right after it is never a shortcut.
+shrink for short counts (`stageThresholds`). Whether its card is open is `stage.store`'s `panelOpen`, never remembered across launches. M opens it and focuses
+the message field (`use-global-shortcuts`), at once when it is already open, so a letter typed right after it is
+never a shortcut.
 
 `src/renderer/src/effects/end-of-playback.ts` takes off the air, on its own, a video or an
 auto-advancing deck that finished playing by itself, leaving the logo scene

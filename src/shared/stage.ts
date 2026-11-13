@@ -8,11 +8,14 @@ import type { CountdownClock, StageCountdown, StageLayout, StageLayoutChoice } f
 
 const OVERRUN_FORMAT = { hour12: false, showSeconds: true, hideZeroHours: true, overrun: true } as const;
 
-/** «Auto» is the preacher's layout while the countdown runs, past zero included, and the musicians' when it is
- *  stopped or reset (owner, 2026-11-13). A hand-picked one stays. */
-export function resolveStageLayout(choice: StageLayoutChoice, countdown: Pick<StageCountdown, "clock"> | null): StageLayout {
+/**
+ * «Auto» is the preacher's layout, unless what is live has a next slide the musicians follow: a song, a
+ * presentation (PowerPoint, PDF…) or a verse of the chapter open in the Bible tab — its last slide included, so the
+ * last chorus stays large (owner, 2026-11-13). A hand-picked one stays.
+ */
+export function resolveStageLayout(choice: StageLayoutChoice, followed: boolean): StageLayout {
   if (choice !== "auto") return choice;
-  return countdown?.clock.state === "running" ? "preacher" : "musicians";
+  return followed ? "musicians" : "preacher";
 }
 
 /** Milliseconds left: negative past zero. */

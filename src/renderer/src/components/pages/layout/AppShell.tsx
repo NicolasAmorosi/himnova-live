@@ -54,7 +54,8 @@ export function AppShell({ onOpenPrograms, onOpenSettings }: AppShellProps) {
             the virtualized grid would mount a single row of tiles. `overflow-
             hidden` is what keeps that floor from spilling into the panel
             below instead. */}
-        <div className="flex min-h-0 flex-col overflow-hidden bg-surface">
+        {/* `relative`: the stage panel's card opens over this column (`StagePanel`). */}
+        <div className="relative flex min-h-0 flex-col bg-surface">
           <div className="grid min-h-0 flex-1 grid-rows-[minmax(160px,1fr)_minmax(220px,1.1fr)] divide-y divide-border overflow-hidden">
             <Panel>
               <SchedulePanel />

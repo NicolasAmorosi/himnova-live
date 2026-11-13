@@ -39,9 +39,9 @@ test("short counts scale the thresholds down: amber at a fifth, red at a twentie
   expect(stageThresholds(10 * 60_000, 5 * 60_000, 60_000)).toEqual({ warnMs: 2 * 60_000, alertMs: 30_000 });
 });
 
-test("«Auto» follows the countdown: preacher while it runs (past zero too), musicians when held or gone", () => {
-  expect(resolveStageLayout("auto", null)).toBe("musicians");
-  expect(resolveStageLayout("auto", left(-5_000))).toBe("preacher");
-  expect(resolveStageLayout("auto", { clock: { mode: "countdown", state: "held", remainingMs: 1 } })).toBe("musicians");
-  expect(resolveStageLayout("preacher", null)).toBe("preacher");
+test("«Auto» is the preacher's unless the live content has a next the musicians follow; a hand-picked one stays", () => {
+  expect(resolveStageLayout("auto", false)).toBe("preacher");
+  expect(resolveStageLayout("auto", true)).toBe("musicians");
+  expect(resolveStageLayout("preacher", true)).toBe("preacher");
+  expect(resolveStageLayout("musicians", false)).toBe("musicians");
 });

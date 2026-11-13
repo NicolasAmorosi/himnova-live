@@ -103,10 +103,8 @@ export type SettingsMap = {
   /** The musicians' screen (`main/windows/stage-window.ts`): what is live, what
    *  comes next and the time. `null`, the default, is no stage display. */
   "stage.displayId": number | null;
-  /** The stage panel (work screen, foot of the left column): the layout the operator picked, «auto» by default. */
+  /** The stage panel (work screen, foot of the left column): the view the operator picked, «auto» by default. */
   "stage.layout": StageLayoutChoice;
-  /** Unfolded, or only its bar. Remembered. */
-  "stage.panelOpen": boolean;
   /** Settings ▸ Screens ▸ Stage: the size of the time, countdown and message on the stage. */
   "stage.textSize": StageTextSize;
   "stage.clockFormat": StageClockFormat;
@@ -266,7 +264,6 @@ export const DEFAULT_SETTINGS: SettingsMap = {
   "projection.displayId": null,
   "stage.displayId": null,
   "stage.layout": "auto",
-  "stage.panelOpen": true,
   "stage.textSize": "normal",
   "stage.clockFormat": "auto",
   "stage.chords": true,
@@ -401,7 +398,6 @@ export const SETTINGS_VALIDATORS: Record<keyof SettingsMap, (value: unknown) => 
   "projection.displayId": isDisplayId,
   "stage.displayId": isDisplayId,
   "stage.layout": isOneOf(STAGE_LAYOUT_CHOICES),
-  "stage.panelOpen": isBoolean,
   "stage.textSize": isOneOf(STAGE_TEXT_SIZES),
   "stage.clockFormat": isOneOf(STAGE_CLOCK_FORMATS),
   "stage.chords": isBoolean,

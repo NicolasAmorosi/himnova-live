@@ -105,7 +105,11 @@ export function stageOutputFor(
     nextLabel: words.next,
     countdown,
     message: controls.message,
-    layout: resolveStageLayout(settings["stage.layout"], countdown),
+    // Followed: a song, a presentation, or a verse whose chapter the Bible tab holds (a next is known).
+    layout: resolveStageLayout(
+      settings["stage.layout"],
+      base?.kind === "deck" || base?.kind === "song" || (base?.kind === "bible" && bible.currentVerseIndex !== null),
+    ),
     // «Auto» is the language's: 12 hours in English.
     hour12: clockFormat === "auto" ? settings["ui.locale"] === "en" : clockFormat === "12h",
     textScale: TEXT_SCALE[settings["stage.textSize"]],

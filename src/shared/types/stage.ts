@@ -5,7 +5,8 @@ import type { TimerClock } from "./timer";
  * and which of its two layouts it shows. Run from the work screen's stage panel, never from Settings (owner).
  */
 
-/** «Auto» (the default) is the preacher's layout while the countdown runs, the musicians' otherwise. */
+/** «Auto» (the default) is the preacher's layout unless a song, a presentation or a chapter's verse is live
+ *  (`resolveStageLayout`). */
 export const STAGE_LAYOUT_CHOICES = ["auto", "musicians", "preacher"] as const;
 export type StageLayoutChoice = (typeof STAGE_LAYOUT_CHOICES)[number];
 export type StageLayout = Exclude<StageLayoutChoice, "auto">;
