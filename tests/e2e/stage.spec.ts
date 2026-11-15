@@ -304,6 +304,37 @@ test("the bar and the card share one head, the count in the time's place for the
   await expect(bar.getByRole("button")).toHaveCount(3);
 });
 
+test("a stage copy mounted mid-video starts where the projector is, paused included, not where it went live", async ({
+  app,
+}) => {
+  await app.addMedia("video", "clip.mp4");
+  const opened = app.electron.waitForEvent("window", { predicate: isStage });
+  await chooseStageScreen(app, true);
+  const stage = await opened;
+  await stage.waitForLoadState("domcontentloaded");
+  await app.previewFile("Videos", "clip");
+  await app.goLive();
+  const projector = await app.projector();
+  await expect.poll(async () => (await videoStates(projector))[0]?.currentTime ?? 0).toBeGreaterThan(1.5);
+  await app.liveColumn().getByRole("button", { name: "Pausar" }).click();
+  await expect.poll(async () => (await videoStates(projector))[0]?.paused).toBe(true);
+  const at = (await videoStates(projector))[0]!.currentTime;
+  // Another view mounts the stage's copy again, with the projector paused: no report will come to correct it.
+  const bar = app.control.getByRole("region", { name: "Escenario" });
+  const card = app.control.getByRole("dialog", { name: "Escenario" });
+  await bar.getByRole("heading", { name: "Escenario" }).click();
+  await card.getByRole("button", { name: "Músicos", exact: true }).click();
+  await expect.poll(async () => (await videoStates(stage)).length).toBe(1);
+  await expect.poll(async () => Math.abs(((await videoStates(stage))[0]?.currentTime ?? 0) - at)).toBeLessThan(0.3);
+  // The panel's monitor, mounted now, too.
+  await expect.poll(async () => {
+    const copies = await app.control.locator("[role=img][aria-label='Lo que se ve en el escenario'] video").evaluateAll(
+      (els) => (els as HTMLVideoElement[]).map((v) => v.currentTime),
+    );
+    return copies.length > 0 && copies.every((time) => Math.abs(time - at) < 0.3);
+  }).toBe(true);
+});
+
 test("Settings' «Copia del proyector»: the stage screen copies the projector and the work screen has no stage panel", async ({
   app,
 }) => {

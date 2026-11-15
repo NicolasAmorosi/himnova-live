@@ -18,6 +18,10 @@ class ProjectionState {
    *  stage screen while it plays videos.
    *  They get every output, never the audio tracks (they play no sound), and they report nothing. */
   private readonly mirrors = new Set<BrowserWindow>();
+  /** Mirrors the room does not watch (the stage screen): a video's start never waits for them to draw it. */
+  private readonly unwatched = new WeakSet<BrowserWindow>();
+  /** Windows whose `closed` already drops them: added again (the stage's videos toggled), never a second listener. */
+  private readonly listening = new WeakSet<BrowserWindow>();
   private lastOutput: ProjectionOutput | null = null;
   private lastAudioTracks: AudioTrackPush[] = [];
 
@@ -50,8 +54,14 @@ class ProjectionState {
     return this.window && !this.window.isDestroyed() ? this.window : null;
   }
 
-  addMirror(win: BrowserWindow): void {
+  /** `watched`: the room sees it (the NDI output feeds a stream), so a video taken live waits for it to draw its
+   *  first frame before it sounds (`holdUntilShown`). The stage screen is not. */
+  addMirror(win: BrowserWindow, watched = true): void {
     this.mirrors.add(win);
+    if (watched) this.unwatched.delete(win);
+    else this.unwatched.add(win);
+    if (this.listening.has(win)) return;
+    this.listening.add(win);
     win.once("closed", () => this.mirrors.delete(win));
   }
 
@@ -66,6 +76,11 @@ class ProjectionState {
 
   getMirrors(): BrowserWindow[] {
     return [...this.mirrors].filter((win) => !win.isDestroyed());
+  }
+
+  /** The projector and the mirrors the room watches: what a video taken live waits to see drawn. */
+  getWatched(): BrowserWindow[] {
+    return [this.getWindow(), ...this.getMirrors()].filter((win): win is BrowserWindow => win !== null && !this.unwatched.has(win));
   }
 
   send(output: ProjectionOutput): void {

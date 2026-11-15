@@ -99,9 +99,11 @@ function suppressesKey(target: EventTarget | null, key: string): boolean {
   return role !== null && ARROW_CONSUMING_ROLES.has(role) && ARROW_KEYS.has(key);
 }
 
-/** M: the stage panel's message, only while a stage screen is assigned. */
+/** M: the stage panel's message, only while there is a panel: a stage screen assigned, and not as a copy of the
+ *  projector (a card set open there would pop up the day the role changes back). */
 function stageMessageKey(): void {
-  if (useSettingsStore.getState().settings["stage.displayId"] !== null) focusStageMessage();
+  const { settings } = useSettingsStore.getState();
+  if (settings["stage.displayId"] !== null && !settings["stage.mirror"]) focusStageMessage();
 }
 
 function black(): void {

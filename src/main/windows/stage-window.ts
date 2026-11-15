@@ -31,7 +31,7 @@ const PRELOAD = path.join(__dirname, "../preload/index.js");
  * While it exists the screens stay awake, as they do while the projector
  * exists: the band reads the time long before the first GO LIVE.
  */
-let current: { win: BrowserWindow; displayId: number; blocker: number } | null = null;
+let current: { win: BrowserWindow; displayId: number; own: boolean; blocker: number } | null = null;
 let lastOutput: StageOutput | null = null;
 let shown = false;
 
@@ -51,11 +51,14 @@ export function syncStageWindow(byScreens = false): void {
     // Settings not ready: nothing to show yet.
   }
   const display = screen.getAllDisplays().find((candidate) => candidate.id === displayId);
-  if (!(current && !current.win.isDestroyed() && current.displayId === display?.id)) {
+  // The control window moved onto the stage's screen (or off it) is a different window there: a movable one, never
+  // a fullscreen one on top of the operator's (2026-11-14 review).
+  const own = display !== undefined && display.id === operatorDisplay().id;
+  if (!(current && !current.win.isDestroyed() && current.displayId === display?.id && current.own === own)) {
     closeStageWindow();
     if (display) {
-      const win = createStageWindow(display);
-      current = { win, displayId: display.id, blocker: powerSaveBlocker.start("prevent-display-sleep") };
+      const win = createStageWindow(display, own);
+      current = { win, displayId: display.id, own, blocker: powerSaveBlocker.start("prevent-display-sleep") };
       syncCopy();
     }
   }
@@ -98,7 +101,8 @@ function syncCopy(): void {
   if (!win || win.isDestroyed()) return;
   const copy = lastOutput?.videoMotion === true;
   if (copy === projectionState.isMirror(win)) return;
-  if (copy) projectionState.addMirror(win);
+  // Unwatched: the room does not look at it, so a video's start never waits for it to draw (2026-11-14 review).
+  if (copy) projectionState.addMirror(win, false);
   else projectionState.removeMirror(win);
   syncLiveEngine();
 }
@@ -109,10 +113,9 @@ export function stageSnapshot(): StageOutput | null {
   return lastOutput;
 }
 
-function createStageWindow(display: Electron.Display): BrowserWindow {
-  // On the operator's own screen (one screen, or testing) a window they can
-  // move, never a fullscreen one over the control window — the projector's rule.
-  const own = display.id === operatorDisplay().id;
+/** `own`: on the operator's own screen (one screen, or testing) a window they can move, never a fullscreen one over
+ *  the control window — the projector's rule. */
+function createStageWindow(display: Electron.Display, own: boolean): BrowserWindow {
   const win = new BrowserWindow({
     x: display.bounds.x,
     y: display.bounds.y,

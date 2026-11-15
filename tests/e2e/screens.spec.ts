@@ -242,6 +242,35 @@ test("a projector never chosen opens beside the stage, never on its screen", asy
   expect(await stageOpen(app)).toBe(true);
 });
 
+test("the control window dragged onto the stage's screen makes the stage a movable window there, and back", async ({ app }) => {
+  test.skip((await app.invoke<unknown[]>("displays:list")).length < 2, "needs two screens");
+  const ids = await app.electron.evaluate(({ BrowserWindow, screen }) => {
+    const control = screen.getDisplayMatching(BrowserWindow.getAllWindows()[0]!.getBounds());
+    return { control: control.id, other: screen.getAllDisplays().find((d) => d.id !== control.id)!.id };
+  });
+  await app.invoke("settings:set", { "projection.displayId": null, "stage.displayId": ids.other });
+  await app.control.reload();
+  const stage = () =>
+    app.electron.evaluate(({ BrowserWindow }) => {
+      const w = BrowserWindow.getAllWindows().find((win) => !win.isDestroyed() && win.webContents.getURL().endsWith("/stage.html"));
+      return w ? { full: w.isFullScreen(), onTop: w.isAlwaysOnTop() } : null;
+    });
+  const moveControlTo = (displayId: number) =>
+    app.electron.evaluate(({ BrowserWindow, screen }, id) => {
+      const area = screen.getAllDisplays().find((d) => d.id === id)!.workArea;
+      const control = BrowserWindow.getAllWindows().find((w) => w.webContents.getURL().endsWith("/index.html"))!;
+      control.setBounds({ x: area.x + 40, y: area.y + 40, width: 1000, height: 700 });
+      // What the OS sends when a drag ends: a programmatic move sends nothing on macOS.
+      control.emit("moved");
+    }, displayId);
+  await expect.poll(stage).toMatchObject({ onTop: true });
+  // Over the operator's own window it would cover it: a framed window there instead (2026-11-14 review).
+  await moveControlTo(ids.other);
+  await expect.poll(stage, { timeout: 10_000 }).toEqual({ full: false, onTop: false });
+  await moveControlTo(ids.control);
+  await expect.poll(stage, { timeout: 10_000 }).toMatchObject({ onTop: true });
+});
+
 test("«Identificar» puts each screen's number on it for a few seconds, the map's numbers", async ({ app }) => {
   const count = (await app.invoke<unknown[]>("displays:list")).length;
   const settings = await screensSettings(app);

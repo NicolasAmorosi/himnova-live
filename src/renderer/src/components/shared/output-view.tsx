@@ -51,6 +51,12 @@ const VIDEO_READY_TIMEOUT_MS = 3000;
 
 export type OutputViewMode = "live" | "preview" | "monitor";
 
+/** Where a video element starts once it can seek: a copy's from the projector's last report of this very video,
+ *  anything else (the projector itself) from the point it went live at. */
+function startFrom(status: MediaStatus | null | undefined, epoch: number, startAtSeconds: number): number {
+  return status && status.epoch === epoch ? status.currentTimeSeconds : startAtSeconds;
+}
+
 /**
  * Whether a monitor's own copy of a video is in a state where a resync seek
  * helps rather than hurts. A copy that has no frame yet or is already seeking
@@ -300,7 +306,8 @@ function LiveVideo({
   }, [mode, liveVideoStatus, epoch]);
 
   // The NDI window's copy keeps step with the projector's, whose sound NDI sends (`follow-projector.ts`).
-  // Only it gets a status in "live" mode; the projector's own view never does.
+  // Only the copies get a status in "live" mode (`ProjectorCopy`: NDI, the stage as «Proyector»); the projector's
+  // own view never does.
   useEffect(() => {
     if (mode !== "live" || !liveVideoStatus || liveVideoStatus.epoch !== epoch) return;
     const element = elementRef.current;
@@ -310,12 +317,19 @@ function LiveVideo({
 
   // The component is keyed by epoch at the call site, so this instance only
   // ever has one `startAtSeconds` for its whole lifetime — applying it once,
-  // on mount, is correct without watching for later changes.
+  // on mount, is correct without watching for later changes. A copy (a
+  // monitor, the stage, the NDI window) starts where the projector last said
+  // it was instead: mounted mid-video — a stage view switched, a monitor
+  // reopened — it began at the GO LIVE point, and a paused projector sends no
+  // new report to correct it (2026-11-14 review).
+  const statusRef = useRef(liveVideoStatus);
+  statusRef.current = liveVideoStatus;
   useEffect(() => {
     const element = elementRef.current;
-    if (!element || startAtSeconds <= 0) return;
+    if (!element) return;
     const apply = () => {
-      element.currentTime = startAtSeconds;
+      const at = startFrom(statusRef.current, epoch, startAtSeconds);
+      if (at > 0) element.currentTime = at;
     };
     if (element.readyState >= 1) apply();
     else element.addEventListener("loadedmetadata", apply, { once: true });
@@ -586,12 +600,16 @@ function SlideVideoLayer({
   }, []);
 
   // Keyed by epoch at the call site, so this instance has exactly one
-  // `startAtSeconds` for its whole life — applied once, on mount.
+  // `startAtSeconds` for its whole life — applied once, on mount; a copy's from
+  // the projector's last report, like `LiveVideo`'s.
+  const statusRef = useRef(status);
+  statusRef.current = status;
   useEffect(() => {
     const element = elementRef.current;
-    if (!element || slideVideo.startAtSeconds <= 0) return;
+    if (!element) return;
     const apply = () => {
-      element.currentTime = slideVideo.startAtSeconds;
+      const at = startFrom(statusRef.current, epoch, slideVideo.startAtSeconds);
+      if (at > 0) element.currentTime = at;
     };
     if (element.readyState >= 1) apply();
     else element.addEventListener("loadedmetadata", apply, { once: true });

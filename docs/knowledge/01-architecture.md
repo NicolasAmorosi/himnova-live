@@ -69,7 +69,12 @@ live frame follows those reports like the LIVE monitor's copy, and as «Proyecto
 «Copia del proyector» role, `stage.mirror`, which locks it there and hides the panel; owner 2026-11-13) it draws
 `ProjectorCopy` (the NDI window's copy of the projector, `components/shared/projector-copy.tsx`). Turning it off takes
 it out again and `showOnly` stops the frames. Its window is always muted: no audio and no media commands of its own.
-The control window builds its picture (`lib/stage-output.ts`, pushed by
+It is an **unwatched** mirror (`addMirror(win, false)`): a video taken live from PREVIEW waits for the projector and
+the NDI output to draw it before it sounds (`holdUntilShown`, `projectionState.getWatched()`), never for the stage,
+which the room does not see. A copy mounted mid-video (a view switched, the window reopened) starts where the
+projector's last report says, not at the GO LIVE point (`startFrom` in `output-view.tsx`): a paused projector sends
+no report to correct it. Whether it is the movable kind is decided with its screen: the control window dragged onto
+the stage's screen (or off it) rebuilds it (`current.own`), or the fullscreen stage covered the operator's. The control window builds its picture (`lib/stage-output.ts`, pushed by
 `effects/stage-sync.ts` through `stage:show`); main keeps the last one for a window that opens
 later (`stage:getSnapshot`). On the operator's own screen it is a movable 800×450 window, never a
 fullscreen one over the control window. Its keys are forwarded to the control window, like the

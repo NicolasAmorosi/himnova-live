@@ -6,6 +6,8 @@ import { ProjectorCopy } from "@renderer/components/shared/projector-copy";
 import type { StageOutput } from "@shared/types/projection";
 
 const NO_MEDIA: StageMedia = { video: null, slideVideo: null };
+/** One element for the whole life of the window: a new one each render re-rendered the copy with every report. */
+const COPY = <ProjectorCopy />;
 
 /**
  * The stage screen (musicians and preacher): `StageView` of the last `StageOutput`, like the projector a pure
@@ -42,7 +44,7 @@ export function StageApp() {
 
   return (
     <main className="h-screen w-screen">
-      <StageView copy={<ProjectorCopy />} media={media} stage={stage} />
+      <StageView copy={COPY} media={media} stage={stage} />
     </main>
   );
 }

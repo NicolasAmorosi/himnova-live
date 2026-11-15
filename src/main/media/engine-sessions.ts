@@ -246,7 +246,7 @@ function takePreviewEngine(url: string, atSeconds: number): (Session & { engine:
 /** The room must not hear a video before it sees it: an engine taken from PREVIEW is already open, so it would
  *  sound the instant it is told to play, before the projector and the NDI window have even mounted its canvas. */
 function holdUntilShown(session: Session): void {
-  const waiting = new Set([projectionState.getWindow(), ...projectionState.getMirrors()].flatMap((win) => (win ? [win.webContents.id] : [])));
+  const waiting = new Set(projectionState.getWatched().map((win) => win.webContents.id));
   if (!waiting.size) return;
   const timer = setTimeout(() => {
     if (videos.video === session) console.warn(`[engine] live video played after ${SHOWN_CAP_MS} ms unseen: ${session.url}`);
