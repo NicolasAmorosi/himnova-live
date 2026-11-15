@@ -5,6 +5,10 @@
 // The first start asks for «System Audio Recording» (Info.plist's NSAudioCaptureUsageDescription, the app's own);
 // there is no API to ask beforehand, and a refusal gives silence, not an error — the engine reports the level.
 // An engine started later (a new video) joins the tap: the list of processes is followed as it changes.
+//
+// Which output (proto 8): a stereo mixdown taps the processes' sound whatever device it goes to, PREVIEW's
+// headphones included; when main names the LIVE output, or says PREVIEW plays apart, the tap is that device's
+// (`initWithProcesses:andDeviceUID:withStream:`, the default output's for «auto»), in that device's format.
 #include "ndi-audio.h"
 
 #import <CoreAudio/AudioHardwareTapping.h>
@@ -65,8 +69,10 @@ NSString* defaultOutputUID() {
   return (__bridge_transfer NSString*)uid;
 }
 
-API_AVAILABLE(macos(14.2)) bool startTap(std::string& why) {
-  CATapDescription* description = [[CATapDescription alloc] initStereoMixdownOfProcesses:appProcesses()];
+API_AVAILABLE(macos(14.2)) bool startTap(NSString* deviceUID, std::string& why) {
+  CATapDescription* description =
+      deviceUID ? [[CATapDescription alloc] initWithProcesses:appProcesses() andDeviceUID:deviceUID withStream:0]
+                : [[CATapDescription alloc] initStereoMixdownOfProcesses:appProcesses()];
   description.privateTap = YES;
   description.muteBehavior = CATapUnmuted;
   tapDescription = description;
@@ -75,7 +81,7 @@ API_AVAILABLE(macos(14.2)) bool startTap(std::string& why) {
     why = "AudioHardwareCreateProcessTap " + std::to_string((int)st);
     return false;
   }
-  NSString* output = defaultOutputUID();
+  NSString* output = deviceUID ?: defaultOutputUID();
   NSMutableDictionary* aggregate = [@{
     @kAudioAggregateDeviceUIDKey : NSUUID.UUID.UUIDString,
     @kAudioAggregateDeviceNameKey : @"Himnova Live NDI",
@@ -159,11 +165,16 @@ API_AVAILABLE(macos(14.2)) bool startTap(std::string& why) {
 }
 }  // namespace
 
-bool startAppAudio(unsigned long appPid, AudioSink* audioSink, std::string& why) {
+bool startAppAudio(unsigned long appPid, const AudioRoute& route, AudioSink* audioSink, std::string& why) {
   app = (pid_t)appPid;
   sink = audioSink;
+  // mpv names a Core Audio device «coreaudio/<its UID>».
+  const std::string prefix = "coreaudio/";
+  NSString* uid = route.device.compare(0, prefix.size(), prefix) == 0 ? @(route.device.substr(prefix.size()).c_str())
+                  : route.previewApart                                ? defaultOutputUID()
+                                                                      : nil;
   if (@available(macOS 14.2, *)) {
-    if (startTap(why)) return true;
+    if (startTap(uid, why)) return true;
     stopAppAudio();
     return false;
   }

@@ -1,6 +1,8 @@
-// Linux: the default output's monitor through libpulse-simple, loaded at run time (PulseAudio, and PipeWire through
-// pipewire-pulse): the whole computer's sound, not only the app's — a first version (2026-11-10). Capturing only
-// the app's streams would mean linking PipeWire nodes per application (obs-pipewire-audio-capture is the reference).
+// Linux: the LIVE output's monitor through libpulse-simple, loaded at run time (PulseAudio, and PipeWire through
+// pipewire-pulse): the whole computer's sound on that output, not only the app's (a first version, 2026-11-10).
+// mpv names it «pulse/<sink>» (or «pipewire/<node>», the same name under pipewire-pulse); «auto» is the default's.
+// Capturing only the app's streams would mean linking PipeWire nodes per application (obs-pipewire-audio-capture is
+// the reference).
 #include "ndi-audio.h"
 
 #include <dlfcn.h>
@@ -39,7 +41,7 @@ pa_usec_t (*simpleLatency)(pa_simple*, int*) = nullptr;
 void (*simpleFree)(pa_simple*) = nullptr;
 }  // namespace
 
-bool startAppAudio(unsigned long, AudioSink* sink, std::string& why) {
+bool startAppAudio(unsigned long, const AudioRoute& route, AudioSink* sink, std::string& why) {
   void* lib = dlopen("libpulse-simple.so.0", RTLD_NOW);
   if (!lib) {
     why = "libpulse-simple.so.0 not found";
@@ -57,8 +59,10 @@ bool startAppAudio(unsigned long, AudioSink* sink, std::string& why) {
   pa_sample_spec spec{5, rate, 2};
   pa_buffer_attr attr{(uint32_t)-1, (uint32_t)-1, (uint32_t)-1, (uint32_t)-1, frames * 8};
   int error = 0;
-  stream = simpleNew(nullptr, "Himnova Live", 2 /* PA_STREAM_RECORD */, "@DEFAULT_MONITOR@", "NDI audio", &spec, nullptr,
-                     &attr, &error);
+  std::string source = "@DEFAULT_MONITOR@";
+  for (std::string prefix : {"pulse/", "pipewire/"})
+    if (route.device.compare(0, prefix.size(), prefix) == 0) source = route.device.substr(prefix.size()) + ".monitor";
+  stream = simpleNew(nullptr, "Himnova Live", 2 /* PA_STREAM_RECORD */, source.c_str(), "NDI audio", &spec, nullptr, &attr, &error);
   if (!stream) {
     why = "pa_simple_new " + std::to_string(error);
     return false;
