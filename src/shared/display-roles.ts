@@ -16,3 +16,13 @@ export function projectorDisplayFor(
   if (preferredId !== null && ids.includes(preferredId)) return preferredId;
   return ids.find((id) => id !== operatorId && id !== stageId) ?? (ids.includes(operatorId) ? operatorId : (ids[0] ?? null));
 }
+
+/**
+ * A 2.9 profile could leave the stage on the projector's screen: the stage just stayed off. 2.10 keeps the two apart,
+ * and with three screens its first display event moved the projector to the third, mid-service (2026-11-15 final
+ * review). Such a profile is read the way 2.9 played it: the projector keeps its screen and the stage loses its role.
+ * The operator's own screen still holds both, as movable windows.
+ */
+export function stageSharesProjector(projectorId: number | null, stageId: number | null, operatorId: number): boolean {
+  return stageId !== null && stageId === projectorId && stageId !== operatorId;
+}

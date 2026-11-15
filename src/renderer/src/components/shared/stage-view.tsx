@@ -107,19 +107,42 @@ function Clock({ hour12, cqw }: { hour12: boolean; cqw: number }) {
   );
 }
 
-/** The count, coloured by what is left; it blinks three times entering red and again at zero (`key` remounts it,
- *  which restarts the animation). Past zero it keeps counting up, red: it never stops nor disappears. Its fill's
- *  padding is given back as a negative margin, so its digits stand exactly where the time's stood. */
+/** `.wa-stage-blink`: three blinks of 0.7 s. */
+const BLINK_MS = 2100;
+/** When this window saw the count turn red or go over. A view switch remounts the count, and its blink must go on
+ *  from there, never start again (2026-11-15 walkthrough). Each window keeps its own. */
+let blinkFrom: { tone: CountdownTone; at: number } | null = null;
+
+function noteTone(tone: CountdownTone): void {
+  if (tone !== "alert" && tone !== "over") blinkFrom = null;
+  else if (blinkFrom?.tone !== tone) blinkFrom = { tone, at: Date.now() };
+}
+
+/** The count's digits, mounted again with each tone (`key`): they blink only what is left of that tone's blink. */
+function Digits({ text }: { text: string }) {
+  const [elapsed] = useState(() => (blinkFrom ? Date.now() - blinkFrom.at : BLINK_MS));
+  const blinking = elapsed < BLINK_MS;
+  return (
+    <span className={cn("block", blinking && "wa-stage-blink")} style={blinking ? { animationDelay: `-${elapsed}ms` } : undefined}>
+      {text}
+    </span>
+  );
+}
+
+/** The count, coloured by what is left; it blinks three times entering red and again at zero, once (`Digits`). Past
+ *  zero it keeps counting up, red: it never stops nor disappears. Its fill's padding is given back as a negative
+ *  margin, so its digits stand exactly where the time's stood. */
 function Countdown({ countdown, cqw, fit = false }: { countdown: StageCountdown; cqw: number; fit?: boolean }) {
   const now = useTimerNow(countdown.clock, COUNTDOWN_FORMAT);
   const tone = countdownTone(countdown, now);
+  noteTone(tone);
   const text = formatCountdown(countdown.clock, now);
   // The pastor's: as large as fits — `H:MM:SS` is wider than `MM:SS`, and the height is the stage's own.
   const style: CSSProperties = fit
     ? { fontSize: `calc(min(${cqw}cqw, ${(cqw * 5) / Math.max(5, text.length)}cqw, 38cqh) * var(--stage-scale))` }
     : sized(cqw);
   return (
-    // The colour eases on this one; the blink restarts on the inner one (`key`), which inherits it.
+    // The colour eases on this one; the blink is the inner one's (`key`), which inherits it.
     <span
       className={cn(
         "-mx-[0.15em] flex rounded-md px-[0.15em] leading-none font-bold tabular-nums transition-colors duration-700",
@@ -129,9 +152,7 @@ function Countdown({ countdown, cqw, fit = false }: { countdown: StageCountdown;
       role="timer"
       style={style}
     >
-      <span className={cn("block", (tone === "alert" || tone === "over") && "wa-stage-blink")} key={tone}>
-        {text}
-      </span>
+      <Digits key={tone} text={text} />
     </span>
   );
 }

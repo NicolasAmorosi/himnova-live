@@ -25,7 +25,7 @@ import {
 import { importPaths } from "./services/library-import";
 import { setBibleDb } from "./ipc/handlers/bible";
 import { registerAllIpcHandlers } from "./ipc";
-import { createControlWindow } from "./windows/control-window";
+import { createControlWindow, operatorDisplay } from "./windows/control-window";
 import { installNavigationGuards } from "./windows/navigation-guards";
 import { installApplicationMenu } from "./windows/app-menu";
 import { holdQuitUntilAnswered, installCloseGuard } from "./windows/close-guard";
@@ -60,6 +60,7 @@ import { appendLogLine, installMainLog } from "./logging";
 import { initUpdates } from "./updates/updater";
 import { retireFormerMacApp } from "./updates/former-mac-app";
 import { LATEST_WHATS_NEW } from "@shared/whats-new";
+import { stageSharesProjector } from "@shared/display-roles";
 
 /** Long enough to be safely past the first paint of the control window — the
  *  prune walks a directory and is worth nothing compared to the app being on
@@ -207,6 +208,12 @@ function userFacingWindows(): BrowserWindow[] {
 function openControlWindow(): BrowserWindow {
   const win = createControlWindow();
   wireMinimizeRestoreSync(win);
+  // Before the stage window opens, and without a word: the operator never chose anything new (`stageSharesProjector`).
+  const settings = getSettingsRepo();
+  if (stageSharesProjector(settings.get("projection.displayId"), settings.get("stage.displayId"), operatorDisplay().id)) {
+    settings.setMany({ "stage.displayId": null });
+    console.info("[screens] the stage shared the projector's screen (a 2.9 profile): the stage is off");
+  }
   syncStageWindow();
   // After the control window's page: Playwright takes the first window that loads as the control one, and
   // the NDI output's is a window too.

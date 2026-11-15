@@ -160,8 +160,8 @@ test("the stage panel: only with a stage screen; its countdown and message reach
   await expect(card.getByText("En pausa")).toBeVisible();
   await card.getByRole("button", { name: "Seguir la cuenta" }).click();
 
-  // A message: Enter shows it at the foot of the stage; Esc with nothing typed takes it off, and so does the
-  // section's «Quitar».
+  // A message: Enter shows it at the foot of the stage. Esc never takes it off (its ✕ does): it drops a draft, and with
+  // nothing typed folds the card, as anywhere in it.
   const field = card.getByRole("textbox", { name: "Mensaje al escenario" });
   await field.fill("Último coro");
   await field.press("Enter");
@@ -170,11 +170,19 @@ test("the stage panel: only with a stage screen; its countdown and message reach
   await expect(card.getByRole("button", { name: "Último coro", exact: true })).toHaveAttribute("aria-pressed", "true");
   await expect(field).toHaveValue("");
   const height = (await card.boundingBox())!.height;
+  await field.fill("Otra cosa");
   await field.press("Escape");
-  await expect(stage.getByRole("status")).toHaveCount(0);
+  await expect(field).toHaveValue("");
   await expect(card).toBeVisible();
+  // Fails if Esc takes the message down (2026-11-15 walkthrough: it did, and the card stayed open).
+  await field.press("Escape");
+  await expect(card).toHaveCount(0);
+  await expect(stage.getByRole("status")).toHaveText("Último coro");
+  await bar.getByRole("heading", { name: "Escenario" }).click();
+  await card.getByRole("button", { name: "Quitar el mensaje del escenario" }).click();
+  await expect(stage.getByRole("status")).toHaveCount(0);
   // Nothing in the card grows or shrinks with a message.
-  expect((await card.boundingBox())!.height).toBe(height);
+  await expect.poll(async () => (await card.boundingBox())?.height).toBe(height);
 
   // A ready phrase is one click, and another takes it off.
   const slower = card.getByRole("button", { name: "Más despacio", exact: true });
@@ -223,6 +231,29 @@ test("the stage panel: only with a stage screen; its countdown and message reach
 
   await chooseStageScreen(app, false);
   await expect(bar).toHaveCount(0);
+});
+
+test("the count blinks once as it goes over, never again because the view changed", async ({ app }) => {
+  const opened = app.electron.waitForEvent("window", { predicate: isStage });
+  await chooseStageScreen(app, true);
+  const stage = await opened;
+  await stage.waitForLoadState("domcontentloaded");
+  const card = app.control.getByRole("dialog", { name: "Escenario" });
+  await app.control.getByRole("region", { name: "Escenario" }).getByRole("heading", { name: "Escenario" }).click();
+  await card.getByRole("textbox", { name: "Duración de la cuenta" }).fill("1");
+  await card.getByRole("button", { name: "Iniciar la cuenta" }).click();
+  await card.getByRole("button", { name: "Un minuto menos" }).click();
+  const timer = stage.getByRole("timer");
+  await expect(timer).toHaveAttribute("data-tone", "over");
+  await expect(timer.locator("span")).toHaveClass(/wa-stage-blink/);
+  // Its three blinks are over (2.1 s); the operator switches views.
+  await stage.waitForTimeout(2500);
+  await card.getByRole("button", { name: "Músicos", exact: true }).click();
+  await expect(layout(stage)).toHaveAttribute("data-layout", "musicians");
+  await expect(timer).toHaveCount(1);
+  await expect(timer).toHaveAttribute("data-tone", "over");
+  // Fails if the remount blinks again (2026-11-15 walkthrough: every view change restarted it).
+  await expect(timer.locator("span")).not.toHaveClass(/wa-stage-blink/);
 });
 
 test("«Auto» shows the musicians' view while a chapter's verse is live, and the pastor's once it is off", async ({ app }) => {

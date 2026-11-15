@@ -468,6 +468,7 @@
    *   14  text-sm     body, fields, buttons; Title h3 = a section's title
    *   15  Title h2    the three column titles (condensed reads smaller)
    *   20  text-xl     an editor's title (condensed)
+   *   24  Readout     a figure read at a glance (the stage panel's countdown)
    * Body text never goes under 13 px on the dark theme: small light-on-dark
    * text is what reads worst in a dark booth (NN/g, «Dark Mode»).
    *

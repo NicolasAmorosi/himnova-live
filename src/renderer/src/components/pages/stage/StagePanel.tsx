@@ -12,7 +12,7 @@ import {
 import { useT } from "@renderer/lib/i18n/i18n-provider";
 import { cn } from "@renderer/lib/utils";
 import { useTimerNow } from "@renderer/lib/hooks/use-timer-now";
-import { Button, Caption, Icon, IconButton, Input, Segmented, StatusToken, Title, Tooltip } from "@renderer/components/ui";
+import { Button, Caption, Icon, IconButton, Input, Readout, Segmented, StatusToken, Title, Tooltip } from "@renderer/components/ui";
 import { ReopenStage } from "@renderer/components/shared/reopen-stage";
 import { StageView } from "@renderer/components/shared/stage-view";
 import { useDisplayStore } from "@renderer/stores/display.store";
@@ -250,7 +250,8 @@ function MonitorSection() {
         <StageView media={moving ? media : undefined} stage={output} />
       </div>
       <Segmented<StageLayoutChoice>
-        className="w-full"
+        // Four views in the column's width: the labels get the room the padding would take (a 1000 px window).
+        className="w-full [&>button]:px-1"
         label={t("stagePanel.layout")}
         onChange={(value) => void update({ "stage.layout": value })}
         options={STAGE_LAYOUT_CHOICES.map((value) => ({ label: t(`stagePanel.layouts.${value}`), value }))}
@@ -358,15 +359,9 @@ function CountdownSection() {
         </div>
       ) : (
         <div className="flex h-8 items-center gap-1.5">
-          <span
-            className={cn(
-              "min-w-0 flex-1 truncate text-2xl leading-none font-semibold tabular-nums",
-              running ? TONE_INK[tone] : "text-muted-foreground",
-            )}
-            role="timer"
-          >
+          <Readout className={cn("min-w-0 flex-1 truncate", running ? TONE_INK[tone] : "text-muted-foreground")} role="timer">
             {text}
-          </span>
+          </Readout>
           <Tooltip floating content={t("stagePanel.minus")}>
             <Button aria-label={t("stagePanel.minus")} onClick={() => nudgeCountdown(-MINUTE)} variant="outline">
               −1
@@ -422,11 +417,11 @@ function MessageSection() {
     if (e.key === "Enter") {
       e.preventDefault();
       send();
-    } else if (e.key === "Escape") {
-      // A draft is dropped first; with nothing typed, Esc takes the message off the stage. The card stays open.
+    } else if (e.key === "Escape" && draft) {
+      // A draft is dropped first; with nothing typed, Esc folds the card like anywhere in it. It never takes the
+      // message off the stage: that is its ✕ (2026-11-15 walkthrough: it did, and the card stayed open).
       e.stopPropagation();
-      if (draft) useStageStore.setState({ draft: "" });
-      else clearMessage();
+      useStageStore.setState({ draft: "" });
     }
   };
 

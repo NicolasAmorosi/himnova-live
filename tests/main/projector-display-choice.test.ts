@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
 import { chooseProjectorMove, chooseStageDisplay } from "../../src/main/windows/projector-display-choice";
-import { projectorDisplayFor } from "../../src/shared/display-roles";
+import { projectorDisplayFor, stageSharesProjector } from "../../src/shared/display-roles";
 
 // Screens: 1 = the operator's (hosts the control window), 2 = the projector, 3 = a third one.
 
@@ -71,4 +71,17 @@ test("never the projector's screen, even when the projector has not opened yet",
 test("the operator's own screen takes both, as movable windows", () => {
   expect(chooseStageDisplay([1], 1, 1, 1)).toBe(1);
   expect(chooseStageDisplay([1, 2], 1, 1, 2)).toBe(1);
+});
+
+test("a 2.9 profile with the stage on the projector's screen keeps the projector there and loses the stage", () => {
+  // Fails if it is kept: with a third screen, the first display event moved the projector there mid-service.
+  expect(stageSharesProjector(2, 2, 1)).toBe(true);
+  expect(chooseProjectorMove([1, 2, 3], 1, 2, 2, [], 2)).toBe(3);
+  // Read as 2.9 played it: the stage off, the projector stays.
+  expect(chooseProjectorMove([1, 2, 3], 1, 2, 2, [], null)).toBeNull();
+  // The operator's own screen holds both (movable windows, one screen): nothing to change.
+  expect(stageSharesProjector(1, 1, 1)).toBe(false);
+  expect(stageSharesProjector(2, 3, 1)).toBe(false);
+  expect(stageSharesProjector(null, null, 1)).toBe(false);
+  expect(stageSharesProjector(null, 2, 1)).toBe(false);
 });
