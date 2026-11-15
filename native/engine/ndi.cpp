@@ -9,15 +9,18 @@
 //     Windows  --parent <pid>          stdin: «frame <NT handle value in main>» per frame
 //     macOS    --mach-service <name>   the IOSurface's mach port, one mach message per frame
 //     Linux    --fd-socket <path>      a SOCK_SEQPACKET socket: «w h modifier planes stride offset…» + the dmabuf fds
-//   stdin also takes «quit» (or EOF), and since proto 8 «audio-device <mpv name>» and «preview-apart 0|1», which
-//   move the capture (an older sender answers them with `done` on Windows: main sends them only after `hello`).
+//   stdin also takes «quit» (or EOF), and since proto 8 «preview-apart 0|1» then «audio-device <mpv name>», which
+//   move the capture when the second comes (an older sender answers them with `done` on Windows: main sends them only
+//   after `hello`). The same route again starts a capture that is off (its device was gone) at once; it is tried every
+//   2 s anyway.
 //   Engine → main (stdout), JSON:
 //     {"ev":"hello","proto":8}                   first of all
 //     {"ev":"ready","runtime":…}                 listening for frames
 //     {"ev":"done"}                              read the frame main is holding: it can release it now
 //     {"ev":"status","receivers":…}              on every change; with none, a new frame is encoded once, not repeated
 //     {"ev":"audio","state":"on"|"off","detail":…,"level":…}  the sound: on (and its loudest sample in the last second,
-//                                                dBFS, once a second), or off and why
+//                                                dBFS, once a second), or off and why (said again only when the reason
+//                                                changes; a capture that stops on its own is off, and comes back on)
 //     {"ev":"error","code":…,"detail":…}         ndi-runtime-missing (exit 3) · ndi-send (exit 4) · ndi-gpu
 #include <algorithm>
 #include <atomic>
@@ -56,27 +59,22 @@ struct Options {
 
 static std::atomic<bool> quitting{false};
 
-// The route main last asked for, read by the audio thread, which restarts the capture when it changes.
+// The route main last asked for, read by the audio thread: a different one moves the capture, the same one starts a
+// capture that is off (main resends it when a device comes back). Main sends `preview-apart` first and `audio-device`
+// last, and only the last is acted on: never a capture started on half a route.
 static std::mutex routeMutex;
 static AudioRoute wantedRoute;
-static std::atomic<bool> routeChanged{false};
+static std::atomic<bool> routeAsked{false};
 
 // A control line from main's stdin; false when it is not one.
 static bool control(const char* line) {
   std::string l(line);
   while (!l.empty() && (l.back() == '\n' || l.back() == '\r')) l.pop_back();
   std::lock_guard<std::mutex> lock(routeMutex);
-  if (!l.compare(0, 13, "audio-device ")) {
-    std::string device = l.substr(13);
-    if (device != wantedRoute.device) wantedRoute.device = device, routeChanged = true;
-    return true;
-  }
-  if (!l.compare(0, 14, "preview-apart ")) {
-    bool apart = l.substr(14) == "1";
-    if (apart != wantedRoute.previewApart) wantedRoute.previewApart = apart, routeChanged = true;
-    return true;
-  }
-  return false;
+  if (!l.compare(0, 14, "preview-apart ")) wantedRoute.previewApart = l.substr(14) == "1";
+  else if (!l.compare(0, 13, "audio-device ")) wantedRoute.device = l.substr(13), routeAsked = true;
+  else return false;
+  return true;
 }
 
 static void emitError(const std::string& code, const std::string& detail) {
@@ -565,29 +563,50 @@ int ndiSendMain(int argc, char** argv) {
     unsigned long app = (unsigned long)getppid();
 #endif
     audioThread = std::thread([&, app] {
+      using clock = std::chrono::steady_clock;
       bool on = false;
-      // Again whenever main moves the route: a gap while it restarts, filled with silence for a watching receiver.
+      AudioRoute route;          // what the capture runs on
+      std::string saidOff;       // why it is off, as last said: a retry every 2 s does not repeat it
+      auto tried = clock::now(), checked = tried, lastLevel = tried;
+      // Again whenever main moves the route, the capture stops on its own, or it is off and 2 s have passed: a gap
+      // while it restarts, filled with silence for a watching receiver.
       auto start = [&] {
-        AudioRoute route;
+        if (on) stopAppAudio();
         {
           std::lock_guard<std::mutex> lock(routeMutex);
           route = wantedRoute;
-          routeChanged = false;
+          routeAsked = false;
         }
+        tried = clock::now();
         std::string why;
         on = startAppAudio(app, route, &audio, why);
-        if (on) emit("{\"ev\":\"audio\",\"state\":\"on\"}");
-        else emit("{\"ev\":\"audio\",\"state\":\"off\",\"detail\":" + js(why) + "}");
+        if (on) {
+          saidOff.clear();
+          emit("{\"ev\":\"audio\",\"state\":\"on\"}");
+        } else if (why != saidOff) {
+          saidOff = why;
+          emit("{\"ev\":\"audio\",\"state\":\"off\",\"detail\":" + js(why) + "}");
+        }
       };
       start();
-      auto lastLevel = std::chrono::steady_clock::now();
       while (!quitting) {
-        if (routeChanged) {
-          if (on) stopAppAudio();
+        auto now = clock::now();
+        if (routeAsked) {
+          AudioRoute want;
+          {
+            std::lock_guard<std::mutex> lock(routeMutex);
+            want = wantedRoute;
+          }
+          if (!on || want != route) start();
+          else routeAsked = false;
+        } else if (on && now - checked >= std::chrono::milliseconds(500)) {
+          checked = now;
+          if (!appAudioHealthy()) start();  // on again at once (the new default), or off and why
+        } else if (!on && now - tried >= std::chrono::seconds(2)) {
           start();
         }
         if (on) audio.pump(ndi, sender);
-        auto now = std::chrono::steady_clock::now();
+        now = clock::now();
         if (on && now - lastLevel >= std::chrono::seconds(1)) {
           lastLevel = now;
           // Watched or not: Settings shows it, and it is how a test hears the app's sound.

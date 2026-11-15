@@ -12,7 +12,7 @@ import { getSettingsRepo } from "../services/repos";
 import { enginePath } from "../paths";
 import { engineAvailable, handles, type LinuxHandles, type MacHandles } from "../media/media-engine";
 import { syncLiveEngine } from "../media/engine-sessions";
-import { AUDIO_DEVICE_PROTO, jsonLineReader } from "../media/engine-protocol";
+import { jsonLineReader, ndiRouteLines } from "../media/engine-protocol";
 import { paintVerdict } from "./ndi-pacing";
 
 /**
@@ -107,7 +107,8 @@ export function syncNdiOutput(): void {
   });
 }
 
-/** Takes the NDI sound from the LIVE output only; the running sender moves its capture at once. */
+/** Takes the NDI sound from the LIVE output only; the running sender moves its capture at once. The same route again
+ *  restarts a capture that stopped (its device was unplugged and is back); the sender also retries every 2 s. */
 export function setNdiAudioRoute(route: NdiAudioRoute): void {
   if (route.device && /[\r\n]/.test(route.device)) throw new Error("a device name with a line break");
   audioRoute = route;
@@ -252,7 +253,6 @@ class NdiSender {
   private killed = false;
   private readonly gone: Promise<void>;
   private proto = 7;
-  private sentRoute: NdiAudioRoute;
 
   constructor(
     config: Config,
@@ -260,7 +260,6 @@ class NdiSender {
   ) {
     const args = ["--ndi-send", config.name, "--width", String(config.width), "--height", String(config.height), "--fps", String(config.fps)];
     // An older sender ignores the route's arguments, and takes the default output's sound as before.
-    this.sentRoute = audioRoute;
     if (config.audio)
       args.push("--audio", "1", "--audio-delay", String(config.audioDelayMs), ...routeArgs(audioRoute));
     const lib = process.env["HIMNOVA_NDI_LIB"];
@@ -289,13 +288,10 @@ class NdiSender {
     this.gone = new Promise((resolve) => this.child.once("exit", () => resolve()));
   }
 
-  /** Moves the capture. Only to a sender that said `hello`: an older one answers a line it does not know with
-   *  `done` on Windows, and main would release the texture it is still reading. */
+  /** Moves the capture, or restarts it on the same route. Only to a sender that said `hello` (`ndiRouteLines`). */
   route(route: NdiAudioRoute): void {
-    if (this.proto < AUDIO_DEVICE_PROTO || !this.child.stdin?.writable) return;
-    if (route.device !== this.sentRoute.device) this.child.stdin.write(`audio-device ${route.device ?? "auto"}\n`);
-    if (route.previewApart !== this.sentRoute.previewApart) this.child.stdin.write(`preview-apart ${route.previewApart ? 1 : 0}\n`);
-    this.sentRoute = route;
+    const lines = ndiRouteLines(this.proto, route);
+    if (lines && this.child.stdin?.writable) this.child.stdin.write(lines);
   }
 
   /** Takes the texture (true) until the engine has read it, or leaves it to the caller to release. */

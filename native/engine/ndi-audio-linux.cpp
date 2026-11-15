@@ -31,7 +31,7 @@ int64_t nowTc() {
 }
 
 namespace {
-std::atomic<bool> stopping{false};
+std::atomic<bool> stopping{false}, broken{false};
 std::thread worker;
 pa_simple* stream = nullptr;
 pa_simple* (*simpleNew)(const char*, const char*, int, const char*, const char*, const pa_sample_spec*, const void*,
@@ -67,17 +67,24 @@ bool startAppAudio(unsigned long, const AudioRoute& route, AudioSink* sink, std:
     why = "pa_simple_new " + std::to_string(error);
     return false;
   }
-  stopping = false;
+  stopping = broken = false;
   worker = std::thread([sink] {
     std::vector<float> buf(frames * 2);
     int err = 0;
-    while (!stopping && simpleRead(stream, buf.data(), buf.size() * sizeof(float), &err) == 0) {
+    while (!stopping) {
+      // The sink gone (unplugged, its module unloaded) ends the stream: said, so it is opened again when it is back.
+      if (simpleRead(stream, buf.data(), buf.size() * sizeof(float), &err) != 0) {
+        broken = true;
+        break;
+      }
       int64_t latency = (int64_t)simpleLatency(stream, &err) * 10;  // µs → 100 ns
       sink->push(buf.data(), frames, 2, rate, nowTc() - latency - (int64_t)frames * 10000000 / rate);
     }
   });
   return true;
 }
+
+bool appAudioHealthy() { return !broken; }
 
 void stopAppAudio() {
   stopping = true;
