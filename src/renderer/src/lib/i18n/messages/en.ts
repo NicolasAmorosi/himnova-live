@@ -1117,7 +1117,7 @@ const en: Messages = {
       audioDescWin: "The app's sound (videos, music, hymns), without the rest of the computer's.",
       audioDescMac:
         "The app's sound (videos, music, hymns). Needs macOS 14.2 or later, and the first time macOS asks whether Himnova Live may record system audio: click “Allow”.",
-      audioDescLinux: "All of this computer's sound: close the other programs that make sound.",
+      audioDescLinux: "What plays through the Live output, other programs using that output included: close them.",
       audioDelay: "Sound sync",
       audioDelayDesc: "If the receiving program gets the sound before the picture, raise it; if after, lower it.",
       audioStates: {

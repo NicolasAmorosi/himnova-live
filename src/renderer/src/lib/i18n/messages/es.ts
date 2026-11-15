@@ -1126,7 +1126,7 @@ const es = {
       audioDescWin: "El sonido de la app (videos, música, himnos), sin el resto de la computadora.",
       audioDescMac:
         "El sonido de la app (videos, música, himnos). Pide macOS 14.2 o posterior, y la primera vez macOS pregunta si Himnova Live puede grabar el audio del sistema: tocá «Permitir».",
-      audioDescLinux: "Todo el sonido de esta computadora: cerrá los demás programas que suenan.",
+      audioDescLinux: "Lo que suena por la salida de EN VIVO, también otros programas que usen esa salida: cerralos.",
       audioDelay: "Sincronía del sonido",
       audioDelayDesc: "Si en el programa que recibe el sonido llega antes que la imagen, subilo; si llega después, bajalo.",
       audioStates: {
