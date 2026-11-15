@@ -564,7 +564,14 @@ int main(int argc, char** argv) {
                            {"deinterlace", "auto"},
                            // An output that cannot be opened (unplugged, refused) plays the file on in silence
                            // instead of dropping its sound or failing it: `audio-out` says so (`current-ao`).
-                           {"audio-fallback-to-null", "yes"}};
+                           {"audio-fallback-to-null", "yes"},
+                           // Always interleaved float stereo out, whatever the file carries (mpv converts after the
+                           // meter, which still reads the file's own channels). Given the file's own layout and
+                           // format, macOS's ZoomAudioDevice refused a mono WAV (layout) and every AAC, mono, stereo
+                           // or 5.1 (planar float): «unable to set the input channel layout», -50 (2026-11-15). One
+                           // such file made the output look lost for the session. NDI and the room are stereo anyway.
+                           {"audio-channels", "stereo"},
+                           {"audio-format", "float"}};
   for (auto& o : opts) mpv_set_option_string(E.mpv, o[0], o[1]);
   // The level meter (`meterLoop`): 40 ms frames at 48 kHz; a file at another rate gets its own (FILE_LOADED).
   mpv_set_option_string(E.mpv, "af", meterFilter(1920).c_str());
