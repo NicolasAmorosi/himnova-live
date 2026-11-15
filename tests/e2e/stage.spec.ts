@@ -374,6 +374,45 @@ test("a stage copy mounted mid-video starts where the projector is, paused inclu
   }).toBe(true);
 });
 
+test("a stage copy mounted with the projector paused (its «Proyector» view, the window reopened) shows the projector's position", async ({
+  app,
+}) => {
+  await app.addMedia("video", "clip.mp4");
+  const opened = app.electron.waitForEvent("window", { predicate: isStage });
+  await chooseStageScreen(app, true);
+  let stage = await opened;
+  await stage.waitForLoadState("domcontentloaded");
+  await app.previewFile("Videos", "clip");
+  await app.goLive();
+  const projector = await app.projector();
+  await expect.poll(async () => (await videoStates(projector))[0]?.currentTime ?? 0).toBeGreaterThan(1.5);
+  await app.liveColumn().getByRole("button", { name: "Pausar" }).click();
+  await expect.poll(async () => (await videoStates(projector))[0]?.paused).toBe(true);
+  const at = (await videoStates(projector))[0]!.currentTime;
+  const onStage = async (page: Page) => Math.abs(((await videoStates(page))[0]?.currentTime ?? 0) - at);
+
+  // (a) «Proyector» mounts a copy now, with no report on its way.
+  const bar = app.control.getByRole("region", { name: "Escenario" });
+  const card = app.control.getByRole("dialog", { name: "Escenario" });
+  await bar.getByRole("heading", { name: "Escenario" }).click();
+  await card.getByRole("button", { name: "Proyector", exact: true }).click();
+  await expect.poll(async () => (await videoStates(stage)).length).toBe(1);
+  await expect.poll(() => onStage(stage)).toBeLessThan(0.3);
+
+  // (b) The window the operator closed and «Reabrir» opens again.
+  await card.getByRole("button", { name: "Cerrar el panel del escenario" }).click();
+  await app.electron.evaluate(({ BrowserWindow }) =>
+    BrowserWindow.getAllWindows().find((w) => w.webContents.getURL().endsWith("/stage.html"))?.close(),
+  );
+  const back = app.electron.waitForEvent("window", { predicate: isStage });
+  await bar.getByRole("button", { name: "Reabrir", exact: true }).click();
+  stage = await back;
+  await stage.waitForLoadState("domcontentloaded");
+  await expect.poll(async () => (await videoStates(stage)).length).toBe(1);
+  await expect.poll(() => onStage(stage)).toBeLessThan(0.3);
+  await expect.poll(() => onStage(stage)).toBeLessThan(0.3);
+});
+
 test("Settings' «Copia del proyector»: the stage screen copies the projector and the work screen has no stage panel", async ({
   app,
 }) => {

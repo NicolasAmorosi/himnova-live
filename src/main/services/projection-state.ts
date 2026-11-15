@@ -1,5 +1,5 @@
 import type { BrowserWindow } from "electron";
-import type { AudioTrackPush, ProjectionOutput } from "@shared/types/projection";
+import type { AudioTrackPush, MediaStatus, ProjectionOutput } from "@shared/types/projection";
 
 /**
  * Holds the last output sent to the projection window and a reference to that
@@ -24,6 +24,9 @@ class ProjectionState {
   private readonly listening = new WeakSet<BrowserWindow>();
   private lastOutput: ProjectionOutput | null = null;
   private lastAudioTracks: AudioTrackPush[] = [];
+  /** The projector's last report of each video element (`video`, `slideVideo`): a paused projector sends none, so a
+   *  copy that mounts then (the stage reopened, its «Proyector» view) starts from this instead of from zero. */
+  private readonly lastMediaStatus = new Map<MediaStatus["target"]["kind"], MediaStatus>();
 
   setWindow(win: BrowserWindow | null): void {
     this.window = win;
@@ -93,8 +96,12 @@ class ProjectionState {
     this.getWindow()?.webContents.send("audio-tracks", tracks);
   }
 
-  getSnapshot(): { output: ProjectionOutput | null; audioTracks: AudioTrackPush[] } {
-    return { output: this.lastOutput, audioTracks: this.lastAudioTracks };
+  setMediaStatus(status: MediaStatus): void {
+    this.lastMediaStatus.set(status.target.kind, status);
+  }
+
+  getSnapshot(): { output: ProjectionOutput | null; audioTracks: AudioTrackPush[]; mediaStatus: MediaStatus[] } {
+    return { output: this.lastOutput, audioTracks: this.lastAudioTracks, mediaStatus: [...this.lastMediaStatus.values()] };
   }
 }
 

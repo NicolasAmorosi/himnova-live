@@ -167,6 +167,7 @@ export const projectionHandlers: Pick<
   "projection:reportMediaStatus": (status) => {
     broadcast("media-status", status);
     if (status.target.kind === "audio") return;
+    projectionState.setMediaStatus(status);
     for (const win of projectionState.getMirrors()) win.webContents.send("media-status", status);
   },
 
