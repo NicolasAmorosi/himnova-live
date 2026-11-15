@@ -1467,7 +1467,7 @@ const pt: Messages = {
       title: "Uma tela para o palco",
       subtitle: "Se vocês têm uma tela de retorno no palco, o Himnova Live mostra ao pregador quanto tempo falta e aos músicos o que vem a seguir. Você controla pelo painel Palco, embaixo à esquerda.",
       countdown: { title: "Contagem regressiva", body: "Você coloca os minutos e o pregador vê bem grande. Fica âmbar e depois vermelha quando o tempo está acabando." },
-      message: { title: "Mensagens", body: "Digite algo como “Último refrão”, ou toque numa frase pronta, e ela aparece numa barra embaixo. A igreja não vê." },
+      message: { title: "Mensagens", body: "Digite algo como “Último refrão”, ou escolha uma frase pronta, e ela aparece numa barra embaixo. A igreja não vê." },
       views: { title: "Pregador e Músicos", body: "Pregador: a contagem grande, a hora e o que está sendo projetado. Músicos: o que está no ar e o que vem depois, com os acordes da música." },
       configure: "Escolher a tela do palco",
     },

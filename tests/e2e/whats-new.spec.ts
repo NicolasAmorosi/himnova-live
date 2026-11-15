@@ -31,9 +31,11 @@ test("a profile from an older build sees «Novedades» once, and turning the str
 
   // The stage's own view, playing by itself: the count, then a message from the ready phrases.
   const stage = shown.getByRole("img", { name: "Lo que se ve en el escenario" });
-  await expect(stage.getByRole("timer")).toBeVisible();
+  // The demo is a picture for assistive tech: its count and band are hidden from the tree, not from the eye.
+  await expect(stage.getByRole("timer")).toHaveCount(0);
+  await expect(stage.getByRole("timer", { includeHidden: true })).toBeVisible();
   await expect(stage.locator('[data-layout="preacher"]')).toBeVisible();
-  await expect(stage.getByRole("status")).toHaveText("Ir cerrando", { timeout: 10_000 });
+  await expect(stage.getByRole("status", { includeHidden: true })).toHaveText("Ir cerrando", { timeout: 10_000 });
   await shown.getByRole("button", { name: "Músicos" }).click();
   await expect(stage.locator('[data-layout="musicians"]')).toBeVisible();
 

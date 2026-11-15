@@ -4,7 +4,7 @@ import { passageReference, type BibleVerseDTO } from "@shared/types/bible";
 import type { ProjectionOutput, StageOutput } from "@shared/types/projection";
 import { resolveStageLayout, stageThresholds } from "@shared/stage";
 import type { SettingsMap } from "@shared/types/settings";
-import type { CountdownClock, StageMessage, StageTextSize } from "@shared/types/stage";
+import type { CountdownClock, StageClockFormat, StageMessage, StageTextSize } from "@shared/types/stage";
 
 /** The Bible tab's cursor: a verse projected from it can tell what follows. */
 export type StageBibleCursor = { verses: readonly BibleVerseDTO[]; currentVerseIndex: number | null };
@@ -27,7 +27,11 @@ export type StageControls = {
   >;
 };
 
-const TEXT_SCALE: Record<StageTextSize, number> = { small: 0.8, normal: 1, large: 1.25 };
+/** «Auto» is the language's: 12 hours in English. */
+export const stageHour12 = (clockFormat: StageClockFormat, locale: string): boolean =>
+  clockFormat === "auto" ? locale === "en" : clockFormat === "12h";
+
+export const TEXT_SCALE: Record<StageTextSize, number> = { small: 0.8, normal: 1, large: 1.25 };
 
 /** On the stage every change eases (owner, 2026-11-13), and never slowly: the band reads, it does not watch. */
 const STAGE_FADE_MS = 300;
@@ -127,8 +131,7 @@ export function stageOutputFor(
     countdown,
     message: controls.message,
     layout,
-    // «Auto» is the language's: 12 hours in English.
-    hour12: clockFormat === "auto" ? settings["ui.locale"] === "en" : clockFormat === "12h",
+    hour12: stageHour12(clockFormat, settings["ui.locale"]),
     textScale: TEXT_SCALE[settings["stage.textSize"]],
   };
 }

@@ -1470,8 +1470,8 @@ const it: Messages = {
       title: "Uno schermo per il palco",
       subtitle: "Se avete uno schermo rivolto verso il pulpito, Himnova Live mostra al pastore quanto tempo gli resta e ai musicisti cosa viene dopo. Lo gestisci dal pannello Palco, in basso a sinistra.",
       countdown: { title: "Conto alla rovescia", body: "Imposti i minuti e il pastore lo vede in grande. Diventa ambra e poi rosso quando il tempo sta per finire." },
-      message: { title: "Messaggi", body: "Scrivi qualcosa come «Ultimo ritornello», o tocchi una frase pronta, e compare in una fascia in basso. Chi è in sala non lo vede." },
-      views: { title: "Pastore e Musicisti", body: "Pastore: il conto grande, l'ora e ciò che si proietta. Musicisti: ciò che è in onda e ciò che segue, con gli accordi del canto." },
+      message: { title: "Messaggi", body: "Scrivi qualcosa come «Ultimo ritornello», o scegli una frase pronta, e compare in una fascia in basso. Chi è in sala non lo vede." },
+      views: { title: "Pastore e Musicisti", body: "Pastore: il conto alla rovescia grande, l'ora e ciò che si proietta. Musicisti: ciò che è in onda e ciò che segue, con gli accordi del canto." },
       configure: "Scegli lo schermo del palco",
     },
     done: {
