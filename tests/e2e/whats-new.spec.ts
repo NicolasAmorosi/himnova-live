@@ -1,0 +1,112 @@
+// «Novedades» (owner, 2026-11-15, D4 and D5): shown once after an update, only to a profile that already existed; a
+// new profile gets the welcome, with its «Sonido» step, and never both.
+import { expect, relaunch, test, type WorshipApp } from "./support/app";
+
+// The suite skips it on every launch (`--no-whats-new`); here it runs as it does for a church.
+test.use({ chromiumArgs: ["--whats-new"] });
+
+const LIVE_STRIP = "Sonido de EN VIVO";
+const PREVIEW_STRIP = "Sonido de PREVIEW";
+
+const news = (app: WorshipApp) => app.control.getByRole("dialog", { name: "Novedades" });
+
+/** What a screen that opens at launch would have done by now: it opens once the screens are listed, well under this. */
+async function settled(app: WorshipApp): Promise<void> {
+  await app.control.waitForTimeout(1500);
+}
+
+test("a profile from an older build sees «Novedades» once, and turning the strips off there hides them", async ({ app }) => {
+  // A new profile is stamped with the latest at its first launch: nothing to tell it.
+  await settled(app);
+  await expect(news(app)).toHaveCount(0);
+  await expect(app.control.getByRole("group", { name: LIVE_STRIP })).toBeVisible();
+
+  // The same profile, as 2.9 left it.
+  await app.invoke("settings:set", { "ui.whatsNewSeen": "2.9" });
+  await app.quit();
+  const updated = await relaunch(app);
+  const shown = news(updated);
+  await expect(shown).toBeVisible();
+  await expect(shown.getByRole("heading", { name: "Una pantalla para el escenario" })).toBeVisible();
+
+  // The stage's own view, playing by itself: the count, then a message from the ready phrases.
+  const stage = shown.getByRole("img", { name: "Lo que se ve en el escenario" });
+  await expect(stage.getByRole("timer")).toBeVisible();
+  await expect(stage.locator('[data-layout="preacher"]')).toBeVisible();
+  await expect(stage.getByRole("status")).toHaveText("Ir cerrando", { timeout: 10_000 });
+  await shown.getByRole("button", { name: "Músicos" }).click();
+  await expect(stage.locator('[data-layout="musicians"]')).toBeVisible();
+
+  // Settings ▸ Screens opens over it, and closing it gives «Novedades» back.
+  await shown.getByRole("button", { name: "Elegir la pantalla del escenario" }).click();
+  const settings = updated.control.getByRole("dialog", { name: "Configuración" });
+  await expect(settings.getByRole("tab", { name: "Pantallas" })).toHaveAttribute("aria-selected", "true");
+  await settings.getByRole("button", { name: "Volver" }).click();
+  await expect(settings).toBeHidden();
+  await expect(shown).toBeVisible();
+
+  // «Sonido»: the strips come on (D5), the sample strip's meter moves, and the switch is the setting itself.
+  await shown.getByRole("button", { name: "Siguiente: Sonido" }).click();
+  const strips = shown.getByRole("switch", { name: "Mostrar las tiras" });
+  await expect(strips).toBeChecked();
+  const sample = shown.getByRole("group", { name: "Tira de muestra: En Vivo" });
+  await expect.poll(() => sample.locator("canvas").getAttribute("data-level-db-l")).not.toBe("-inf");
+  await strips.click();
+  await expect(sample).toHaveCount(0);
+  await expect(shown.getByRole("slider", { name: "Volumen de muestra: En Vivo" })).toBeVisible();
+
+  await shown.getByRole("button", { name: "Siguiente: Resumen" }).click();
+  await expect(shown.getByText("Sin tiras · Salidas: predeterminada del sistema")).toBeVisible();
+  await shown.getByRole("button", { name: "Listo", exact: true }).click();
+  await expect(shown).toBeHidden();
+  // The work screen took it: no strip, and each row's own volume is back.
+  await expect(updated.control.getByRole("group", { name: LIVE_STRIP })).toHaveCount(0);
+  await expect(updated.control.getByRole("group", { name: PREVIEW_STRIP })).toHaveCount(0);
+
+  // Once: the next launch goes straight to work, with the strips still off.
+  await updated.quit();
+  const again = await relaunch(updated);
+  await settled(again);
+  await expect(news(again)).toHaveCount(0);
+  await expect(again.control.getByRole("group", { name: LIVE_STRIP })).toHaveCount(0);
+});
+
+test.describe("a new profile", () => {
+  test.use({ welcome: true });
+
+  test("gets the welcome with its «Sonido» step and never «Novedades», which Settings ▸ About still opens", async ({ app }) => {
+    const welcome = app.control.getByRole("dialog", { name: "Bienvenida" });
+    await expect(welcome).toBeVisible();
+    await expect(news(app)).toHaveCount(0);
+
+    // Right after «Al terminar», with the strips checked (D5).
+    await welcome.getByRole("tab", { name: "Al terminar" }).click();
+    await welcome.getByRole("button", { name: "Siguiente: Sonido" }).click();
+    await expect(welcome.getByRole("heading", { name: "Sonido", exact: true })).toBeVisible();
+    await expect(welcome.getByRole("switch", { name: "Mostrar las tiras" })).toBeChecked();
+    await expect(welcome.getByRole("combobox", { name: "Salida de EN VIVO" })).toHaveText("Predeterminada del sistema");
+    await expect(welcome.getByRole("group", { name: "Tira de muestra: En Vivo" })).toBeVisible();
+
+    await welcome.getByRole("tab", { name: "Listo" }).click();
+    await expect(welcome.getByText("Con tiras · Salidas: predeterminada del sistema")).toBeVisible();
+    await welcome.getByRole("button", { name: "Empezar", exact: true }).click();
+    await expect(welcome).toBeHidden();
+    await expect(app.control.getByRole("group", { name: LIVE_STRIP })).toBeVisible();
+
+    await app.quit();
+    const again = await relaunch(app);
+    await settled(again);
+    await expect(again.control.getByRole("dialog", { name: "Bienvenida" })).toHaveCount(0);
+    await expect(news(again)).toHaveCount(0);
+
+    // By hand, any time.
+    await again.control.getByRole("button", { name: "Configuración" }).click();
+    const settings = again.control.getByRole("dialog", { name: "Configuración" });
+    await settings.getByRole("tab", { name: "Acerca de" }).click();
+    await settings.getByRole("button", { name: "Ver novedades" }).click();
+    await expect(news(again)).toBeVisible();
+    await expect(settings).toBeHidden();
+    await news(again).getByRole("button", { name: "Cerrar las novedades" }).click();
+    await expect(news(again)).toHaveCount(0);
+  });
+});

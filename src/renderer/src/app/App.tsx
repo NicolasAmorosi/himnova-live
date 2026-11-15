@@ -4,6 +4,8 @@ import { ProgramsModal } from "@renderer/components/pages/programs/ProgramsModal
 import { SettingsModal } from "@renderer/components/pages/settings/SettingsModal";
 import { FirstStepsPanel } from "@renderer/components/pages/welcome/FirstStepsPanel";
 import { WelcomeScreen } from "@renderer/components/pages/welcome/WelcomeScreen";
+import { WhatsNewScreen } from "@renderer/components/pages/welcome/WhatsNewScreen";
+import { LATEST_WHATS_NEW, whatsNewDue } from "@shared/whats-new";
 import { RemoveAssetConfirm } from "@renderer/components/pages/resources/remove-asset-confirm";
 import {
   ConfirmModal,
@@ -70,6 +72,7 @@ export function App() {
   // tree under it. See `ui.store.ts`.
   const settingsOpen = useUiStore((s) => s.settingsSection !== null);
   const welcomeOpen = useUiStore((s) => s.welcomeOpen);
+  const whatsNewOpen = useUiStore((s) => s.whatsNewOpen);
   const openSettings = useUiStore((s) => s.openSettings);
   const closeSettings = useUiStore((s) => s.closeSettings);
   // Same reasoning, and one more: mounted here it exists ONCE. Rendered by
@@ -149,6 +152,8 @@ export function App() {
         .catch((error: unknown) => console.warn("[projector] auto open failed", error));
       // A new profile is welcomed — once the screens are known, which its «Pantallas» step lists.
       if (settings["welcome.pending"]) useUiStore.getState().openWelcome();
+      // A profile from before the last update is told what changed, once (D4); a new one was stamped by main.
+      else if (whatsNewDue(settings["ui.whatsNewSeen"])) useUiStore.getState().openWhatsNew();
       // After the settings, never before: `loadVersions` settles on
       // `bible.defaultVersionId`, and reading that key before it is loaded
       // would silently open on whichever version happens to be first. This is
@@ -336,6 +341,17 @@ export function App() {
         open={welcomeOpen}
       >
         <WelcomeScreen />
+      </ModalBoundary>
+      <ModalBoundary
+        onCrash={() => {
+          // Seen: a screen that crashed must not come back at every launch.
+          useUiStore.getState().closeWhatsNew();
+          void useSettingsStore.getState().update({ "ui.whatsNewSeen": LATEST_WHATS_NEW });
+          toast.danger(t("app.modalCrashed"));
+        }}
+        open={whatsNewOpen}
+      >
+        <WhatsNewScreen />
       </ModalBoundary>
       <ModalBoundary
         onCrash={() => {

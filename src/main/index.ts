@@ -59,6 +59,7 @@ import { stopDeckClips } from "./media/deck-clips";
 import { appendLogLine, installMainLog } from "./logging";
 import { initUpdates } from "./updates/updater";
 import { retireFormerMacApp } from "./updates/former-mac-app";
+import { LATEST_WHATS_NEW } from "@shared/whats-new";
 
 /** Long enough to be safely past the first paint of the control window — the
  *  prune walks a directory and is worth nothing compared to the app being on
@@ -127,6 +128,9 @@ function initDatabase(): void {
   // Only a new profile is welcomed (owner, 2026-11-09): an install that updates keeps going to work. The E2E
   // suite launches a new profile per test and skips it unless a spec asks for it.
   if (isNewProfile && !process.argv.includes("--no-welcome")) getSettingsRepo().setMany({ "welcome.pending": true });
+  // …and never also told what changed (D4): «Novedades» is for a profile that existed before the update. The E2E suite
+  // skips it on every launch, a profile it brings from an older build included, unless a spec asks for it.
+  if (isNewProfile || process.argv.includes("--no-whats-new")) getSettingsRepo().setMany({ "ui.whatsNewSeen": LATEST_WHATS_NEW });
   // A new profile starts with the system's Videos, Pictures, Music and Documents linked in Media (owner,
   // 2026-11-09); the E2E suite keeps its bare library.
   if (isNewProfile && !process.argv.includes("--no-system-folders")) {

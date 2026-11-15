@@ -7,6 +7,7 @@ import { useSettingsStore } from "@renderer/stores/settings.store";
 import { logoModeOf } from "@shared/types/settings";
 import { useLogoPreview } from "@renderer/components/shared/settings-groups/use-logo-preview";
 import { StagePreview, StepLayout } from "./StepLayout";
+import { useSoundSummary } from "./use-sound-summary";
 import type { WelcomeStepId } from "./welcome-steps";
 
 /** What was chosen, each line with «Change» back to its step. */
@@ -21,6 +22,7 @@ export function DoneStep({ go }: { go: (step: WelcomeStepId) => void }) {
   const logoMode = logoModeOf(s["logo.mode"], s["logo.path"]);
   const folders = Object.values(s["library.linkedFolders"]).flat().length + s["songs.linkedFolders"].length;
   const logoOutput = useLogoPreview();
+  const soundSummary = useSoundSummary();
 
   // Each line named like its step on the rail, so «Change» lands where it says.
   const rows: readonly { step: WelcomeStepId; label: string; value: ReactNode }[] = [
@@ -55,6 +57,7 @@ export function DoneStep({ go }: { go: (step: WelcomeStepId) => void }) {
         audio: t(`welcome.endings.short.${s["projection.audioEnd"]}`),
       }),
     },
+    { step: "sound", label: t("welcome.steps.sound"), value: soundSummary },
     { step: "folders", label: t("welcome.steps.folders"), value: t("welcome.done.foldersCount", { count: folders }) },
     {
       step: "bibles",
