@@ -20,9 +20,15 @@ export type AudioOut = { sinkId: string; engineDevice: string | null };
 
 export const DEFAULT_AUDIO_OUT: AudioOut = { sinkId: "", engineDevice: null };
 
-/** What the control window tells main besides LIVE's output: PREVIEW's engine device, and whether PREVIEW plays on
- *  another output than LIVE (the NDI® sound is captured from LIVE's, D6). */
-export type AudioRoute = { preview: string | null; previewApart: boolean };
+/** Where the engine's sound goes, as the control window resolved it (`audioRoute:set`): each bus's engine device (null
+ *  the system's default) and whether PREVIEW plays on another output than LIVE (the NDI® sound is captured from
+ *  LIVE's, D6). One message for both buses, so main never applies half of a change. */
+export type AudioRoute = { live: string | null; preview: string | null; previewApart: boolean };
+
+/** The media engine's name for each output asked (`audioRoute:matchOutputs`): «auto» for the default, null for none or
+ *  more than one. "none": this build's engine cannot choose an output (none, or older than engine-8), so only
+ *  Chromium moves; "pending": an engine that can has not answered yet, so nothing may move. */
+export type EngineOutputNames = (string | null)[] | "none" | "pending";
 
 const FIELD_MAX_LENGTH = 512;
 

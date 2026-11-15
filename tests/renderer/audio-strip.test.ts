@@ -8,6 +8,7 @@ import {
   resolveBus,
   sameAudioOutput,
   type AudioOutputs,
+  type EngineNames,
 } from "@renderer/lib/hooks/use-audio-outputs";
 import type { AudioOutputChoice } from "@shared/types/audio";
 
@@ -49,7 +50,7 @@ function sameAudioOutputOf(
   live: AudioOutputChoice | null,
   preview: AudioOutputChoice | null,
   list: AudioOutputs,
-  engineNames: ReadonlyMap<string, string | null> | null = null,
+  engineNames: EngineNames = "none",
 ): boolean {
   const a = resolveBus(live, list.devices, engineNames);
   const b = resolveBus(preview, list.devices, engineNames);
@@ -141,7 +142,19 @@ test("a chosen output that is unplugged, or that the engine cannot open, sends t
 
 test("an engine that cannot choose an output (older than engine-8, or none) leaves its sessions on the default", () => {
   // Only Chromium moves; the engine is never sent a name it does not understand.
-  expect(resolveBus(zoomChoice, macOutputs.devices, null)).toEqual({ out: { sinkId: "z1", engineDevice: null }, state: "ok", device: zoomListed });
+  expect(resolveBus(zoomChoice, macOutputs.devices, "none")).toEqual({ out: { sinkId: "z1", engineDevice: null }, state: "ok", device: zoomListed });
   // «auto»: the engine's own word for the default, never sent as a device.
   expect(resolveBus(zoomChoice, macOutputs.devices, new Map([["z1", "auto"]])).out.engineDevice).toBeNull();
+});
+
+test("an engine that has not answered, or an output one side refused, moves neither side", () => {
+  // Fails if Chromium goes to the chosen output while the engine's files stay on the default: one bus, two devices.
+  expect(resolveBus(zoomChoice, macOutputs.devices, "pending")).toEqual({ out: { sinkId: "", engineDevice: null }, state: "pending", device: null });
+  // Unplugged says so first: that is what the operator can act on.
+  expect(resolveBus({ label: "Scarlett 2i2", deviceId: "b2" }, macOutputs.devices, "pending").state).toBe("missing");
+  // A window's `setSinkId` or an engine session failed on it: refused by its name, whatever the engine answered.
+  const refused = new Set(["ZoomAudioDevice (Virtual)"]);
+  for (const engine of ["none", "pending", new Map([["z1", "coreaudio/zoom.us.zoomaudiodevice.001"]])] as const) {
+    expect(resolveBus(zoomChoice, macOutputs.devices, engine, refused)).toEqual({ out: { sinkId: "", engineDevice: null }, state: "unusable", device: null });
+  }
 });

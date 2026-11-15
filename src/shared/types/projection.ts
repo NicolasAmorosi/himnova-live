@@ -296,8 +296,8 @@ export type ProjectionOutput = ProjectionOutputKind & {
    *  live" — `selectOutput` decides, the projector only draws. */
   plates: readonly ProjectionPlate[];
   transition: SceneTransition;
-  /** Where LIVE sounds: the projector's elements and main's live engine sessions play there. Absent, the system's
-   *  default output. */
+  /** Where LIVE sounds: the projector's elements play through its `sinkId` (main's engine sessions get the same route
+   *  in `audioRoute:set`). Absent, the system's default output. */
   audioOut?: AudioOut;
 };
 

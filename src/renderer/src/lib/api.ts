@@ -50,6 +50,7 @@ export const api = {
   audioRoute: {
     matchOutputs: (outputs: { deviceId: string; label: string }[]) => invoke("audioRoute:matchOutputs", { outputs }),
     set: (route: AudioRoute) => invoke("audioRoute:set", route),
+    sinkFailed: (sinkId: string) => invoke("audioRoute:sinkFailed", { sinkId }),
   },
   files: {
     pick: (kind: AssetKind | "all", multiple: boolean, startIn?: AssetKind) =>

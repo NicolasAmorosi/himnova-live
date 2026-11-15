@@ -797,6 +797,7 @@ const it: Messages = {
     sharedOutputNdi: "Si sente anche in sala e nell'NDI: esce dalla stessa uscita di In onda.",
     fallbackMissing: "L'uscita scelta non è collegata: suona dalla predefinita",
     fallbackUnusable: "L'uscita scelta non si può usare: suona dalla predefinita",
+    fallbackPending: "Preparazione dell'uscita scelta: nel frattempo suona dalla predefinita",
     toastMissing: "{output}: {name} non è collegata. Suona dalla predefinita di sistema.",
     toastUnusable: "{output}: {name} non si può usare. Suona dalla predefinita di sistema.",
     toastBack: "{output}: {name} è di nuovo collegata.",

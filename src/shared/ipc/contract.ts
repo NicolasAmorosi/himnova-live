@@ -59,7 +59,7 @@ import type { CloseDecision } from "../types/window";
 import type { UpdateStatus } from "../types/updates";
 import type { NdiOutputStatus } from "../types/ndi";
 import type { BackupEntry, LaunchRestore } from "../types/backups";
-import type { AudioBus, AudioRoute } from "../types/audio";
+import type { AudioBus, AudioRoute, EngineOutputNames } from "../types/audio";
 
 /**
  * The single source of truth for every main<->renderer call. Add a channel here
@@ -127,12 +127,14 @@ export type IpcContract = {
   "preview:setVideo": { req: PreviewEngineVideo | null; res: void };
   "preview:seekVideo": { req: { seconds: number }; res: void };
 
-  /** The media engine's name for each of these Chromium outputs (`matchEngineDevice`): «auto» for the default, null
-   *  for none or more than one. The whole answer is null when this build's engine cannot choose an output. */
-  "audioRoute:matchOutputs": { req: { outputs: { deviceId: string; label: string }[] }; res: (string | null)[] | null };
-  /** PREVIEW's engine output and whether PREVIEW plays apart from LIVE (`effects/audio-route.ts`); LIVE's travels in
-   *  the output. Sent again on every device change: an identical route re-arms the NDI® sound's capture. */
+  /** The media engine's name for each of these Chromium outputs (`matchEngineDevice`, `EngineOutputNames`). */
+  "audioRoute:matchOutputs": { req: { outputs: { deviceId: string; label: string }[] }; res: EngineOutputNames };
+  /** Both buses' engine outputs and whether PREVIEW plays apart from LIVE (`effects/audio-route.ts`). Sent again on
+   *  every device change: an identical route re-arms the NDI® sound's capture. */
   "audioRoute:set": { req: AudioRoute; res: void };
+  /** A window's `setSinkId` failed (`useAudioSink`): its elements stay where they were while the engine moved, so the
+   *  control window sends that bus to the default whole (`audio-sink-failed`). */
+  "audioRoute:sinkFailed": { req: { sinkId: string }; res: void };
 
   /** `kind: "all"` combines every `AssetKind`'s extensions into one filter, for
    *  a single file dialog that accepts any supported media at once — the
@@ -500,6 +502,8 @@ export type IpcEvents = {
   /** An engine session could not open the output it was told (`device`, mpv's name) or lost it (`ok: false`), or
    *  has it again: the control window then routes that bus to the default whole (`effects/audio-route.ts`). */
   "audio-out": { device: string; ok: boolean };
+  /** `audioRoute:sinkFailed`, from whichever window it failed in, for the control window to resolve again. */
+  "audio-sink-failed": { sinkId: string };
   /** What each bus sounds at, after its faders (`media/audio-levels.ts`): left and right in dBFS, `-Infinity`
    *  silence. Every 40 ms while something sounds, then once silent; the audio strips' meters draw it. */
   "audio-levels": Record<AudioBus, [number, number]>;

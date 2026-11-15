@@ -793,6 +793,7 @@ const en: Messages = {
     sharedOutputNdi: "Also heard in the room and on NDI: it plays through the same output as Live.",
     fallbackMissing: "The chosen output isn't connected: playing through the default",
     fallbackUnusable: "The chosen output can't be used: playing through the default",
+    fallbackPending: "Getting the chosen output ready: playing through the default meanwhile",
     toastMissing: "{output}: {name} isn't connected. Playing through the system default.",
     toastUnusable: "{output}: {name} can't be used. Playing through the system default.",
     toastBack: "{output}: {name} is connected again.",

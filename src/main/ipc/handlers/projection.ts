@@ -5,7 +5,6 @@ import { getHistoryRepo, getSlidesRepo, getSongsRepo } from "../../services/repo
 import { broadcast } from "../../services/broadcast";
 import { pinDecks } from "../../slides/deck-service";
 import { commandLiveEngine, redrawEngineFrame, syncLiveEngine } from "../../media/engine-sessions";
-import { applyLiveAudioOut } from "../../media/audio-route";
 import { IpcError } from "@shared/ipc/result";
 import { deckIdOfUrl } from "@shared/urls";
 import { keepLiveDeckSource } from "../../protocol/worship-protocol";
@@ -108,8 +107,6 @@ export const projectionHandlers: Pick<
     // The output names the deck the projector shows; its bytes must outlive its file.
     const deckId = output.kind === "slide" ? deckIdOfUrl(output.url) : null;
     if (deckId !== null) keepLiveDeckSource(deckId);
-    // Before the sessions follow the output: one this output starts opens LIVE's output from the start.
-    applyLiveAudioOut(output.audioOut);
     syncLiveEngine();
     getHistoryRepo().record(output, currentProgramId);
     if (output.kind === "song") {

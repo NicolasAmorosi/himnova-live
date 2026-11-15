@@ -27,9 +27,10 @@ export function findAudioOutput(choice: AudioOutputChoice, devices: readonly Aud
   return named.find((device) => device.deviceId === choice.deviceId) ?? named[0] ?? null;
 }
 
-/** Why a chosen output is not used, and the bus plays through the system's default instead: not plugged in, or
- *  plugged in but the media engine has no single device of that name (one it cannot open, two with one name). */
-export type AudioBusState = "ok" | "missing" | "unusable";
+/** Why a chosen output is not used, and the bus plays through the system's default instead: not plugged in; plugged
+ *  in but the media engine has no single device of that name, or one side could not open it (`unusable`); or the
+ *  engine has not said its name for it yet (`pending`, asked again until it does). */
+export type AudioBusState = "ok" | "missing" | "unusable" | "pending";
 
 /** Where a bus really plays (`effects/audio-route.ts`): `device` is the chosen one when it is used, null for the
  *  system's default. */
@@ -37,22 +38,29 @@ export type AudioBusRoute = { out: AudioOut; state: AudioBusState; device: Audio
 
 export const DEFAULT_ROUTE: AudioBusRoute = { out: DEFAULT_AUDIO_OUT, state: "ok", device: null };
 
+/** The media engine's name for each chosen output, by Chromium `deviceId` («auto» for the default; null when it has
+ *  none or more than one), or its answer when it has none to give (`EngineOutputNames`). */
+export type EngineNames = ReadonlyMap<string, string | null> | "none" | "pending";
+
 /**
- * A bus's route from its choice, Chromium's devices and the media engine's name for each of them (`engineNames`, by
- * Chromium `deviceId`; «auto» for the default; null when it has none or more than one). `engineNames` null: this
- * build's engine cannot choose an output (none, or older than engine-8), so only Chromium moves. A chosen output
- * the two sides cannot both use sends the whole bus to the default: one bus is never split across two devices.
+ * A bus's route from its choice, Chromium's devices and the media engine's name for each of them. `engine` "none":
+ * this build's engine cannot choose an output (none, or older than engine-8), so only Chromium moves; "pending": it has
+ * not answered, so nothing moves yet. A chosen output the two sides cannot both use, or one of them could not open
+ * (`refused`, by label), sends the whole bus to the default: one bus is never split across two devices.
  */
 export function resolveBus(
   choice: AudioOutputChoice | null,
   devices: readonly AudioOutputDevice[],
-  engineNames: ReadonlyMap<string, string | null> | null,
+  engine: EngineNames,
+  refused: ReadonlySet<string> = new Set(),
 ): AudioBusRoute {
   if (choice === null) return DEFAULT_ROUTE;
   const device = findAudioOutput(choice, devices);
   if (device === null) return { ...DEFAULT_ROUTE, state: "missing" };
-  if (engineNames === null) return { out: { sinkId: device.deviceId, engineDevice: null }, state: "ok", device };
-  const name = engineNames.get(device.deviceId) ?? null;
+  if (refused.has(device.label)) return { ...DEFAULT_ROUTE, state: "unusable" };
+  if (engine === "pending") return { ...DEFAULT_ROUTE, state: "pending" };
+  if (engine === "none") return { out: { sinkId: device.deviceId, engineDevice: null }, state: "ok", device };
+  const name = engine.get(device.deviceId) ?? null;
   if (name === null) return { ...DEFAULT_ROUTE, state: "unusable" };
   return { out: { sinkId: device.deviceId, engineDevice: name === "auto" ? null : name }, state: "ok", device };
 }

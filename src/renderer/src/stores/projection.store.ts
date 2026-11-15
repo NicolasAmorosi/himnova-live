@@ -139,7 +139,7 @@ export type ProjectionStoreState = {
    *  `toAudioTrackPush`. */
   liveMasterVolume: number;
   /** Where LIVE sounds (`AudioOut`), resolved by `effects/audio-route.ts` and carried by every output: the projector
-   *  and main apply it, neither decides it. */
+   *  applies it, never decides it. */
   liveAudioOut: AudioOut;
   /**
    * How a verse is drawn, mirrored here from `settings["bible.style"]`.

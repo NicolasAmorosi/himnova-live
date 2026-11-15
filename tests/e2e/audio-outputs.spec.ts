@@ -104,6 +104,9 @@ test("LIVE on another output: the projector's elements play there, and so does t
   test.setTimeout(150_000);
   const output = await liveOnAnotherOutput(app);
   test.skip(output === null, "this computer has no second output both sides can open");
+  // LIVE moved, so PREVIEW went apart: main got both at once. Fails if PREVIEW's half arrives alone and main applies
+  // «LIVE old, PREVIEW apart» first (the NDI capture restarted twice, 2026-11-15 audit).
+  expect(app.log.filter((line) => line.includes("[audio] engine output: LIVE default, PREVIEW default (apart)"))).toEqual([]);
   const level = await ndiLevel(app);
 
   // A file Chromium plays: the projector's <audio> plays through the chosen output.
@@ -191,6 +194,55 @@ test("an output the engine cannot open is not used: LIVE stays whole on the defa
   await expect.poll(async () => (await audioStates(projector))[0]?.currentTime ?? 0).toBeGreaterThan(0.3);
   // Fails if Chromium plays there while the engine's files would go elsewhere: one bus, one device.
   expect(await sinks(projector)).toEqual([""]);
+});
+
+/** Stops (or resumes) every media engine the app runs: one that never answers, as a spare stuck at launch would. */
+function signalEngines(app: WorshipApp, signal: "SIGSTOP" | "SIGCONT"): number[] {
+  const pids = execFileSync("ps", ["-A", "-o", "pid=,ppid=,comm="], { encoding: "utf8" })
+    .split("\n")
+    .map((line) => line.trim().split(/\s+/, 3))
+    .filter(([, ppid, comm]) => Number(ppid) === app.mainPid && /media-engine(\.exe)?$/.test(comm ?? ""))
+    .map(([pid]) => Number(pid));
+  for (const pid of pids) process.kill(pid, signal);
+  return pids;
+}
+
+test("an engine that answers late never splits LIVE: the bus waits whole on the default, then moves whole", async ({ app }, testInfo) => {
+  test.skip(process.platform === "win32", "SIGSTOP");
+  test.setTimeout(120_000);
+  const output = await liveOnAnotherOutput(app);
+  test.skip(output === null, "this computer has no second output both sides can open");
+  const engineName = engineRoute(app)?.match(/LIVE (\S+),/)?.[1];
+  await choose(app, "live", "Predeterminada del sistema");
+  await expect.poll(() => engineRoute(app)).toMatch(/LIVE default/);
+
+  // Something Chromium plays live, long enough to outlast the wait: the projector's element shows where LIVE sounds.
+  const wav = testInfo.outputPath("long-tone.wav");
+  execFileSync(ffmpegBinary(), ["-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "sine=frequency=440:duration=90", "-ac", "2", wav]);
+  await app.invoke("library:add", { kind: "audio", paths: [wav] });
+  await app.previewFile("Audios", "long-tone");
+  await app.goLive();
+  const projector = await app.projector();
+  await expect.poll(async () => (await audioStates(projector))[0]?.currentTime ?? 0).toBeGreaterThan(0.3);
+  expect(await sinks(projector)).toEqual([""]);
+
+  expect(signalEngines(app, "SIGSTOP").length).toBeGreaterThan(0);
+  try {
+    await choose(app, "live", output!.label);
+    // Main gives up waiting (~6 s) and the strip says the bus waits: still whole on the default. Fails if the late
+    // engine is taken for an engine-7, which put the projector on the chosen output and the engine on the default.
+    await expect(outputButton(app, "live")).toHaveAccessibleName(/Preparando la salida elegida: mientras tanto suena por la predeterminada/, {
+      timeout: 15_000,
+    });
+    expect(await sinks(projector)).toEqual([""]);
+    expect(engineRoute(app)).toMatch(/LIVE default/);
+  } finally {
+    signalEngines(app, "SIGCONT");
+  }
+  // It answers: both sides move to the chosen output, with nothing plugged or chosen again.
+  await expect.poll(() => sinks(projector), { timeout: 15_000 }).toEqual([output!.deviceId]);
+  await expect.poll(() => engineRoute(app)?.match(/LIVE (\S+),/)?.[1]).toBe(engineName);
+  await expect(outputButton(app, "live")).not.toHaveClass(/text-warning-ink/);
 });
 
 /** The loudest sample a sink's monitor records in `seconds` (dBFS, −120 for none). */

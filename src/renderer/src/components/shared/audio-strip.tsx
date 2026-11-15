@@ -10,6 +10,13 @@ import { useSettingsStore } from "@renderer/stores/settings.store";
 import { useUiStore } from "@renderer/stores/ui.store";
 import type { AudioBus } from "@shared/types/audio";
 
+/** Why the bus plays through the default instead of its chosen output, said on the strip. */
+const FALLBACK = {
+  missing: "audio.fallbackMissing",
+  unusable: "audio.fallbackUnusable",
+  pending: "audio.fallbackPending",
+} as const;
+
 /** Wide enough for «Predeterminada del sistema» and a USB interface's name beside the check. */
 const OUTPUT_MENU_WIDTH_PX = 288;
 
@@ -22,7 +29,8 @@ const OUTPUT_MENU_WIDTH_PX = 288;
  *   dragging the fader to 0 is that mute, and the remembered level stays. PREVIEW's IS PREVIEW's volume
  *   (`preview.store`), 0 with every new item.
  * - The output menu writes `audio.output.<bus>`. It turns amber when the chosen output is not used (not plugged in,
- *   or one the media engine cannot open: the bus plays through the default, `effects/audio-route.ts`), and PREVIEW's
+ *   one either side cannot open, or not yet named by the media engine: the bus plays through the default,
+ *   `effects/audio-route.ts`), and PREVIEW's
  *   when both buses end up in the same device AND PREVIEW is audible (D6): then it is heard in the room, and in the
  *   NDI® when it is on. The tooltip says so whenever the outputs are shared.
  */
@@ -50,7 +58,7 @@ export function AudioStrip({ bus }: { bus: AudioBus }) {
   );
 
   const outputLabel = t(live ? "audio.liveOutput" : "audio.previewOutput");
-  const fallback = state === "ok" ? null : t(state === "missing" ? "audio.fallbackMissing" : "audio.fallbackUnusable");
+  const fallback = state === "ok" ? null : t(FALLBACK[state]);
   const notice = fallback ?? (shared ? t(ndi ? "audio.sharedOutputNdi" : "audio.sharedOutput") : null);
   const warn = fallback !== null || (shared && previewVolume > 0);
   const outputName = t("audio.outputIs", { output: outputLabel, name: picker.name });

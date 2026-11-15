@@ -794,6 +794,7 @@ const pt: Messages = {
     sharedOutputNdi: "Também se ouve na igreja e no NDI: sai pela mesma saída que o Ao vivo.",
     fallbackMissing: "A saída escolhida não está conectada: toca pela padrão",
     fallbackUnusable: "A saída escolhida não pode ser usada: toca pela padrão",
+    fallbackPending: "Preparando a saída escolhida: enquanto isso toca pela padrão",
     toastMissing: "{output}: {name} não está conectada. Toca pela padrão do sistema.",
     toastUnusable: "{output}: {name} não pode ser usada. Toca pela padrão do sistema.",
     toastBack: "{output}: {name} está conectada de novo.",

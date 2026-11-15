@@ -796,6 +796,7 @@ const es = {
     sharedOutputNdi: "También se escucha en la sala y en el NDI: sale por la misma salida que EN VIVO.",
     fallbackMissing: "La salida elegida no está conectada: suena por la predeterminada",
     fallbackUnusable: "La salida elegida no se puede usar: suena por la predeterminada",
+    fallbackPending: "Preparando la salida elegida: mientras tanto suena por la predeterminada",
     toastMissing: "{output}: {name} no está conectada. Suena por la predeterminada del sistema.",
     toastUnusable: "{output}: {name} no se puede usar. Suena por la predeterminada del sistema.",
     toastBack: "{output}: {name} está conectada de nuevo.",

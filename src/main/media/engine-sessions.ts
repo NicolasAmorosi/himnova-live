@@ -329,12 +329,19 @@ export function setPreviewVideo(video: PreviewEngineVideo | null, contents: WebC
 export function setEngineAudioDevices(next: { live: string | null; preview: string | null }): void {
   if (next.live !== devices.live) {
     devices.live = next.live;
-    for (const session of [videos.video, videos.slideVideo, ...audio.values()]) session?.engine?.setDevice(next.live ?? "auto");
+    for (const session of [videos.video, videos.slideVideo, ...audio.values()]) moveSession(session, next.live);
   }
   if (next.preview !== devices.preview) {
     devices.preview = next.preview;
-    preview?.engine?.setDevice(next.preview ?? "auto");
+    moveSession(preview, next.preview);
   }
+}
+
+/** mpv reopens a moved output only when sound flows, so a paused session would sound 244–556 ms late on play: sought
+ *  where it stands (`redraw`, a paused engine only), it reopens the output now, as `takePreviewEngine`'s handover does. */
+function moveSession(session: Session | null | undefined, device: string | null): void {
+  session?.engine?.setDevice(device ?? "auto");
+  if (session?.paused) session.engine?.redraw();
 }
 
 export function seekPreviewVideo(seconds: number): void {

@@ -11,13 +11,16 @@ import { INSTANT_TRANSITION } from "@shared/types/projection";
 import { engineAssetUrl } from "@shared/urls";
 
 const h = vi.hoisted(() => {
+  /** What a real engine is told, line by line; `redraw` is the real one's: a seek where it stands, paused only. */
   class FakeEngine {
     readonly calls: string[] = [];
-    load: { device?: string } | null = null;
+    load: { device?: string; paused?: boolean } | null = null;
+    paused = false;
     usable = true;
     position = 0;
-    loadFile(opts: { device?: string }) {
+    loadFile(opts: { device?: string; paused?: boolean }) {
       this.load = opts;
+      this.paused = opts.paused ?? false;
     }
   }
   return {
@@ -35,16 +38,21 @@ vi.mock("../../src/main/media/media-engine", () => ({
     h.engines.push(engine);
     const log = (line: string) => () => engine.calls.push(line);
     return Object.assign(engine, {
-      load: (opts: { device?: string }) => engine.loadFile(opts),
+      load: (opts: { device?: string; paused?: boolean }) => engine.loadFile(opts),
       setDevice: (device: string) => engine.calls.push(`device ${device}`),
       seek: (at: number) => engine.calls.push(`seek ${at}`),
-      setPaused: (paused: boolean) => engine.calls.push(`pause ${paused}`),
+      setPaused: (paused: boolean) => {
+        engine.paused = paused;
+        engine.calls.push(`pause ${paused}`);
+      },
       setVolume: log("volume"),
       setLoop: log("loop"),
       retarget: log("retarget"),
       show: () => undefined,
       showOnly: () => undefined,
-      redraw: () => undefined,
+      redraw: () => {
+        if (engine.paused) engine.calls.push(`seek ${engine.position}`);
+      },
       quit: log("quit"),
     });
   },
@@ -56,19 +64,20 @@ vi.mock("../../src/main/ndi/ndi-output", () => ({ setNdiAudioRoute: h.ndi }));
 vi.mock("../../src/main/services/repos", () => ({ getMediaRepo: () => ({ getPathById: (id: number) => `/media/${id}.avi` }) }));
 vi.mock("../../src/main/services/broadcast", () => ({ broadcast: () => undefined, controlWindows: () => [] }));
 
-const { applyLiveAudioOut, matchAudioOutputs, setAudioRoute } = await import("../../src/main/media/audio-route");
+const { matchAudioOutputs, setAudioRoute } = await import("../../src/main/media/audio-route");
 const { setPreviewVideo, syncLiveEngine } = await import("../../src/main/media/engine-sessions");
 const { projectionState } = await import("../../src/main/services/projection-state");
 
 const ZOOM = "coreaudio/zoom.us.zoomaudiodevice.001";
+const SCARLETT = "coreaudio/AppleUSBAudioEngine:Focusrite:Scarlett 2i2";
 const projector = { isDestroyed: () => false, once: () => undefined, webContents: { id: 1, send: () => undefined } } as unknown as BrowserWindow;
 const control = { id: 2 } as unknown as WebContents;
 
-function liveVideo(assetId: number, epoch: number): ProjectionOutput {
+function liveVideo(assetId: number, epoch: number, paused = false): ProjectionOutput {
   return {
     kind: "video",
     assetId,
-    videoUnderlay: { url: engineAssetUrl(assetId), epoch, paused: false, startAtSeconds: 0, volume: 1, loop: false },
+    videoUnderlay: { url: engineAssetUrl(assetId), epoch, paused, startAtSeconds: 0, volume: 1, loop: false },
     slideVideo: null,
     plates: [],
     transition: INSTANT_TRANSITION,
@@ -85,9 +94,9 @@ afterAll(() => {
 });
 
 test("LIVE's output moves its sessions, GO LIVE moves PREVIEW's engine to it, and the NDI sound follows LIVE", () => {
-  setAudioRoute({ preview: null, previewApart: true });
-  applyLiveAudioOut({ sinkId: "z1", engineDevice: ZOOM });
-  expect(h.ndi).toHaveBeenLastCalledWith({ device: ZOOM, previewApart: true });
+  setAudioRoute({ live: ZOOM, preview: null, previewApart: true });
+  // One route for both buses: the NDI capture is told LIVE's output and PREVIEW's apart together, never half.
+  expect(h.ndi.mock.calls).toEqual([[{ device: ZOOM, previewApart: true }]]);
 
   // PREVIEW opens the file on its own output (the default here).
   setPreviewVideo({ url: engineAssetUrl(1), paused: true, startAtSeconds: 0, volume: 0, picture: true }, control);
@@ -111,20 +120,36 @@ test("LIVE's output moves its sessions, GO LIVE moves PREVIEW's engine to it, an
   const cold = h.engines.at(-1)!;
   expect(cold.load?.device).toBe(ZOOM);
 
-  // LIVE back to the default: what plays moves at once, and so does the NDI capture.
-  const ndiCalls = h.ndi.mock.calls.length;
-  applyLiveAudioOut(undefined);
-  expect(cold.calls).toContain("device auto");
-  expect(h.ndi).toHaveBeenLastCalledWith({ device: null, previewApart: true });
-  // The same output again (every push carries it) moves nothing more.
-  applyLiveAudioOut(undefined);
-  expect(h.ndi.mock.calls.length).toBe(ndiCalls + 1);
-  // A route told again (a device came or went) reaches the NDI sender even unchanged: that re-arms its capture.
-  setAudioRoute({ preview: null, previewApart: true });
-  expect(h.ndi.mock.calls.length).toBe(ndiCalls + 2);
+  // LIVE back to the default: what plays moves at once (no seek: it is playing), and so does the NDI capture.
+  cold.calls.length = 0;
+  setAudioRoute({ live: null, preview: null, previewApart: false });
+  expect(cold.calls).toEqual(["device auto"]);
+  expect(h.ndi).toHaveBeenLastCalledWith({ device: null, previewApart: false });
+  // The same route again (every device change re-sends it) moves no session.
+  setAudioRoute({ live: null, preview: null, previewApart: false });
+  expect(cold.calls).toEqual(["device auto"]);
 });
 
-test("outputs are matched against the engine's own list; an engine that cannot choose answers null", async () => {
+test("a paused session moved to another output is sought where it stands, so play is not heard late", () => {
+  projectionState.setWindow(projector);
+  projectionState.send(liveVideo(3, 3, true));
+  syncLiveEngine();
+  const paused = h.engines.at(-1)!;
+  paused.position = 12.5;
+  paused.calls.length = 0;
+  // mpv reopens a moved output only when sound flows: without the seek, play sounds 244–556 ms late (2026-11-15).
+  setAudioRoute({ live: SCARLETT, preview: null, previewApart: true });
+  expect(paused.calls).toEqual([`device ${SCARLETT}`, "seek 12.5"]);
+
+  // Playing again, moved back: only the device (a seek would jump it back to its last report).
+  projectionState.send(liveVideo(3, 3, false));
+  syncLiveEngine();
+  paused.calls.length = 0;
+  setAudioRoute({ live: null, preview: null, previewApart: false });
+  expect(paused.calls).toEqual(["device auto"]);
+});
+
+test("outputs are matched against the engine's own list; one that cannot choose is told from one that has not answered", async () => {
   h.list.mockResolvedValueOnce([
     { name: "auto", description: "Autoselect device" },
     { name: "coreaudio/BuiltInSpeakerDevice", description: "MacBook Air Speakers" },
@@ -136,15 +161,16 @@ test("outputs are matched against the engine's own list; an engine that cannot c
   // macOS only: other systems' labels are the device's name as it is.
   if (process.platform === "darwin") expect(await matchAudioOutputs([zoom, teams])).toEqual([ZOOM, null]);
 
-  // An engine-7 says so once: no second question, and the control window leaves the engine on the default.
+  // An engine-7 said so: only Chromium may move.
   h.list.mockReset();
   h.list.mockResolvedValue(null);
   h.proto.mockReturnValue(7);
-  expect(await matchAudioOutputs([zoom])).toBeNull();
-  expect(h.list).toHaveBeenCalledTimes(1);
-  // No answer yet from an engine that may speak 8 (its spare replaced at launch): asked once more.
-  h.proto.mockReturnValue(null);
-  h.list.mockClear();
-  expect(await matchAudioOutputs([zoom])).toBeNull();
-  expect(h.list).toHaveBeenCalledTimes(2);
+  expect(await matchAudioOutputs([zoom])).toBe("none");
+  // No answer from an engine that speaks 8, or has not said yet (a spare stopped, slow, or replaced at launch): not
+  // «cannot choose». Taking it for an engine-7 put Chromium's files on the chosen output and the engine's on the
+  // default (the 2026-11-15 audit).
+  for (const proto of [8, null]) {
+    h.proto.mockReturnValue(proto);
+    expect(await matchAudioOutputs([zoom])).toBe("pending");
+  }
 });

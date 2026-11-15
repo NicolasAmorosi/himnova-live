@@ -6,20 +6,27 @@
  */
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { DEFAULT_SETTINGS } from "@shared/types/settings";
-import type { AudioRoute } from "@shared/types/audio";
+import type { AudioRoute, EngineOutputNames } from "@shared/types/audio";
 
 const h = vi.hoisted(() => ({
-  match: vi.fn<(outputs: { deviceId: string; label: string }[]) => Promise<(string | null)[] | null>>(),
+  match: vi.fn<(outputs: { deviceId: string; label: string }[]) => Promise<EngineOutputNames>>(),
   set: vi.fn<(route: AudioRoute) => Promise<void>>(() => Promise.resolve()),
-  audioOut: [] as ((payload: { device: string; ok: boolean }) => void)[],
+  listeners: new Map<string, ((payload: never) => void)[]>(),
 }));
 vi.mock("@renderer/lib/api", () => ({ api: { audioRoute: { matchOutputs: h.match, set: h.set } } }));
 vi.mock("@renderer/lib/ipc", () => ({
-  onIpc: (event: string, listener: (payload: { device: string; ok: boolean }) => void) => {
-    if (event === "audio-out") h.audioOut.push(listener);
-    return () => h.audioOut.splice(h.audioOut.indexOf(listener), 1);
+  onIpc: (event: string, listener: (payload: never) => void) => {
+    const list = h.listeners.get(event) ?? [];
+    h.listeners.set(event, [...list, listener]);
+    return () => h.listeners.set(event, (h.listeners.get(event) ?? []).filter((l) => l !== listener));
   },
 }));
+/** What main sends the control window: an engine session's `audio-out`, a window's failed `setSinkId`. */
+function emit(event: "audio-out", payload: { device: string; ok: boolean }): void;
+function emit(event: "audio-sink-failed", payload: { sinkId: string }): void;
+function emit(event: string, payload: unknown): void {
+  for (const listener of h.listeners.get(event) ?? []) (listener as (p: unknown) => void)(payload);
+}
 
 const { startAudioRouteEffects } = await import("@renderer/effects/audio-route");
 const { useAudioRouteStore } = await import("@renderer/stores/audio-route.store");
@@ -43,6 +50,7 @@ const toasts = () => useToastStore.getState().toasts.map((toast) => `${toast.ton
 let stop: () => void = () => undefined;
 
 beforeEach(() => {
+  h.set.mockImplementation(() => Promise.resolve());
   h.match.mockImplementation((outputs) => Promise.resolve(outputs.map((o) => (o.label === "Scarlett 2i2" ? SCARLETT : null))));
   useSettingsStore.setState({
     loaded: true,
@@ -58,7 +66,7 @@ test("an output unplugged mid-service sends LIVE to the default, says so once, a
   stop = startAudioRouteEffects();
   await settle();
   expect(useProjectionStore.getState().liveAudioOut).toEqual({ sinkId: "b2", engineDevice: SCARLETT });
-  expect(h.set).toHaveBeenLastCalledWith({ preview: null, previewApart: true });
+  expect(h.set).toHaveBeenLastCalledWith({ live: SCARLETT, preview: null, previewApart: true });
   expect(toasts()).toEqual([]);
 
   // Unplugged: the whole bus to the default (Chromium "" and the engine's default), never half of it.
@@ -69,7 +77,7 @@ test("an output unplugged mid-service sends LIVE to the default, says so once, a
   expect(useAudioRouteStore.getState().live.state).toBe("missing");
   // PREVIEW and LIVE now share the default: the NDI sound may carry PREVIEW (D6), and the strip says so.
   expect(useAudioRouteStore.getState().shared).toBe(true);
-  expect(h.set).toHaveBeenLastCalledWith({ preview: null, previewApart: false });
+  expect(h.set).toHaveBeenLastCalledWith({ live: null, preview: null, previewApart: false });
   expect(toasts()).toEqual(["warning: Salida de EN VIVO: Scarlett 2i2 no está conectada. Suena por la predeterminada del sistema."]);
 
   // Another device coming or going while it is still out: no second toast.
@@ -105,7 +113,7 @@ test("a device the engine cannot open is not used by Chromium either, and choosi
 });
 
 test("with an engine that cannot choose (engine-7), only Chromium moves", async () => {
-  h.match.mockResolvedValue(null);
+  h.match.mockResolvedValue("none");
   plugged = [...speakers, scarlett];
   stop = startAudioRouteEffects();
   await settle();
@@ -119,7 +127,7 @@ test("an output the engine says it cannot open sends the bus to the default, unt
   stop = startAudioRouteEffects();
   await settle();
   expect(useProjectionStore.getState().liveAudioOut.engineDevice).toBe(SCARLETT);
-  for (const listener of h.audioOut) listener({ device: SCARLETT, ok: false });
+  emit("audio-out", { device: SCARLETT, ok: false });
   await settle();
   // Fails if Chromium stays on it while the engine plays its files into nothing: one bus, one device.
   expect(useProjectionStore.getState().liveAudioOut).toEqual({ sinkId: "", engineDevice: null });
@@ -137,4 +145,74 @@ test("an output the engine says it cannot open sends the bus to the default, unt
   devices.dispatchEvent(new Event("devicechange"));
   await settle();
   expect(useProjectionStore.getState().liveAudioOut).toEqual({ sinkId: "b2", engineDevice: SCARLETT });
+});
+
+test("main hears both buses in one route, before the projector's output carries LIVE's", async () => {
+  // Fails if PREVIEW's half reaches main alone: main applied «LIVE old, PREVIEW apart» and moved the NDI capture twice.
+  const seen: string[] = [];
+  h.set.mockImplementation((route) => {
+    seen.push(`main: LIVE ${route.live ?? "default"}${route.previewApart ? " (apart)" : ""}`);
+    return Promise.resolve();
+  });
+  plugged = [...speakers, scarlett];
+  useProjectionStore.getState().setLiveAudioOut({ sinkId: "", engineDevice: null });
+  const unsubscribe = useProjectionStore.subscribe((state, previous) => {
+    if (state.liveAudioOut !== previous.liveAudioOut) seen.push(`output: LIVE ${state.liveAudioOut.engineDevice ?? "default"}`);
+  });
+  stop = startAudioRouteEffects();
+  await settle();
+  unsubscribe();
+  expect(seen).toEqual([`main: LIVE ${SCARLETT} (apart)`, `output: LIVE ${SCARLETT}`]);
+});
+
+test("an engine that has not answered keeps the bus whole on the default, and is asked again until it does", async () => {
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  const tick = (ms = 0) => vi.advanceTimersByTimeAsync(ms);
+  try {
+    h.match.mockResolvedValue("pending");
+    plugged = [...speakers, scarlett];
+    stop = startAudioRouteEffects();
+    await tick();
+    // Not Chromium on the Scarlett with the engine's files on the default (the 2026-11-15 audit's split).
+    expect(useProjectionStore.getState().liveAudioOut).toEqual({ sinkId: "", engineDevice: null });
+    expect(h.set).toHaveBeenLastCalledWith({ live: null, preview: null, previewApart: false });
+    expect(useAudioRouteStore.getState().live.state).toBe("pending");
+    // Waiting is said on the strip, not in a toast.
+    expect(toasts()).toEqual([]);
+
+    const asked = h.match.mock.calls.length;
+    await tick(2000);
+    expect(h.match.mock.calls.length).toBe(asked + 1);
+    // It answers: the chosen output for both sides at once, and no «connected again» for a device that never left.
+    h.match.mockImplementation((outputs) => Promise.resolve(outputs.map((o) => (o.label === "Scarlett 2i2" ? SCARLETT : null))));
+    await tick(2000);
+    expect(useProjectionStore.getState().liveAudioOut).toEqual({ sinkId: "b2", engineDevice: SCARLETT });
+    expect(useAudioRouteStore.getState().live.state).toBe("ok");
+    expect(toasts()).toEqual([]);
+    // Settled: nobody asks again.
+    const settled = h.match.mock.calls.length;
+    await tick(10_000);
+    expect(h.match.mock.calls.length).toBe(settled);
+  } finally {
+    stop();
+    vi.useRealTimers();
+  }
+});
+
+test("a window that could not move its elements to the output sends the bus to the default whole", async () => {
+  plugged = [...speakers, scarlett];
+  stop = startAudioRouteEffects();
+  await settle();
+  expect(useProjectionStore.getState().liveAudioOut).toEqual({ sinkId: "b2", engineDevice: SCARLETT });
+  // The projector's `setSinkId("b2")` failed: its elements stay where they were while the engine moved.
+  emit("audio-sink-failed", { sinkId: "b2" });
+  await settle();
+  expect(useProjectionStore.getState().liveAudioOut).toEqual({ sinkId: "", engineDevice: null });
+  expect(h.set).toHaveBeenLastCalledWith({ live: null, preview: null, previewApart: false });
+  expect(useAudioRouteStore.getState().live.state).toBe("unusable");
+  expect(toasts()).toEqual(["warning: Salida de EN VIVO: Scarlett 2i2 no se puede usar. Suena por la predeterminada del sistema."]);
+  // A failure of an output nobody uses any more changes nothing.
+  emit("audio-sink-failed", { sinkId: "zz" });
+  await settle();
+  expect(toasts()).toHaveLength(1);
 });
