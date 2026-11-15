@@ -8,6 +8,7 @@ import { useSettingsStore } from "@renderer/stores/settings.store";
 import { t } from "@renderer/lib/i18n/i18n-provider";
 import { toast } from "@renderer/lib/toast";
 import type { DisplayInfo } from "@shared/types/display";
+import { projectorDisplayFor } from "@shared/display-roles";
 
 /** Dedupes concurrent `load()` calls. The app boots one at startup and
  *  `openIfNeeded()` needs one whenever the operator's first GO LIVE beats it —
@@ -19,6 +20,12 @@ let loadInFlight: Promise<void> | null = null;
  *  the projector again — closing the window that was about to show. */
 let openInFlight: Promise<void> | null = null;
 
+/** The operator closed the projector (Settings ▸ Screens): a screen coming or going does not open it again this
+ *  session. Whatever opens it next — GO LIVE, BLACK, LOGO, «Abrir» — lets it open by itself again. */
+let closedByOperator = false;
+/** Off under the E2E suite (`projection:autoOpen`). */
+let autoOpenEnabled = false;
+
 /** There is no screen to project on: `displays.list()` came back empty.
  *  Giving up in silence is the one thing this must not do — `goLive()` carries
  *  on regardless, the monitors fill with content and nothing ever reaches a
@@ -29,7 +36,7 @@ function warnNoScreen(): void {
   toast.warning(t("projector.noScreen"), {
     action: {
       label: t("projector.chooseScreen"),
-      onClick: () => useUiStore.getState().openSettings("projection"),
+      onClick: () => useUiStore.getState().openSettings("screens"),
     },
   });
 }
@@ -38,12 +45,14 @@ type DisplayStoreState = {
   displays: DisplayInfo[];
   displayId: number | null;
   loaded: boolean;
+  /** The projector's screen went away and main hid its window, still playing (`projector-screen`). */
+  projectorHidden: boolean;
 
-  /** Lists the available screens and resolves which one to target: the
-   *  persisted `projection.displayId` setting when it still points at a
-   *  connected display, otherwise the first that isn't the operator's own (the one
-   *  hosting the control window) — the
-   *  projector, in every real setup. */
+  /** Lists the available screens and resolves which one to target
+   *  (`projectorDisplayFor`): the persisted `projection.displayId` while it is
+   *  connected, otherwise the first that is neither the operator's own (the one
+   *  hosting the control window) nor the stage's — the projector, in every
+   *  real setup. */
   load: () => Promise<void>;
   setDisplayId: (id: number) => Promise<void>;
   /** Opens the projection window on the resolved display and immediately
@@ -53,11 +62,16 @@ type DisplayStoreState = {
   open: () => Promise<void>;
   /** Opens the projection window on demand, on whatever is about to be shown
    *  (BLACK/LOGO/GO LIVE), without forcing BLACK first — a no-op once it's
-   *  already open. This is what lets the app start with nothing projected at
-   *  all: no window opens on launch, the operator's first tap on BLACK, LOGO
-   *  or GO LIVE is what turns the projector on. */
+   *  already open. `autoOpen` uses it at launch; a projector the operator
+   *  closed, or one with no screen of its own, opens here on the next tap. */
   openIfNeeded: () => Promise<void>;
   close: () => Promise<void>;
+  /**
+   * Opens the projector by itself, like the stage (owner, 2026-11-13): at launch and when its screen appears, with
+   * whatever is live (nothing yet: the LOGO). Never onto the operator's own screen — with one screen it waits for the
+   * projector to be connected — and not after the operator closed it this session.
+   */
+  autoOpen: (enabled?: boolean) => Promise<void>;
   /** A screen came or went (`displays-changed`): re-lists them, so Settings
    *  shows a projector turned on after launch and the next GO LIVE targets it.
    *  It never moves the window — main already did, without rebuilding it
@@ -69,6 +83,7 @@ export const useDisplayStore = create<DisplayStoreState>((set, get) => ({
   displays: [],
   displayId: null,
   loaded: false,
+  projectorHidden: false,
 
   load: async () => {
     loadInFlight ??= (async () => {
@@ -79,10 +94,14 @@ export const useDisplayStore = create<DisplayStoreState>((set, get) => ({
             ? Promise.resolve(useSettingsStore.getState().settings)
             : api.settings.get(),
         ]);
-        const persisted = settings["projection.displayId"];
-        const resolved =
-          displays.find((d) => d.id === persisted) ?? displays.find((d) => !d.operator) ?? displays[0];
-        set({ displays, displayId: resolved?.id ?? null, loaded: true });
+        const operatorId = displays.find((d) => d.operator)?.id ?? displays[0]?.id ?? -1;
+        const displayId = projectorDisplayFor(
+          displays.map((d) => d.id),
+          operatorId,
+          settings["projection.displayId"],
+          settings["stage.displayId"],
+        );
+        set({ displays, displayId, loaded: true });
       } finally {
         loadInFlight = null;
       }
@@ -111,6 +130,7 @@ export const useDisplayStore = create<DisplayStoreState>((set, get) => ({
   },
 
   open: async () => {
+    closedByOperator = false;
     const { displayId } = get();
     if (displayId === null) {
       warnNoScreen();
@@ -126,6 +146,7 @@ export const useDisplayStore = create<DisplayStoreState>((set, get) => ({
   },
 
   openIfNeeded: async () => {
+    closedByOperator = false;
     if (useProjectionStore.getState().presentationOpen) return;
     openInFlight ??= (async () => {
       try {
@@ -149,6 +170,7 @@ export const useDisplayStore = create<DisplayStoreState>((set, get) => ({
   },
 
   close: async () => {
+    closedByOperator = true;
     // Same reason as in `setDisplayId`: whatever is sounding right now should
     // resume where it was if the operator opens the projector again, instead
     // of restarting from the point they originally chose.
@@ -157,5 +179,19 @@ export const useDisplayStore = create<DisplayStoreState>((set, get) => ({
     useProjectionStore.getState().setPresentationOpen(false);
   },
 
-  refresh: () => get().load(),
+  autoOpen: async (enabled) => {
+    if (enabled !== undefined) autoOpenEnabled = enabled;
+    if (!autoOpenEnabled || closedByOperator || useProjectionStore.getState().presentationOpen) return;
+    if (!get().loaded) await get().load();
+    const { displayId, displays } = get();
+    const target = displays.find((d) => d.id === displayId);
+    if (!target || target.operator) return;
+    await get().openIfNeeded();
+  },
+
+  refresh: async () => {
+    await get().load();
+    // A projector turned on after the app opened.
+    await get().autoOpen();
+  },
 }));

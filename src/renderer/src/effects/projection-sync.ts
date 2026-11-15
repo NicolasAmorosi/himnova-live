@@ -16,6 +16,7 @@ import { startEndOfPlaybackEffects } from "./end-of-playback";
 import { startPlateAutoHide } from "./plate-auto-hide";
 import { mediaErrorKey } from "@shared/types/projection";
 import type { AudioTrackPush, ProjectionMediaError, ProjectionOutput } from "@shared/types/projection";
+import { busVolume } from "@shared/types/audio";
 
 /**
  * `track.paused` is the operator's own declarative pause and must survive a
@@ -24,15 +25,23 @@ import type { AudioTrackPush, ProjectionMediaError, ProjectionOutput } from "@sh
  * here, never written back into `useAudioStore`. Only the deck's own
  * soundtrack reacts to the cover; a standalone audio asset sent live is
  * intentionally independent of what's on screen (see `audio.store.ts`).
+ *
+ * The level pushed is the track's own times the LIVE master (`busVolume`), like the videos' in `selectOutput`: the
+ * store keeps what the operator set for the track, the projector and the engine get what it plays at.
  */
-export function toAudioTrackPush(track: LiveAudioTrack, covered: boolean, loopStandalone: boolean): AudioTrackPush {
+export function toAudioTrackPush(
+  track: LiveAudioTrack,
+  covered: boolean,
+  loopStandalone: boolean,
+  liveMaster: number,
+): AudioTrackPush {
   return {
     trackId: track.trackId,
     url: track.url,
     epoch: track.epoch,
     paused: track.paused || (track.source === "deck" && covered),
     startAtSeconds: track.startAtSeconds,
-    volume: track.volume,
+    volume: busVolume(track.volume, liveMaster),
     // `projection.audioEnd` «loop»: state, like a video's, so it also starts
     // over in a rebuilt projector and a change reaches what already plays.
     loop: track.loop || (track.source === "asset" && loopStandalone),
@@ -106,7 +115,8 @@ export function startProjectionEffects(): () => void {
     audioFlushScheduled = true;
     queueMicrotask(() => {
       audioFlushScheduled = false;
-      const covered = useProjectionStore.getState().overlay !== "none";
+      const { overlay, liveMasterVolume } = useProjectionStore.getState();
+      const covered = overlay !== "none";
       const loopStandalone = useSettingsStore.getState().settings["projection.audioEnd"] === "loop";
       const tracks = useAudioStore.getState().tracks;
       // The one place that knows the complete live track list, so it is also
@@ -114,7 +124,9 @@ export function startProjectionEffects(): () => void {
       // every path that can retire a track (`removeTrack`, `restartTrack`'s new
       // epoch, `setDeckTrack`, `clear`) ends up here.
       useProjectionStore.getState().pruneMediaStatus(tracks.map((track) => track.trackId));
-      void api.projection.setAudioTracks(tracks.map((track) => toAudioTrackPush(track, covered, loopStandalone)));
+      void api.projection.setAudioTracks(
+        tracks.map((track) => toAudioTrackPush(track, covered, loopStandalone, liveMasterVolume)),
+      );
     });
   };
 
@@ -125,6 +137,8 @@ export function startProjectionEffects(): () => void {
     (state) => state.overlay,
     pushAudioTracks,
   );
+  // And on a move of the LIVE master, which multiplies every track's level.
+  const unsubscribeMasterForAudio = useProjectionStore.subscribe((state) => state.liveMasterVolume, pushAudioTracks);
   // And on a change of `projection.audioEnd`, which folds into `loop`.
   const unsubscribeAudioEnd = useSettingsStore.subscribe((state, previous) => {
     if (state.settings["projection.audioEnd"] !== previous.settings["projection.audioEnd"]) pushAudioTracks();
@@ -234,6 +248,7 @@ export function startProjectionEffects(): () => void {
   // notice stays until it is true again.
   let screenLostToastId: string | null = null;
   const unsubscribeProjectorScreen = onIpc("projector-screen", ({ connected }) => {
+    useDisplayStore.setState({ projectorHidden: !connected });
     if (screenLostToastId !== null) toast.dismiss(screenLostToastId);
     screenLostToastId = null;
     if (connected) toast.success(t("projector.screenBack"));
@@ -249,6 +264,7 @@ export function startProjectionEffects(): () => void {
     unsubscribeOutput();
     unsubscribeAudioTracks();
     unsubscribeOverlayForAudio();
+    unsubscribeMasterForAudio();
     unsubscribeAudioEnd();
     unsubscribeProjectionClosed();
     unsubscribePresentationOpen();

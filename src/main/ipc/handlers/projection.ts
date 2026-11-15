@@ -8,8 +8,8 @@ import { commandLiveEngine, redrawEngineFrame, syncLiveEngine } from "../../medi
 import { IpcError } from "@shared/ipc/result";
 import { deckIdOfUrl } from "@shared/urls";
 import { keepLiveDeckSource } from "../../protocol/worship-protocol";
-import { showOnStage, stageSnapshot } from "../../windows/stage-window";
-import { forwardMediaStatusToNdi } from "../../ndi/ndi-output";
+import { reopenStageWindow, showOnStage, stageShown, stageSnapshot } from "../../windows/stage-window";
+import { reportLevel } from "../../media/audio-levels";
 
 let currentProgramId: number | null = null;
 
@@ -31,6 +31,7 @@ export const projectionHandlers: Pick<
   Handlers,
   | "projection:open"
   | "projection:close"
+  | "projection:autoOpen"
   | "projection:show"
   | "projection:mediaCommand"
   | "projection:setAudioTracks"
@@ -38,8 +39,11 @@ export const projectionHandlers: Pick<
   | "projection:reportMediaError"
   | "projection:getSnapshot"
   | "projection:wantVideoFrame"
+  | "projection:reportLevels"
   | "stage:show"
   | "stage:getSnapshot"
+  | "stage:shown"
+  | "stage:reopen"
 > = {
   "projection:open": ({ displayId }) => {
     const existing = projectionState.getWindow();
@@ -133,7 +137,10 @@ export const projectionHandlers: Pick<
   },
 
   "stage:show": (output) => showOnStage(output),
+  "projection:autoOpen": () => !process.argv.includes("--no-auto-projector"),
   "stage:getSnapshot": () => stageSnapshot(),
+  "stage:shown": () => stageShown(),
+  "stage:reopen": () => reopenStageWindow(),
 
   "projection:getSnapshot": (_req, ev) => {
     mountWaiters.get(ev.sender.id)?.();
@@ -156,12 +163,23 @@ export const projectionHandlers: Pick<
     redrawEngineFrame(req.key, ev.sender);
   },
 
+  /** Only the projector's: its copies (the NDI window, the stage) are silent, and the room hears that one. */
+  "projection:reportLevels": (level, ev) => {
+    if (ev.sender !== projectionState.getWindow()?.webContents) return;
+    if (!Array.isArray(level) || level.length !== 2 || !level.every((db) => typeof db === "number" && !Number.isNaN(db))) {
+      throw new IpcError({ code: "INVALID_ARGUMENT", message: "Invalid level." });
+    }
+    reportLevel("projector", "live", [level[0], level[1]]);
+  },
+
   /** The projection window describing its own media element; forwarded to the
-   *  control window, which owns the autoplay clock, and to the NDI window, whose
-   *  copy of a Chromium video follows it. */
+   *  control window, which owns the autoplay clock, and to the projector's copies
+   *  (the NDI window, the stage while it plays videos), whose Chromium videos follow it. */
   "projection:reportMediaStatus": (status) => {
     broadcast("media-status", status);
-    forwardMediaStatusToNdi(status);
+    if (status.target.kind === "audio") return;
+    projectionState.setMediaStatus(status);
+    for (const win of projectionState.getMirrors()) win.webContents.send("media-status", status);
   },
 
   /** A file the projector could not load or decode. Logged here as well as

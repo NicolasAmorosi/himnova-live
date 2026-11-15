@@ -1,5 +1,7 @@
 import {
   AlarmClock,
+  CornerDownLeft,
+  Zap,
   DatabaseBackup,
   House,
   Keyboard,
@@ -39,6 +41,7 @@ import {
   FolderOpen,
   FolderPlus,
   GripVertical,
+  Headphones,
   HelpCircle,
   Hourglass,
   Image as ImageIcon,
@@ -56,6 +59,8 @@ import {
   Music,
   Palette,
   Pause,
+  Pin,
+  MessageSquareText,
   Pencil,
   Play,
   Plus,
@@ -68,6 +73,7 @@ import {
   SkipBack,
   SkipForward,
   SlidersHorizontal,
+  Speaker,
   Square,
   Star,
   Sun,
@@ -110,6 +116,10 @@ const icons = {
   // A verse in two versions side by side (the Bible tab's «En paralelo»).
   columns: Columns2,
   alarm: AlarmClock,
+  /** Enter: sends what the field holds (the stage panel's message). */
+  enter: CornerDownLeft,
+  /** The stage message blinking until it is taken off. */
+  flash: Zap,
   hourglass: Hourglass,
   timer: Timer,
   copy: Copy,
@@ -144,6 +154,8 @@ const icons = {
   audio: Music,
   palette: Palette,
   pause: Pause,
+  pin: Pin,
+  message: MessageSquareText,
   pencil: Pencil,
   play: Play,
   add: Plus,
@@ -165,6 +177,9 @@ const icons = {
   upload: Upload,
   volume: Volume2,
   volumeOff: VolumeX,
+  /** The audio strips' output menus: LIVE sounds in the room, PREVIEW in the operator's ears. */
+  speaker: Speaker,
+  headphones: Headphones,
   camera: Webcam,
   close: X,
 } satisfies Record<string, LucideIcon>;

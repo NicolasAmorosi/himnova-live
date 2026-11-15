@@ -236,6 +236,8 @@ export function PerformanceDiagnostics() {
               <video
                 autoPlay
                 className="size-full object-contain"
+                // Like every media element (`lib/level-tap.ts`): none depends on how Chromium shares a url's data.
+                crossOrigin="anonymous"
                 muted
                 playsInline
                 preload="auto"

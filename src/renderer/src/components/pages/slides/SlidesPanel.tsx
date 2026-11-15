@@ -17,6 +17,7 @@ import { PreviewMissingState } from "@renderer/components/shared/preview-missing
 import { DamagedSlideBadge } from "@renderer/components/shared/damaged-slide";
 import { useDeckStore } from "@renderer/stores/deck.store";
 import { PreviewMonitor } from "@renderer/components/pages/monitors/preview-monitor";
+import { MonitorWithStrip } from "@renderer/components/shared/audio-strip";
 import { useBibleStore } from "@renderer/stores/bible.store";
 import { useProgramStore } from "@renderer/stores/program.store";
 import { usePreviewStore } from "@renderer/stores/preview.store";
@@ -253,7 +254,9 @@ export function SlidesPanel() {
         title={t("slides.title")}
       />
       <div className="flex min-h-0 flex-1 flex-col gap-4 p-4">
-        <PreviewMonitor />
+        <MonitorWithStrip bus="preview">
+          <PreviewMonitor />
+        </MonitorWithStrip>
         {mediaBar}
         <PanelBody className="p-1.5">{body()}</PanelBody>
       </div>

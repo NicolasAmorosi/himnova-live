@@ -1,6 +1,6 @@
 import { execFileSync } from "node:child_process";
 import type { Locator, Page } from "@playwright/test";
-import { audioStates, expect, test, videoStates, type WorshipApp } from "./support/app";
+import { audioStates, expect, moving, test, videoStates, type WorshipApp } from "./support/app";
 import { ffmpegBinary } from "./support/paths";
 
 test("a video goes through PREVIEW before it reaches the projector", async ({ app }) => {
@@ -84,6 +84,8 @@ test("closing the projector window from outside does not strand the operator", a
 });
 
 test("PREVIEW sounds at its own volume, 0 to start, and goes quiet when it goes live", async ({ app }) => {
+  // The row's own volume, as with the strips off; the strip's fader is the same `preview.store` volume.
+  await app.audioStripsOff();
   await app.addMedia("video", "clip.mp4");
   await app.previewFile("Videos", "clip");
   const preview = app.previewColumn();
@@ -199,6 +201,31 @@ async function brightnessDuring(projector: Page, action: () => Promise<void>) {
   const luma = [...execFileSync(ffmpegBinary(), args.split(" "), { input: Buffer.concat(frames) })];
   return { before: luma[mark - 1] ?? 0, during: luma.slice(mark) };
 }
+
+test("NEGRO to LOGO and back over a playing video goes cover to cover: the video never shows in between", async ({ app }) => {
+  const [, avi] = await app.addMedia("video", "clip.mp4", "long-xvid.avi");
+  if (!avi) throw new Error("import failed");
+  await expect.poll(async () => (await app.invoke<number[]>("engine:assets")).includes(avi.id), { timeout: 30_000 }).toBe(true);
+  const black = app.control.getByRole("button", { name: "NEGRO", exact: true });
+  const logo = app.control.getByRole("button", { name: "LOGO", exact: true });
+  // Chromium's video and the engine's: two different elements under the covers.
+  for (const name of ["clip", "long-xvid"]) {
+    await app.previewFile("Videos", name);
+    await app.goLive();
+    const projector = await app.projector();
+    if (name === "clip") await expect.poll(async () => (await videoStates(projector))[0]?.currentTime ?? 0).toBeGreaterThan(0.5);
+    else await expect.poll(() => moving(projector, "video:")).toBe(true);
+    await black.click();
+    await projector.waitForTimeout(800);
+    // This profile's LOGO is black too: every frame of either change is black. Before the fix the paused video
+    // was held at full opacity under the cover fading in (the clip reads ~130).
+    const toLogo = await brightnessDuring(projector, () => logo.click());
+    expect(Math.max(toLogo.before, ...toLogo.during), `${name}: NEGRO → LOGO`).toBeLessThan(20);
+    const toBlack = await brightnessDuring(projector, () => black.click());
+    expect(Math.max(...toBlack.during), `${name}: LOGO → NEGRO`).toBeLessThan(20);
+    await black.click();
+  }
+});
 
 test("leaving a video crossfades with no black frame and no dip", async ({ app }) => {
   await app.addMedia("video", "clip.mp4");

@@ -25,7 +25,7 @@ import {
 import { importPaths } from "./services/library-import";
 import { setBibleDb } from "./ipc/handlers/bible";
 import { registerAllIpcHandlers } from "./ipc";
-import { createControlWindow } from "./windows/control-window";
+import { createControlWindow, operatorDisplay } from "./windows/control-window";
 import { installNavigationGuards } from "./windows/navigation-guards";
 import { installApplicationMenu } from "./windows/app-menu";
 import { holdQuitUntilAnswered, installCloseGuard } from "./windows/close-guard";
@@ -59,6 +59,8 @@ import { stopDeckClips } from "./media/deck-clips";
 import { appendLogLine, installMainLog } from "./logging";
 import { initUpdates } from "./updates/updater";
 import { retireFormerMacApp } from "./updates/former-mac-app";
+import { LATEST_WHATS_NEW } from "@shared/whats-new";
+import { stageSharesProjector } from "@shared/display-roles";
 
 /** Long enough to be safely past the first paint of the control window — the
  *  prune walks a directory and is worth nothing compared to the app being on
@@ -127,6 +129,9 @@ function initDatabase(): void {
   // Only a new profile is welcomed (owner, 2026-11-09): an install that updates keeps going to work. The E2E
   // suite launches a new profile per test and skips it unless a spec asks for it.
   if (isNewProfile && !process.argv.includes("--no-welcome")) getSettingsRepo().setMany({ "welcome.pending": true });
+  // …and never also told what changed (D4): «Novedades» is for a profile that existed before the update. The E2E suite
+  // skips it on every launch, a profile it brings from an older build included, unless a spec asks for it.
+  if (isNewProfile || process.argv.includes("--no-whats-new")) getSettingsRepo().setMany({ "ui.whatsNewSeen": LATEST_WHATS_NEW });
   // A new profile starts with the system's Videos, Pictures, Music and Documents linked in Media (owner,
   // 2026-11-09); the E2E suite keeps its bare library.
   if (isNewProfile && !process.argv.includes("--no-system-folders")) {
@@ -169,14 +174,15 @@ function initDatabase(): void {
 }
 
 function wireMinimizeRestoreSync(controlWindow: BrowserWindow): void {
-  // The projection window loses `alwaysOnTop` on some platforms when the OS
-  // minimizes/restores its owning process — reasserted here on restore.
-  controlWindow.on("minimize", () => projectionState.getWindow()?.minimize());
+  // Minimizing the control window leaves the projector — and the stage — where they are (owner, 2026-11-13: it
+  // used to take the projector down with it, and the room lost the picture). The projection window can lose
+  // `alwaysOnTop` on some platforms when the OS minimizes/restores its owning process: reasserted on restore.
   controlWindow.on("restore", () => {
     const win = projectionState.getWindow();
     if (!win) return;
-    win.restore();
-    win.setAlwaysOnTop(true, "screen-saver");
+    if (win.isMinimized()) win.restore();
+    // Only the fullscreen one: on the operator's own screen it is a movable window, never on top.
+    if (win.isFullScreen()) win.setAlwaysOnTop(true, "screen-saver");
   });
   controlWindow.on("closed", () => {
     projectionState.getWindow()?.close();
@@ -198,11 +204,16 @@ function userFacingWindows(): BrowserWindow[] {
  *  A single entry point on purpose: `app.on("activate")` used to call
  *  `createControlWindow()` directly, which quietly skipped
  *  `wireMinimizeRestoreSync` — so after closing and reopening the app on
- *  macOS, minimizing no longer took the projection down with it and closing
- *  the control window left the projector on screen. */
+ *  macOS, closing the control window left the projector on screen. */
 function openControlWindow(): BrowserWindow {
   const win = createControlWindow();
   wireMinimizeRestoreSync(win);
+  // Before the stage window opens, and without a word: the operator never chose anything new (`stageSharesProjector`).
+  const settings = getSettingsRepo();
+  if (stageSharesProjector(settings.get("projection.displayId"), settings.get("stage.displayId"), operatorDisplay().id)) {
+    settings.setMany({ "stage.displayId": null });
+    console.info("[screens] the stage shared the projector's screen (a 2.9 profile): the stage is off");
+  }
   syncStageWindow();
   // After the control window's page: Playwright takes the first window that loads as the control one, and
   // the NDI output's is a window too.

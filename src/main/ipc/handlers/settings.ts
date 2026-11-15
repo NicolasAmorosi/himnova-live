@@ -4,7 +4,7 @@ import { IpcError } from "@shared/ipc/result";
 import { SETTINGS_VALIDATORS, isSettingsKey, type SettingsMap } from "@shared/types/settings";
 import { mainMessages, setMainLocale } from "../../i18n";
 import { installApplicationMenu } from "../../windows/app-menu";
-import { syncStageWindow } from "../../windows/stage-window";
+import { reopenStageWindow, syncStageWindow } from "../../windows/stage-window";
 import { factoryVerseStyle } from "../../db/seed/seed-starter-look";
 import { profileBackgroundsDir } from "../../paths";
 import { syncNdiOutput } from "../../ndi/ndi-output";
@@ -52,7 +52,9 @@ export const settingsHandlers: Pick<Handlers, "settings:get" | "settings:set" | 
       setMainLocale(partial["ui.locale"]);
       installApplicationMenu();
     }
-    // The projector's screen counts too: the stage never shares it.
+    // Choosing the stage's screen undoes the operator's closing it. The projector's screen counts too: the stage
+    // never shares it.
+    if ("stage.displayId" in partial) reopenStageWindow();
     if ("stage.displayId" in partial || "projection.displayId" in partial) syncStageWindow();
     if (Object.keys(partial).some((key) => key.startsWith("ndi.output."))) syncNdiOutput();
   },

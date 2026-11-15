@@ -4,7 +4,6 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { NDI_ERROR_CODES, NDI_SIZES, type NdiAudioStatus, type NdiOutputStatus } from "@shared/types/ndi";
-import type { MediaStatus } from "@shared/types/projection";
 import type { SettingsMap } from "@shared/types/settings";
 import { trustWindow } from "../ipc/trusted-senders";
 import { broadcast } from "../services/broadcast";
@@ -13,7 +12,7 @@ import { getSettingsRepo } from "../services/repos";
 import { enginePath } from "../paths";
 import { engineAvailable, handles, type LinuxHandles, type MacHandles } from "../media/media-engine";
 import { syncLiveEngine } from "../media/engine-sessions";
-import { jsonLineReader } from "../media/engine-protocol";
+import { jsonLineReader, ndiRouteLines } from "../media/engine-protocol";
 import { paintVerdict } from "./ndi-pacing";
 
 /**
@@ -33,6 +32,11 @@ import { paintVerdict } from "./ndi-pacing";
  */
 
 type Config = { name: string; width: number; height: number; fps: number; audio: boolean; audioDelayMs: number };
+/** Where the sound NDI carries is taken from: the LIVE output (mpv's name, null the system's default) and whether
+ *  PREVIEW plays on another one (`native/engine/ndi-audio.h`). Not part of `Config`: moving it moves the capture
+ *  inside the running sender, never a restart of the output. */
+export type NdiAudioRoute = { device: string | null; previewApart: boolean };
+let audioRoute: NdiAudioRoute = { device: null, previewApart: false };
 
 let window: BrowserWindow | null = null;
 let sender: NdiSender | null = null;
@@ -103,6 +107,14 @@ export function syncNdiOutput(): void {
   });
 }
 
+/** Takes the NDI sound from the LIVE output only; the running sender moves its capture at once. The same route again
+ *  restarts a capture that stopped (its device was unplugged and is back); the sender also retries every 2 s. */
+export function setNdiAudioRoute(route: NdiAudioRoute): void {
+  if (route.device && /[\r\n]/.test(route.device)) throw new Error("a device name with a line break");
+  audioRoute = route;
+  sender?.route(route);
+}
+
 /** Synchronous, for `before-quit` and the control window closing. */
 export function stopNdiOutput(): void {
   running = "";
@@ -112,13 +124,6 @@ export function stopNdiOutput(): void {
   sender = null;
   if (window && !window.isDestroyed()) window.destroy();
   window = null;
-}
-
-/** The projector's report of its own Chromium video: the NDI window's copy of that video follows it
- *  (`follow-projector.ts`), so the picture NDI sends keeps step with the sound the room — and NDI — hears. */
-export function forwardMediaStatusToNdi(status: MediaStatus): void {
-  if (status.target.kind === "audio" || !window || window.isDestroyed()) return;
-  window.webContents.send("media-status", status);
 }
 
 /** For `userFacingWindows()`: a hidden helper, like the rasterizer. */
@@ -218,6 +223,7 @@ type SenderEvents = {
 };
 
 type SenderEvent =
+  | { ev: "hello"; proto: number }
   | { ev: "ready"; runtime: string }
   | { ev: "done" }
   | { ev: "status"; receivers: number }
@@ -225,6 +231,10 @@ type SenderEvent =
   | { ev: "error"; code: string; detail: string };
 
 const STDERR_TAIL_BYTES = 2048;
+
+function routeArgs(route: NdiAudioRoute): string[] {
+  return ["--audio-device", route.device ?? "auto", "--preview-apart", route.previewApart ? "1" : "0"];
+}
 
 /** The media engine in its NDI mode, for one output configuration. */
 class NdiSender {
@@ -242,13 +252,16 @@ class NdiSender {
   private stderrTail = "";
   private killed = false;
   private readonly gone: Promise<void>;
+  private proto = 7;
 
   constructor(
     config: Config,
     private readonly events: SenderEvents,
   ) {
     const args = ["--ndi-send", config.name, "--width", String(config.width), "--height", String(config.height), "--fps", String(config.fps)];
-    if (config.audio) args.push("--audio", "1", "--audio-delay", String(config.audioDelayMs));
+    // An older sender ignores the route's arguments, and takes the default output's sound as before.
+    if (config.audio)
+      args.push("--audio", "1", "--audio-delay", String(config.audioDelayMs), ...routeArgs(audioRoute));
     const lib = process.env["HIMNOVA_NDI_LIB"];
     if (lib) args.push("--ndi-lib", lib);
     serial++;
@@ -273,6 +286,12 @@ class NdiSender {
     this.child.once("error", (error) => console.warn("[ndi] engine", error.message));
     this.child.once("exit", (code, signal) => this.onExit(code, signal));
     this.gone = new Promise((resolve) => this.child.once("exit", () => resolve()));
+  }
+
+  /** Moves the capture, or restarts it on the same route. Only to a sender that said `hello` (`ndiRouteLines`). */
+  route(route: NdiAudioRoute): void {
+    const lines = ndiRouteLines(this.proto, route);
+    if (lines && this.child.stdin?.writable) this.child.stdin.write(lines);
   }
 
   /** Takes the texture (true) until the engine has read it, or leaves it to the caller to release. */
@@ -343,6 +362,10 @@ class NdiSender {
 
   private onEvent(event: SenderEvent): void {
     switch (event.ev) {
+      case "hello":
+        this.proto = event.proto;
+        // A route moved between the launch and now.
+        return this.route(audioRoute);
       case "ready":
         try {
           if (this.machService) this.machPort = handles<MacHandles>().machLookup(this.machService);

@@ -34,13 +34,19 @@ test("the NDI output turns on and off from Settings and never touches the projec
     // With the app's sound (on by default): the capture started, on every system the suite runs on.
     await expect(status).toContainText("Sonido: se envía");
     await expect(settings.getByRole("group", { name: "Sonido", exact: true }).getByRole("switch")).toBeChecked();
-    // Its own window: closing the projector and opening it again never stops it.
+    // Its own window: closing the projector and opening it again (Ajustes ▸ Pantallas) never stops it.
+    const screensTab = settings.getByRole("tab", { name: "Pantallas" });
+    const projectionTab = settings.getByRole("tab", { name: "Proyección" });
+    await screensTab.click();
     await settings.getByRole("button", { name: "Cerrar pantalla" }).click();
     await expect.poll(() => app.hasProjector()).toBe(false);
+    await projectionTab.click();
     await expect(status).toContainText("Enviando");
     // (A reopened projector starts under NEGRO, and the NDI output with it: it draws what the projector does.)
+    await screensTab.click();
     await settings.getByRole("button", { name: "Abrir pantalla" }).click();
     await app.projector();
+    await projectionTab.click();
     await expect(status).toContainText("Enviando");
   }
 

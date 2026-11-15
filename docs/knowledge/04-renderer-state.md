@@ -12,6 +12,7 @@ their place, **Zustand** in per-domain slices (`src/renderer/src/stores/`):
 | `library.store.ts` | media library by type, active tab, selection |
 | `settings.store.ts` | in-memory mirror of the `settings` table, applies `data-theme` to `<html>` |
 | `display.store.ts` | available screens, which one is chosen (persisted in `settings['projection.displayId']`), `open()/close()` of the projection window |
+| `audio-levels.store.ts` | each bus's level for the audio strips' meters (dBFS, left and right), read with `subscribe` and never as React state |
 
 Each store touches only what belongs to it — the PPT polling (previously every 800ms over the
 whole global `state`) no longer re-renders components that don't read that slice.
@@ -126,12 +127,30 @@ GO LIVE, even of the same deck) and the transport's restart start them all over.
 sounds from the deck store, not from `liveDeck`: `liveDeck` is the deck as it went live, and a WMA
 the media engine takes afterwards only reaches the deck store (`deck-updated`).
 
-`src/renderer/src/effects/stage-sync.ts` builds the musicians' screen (`stageOutputFor`,
-`lib/stage-output.ts`) while one is chosen: the live content with nothing covering it, the slide or
-verse → would bring (`stepSong` for a song, the Bible tab's cursor for a verse — a program's verse
-hands its chapter to the tab as it goes live, `handLiveItemToTab`), and BLACK, LOGO or hidden lyrics named as a `notice` rather than shown (owner,
-2026-11-05: the band still needs the words). It rebuilds only when an input changes by reference,
-like `selectOutputMemo`.
+`src/renderer/src/effects/stage-sync.ts` builds the stage screen (`stageOutputFor`,
+`lib/stage-output.ts`) while one is chosen: what the projector shows (BLACK and LOGO as themselves, never named;
+the LOGO or black with nothing live; owner, 2026-11-13), without plates and with hidden lyrics lifted without a
+word (the band still needs them), and the slide or verse → would bring, uncovered (`stepSong` for a song, the Bible
+tab's cursor for a verse: a program's verse hands its chapter to the tab as it goes live, `handLiveItemToTab`). As «Proyector» `current` is exactly `selectOutput`: plates, both versions of a verse, the
+projector's transition. It rebuilds only when an input changes by reference (`selectOutputMemo` itself is one), and
+keeps what it sent in `stage.store`'s `output`, which the stage panel's monitor draws: never a second build.
+
+**The stage panel** (`components/pages/stage/StagePanel.tsx`, the foot of the left column, only while a stage
+screen is assigned; plan 2026-11-13) runs what the stage says, never Settings (owner). `stores/stage.store.ts`
+holds a manual countdown (a `TimerClock` mark plus its length: one push per change, none per second, the stage
+ticks it itself with `useTimerNow`; it runs from the moment it is set, owner 2026-11-14), the length its field
+offers next (the last one started, this session), one message at a time (`seq` makes a new one blink three times; a
+new one always arrives plain, and urgent, blinking until taken off, is set on the one showing) and the message
+field's draft. Without a countdown of its own the stage counts a Functions countdown or stopwatch that is live
+(`stageOutputFor`, owner 2026-11-14). It travels in the `StageOutput` as state, never as a
+command. The view is a setting (`stage.layout`): «auto» is resolved before it leaves (`resolveStageLayout`:
+the pastor's, unless a song, a presentation or a verse whose chapter the Bible tab holds is live, its last slide
+included; owner, 2026-11-13), and Settings' copy of the projector (`stage.mirror`) makes it «projector» whatever
+was chosen. The countdown's colour is
+`countdownTone`, by what the stage SHOWS, so the colour and the digits change on the same frame; its thresholds
+shrink for short counts (`stageThresholds`). Whether its card is open is `stage.store`'s `panelOpen`, never remembered across launches. M opens it and focuses
+the message field (`use-global-shortcuts`), at once when it is already open, so a letter typed right after it is
+never a shortcut.
 
 `src/renderer/src/effects/end-of-playback.ts` takes off the air, on its own, a video or an
 auto-advancing deck that finished playing by itself, leaving the logo scene
@@ -160,6 +179,12 @@ after the ended track's `fromItemId` (the row it was sent from: an id, since eve
 and found by its audio after a save renumbers them), plates skipped, only when that row
 is an audio too and at the ended track's volume (owner): the offertory's music further down never starts on its own.
 A deck's own soundtrack and sounds are never touched by it.
+
+**The LIVE master** (2026-11-15): `settings["audio.live.volume"]`, or 1 with the strips off (`liveMasterVolume`), is
+mirrored into `projection.store` (`liveMasterVolume`) by `App.tsx` like the transition. `selectOutput` multiplies it into
+the video's and the slide clip's `volume` (`busVolume`, `shared/types/audio.ts`) and `toAudioTrackPush` into every audio
+track's, re-pushed when it moves: the projector and the media engine get the level they play at as state, and the
+stores keep each item's own level.
 
 A video's end is the operator's choice since 2026-11-05 (`projection.videoEnd`, Settings ▸ Projection,
 mirrored into `projection.store` by `App.tsx` like the transition): «logo» clears as above, «black» clears
@@ -192,9 +217,11 @@ landed, the canvas beat against the compositor and the NDI window's 30 Hz by eac
 draw on arrival. `.claude/knowledge/engine-frames-drawn-as-they-land-beat-against-every-compositor.md` has what is
 left (60 fps on a late main frame) and the alternatives measured worse.
 
-The NDI® output (`01-architecture.md`) is a second, offscreen `ProjectionApp`: `projection.html?role=ndi` draws the
-same output, and `IS_NDI_OUTPUT` keeps it from reporting `media-status`/`media-error` (the panel would see every
-video twice) and from mounting audio tracks (main mutes it too). The projector stays the only window that reports.
+The NDI® output (`01-architecture.md`) is a copy of the projector, offscreen: `projection.html?role=ndi` mounts
+`ProjectorCopy` (`components/shared/projector-copy.tsx`) instead of `ProjectionApp`, which draws the same output,
+reports no `media-status`/`media-error` (the panel would see every video twice), mounts no audio track (main mutes
+its window too) and follows the projector's own reports with its Chromium videos. The stage window as «Proyector»
+draws the same component (and, playing videos in its other views, is a mirror too, for the same reports and frames). The projector stays the only window that reports.
 
 ## The actions layer
 

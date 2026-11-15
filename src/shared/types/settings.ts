@@ -1,6 +1,7 @@
 import type { AssetKind } from "../constants";
 import { ASSET_KINDS } from "../constants";
 import { isBibleStyle, normalizeBibleStyle } from "../bible-style-validators";
+import { isWhatsNewKey } from "../whats-new";
 import { DEFAULT_BIBLE_STYLE, type BibleStyle } from "./bible-style";
 import { MEDIA_SORT_ORDERS, type MediaSortOrder } from "./media";
 import { SONG_SORT_ORDERS, type SongSortOrder } from "./song";
@@ -14,7 +15,20 @@ import {
   type VideoEndAction,
 } from "./projection";
 import type { SceneBackground } from "./scene-style";
+import {
+  STAGE_ALERT_OPTIONS_MS,
+  STAGE_CLOCK_FORMATS,
+  STAGE_LAYOUT_CHOICES,
+  STAGE_MESSAGE_MAX_LENGTH,
+  STAGE_PHRASES_MAX,
+  STAGE_TEXT_SIZES,
+  STAGE_WARN_OPTIONS_MS,
+  type StageClockFormat,
+  type StageLayoutChoice,
+  type StageTextSize,
+} from "./stage";
 import { isSceneBackground } from "../style-validators";
+import { isAudioOutputChoice, type AudioOutputChoice } from "./audio";
 import { LOGO_URL } from "../urls";
 import {
   NDI_AUDIO_DELAY_DEFAULT_MS,
@@ -90,9 +104,40 @@ export type SettingsMap = {
   /** The musicians' screen (`main/windows/stage-window.ts`): what is live, what
    *  comes next and the time. `null`, the default, is no stage display. */
   "stage.displayId": number | null;
+  /** The stage panel (work screen, foot of the left column): the view the operator picked, «auto» by default. */
+  "stage.layout": StageLayoutChoice;
+  /** Settings ▸ Screens' «Copia del proyector»: the stage's screen copies the projector, always, and the work screen
+   *  shows no stage panel (owner, 2026-11-13). */
+  "stage.mirror": boolean;
+  /** Settings ▸ Screens ▸ Stage: the size of the time, countdown and message on the stage. */
+  "stage.textSize": StageTextSize;
+  "stage.clockFormat": StageClockFormat;
+  /** A live song's chords over its words on the stage (since 2.6.0, the only place they show). */
+  "stage.chords": boolean;
+  /** The stage plays what is live, videos included (owner, 2026-11-14: a church with a stage screen has the machine
+   *  for one more copy); off, it shows a video as its poster and decodes nothing. */
+  "stage.videoMotion": boolean;
+  /** The countdown turns amber, then red, with this much left (scaled down for short counts: `stageThresholds`). */
+  "stage.warnMs": number;
+  "stage.alertMs": number;
+  /** The panel's ready phrases; `null` is the language's own (`stage.defaultPhrases`), so they follow it. */
+  "stage.phrases": string[] | null;
   "ui.theme": Theme;
   "ui.locale": Locale;
+  /** The last «Novedades» this profile was shown (`shared/whats-new.ts`), `null` for none yet. A new profile is
+   *  stamped with the latest at its first launch (it gets the welcome instead); closing «Novedades» or the welcome
+   *  stamps it too. */
+  "ui.whatsNewSeen": string | null;
   "media.volume": number;
+  /** The audio strips beside PREVIEW and LIVE: meter, fader, mute and output (owner, 2026-11-15, D1). On, the volume
+   *  of each media row hides (D2); off, the rows have it back and the LIVE master counts as 100 % (D3). */
+  "audio.strips": boolean;
+  /** The LIVE strip's fader, 0..1: a master that multiplies the level of everything that sounds live (`busVolume`),
+   *  remembered across launches. Never 0 on read: the LIVE mute is session state (`ui.store`), not this. PREVIEW's fader is `preview.store`'s own volume, 0 with every new item. */
+  "audio.live.volume": number;
+  /** Where each bus sounds, `null` for the system's default output. They apply with the strips off too (D3). */
+  "audio.output.live": AudioOutputChoice | null;
+  "audio.output.preview": AudioOutputChoice | null;
   /** How the projector moves between scenes — see `TransitionStyle`. */
   "projection.transition.style": TransitionStyle;
   /** Ignored when the style is "none". */
@@ -236,13 +281,27 @@ export const DEFAULT_SETTINGS: SettingsMap = {
   "files.defaultFolders": { video: null, image: null, audio: null, ppt: null },
   "projection.displayId": null,
   "stage.displayId": null,
+  "stage.layout": "auto",
+  "stage.mirror": false,
+  "stage.textSize": "normal",
+  "stage.clockFormat": "auto",
+  "stage.chords": true,
+  "stage.videoMotion": true,
+  "stage.warnMs": 5 * 60_000,
+  "stage.alertMs": 60_000,
+  "stage.phrases": null,
   "ui.theme": "dark",
   "ui.locale": "es",
+  "ui.whatsNewSeen": null,
   // Full. Anything sent live is meant to be heard, and a level the operator
   // never set is a level nobody can explain from the booth — halfway up just
   // looks like the file is quiet. Balancing down is one drag away, per track,
   // in the Live panel.
   "media.volume": 1,
+  "audio.strips": true,
+  "audio.live.volume": 1,
+  "audio.output.live": null,
+  "audio.output.preview": null,
   "projection.transition.style": "crossfade",
   "projection.videoEnd": "logo",
   "projection.deckEnd": "logo",
@@ -362,9 +421,28 @@ export const SETTINGS_VALIDATORS: Record<keyof SettingsMap, (value: unknown) => 
   "files.defaultFolders": isRecordOfKinds(isNullOr(isString)),
   "projection.displayId": isDisplayId,
   "stage.displayId": isDisplayId,
+  "stage.layout": isOneOf(STAGE_LAYOUT_CHOICES),
+  "stage.mirror": isBoolean,
+  "stage.textSize": isOneOf(STAGE_TEXT_SIZES),
+  "stage.clockFormat": isOneOf(STAGE_CLOCK_FORMATS),
+  "stage.chords": isBoolean,
+  "stage.videoMotion": isBoolean,
+  "stage.warnMs": (v) => STAGE_WARN_OPTIONS_MS.includes(v as number),
+  "stage.alertMs": (v) => STAGE_ALERT_OPTIONS_MS.includes(v as number),
+  "stage.phrases": isNullOr(
+    (v) =>
+      Array.isArray(v) &&
+      v.length <= STAGE_PHRASES_MAX &&
+      v.every((p) => typeof p === "string" && p.trim().length > 0 && p.length <= STAGE_MESSAGE_MAX_LENGTH),
+  ),
   "ui.theme": isOneOf(THEMES),
   "ui.locale": isOneOf(LOCALES),
+  "ui.whatsNewSeen": isNullOr(isWhatsNewKey),
   "media.volume": isNumberIn(0, 1),
+  "audio.strips": isBoolean,
+  "audio.live.volume": isNumberIn(0, 1),
+  "audio.output.live": isNullOr(isAudioOutputChoice),
+  "audio.output.preview": isNullOr(isAudioOutputChoice),
   "projection.transition.style": isOneOf(TRANSITION_STYLES),
   "projection.videoEnd": isOneOf(VIDEO_END_ACTIONS),
   "projection.deckEnd": isOneOf(VIDEO_END_ACTIONS),
@@ -433,10 +511,25 @@ export function isSettingsKey(key: string): key is keyof SettingsMap {
 /** The NDI source's factory name before the product became Himnova Live (2026-11-11). */
 const FORMER_NDI_NAME = "Lumina Live";
 
+/** A stored output that is no longer one (a hand-edited row) is the system's default; extra fields are dropped. */
+const normalizeAudioOutput = (v: unknown): AudioOutputChoice | null =>
+  isAudioOutputChoice(v) ? { label: v.label, deviceId: v.deviceId } : null;
+
 export const SETTINGS_NORMALIZERS: {
   [K in keyof SettingsMap]?: (value: unknown) => SettingsMap[K];
 } = {
   "bible.style": normalizeBibleStyle,
+  // A hand-edited row that is no version reads as «none yet»: «Novedades» once more, never a throw at launch.
+  "ui.whatsNewSeen": (v) => (isWhatsNewKey(v) ? v : null),
+  "audio.strips": (v) => (typeof v === "boolean" ? v : DEFAULT_SETTINGS["audio.strips"]),
+  // A master that read back as anything but a level would be silence or a throw on every live element, and 0 is no
+  // remembered level: the strip's mute is session state, so a stored 0 (an older build's mute) opens at the default.
+  "audio.live.volume": (v) =>
+    SETTINGS_VALIDATORS["audio.live.volume"](v) && (v as number) > 0
+      ? (v as number)
+      : DEFAULT_SETTINGS["audio.live.volume"],
+  "audio.output.live": normalizeAudioOutput,
+  "audio.output.preview": normalizeAudioOutput,
   // A profile that stored the old factory name follows the product's new one; a name the church chose stays.
   "ndi.output.name": (v) =>
     v === FORMER_NDI_NAME || !SETTINGS_VALIDATORS["ndi.output.name"](v)

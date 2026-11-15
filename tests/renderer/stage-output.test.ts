@@ -1,22 +1,28 @@
 /**
- * The musicians' screen (`stageOutputFor`): what is live, uncovered, and what
- * → would bring — and BLACK, LOGO or hidden lyrics named, never shown.
+ * The musicians' screen (`stageOutputFor`): what the projector shows (BLACK and
+ * LOGO as themselves, never named; hidden lyrics lifted), what → would bring,
+ * and «Proyector», the projector's own picture.
  */
 import { beforeEach, describe, expect, test } from "vitest";
 import { buildCumulativeMs, selectOutput, useProjectionStore, type LiveDeck } from "@renderer/stores/projection.store";
 import { resolveSong } from "@renderer/stores/song.store";
-import { stageOutputFor, type StageBibleCursor } from "@renderer/lib/stage-output";
+import { stageOutputFor, type StageBibleCursor, type StageControls } from "@renderer/lib/stage-output";
+import { DEFAULT_SETTINGS } from "@shared/types/settings";
 import { parseLyrics } from "@shared/song-text";
 import { DEFAULT_SONG_THEME } from "@shared/types/song";
+import { DEFAULT_SCENE_STYLE } from "@shared/types/scene-style";
+import { DEFAULT_TIMER_FORMAT } from "@shared/types/timer";
+import type { UtilityScene } from "@shared/types/utility";
 import { slideUrl } from "@shared/urls";
 import type { BibleVerseDTO } from "@shared/types/bible";
 
 const initialState = useProjectionStore.getState();
-const WORDS = { black: "NEGRO", logo: "LOGO", lyricsHidden: "LETRA OCULTA", next: "Sigue" };
 const NO_CURSOR: StageBibleCursor = { verses: [], currentVerseIndex: null };
 
-const stage = (bible: StageBibleCursor = NO_CURSOR, poster: string | null = null) =>
-  stageOutputFor(useProjectionStore.getState(), bible, poster, WORDS);
+const NO_CONTROLS: StageControls = { countdown: null, message: null, settings: DEFAULT_SETTINGS };
+
+const stage = (bible: StageBibleCursor = NO_CURSOR, poster: string | null = null, controls = NO_CONTROLS) =>
+  stageOutputFor(useProjectionStore.getState(), bible, poster, controls);
 
 function liveDeck(slideCount: number, slideIndex: number) {
   const slides = Array.from({ length: slideCount }, (_, i) => ({
@@ -83,8 +89,9 @@ beforeEach(() => {
 });
 
 describe("the stage display", () => {
-  test("with nothing live: no frames and no notice", () => {
-    expect(stage()).toMatchObject({ current: null, next: null, notice: null, nextLabel: "Sigue" });
+  test("with nothing live: what the projector shows (black, or LOGO), and nothing next", () => {
+    expect(stage()).toMatchObject({ current: { kind: "logo" }, next: null });
+    expect(stage()).not.toHaveProperty("notice");
   });
 
   test("a deck: the live slide and the next one, none after the last", () => {
@@ -116,17 +123,30 @@ describe("the stage display", () => {
     expect(stage().current).toMatchObject({ kind: "song", lines: ["puente"], chords: [[{ at: 0, name: "Em" }]] });
   });
 
-  test("BLACK and LOGO keep the content and name the cover", () => {
+  test("BLACK and LOGO show as themselves, never named (owner, 2026-11-13); what comes next stays", () => {
     liveSong(1);
     useProjectionStore.getState().setOverlay("black");
-    expect(stage()).toMatchObject({ current: { kind: "song", lines: ["uno"] }, notice: "NEGRO" });
+    expect(stage()).toMatchObject({ current: { kind: "black" }, next: { kind: "song", lines: ["dos"] } });
     useProjectionStore.getState().setOverlay("logo");
-    expect(stage()).toMatchObject({ current: { kind: "song", lines: ["uno"] }, notice: "LOGO" });
+    expect(stage().current.kind).toBe(selectOutput(useProjectionStore.getState()).kind);
+    expect(stage().current.kind).not.toBe("song");
   });
 
-  test("hidden lyrics stay on the stage, named", () => {
+  test("hidden lyrics stay on the stage, without a word", () => {
     liveSong(1, true);
-    expect(stage()).toMatchObject({ current: { kind: "song", lines: ["uno"] }, notice: "LETRA OCULTA" });
+    expect(stage()).toMatchObject({ current: { kind: "song", lines: ["uno"] } });
+  });
+
+  test("«Proyector» (the panel's view, or Settings' copy of the projector) is exactly the projector's picture", () => {
+    liveSong(1, true, "[Estrofa 1]\n[G]uno\n\ndos");
+    const projector = { ...NO_CONTROLS, settings: { ...DEFAULT_SETTINGS, "stage.layout": "projector" as const } };
+    const copy = stage(NO_CURSOR, null, projector);
+    expect(copy.layout).toBe("projector");
+    // Hidden lyrics stay hidden and no chords: what the room sees.
+    expect(copy.current).toEqual(selectOutput(useProjectionStore.getState()));
+    // Settings' copy wins over whatever view the panel had.
+    const mirror = { ...NO_CONTROLS, settings: { ...DEFAULT_SETTINGS, "stage.mirror": true, "stage.layout": "musicians" as const } };
+    expect(stage(NO_CURSOR, null, mirror).layout).toBe("projector");
   });
 
   test("a verse from the Bible tab: the next verse of its chapter", () => {
@@ -144,5 +164,83 @@ describe("the stage display", () => {
       next: null,
       videoStill: { posterUrl: "worship://thumb/3", videoUrl: "worship://asset/3" },
     });
+  });
+
+  test("videos move on the stage unless Settings ▸ Screens turns them into stills", () => {
+    expect(stage().videoMotion).toBe(true);
+    const still = { ...NO_CONTROLS, settings: { ...DEFAULT_SETTINGS, "stage.videoMotion": false } };
+    expect(stage(NO_CURSOR, null, still).videoMotion).toBe(false);
+  });
+
+  test("chords off in Settings ▸ Screens: the stage shows the words alone", () => {
+    liveSong(1);
+    const off = { ...NO_CONTROLS, settings: { ...DEFAULT_SETTINGS, "stage.chords": false } };
+    expect(stage(NO_CURSOR, null, off).current).not.toHaveProperty("chords");
+    expect(stage(NO_CURSOR, null, off).next).not.toHaveProperty("chords");
+  });
+});
+
+describe("the stage panel's controls", () => {
+  const running = { clock: { mode: "countdown", state: "running", endsAtMs: 2_000_000 }, totalMs: 30 * 60_000 } as const;
+  const held = { clock: { mode: "countdown", state: "held", remainingMs: 30 * 60_000 }, totalMs: 30 * 60_000 } as const;
+
+  test("«Auto»: the preacher's, unless a song, a presentation or a chapter's verse is live (its last slide too)", () => {
+    expect(stage().layout).toBe("preacher");
+    expect(stage(NO_CURSOR, null, { ...NO_CONTROLS, countdown: running }).layout).toBe("preacher");
+    liveSong(1);
+    expect(stage().layout).toBe("musicians");
+    liveDeck(2, 2); // the last slide: nothing follows, and the musicians keep it large
+    expect(stage().next).toBeNull();
+    expect(stage().layout).toBe("musicians");
+    useProjectionStore.getState().setBase({ kind: "bible", text: "dieciséis", reference: "Juan 3:16", versionLabel: null });
+    expect(stage({ verses: [verse(16, "dieciséis")], currentVerseIndex: 0 }).layout).toBe("musicians");
+    // A program's verse whose chapter is not in the tab: nothing known to follow.
+    expect(stage(NO_CURSOR).layout).toBe("preacher");
+    const musicians = { ...NO_CONTROLS, settings: { ...DEFAULT_SETTINGS, "stage.layout": "musicians" as const } };
+    useProjectionStore.getState().setBase({ kind: "video", assetId: 3, url: "worship://asset/3", epoch: 1, startAtSeconds: 0 });
+    expect(stage(NO_CURSOR, null, musicians).layout).toBe("musicians");
+  });
+
+  test("the countdown travels as its mark with its thresholds, the message as it was set", () => {
+    const out = stage(NO_CURSOR, null, { ...NO_CONTROLS, countdown: running, message: { text: "Último coro", urgent: false, seq: 4 } });
+    expect(out.countdown).toEqual({ clock: running.clock, warnMs: 5 * 60_000, alertMs: 60_000 });
+    expect(out.message).toEqual({ text: "Último coro", urgent: false, seq: 4 });
+    // A ten-minute count: amber at 2:00, red at 0:30.
+    const short = { ...NO_CONTROLS, countdown: { ...held, totalMs: 10 * 60_000 } };
+    expect(stage(NO_CURSOR, null, short).countdown).toMatchObject({ warnMs: 2 * 60_000, alertMs: 30_000 });
+  });
+
+  test("a Functions countdown or stopwatch on the air is the stage's count, in its style; the panel's own wins", () => {
+    const scene = (tool: UtilityScene["tool"]): UtilityScene => ({
+      id: 1,
+      name: "Cuenta",
+      tool,
+      config: { durationMs: 10 * 60_000, targetMinuteOfDay: 600, endMessage: null, format: DEFAULT_TIMER_FORMAT },
+      style: DEFAULT_SCENE_STYLE,
+      title: null,
+      message: null,
+    });
+    const clock = { mode: "countdown", state: "running", endsAtMs: 3_000_000 } as const;
+    useProjectionStore.getState().setBase({ kind: "utility", sceneId: 1, scene: scene("countdown"), clock });
+    // Its own length scales the colours, like the panel's: ten minutes turn amber at 2:00.
+    expect(stage()).toMatchObject({ layout: "preacher", countdown: { clock, warnMs: 2 * 60_000, alertMs: 30_000 } });
+    // A countdown to a time has no length: the operator's thresholds as they are.
+    useProjectionStore.getState().setBase({ kind: "utility", sceneId: 1, scene: scene("countdown-to-time"), clock });
+    expect(stage().countdown).toMatchObject({ warnMs: 5 * 60_000, alertMs: 60_000 });
+    const stopwatch = { mode: "stopwatch", state: "running", startedAtMs: 1_000 } as const;
+    useProjectionStore.getState().setBase({ kind: "utility", sceneId: 1, scene: scene("stopwatch"), clock: stopwatch });
+    expect(stage().countdown?.clock).toEqual(stopwatch);
+    expect(stage(NO_CURSOR, null, { ...NO_CONTROLS, countdown: running }).countdown?.clock).toEqual(running.clock);
+    // A clock has nothing to count: the stage's own time is it.
+    useProjectionStore.getState().setBase({ kind: "utility", sceneId: 1, scene: scene("clock"), clock: { mode: "clock" } });
+    expect(stage().countdown).toBeNull();
+  });
+
+  test("the clock: the language's by default (12 hours in English), or the one chosen", () => {
+    expect(stage().hour12).toBe(false);
+    expect(stage(NO_CURSOR, null, { ...NO_CONTROLS, settings: { ...DEFAULT_SETTINGS, "ui.locale": "en" } }).hour12).toBe(true);
+    const twelve = { ...NO_CONTROLS, settings: { ...DEFAULT_SETTINGS, "stage.clockFormat": "12h" as const } };
+    expect(stage(NO_CURSOR, null, twelve).hour12).toBe(true);
+    expect(stage(NO_CURSOR, null, { ...NO_CONTROLS, settings: { ...DEFAULT_SETTINGS, "stage.textSize": "large" } }).textScale).toBe(1.25);
   });
 });

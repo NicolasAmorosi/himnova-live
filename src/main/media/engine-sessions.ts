@@ -5,6 +5,7 @@ import { getMediaRepo, getSlidesRepo } from "../services/repos";
 import { broadcast, controlWindows } from "../services/broadcast";
 import { projectionState } from "../services/projection-state";
 import { takeEngine, type EngineEvents, type MediaEngine } from "./media-engine";
+import { heardAt, reportLevel } from "./audio-levels";
 import {
   applyToSession,
   keepsSession,
@@ -55,6 +56,12 @@ const videos: Record<VideoTarget, Session | null> = { video: null, slideVideo: n
 /** By `trackId`. Audio has no picture, so no window is shown its frames. */
 const audio = new Map<string, Session>();
 let preview: Session | null = null;
+/** Where each bus sounds (mpv's `audio-device` names, `EngineDevice.name`): null is the system's default, and then
+ *  nothing is sent, as before there was a choice. */
+const devices: { live: string | null; preview: string | null } = { live: null, preview: null };
+/** What the control window was last told of each output (`audio-out`, by mpv name): every session on a bus says the
+ *  same thing, so it is said once. A route that changes forgets it: an output chosen again that still fails is said again. */
+const audioOutSaid = new Map<string, boolean>();
 /** What PREVIEW last asked for, and from which window: GO LIVE takes its engine and starts it another. */
 let previewAsked: { video: PreviewEngineVideo; contents: WebContents } | null = null;
 
@@ -67,7 +74,7 @@ const SHOWN_CAP_MS = 1000;
  *  says so, like the engine itself would. */
 function start(
   session: Session,
-  opts: { startAtSeconds: number; audio: boolean },
+  opts: { startAtSeconds: number; audio: boolean; device: string | null },
   frameKey: string,
   events: EngineEvents,
 ): void {
@@ -91,10 +98,29 @@ function start(
   }
   session.engine = takeEngine();
   session.engine.load(
-    { file, startAtSeconds: opts.startAtSeconds, paused: session.paused, volume: session.volume, loop: session.loop, audio: opts.audio },
+    {
+      file,
+      startAtSeconds: opts.startAtSeconds,
+      paused: session.paused,
+      volume: session.volume,
+      loop: session.loop,
+      audio: opts.audio,
+      ...(opts.device !== null && opts.audio ? { device: opts.device } : {}),
+    },
     frameKey,
     events,
   );
+}
+
+/** An engine session lost its output or could not open it (`ok: false`), or has it back: the control window routes
+ *  that bus to the default whole and says so (`effects/audio-route.ts`). */
+function audioOut(isCurrent: () => boolean): NonNullable<EngineEvents["audioOut"]> {
+  return ({ device, ok }) => {
+    if (!isCurrent() || audioOutSaid.get(device) === ok) return;
+    audioOutSaid.set(device, ok);
+    console.info(`[engine] audio-out ${device}: ${ok ? "ok" : "lost"}`);
+    broadcast("audio-out", { device, ok });
+  };
 }
 
 /** The live sessions' `media-status` and `media-error`, as the projector's own elements report them. */
@@ -119,6 +145,11 @@ function liveEvents(session: Session, target: MediaTarget, isCurrent: () => bool
       console.warn("[engine] live", target.kind, error.code, error.detail);
       broadcast("media-error", { target, url: session.url, code: null });
     },
+    // The engine measures before its volume; the room hears it through the session's (item × LIVE's fader).
+    level: (peak) => {
+      if (isCurrent()) reportLevel(session, "live", heardAt(peak, session.volume));
+    },
+    audioOut: audioOut(isCurrent),
   };
 }
 
@@ -157,7 +188,7 @@ function syncAudio(projectorOpen: boolean): void {
     const session: Session = { engine: null, url: track.url, epoch: track.epoch, paused: track.paused, volume: track.volume, loop: track.loop };
     audio.set(track.trackId, session);
     const target = { kind: "audio", trackId: track.trackId } as const;
-    start(session, { startAtSeconds: track.startAtSeconds, audio: true }, "", liveEvents(session, target, () => audio.get(track.trackId) === session));
+    start(session, { startAtSeconds: track.startAtSeconds, audio: true, device: devices.live }, "", liveEvents(session, target, () => audio.get(track.trackId) === session));
   }
 }
 
@@ -192,21 +223,28 @@ function syncVideo(target: VideoTarget, want: LiveEngineState | null, windows: (
       // What that engine was last told, so only the differences are sent.
       Object.assign(fresh, { engine: taken.engine, paused: taken.paused, volume: taken.volume, loop: taken.loop });
       taken.engine.retarget(frameKey, events);
+      // From PREVIEW's output to the room's while it is held paused for its windows: the room never hears it elsewhere.
+      // mpv reopens its output only when sound flows; a seek where it stands has it reopened before the hold ends:
+      // sound 8 ms after play on Windows, 12 on Linux, 222–228 on a Mac, instead of 244–556 (2026-11-15).
+      if (devices.preview !== devices.live) {
+        taken.engine.setDevice(devices.live ?? "auto");
+        taken.engine.seek(want.startAtSeconds);
+      }
       if (!want.paused) holdUntilShown(fresh);
     } else {
-      start(fresh, { startAtSeconds: want.startAtSeconds, audio: target !== "songVideo" }, frameKey, events);
+      start(fresh, { startAtSeconds: want.startAtSeconds, audio: target !== "songVideo", device: devices.live }, frameKey, events);
     }
   }
   applyToSession(session, session.hold ? { ...want, paused: true } : want);
-  // The projector, and the control window's LIVE monitor: one decode, the same frame on both.
-  for (const win of windows) if (win) session.engine?.show(win.webContents);
+  // The projector, its copies and the control window's LIVE monitor: one decode, the same frame on all.
+  session.engine?.showOnly(windows.flatMap((win) => (win ? [win.webContents] : [])));
 }
 
 /** Called whenever the output, the audio tracks or the projector window change. */
 export function syncLiveEngine(): void {
   const projector = projectionState.getWindow();
   const { output } = projectionState.getSnapshot();
-  // The NDI output draws the projector's picture, its videos included.
+  // The NDI output and the stage screen (while it plays videos) draw the projector's videos too.
   const windows = [projector, ...projectionState.getMirrors(), ...controlWindows()];
   syncAudio(projector !== null);
   syncVideo("video", liveEngineState(output, projector !== null), windows);
@@ -246,7 +284,7 @@ function takePreviewEngine(url: string, atSeconds: number): (Session & { engine:
 /** The room must not hear a video before it sees it: an engine taken from PREVIEW is already open, so it would
  *  sound the instant it is told to play, before the projector and the NDI window have even mounted its canvas. */
 function holdUntilShown(session: Session): void {
-  const waiting = new Set([projectionState.getWindow(), ...projectionState.getMirrors()].flatMap((win) => (win ? [win.webContents.id] : [])));
+  const waiting = new Set(projectionState.getWatched().map((win) => win.webContents.id));
   if (!waiting.size) return;
   const timer = setTimeout(() => {
     if (videos.video === session) console.warn(`[engine] live video played after ${SHOWN_CAP_MS} ms unseen: ${session.url}`);
@@ -280,7 +318,7 @@ export function setPreviewVideo(video: PreviewEngineVideo | null, contents: WebC
   // como en vivo pero con el volumen a 0; si le suben el volumen se escucha»).
   const session: Session = { engine: null, url: video.url, epoch: 0, paused: video.paused, volume: video.volume, loop: false };
   preview = session;
-  start(session, { startAtSeconds: video.startAtSeconds, audio: true }, video.picture ? previewEngineFrameKey(video.url) : "", {
+  start(session, { startAtSeconds: video.startAtSeconds, audio: true, device: devices.preview }, video.picture ? previewEngineFrameKey(video.url) : "", {
     status: (status) =>
       broadcast("preview-video-status", {
         url: session.url,
@@ -294,8 +332,33 @@ export function setPreviewVideo(video: PreviewEngineVideo | null, contents: WebC
       console.warn("[engine] preview", error.code, error.detail);
       broadcast("preview-video-error", { url: session.url });
     },
+    level: (peak) => {
+      if (preview === session) reportLevel(session, "preview", heardAt(peak, session.volume));
+    },
+    audioOut: audioOut(() => preview === session),
   });
   if (video.picture) session.engine?.show(contents);
+}
+
+/** Moves each bus to its output (mpv names, null the system's default): the sessions playing now and every one
+ *  after. The song's video background is silent and stays put. */
+export function setEngineAudioDevices(next: { live: string | null; preview: string | null }): void {
+  if (next.live !== devices.live || next.preview !== devices.preview) audioOutSaid.clear();
+  if (next.live !== devices.live) {
+    devices.live = next.live;
+    for (const session of [videos.video, videos.slideVideo, ...audio.values()]) moveSession(session, next.live);
+  }
+  if (next.preview !== devices.preview) {
+    devices.preview = next.preview;
+    moveSession(preview, next.preview);
+  }
+}
+
+/** mpv reopens a moved output only when sound flows, so a paused session would sound 244–556 ms late on play: sought
+ *  where it stands (`redraw`, a paused engine only), it reopens the output now, as `takePreviewEngine`'s handover does. */
+function moveSession(session: Session | null | undefined, device: string | null): void {
+  session?.engine?.setDevice(device ?? "auto");
+  if (session?.paused) session.engine?.redraw();
 }
 
 export function seekPreviewVideo(seconds: number): void {

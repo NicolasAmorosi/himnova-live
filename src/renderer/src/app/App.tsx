@@ -4,6 +4,8 @@ import { ProgramsModal } from "@renderer/components/pages/programs/ProgramsModal
 import { SettingsModal } from "@renderer/components/pages/settings/SettingsModal";
 import { FirstStepsPanel } from "@renderer/components/pages/welcome/FirstStepsPanel";
 import { WelcomeScreen } from "@renderer/components/pages/welcome/WelcomeScreen";
+import { WhatsNewScreen } from "@renderer/components/pages/welcome/WhatsNewScreen";
+import { LATEST_WHATS_NEW, whatsNewDue } from "@shared/whats-new";
 import { RemoveAssetConfirm } from "@renderer/components/pages/resources/remove-asset-confirm";
 import {
   ConfirmModal,
@@ -28,6 +30,7 @@ import { loadSongs, refreshLiveSong } from "@renderer/lib/actions/songs";
 import { useProjectionStore } from "@renderer/stores/projection.store";
 import { useProgramStore } from "@renderer/stores/program.store";
 import { logoLook } from "@shared/types/settings";
+import { liveMasterVolume } from "@shared/types/audio";
 import { useSettingsStore } from "@renderer/stores/settings.store";
 import { useBibleStore } from "@renderer/stores/bible.store";
 import { useDisplayStore } from "@renderer/stores/display.store";
@@ -41,6 +44,10 @@ import { startStageSync } from "@renderer/effects/stage-sync";
 import { startEngineAssetsSync } from "@renderer/effects/engine-assets-sync";
 import { startUpdateAnnouncement } from "@renderer/effects/update-announcement";
 import { startFirstSteps } from "@renderer/effects/first-steps";
+import { startAudioRouteEffects } from "@renderer/effects/audio-route";
+import { useAudioRouteStore } from "@renderer/stores/audio-route.store";
+import { useAudioSink } from "@renderer/lib/hooks/use-audio-sink";
+import { startAudioLevels } from "@renderer/effects/audio-levels";
 import { useGlobalShortcuts } from "@renderer/lib/hooks/use-global-shortcuts";
 
 /**
@@ -69,6 +76,7 @@ export function App() {
   // tree under it. See `ui.store.ts`.
   const settingsOpen = useUiStore((s) => s.settingsSection !== null);
   const welcomeOpen = useUiStore((s) => s.welcomeOpen);
+  const whatsNewOpen = useUiStore((s) => s.whatsNewOpen);
   const openSettings = useUiStore((s) => s.openSettings);
   const closeSettings = useUiStore((s) => s.closeSettings);
   // Same reasoning, and one more: mounted here it exists ONCE. Rendered by
@@ -107,8 +115,17 @@ export function App() {
   const fallbackFont = useSettingsStore((s) => s.settings["slides.fallbackFont"]);
   const locale = useSettingsStore((s) => s.settings["ui.locale"]);
   const setSlideText = useProjectionStore((s) => s.setSlideText);
+  const liveMuted = useUiStore((s) => s.liveMuted);
+  const liveMaster = useSettingsStore((s) =>
+    liveMasterVolume(s.settings["audio.strips"], s.settings["audio.live.volume"], liveMuted),
+  );
+  const setLiveMasterVolume = useProjectionStore((s) => s.setLiveMasterVolume);
+  const strips = useSettingsStore((s) => s.settings["audio.strips"]);
+  const setLiveMeters = useProjectionStore((s) => s.setLiveMeters);
 
   useGlobalShortcuts(useAnyModalOpen());
+  // Every sound of this window is PREVIEW's (the monitors' copies of LIVE are muted).
+  useAudioSink(useAudioRouteStore((s) => s.preview.out.sinkId));
 
   useEffect(() => installGlobalErrorHandlers(), []);
 
@@ -134,12 +151,17 @@ export function App() {
           settings["library.activeView"],
           settings["library.linkedFolders"],
         );
-      // Nothing opens the projection window on launch any more — it was
-      // unreliable. The operator's first tap on BLACK, LOGO or GO LIVE opens
-      // it on demand (see display.store's `openIfNeeded`).
       await useDisplayStore.getState().load();
+      // The projector opens by itself, like the stage (owner, 2026-11-13), on the LOGO: nothing is live yet. Not
+      // awaited: the rest of the launch does not wait for its window.
+      void api.projection
+        .autoOpen()
+        .then((enabled) => useDisplayStore.getState().autoOpen(enabled))
+        .catch((error: unknown) => console.warn("[projector] auto open failed", error));
       // A new profile is welcomed — once the screens are known, which its «Pantallas» step lists.
       if (settings["welcome.pending"]) useUiStore.getState().openWelcome();
+      // A profile from before the last update is told what changed, once (D4); a new one was stamped by main.
+      else if (whatsNewDue(settings["ui.whatsNewSeen"])) useUiStore.getState().openWhatsNew();
       // After the settings, never before: `loadVersions` settles on
       // `bible.defaultVersionId`, and reading that key before it is loaded
       // would silently open on whichever version happens to be first. This is
@@ -191,7 +213,9 @@ export function App() {
     // settings it reads have loaded.
     const stopUpdateAnnouncement = startUpdateAnnouncement();
     const stopFirstSteps = startFirstSteps();
+    const stopAudioRoute = startAudioRouteEffects();
     return () => {
+      stopAudioRoute();
       stopProjectionEffects();
       stopStageSync();
       stopLibrarySync();
@@ -229,6 +253,18 @@ export function App() {
   useEffect(() => {
     setVideoEnd(videoEnd);
   }, [videoEnd, setVideoEnd]);
+
+  // Measuring only while the strips are on: nothing is listened to, sent or crossed to main otherwise. The projector
+  // learns it through its output.
+  useEffect(() => {
+    setLiveMeters(strips);
+    return strips ? startAudioLevels() : undefined;
+  }, [strips, setLiveMeters]);
+
+  // The LIVE strip's fader (100 % with the strips off), mirrored the same way: it multiplies every live level.
+  useEffect(() => {
+    setLiveMasterVolume(liveMaster);
+  }, [liveMaster, setLiveMasterVolume]);
 
   // The verse's own look, mirrored for the same reason and by the same route.
   // Editing it in Settings while scripture is on the projector therefore
@@ -322,6 +358,17 @@ export function App() {
         open={welcomeOpen}
       >
         <WelcomeScreen />
+      </ModalBoundary>
+      <ModalBoundary
+        onCrash={() => {
+          // Seen: a screen that crashed must not come back at every launch.
+          useUiStore.getState().closeWhatsNew();
+          void useSettingsStore.getState().update({ "ui.whatsNewSeen": LATEST_WHATS_NEW });
+          toast.danger(t("app.modalCrashed"));
+        }}
+        open={whatsNewOpen}
+      >
+        <WhatsNewScreen />
       </ModalBoundary>
       <ModalBoundary
         onCrash={() => {

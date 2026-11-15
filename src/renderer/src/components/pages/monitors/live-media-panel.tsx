@@ -4,7 +4,7 @@ import { MediaPanel } from "@renderer/components/ui";
 import { MediaTrackRow } from "@renderer/components/shared/media-track-row";
 import { UtilityTrackRow } from "@renderer/components/shared/utility-track-row";
 import { PlateTrackRow } from "@renderer/components/shared/plate-track-row";
-import { selectOutputMemo, useProjectionStore } from "@renderer/stores/projection.store";
+import { selectOutputMemo, selectSlideClipVolume, useProjectionStore } from "@renderer/stores/projection.store";
 import { useAudioStore } from "@renderer/stores/audio.store";
 import { useLiveHeading } from "@renderer/lib/hooks/use-live";
 import {
@@ -50,6 +50,7 @@ export function LiveMediaPanel() {
   // whole output costs nothing beyond the re-render a slide change already
   // causes here (the heading moves with it).
   const slideVideo = useProjectionStore(selectOutputMemo).slideVideo;
+  const slideClipVolume = useProjectionStore(selectSlideClipVolume);
   const slideVideoPaused = useProjectionStore((s) => s.slideVideoPaused);
   const videoPaused = useProjectionStore((s) => s.videoPaused);
   const videoVolume = useProjectionStore((s) => s.videoVolume);
@@ -140,7 +141,7 @@ export function LiveMediaPanel() {
         onTogglePause={toggleSlideVideoPause}
         onVolumeChange={(volume) => setMediaVolume({ kind: "slideVideo" }, volume)}
         paused={slideVideoPaused}
-        volume={slideVideo.volume}
+        volume={slideClipVolume}
       />,
     );
   }

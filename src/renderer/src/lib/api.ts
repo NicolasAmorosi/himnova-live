@@ -16,6 +16,7 @@ import type {
   ProgramUpsert,
 } from "@shared/types/program";
 import type { SettingsMap } from "@shared/types/settings";
+import type { AudioRoute } from "@shared/types/audio";
 import type { UtilitySceneUpsert } from "@shared/types/utility";
 import type { PlateUpsert } from "@shared/types/overlay";
 import type { SongThemeUpsert, SongUpsert } from "@shared/types/song";
@@ -28,20 +29,28 @@ import type { DecoderSupport } from "@shared/types/media";
 export const api = {
   displays: {
     list: () => invoke("displays:list", undefined),
+    identify: (screens: { id: number; number: number; name: string }[]) => invoke("displays:identify", screens),
   },
   projection: {
     open: (displayId: number) => invoke("projection:open", { displayId }),
     close: () => invoke("projection:close", undefined),
+    autoOpen: () => invoke("projection:autoOpen", undefined),
     show: (output: ProjectionOutput) => invoke("projection:show", output),
     mediaCommand: (command: MediaCommand) => invoke("projection:mediaCommand", command),
     setAudioTracks: (tracks: AudioTrackPush[]) => invoke("projection:setAudioTracks", tracks),
     getSnapshot: () => invoke("projection:getSnapshot", undefined),
     reportMediaError: (error: ProjectionMediaError) => invoke("projection:reportMediaError", error),
     wantVideoFrame: (key: string) => invoke("projection:wantVideoFrame", { key }),
+    reportLevels: (level: [number, number]) => invoke("projection:reportLevels", level),
   },
   preview: {
     setVideo: (video: PreviewEngineVideo | null) => invoke("preview:setVideo", video),
     seekVideo: (seconds: number) => invoke("preview:seekVideo", { seconds }),
+  },
+  audioRoute: {
+    matchOutputs: (outputs: { deviceId: string; label: string }[]) => invoke("audioRoute:matchOutputs", { outputs }),
+    set: (route: AudioRoute) => invoke("audioRoute:set", route),
+    sinkFailed: (sinkId: string) => invoke("audioRoute:sinkFailed", { sinkId }),
   },
   files: {
     pick: (kind: AssetKind | "all", multiple: boolean, startIn?: AssetKind) =>
@@ -64,6 +73,8 @@ export const api = {
   stage: {
     show: (output: StageOutput) => invoke("stage:show", output),
     getSnapshot: () => invoke("stage:getSnapshot", undefined),
+    shown: () => invoke("stage:shown", undefined),
+    reopen: () => invoke("stage:reopen", undefined),
   },
   bible: {
     versions: () => invoke("bible:versions", undefined),

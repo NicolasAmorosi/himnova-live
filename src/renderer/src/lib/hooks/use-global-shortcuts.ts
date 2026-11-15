@@ -7,6 +7,8 @@ import { toggleAutoplay } from "@renderer/effects/deck-autoplay";
 import { advanceVerse } from "@renderer/lib/actions/bible";
 import { removeSelected } from "@renderer/lib/actions/remove-selected";
 import { onIpc } from "@renderer/lib/ipc";
+import { useSettingsStore } from "@renderer/stores/settings.store";
+import { focusStageMessage } from "@renderer/stores/stage.store";
 import { isPointerFocused, trackFocusModality } from "@renderer/lib/focus-modality";
 
 const ARROW_KEYS_LIST: string[] = ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"];
@@ -97,6 +99,13 @@ function suppressesKey(target: EventTarget | null, key: string): boolean {
   return role !== null && ARROW_CONSUMING_ROLES.has(role) && ARROW_KEYS.has(key);
 }
 
+/** M: the stage panel's message, only while there is a panel: a stage screen assigned, and not as a copy of the
+ *  projector (a card set open there would pop up the day the role changes back). */
+function stageMessageKey(): void {
+  const { settings } = useSettingsStore.getState();
+  if (settings["stage.displayId"] !== null && !settings["stage.mirror"]) focusStageMessage();
+}
+
 function black(): void {
   void toggleOverlay("black");
 }
@@ -124,6 +133,9 @@ const ACTIONS: Record<string, () => void> = {
   ".": black,
   l: logo,
   L: logo,
+  // The stage panel's message field (owner, 2026-11-13), unfolding the panel first.
+  m: stageMessageKey,
+  M: stageMessageKey,
   Enter: () => void goLive(),
 };
 

@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { app, sharedTexture, type SharedTextureHandle, type WebContents } from "electron";
 import { engineCacheDir, engineDir, enginePath } from "../paths";
-import { jsonLineReader, mpvVolume } from "./engine-protocol";
+import { AUDIO_DEVICE_PROTO, EngineGate, jsonLineReader, mpvVolume, type EngineDevice } from "./engine-protocol";
 
 /**
  * The media engine (`native/engine/engine.cpp`): ONE file per process, played by libmpv, which also
@@ -30,9 +30,19 @@ export type EngineLoad = {
   loop: boolean;
   /** false: the audio is not even decoded (the PREVIEW monitor). */
   audio: boolean;
+  /** mpv's name for the output it plays through (`EngineDevice.name`); absent, the system's default. An engine
+   *  older than `AUDIO_DEVICE_PROTO` plays it on the default. */
+  device?: string;
 };
 export type EngineLoaded = { duration: number; width: number; height: number; hasVideo: boolean; hasAudio: boolean };
 export type EngineStatus = { time: number; duration: number; paused: boolean; ended: boolean };
+/** The sound's sample peak per channel [left, right] in dBFS, −120 for none: what the file carries, before its
+ *  volume, at the moment the room hears it; every 40 ms while it plays, one at −120 when it stops. */
+export type EngineLevel = [number, number];
+/** Whether the sound reaches the output `EngineLoad.device` / `setDevice` named (`device`, «auto» the system's): false
+ *  when it could not be opened (the file plays on, unheard) or it left the system (the OS may play it elsewhere), true
+ *  when it is back (the engine reopens a device that comes back by itself). Said on changes, never as an `error`. */
+export type EngineAudioOut = { ok: boolean; device: string };
 /** `engine-open`: the file can't be played · `engine-gpu`: no device or no shared texture ·
  *  `engine-args`: a bug on this side · `engine-exit`: the process died. */
 export type EngineError = { code: string; detail: string };
@@ -41,16 +51,22 @@ export type EngineEvents = {
   loaded?: (info: EngineLoaded) => void;
   status?: (status: EngineStatus) => void;
   error?: (error: EngineError) => void;
+  level?: (peak: EngineLevel) => void;
+  audioOut?: (state: EngineAudioOut) => void;
   exit?: () => void;
 };
 
 type EngineEvent =
+  | { ev: "hello"; proto: number }
   | { ev: "ready"; gpu: string; adapter?: "" | "match" | "none" }
   | ({ ev: "loaded" } & EngineLoaded)
   | { ev: "slots"; width: number; height: number; handles: (number | string | { stride: number; size: number })[] }
   | { ev: "frame"; slot: number }
   | ({ ev: "status" } & EngineStatus)
-  | ({ ev: "error" } & EngineError);
+  | ({ ev: "error" } & EngineError)
+  | { ev: "devices"; list: EngineDevice[] }
+  | { ev: "level"; peak: EngineLevel }
+  | ({ ev: "audio-out" } & EngineAudioOut);
 
 /** `native/handles`: what Node can't do to take another process's textures, or to hand one over (the
  *  NDI output, `ndi/ndi-output.ts`). Windows has none. */
@@ -106,6 +122,20 @@ export function takeEngine(): MediaEngine {
   const engine = spare && !spare.exited ? spare : new MediaEngine();
   spare = new MediaEngine();
   return engine;
+}
+
+/** The protocol this build's engine speaks, from the first one that started; null before any has said. */
+let engineProto: number | null = null;
+export function engineProtocol(): number | null {
+  return engineProto;
+}
+
+/** mpv's outputs, «auto» first, asked of the spare engine; null when this build's engine cannot say (none, or
+ *  older than `AUDIO_DEVICE_PROTO`) or does not answer. */
+export function listAudioDevices(): Promise<EngineDevice[] | null> {
+  if (!engineAvailable()) return Promise.resolve(null);
+  prewarmEngine();
+  return spare ? spare.devices() : Promise.resolve(null);
 }
 
 /** Starts the spare before the first file needs it. */
@@ -198,6 +228,9 @@ export class MediaEngine {
   private loadedInfo: EngineLoaded | null = null;
   private lastStatus: EngineStatus | null = null;
   private failed = false;
+  /** Every line to the engine, held until it says which protocol it speaks (`hello`, or 7 when `ready` came first). */
+  private readonly gate = new EngineGate((line) => this.writeNow(line));
+  private deviceReplies: ((list: EngineDevice[] | null) => void)[] = [];
 
   constructor() {
     const args = ["--max-width", "1920", "--max-height", "1080", "--cache-dir", engineCacheDir];
@@ -235,9 +268,33 @@ export class MediaEngine {
     this.events = events;
     const volume = mpvVolume(opts.volume);
     const flag = (b: boolean) => (b ? "1" : "0");
-    this.write(
-      `load ${Math.max(0, opts.startAtSeconds)} ${flag(opts.paused)} ${volume} ${flag(opts.loop)} ${flag(opts.audio)} ${longPathSafe(opts.file)}`,
-    );
+    const line = `load ${Math.max(0, opts.startAtSeconds)} ${flag(opts.paused)} ${volume} ${flag(opts.loop)} ${flag(opts.audio)} ${longPathSafe(opts.file)}`;
+    // The output opens where it is told before the file: the device goes first, to an engine that knows it.
+    if (opts.device !== undefined) this.setDevice(opts.device);
+    this.write(line);
+  }
+
+  /** Where its sound goes from now on (mpv reopens its output there, a gap of a moment); «auto» the system's. The same
+   *  device again reopens it if its sound was lost (`EngineEvents.audioOut`). */
+  setDevice(device: string): void {
+    if (/[\r\n]/.test(device)) throw new Error("a device name with a line break");
+    this.gate.send(`device ${device}`, AUDIO_DEVICE_PROTO);
+  }
+
+  /** mpv's outputs as this engine sees them; null from an older engine, or with no answer in `timeoutMs`. */
+  devices(timeoutMs = 3000): Promise<EngineDevice[] | null> {
+    return new Promise((resolve) => {
+      const timer = setTimeout(() => resolve(null), timeoutMs);
+      const reply = (list: EngineDevice[] | null) => {
+        clearTimeout(timer);
+        resolve(list);
+      };
+      this.gate.after((proto) => {
+        if (this.exited || proto < AUDIO_DEVICE_PROTO) return reply(null);
+        this.deviceReplies.push(reply);
+        this.writeNow("devices");
+      });
+    });
   }
 
   /** Still playing its file, with nothing gone wrong: one another session may take over (`retarget`). */
@@ -263,8 +320,11 @@ export class MediaEngine {
     if (!this.targets.has(contents)) this.targets.set(contents, { busy: false });
   }
 
-  hide(contents: WebContents): void {
-    this.targets.delete(contents);
+  /** Its frames go to these windows and no others: one that stopped copying the projector (the stage with its
+   *  videos turned off) stops receiving them. */
+  showOnly(contents: readonly WebContents[]): void {
+    for (const target of this.targets.keys()) if (!contents.includes(target)) this.targets.delete(target);
+    for (const target of contents) this.show(target);
   }
 
   setPaused(paused: boolean): void {
@@ -301,12 +361,20 @@ export class MediaEngine {
     if (!this.exited) this.child.kill("SIGKILL");
   }
 
+  /** In order with everything else, once the engine has said its protocol. */
   private write(line: string): void {
+    this.gate.send(line);
+  }
+
+  private writeNow(line: string): void {
     if (!this.exited && this.child.stdin?.writable) this.child.stdin.write(line + "\n");
   }
 
   private onEvent(event: EngineEvent): void {
+    engineProto = this.gate.heard(event);
     switch (event.ev) {
+      case "hello":
+        return;
       case "ready":
         return logEngineGpu(event.gpu, event.adapter);
       case "loaded":
@@ -321,6 +389,13 @@ export class MediaEngine {
         return this.events.status?.(event);
       case "error":
         return this.fail(event);
+      case "devices":
+        for (const reply of this.deviceReplies.splice(0)) reply(event.list);
+        return;
+      case "level":
+        return this.events.level?.(event.peak);
+      case "audio-out":
+        return this.events.audioOut?.({ ok: event.ok, device: event.device });
     }
   }
 
@@ -392,6 +467,7 @@ export class MediaEngine {
   private onExit(code: number | null, signal: NodeJS.Signals | null): void {
     this.exited = true;
     running.delete(this);
+    for (const reply of this.deviceReplies.splice(0)) reply(null);
     if (spare === this) spare = null;
     // Electron holds its own reference to every texture it imported; these are ours.
     if (process.platform === "darwin") for (const p of this.macPointers) handles<MacHandles>().release(p);

@@ -3,6 +3,8 @@ import { SchedulePanel } from "@renderer/components/pages/schedule/SchedulePanel
 import { ResourcePanel } from "@renderer/components/pages/resources/ResourcePanel";
 import { SlidesPanel } from "@renderer/components/pages/slides/SlidesPanel";
 import { MonitorsColumn } from "@renderer/components/pages/monitors/MonitorsColumn";
+import { StagePanel } from "@renderer/components/pages/stage/StagePanel";
+import { useSettingsStore } from "@renderer/stores/settings.store";
 import { TopBar } from "./TopBar";
 
 type AppShellProps = {
@@ -32,6 +34,9 @@ type AppShellProps = {
  * or already on the projector.
  */
 export function AppShell({ onOpenPrograms, onOpenSettings }: AppShellProps) {
+  // The stage panel only with a stage screen assigned: a church with two screens sees nothing new.
+  // As a copy of the projector the stage has nothing to run (owner, 2026-11-13).
+  const hasStage = useSettingsStore((s) => s.settings["stage.displayId"] !== null && !s.settings["stage.mirror"]);
   return (
     <div className="flex h-screen flex-col bg-background">
       <TopBar onOpenPrograms={onOpenPrograms} onOpenSettings={onOpenSettings} />
@@ -50,13 +55,17 @@ export function AppShell({ onOpenPrograms, onOpenSettings }: AppShellProps) {
             the virtualized grid would mount a single row of tiles. `overflow-
             hidden` is what keeps that floor from spilling into the panel
             below instead. */}
-        <div className="grid min-h-0 grid-rows-[minmax(160px,1fr)_minmax(220px,1.1fr)] divide-y divide-border overflow-hidden">
-          <Panel>
-            <SchedulePanel />
-          </Panel>
-          <Panel>
-            <ResourcePanel />
-          </Panel>
+        {/* `relative`: the stage panel's card opens over this column (`StagePanel`). */}
+        <div className="relative flex min-h-0 flex-col bg-surface">
+          <div className="grid min-h-0 flex-1 grid-rows-[minmax(160px,1fr)_minmax(220px,1.1fr)] divide-y divide-border overflow-hidden">
+            <Panel>
+              <SchedulePanel />
+            </Panel>
+            <Panel>
+              <ResourcePanel />
+            </Panel>
+          </div>
+          {hasStage ? <StagePanel /> : null}
         </div>
 
         <Panel>

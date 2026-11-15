@@ -1,6 +1,15 @@
 import { create } from "zustand";
 
-export type SettingsSection = "projection" | "slides" | "bible" | "songs" | "system" | "backups" | "about";
+export type SettingsSection =
+  | "projection"
+  | "screens"
+  | "sound"
+  | "slides"
+  | "bible"
+  | "songs"
+  | "system"
+  | "backups"
+  | "about";
 
 /**
  * App-level chrome that something outside React has to be able to open.
@@ -24,6 +33,11 @@ type UiStoreState = {
   welcomeOpen: boolean;
   openWelcome: () => void;
   closeWelcome: () => void;
+  /** «Novedades» (`WhatsNewScreen`): opened by `App` once after an update, or by hand from Settings ▸ About, which
+   *  it then replaces like the welcome. Settings opened FROM it stacks on top and gives it back on close. */
+  whatsNewOpen: boolean;
+  openWhatsNew: () => void;
+  closeWhatsNew: () => void;
   /** The asset whose "remove anyway" confirmation is open, `null` when
    *  none. Here for the same reason as `settingsSection`: the offer is a toast
    *  action raised from `lib/actions/remove-asset.ts`, with no component tree
@@ -40,6 +54,10 @@ type UiStoreState = {
    *  `EditorScreen` counts itself in (`holdUnsavedEditor`), so a quit asks
    *  about them like it asks about the schedule (2026-11-06). */
   unsavedEditors: number;
+  /** The LIVE strip's mute. Session state on purpose: `audio.live.volume` keeps the level, and the app always opens
+   *  with LIVE audible (a church must never find it silent after a restart). */
+  liveMuted: boolean;
+  setLiveMuted: (liveMuted: boolean) => void;
 };
 
 /** Why closing needs a confirmation: work that is not saved — the schedule
@@ -52,13 +70,19 @@ export const useUiStore = create<UiStoreState>((set) => ({
   openSettings: (section = "projection") => set({ settingsSection: section }),
   closeSettings: () => set({ settingsSection: null }),
   welcomeOpen: false,
-  openWelcome: () => set({ settingsSection: null, welcomeOpen: true }),
+  // Never both full screens at once: the welcome covers what «Novedades» would say.
+  openWelcome: () => set({ settingsSection: null, welcomeOpen: true, whatsNewOpen: false }),
   closeWelcome: () => set({ welcomeOpen: false }),
+  whatsNewOpen: false,
+  openWhatsNew: () => set({ settingsSection: null, whatsNewOpen: true }),
+  closeWhatsNew: () => set({ whatsNewOpen: false }),
   removeAssetConfirmId: null,
   setRemoveAssetConfirmId: (removeAssetConfirmId) => set({ removeAssetConfirmId }),
   closeGuard: null,
   setCloseGuard: (closeGuard) => set({ closeGuard }),
   unsavedEditors: 0,
+  liveMuted: false,
+  setLiveMuted: (liveMuted) => set({ liveMuted }),
 }));
 
 /** An editor with unsaved changes counts itself in; the returned function counts it out. */

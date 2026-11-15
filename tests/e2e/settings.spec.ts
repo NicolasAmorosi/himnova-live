@@ -6,7 +6,7 @@ import { audioStates, expect, relaunch, test, videoStates, type WorshipApp } fro
 
 async function openSettings(
   app: WorshipApp,
-  section: "Proyección" | "Diapositivas" | "Biblia" | "Sistema",
+  section: "Proyección" | "Sonido" | "Diapositivas" | "Biblia" | "Sistema",
 ): Promise<Locator> {
   await app.control.getByRole("button", { name: "Configuración" }).click();
   const dialog = app.control.getByRole("dialog", { name: "Configuración" });
@@ -168,7 +168,7 @@ test("the church's name and the CCLI licence typed, then Escape or «Volver», a
   expect(stored["songs.ccliLicense"]).toBe("998877");
 });
 
-test("every choice in Proyección, Diapositivas and Sistema is kept after a restart", async ({ app }) => {
+test("every choice in Proyección, Sonido, Diapositivas and Sistema is kept after a restart", async ({ app }) => {
   const folder = fs.mkdtempSync(path.join(app.profile, "videos-"));
   let settings = await openSettings(app, "Proyección");
   const pick = async (field: string, option: string) => {
@@ -179,9 +179,11 @@ test("every choice in Proyección, Diapositivas and Sistema is kept after a rest
   await pick("Al terminar una presentación", "Volver a la primera diapositiva");
   await pick("Al terminar una canción", "Pasar al siguiente del programa");
   await pick("Al terminar un audio", "Repetir en bucle");
-  await settings.getByRole("slider", { name: "Volumen inicial" }).fill("0.5");
   await pick("Estilo", "Fundido a negro");
   await pick("Duración", "Lenta (600 ms)");
+  await settings.getByRole("tab", { name: "Sonido" }).click();
+  await settings.getByRole("slider", { name: "Volumen inicial" }).fill("0.5");
+  await settings.getByRole("switch", { name: "Mostrar las tiras" }).click();
   await settings.getByRole("tab", { name: "Diapositivas" }).click();
   await pick("Fuente de reemplazo", "Liberation Sans");
   await settings.getByRole("tab", { name: "Sistema" }).click();
@@ -200,6 +202,7 @@ test("every choice in Proyección, Diapositivas and Sistema is kept after a rest
   expect(stored["projection.songEnd"]).toBe("next");
   expect(stored["projection.audioEnd"]).toBe("loop");
   expect(stored["media.volume"]).toBe(0.5);
+  expect(stored["audio.strips"]).toBe(false);
   expect(stored["projection.transition.style"]).toBe("fade-through-black");
   expect(stored["projection.transition.durationMs"]).toBe(600);
   expect(stored["slides.fallbackFont"]).toBe("Liberation Sans");
@@ -208,7 +211,9 @@ test("every choice in Proyección, Diapositivas and Sistema is kept after a rest
 
   settings = await openSettings(again, "Proyección");
   await expect(settings.getByRole("combobox", { name: "Al terminar un video", exact: true })).toHaveText(/último cuadro/);
+  await settings.getByRole("tab", { name: "Sonido" }).click();
   await expect(settings.getByRole("slider", { name: "Volumen inicial" })).toHaveValue("0.5");
+  await expect(settings.getByRole("switch", { name: "Mostrar las tiras" })).not.toBeChecked();
   await settings.getByRole("tab", { name: "Sistema" }).click();
   await settings.getByRole("group", { name: "Videos", exact: true }).getByRole("button", { name: "Restablecer" }).click();
   await expect(settings.getByRole("group", { name: "Videos", exact: true })).toContainText("Carpeta del sistema");

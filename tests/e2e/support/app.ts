@@ -35,8 +35,14 @@ const FLAGS = [
   "--no-starter-look",
   // Every test is a new profile, which main welcomes; `welcome.spec.ts` turns it back on.
   "--no-welcome",
+  // …and never tells what changed («Novedades»), a profile brought from an older build included;
+  // `test.use({ chromiumArgs: ["--whats-new"] })` turns it back on (`whats-new.spec.ts`).
+  "--no-whats-new",
   // …and links the computer's own Videos, Pictures, Music and Documents in Media: not this machine's.
   "--no-system-folders",
+  // The suite was written against a projector that opens on the first GO LIVE, BLACK or LOGO; `screens.spec.ts`
+  // turns the launch's own opening back on.
+  "--no-auto-projector",
 ];
 
 /** What the renderer's global handlers log before showing the "error
@@ -97,7 +103,14 @@ export class WorshipApp {
     // Every test starts a new profile, and a new profile starts in the OS's
     // language (`main/i18n/system-locale.ts`): pinned, so the suite reads the
     // same Spanish on any machine — or `locale`, for the screenshots.
-    const dropped = [launchCheck && "--no-update-check", starterLook && "--no-starter-look", welcome && "--no-welcome"];
+    const dropped = [
+      launchCheck && "--no-update-check",
+      starterLook && "--no-starter-look",
+      welcome && "--no-welcome",
+      // `test.use({ chromiumArgs: ["--auto-projector"] })`: the projector opens by itself, as it does for a church.
+      chromiumArgs.includes("--auto-projector") && "--no-auto-projector",
+      chromiumArgs.includes("--whats-new") && "--no-whats-new",
+    ];
     const flags = [...FLAGS.filter((flag) => !dropped.includes(flag)), `--lang=${locale}`, ...chromiumArgs];
     const app = await electron.launch({
       cwd: ROOT,
@@ -179,6 +192,19 @@ export class WorshipApp {
   /** The centre column: PREVIEW and its grid. */
   previewColumn(): Locator {
     return this.control.locator("section").filter({ has: this.control.getByRole("heading", { name: this.tr("Preview") }) });
+  }
+
+  /** Settings ▸ Sonido ▸ «Mostrar las tiras» off: each media row has its own volume again (owner, 2026-11-15, D2),
+   *  for the specs that drive it. Through Settings, as the operator does: `settings:set` never reaches the open window. */
+  async audioStripsOff(): Promise<void> {
+    await this.control.getByRole("button", { name: this.tr("Configuración") }).click();
+    const settings = this.control.getByRole("dialog", { name: this.tr("Configuración") });
+    await settings.getByRole("tab", { name: this.tr("Sonido") }).click();
+    const strips = settings.getByRole("switch", { name: this.tr("Mostrar las tiras") });
+    await strips.click();
+    await expect(strips).not.toBeChecked();
+    await settings.getByRole("button", { name: this.tr("Volver") }).click();
+    await expect(settings).toBeHidden();
   }
 
   /** The top bar's EN VIVO, which every kind of content shares. (A plate's

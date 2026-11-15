@@ -31,6 +31,7 @@ import { footerAt, songBackgroundUrl, songBackgroundVideo, songOutputFor } from 
 import { linesAt, translationAt, type SongPosition } from "@shared/song-jump";
 import type { ResolvedSong, SongLanguage, SongTheme } from "@shared/types/song";
 import { defaultMediaVolume } from "@renderer/stores/settings.store";
+import { busVolume, DEFAULT_AUDIO_OUT, type AudioOut } from "@shared/types/audio";
 
 /** The deck currently loaded for projection — slide urls are durable, DB-backed
  *  and stable across restarts, so this is plain data with no session lifecycle. */
@@ -132,6 +133,17 @@ export type ProjectionStoreState = {
   transitionDurationMs: number;
   /** `projection.videoEnd`, mirrored by `App.tsx` like the transition. */
   videoEnd: VideoEndAction;
+  /** The LIVE master in effect (`liveMasterVolume`: the LIVE strip's fader, 100 % with the strips off), mirrored by
+   *  `App.tsx` like the transition. `selectOutput` multiplies it into each live video's level (`busVolume`), so the
+   *  projector and the media engine get the level they play at as state; the audio tracks get it in
+   *  `toAudioTrackPush`. */
+  liveMasterVolume: number;
+  /** Whether the audio strips are on (`audio.strips`), mirrored like the master: the projector measures its own
+   *  elements only then (`ProjectionOutput.meters`). */
+  liveMeters: boolean;
+  /** Where LIVE sounds (`AudioOut`), resolved by `effects/audio-route.ts` and carried by every output: the projector
+   *  applies it, never decides it. */
+  liveAudioOut: AudioOut;
   /**
    * How a verse is drawn, mirrored here from `settings["bible.style"]`.
    *
@@ -266,6 +278,9 @@ export type ProjectionStoreState = {
   beginScene: () => void;
   setTransitionSettings: (style: TransitionStyle, durationMs: number) => void;
   setVideoEnd: (videoEnd: VideoEndAction) => void;
+  setLiveMasterVolume: (volume: number) => void;
+  setLiveMeters: (on: boolean) => void;
+  setLiveAudioOut: (audioOut: AudioOut) => void;
   setBibleStyle: (style: BibleStyle) => void;
   setSlideText: (text: SlideTextSettings) => void;
   /** Puts a plate up, taking down whichever plate it collides with (`platesCollide`). */
@@ -361,6 +376,9 @@ export const useProjectionStore = create<ProjectionStoreState>()(
     transitionStyle: "crossfade",
     transitionDurationMs: 300,
     videoEnd: "logo",
+    liveMasterVolume: 1,
+    liveMeters: false,
+    liveAudioOut: DEFAULT_AUDIO_OUT,
     bibleStyle: DEFAULT_BIBLE_STYLE,
     slideText: { fallbackFont: null, locale: "es" },
     livePlates: [],
@@ -570,6 +588,14 @@ export const useProjectionStore = create<ProjectionStoreState>()(
     setTransitionSettings: (transitionStyle, transitionDurationMs) =>
       set({ transitionStyle, transitionDurationMs }),
     setVideoEnd: (videoEnd) => set({ videoEnd }),
+    setLiveMasterVolume: (liveMasterVolume) => set({ liveMasterVolume }),
+    setLiveMeters: (liveMeters) => set({ liveMeters }),
+    setLiveAudioOut: (liveAudioOut) =>
+      set((state) =>
+        state.liveAudioOut.sinkId === liveAudioOut.sinkId && state.liveAudioOut.engineDevice === liveAudioOut.engineDevice
+          ? state
+          : { liveAudioOut },
+      ),
     setBibleStyle: (bibleStyle) => set({ bibleStyle }),
     setSlideText: (slideText) => set({ slideText }),
     showPlate: (plate) =>
@@ -642,7 +668,7 @@ function selectVideoUnderlay(state: ProjectionStoreState): VideoUnderlay {
     epoch: state.base.epoch,
     paused: state.videoPaused,
     startAtSeconds: state.base.startAtSeconds,
-    volume: state.videoVolume,
+    volume: busVolume(state.videoVolume, state.liveMasterVolume),
     loop: state.videoEnd === "loop",
   };
 }
@@ -656,12 +682,21 @@ function selectVideoUnderlay(state: ProjectionStoreState): VideoUnderlay {
  * the overlay here would unmount the element on every toggle and restart the
  * clip each time the operator uncovered the stage.
  */
-function selectSlideVideo(state: ProjectionStoreState): SlideVideo {
+function liveSlideClip(state: ProjectionStoreState) {
   if (state.base?.kind !== "deck") return null;
   const deck = state.liveDeck;
   if (!deck || deck.assetId !== state.base.assetId || deck.slides.length === 0) return null;
   const index = clamp(state.base.slideIndex, 1, deck.slides.length);
-  const video = deck.videos.find((candidate) => candidate.slideIndex === index);
+  return deck.videos.find((candidate) => candidate.slideIndex === index) ?? null;
+}
+
+/** The live slide clip's OWN level (what its row shows), before the LIVE master that the projector's level carries. */
+export function selectSlideClipVolume(state: ProjectionStoreState): number {
+  return state.slideVideoVolume ?? liveSlideClip(state)?.volume ?? defaultMediaVolume();
+}
+
+function selectSlideVideo(state: ProjectionStoreState): SlideVideo {
+  const video = liveSlideClip(state);
   if (!video) return null;
   return {
     url: video.url,
@@ -671,7 +706,7 @@ function selectSlideVideo(state: ProjectionStoreState): SlideVideo {
     loop: video.loop,
     paused: state.slideVideoPaused,
     startAtSeconds: state.slideVideoStartAt,
-    volume: state.slideVideoVolume ?? video.volume ?? defaultMediaVolume(),
+    volume: busVolume(selectSlideClipVolume(state), state.liveMasterVolume),
   };
 }
 
@@ -796,6 +831,8 @@ export function selectOutput(state: ProjectionStoreState): ProjectionOutput {
     ...(songVideo ? { songVideo } : {}),
     plates: selectPlates(state),
     transition: selectTransition(state),
+    ...(state.liveMeters ? { meters: true as const } : {}),
+    ...(state.liveAudioOut.sinkId === "" && state.liveAudioOut.engineDevice === null ? {} : { audioOut: state.liveAudioOut }),
   };
 }
 
@@ -834,6 +871,9 @@ type OutputInputs = readonly [
   boolean,
   ProjectionStoreState["videoPaused"],
   ProjectionStoreState["videoVolume"],
+  ProjectionStoreState["liveMasterVolume"],
+  ProjectionStoreState["liveMeters"],
+  ProjectionStoreState["liveAudioOut"],
   ProjectionStoreState["slideVideoEpoch"],
   ProjectionStoreState["slideVideoPaused"],
   ProjectionStoreState["slideVideoVolume"],
@@ -857,6 +897,9 @@ function outputInputs(state: ProjectionStoreState): OutputInputs {
     state.videoEnd === "loop",
     state.videoPaused,
     state.videoVolume,
+    state.liveMasterVolume,
+    state.liveMeters,
+    state.liveAudioOut,
     state.slideVideoEpoch,
     state.slideVideoPaused,
     state.slideVideoVolume,

@@ -1,5 +1,5 @@
 import type { BrowserWindow } from "electron";
-import type { AudioTrackPush, ProjectionOutput } from "@shared/types/projection";
+import type { AudioTrackPush, MediaStatus, ProjectionOutput } from "@shared/types/projection";
 
 /**
  * Holds the last output sent to the projection window and a reference to that
@@ -14,11 +14,19 @@ import type { AudioTrackPush, ProjectionOutput } from "@shared/types/projection"
  */
 class ProjectionState {
   private window: BrowserWindow | null = null;
-  /** Windows that draw the same picture without being the projector: the NDI output's offscreen window.
+  /** Windows that draw the same picture without being the projector: the NDI output's offscreen window, and the
+   *  stage screen while it plays videos.
    *  They get every output, never the audio tracks (they play no sound), and they report nothing. */
   private readonly mirrors = new Set<BrowserWindow>();
+  /** Mirrors the room does not watch (the stage screen): a video's start never waits for them to draw it. */
+  private readonly unwatched = new WeakSet<BrowserWindow>();
+  /** Windows whose `closed` already drops them: added again (the stage's videos toggled), never a second listener. */
+  private readonly listening = new WeakSet<BrowserWindow>();
   private lastOutput: ProjectionOutput | null = null;
   private lastAudioTracks: AudioTrackPush[] = [];
+  /** The projector's last report of each video element (`video`, `slideVideo`): a paused projector sends none, so a
+   *  copy that mounts then (the stage reopened, its «Proyector» view) starts from this instead of from zero. */
+  private readonly lastMediaStatus = new Map<MediaStatus["target"]["kind"], MediaStatus>();
 
   setWindow(win: BrowserWindow | null): void {
     this.window = win;
@@ -49,13 +57,33 @@ class ProjectionState {
     return this.window && !this.window.isDestroyed() ? this.window : null;
   }
 
-  addMirror(win: BrowserWindow): void {
+  /** `watched`: the room sees it (the NDI output feeds a stream), so a video taken live waits for it to draw its
+   *  first frame before it sounds (`holdUntilShown`). The stage screen is not. */
+  addMirror(win: BrowserWindow, watched = true): void {
     this.mirrors.add(win);
+    if (watched) this.unwatched.delete(win);
+    else this.unwatched.add(win);
+    if (this.listening.has(win)) return;
+    this.listening.add(win);
     win.once("closed", () => this.mirrors.delete(win));
+  }
+
+  /** The stage screen stops playing videos (Settings): no more pushes, reports or frames for it. */
+  removeMirror(win: BrowserWindow): void {
+    this.mirrors.delete(win);
+  }
+
+  isMirror(win: BrowserWindow): boolean {
+    return this.mirrors.has(win);
   }
 
   getMirrors(): BrowserWindow[] {
     return [...this.mirrors].filter((win) => !win.isDestroyed());
+  }
+
+  /** The projector and the mirrors the room watches: what a video taken live waits to see drawn. */
+  getWatched(): BrowserWindow[] {
+    return [this.getWindow(), ...this.getMirrors()].filter((win): win is BrowserWindow => win !== null && !this.unwatched.has(win));
   }
 
   send(output: ProjectionOutput): void {
@@ -68,8 +96,12 @@ class ProjectionState {
     this.getWindow()?.webContents.send("audio-tracks", tracks);
   }
 
-  getSnapshot(): { output: ProjectionOutput | null; audioTracks: AudioTrackPush[] } {
-    return { output: this.lastOutput, audioTracks: this.lastAudioTracks };
+  setMediaStatus(status: MediaStatus): void {
+    this.lastMediaStatus.set(status.target.kind, status);
+  }
+
+  getSnapshot(): { output: ProjectionOutput | null; audioTracks: AudioTrackPush[]; mediaStatus: MediaStatus[] } {
+    return { output: this.lastOutput, audioTracks: this.lastAudioTracks, mediaStatus: [...this.lastMediaStatus.values()] };
   }
 }
 

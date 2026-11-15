@@ -5,15 +5,22 @@
 //
 //   media-engine --ndi-send <name> --width <w> --height <h> --fps <n> [--ndi-lib <path>]
 //                [--audio 1 --audio-delay <ms>]   the app's own sound too (ndi-audio.h), held <ms> to meet its picture
+//                [--audio-device <mpv name> --preview-apart 0|1]   where that sound is taken from (proto 8)
 //     Windows  --parent <pid>          stdin: «frame <NT handle value in main>» per frame
 //     macOS    --mach-service <name>   the IOSurface's mach port, one mach message per frame
 //     Linux    --fd-socket <path>      a SOCK_SEQPACKET socket: «w h modifier planes stride offset…» + the dmabuf fds
-//   stdin also takes «quit» (or EOF). Engine → main (stdout), JSON:
+//   stdin also takes «quit» (or EOF), and since proto 8 «preview-apart 0|1» then «audio-device <mpv name>», which
+//   move the capture when the second comes (an older sender answers them with `done` on Windows: main sends them only
+//   after `hello`). The same route again starts a capture that is off (its device was gone) at once; it is tried every
+//   2 s anyway.
+//   Engine → main (stdout), JSON:
+//     {"ev":"hello","proto":8}                   first of all
 //     {"ev":"ready","runtime":…}                 listening for frames
 //     {"ev":"done"}                              read the frame main is holding: it can release it now
 //     {"ev":"status","receivers":…}              on every change; with none, a new frame is encoded once, not repeated
 //     {"ev":"audio","state":"on"|"off","detail":…,"level":…}  the sound: on (and its loudest sample in the last second,
-//                                                dBFS, once a second), or off and why
+//                                                dBFS, once a second), or off and why (said again only when the reason
+//                                                changes; a capture that stops on its own is off, and comes back on)
 //     {"ev":"error","code":…,"detail":…}         ndi-runtime-missing (exit 3) · ndi-send (exit 4) · ndi-gpu
 #include <algorithm>
 #include <atomic>
@@ -47,9 +54,29 @@ struct Options {
   unsigned long parentPid = 0;
   bool audio = false;
   int audioDelayMs = 0;
+  AudioRoute route;
 };
 
 static std::atomic<bool> quitting{false};
+
+// The route main last asked for, read by the audio thread: a different one moves the capture, the same one starts a
+// capture that is off (main resends it when a device comes back). Main sends `preview-apart` first and `audio-device`
+// last, and only the last is acted on: never a capture started on half a route.
+static std::mutex routeMutex;
+static AudioRoute wantedRoute;
+static std::atomic<bool> routeAsked{false};
+
+// A control line from main's stdin; false when it is not one.
+static bool control(const char* line) {
+  std::string l(line);
+  while (!l.empty() && (l.back() == '\n' || l.back() == '\r')) l.pop_back();
+  std::lock_guard<std::mutex> lock(routeMutex);
+  if (!l.compare(0, 14, "preview-apart ")) wantedRoute.previewApart = l.substr(14) == "1";
+  else if (!l.compare(0, 13, "audio-device ")) wantedRoute.device = l.substr(13), routeAsked = true;
+  else return false;
+  return true;
+}
+
 static void emitError(const std::string& code, const std::string& detail) {
   emit("{\"ev\":\"error\",\"code\":" + js(code) + ",\"detail\":" + js(detail) + "}");
 }
@@ -128,8 +155,10 @@ static bool openOnAnyAdapter(Frames::State* s, HANDLE handle, ID3D11Texture2D** 
 }
 
 int Frames::next(uint8_t* dst, size_t capacity, int& w, int& h) {
-  char line[128];
-  if (!fgets(line, sizeof line, stdin) || !strncmp(line, "quit", 4)) return -1;
+  char line[1024];
+  do {
+    if (!fgets(line, sizeof line, stdin) || !strncmp(line, "quit", 4)) return -1;
+  } while (control(line));  // not a frame: no `done` for it, or main would release the one it holds
   if (strncmp(line, "frame ", 6)) return 0;
   HANDLE local = nullptr;
   ID3D11Texture2D* tex = nullptr;
@@ -469,6 +498,7 @@ struct AudioOut : AudioSink {
 }  // namespace
 
 int ndiSendMain(int argc, char** argv) {
+  emit("{\"ev\":\"hello\",\"proto\":8}");
   Options o;
   for (int i = 1; i + 1 < argc; i += 2) {
     std::string k = argv[i], v = argv[i + 1];
@@ -482,7 +512,10 @@ int ndiSendMain(int argc, char** argv) {
     else if (k == "--fd-socket") o.fdSocket = v;
     else if (k == "--audio") o.audio = v == "1";
     else if (k == "--audio-delay") o.audioDelayMs = std::clamp(atoi(v.c_str()), -500, 1000);
+    else if (k == "--audio-device") o.route.device = v;
+    else if (k == "--preview-apart") o.route.previewApart = v == "1";
   }
+  wantedRoute = o.route;
   if (o.name.empty() || o.width < 16 || o.height < 16 || o.width > 3840 || o.height > 2160 || o.fps < 1 || o.fps > 60) {
     emitError("ndi-send", "bad arguments");
     return 2;
@@ -524,33 +557,68 @@ int ndiSendMain(int argc, char** argv) {
   audio.delay = (int64_t)o.audioDelayMs * 10000;
   std::thread audioThread;
   if (o.audio) {
-    std::string why;
 #ifdef _WIN32
     unsigned long app = o.parentPid;
 #else
     unsigned long app = (unsigned long)getppid();
 #endif
-    if (startAppAudio(app, &audio, why)) {
-      emit("{\"ev\":\"audio\",\"state\":\"on\"}");
-      audioThread = std::thread([&] {
-        auto lastLevel = std::chrono::steady_clock::now();
-        while (!quitting) {
-          audio.pump(ndi, sender);
-          auto now = std::chrono::steady_clock::now();
-          if (now - lastLevel >= std::chrono::seconds(1)) {
-            lastLevel = now;
-            // Watched or not: Settings shows it, and it is how a test hears the app's sound.
-            float peak = audio.takePeak();
-            char db[32];
-            snprintf(db, sizeof db, "%.1f", peak > 0 ? 20 * std::log10(peak) : -120.0);
-            emit(std::string("{\"ev\":\"audio\",\"state\":\"on\",\"level\":") + db + "}");
-          }
-          std::this_thread::sleep_for(std::chrono::milliseconds(5));
+    audioThread = std::thread([&, app] {
+      using clock = std::chrono::steady_clock;
+      bool on = false;
+      AudioRoute route;          // what the capture runs on
+      std::string saidOff;       // why it is off, as last said: a retry every 2 s does not repeat it
+      auto tried = clock::now(), checked = tried, lastLevel = tried;
+      // Again whenever main moves the route, the capture stops on its own, or it is off and 2 s have passed: a gap
+      // while it restarts, filled with silence for a watching receiver.
+      auto start = [&] {
+        if (on) stopAppAudio();
+        {
+          std::lock_guard<std::mutex> lock(routeMutex);
+          route = wantedRoute;
+          routeAsked = false;
         }
-      });
-    } else {
-      emit("{\"ev\":\"audio\",\"state\":\"off\",\"detail\":" + js(why) + "}");
-    }
+        tried = clock::now();
+        std::string why;
+        on = startAppAudio(app, route, &audio, why);
+        if (on) {
+          saidOff.clear();
+          emit("{\"ev\":\"audio\",\"state\":\"on\"}");
+        } else if (why != saidOff) {
+          saidOff = why;
+          emit("{\"ev\":\"audio\",\"state\":\"off\",\"detail\":" + js(why) + "}");
+        }
+      };
+      start();
+      while (!quitting) {
+        auto now = clock::now();
+        if (routeAsked) {
+          AudioRoute want;
+          {
+            std::lock_guard<std::mutex> lock(routeMutex);
+            want = wantedRoute;
+          }
+          if (!on || want != route) start();
+          else routeAsked = false;
+        } else if (on && now - checked >= std::chrono::milliseconds(500)) {
+          checked = now;
+          if (!appAudioHealthy()) start();  // on again at once (the new default), or off and why
+        } else if (!on && now - tried >= std::chrono::seconds(2)) {
+          start();
+        }
+        if (on) audio.pump(ndi, sender);
+        now = clock::now();
+        if (on && now - lastLevel >= std::chrono::seconds(1)) {
+          lastLevel = now;
+          // Watched or not: Settings shows it, and it is how a test hears the app's sound.
+          float peak = audio.takePeak();
+          char db[32];
+          snprintf(db, sizeof db, "%.1f", peak > 0 ? 20 * std::log10(peak) : -120.0);
+          emit(std::string("{\"ev\":\"audio\",\"state\":\"on\",\"level\":") + db + "}");
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(5));
+      }
+      if (on) stopAppAudio();
+    });
   }
 
   const size_t capacity = (size_t)o.width * o.height * 4;
@@ -575,8 +643,8 @@ int ndiSendMain(int argc, char** argv) {
 #ifndef _WIN32
   // Windows reads its frames from stdin, «quit» included; here stdin only says when to stop.
   std::thread input([] {
-    char line[64];
-    while (fgets(line, sizeof line, stdin) && strncmp(line, "quit", 4)) {}
+    char line[1024];
+    while (fgets(line, sizeof line, stdin) && strncmp(line, "quit", 4)) control(line);
     quitting = true;
   });
   input.detach();
@@ -624,7 +692,6 @@ int ndiSendMain(int argc, char** argv) {
     ndi->send_send_video_v2(sender, &f);
   }
   if (audioThread.joinable()) audioThread.join();
-  if (o.audio) stopAppAudio();
   ndi->send_destroy(sender);
   ndi->destroy();
   // The reader may be blocked on its pipe, port or socket; the process is ending, which unblocks it.

@@ -4,6 +4,7 @@
  * `selectOutput` switch (renderer/stores/projection.store.ts) is a compile error,
  * not a runtime "stuck on logo" bug like the old `restorePrevious()`.
  */
+import type { StageCountdown, StageLayout, StageMessage } from "./stage";
 import type { BibleStyle } from "./bible-style";
 import type { SlideRect } from "./deck";
 import type { PlateKind, PlatePosition, PlateStyle } from "./overlay";
@@ -14,6 +15,7 @@ import type { SlideTransition, TransitionSpec } from "./transition";
 import type { UtilityScene } from "./utility";
 import type { ResolvedSong, SongChord, SongLanguage, SongTheme } from "./song";
 import type { SongDetour } from "../song-jump";
+import type { AudioOut } from "./audio";
 
 /** Which video (if any) is the current *base* content, independent of BLACK/
  *  LOGO. Present on every `ProjectionOutput` variant (including "black" and
@@ -294,6 +296,12 @@ export type ProjectionOutput = ProjectionOutputKind & {
    *  live" — `selectOutput` decides, the projector only draws. */
   plates: readonly ProjectionPlate[];
   transition: SceneTransition;
+  /** Where LIVE sounds: the projector's elements play through its `sinkId` (main's engine sessions get the same route
+   *  in `audioRoute:set`). Absent, the system's default output. */
+  audioOut?: AudioOut;
+  /** The audio strips are on: the projector measures what its own elements sound at and reports it. Absent, it
+   *  measures nothing (`audio.strips` off). */
+  meters?: true;
 };
 
 /** Identifies one media element in the projection window: the full-screen
@@ -485,20 +493,30 @@ export type OverlayState = "none" | "black" | "logo";
 /**
  * What the musicians' screen shows, built by the control window
  * (`lib/stage-output.ts`) and drawn by `StageApp` — which, like the projector,
- * resolves nothing. Under BLACK, LOGO or hidden lyrics the stage keeps the
- * content and says so (`notice`): the band still needs the words the
- * congregation is not seeing (owner, 2026-11-05).
+ * resolves nothing. Its picture of what is live is the projector's: BLACK and
+ * LOGO show as themselves, never named (owner, 2026-11-13); hidden lyrics are
+ * the one cover it lifts, without a word, because the band still needs them.
  */
 export type StageOutput = {
-  /** What is live, uncovered; `null` when nothing is. */
-  current: ProjectionOutput | null;
+  /** What the projector shows (BLACK and LOGO included); LOGO or black when nothing is live. Its plates only as a
+   *  copy of the projector («projector»): over a frame this size they hide the words the band reads. */
+  current: ProjectionOutput;
   /** The next slide or verse, the one → would bring; `null` when there is none. */
   next: ProjectionOutput | null;
-  /** A live full-screen video as its poster (`OutputView`'s `videoStill`):
-   *  the stage decodes no video, a slide's included. */
+  /** A live full-screen video as its poster (`OutputView`'s `videoStill`): what the stage shows with `videoMotion`
+   *  off, and `next` always. */
   videoStill: { posterUrl: string | null; videoUrl: string | null };
-  /** «NEGRO», «LOGO» or the hidden lyrics, in the operator's language. */
-  notice: string | null;
-  /** The caption over `next`, in the operator's language. */
-  nextLabel: string;
+  /** Settings ▸ Screens: the stage plays what is live, videos included, as one more of the projector's copies
+   *  (`stage-window.ts`); off, it decodes nothing. */
+  videoMotion: boolean;
+  /** The preacher's countdown (the stage panel), or `null` when none is set. */
+  countdown: StageCountdown | null;
+  /** The message to the platform, a band in both the musicians' and the preacher's view (never over a copy of the
+   *  projector); `null` when none. */
+  message: StageMessage | null;
+  /** Already resolved: «Auto» never reaches the stage. */
+  layout: StageLayout;
+  hour12: boolean;
+  /** The size of everything the stage writes itself (time, countdown, message), from Settings ▸ Screens. */
+  textScale: number;
 };

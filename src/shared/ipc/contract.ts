@@ -59,6 +59,7 @@ import type { CloseDecision } from "../types/window";
 import type { UpdateStatus } from "../types/updates";
 import type { NdiOutputStatus } from "../types/ndi";
 import type { BackupEntry, LaunchRestore } from "../types/backups";
+import type { AudioBus, AudioRoute, EngineOutputNames } from "../types/audio";
 
 /**
  * The single source of truth for every main<->renderer call. Add a channel here
@@ -68,11 +69,16 @@ import type { BackupEntry, LaunchRestore } from "../types/backups";
  */
 export type IpcContract = {
   "displays:list": { req: void; res: DisplayInfo[] };
+  /** «Identificar»: each screen shows its number (the map's) and its name for a few seconds. */
+  "displays:identify": { req: { id: number; number: number; name: string }[]; res: void };
 
   /** `false` when the window closed before its page mounted: `projection-closed`
    *  has already told the control, which must not then mark the projector open. */
   "projection:open": { req: { displayId: number }; res: boolean };
   "projection:close": { req: void; res: void };
+  /** Whether the projector opens by itself (at launch, and when its screen appears): `false` only under the E2E
+   *  suite's `--no-auto-projector`, written against a closed projector. */
+  "projection:autoOpen": { req: void; res: boolean };
   "projection:show": { req: ProjectionOutput; res: void };
   "projection:mediaCommand": { req: MediaCommand; res: void };
   /** The full set of audio tracks that should exist in the projection window
@@ -85,7 +91,7 @@ export type IpcContract = {
    *  fresh `projection:open` — see `docs/knowledge/01-architecture.md`. */
   "projection:getSnapshot": {
     req: void;
-    res: { output: ProjectionOutput | null; audioTracks: AudioTrackPush[] };
+    res: { output: ProjectionOutput | null; audioTracks: AudioTrackPush[]; mediaStatus: MediaStatus[] };
   };
   /** Projection window -> main -> control window. The projection window is
    *  describing its own <video>/<audio> element, not making a decision. */
@@ -100,17 +106,35 @@ export type IpcContract = {
    *  main has it draw the current one again — a projector rebuilt onto another
    *  screen, or a monitor remounted, would otherwise stay black until play. */
   "projection:wantVideoFrame": { req: { key: string }; res: void };
+  /** The projector's own Chromium elements, as the room hears them: their sample peak through their volume, in
+   *  dBFS (`-Infinity` silence), every 40 ms while one sounds and once silent after (`lib/level-tap.ts`). Main mixes
+   *  them into LIVE's `audio-levels`; from any other window it is ignored. */
+  "projection:reportLevels": { req: [number, number]; res: void };
 
   /** Control window -> main -> the stage window, like `projection:show`; main
    *  keeps the last one for a stage window that opens later. */
   "stage:show": { req: StageOutput; res: void };
   "stage:getSnapshot": { req: void; res: StageOutput | null };
+  /** Whether the stage window is on screen now, and whether the operator closed it; later changes come as
+   *  `stage-screen`. */
+  "stage:shown": { req: void; res: { shown: boolean; closed: boolean } };
+  /** The stage window the operator closed, open again (the stage panel's «Reabrir»). */
+  "stage:reopen": { req: void; res: void };
 
   /** The PREVIEW monitor's video when the media engine plays it, or `null`
    *  when it shows anything else. Declarative: main loads a new url, and only
    *  pauses or resumes the same one. */
   "preview:setVideo": { req: PreviewEngineVideo | null; res: void };
   "preview:seekVideo": { req: { seconds: number }; res: void };
+
+  /** The media engine's name for each of these Chromium outputs (`matchEngineDevice`, `EngineOutputNames`). */
+  "audioRoute:matchOutputs": { req: { outputs: { deviceId: string; label: string }[] }; res: EngineOutputNames };
+  /** Both buses' engine outputs and whether PREVIEW plays apart from LIVE (`effects/audio-route.ts`). Sent again on
+   *  every device change: an identical route re-arms the NDI® sound's capture. */
+  "audioRoute:set": { req: AudioRoute; res: void };
+  /** A window's `setSinkId` failed (`useAudioSink`): its elements stay where they were while the engine moved, so the
+   *  control window sends that bus to the default whole (`audio-sink-failed`). */
+  "audioRoute:sinkFailed": { req: { sinkId: string }; res: void };
 
   /** `kind: "all"` combines every `AssetKind`'s extensions into one filter, for
    *  a single file dialog that accepts any supported media at once — the
@@ -466,11 +490,23 @@ export type IpcEvents = {
   /** The projection window's screen went away (it is hidden, still playing)
    *  or came back (it is fullscreen on it again). */
   "projector-screen": { connected: boolean };
+  /** The stage window appeared or went away (`windows/stage-window.ts`); `byScreens` when a screen coming or
+   *  going is why, which is what the control window says in a toast; `closed` while the operator's closing it
+   *  keeps it away. */
+  "stage-screen": { shown: boolean; byScreens: boolean; closed: boolean };
   "media-status": MediaStatus;
   "media-error": ProjectionMediaError;
   /** The PREVIEW monitor's engine (`preview:setVideo`), ~4/s. */
   "preview-video-status": PreviewVideoStatus;
   "preview-video-error": { url: string };
+  /** An engine session could not open the output it was told (`device`, mpv's name) or lost it (`ok: false`), or
+   *  has it again: the control window then routes that bus to the default whole (`effects/audio-route.ts`). */
+  "audio-out": { device: string; ok: boolean };
+  /** `audioRoute:sinkFailed`, from whichever window it failed in, for the control window to resolve again. */
+  "audio-sink-failed": { sinkId: string };
+  /** What each bus sounds at, after its faders (`media/audio-levels.ts`): left and right in dBFS, `-Infinity`
+   *  silence. Every 40 ms while something sounds, then once silent; the audio strips' meters draw it. */
+  "audio-levels": Record<AudioBus, [number, number]>;
   "deck-progress": DeckProgress;
   "prewarm-progress": PrewarmProgress;
   /** What `deck:statuses` would answer changed for reasons that are not a

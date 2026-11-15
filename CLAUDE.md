@@ -108,7 +108,8 @@ src/
 ├── main/
 │   ├── index.ts                # entry: DB, migrations, seed, IPC, windows
 │   ├── paths.ts                 # dev vs. packaged, ALL paths resolved here
-│   ├── windows/                 # control-window.ts, projection-window.ts, stage-window.ts (the musicians' screen)
+│   ├── windows/                 # control-window.ts, projection-window.ts, stage-window.ts (the stage screen: musicians
+│   │                            #   and preacher), identify-displays.ts («Identificar»)
 │   ├── db/
 │   │   ├── schema.ts             # Drizzle tables
 │   │   ├── client.ts             # SQLite opening + pragmas
@@ -154,13 +155,14 @@ src/
         ├── main.tsx / projection.tsx    # entries
         ├── app/App.tsx                   # control window shell
         ├── projection/ProjectionApp.tsx  # projection window shell (no domain logic)
-        ├── stage/StageApp.tsx            # the musicians' screen: live + next + time, built by lib/stage-output.ts
+        ├── stage/StageApp.tsx            # the stage screen: `StageView` (components/shared/stage-view.tsx) of what
+        │                                 #   lib/stage-output.ts built; the work screen runs it from pages/stage/StagePanel
         ├── components/
         │   ├── ui/          # design system primitives — barrel index.ts
         │   ├── shared/      # cross-feature: modal, editor-screen (the full-screen editor shell), panel,
         │   │                #   output-view (renders a ProjectionOutput), timer-scene + bible-scene (the two
-        │   │                #   generated scenes), style-fields, settings-groups/ (Settings' groups the welcome
-        │   │                #   shows too: screen, LOGO, NDI)
+        │   │                #   generated scenes), style-fields, stage-view (the stage screen, its window and the
+        │   │                #   panel's monitor), settings-groups/ (Settings' groups the welcome shows too: screens, LOGO, NDI)
         │   └── pages/       # one folder per feature:
         │       ├── layout/     # AppShell (EasyWorship-style grid), TopBar
         │       ├── schedule/   # the order of service (left column, top)
@@ -169,6 +171,7 @@ src/
         │       ├── songs/      # the Songs tab, the song editor (one song at a time) and the «Temas» editor
         │       ├── slides/     # center: PREVIEW monitor + grid of slides/verses of the item in preview
         │       ├── monitors/   # right column: LIVE monitor, live grid, deck transport
+        │       ├── stage/      # the stage panel: countdown, message and layout of the stage screen (foot of the left column)
         │       ├── settings/   # Settings (the bible versions manager among them)
         │       ├── welcome/    # the first-run welcome (new profiles only; Settings ▸ About reopens it) and
         │       │               #   «Primeros pasos», the checklist that ticks itself (`effects/first-steps.ts`)

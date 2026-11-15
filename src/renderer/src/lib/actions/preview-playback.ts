@@ -16,6 +16,8 @@ export function attachPreviewVideo(element: HTMLVideoElement | null): void {
   previewVideoElement = element;
 }
 
+export const previewVideo = (): HTMLVideoElement | null => previewVideoElement;
+
 /** The url the media engine is showing in the preview instead of an element
  *  (`usePreviewEngineVideo`): seeks go to main. */
 let previewEngineUrl: string | null = null;

@@ -307,6 +307,21 @@ describe("the video underlay survives the overlay", () => {
     expect(output().videoUnderlay).toMatchObject({ volume: 0 });
   });
 
+  test("the LIVE master multiplies the video's and the slide clip's level, as state", () => {
+    // Fails if the LIVE strip's fader does not reach the projector (or the engine, which reads this output).
+    const store = useProjectionStore.getState();
+    store.setBase({ kind: "video", assetId: 5, url: assetUrl(5), epoch: 1, startAtSeconds: 0 });
+    store.setVideoVolume(0.8);
+    const before = selectOutputMemo(useProjectionStore.getState());
+    store.setLiveMasterVolume(0.5);
+    // A new output, not the memoized one: the projector has to hear about it.
+    expect(selectOutputMemo(useProjectionStore.getState())).not.toBe(before);
+    expect(output().videoUnderlay?.volume).toBeCloseTo(0.4, 6);
+    store.setBase({ kind: "deck", assetId: 9, slideIndex: 1 });
+    store.setLiveDeck(deckOf(9, 2, [slideVideoOn(1, { volume: 0.6 })]));
+    expect(output().slideVideo?.volume).toBeCloseTo(0.3, 6);
+  });
+
   test("anything that is not a video has no underlay", () => {
     useProjectionStore.getState().setBase({ kind: "image", assetId: 3 });
     expect(output().videoUnderlay).toBeNull();
@@ -561,6 +576,29 @@ describe("selectOutputMemo", () => {
 
     expect(second).not.toBe(first);
     expect(second.kind).toBe("black");
+  });
+});
+
+describe("where LIVE sounds", () => {
+  test("every output carries LIVE's route, under BLACK too, so a rebuilt projector and main keep it as state", () => {
+    // Fails if the route is a one-off message: a projector rebuilt from main's snapshot would play on the default.
+    const store = useProjectionStore.getState();
+    store.setBase({ kind: "video", assetId: 5, url: assetUrl(5), epoch: 1, startAtSeconds: 0 });
+    expect(output().audioOut).toBeUndefined();
+    const before = selectOutputMemo(useProjectionStore.getState());
+    const zoom = { sinkId: "z1", engineDevice: "coreaudio/zoom.us.zoomaudiodevice.001" };
+    store.setLiveAudioOut(zoom);
+    const moved = selectOutputMemo(useProjectionStore.getState());
+    expect(moved).not.toBe(before);
+    expect(moved.audioOut).toEqual(zoom);
+    useProjectionStore.getState().setOverlay("black");
+    expect(output().audioOut).toEqual(zoom);
+    // The same route again is no new output (re-resolved on every device change), and the default is no route at all.
+    const covered = selectOutputMemo(useProjectionStore.getState());
+    useProjectionStore.getState().setLiveAudioOut({ ...zoom });
+    expect(selectOutputMemo(useProjectionStore.getState())).toBe(covered);
+    useProjectionStore.getState().setLiveAudioOut({ sinkId: "", engineDevice: null });
+    expect(output().audioOut).toBeUndefined();
   });
 });
 

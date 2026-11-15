@@ -32,12 +32,13 @@ export function SongTransport() {
   const activeKey = detourSection?.key ?? slide?.sectionKey ?? null;
 
   return (
-    <MediaPanel className="shrink-0">
+    <MediaPanel className="@container shrink-0">
       <div className="flex items-center gap-2 px-2 py-1.5">
         <Icon className="text-muted-foreground" name="song" />
         <span className="min-w-0 flex-1 truncate text-sm text-foreground">{base.song.title}</span>
+        {/* A narrow column (a 1000 px window) keeps the title: the section is lit among the buttons under it. */}
         {section ? (
-          <span className="shrink-0 truncate text-xs text-muted-foreground">
+          <span className="shrink-0 truncate text-xs text-muted-foreground @max-sm:hidden">
             {sectionLabel(section.type, section.number, locale)}
           </span>
         ) : null}

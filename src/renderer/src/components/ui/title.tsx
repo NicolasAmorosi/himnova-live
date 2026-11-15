@@ -24,6 +24,12 @@ export function PageHeader({ children }: { children: ReactNode }) {
   return <h2 className="text-xl font-semibold text-foreground">{children}</h2>;
 }
 
+/** A figure read at a glance while it changes (the stage panel's running countdown): 24 px, its digits one width so it
+ *  never jitters. The colour is the caller's: it says a state. */
+export function Readout({ className, ...props }: HTMLAttributes<HTMLSpanElement>) {
+  return <span className={cn("text-2xl leading-none font-semibold tabular-nums", className)} {...props} />;
+}
+
 /** `Label`'s typography without the `<label>` semantics — for text that names
  *  something that is not a form control (a `progressbar`, a group), pointed at
  *  with `aria-labelledby`. */

@@ -37,9 +37,12 @@ and the user DB live) are resolved in a single file, `src/main/paths.ts` — don
 As in the legacy version (removed from the repo on 2026-10-22; still in git history at
 `90d3821`): `createControlWindow()` (1400×900, minimum 1000×700, background `#162231`) and
 `createProjectionWindow(displayId?)`, which is **recreated** (not reused) on every
-`projection:open` and falls back to 800×600, centered, without `alwaysOnTop` when only one monitor
-is connected. The minimize/restore sync between both windows lives in `main/index.ts`
-(`wireMinimizeRestoreSync`).
+`projection:open` and, on the operator's own screen (one monitor, or chosen there), is a framed, movable
+800×450 window centred there, without `alwaysOnTop`. With no chosen screen connected it opens on the first that
+is neither the operator's nor the stage's (`shared/display-roles.ts`, `projectorDisplayFor`, shared with the
+control window's `display.store`). Minimizing the control window leaves the projector and the stage on their
+screens (owner, 2026-11-13); its restore only reasserts the fullscreen projector's `alwaysOnTop`, and closing it
+closes them (`wireMinimizeRestoreSync` in `main/index.ts`).
 
 Because the projection window is destroyed and recreated, main keeps the last `ProjectionOutput`
 sent (`src/main/services/projection-state.ts`) and replays it on `did-finish-load` — otherwise,
@@ -47,20 +50,43 @@ reopening the projection leaves it black even though the control believes it is 
 something.
 
 **The stage window** (2026-11-05, `main/windows/stage-window.ts`, page `stage.html` →
-`StageApp`) is the musicians' screen: what is live, what comes next and the time, on the screen
-chosen in Settings ▸ Projection (`stage.displayId`, `null` = none). Unlike the projector it exists
+`StageApp`) is the stage screen, for the musicians and the preacher: `StageView`
+(`components/shared/stage-view.tsx`) of the last `StageOutput`, on the screen given the «Escenario» role in
+Settings ▸ Screens (`stage.displayId`, `null` = none). Unlike the projector it exists
 whenever that screen is connected — `syncStageWindow()` decides, called when the control window
 opens, when its setting or the projector's changes and when a screen comes or goes — but never on the
 projector's screen (`chooseStageDisplay`, owner 2026-11-06): fullscreen and on top it would cover it, and
-before the first GO LIVE it would be what the room sees. A choice that becomes the projector's leaves the
-stage off (Settings, which no longer lists that screen, reads «Ninguna») until the projector moves; the
-operator's own screen takes both, as movable windows. It plays nothing: a video is
-its poster (`OutputView`'s `videoStill`), so it has no audio, no media commands and no engine
-session. The control window builds its picture (`lib/stage-output.ts`, pushed by
+before the first GO LIVE it would be what the room sees. The roles exclude each other in Settings
+(`lib/actions/screen-roles.ts`: the projector given the stage's screen leaves the stage without one, the stage
+given the projector's moves the projector, each said in a toast); the operator's own screen takes both, as
+movable windows. While it exists a `powerSaveBlocker` keeps the screens awake, as the projector's does, and
+whether it is on screen reaches the control window as `stage-screen` (the stage panel's dot; a toast when a
+screen coming or going is why). Closed by the operator (its ✕, Alt+F4) it stays closed for the session, like the
+projector (owner, 2026-11-15): `syncStageWindow` places nothing until `reopenStageWindow` (`stage:reopen`, the
+«Reabrir» in the panel's head and in Settings ▸ Screens' status) or the stage's screen chosen again, and
+`stage-screen` carries `closed` so the panel can say so. **It plays what is live, videos included** (owner, 2026-11-14), unless Settings ▸
+Screens' «Videos en el escenario» (`stage.videoMotion`) is off: then a video is its poster (`OutputView`'s
+`videoStill`) and it decodes nothing. Playing, main counts it among `projectionState`'s mirrors (`syncCopy`, keyed on
+the `StageOutput`'s `videoMotion`), so it gets the projector's pushes, its `media-status` and the engine's frames: its
+live frame follows those reports like the LIVE monitor's copy, and as «Proyector» (the panel's view, or Settings'
+«Copia del proyector» role, `stage.mirror`, which locks it there and hides the panel; owner 2026-11-13) it draws
+`ProjectorCopy` (the NDI window's copy of the projector, `components/shared/projector-copy.tsx`). Turning it off takes
+it out again and `showOnly` stops the frames. Its window is always muted: no audio and no media commands of its own.
+It is an **unwatched** mirror (`addMirror(win, false)`): a video taken live from PREVIEW waits for the projector and
+the NDI output to draw it before it sounds (`holdUntilShown`, `projectionState.getWatched()`), never for the stage,
+which the room does not see. A copy mounted mid-video (a view switched, the window reopened) starts where the
+projector's last report says, not at the GO LIVE point (`startFrom` in `output-view.tsx`): a paused projector sends
+no report to correct it. Whether it is the movable kind is decided with its screen: the control window dragged onto
+the stage's screen (or off it) rebuilds it (`current.own`), or the fullscreen stage covered the operator's. The control window builds its picture (`lib/stage-output.ts`, pushed by
 `effects/stage-sync.ts` through `stage:show`); main keeps the last one for a window that opens
 later (`stage:getSnapshot`). On the operator's own screen it is a movable 800×450 window, never a
 fullscreen one over the control window. Its keys are forwarded to the control window, like the
-projector's.
+projector's. A screen that changes size (`display-metrics-changed`) gets its fullscreen windows fitted again
+on Windows and Linux; macOS does it by itself.
+
+**«Identificar»** (Settings ▸ Screens, `windows/identify-displays.ts`): a small window per screen, over
+everything and never focused, shows the map's number and the screen's name for three seconds. The numbers come
+from the control window, so the map and the walls cannot disagree.
 
 ## The NDI® output
 
@@ -72,9 +98,10 @@ licence asks for «NDI®», the trademark line (`NDI_TRADEMARK`, `shared/types/n
 and a link to ndi.video wherever NDI is used or chosen — the app, the landing and its guide.
 
 - **Its own offscreen window, not a capture of the projector's.** `main/ndi/ndi-output.ts` loads
-  `projection.html?role=ndi` at the output's size and registers it as a **mirror** in `projectionState`: it gets
-  every `display-content` and `media-command` the projector gets, never the audio tracks, and reports nothing
-  (`04-renderer-state.md`). The engine's videos reach it like any other window (`syncLiveEngine()`). It keeps
+  `projection.html?role=ndi` (`ProjectorCopy`) at the output's size and registers it as a **mirror** in
+  `projectionState`: it gets every `display-content`, `media-command` and video `media-status` the projector gets,
+  never the audio tracks, and reports nothing (`04-renderer-state.md`). The stage window as «Proyector» is the
+  other mirror. The engine's videos reach it like any other window (`syncLiveEngine()`). It keeps
   working with the projector hidden, but with no projector open the videos pause as they always have, and NDI shows
   that (owner, 2026-11-09). It is created after the control window's `did-finish-load` (Playwright takes the first
   window that loads as the control one) and `userFacingWindows()` skips it.
@@ -112,7 +139,13 @@ and a link to ndi.video wherever NDI is used or chosen — the app, the landing 
   the app's process tree is captured — Windows 10 2004+ WASAPI process loopback of main (no prompt), macOS 14.2+ a
   Core Audio process tap of main and its children, following new ones (asks once for «System Audio Recording»:
   `NSAudioCaptureUsageDescription`; earlier macOS is video only, and Settings says why), Linux the default output's
-  monitor (the whole computer). Picture and sound are stamped on one clock — the picture when painted, the sound
+  monitor (the whole computer). Since engine-8 the capture follows the LIVE output main names (`setNdiAudioRoute`:
+  `--audio-device`/`--preview-apart` at launch, the same as stdin lines after the sender's `hello`, never a restart),
+  so PREVIEW on headphones stays out of NDI: macOS taps that device (a plain mixdown hears the processes on every
+  device), Linux reads its sink's monitor, and Windows, which has no per-device process loopback, takes that output's
+  endpoint loopback only while PREVIEW plays apart, other apps sounding there included, and at that output's Windows
+  volume (owner's D6). A capture that stops on its own (its device unplugged, the audio service restarted) is said off
+  and tried again every 2 s, and main sending the same route restarts it at once. Picture and sound are stamped on one clock — the picture when painted, the sound
   when played — and the sound leaves `ndi.output.audioDelayMs` late (0 by default, «Sincronía del sonido» in
   Settings, −200…+400). The engine holds a video's own sound 65 ms (40 on Windows, `audio-delay`): +2 ms in the Mac's room, +3…+29 ms
   over NDI. Settings shows the sound's peak level once a second: a refused macOS permission sends silence.

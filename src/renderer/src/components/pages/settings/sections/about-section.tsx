@@ -20,6 +20,7 @@ import { useSettingsStore } from "@renderer/stores/settings.store";
 import { useUiStore, type CloseGuardReasons } from "@renderer/stores/ui.store";
 import type { Locale } from "@shared/types/settings";
 import { canCheck, type UpdateStatus } from "@shared/types/updates";
+import { LATEST_WHATS_NEW } from "@shared/whats-new";
 
 /** Main's update status, kept current. Subscribed before asking, and the
  *  answer never overwrites an event that arrived first. */
@@ -232,6 +233,11 @@ export function AboutSection() {
             variant="outline"
           >
             {t("settings.onlineGuideOpen")}
+          </Button>
+        </FieldRow>
+        <FieldRow description={t("settings.whatsNewDesc", { version: LATEST_WHATS_NEW })} label={t("settings.whatsNew")}>
+          <Button onClick={() => useUiStore.getState().openWhatsNew()} size="sm" variant="outline">
+            {t("settings.whatsNewOpen")}
           </Button>
         </FieldRow>
         <FieldRow description={t("settings.welcomeDesc")} label={t("settings.welcome")}>

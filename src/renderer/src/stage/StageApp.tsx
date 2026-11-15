@@ -1,40 +1,24 @@
 import { useEffect, useState } from "react";
 import { api } from "@renderer/lib/api";
 import { onIpc } from "@renderer/lib/ipc";
-import { OutputView } from "@renderer/components/shared/output-view";
-import type { ProjectionOutput, StageOutput } from "@shared/types/projection";
+import { StageView, type StageMedia } from "@renderer/components/shared/stage-view";
+import { ProjectorCopy } from "@renderer/components/shared/projector-copy";
+import type { StageOutput } from "@shared/types/projection";
 
-/** Hours and minutes, in the system's own format, kept to the second. */
-function useTime(): string {
-  const format = () => new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-  const [time, setTime] = useState(format);
-  useEffect(() => {
-    const timer = setInterval(() => setTime(format()), 1000);
-    return () => clearInterval(timer);
-  }, []);
-  return time;
-}
-
-/** A 16:9 frame drawn by the projector's own renderer, as a muted monitor. */
-function Frame({ output, videoStill }: { output: ProjectionOutput | null; videoStill?: StageOutput["videoStill"] | undefined }) {
-  return (
-    <div className="w-full overflow-hidden rounded-md border border-white/25 bg-black">
-      <div className="aspect-video w-full">
-        {output ? <OutputView mode="monitor" output={output} videoStill={videoStill} /> : null}
-      </div>
-    </div>
-  );
-}
+const NO_MEDIA: StageMedia = { video: null, slideVideo: null };
+/** One element for the whole life of the window: a new one each render re-rendered the copy with every report. */
+const COPY = <ProjectorCopy />;
 
 /**
- * The musicians' screen: what is live (large), what comes next and the time.
- * A pure function of the last `StageOutput`, like the projector: the control
- * window decides everything (`lib/stage-output.ts`). It plays nothing — a
- * video is its poster, a song's video background its still —, `next` included.
+ * The stage screen (musicians and preacher): `StageView` of the last `StageOutput`, like the projector a pure
+ * function of what the control window decided (`lib/stage-output.ts`). With Settings ▸ Screens' «videos on the
+ * stage» on (the default) it plays what is live, silent, in step with the projector's own reports: main counts this
+ * window among the projector's copies then (`stage-window.ts`), which is what brings it those reports and the
+ * engine's frames. Off, a video is its poster. As «Proyector» it is a copy of the projector (`ProjectorCopy`).
  */
 export function StageApp() {
   const [stage, setStage] = useState<StageOutput | null>(null);
-  const time = useTime();
+  const [media, setMedia] = useState(NO_MEDIA);
 
   useEffect(() => {
     let pushed = false;
@@ -49,19 +33,28 @@ export function StageApp() {
     return off;
   }, []);
 
+  // A window opened while the projector is paused gets no report: the snapshot's last ones, unless one came first.
+  useEffect(() => {
+    void api.projection.getSnapshot().then(({ mediaStatus }) => {
+      for (const status of mediaStatus) {
+        if (status.target.kind === "video") setMedia((m) => ({ ...m, video: m.video ?? status }));
+        else if (status.target.kind === "slideVideo") setMedia((m) => ({ ...m, slideVideo: m.slideVideo ?? status }));
+      }
+    });
+  }, []);
+
+  useEffect(
+    () =>
+      onIpc("media-status", (status) => {
+        if (status.target.kind === "video") setMedia((m) => ({ ...m, video: status }));
+        else if (status.target.kind === "slideVideo") setMedia((m) => ({ ...m, slideVideo: status }));
+      }),
+    [],
+  );
+
   return (
-    <main className="grid h-screen w-screen grid-cols-[3fr_2fr] items-center gap-[2vw] bg-black p-[2vw] text-white">
-      <Frame output={stage?.current ?? null} videoStill={stage?.videoStill} />
-      <aside className="flex min-w-0 flex-col gap-[1.5vw]">
-        <div className="flex items-center justify-between gap-[1vw]">
-          <time className="text-[7vw] leading-none font-semibold tabular-nums">{time}</time>
-          {stage?.notice ? (
-            <span className="rounded-md bg-on-air px-[1vw] py-[0.4vw] text-[1.8vw] font-bold">{stage.notice}</span>
-          ) : null}
-        </div>
-        <p className="text-[1.6vw] font-medium tracking-wide text-white/60 uppercase">{stage?.nextLabel}</p>
-        <Frame output={stage?.next ?? null} videoStill={stage?.videoStill} />
-      </aside>
+    <main className="h-screen w-screen">
+      <StageView copy={COPY} media={media} stage={stage} />
     </main>
   );
 }

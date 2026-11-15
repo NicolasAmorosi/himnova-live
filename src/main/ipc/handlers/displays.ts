@@ -2,6 +2,7 @@ import { screen } from "electron";
 import type { Handlers } from "../register";
 import type { DisplayInfo } from "@shared/types/display";
 import { operatorDisplay } from "../../windows/control-window";
+import { identifyDisplays } from "../../windows/identify-displays";
 
 /**
  * The label is what the operator picks a projector by in Settings → Screen,
@@ -29,7 +30,8 @@ function composeLabels(labels: string[]): string[] {
   });
 }
 
-export const displaysHandlers: Pick<Handlers, "displays:list"> = {
+export const displaysHandlers: Pick<Handlers, "displays:list" | "displays:identify"> = {
+  "displays:identify": (screens) => identifyDisplays(screens),
   "displays:list": (): DisplayInfo[] => {
     const displays = screen.getAllDisplays();
     const operatorId = operatorDisplay().id;

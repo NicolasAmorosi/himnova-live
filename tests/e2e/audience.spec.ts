@@ -91,6 +91,7 @@ const projectorAudible = (app: WorshipApp) =>
   );
 
 test("a video live on the projector is audible, and the LIVE row's mute silences it", async ({ app }) => {
+  await app.audioStripsOff();
   await app.addMedia("video", "clip.mp4");
   await app.previewFile("Videos", "clip");
   await app.goLive();
@@ -106,6 +107,7 @@ test("a video live on the projector is audible, and the LIVE row's mute silences
 test("an engine audio is really heard: the app's sound level rises with it and falls with its volume", async ({ app }) => {
   // The NDI output's own capture of the app's sound (`native/engine/ndi-audio.h`) is the meter: what the OS mixes
   // from this app's processes. With the engine's volume at 0, a WMA passed every test (agent3-03, mutation M03).
+  await app.audioStripsOff();
   await app.invoke("settings:set", { "ndi.output.audio": true, "ndi.output.enabled": true });
   const status = () => app.invoke<{ state: string; audio?: { state: string; levelDb: number | null } | null }>("ndi:getStatus");
   await expect.poll(async () => (await status()).state, { timeout: 30_000 }).toMatch(/sending|runtime-missing/);
@@ -237,7 +239,7 @@ test("the open projector keeps the display awake, and closing it lets it sleep",
 
   await app.control.getByRole("button", { name: "Configuración" }).click();
   const settings = app.control.getByRole("dialog", { name: "Configuración" });
-  await settings.getByRole("tab", { name: "Proyección" }).click();
+  await settings.getByRole("tab", { name: "Pantallas" }).click();
   await settings.getByRole("button", { name: "Cerrar pantalla" }).click();
   await expect.poll(() => app.hasProjector()).toBe(false);
   await expect.poll(() => holdsDisplay(app.mainPid)).toBe(false);
