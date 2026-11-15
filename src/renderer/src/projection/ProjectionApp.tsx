@@ -103,6 +103,8 @@ function AudioTrackElement({ registry, track }: AudioTrackElementProps) {
   return (
     <audio
       autoPlay={!track.paused}
+      // Its sound is measured off a copy (`level-tap.ts`), and a cross-origin element cannot be captured.
+      crossOrigin="anonymous"
       loop={track.loop}
       onError={(event) =>
         reportMediaError({
