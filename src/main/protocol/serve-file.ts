@@ -178,9 +178,6 @@ export async function serveFile(
     // Without this Chromium never even attempts a range request, and treats
     // the stream as unseekable.
     "Accept-Ranges": "bytes",
-    // Every media element loads with `crossOrigin="anonymous"`, or its sound could not be measured: a cross-origin
-    // element cannot be captured (`lib/level-tap.ts`). Without this header such an element does not load at all.
-    "Access-Control-Allow-Origin": "*",
     ...extraHeaders,
   });
   const contentType = contentTypeFor(filePath);
