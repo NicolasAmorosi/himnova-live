@@ -35,6 +35,9 @@ const FLAGS = [
   "--no-starter-look",
   // Every test is a new profile, which main welcomes; `welcome.spec.ts` turns it back on.
   "--no-welcome",
+  // …and never tells what changed («Novedades»), a profile brought from an older build included;
+  // `test.use({ chromiumArgs: ["--whats-new"] })` turns it back on (`whats-new.spec.ts`).
+  "--no-whats-new",
   // …and links the computer's own Videos, Pictures, Music and Documents in Media: not this machine's.
   "--no-system-folders",
   // The suite was written against a projector that opens on the first GO LIVE, BLACK or LOGO; `screens.spec.ts`
@@ -106,6 +109,7 @@ export class WorshipApp {
       welcome && "--no-welcome",
       // `test.use({ chromiumArgs: ["--auto-projector"] })`: the projector opens by itself, as it does for a church.
       chromiumArgs.includes("--auto-projector") && "--no-auto-projector",
+      chromiumArgs.includes("--whats-new") && "--no-whats-new",
     ];
     const flags = [...FLAGS.filter((flag) => !dropped.includes(flag)), `--lang=${locale}`, ...chromiumArgs];
     const app = await electron.launch({

@@ -33,6 +33,11 @@ type UiStoreState = {
   welcomeOpen: boolean;
   openWelcome: () => void;
   closeWelcome: () => void;
+  /** «Novedades» (`WhatsNewScreen`): opened by `App` once after an update, or by hand from Settings ▸ About, which
+   *  it then replaces like the welcome. Settings opened FROM it stacks on top and gives it back on close. */
+  whatsNewOpen: boolean;
+  openWhatsNew: () => void;
+  closeWhatsNew: () => void;
   /** The asset whose "remove anyway" confirmation is open, `null` when
    *  none. Here for the same reason as `settingsSection`: the offer is a toast
    *  action raised from `lib/actions/remove-asset.ts`, with no component tree
@@ -61,8 +66,12 @@ export const useUiStore = create<UiStoreState>((set) => ({
   openSettings: (section = "projection") => set({ settingsSection: section }),
   closeSettings: () => set({ settingsSection: null }),
   welcomeOpen: false,
-  openWelcome: () => set({ settingsSection: null, welcomeOpen: true }),
+  // Never both full screens at once: the welcome covers what «Novedades» would say.
+  openWelcome: () => set({ settingsSection: null, welcomeOpen: true, whatsNewOpen: false }),
   closeWelcome: () => set({ welcomeOpen: false }),
+  whatsNewOpen: false,
+  openWhatsNew: () => set({ settingsSection: null, whatsNewOpen: true }),
+  closeWhatsNew: () => set({ whatsNewOpen: false }),
   removeAssetConfirmId: null,
   setRemoveAssetConfirmId: (removeAssetConfirmId) => set({ removeAssetConfirmId }),
   closeGuard: null,

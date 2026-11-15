@@ -1,6 +1,7 @@
 import type { AssetKind } from "../constants";
 import { ASSET_KINDS } from "../constants";
 import { isBibleStyle, normalizeBibleStyle } from "../bible-style-validators";
+import { isWhatsNewKey } from "../whats-new";
 import { DEFAULT_BIBLE_STYLE, type BibleStyle } from "./bible-style";
 import { MEDIA_SORT_ORDERS, type MediaSortOrder } from "./media";
 import { SONG_SORT_ORDERS, type SongSortOrder } from "./song";
@@ -123,6 +124,10 @@ export type SettingsMap = {
   "stage.phrases": string[] | null;
   "ui.theme": Theme;
   "ui.locale": Locale;
+  /** The last «Novedades» this profile was shown (`shared/whats-new.ts`), `null` for none yet. A new profile is
+   *  stamped with the latest at its first launch (it gets the welcome instead); closing «Novedades» or the welcome
+   *  stamps it too. */
+  "ui.whatsNewSeen": string | null;
   "media.volume": number;
   /** The audio strips beside PREVIEW and LIVE: meter, fader, mute and output (owner, 2026-11-15, D1). On, the volume
    *  of each media row hides (D2); off, the rows have it back and the LIVE master counts as 100 % (D3). */
@@ -287,6 +292,7 @@ export const DEFAULT_SETTINGS: SettingsMap = {
   "stage.phrases": null,
   "ui.theme": "dark",
   "ui.locale": "es",
+  "ui.whatsNewSeen": null,
   // Full. Anything sent live is meant to be heard, and a level the operator
   // never set is a level nobody can explain from the booth — halfway up just
   // looks like the file is quiet. Balancing down is one drag away, per track,
@@ -431,6 +437,7 @@ export const SETTINGS_VALIDATORS: Record<keyof SettingsMap, (value: unknown) => 
   ),
   "ui.theme": isOneOf(THEMES),
   "ui.locale": isOneOf(LOCALES),
+  "ui.whatsNewSeen": isNullOr(isWhatsNewKey),
   "media.volume": isNumberIn(0, 1),
   "audio.strips": isBoolean,
   "audio.live.volume": isNumberIn(0, 1),
@@ -512,6 +519,8 @@ export const SETTINGS_NORMALIZERS: {
   [K in keyof SettingsMap]?: (value: unknown) => SettingsMap[K];
 } = {
   "bible.style": normalizeBibleStyle,
+  // A hand-edited row that is no version reads as «none yet»: «Novedades» once more, never a throw at launch.
+  "ui.whatsNewSeen": (v) => (isWhatsNewKey(v) ? v : null),
   "audio.strips": (v) => (typeof v === "boolean" ? v : DEFAULT_SETTINGS["audio.strips"]),
   // A master that read back as anything but a level would be silence or a throw on every live element.
   "audio.live.volume": (v) =>
