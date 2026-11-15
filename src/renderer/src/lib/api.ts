@@ -41,6 +41,7 @@ export const api = {
     getSnapshot: () => invoke("projection:getSnapshot", undefined),
     reportMediaError: (error: ProjectionMediaError) => invoke("projection:reportMediaError", error),
     wantVideoFrame: (key: string) => invoke("projection:wantVideoFrame", { key }),
+    reportLevels: (level: [number, number]) => invoke("projection:reportLevels", level),
   },
   preview: {
     setVideo: (video: PreviewEngineVideo | null) => invoke("preview:setVideo", video),

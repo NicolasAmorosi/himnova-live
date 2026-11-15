@@ -340,6 +340,9 @@ function LiveVideo({
   return (
     <video
       autoPlay={shouldPlay}
+      // Its sound is measured off a copy (`lib/level-tap.ts`), and a cross-origin element cannot be captured. On
+      // every media element of every view, so none depends on how Chromium shares a url's data across them.
+      crossOrigin="anonymous"
       loop={loop}
       // Black, not transparent, around a picture that does not fill the stage:
       // fading in over a scene that holds at full opacity (`incomingCovers`),
@@ -642,6 +645,7 @@ function SlideVideoLayer({
           <video
             autoPlay={shouldPlay}
             className="absolute object-contain"
+            crossOrigin="anonymous"
             loop={slideVideo.loop}
             muted={mode !== "live"}
             onError={(event) => onError(event.currentTarget.error?.code ?? null)}
@@ -706,6 +710,7 @@ function SongVideoLayer({
         <video
           autoPlay={!covered}
           className="absolute inset-0 size-full"
+          crossOrigin="anonymous"
           loop
           muted
           onError={(event) => onError(event.currentTarget.error?.code ?? null)}

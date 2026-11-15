@@ -7,6 +7,7 @@ import { useAudioSink } from "@renderer/lib/hooks/use-audio-sink";
 import { INSTANT_TRANSITION } from "@shared/types/projection";
 import { isEngineUrl } from "@shared/urls";
 import { releaseMedia } from "@renderer/lib/release-media";
+import { startLevelTap } from "@renderer/lib/level-tap";
 import type {
   AudioTrackPush,
   MediaCommand,
@@ -104,6 +105,8 @@ function AudioTrackElement({ registry, track }: AudioTrackElementProps) {
   return (
     <audio
       autoPlay={!track.paused}
+      // Its sound is measured off a copy (`level-tap.ts`), and a cross-origin element cannot be captured.
+      crossOrigin="anonymous"
       loop={track.loop}
       onError={(event) =>
         reportMediaError({
@@ -225,6 +228,16 @@ export function ProjectionApp() {
   );
 
   useAudioSink(output.audioOut?.sinkId ?? "");
+  // What the room hears from this window's own elements, for LIVE's meter (the engine's sessions are main's).
+  useEffect(
+    () =>
+      startLevelTap(
+        () => document.querySelectorAll<HTMLMediaElement>("video, audio"),
+        (level) => void api.projection.reportLevels(level),
+      ),
+    [],
+  );
+
   useMediaStatusReporter(videoRef, null, output.videoUnderlay?.epoch ?? 0);
   useMediaStatusReporter(slideVideoRef, null, output.slideVideo?.epoch ?? 0, "slideVideo");
 

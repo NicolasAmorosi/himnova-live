@@ -47,6 +47,7 @@ import { startFirstSteps } from "@renderer/effects/first-steps";
 import { startAudioRouteEffects } from "@renderer/effects/audio-route";
 import { useAudioRouteStore } from "@renderer/stores/audio-route.store";
 import { useAudioSink } from "@renderer/lib/hooks/use-audio-sink";
+import { startAudioLevels } from "@renderer/effects/audio-levels";
 import { useGlobalShortcuts } from "@renderer/lib/hooks/use-global-shortcuts";
 
 /**
@@ -211,6 +212,7 @@ export function App() {
     const stopUpdateAnnouncement = startUpdateAnnouncement();
     const stopFirstSteps = startFirstSteps();
     const stopAudioRoute = startAudioRouteEffects();
+    const stopAudioLevels = startAudioLevels();
     return () => {
       stopAudioRoute();
       stopProjectionEffects();
@@ -221,6 +223,7 @@ export function App() {
       stopOpenProgramMemory();
       stopUpdateAnnouncement();
       stopFirstSteps();
+      stopAudioLevels();
     };
   }, [loadSettings]);
 
