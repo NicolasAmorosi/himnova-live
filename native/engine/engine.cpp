@@ -571,7 +571,16 @@ int main(int argc, char** argv) {
                            // or 5.1 (planar float): «unable to set the input channel layout», -50 (2026-11-15). One
                            // such file made the output look lost for the session. NDI and the room are stereo anyway.
                            {"audio-channels", "stereo"},
-                           {"audio-format", "float"}};
+                           {"audio-format", "float"},
+                           // How libswresample mixes into that stereo. On its own it puts a mono file on each side at
+                           // 1/√2 (−3 dB: engine-7 and Chromium play it at full level on both) and sums a 5.1 file's
+                           // front, centre and surround with no limit (a full-scale 5.1 tone came out at +7.6 dBFS).
+                           // It scales every output side whose gains add up to more than `rematrix_maxval` down to it,
+                           // then multiplies all by `rematrix_volume`: at 1/√2 and √2 no side's gains add up to more
+                           // than 1 (nothing louder than the file's loudest channel, so no clipping) and a mono file's
+                           // 1/√2 becomes 1. Measured 2026-11-15, a −12 dBFS tone: mono, stereo and 5.1 on all six
+                           // −12.0 per side; a 5.1 front-only one −19.7. FFmpeg 4.4 (Ubuntu 22.04) does the same.
+                           {"audio-swresample-o", "rematrix_maxval=0.70710678,rematrix_volume=1.41421356"}};
   for (auto& o : opts) mpv_set_option_string(E.mpv, o[0], o[1]);
   // The level meter (`meterLoop`): 40 ms frames at 48 kHz; a file at another rate gets its own (FILE_LOADED).
   mpv_set_option_string(E.mpv, "af", meterFilter(1920).c_str());
