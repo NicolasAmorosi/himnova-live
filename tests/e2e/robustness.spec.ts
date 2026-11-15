@@ -26,6 +26,7 @@ async function verseLive(app: WorshipApp) {
 }
 
 test("a projector whose renderer dies leaves its reason in crash.log", async ({ app }) => {
+  app.crashLogExpected = true;
   await verseLive(app);
   await app.electron.evaluate(({ BrowserWindow }) =>
     BrowserWindow.getAllWindows()
@@ -155,7 +156,9 @@ test("with a full-screen editor open, no key drives the projector — typed in i
     await expect(control.getByRole("button", { name: "NEGRO", exact: true }).first()).not.toHaveAttribute("aria-pressed", "true");
   };
 
-  // The song editor: a song's jump keys, digits, the arrows and a remote's PageDown, typed into a note.
+  // The song editor: a song's jump keys, digits, the arrows and a remote's PageDown, typed into a note. The song left
+  // PREVIEW when it went out (owner, 2026-11-15): picked again to edit it.
+  await songs.getByRole("list", { name: "Canciones" }).getByRole("listitem").first().click();
   await songs.getByRole("button", { name: "Editar canción" }).click();
   const notes = editor.getByRole("textbox", { name: "Notas", exact: true });
   await notes.click();
