@@ -110,8 +110,11 @@ export type IpcContract = {
    *  keeps the last one for a stage window that opens later. */
   "stage:show": { req: StageOutput; res: void };
   "stage:getSnapshot": { req: void; res: StageOutput | null };
-  /** Whether the stage window is on screen now; later changes come as `stage-screen`. */
-  "stage:shown": { req: void; res: boolean };
+  /** Whether the stage window is on screen now, and whether the operator closed it; later changes come as
+   *  `stage-screen`. */
+  "stage:shown": { req: void; res: { shown: boolean; closed: boolean } };
+  /** The stage window the operator closed, open again (the stage panel's «Reabrir»). */
+  "stage:reopen": { req: void; res: void };
 
   /** The PREVIEW monitor's video when the media engine plays it, or `null`
    *  when it shows anything else. Declarative: main loads a new url, and only
@@ -474,8 +477,9 @@ export type IpcEvents = {
    *  or came back (it is fullscreen on it again). */
   "projector-screen": { connected: boolean };
   /** The stage window appeared or went away (`windows/stage-window.ts`); `byScreens` when a screen coming or
-   *  going is why, which is what the control window says in a toast. */
-  "stage-screen": { shown: boolean; byScreens: boolean };
+   *  going is why, which is what the control window says in a toast; `closed` while the operator's closing it
+   *  keeps it away. */
+  "stage-screen": { shown: boolean; byScreens: boolean; closed: boolean };
   "media-status": MediaStatus;
   "media-error": ProjectionMediaError;
   /** The PREVIEW monitor's engine (`preview:setVideo`), ~4/s. */

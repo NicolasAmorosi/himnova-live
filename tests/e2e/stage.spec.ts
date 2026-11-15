@@ -304,6 +304,45 @@ test("the bar and the card share one head, the count in the time's place for the
   await expect(bar.getByRole("button")).toHaveCount(3);
 });
 
+test("the stage window the operator closes stays closed, like the projector, until the panel's head reopens it", async ({
+  app,
+}) => {
+  const opened = app.electron.waitForEvent("window", { predicate: isStage });
+  await chooseStageScreen(app, true);
+  await (await opened).waitForLoadState("domcontentloaded");
+  const bar = app.control.getByRole("region", { name: "Escenario" });
+  const reopen = bar.getByRole("button", { name: "Reabrir", exact: true });
+  const stages = () =>
+    app.electron.evaluate(
+      ({ BrowserWindow }) =>
+        BrowserWindow.getAllWindows().filter((w) => !w.isDestroyed() && w.webContents.getURL().endsWith("/stage.html")).length,
+    );
+  await expect(reopen).toHaveCount(0);
+
+  // Its ✕ or Alt+F4: the window asked to close, not main closing it.
+  await app.electron.evaluate(({ BrowserWindow }) =>
+    BrowserWindow.getAllWindows().find((w) => w.webContents.getURL().endsWith("/stage.html"))?.close(),
+  );
+  await expect(reopen).toBeVisible();
+  await expect(bar.getByRole("img", { name: /^Se cerró la ventana del escenario/ })).toBeAttached();
+
+  // What placed it again by itself before (owner, 2026-11-15: not any more): the projector's screen written, like a
+  // screen coming or going or the control window moved.
+  const settings = await app.invoke<Record<string, unknown>>("settings:get");
+  await app.invoke("settings:set", { "projection.displayId": settings["projection.displayId"] });
+  await app.control.waitForTimeout(1000);
+  expect(await stages()).toBe(0);
+  await expect(reopen).toBeVisible();
+
+  // «Reabrir» brings it back, and the press is not also the head's (the card stays folded).
+  const back = app.electron.waitForEvent("window", { predicate: isStage });
+  await reopen.click();
+  await back;
+  await expect(reopen).toHaveCount(0);
+  expect(await stages()).toBe(1);
+  await expect(app.control.getByRole("dialog", { name: "Escenario" })).toHaveCount(0);
+});
+
 test("a stage copy mounted mid-video starts where the projector is, paused included, not where it went live", async ({
   app,
 }) => {

@@ -13,6 +13,7 @@ import { useT } from "@renderer/lib/i18n/i18n-provider";
 import { cn } from "@renderer/lib/utils";
 import { useTimerNow } from "@renderer/lib/hooks/use-timer-now";
 import { Button, Caption, Icon, IconButton, Input, Segmented, StatusToken, Title, Tooltip } from "@renderer/components/ui";
+import { ReopenStage } from "@renderer/components/shared/reopen-stage";
 import { StageView } from "@renderer/components/shared/stage-view";
 import { useDisplayStore } from "@renderer/stores/display.store";
 import { useProjectionStore } from "@renderer/stores/projection.store";
@@ -86,9 +87,14 @@ function useCountdownState(phase: CountdownPhase, endsAt: number | null): string
 function StatusDot() {
   const t = useT();
   const shown = useStageStore((s) => s.shown);
+  const closed = useStageStore((s) => s.closed);
   const stageId = useSettingsStore((s) => s.settings["stage.displayId"]);
   const name = useDisplayStore((s) => s.displays.find((d) => d.id === stageId)?.label.split(" · ")[0]);
-  const label = shown ? t("stagePanel.shownOn", { name: name ?? "" }) : t("stagePanel.notShown");
+  const label = shown
+    ? t("stagePanel.shownOn", { name: name ?? "" })
+    : closed
+      ? t("stagePanel.closedByOperator")
+      : t("stagePanel.notShown");
   return (
     <Tooltip content={label} floating>
       <span aria-label={label} className={cn("size-2 shrink-0 rounded-full", shown ? "bg-success" : "bg-danger")} role="img" />
@@ -175,6 +181,7 @@ function StageHead({ open }: { open: boolean }) {
         {t("stagePanel.title")}
       </Title>
       <div className="flex min-w-0 flex-1 items-center gap-1.5 pl-1">
+        <ReopenStage />
         <CountdownToken />
         <MessageToken />
       </div>

@@ -30,10 +30,16 @@ const PRELOAD = path.join(__dirname, "../preload/index.js");
  * stage panel's dot, and a toast when a screen coming or going is the reason.
  * While it exists the screens stay awake, as they do while the projector
  * exists: the band reads the time long before the first GO LIVE.
+ *
+ * Closed by the operator (its ✕, Alt+F4) it stays closed for the session, as
+ * the projector does (owner, 2026-11-15): no screen coming or going brings it
+ * back, only `reopenStageWindow` (the stage panel's «Reabrir», or the stage's
+ * screen chosen again in Settings).
  */
 let current: { win: BrowserWindow; displayId: number; own: boolean; blocker: number } | null = null;
 let lastOutput: StageOutput | null = null;
 let shown = false;
+let closedByOperator = false;
 
 /** `byScreens`: called because a screen came or went, not because a setting changed. */
 export function syncStageWindow(byScreens = false): void {
@@ -50,7 +56,7 @@ export function syncStageWindow(byScreens = false): void {
   } catch {
     // Settings not ready: nothing to show yet.
   }
-  const display = screen.getAllDisplays().find((candidate) => candidate.id === displayId);
+  const display = closedByOperator ? undefined : screen.getAllDisplays().find((candidate) => candidate.id === displayId);
   // The control window moved onto the stage's screen (or off it) is a different window there: a movable one, never
   // a fullscreen one on top of the operator's (2026-11-14 review).
   const own = display !== undefined && display.id === operatorDisplay().id;
@@ -65,12 +71,21 @@ export function syncStageWindow(byScreens = false): void {
   const now = current !== null;
   if (now === shown) return;
   shown = now;
-  broadcast("stage-screen", { shown, byScreens });
+  broadcast("stage-screen", { shown, byScreens, closed: closedByOperator });
 }
 
-/** Whether the stage window is on screen now (the stage panel's dot, at mount). */
-export function stageShown(): boolean {
-  return shown;
+/** Undoes the operator's closing it: open again wherever `syncStageWindow` puts it, if anywhere. */
+export function reopenStageWindow(): void {
+  if (!closedByOperator) return;
+  closedByOperator = false;
+  syncStageWindow();
+  // No screen to open on: the panel still has to stop offering «Reabrir».
+  if (!shown) broadcast("stage-screen", { shown, byScreens: false, closed: false });
+}
+
+/** Whether the stage window is on screen now, and whether the operator closed it (the stage panel's dot, at mount). */
+export function stageShown(): { shown: boolean; closed: boolean } {
+  return { shown, closed: closedByOperator };
 }
 
 export function closeStageWindow(): void {
@@ -147,7 +162,9 @@ function createStageWindow(display: Electron.Display, own: boolean): BrowserWind
     powerSaveBlocker.stop(current.blocker);
     current = null;
     shown = false;
-    broadcast("stage-screen", { shown, byScreens: false });
+    // Main's own closing drops `current` first, so only the operator gets here.
+    closedByOperator = true;
+    broadcast("stage-screen", { shown, byScreens: false, closed: true });
   });
 
   const devServerUrl = process.env["ELECTRON_RENDERER_URL"];

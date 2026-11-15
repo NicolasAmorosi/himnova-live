@@ -20,6 +20,8 @@ type StageStoreState = {
   output: StageOutput | null;
   /** Whether the stage window is on its screen (main's `stage-screen`): the panel's dot. */
   shown: boolean;
+  /** The operator closed the stage window: it stays closed this session until the panel's «Reabrir». */
+  closed: boolean;
   /** The panel's card is open (`StagePanel`). Never remembered across launches: an overlay over the left column. */
   panelOpen: boolean;
   setPanelOpen: (open: boolean) => void;
@@ -53,6 +55,7 @@ export const useStageStore = create<StageStoreState>((set, get) => ({
   message: null,
   output: null,
   shown: false,
+  closed: false,
   draft: "",
   lengthMs: 30 * MINUTE,
   panelOpen: false,

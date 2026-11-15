@@ -3,6 +3,7 @@ import { api } from "@renderer/lib/api";
 import { cn } from "@renderer/lib/utils";
 import { Badge, Box, Button, Caption, FieldGroup, FieldRow, Icon, Select, Title } from "@renderer/components/ui";
 import { assignScreenRole, screenRole, type ScreenRole } from "@renderer/lib/actions/screen-roles";
+import { ReopenStage } from "@renderer/components/shared/reopen-stage";
 import { useDisplayStore } from "@renderer/stores/display.store";
 import { useProjectionStore } from "@renderer/stores/projection.store";
 import { useSettingsStore } from "@renderer/stores/settings.store";
@@ -123,6 +124,7 @@ function OutputStatus() {
   const open = useProjectionStore((s) => s.presentationOpen);
   const stageId = useSettingsStore((s) => s.settings["stage.displayId"]);
   const stageShown = useStageStore((s) => s.shown);
+  const stageClosed = useStageStore((s) => s.closed);
   const mirror = useSettingsStore((s) => s.settings["stage.mirror"]);
   const number = (id: number | null) => displays.findIndex((d) => d.id === id) + 1;
   const projector = !open
@@ -135,7 +137,9 @@ function OutputStatus() {
       ? t("settings.screens.stageNone")
       : stageShown
         ? t(mirror ? "settings.screens.stageMirrored" : "settings.screens.stageShown", { number: number(stageId) })
-        : t("settings.screens.stageWaiting");
+        : stageClosed
+          ? t("settings.screens.stageClosed")
+          : t("settings.screens.stageWaiting");
   return (
     <ul aria-label={t("settings.screens.status")} className="flex flex-col gap-1 text-sm text-muted-foreground">
       <li className="flex items-center gap-2">
@@ -145,6 +149,7 @@ function OutputStatus() {
       <li className="flex items-center gap-2">
         <Icon className={stageId !== null && stageShown ? "text-success-ink" : "text-subtle"} name="columns" />
         {stage}
+        <ReopenStage />
       </li>
     </ul>
   );

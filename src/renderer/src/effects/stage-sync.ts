@@ -93,9 +93,9 @@ export function startStageSync(): () => void {
   // Whether the stage window is on its screen: the panel's dot, and a toast when a screen coming or going is the
   // reason (a cable, a monitor turned off). The warning stays until it is back, like the projector's.
   let lostToastId: string | null = null;
-  void api.stage.shown().then((shown) => useStageStore.setState({ shown }));
-  const stopStageScreen = onIpc("stage-screen", ({ byScreens, shown }) => {
-    useStageStore.setState({ shown });
+  void api.stage.shown().then(({ closed, shown }) => useStageStore.setState({ closed, shown }));
+  const stopStageScreen = onIpc("stage-screen", ({ byScreens, closed, shown }) => {
+    useStageStore.setState({ closed, shown });
     if (!byScreens) return;
     if (lostToastId !== null) toast.dismiss(lostToastId);
     lostToastId = null;

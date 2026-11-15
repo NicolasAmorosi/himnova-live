@@ -67,6 +67,7 @@ export const api = {
     show: (output: StageOutput) => invoke("stage:show", output),
     getSnapshot: () => invoke("stage:getSnapshot", undefined),
     shown: () => invoke("stage:shown", undefined),
+    reopen: () => invoke("stage:reopen", undefined),
   },
   bible: {
     versions: () => invoke("bible:versions", undefined),

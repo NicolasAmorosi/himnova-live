@@ -61,7 +61,10 @@ before the first GO LIVE it would be what the room sees. The roles exclude each 
 given the projector's moves the projector, each said in a toast); the operator's own screen takes both, as
 movable windows. While it exists a `powerSaveBlocker` keeps the screens awake, as the projector's does, and
 whether it is on screen reaches the control window as `stage-screen` (the stage panel's dot; a toast when a
-screen coming or going is why). **It plays what is live, videos included** (owner, 2026-11-14), unless Settings ▸
+screen coming or going is why). Closed by the operator (its ✕, Alt+F4) it stays closed for the session, like the
+projector (owner, 2026-11-15): `syncStageWindow` places nothing until `reopenStageWindow` (`stage:reopen`, the
+«Reabrir» in the panel's head and in Settings ▸ Screens' status) or the stage's screen chosen again, and
+`stage-screen` carries `closed` so the panel can say so. **It plays what is live, videos included** (owner, 2026-11-14), unless Settings ▸
 Screens' «Videos en el escenario» (`stage.videoMotion`) is off: then a video is its poster (`OutputView`'s
 `videoStill`) and it decodes nothing. Playing, main counts it among `projectionState`'s mirrors (`syncCopy`, keyed on
 the `StageOutput`'s `videoMotion`), so it gets the projector's pushes, its `media-status` and the engine's frames: its
