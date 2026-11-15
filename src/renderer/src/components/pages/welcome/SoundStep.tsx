@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useT } from "@renderer/lib/i18n/i18n-provider";
 import { Caption, ChannelStrip, Icon, Monitor, VolumeControl } from "@renderer/components/ui";
+import { useMuteToggle } from "@renderer/components/ui/use-mute-toggle";
 import { OutputView } from "@renderer/components/shared/output-view";
 import { AudioOutputsGroup, StripsGroup } from "@renderer/components/shared/settings-groups/sound-groups";
 import { useSettingsStore } from "@renderer/stores/settings.store";
@@ -60,6 +61,7 @@ function DemoMonitor({ bus, output, strips }: { bus: AudioBus; output: Projectio
   const { icon, level, title } = DEMO_BUS[bus];
   const name = t(title);
   const [volume, setVolume] = useState<number>(DEMO_BUS[bus].volume);
+  const toggleMute = useMuteToggle(volume, setVolume);
   const volumeRef = useRef(volume);
   useEffect(() => {
     volumeRef.current = volume;
@@ -90,15 +92,16 @@ function DemoMonitor({ bus, output, strips }: { bus: AudioBus; output: Projectio
           <ChannelStrip
             alarmWhenMuted={bus === "live"}
             label={t("welcome.sound.demoStrip", { bus: name })}
+            muted={volume === 0}
             muteLabel={t("media.mute")}
             onChange={setVolume}
+            onToggleMute={toggleMute}
             output={
               <span className="flex size-7 items-center justify-center text-muted-foreground">
                 <Icon name={icon} />
               </span>
             }
             subscribeLevels={subscribe}
-            unmuteLabel={t("media.unmute")}
             value={volume}
             volumeLabel={t("welcome.sound.demoVolume", { bus: name })}
           />
