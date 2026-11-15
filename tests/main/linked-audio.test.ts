@@ -16,6 +16,7 @@ import path from "node:path";
 import { afterAll, beforeEach, describe, expect, test } from "vitest";
 import { strToU8, zipSync } from "fflate";
 import { resolveLinkedAudio } from "../../src/main/slides/linked-audio";
+import { buildLegacyPpt } from "../fixtures/legacy-ppt";
 
 let root: string;
 let dir: string;
@@ -71,6 +72,18 @@ describe("resolveLinkedAudio", () => {
   test("a WMA beside the MIDI is", () => {
     const deck = folder("Himno 126.pps", "Himno 126.midi", "Himno 126.wma");
     expect(resolveLinkedAudio(deck)).toBe(path.join(dir, "Himno 126.wma"));
+  });
+
+  test("a legacy deck read whole that links no audio adopts none, even with an audio's name in its text", () => {
+    // Its records say «no link»: the byte scan for a name ran anyway, 1.2 to 1.3 s of main per deck, and found
+    // the name of whatever the text mentioned (2026-11-15 audit, A10).
+    const deck = path.join(dir, "Anuncios.ppt");
+    fs.writeFileSync(
+      deck,
+      buildLegacyPpt({ externalPaths: [], slides: [{ shapes: [{ type: 1, rect: [0, 0, 100, 100], text: "Otro himno.mp3" }] }] }),
+    );
+    fs.writeFileSync(path.join(dir, "Otro himno.mp3"), "not real audio");
+    expect(resolveLinkedAudio(deck)).toBeNull();
   });
 
   test("a folder with no audio at all resolves to null", () => {

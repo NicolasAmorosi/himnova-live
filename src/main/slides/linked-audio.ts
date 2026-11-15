@@ -179,8 +179,14 @@ const HINT_SCAN_OVERLAP_BYTES = 512;
 function extractHintFromBinary(filePath: string): string | null {
   // The record that holds the link, when the file has one: milliseconds,
   // where the scan below is most of a second for a hymn.
-  const recorded = readBinaryExternalPaths(filePath)?.find((target) => AUDIO_EXT.has(extOf(target)));
-  if (recorded) return path.win32.basename(recorded);
+  const recorded = readBinaryExternalPaths(filePath);
+  // A document read whole that links no audio links none: the scan is only for one whose records could not be
+  // read. It ran for every readable deck without a link — 1.2 to 1.3 s of main, the engine's video and the NDI
+  // output frozen with it (2026-11-15 audit, A10; the owner's choice).
+  if (recorded) {
+    const audio = recorded.find((target) => AUDIO_EXT.has(extOf(target)));
+    return audio ? path.win32.basename(audio) : null;
+  }
 
   let fd: number;
   try {
