@@ -520,7 +520,11 @@ npm run package:win|mac|linux  # build + electron-builder for that platform
   program, on a resource, on a verse or on a slide) moves the preview target
   (`lib/actions/preview.ts` + `stores/preview.store.ts`), and `goLive()`
   (`lib/actions/playback.ts`) is the **only** path from there to the projector — shared by the GO LIVE
-  button, Enter and double-click. Don't add a second path to `projection.store`.
+  button, Enter and double-click. Don't add a second path to `projection.store`. **What went live leaves
+  PREVIEW** (owner, 2026-11-15; `dropSentPreview`): an extra Enter has nothing to send, instead of sending the
+  hymn again from its first slide and its music from 0:00. Only what really reached the projector or the
+  speakers leaves, and only if PREVIEW still holds it; the «next» of «Al terminar» never touches PREVIEW. A
+  deck or song already on air, picked again, is only uncovered, never sent again.
 - **The monitors use the same renderer as the projector.**
   `components/shared/output-view.tsx` (`OutputView`) is what paints the projection window AND
   the LIVE and PREVIEW monitors. If the preview and what's projected paint differently, a monitor can

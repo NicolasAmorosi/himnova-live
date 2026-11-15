@@ -43,7 +43,7 @@ test("an AVI plays through the media engine at once", async ({ app }) => {
   await expect.poll(async () => Number(await position.getAttribute("aria-valuenow"))).toBeGreaterThan(0);
 });
 
-test("GO LIVE takes the engine PREVIEW opened, and PREVIEW gets one of its own again", async ({ app }) => {
+test("GO LIVE takes the engine PREVIEW opened, and picked again PREVIEW gets one of its own", async ({ app }) => {
   const [avi] = await app.addMedia("video", "long-xvid.avi");
   if (!avi) throw new Error("import failed");
   await waitEngine(app, avi);
@@ -52,6 +52,10 @@ test("GO LIVE takes the engine PREVIEW opened, and PREVIEW gets one of its own a
   await app.goLive();
   const projector = await app.projector();
   await expect.poll(() => moving(projector, "video:")).toBe(true);
+  // It left PREVIEW when it went out (owner, 2026-11-15).
+  await expect.poll(async () => (await engineCanvas(app.control, "preview:"))?.width ?? 0).toBe(0);
+  await app.previewFile("Videos", "long-xvid");
+  await expect.poll(async () => (await engineCanvas(app.control, "preview:"))?.width ?? 0).toBe(1920);
 
   // PREVIEW's scrubber moves a new engine of PREVIEW's, paused — never the one now on air.
   const before = (await engineCanvas(app.control, "preview:"))?.sample;
@@ -135,7 +139,8 @@ test("an engine that dies is reported and left to the operator", async ({ app })
   await expect.poll(() => moving(projector, "video:")).toBe(false);
   await expect(projector.locator("body")).not.toContainText("No se pudo");
 
-  // GO LIVE again is the operator's way back.
+  // GO LIVE again is the operator's way back — picked again: it left PREVIEW when it went out (owner, 2026-11-15).
+  await app.previewFile("Videos", "long-xvid");
   await app.goLive();
   await expect.poll(() => moving(projector, "video:")).toBe(true);
 });

@@ -32,6 +32,7 @@ import { footerAt, slideLines, slideTranslation, songOutputFor } from "@renderer
 import { deleteSongTheme, saveSongTheme } from "@renderer/lib/actions/songs";
 import { findSong, resolveSong, useSongStore } from "@renderer/stores/song.store";
 import { usePreviewStore } from "@renderer/stores/preview.store";
+import { useProjectionStore } from "@renderer/stores/projection.store";
 import { useSettingsStore } from "@renderer/stores/settings.store";
 import { isSongThemeUpsert } from "@shared/song-validators";
 import { parseLyrics, withTranslation } from "@shared/song-text";
@@ -140,6 +141,7 @@ export function SongThemesModal({ onOpenChange, open }: { onOpenChange: (open: b
   const themes = useSongStore((s) => s.themes);
   const songs = useSongStore((s) => s.songs);
   const target = usePreviewStore((s) => s.target);
+  const liveSongId = useProjectionStore((s) => (s.base?.kind === "song" ? s.base.songId : null));
   const license = useSettingsStore((s) => s.settings["songs.ccliLicense"]);
   const [editing, setEditing] = useState<Editing | null>(null);
   const [pending, setPending] = useState<Pending | null>(null);
@@ -180,7 +182,11 @@ export function SongThemesModal({ onOpenChange, open }: { onOpenChange: (open: b
   const savable = editing !== null && isSongThemeUpsert(editing.draft);
   const canSave = savable && (editing.themeId === null || dirty);
 
-  const previewed = (target?.kind === "song" ? findSong(songs, target.songId) : null) ?? SAMPLE;
+  // The song in PREVIEW, else the one live (it left PREVIEW when it went out), else a sample.
+  const previewed =
+    (target?.kind === "song" ? findSong(songs, target.songId) : null) ??
+    (liveSongId !== null ? findSong(songs, liveSongId) : null) ??
+    SAMPLE;
   const style = editing?.draft.style ?? DEFAULT_SONG_THEME;
   const preview = useMemo(() => {
     const resolved = resolveSong(previewed, style, license);

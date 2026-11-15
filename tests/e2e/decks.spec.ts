@@ -307,6 +307,9 @@ test("a slide clicked in the LIVE grid goes up at once; one clicked in PREVIEW d
   await app.goLive();
   const projector = await app.projector();
   await expect.poll(() => projectedSlide(projector)).toBe(1);
+  // It left PREVIEW when it went out (owner, 2026-11-15): picked again.
+  await expect(slideTile(app, 3)).toBeHidden();
+  await app.previewFile("Presentaciones", "deck");
 
   await slideTile(app, 3).click();
   await app.control.waitForTimeout(500);
@@ -405,7 +408,8 @@ test("a song assigned to a deck plays under it, and NEGRO pauses the song and th
   expect(await projectedSlide(projector)).toBe(expected);
   await expect.poll(() => projectedSlide(projector), { timeout: 6_000 }).toBe(expected + 1);
 
-  // And it stays assigned: «Quitar» on the strip takes it back off.
+  // And it stays assigned: «Quitar» on the strip takes it back off (picked again: it left PREVIEW when it went out).
+  await app.previewFile("Presentaciones", "hymn");
   await preview.getByRole("button", { name: "Opciones del audio" }).click();
   await app.control.getByRole("menuitem", { name: "Quitar" }).click();
   await expect(preview.getByRole("button", { name: "Asignar audio" })).toBeVisible();

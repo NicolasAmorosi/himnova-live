@@ -232,7 +232,14 @@ EasyWorship's two-stage flow:
   in the program, on a verse or on an asset always ends up here.
 - `playback.ts` — `goLive()` is the **only** path from preview to projector, shared by the
   GO LIVE button, Enter, and double-clicking a row, a tile or a verse, so the four cannot
-  diverge. Also `clearLive()` (CLEAR), `advanceSlide`/`gotoSlide` and `toggleOverlay`. It orders
+  diverge. **What went live leaves PREVIEW** (owner, 2026-11-15): `dropSentPreview` empties it and drops
+  the row's or the tile's selection, only after a commit that reached the projector or the speakers (a
+  deck that won't open, a missing file or a superseded press keep it) and only if PREVIEW still holds
+  what was pressed. Not `clearPreview()`, which also drops the live verse's cursor. Everything PREVIEW
+  names (the row by identity, the chapter a verse indexes into) is pinned before the first `await`,
+  so a click during the projector's opening is never what goes out. A deck or a song already on air,
+  picked again, is only uncovered (`isAlreadyLive`), as a video or a countdown already was. The «next»
+  of «Al terminar» (`goLiveWithNextScheduleItem`) never touches PREVIEW. Also `clearLive()` (CLEAR), `advanceSlide`/`gotoSlide` and `toggleOverlay`. It orders
   things so that a deck is **ready before** `base` changes: hitting GO LIVE on a deck not read yet
   leaves the projector as it is instead of cutting to black while it is read; one that won't open
   changes nothing there and says why in a toast (`explainDeckFailure`).
@@ -358,8 +365,8 @@ skipping keeps what was chosen and Escape does nothing.
 | ←/→, PageUp/PageDown | **what is live** — the slide, verse or song slide on screen, derived from `base` and not from the focused panel. PageUp/PageDown are what a presentation remote sends for back/next |
 | 1–9, C, P, F (Shift) | **only with a song live:** verse N, chorus, bridge, ending — the next time it is sung, Shift the previous one. Digits are read by `code`, so Shift+2 is still a 2; the projector forwards `shift` and `code` too |
 | T | **only with a song live:** hide or show its lyrics, the theme's background stays |
-| ↑/↓ | **the preview cursor** — nothing reaches the projector |
-| Enter | sends the preview to the projector (`goLive()`) |
+| ↑/↓ | **the preview cursor** — nothing reaches the projector; nothing at all with PREVIEW empty |
+| Enter | sends the preview to the projector (`goLive()`), which empties PREVIEW; with PREVIEW empty it does nothing, BLACK/LOGO up or not (VIVO, B and L uncover) |
 | Space | pauses/resumes an auto-advancing deck — the shortcut you need to stop dead a PPT that advances by itself |
 | B (or «.») / L | BLACK / LOGO. «.» is a remote's blank-screen button |
 | Delete/Backspace | removes the selected item (library before program) |

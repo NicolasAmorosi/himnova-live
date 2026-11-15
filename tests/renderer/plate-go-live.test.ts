@@ -91,6 +91,9 @@ describe("goLive with a plate", () => {
     usePreviewStore.getState().setTarget({ kind: "plate", plateId: pastor.id });
     await goLive();
     const first = useProjectionStore.getState().livePlates;
+    // Up, it left PREVIEW; picked again, as the operator would have to.
+    expect(usePreviewStore.getState().target).toBeNull();
+    usePreviewStore.getState().setTarget({ kind: "plate", plateId: pastor.id });
     await goLive();
     expect(useProjectionStore.getState().livePlates).toBe(first);
   });

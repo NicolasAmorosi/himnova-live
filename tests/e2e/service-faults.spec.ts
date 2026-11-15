@@ -115,19 +115,26 @@ test("a .pptx whose file goes away while it is live keeps showing its next slide
   await expect(projector.locator("body")).toContainText("Diapo 4");
 });
 
-test("Enter on the video that is already live and playing does not restart it; it only uncovers it", async ({ app }) => {
+test("an extra Enter on the video live does not restart it; under NEGRO, its row picked again, Enter only uncovers it", async ({
+  app,
+}) => {
   await addToSchedule(app, copyIn(app, "clip.mp4"));
   await scheduleRows(app).first().click();
   await app.control.keyboard.press("Enter");
   const projector = await app.projector();
   await expect.poll(async () => (await videoStates(projector))[0]?.currentTime ?? 0).toBeGreaterThan(2);
-  // PREVIEW still holds the same row: an extra Enter (or a double-click on the row) is easy.
+  // It left PREVIEW when it went out (owner, 2026-11-15): an extra Enter has nothing to send.
   await app.control.keyboard.press("Enter");
   await app.control.waitForTimeout(500);
   expect((await videoStates(projector))[0]?.currentTime ?? 0).toBeGreaterThan(2);
-  // Under BLACK the same Enter uncovers it, still where it was.
+  // Under BLACK, Enter with PREVIEW empty does nothing either (owner, 2026-11-15)…
   await app.control.locator("body").press("b");
   await expect(app.liveColumn().getByText("NEGRO").first()).toBeVisible();
+  await app.control.keyboard.press("Enter");
+  await app.control.waitForTimeout(500);
+  expect((await videoStates(projector))[0]?.paused).toBe(true);
+  // …and its row picked again — an easy slip mid-service — only uncovers it, still where it was.
+  await scheduleRows(app).first().click();
   await app.control.keyboard.press("Enter");
   await expect.poll(async () => (await videoStates(projector))[0]?.paused).toBe(false);
   expect((await videoStates(projector))[0]?.currentTime ?? 0).toBeGreaterThan(2);

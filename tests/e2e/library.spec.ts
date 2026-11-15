@@ -80,6 +80,8 @@ test("removing a file can be undone, and otherwise it is gone for good — off t
   await app.goLive();
   const projector = await app.projector();
   await expect(projector.locator('img[src^="worship://asset/"]')).toBeVisible();
+  // It left PREVIEW, and its tile's selection with it, when it went out (owner, 2026-11-15): picked again.
+  await panel(app, "Imágenes").getByRole("button", { name: "photo" }).click();
   await panel(app, "Imágenes").getByRole("button", { name: "Quitar", exact: true }).click();
   await expect(panel(app, "Imágenes").getByRole("button", { name: "photo" })).toHaveCount(0);
 

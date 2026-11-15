@@ -1,7 +1,7 @@
 import { useBibleStore } from "@renderer/stores/bible.store";
 import { useDeckStore } from "@renderer/stores/deck.store";
 import { useLibraryStore } from "@renderer/stores/library.store";
-import { usePreviewStore } from "@renderer/stores/preview.store";
+import { usePreviewStore, type PreviewTarget } from "@renderer/stores/preview.store";
 import { useProgramStore } from "@renderer/stores/program.store";
 import type { AssetKind } from "@shared/constants";
 import type { ProgramItemDTO } from "@shared/types/program";
@@ -125,6 +125,19 @@ export function advancePreview(direction: 1 | -1): void {
   const next = slideIndex + direction;
   if (next < 1 || next > total) return;
   setSlideIndex(next);
+}
+
+/**
+ * What went live leaves PREVIEW (owner, 2026-11-15): with it still there, an extra Enter or a second double click sent
+ * it again — the hymn back to its first slide and its music to 0:00 in front of the congregation. Only when PREVIEW
+ * still holds `sent`: whatever the operator picked while a deck was being read stays. Not `clearPreview()`, which
+ * also drops the live verse's cursor that ←/→ walk on.
+ */
+export function dropSentPreview(sent: PreviewTarget): void {
+  if (usePreviewStore.getState().target !== sent) return;
+  useProgramStore.getState().select(null);
+  useLibraryStore.getState().select(null);
+  usePreviewStore.getState().clear();
 }
 
 export function clearPreview(): void {

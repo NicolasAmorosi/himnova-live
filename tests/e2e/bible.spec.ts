@@ -50,8 +50,9 @@ test("after clicking EN VIVO, the arrows and Space still belong to the operator"
 
   await control.keyboard.press("ArrowRight");
   await expect(projector.getByText(JUAN_3_17, { exact: false })).toBeVisible();
-  // Space must not press EN VIVO again: that would send PREVIEW (still 3:16)
-  // back to the projector.
+  // Space must not press EN VIVO again. 3:16 left PREVIEW when it went out (owner, 2026-11-15), so EN VIVO has
+  // nothing to send and is off.
+  await expect(control.getByRole("button", { name: "EN VIVO", exact: true })).toBeDisabled();
   await control.keyboard.press("Space");
   await control.waitForTimeout(800);
   await expect(projector.getByText(JUAN_3_17, { exact: false })).toBeVisible();
@@ -220,17 +221,22 @@ test("an image background for the verse can be picked: nothing is saved until th
   }
 });
 
-test("↑/↓ only move PREVIEW; the LIVE transport and grid step the projected passage", async ({ app }) => {
+test("a verse sent leaves PREVIEW, so ↓ and Enter do nothing; the LIVE transport and grid step the passage", async ({
+  app,
+}) => {
   const projector = await verseLive(app);
   const live = app.liveColumn();
   await expect(live.getByText("16/36", { exact: true })).toBeVisible();
 
-  // PREVIEW walks on, the projector does not…
+  // It left PREVIEW when it went out (owner, 2026-11-15): nothing to walk, nothing to send again.
+  await expect(app.control.getByRole("button", { name: "EN VIVO", exact: true })).toBeDisabled();
   await app.control.keyboard.press("ArrowDown");
-  await app.control.keyboard.press("ArrowDown");
+  await app.control.keyboard.press("Enter");
   await app.control.waitForTimeout(500);
   await expect(projector.getByText(JUAN_3_16, { exact: false })).toBeVisible();
-  // …until EN VIVO.
+  await expect(app.control.getByRole("button", { name: "EN VIVO", exact: true })).toBeDisabled();
+  // Another verse of the tab goes through PREVIEW and EN VIVO, as always.
+  await bibleTab(app).getByRole("listitem").filter({ hasText: "El que en él cree, no es condenado" }).click();
   await app.control.keyboard.press("Enter");
   await expect(projector.getByText("El que en él cree, no es condenado", { exact: false })).toBeVisible();
   await expect(live.getByText("18/36", { exact: true })).toBeVisible();
@@ -295,10 +301,9 @@ test("a verse of the program previews its whole chapter, and another verse is wa
   const projector = await app.projector();
   await expect(projector.getByText(JUAN_3_16, { exact: false })).toBeVisible();
 
-  // ↓ walks out of the row into its chapter, which the Bible tab now holds —
-  // its pickers too.
-  await control.keyboard.press("ArrowDown");
-  await expect(grid.getByRole("button", { name: / 17$/ })).toHaveAttribute("aria-current", "true");
+  // The row left PREVIEW when it went out (owner, 2026-11-15), and its chapter went to the Bible tab at once — its
+  // pickers too.
+  await expect(grid).toBeHidden();
   const tab = control.getByRole("tabpanel", { name: "Biblia" });
   await expect(tab.getByText(JUAN_3_17)).toBeVisible();
   await expect(tab.getByRole("combobox", { name: "Libro", exact: true })).toHaveText("Juan");
@@ -540,9 +545,11 @@ test("a program's verse sent live: → and a remote's PageDown walk on through i
   await control.keyboard.press("PageDown");
   await expect(projector.getByText(JUAN_3_17, { exact: false })).toBeVisible();
 
-  // Another verse of the row's chapter, double-clicked in PREVIEW: live, and no longer the row's.
+  // Another verse of the row's chapter, double-clicked in PREVIEW: live, and no longer the row's. The row sent left
+  // PREVIEW (owner, 2026-11-15): picked again to walk its chapter there.
   await row.dblclick();
   await expect(rail).toHaveCount(1);
+  await row.click();
   await app.previewColumn().getByRole("list", { name: "Biblia" }).getByRole("button", { name: / 17$/ }).dblclick();
   await expect(projector.getByText(JUAN_3_17, { exact: false })).toBeVisible();
   await expect(rail).toHaveCount(0);
