@@ -1604,15 +1604,27 @@ export function OutputView({
    * to black over ~270ms and then snapped back to 1. The side that is leaving
    * is a frozen frame on the outgoing layer now (see `captureFrame`), never
    * this element.
+   *
+   * And it is only leaving when the scene leaving WAS the video. Between two
+   * covers over it (BLACK → LOGO and back) it belongs to neither side and
+   * stays where it rests, hidden: as «leaving» it was held at full opacity
+   * under the cover fading in, and its paused frame showed through the whole
+   * fade (owner, 2026-11-14).
    */
-  const videoRole: LayerRole =
-    layers.length < 2 ? "steady" : layers[1]?.output.kind === "video" ? "entering" : "leaving";
+  const roleOf = (kind: ProjectionOutput["kind"]): LayerRole =>
+    layers.length < 2
+      ? "steady"
+      : layers[1]?.output.kind === kind
+        ? "entering"
+        : layers[0]?.output.kind === kind
+          ? "leaving"
+          : "steady";
+  const videoRole = roleOf("video");
 
   /** The same question for the slide's own video, answered against the `slide`
    *  kind instead: during a transition it belongs to whichever side is a
    *  slide, and it is the incoming one whenever a slide is arriving. */
-  const slideVideoRole: LayerRole =
-    layers.length < 2 ? "steady" : layers[1]?.output.kind === "slide" ? "entering" : "leaving";
+  const slideVideoRole = roleOf("slide");
 
   const posterFor = (layer: Layer) =>
     still && layer.output.kind === "video" && layer.output.url === still.videoUrl ? still.posterUrl : null;
