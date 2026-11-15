@@ -139,7 +139,12 @@ and a link to ndi.video wherever NDI is used or chosen — the app, the landing 
   the app's process tree is captured — Windows 10 2004+ WASAPI process loopback of main (no prompt), macOS 14.2+ a
   Core Audio process tap of main and its children, following new ones (asks once for «System Audio Recording»:
   `NSAudioCaptureUsageDescription`; earlier macOS is video only, and Settings says why), Linux the default output's
-  monitor (the whole computer). Picture and sound are stamped on one clock — the picture when painted, the sound
+  monitor (the whole computer). Since engine-8 the capture follows the LIVE output main names (`setNdiAudioRoute`:
+  `--audio-device`/`--preview-apart` at launch, the same as stdin lines after the sender's `hello`, never a restart),
+  so PREVIEW on headphones stays out of NDI: macOS taps that device (a plain mixdown hears the processes on every
+  device), Linux reads its sink's monitor, and Windows, which has no per-device process loopback, takes that output's
+  endpoint loopback only while PREVIEW plays apart, other apps sounding there included, and at that output's Windows
+  volume (owner's D6). Picture and sound are stamped on one clock — the picture when painted, the sound
   when played — and the sound leaves `ndi.output.audioDelayMs` late (0 by default, «Sincronía del sonido» in
   Settings, −200…+400). The engine holds a video's own sound 65 ms (40 on Windows, `audio-delay`): +2 ms in the Mac's room, +3…+29 ms
   over NDI. Settings shows the sound's peak level once a second: a refused macOS permission sends silence.

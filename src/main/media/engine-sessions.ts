@@ -55,6 +55,9 @@ const videos: Record<VideoTarget, Session | null> = { video: null, slideVideo: n
 /** By `trackId`. Audio has no picture, so no window is shown its frames. */
 const audio = new Map<string, Session>();
 let preview: Session | null = null;
+/** Where each bus sounds (mpv's `audio-device` names, `EngineDevice.name`): null is the system's default, and then
+ *  nothing is sent, as before there was a choice. */
+const devices: { live: string | null; preview: string | null } = { live: null, preview: null };
 /** What PREVIEW last asked for, and from which window: GO LIVE takes its engine and starts it another. */
 let previewAsked: { video: PreviewEngineVideo; contents: WebContents } | null = null;
 
@@ -67,7 +70,7 @@ const SHOWN_CAP_MS = 1000;
  *  says so, like the engine itself would. */
 function start(
   session: Session,
-  opts: { startAtSeconds: number; audio: boolean },
+  opts: { startAtSeconds: number; audio: boolean; device: string | null },
   frameKey: string,
   events: EngineEvents,
 ): void {
@@ -91,7 +94,15 @@ function start(
   }
   session.engine = takeEngine();
   session.engine.load(
-    { file, startAtSeconds: opts.startAtSeconds, paused: session.paused, volume: session.volume, loop: session.loop, audio: opts.audio },
+    {
+      file,
+      startAtSeconds: opts.startAtSeconds,
+      paused: session.paused,
+      volume: session.volume,
+      loop: session.loop,
+      audio: opts.audio,
+      ...(opts.device !== null && opts.audio ? { device: opts.device } : {}),
+    },
     frameKey,
     events,
   );
@@ -157,7 +168,7 @@ function syncAudio(projectorOpen: boolean): void {
     const session: Session = { engine: null, url: track.url, epoch: track.epoch, paused: track.paused, volume: track.volume, loop: track.loop };
     audio.set(track.trackId, session);
     const target = { kind: "audio", trackId: track.trackId } as const;
-    start(session, { startAtSeconds: track.startAtSeconds, audio: true }, "", liveEvents(session, target, () => audio.get(track.trackId) === session));
+    start(session, { startAtSeconds: track.startAtSeconds, audio: true, device: devices.live }, "", liveEvents(session, target, () => audio.get(track.trackId) === session));
   }
 }
 
@@ -192,9 +203,16 @@ function syncVideo(target: VideoTarget, want: LiveEngineState | null, windows: (
       // What that engine was last told, so only the differences are sent.
       Object.assign(fresh, { engine: taken.engine, paused: taken.paused, volume: taken.volume, loop: taken.loop });
       taken.engine.retarget(frameKey, events);
+      // From PREVIEW's output to the room's while it is held paused for its windows: the room never hears it elsewhere.
+      // mpv reopens its output only when sound flows; a seek where it stands has it reopened before the hold ends:
+      // sound 8 ms after play on Windows, 12 on Linux, 222–228 on a Mac, instead of 244–556 (2026-11-15).
+      if (devices.preview !== devices.live) {
+        taken.engine.setDevice(devices.live ?? "auto");
+        taken.engine.seek(want.startAtSeconds);
+      }
       if (!want.paused) holdUntilShown(fresh);
     } else {
-      start(fresh, { startAtSeconds: want.startAtSeconds, audio: target !== "songVideo" }, frameKey, events);
+      start(fresh, { startAtSeconds: want.startAtSeconds, audio: target !== "songVideo", device: devices.live }, frameKey, events);
     }
   }
   applyToSession(session, session.hold ? { ...want, paused: true } : want);
@@ -280,7 +298,7 @@ export function setPreviewVideo(video: PreviewEngineVideo | null, contents: WebC
   // como en vivo pero con el volumen a 0; si le suben el volumen se escucha»).
   const session: Session = { engine: null, url: video.url, epoch: 0, paused: video.paused, volume: video.volume, loop: false };
   preview = session;
-  start(session, { startAtSeconds: video.startAtSeconds, audio: true }, video.picture ? previewEngineFrameKey(video.url) : "", {
+  start(session, { startAtSeconds: video.startAtSeconds, audio: true, device: devices.preview }, video.picture ? previewEngineFrameKey(video.url) : "", {
     status: (status) =>
       broadcast("preview-video-status", {
         url: session.url,
@@ -296,6 +314,19 @@ export function setPreviewVideo(video: PreviewEngineVideo | null, contents: WebC
     },
   });
   if (video.picture) session.engine?.show(contents);
+}
+
+/** Moves each bus to its output (mpv names, null the system's default): the sessions playing now and every one
+ *  after. The song's video background is silent and stays put. */
+export function setEngineAudioDevices(next: { live: string | null; preview: string | null }): void {
+  if (next.live !== devices.live) {
+    devices.live = next.live;
+    for (const session of [videos.video, videos.slideVideo, ...audio.values()]) session?.engine?.setDevice(next.live ?? "auto");
+  }
+  if (next.preview !== devices.preview) {
+    devices.preview = next.preview;
+    preview?.engine?.setDevice(next.preview ?? "auto");
+  }
 }
 
 export function seekPreviewVideo(seconds: number): void {
