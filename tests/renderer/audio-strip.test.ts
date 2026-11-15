@@ -1,7 +1,15 @@
-/** The audio strips' pure parts: the meter's ballistics and which device each bus ends up in (D6). */
+/** The audio strips' pure parts: the meter's ballistics, where each bus really plays (`resolveBus`) and whether the two
+ *  end up in the same device (D6). */
 import { expect, test } from "vitest";
 import { SILENT_CHANNEL, isLit, stepMeterChannel } from "@renderer/components/ui/level-meter";
-import { audioOutputsOf, findAudioOutput, sameAudioOutput } from "@renderer/lib/hooks/use-audio-outputs";
+import {
+  audioOutputsOf,
+  findAudioOutput,
+  resolveBus,
+  sameAudioOutput,
+  type AudioOutputs,
+} from "@renderer/lib/hooks/use-audio-outputs";
+import type { AudioOutputChoice } from "@shared/types/audio";
 
 test("a meter rises at once, falls back slowly, holds its peak, and stops at the floor", () => {
   let channel = stepMeterChannel(SILENT_CHANNEL, -12, 1000, 16);
@@ -36,16 +44,28 @@ test("Chromium's pseudo-outputs are not listed; the system's default is known by
   expect(findAudioOutput({ label: "Scarlett 2i2", deviceId: "old" }, outputs.devices)?.deviceId).toBe("b2");
 });
 
+/** D6, as `effects/audio-route.ts` decides it: each bus resolved to where it really plays, then compared. */
+function sameAudioOutputOf(
+  live: AudioOutputChoice | null,
+  preview: AudioOutputChoice | null,
+  list: AudioOutputs,
+  engineNames: ReadonlyMap<string, string | null> | null = null,
+): boolean {
+  const a = resolveBus(live, list.devices, engineNames);
+  const b = resolveBus(preview, list.devices, engineNames);
+  return sameAudioOutput(a.device, b.device, list.defaultGroupId);
+}
+
 test("PREVIEW shares LIVE's output when both end up in the same device (D6)", () => {
   const scarlett = { label: "Scarlett 2i2", deviceId: "b2" };
   const speakers = { label: "Altavoces", deviceId: "a1" };
-  expect(sameAudioOutput(null, null, outputs)).toBe(true);
+  expect(sameAudioOutputOf(null, null, outputs)).toBe(true);
   // The default IS the speakers today, whichever side names them.
-  expect(sameAudioOutput(null, speakers, outputs)).toBe(true);
-  expect(sameAudioOutput(speakers, null, outputs)).toBe(true);
-  expect(sameAudioOutput(scarlett, null, outputs)).toBe(false);
-  expect(sameAudioOutput(scarlett, speakers, outputs)).toBe(false);
-  expect(sameAudioOutput(speakers, speakers, outputs)).toBe(true);
+  expect(sameAudioOutputOf(null, speakers, outputs)).toBe(true);
+  expect(sameAudioOutputOf(speakers, null, outputs)).toBe(true);
+  expect(sameAudioOutputOf(scarlett, null, outputs)).toBe(false);
+  expect(sameAudioOutputOf(scarlett, speakers, outputs)).toBe(false);
+  expect(sameAudioOutputOf(speakers, speakers, outputs)).toBe(true);
 });
 
 test("a choice that is not plugged in plays through the system's default, so that is what is compared", () => {
@@ -54,12 +74,12 @@ test("a choice that is not plugged in plays through the system's default, so tha
   const speakers = { label: "Altavoces", deviceId: "a1" };
   const scarlett = { label: "Scarlett 2i2", deviceId: "b2" };
   // Unplugged LIVE + default PREVIEW: both end in the default, so shared (a name match alone said no).
-  expect(sameAudioOutput(gone, null, outputs)).toBe(true);
+  expect(sameAudioOutputOf(gone, null, outputs)).toBe(true);
   // Both unplugged, even different ones: both fall back to the default.
-  expect(sameAudioOutput(gone, other, outputs)).toBe(true);
+  expect(sameAudioOutputOf(gone, other, outputs)).toBe(true);
   // Unplugged beside the device the default is: shared; beside another device: not.
-  expect(sameAudioOutput(gone, speakers, outputs)).toBe(true);
-  expect(sameAudioOutput(gone, scarlett, outputs)).toBe(false);
+  expect(sameAudioOutputOf(gone, speakers, outputs)).toBe(true);
+  expect(sameAudioOutputOf(gone, scarlett, outputs)).toBe(false);
 });
 
 test("two outputs of one interface are different devices, whatever their group says", () => {
@@ -70,6 +90,58 @@ test("two outputs of one interface are different devices, whatever their group s
   ]);
   const out12 = { label: "Out 1-2", deviceId: "o12" };
   const out34 = { label: "Out 3-4", deviceId: "o34" };
-  expect(sameAudioOutput(out12, out34, interfaceOutputs)).toBe(false);
-  expect(sameAudioOutput(out12, out12, interfaceOutputs)).toBe(true);
+  expect(sameAudioOutputOf(out12, out34, interfaceOutputs)).toBe(false);
+  expect(sameAudioOutputOf(out12, out12, interfaceOutputs)).toBe(true);
+});
+
+const zoom = device("z1", "ZoomAudioDevice (Virtual)", "g-zoom");
+const teams = device("t1", "Microsoft Teams Audio (Virtual)", "g-teams");
+const macOutputs = audioOutputsOf([
+  device("default", "Predeterminado - MacBook Air Speakers (Built-in)", "g-mac"),
+  device("m1", "MacBook Air Speakers (Built-in)", "g-mac"),
+  zoom,
+  teams,
+]);
+const zoomChoice = { label: "ZoomAudioDevice (Virtual)", deviceId: "z1" };
+const zoomListed = macOutputs.devices.find((d) => d.deviceId === "z1");
+
+test("a chosen output both sides can open: Chromium's id for the elements, the engine's name for its sessions", () => {
+  const names = new Map([["z1", "coreaudio/zoom.us.zoomaudiodevice.001"]]);
+  expect(resolveBus(zoomChoice, macOutputs.devices, names)).toEqual({
+    out: { sinkId: "z1", engineDevice: "coreaudio/zoom.us.zoomaudiodevice.001" },
+    state: "ok",
+    device: zoomListed,
+  });
+  // The id moved (another USB port): found by its name, and the engine is asked by that name.
+  expect(resolveBus({ ...zoomChoice, deviceId: "stale" }, macOutputs.devices, names).out.sinkId).toBe("z1");
+  // No choice: the system's default for both, nothing to warn about.
+  expect(resolveBus(null, macOutputs.devices, names)).toEqual({ out: { sinkId: "", engineDevice: null }, state: "ok", device: null });
+});
+
+test("a chosen output that is unplugged, or that the engine cannot open, sends the WHOLE bus to the default", () => {
+  // Unplugged: neither Chromium nor the engine is pointed at it.
+  expect(resolveBus({ label: "Scarlett 2i2", deviceId: "b2" }, macOutputs.devices, new Map())).toEqual({
+    out: { sinkId: "", engineDevice: null },
+    state: "missing",
+    device: null,
+  });
+  // Plugged in, but the engine has none of that name, or two (`matchEngineDevice` says null): Chromium could play
+  // there, and does not, or one bus would sound in two places.
+  for (const names of [new Map<string, string | null>([["t1", null]]), new Map<string, string | null>()]) {
+    expect(resolveBus({ label: "Microsoft Teams Audio (Virtual)", deviceId: "t1" }, macOutputs.devices, names)).toEqual({
+      out: { sinkId: "", engineDevice: null },
+      state: "unusable",
+      device: null,
+    });
+  }
+  // A bus sent to the default for that reason shares the default's device with a PREVIEW left there (D6).
+  expect(sameAudioOutputOf({ label: "Microsoft Teams Audio (Virtual)", deviceId: "t1" }, null, macOutputs, new Map([["t1", null]]))).toBe(true);
+  expect(sameAudioOutputOf(zoomChoice, null, macOutputs, new Map([["z1", "coreaudio/zoom.us.zoomaudiodevice.001"]]))).toBe(false);
+});
+
+test("an engine that cannot choose an output (older than engine-8, or none) leaves its sessions on the default", () => {
+  // Only Chromium moves; the engine is never sent a name it does not understand.
+  expect(resolveBus(zoomChoice, macOutputs.devices, null)).toEqual({ out: { sinkId: "z1", engineDevice: null }, state: "ok", device: zoomListed });
+  // «auto»: the engine's own word for the default, never sent as a device.
+  expect(resolveBus(zoomChoice, macOutputs.devices, new Map([["z1", "auto"]])).out.engineDevice).toBeNull();
 });

@@ -31,7 +31,7 @@ import { footerAt, songBackgroundUrl, songBackgroundVideo, songOutputFor } from 
 import { linesAt, translationAt, type SongPosition } from "@shared/song-jump";
 import type { ResolvedSong, SongLanguage, SongTheme } from "@shared/types/song";
 import { defaultMediaVolume } from "@renderer/stores/settings.store";
-import { busVolume } from "@shared/types/audio";
+import { busVolume, DEFAULT_AUDIO_OUT, type AudioOut } from "@shared/types/audio";
 
 /** The deck currently loaded for projection — slide urls are durable, DB-backed
  *  and stable across restarts, so this is plain data with no session lifecycle. */
@@ -138,6 +138,9 @@ export type ProjectionStoreState = {
    *  projector and the media engine get the level they play at as state; the audio tracks get it in
    *  `toAudioTrackPush`. */
   liveMasterVolume: number;
+  /** Where LIVE sounds (`AudioOut`), resolved by `effects/audio-route.ts` and carried by every output: the projector
+   *  and main apply it, neither decides it. */
+  liveAudioOut: AudioOut;
   /**
    * How a verse is drawn, mirrored here from `settings["bible.style"]`.
    *
@@ -273,6 +276,7 @@ export type ProjectionStoreState = {
   setTransitionSettings: (style: TransitionStyle, durationMs: number) => void;
   setVideoEnd: (videoEnd: VideoEndAction) => void;
   setLiveMasterVolume: (volume: number) => void;
+  setLiveAudioOut: (audioOut: AudioOut) => void;
   setBibleStyle: (style: BibleStyle) => void;
   setSlideText: (text: SlideTextSettings) => void;
   /** Puts a plate up, taking down whichever plate it collides with (`platesCollide`). */
@@ -369,6 +373,7 @@ export const useProjectionStore = create<ProjectionStoreState>()(
     transitionDurationMs: 300,
     videoEnd: "logo",
     liveMasterVolume: 1,
+    liveAudioOut: DEFAULT_AUDIO_OUT,
     bibleStyle: DEFAULT_BIBLE_STYLE,
     slideText: { fallbackFont: null, locale: "es" },
     livePlates: [],
@@ -579,6 +584,12 @@ export const useProjectionStore = create<ProjectionStoreState>()(
       set({ transitionStyle, transitionDurationMs }),
     setVideoEnd: (videoEnd) => set({ videoEnd }),
     setLiveMasterVolume: (liveMasterVolume) => set({ liveMasterVolume }),
+    setLiveAudioOut: (liveAudioOut) =>
+      set((state) =>
+        state.liveAudioOut.sinkId === liveAudioOut.sinkId && state.liveAudioOut.engineDevice === liveAudioOut.engineDevice
+          ? state
+          : { liveAudioOut },
+      ),
     setBibleStyle: (bibleStyle) => set({ bibleStyle }),
     setSlideText: (slideText) => set({ slideText }),
     showPlate: (plate) =>
@@ -814,6 +825,7 @@ export function selectOutput(state: ProjectionStoreState): ProjectionOutput {
     ...(songVideo ? { songVideo } : {}),
     plates: selectPlates(state),
     transition: selectTransition(state),
+    ...(state.liveAudioOut.sinkId === "" && state.liveAudioOut.engineDevice === null ? {} : { audioOut: state.liveAudioOut }),
   };
 }
 
@@ -853,6 +865,7 @@ type OutputInputs = readonly [
   ProjectionStoreState["videoPaused"],
   ProjectionStoreState["videoVolume"],
   ProjectionStoreState["liveMasterVolume"],
+  ProjectionStoreState["liveAudioOut"],
   ProjectionStoreState["slideVideoEpoch"],
   ProjectionStoreState["slideVideoPaused"],
   ProjectionStoreState["slideVideoVolume"],
@@ -877,6 +890,7 @@ function outputInputs(state: ProjectionStoreState): OutputInputs {
     state.videoPaused,
     state.videoVolume,
     state.liveMasterVolume,
+    state.liveAudioOut,
     state.slideVideoEpoch,
     state.slideVideoPaused,
     state.slideVideoVolume,

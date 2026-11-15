@@ -17,6 +17,7 @@ import { updatesHandlers } from "./handlers/updates";
 import { previewHandlers } from "./handlers/preview";
 import { ndiHandlers } from "./handlers/ndi";
 import { backupsHandlers } from "./handlers/backups";
+import { audioRouteHandlers } from "./handlers/audio-route";
 
 /**
  * Assembling the object literal AS `Handlers` is what makes a missing or
@@ -43,6 +44,7 @@ export function registerAllIpcHandlers(): void {
     ...previewHandlers,
     ...ndiHandlers,
     ...backupsHandlers,
+    ...audioRouteHandlers,
   };
   registerHandlers(handlers);
 }

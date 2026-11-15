@@ -579,6 +579,29 @@ describe("selectOutputMemo", () => {
   });
 });
 
+describe("where LIVE sounds", () => {
+  test("every output carries LIVE's route, under BLACK too, so a rebuilt projector and main keep it as state", () => {
+    // Fails if the route is a one-off message: a projector rebuilt from main's snapshot would play on the default.
+    const store = useProjectionStore.getState();
+    store.setBase({ kind: "video", assetId: 5, url: assetUrl(5), epoch: 1, startAtSeconds: 0 });
+    expect(output().audioOut).toBeUndefined();
+    const before = selectOutputMemo(useProjectionStore.getState());
+    const zoom = { sinkId: "z1", engineDevice: "coreaudio/zoom.us.zoomaudiodevice.001" };
+    store.setLiveAudioOut(zoom);
+    const moved = selectOutputMemo(useProjectionStore.getState());
+    expect(moved).not.toBe(before);
+    expect(moved.audioOut).toEqual(zoom);
+    useProjectionStore.getState().setOverlay("black");
+    expect(output().audioOut).toEqual(zoom);
+    // The same route again is no new output (re-resolved on every device change), and the default is no route at all.
+    const covered = selectOutputMemo(useProjectionStore.getState());
+    useProjectionStore.getState().setLiveAudioOut({ ...zoom });
+    expect(selectOutputMemo(useProjectionStore.getState())).toBe(covered);
+    useProjectionStore.getState().setLiveAudioOut({ sinkId: "", engineDevice: null });
+    expect(output().audioOut).toBeUndefined();
+  });
+});
+
 describe("buildCumulativeMs", () => {
   test("slide n hands over at the sum of every advance before it", () => {
     const slides = [slide(1, 1000), slide(2, 2000), slide(3, 500)];

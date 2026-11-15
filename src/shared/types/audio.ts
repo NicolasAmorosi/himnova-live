@@ -10,6 +10,20 @@ export type AudioBus = "live" | "preview";
  */
 export type AudioOutputChoice = { label: string; deviceId: string };
 
+/**
+ * Where a bus sounds, resolved by the control window (`effects/audio-route.ts`) from the choice and the devices
+ * plugged in: `sinkId` is Chromium's (`HTMLMediaElement.setSinkId`, "" the system's default) and `engineDevice` the
+ * media engine's (mpv's `audio-device`, null the system's default). Always ONE device for both: a choice either side
+ * cannot open sends the whole bus to the default, never half of it. LIVE's travels in the `ProjectionOutput`.
+ */
+export type AudioOut = { sinkId: string; engineDevice: string | null };
+
+export const DEFAULT_AUDIO_OUT: AudioOut = { sinkId: "", engineDevice: null };
+
+/** What the control window tells main besides LIVE's output: PREVIEW's engine device, and whether PREVIEW plays on
+ *  another output than LIVE (the NDI® sound is captured from LIVE's, D6). */
+export type AudioRoute = { preview: string | null; previewApart: boolean };
+
 const FIELD_MAX_LENGTH = 512;
 
 const isField = (v: unknown, minLength: number): boolean =>

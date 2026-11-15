@@ -59,6 +59,7 @@ import type { CloseDecision } from "../types/window";
 import type { UpdateStatus } from "../types/updates";
 import type { NdiOutputStatus } from "../types/ndi";
 import type { BackupEntry, LaunchRestore } from "../types/backups";
+import type { AudioRoute } from "../types/audio";
 
 /**
  * The single source of truth for every main<->renderer call. Add a channel here
@@ -121,6 +122,13 @@ export type IpcContract = {
    *  pauses or resumes the same one. */
   "preview:setVideo": { req: PreviewEngineVideo | null; res: void };
   "preview:seekVideo": { req: { seconds: number }; res: void };
+
+  /** The media engine's name for each of these Chromium outputs (`matchEngineDevice`): «auto» for the default, null
+   *  for none or more than one. The whole answer is null when this build's engine cannot choose an output. */
+  "audioRoute:matchOutputs": { req: { outputs: { deviceId: string; label: string }[] }; res: (string | null)[] | null };
+  /** PREVIEW's engine output and whether PREVIEW plays apart from LIVE (`effects/audio-route.ts`); LIVE's travels in
+   *  the output. Sent again on every device change: an identical route re-arms the NDI® sound's capture. */
+  "audioRoute:set": { req: AudioRoute; res: void };
 
   /** `kind: "all"` combines every `AssetKind`'s extensions into one filter, for
    *  a single file dialog that accepts any supported media at once — the
@@ -485,6 +493,9 @@ export type IpcEvents = {
   /** The PREVIEW monitor's engine (`preview:setVideo`), ~4/s. */
   "preview-video-status": PreviewVideoStatus;
   "preview-video-error": { url: string };
+  /** An engine session could not open the output it was told (`device`, mpv's name) or lost it (`ok: false`), or
+   *  has it again: the control window then routes that bus to the default whole (`effects/audio-route.ts`). */
+  "audio-out": { device: string; ok: boolean };
   "deck-progress": DeckProgress;
   "prewarm-progress": PrewarmProgress;
   /** What `deck:statuses` would answer changed for reasons that are not a

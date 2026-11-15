@@ -3,6 +3,7 @@ import { api } from "@renderer/lib/api";
 import { onIpc } from "@renderer/lib/ipc";
 import { OutputView } from "@renderer/components/shared/output-view";
 import { useMediaStatusReporter } from "./use-media-status-reporter";
+import { useAudioSink } from "@renderer/lib/hooks/use-audio-sink";
 import { INSTANT_TRANSITION } from "@shared/types/projection";
 import { isEngineUrl } from "@shared/urls";
 import { releaseMedia } from "@renderer/lib/release-media";
@@ -223,6 +224,7 @@ export function ProjectionApp() {
     [],
   );
 
+  useAudioSink(output.audioOut?.sinkId ?? "");
   useMediaStatusReporter(videoRef, null, output.videoUnderlay?.epoch ?? 0);
   useMediaStatusReporter(slideVideoRef, null, output.slideVideo?.epoch ?? 0, "slideVideo");
 

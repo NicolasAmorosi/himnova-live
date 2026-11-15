@@ -15,6 +15,7 @@ import type { SlideTransition, TransitionSpec } from "./transition";
 import type { UtilityScene } from "./utility";
 import type { ResolvedSong, SongChord, SongLanguage, SongTheme } from "./song";
 import type { SongDetour } from "../song-jump";
+import type { AudioOut } from "./audio";
 
 /** Which video (if any) is the current *base* content, independent of BLACK/
  *  LOGO. Present on every `ProjectionOutput` variant (including "black" and
@@ -295,6 +296,9 @@ export type ProjectionOutput = ProjectionOutputKind & {
    *  live" — `selectOutput` decides, the projector only draws. */
   plates: readonly ProjectionPlate[];
   transition: SceneTransition;
+  /** Where LIVE sounds: the projector's elements and main's live engine sessions play there. Absent, the system's
+   *  default output. */
+  audioOut?: AudioOut;
 };
 
 /** Identifies one media element in the projection window: the full-screen

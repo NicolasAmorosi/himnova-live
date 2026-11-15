@@ -44,6 +44,9 @@ import { startStageSync } from "@renderer/effects/stage-sync";
 import { startEngineAssetsSync } from "@renderer/effects/engine-assets-sync";
 import { startUpdateAnnouncement } from "@renderer/effects/update-announcement";
 import { startFirstSteps } from "@renderer/effects/first-steps";
+import { startAudioRouteEffects } from "@renderer/effects/audio-route";
+import { useAudioRouteStore } from "@renderer/stores/audio-route.store";
+import { useAudioSink } from "@renderer/lib/hooks/use-audio-sink";
 import { useGlobalShortcuts } from "@renderer/lib/hooks/use-global-shortcuts";
 
 /**
@@ -118,6 +121,8 @@ export function App() {
   const setLiveMasterVolume = useProjectionStore((s) => s.setLiveMasterVolume);
 
   useGlobalShortcuts(useAnyModalOpen());
+  // Every sound of this window is PREVIEW's (the monitors' copies of LIVE are muted).
+  useAudioSink(useAudioRouteStore((s) => s.preview.out.sinkId));
 
   useEffect(() => installGlobalErrorHandlers(), []);
 
@@ -205,7 +210,9 @@ export function App() {
     // settings it reads have loaded.
     const stopUpdateAnnouncement = startUpdateAnnouncement();
     const stopFirstSteps = startFirstSteps();
+    const stopAudioRoute = startAudioRouteEffects();
     return () => {
+      stopAudioRoute();
       stopProjectionEffects();
       stopStageSync();
       stopLibrarySync();

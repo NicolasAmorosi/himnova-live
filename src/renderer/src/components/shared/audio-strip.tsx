@@ -2,7 +2,8 @@ import { useCallback, type ReactNode } from "react";
 import { ChannelStrip, Menu, Tooltip } from "@renderer/components/ui";
 import { useMuteToggle } from "@renderer/components/ui/use-mute-toggle";
 import { useT } from "@renderer/lib/i18n/i18n-provider";
-import { sameAudioOutput, useAudioOutputPicker, useAudioOutputs } from "@renderer/lib/hooks/use-audio-outputs";
+import { useAudioOutputPicker, useAudioOutputs } from "@renderer/lib/hooks/use-audio-outputs";
+import { useAudioRouteStore } from "@renderer/stores/audio-route.store";
 import { useAudioLevelsStore, type StereoLevel } from "@renderer/stores/audio-levels.store";
 import { usePreviewStore } from "@renderer/stores/preview.store";
 import { useSettingsStore } from "@renderer/stores/settings.store";
@@ -20,9 +21,10 @@ const OUTPUT_MENU_WIDTH_PX = 288;
  *   times this one (`busVolume`). Its mute is session state (`ui.store`), so the app never opens with LIVE silent;
  *   dragging the fader to 0 is that mute, and the remembered level stays. PREVIEW's IS PREVIEW's volume
  *   (`preview.store`), 0 with every new item.
- * - The output menu writes `audio.output.<bus>`. PREVIEW's turns amber when both buses end up in the same device
- *   AND PREVIEW is audible (D6): then it is heard in the room, and in the NDI® when it is on. The tooltip says so
- *   whenever the outputs are shared.
+ * - The output menu writes `audio.output.<bus>`. It turns amber when the chosen output is not used (not plugged in,
+ *   or one the media engine cannot open: the bus plays through the default, `effects/audio-route.ts`), and PREVIEW's
+ *   when both buses end up in the same device AND PREVIEW is audible (D6): then it is heard in the room, and in the
+ *   NDI® when it is on. The tooltip says so whenever the outputs are shared.
  */
 export function AudioStrip({ bus }: { bus: AudioBus }) {
   const t = useT();
@@ -31,8 +33,6 @@ export function AudioStrip({ bus }: { bus: AudioBus }) {
   const previewVolume = usePreviewStore((s) => s.volume);
   const setPreviewVolume = usePreviewStore((s) => s.setVolume);
   const update = useSettingsStore((s) => s.update);
-  const liveChoice = useSettingsStore((s) => s.settings["audio.output.live"]);
-  const previewChoice = useSettingsStore((s) => s.settings["audio.output.preview"]);
   const ndi = useSettingsStore((s) => s.settings["ndi.output.enabled"]);
   const liveMuted = useUiStore((s) => s.liveMuted);
   const setLiveMuted = useUiStore((s) => s.setLiveMuted);
@@ -40,7 +40,8 @@ export function AudioStrip({ bus }: { bus: AudioBus }) {
   const togglePreviewMute = useMuteToggle(previewVolume, setPreviewVolume);
   const outputs = useAudioOutputs();
   const picker = useAudioOutputPicker(bus, outputs);
-  const shared = !live && sameAudioOutput(liveChoice, previewChoice, outputs);
+  const shared = useAudioRouteStore((s) => !live && s.shared);
+  const state = useAudioRouteStore((s) => s[bus].state);
 
   const subscribeLevels = useCallback(
     (listener: (level: StereoLevel) => void) =>
@@ -49,8 +50,9 @@ export function AudioStrip({ bus }: { bus: AudioBus }) {
   );
 
   const outputLabel = t(live ? "audio.liveOutput" : "audio.previewOutput");
-  const notice = shared ? t(ndi ? "audio.sharedOutputNdi" : "audio.sharedOutput") : null;
-  const warn = shared && previewVolume > 0;
+  const fallback = state === "ok" ? null : t(state === "missing" ? "audio.fallbackMissing" : "audio.fallbackUnusable");
+  const notice = fallback ?? (shared ? t(ndi ? "audio.sharedOutputNdi" : "audio.sharedOutput") : null);
+  const warn = fallback !== null || (shared && previewVolume > 0);
   const outputName = t("audio.outputIs", { output: outputLabel, name: picker.name });
   const setMaster = (volume: number) => {
     // 0 is the mute, not a level to remember.

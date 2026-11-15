@@ -16,6 +16,7 @@ import type {
   ProgramUpsert,
 } from "@shared/types/program";
 import type { SettingsMap } from "@shared/types/settings";
+import type { AudioRoute } from "@shared/types/audio";
 import type { UtilitySceneUpsert } from "@shared/types/utility";
 import type { PlateUpsert } from "@shared/types/overlay";
 import type { SongThemeUpsert, SongUpsert } from "@shared/types/song";
@@ -44,6 +45,10 @@ export const api = {
   preview: {
     setVideo: (video: PreviewEngineVideo | null) => invoke("preview:setVideo", video),
     seekVideo: (seconds: number) => invoke("preview:seekVideo", { seconds }),
+  },
+  audioRoute: {
+    matchOutputs: (outputs: { deviceId: string; label: string }[]) => invoke("audioRoute:matchOutputs", { outputs }),
+    set: (route: AudioRoute) => invoke("audioRoute:set", route),
   },
   files: {
     pick: (kind: AssetKind | "all", multiple: boolean, startIn?: AssetKind) =>
