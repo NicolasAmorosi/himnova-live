@@ -234,9 +234,10 @@ test.describe("an output the engine loses", () => {
 
 /** Stops (or resumes) every media engine the app runs: one that never answers, as a spare stuck at launch would. */
 function signalEngines(app: WorshipApp, signal: "SIGSTOP" | "SIGCONT"): number[] {
+  // `comm` is the whole path, spaces kept: the package's runs inside «Himnova Live.app».
   const pids = execFileSync("ps", ["-A", "-o", "pid=,ppid=,comm="], { encoding: "utf8" })
     .split("\n")
-    .map((line) => line.trim().split(/\s+/, 3))
+    .map((line) => /^\s*(\d+)\s+(\d+)\s+(.*)$/.exec(line)?.slice(1) ?? [])
     .filter(([, ppid, comm]) => Number(ppid) === app.mainPid && /media-engine(\.exe)?$/.test(comm ?? ""))
     .map(([pid]) => Number(pid));
   for (const pid of pids) process.kill(pid, signal);
