@@ -33,8 +33,8 @@ const PRELOAD = path.join(__dirname, "../preload/index.js");
  *
  * Closed by the operator (its ✕, Alt+F4) it stays closed for the session, as
  * the projector does (owner, 2026-11-15): no screen coming or going brings it
- * back, only `reopenStageWindow` (the stage panel's «Reabrir», or the stage's
- * screen chosen again in Settings).
+ * back, only `reopenStageWindow` (the stage panel's «Reabrir», or a stage role
+ * chosen again in Settings ▸ Screens: «Escenario» or «Copia del proyector», for the same screen or another).
  */
 let current: { win: BrowserWindow; displayId: number; own: boolean; blocker: number } | null = null;
 let lastOutput: StageOutput | null = null;

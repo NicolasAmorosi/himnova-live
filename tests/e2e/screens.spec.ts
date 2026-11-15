@@ -68,7 +68,7 @@ async function screensSettings(app: WorshipApp): Promise<Locator> {
   return settings;
 }
 
-async function pickRole(app: WorshipApp, row: Locator, role: "Proyector" | "Escenario" | "Sin uso"): Promise<void> {
+async function pickRole(app: WorshipApp, row: Locator, role: "Proyector" | "Escenario" | "Copia del proyector" | "Sin uso"): Promise<void> {
   await row.getByRole("combobox").click();
   await app.control.getByRole("option", { name: role, exact: true }).click();
 }
@@ -213,6 +213,29 @@ test("the roles exclude each other: the stage given the projector's screen moves
   await expect(app.control.getByRole("status").filter({ hasText: "pasó a ser el proyector: el escenario quedó sin pantalla" })).toBeVisible();
   await expect.poll(() => stageOpen(app)).toBe(false);
   expect((await app.invoke<Record<string, unknown>>("settings:get"))["stage.displayId"]).toBeNull();
+});
+
+test("a stage role chosen again, «Escenario» or «Copia del proyector», opens the stage window the operator closed", async ({ app }) => {
+  const settings = await screensSettings(app);
+  const own = ownScreenRow(settings);
+  await pickRole(app, own, "Escenario");
+  await expect.poll(() => stageOpen(app)).toBe(true);
+  const closeStage = () =>
+    app.electron.evaluate(({ BrowserWindow }) =>
+      BrowserWindow.getAllWindows().find((w) => w.webContents.getURL().endsWith("/stage.html"))?.close(),
+    );
+
+  // The same role for the same screen.
+  await closeStage();
+  await expect.poll(() => stageOpen(app)).toBe(false);
+  await pickRole(app, own, "Escenario");
+  await expect.poll(() => stageOpen(app)).toBe(true);
+
+  // The other stage role for it.
+  await closeStage();
+  await expect.poll(() => stageOpen(app)).toBe(false);
+  await pickRole(app, own, "Copia del proyector");
+  await expect.poll(() => stageOpen(app)).toBe(true);
 });
 
 test("a projector never chosen opens beside the stage, never on its screen", async ({ app }) => {

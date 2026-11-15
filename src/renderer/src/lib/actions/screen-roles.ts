@@ -1,3 +1,4 @@
+import { api } from "@renderer/lib/api";
 import { t } from "@renderer/lib/i18n/i18n-provider";
 import { toast } from "@renderer/lib/toast";
 import { useDisplayStore } from "@renderer/stores/display.store";
@@ -44,10 +45,12 @@ export async function assignScreenRole(id: number, role: ScreenRole): Promise<vo
     return;
   }
   if (role === "stage" || role === "mirror") {
-    // The same screen as the other of the two: only what it shows changes.
+    // The same screen as the other of the two: only what it shows changes. Choosing it is also asking for the
+    // window, so one the operator closed opens again (main does that itself when the screen changes).
     const mirror = role === "mirror";
     if (stageId === id) {
       if (settings.settings["stage.mirror"] !== mirror) await settings.update({ "stage.mirror": mirror });
+      await api.stage.reopen();
       return;
     }
     await settings.update({ "stage.displayId": id, "stage.mirror": mirror });
