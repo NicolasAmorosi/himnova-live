@@ -36,7 +36,7 @@ int64_t nowTc() {
 }
 
 namespace {
-std::atomic<bool> stopping{false};
+std::atomic<bool> stopping{false}, broken{false};
 std::thread worker;
 
 // Activation completes on another thread; this only says when.
@@ -61,12 +61,38 @@ struct Activated : IActivateAudioInterfaceCompletionHandler, IAgileObject {
   }
 };
 
-// The output's IAudioClient: `guid` as mpv names it (the endpoint id's last part, «{…}»), or empty for the default.
-HRESULT endpointClient(const std::wstring& guid, IAudioClient** client) {
-  IMMDeviceEnumerator* devices = nullptr;
+// The Windows Audio service's process: a new one (the service restarted) leaves a process loopback alive but deaf, with
+// no error from any call (measured 2026-11-15, `Restart-Service audiosrv`): the capture is started again.
+DWORD audioServicePid() {
+  DWORD pid = 0;
+  if (SC_HANDLE scm = OpenSCManagerW(nullptr, nullptr, SC_MANAGER_CONNECT)) {
+    if (SC_HANDLE service = OpenServiceW(scm, L"audiosrv", SERVICE_QUERY_STATUS)) {
+      SERVICE_STATUS_PROCESS status{};
+      DWORD size = 0;
+      if (QueryServiceStatusEx(service, SC_STATUS_PROCESS_INFO, (BYTE*)&status, sizeof status, &size)) pid = status.dwProcessId;
+      CloseServiceHandle(service);
+    }
+    CloseServiceHandle(scm);
+  }
+  return pid;
+}
+
+// The default output's endpoint id, empty when there is none.
+std::wstring defaultId(IMMDeviceEnumerator* devices) {
   IMMDevice* device = nullptr;
-  HRESULT hr = CoCreateInstance(__uuidof(MMDeviceEnumerator), nullptr, CLSCTX_ALL, __uuidof(IMMDeviceEnumerator), (void**)&devices);
-  if (FAILED(hr)) return hr;
+  LPWSTR id = nullptr;
+  std::wstring out;
+  if (SUCCEEDED(devices->GetDefaultAudioEndpoint(eRender, eConsole, &device))) {
+    if (SUCCEEDED(device->GetId(&id))) out = id, CoTaskMemFree(id);
+    device->Release();
+  }
+  return out;
+}
+
+// The output's IAudioClient: `guid` as mpv names it (the endpoint id's last part, «{…}»), or empty for the default.
+HRESULT endpointClient(IMMDeviceEnumerator* devices, const std::wstring& guid, IAudioClient** client) {
+  IMMDevice* device = nullptr;
+  HRESULT hr = S_OK;
   if (guid.empty()) hr = devices->GetDefaultAudioEndpoint(eRender, eConsole, &device);
   else {
     IMMDeviceCollection* all = nullptr;
@@ -87,7 +113,6 @@ HRESULT endpointClient(const std::wstring& guid, IAudioClient** client) {
     if (all) all->Release();
     if (SUCCEEDED(hr) && !device) hr = E_NOTFOUND;  // unplugged
   }
-  devices->Release();
   if (FAILED(hr)) return hr;
   hr = device->Activate(__uuidof(IAudioClient), CLSCTX_ALL, nullptr, (void**)client);
   device->Release();
@@ -96,6 +121,7 @@ HRESULT endpointClient(const std::wstring& guid, IAudioClient** client) {
 
 void capture(DWORD appPid, AudioRoute route, AudioSink* sink, HANDLE started, std::string* why) {
   CoInitializeEx(nullptr, COINIT_MULTITHREADED);
+  IMMDeviceEnumerator* devices = nullptr;
   IAudioClient* client = nullptr;
   IAudioCaptureClient* capturer = nullptr;
   auto failed = [&](const char* what, HRESULT hr) {
@@ -104,10 +130,14 @@ void capture(DWORD appPid, AudioRoute route, AudioSink* sink, HANDLE started, st
     *why = b;
     if (capturer) capturer->Release();
     if (client) client->Release();
+    if (devices) devices->Release();
     CoUninitialize();
     SetEvent(started);
   };
-  HRESULT hr;
+  HRESULT hr = CoCreateInstance(__uuidof(MMDeviceEnumerator), nullptr, CLSCTX_ALL, __uuidof(IMMDeviceEnumerator), (void**)&devices);
+  if (FAILED(hr)) return failed("MMDeviceEnumerator", hr);
+  // «auto» with PREVIEW apart is the default output's loopback: when the default moves, the capture must follow it.
+  std::wstring followed;
   if (route.previewApart) {
     const std::string prefix = "wasapi/";
     std::wstring id;
@@ -116,7 +146,8 @@ void capture(DWORD appPid, AudioRoute route, AudioSink* sink, HANDLE started, st
       id.resize(MultiByteToWideChar(CP_UTF8, 0, utf8.c_str(), (int)utf8.size(), nullptr, 0));
       MultiByteToWideChar(CP_UTF8, 0, utf8.c_str(), (int)utf8.size(), id.data(), (int)id.size());
     }
-    hr = endpointClient(id, &client);
+    if (id.empty()) followed = defaultId(devices);
+    hr = endpointClient(devices, id, &client);
     if (FAILED(hr)) return failed("endpoint loopback", hr);
   } else {
     AUDIOCLIENT_ACTIVATION_PARAMS params{AUDIOCLIENT_ACTIVATION_TYPE_PROCESS_LOOPBACK, {appPid, PROCESS_LOOPBACK_MODE_INCLUDE_TARGET_PROCESS_TREE}};
@@ -165,14 +196,27 @@ void capture(DWORD appPid, AudioRoute route, AudioSink* sink, HANDLE started, st
   SetEvent(started);
   LARGE_INTEGER hz;
   QueryPerformanceFrequency(&hz);
-  while (!stopping) {
+  ULONGLONG lastLook = GetTickCount64();
+  const DWORD service = audioServicePid();
+  // A failed call (AUDCLNT_E_DEVICE_INVALIDATED: the output unplugged or disabled) ends the capture and says so: before,
+  // the loop went on asking a dead client with the state still «on».
+  while (!stopping && !broken) {
     WaitForSingleObject(ready, 10);
+    if (GetTickCount64() - lastLook >= 1000) {
+      lastLook = GetTickCount64();
+      if (audioServicePid() != service || (!followed.empty() && defaultId(devices) != followed)) broken = true;
+    }
     UINT32 frames = 0;
-    while (SUCCEEDED(capturer->GetNextPacketSize(&frames)) && frames) {
+    for (;;) {
+      if (FAILED(capturer->GetNextPacketSize(&frames))) broken = true;
+      if (broken || !frames) break;
       BYTE* data = nullptr;
       DWORD flags = 0;
       UINT64 qpc = 0;  // when its first sample was captured, in 100 ns of the performance counter
-      if (FAILED(capturer->GetBuffer(&data, &frames, &flags, nullptr, &qpc))) break;
+      if (FAILED(capturer->GetBuffer(&data, &frames, &flags, nullptr, &qpc))) {
+        broken = true;
+        break;
+      }
       LARGE_INTEGER now;
       QueryPerformanceCounter(&now);
       int64_t age = (int64_t)((double)now.QuadPart * 1e7 / (double)hz.QuadPart) - (int64_t)qpc;
@@ -184,6 +228,7 @@ void capture(DWORD appPid, AudioRoute route, AudioSink* sink, HANDLE started, st
   client->Stop();
   capturer->Release();
   client->Release();
+  devices->Release();
   CloseHandle(ready);
   CoUninitialize();
 }
@@ -205,7 +250,7 @@ SilenceAware* wrapper = nullptr;
 }  // namespace
 
 bool startAppAudio(unsigned long appPid, const AudioRoute& route, AudioSink* sink, std::string& why) {
-  stopping = false;
+  stopping = broken = false;
   static SilenceAware wrapped(nullptr);
   wrapped.to = sink;
   wrapper = &wrapped;
@@ -219,6 +264,8 @@ bool startAppAudio(unsigned long appPid, const AudioRoute& route, AudioSink* sin
   why = reason;
   return false;
 }
+
+bool appAudioHealthy() { return !broken; }
 
 void stopAppAudio() {
   stopping = true;

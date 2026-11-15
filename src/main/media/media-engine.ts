@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { app, sharedTexture, type SharedTextureHandle, type WebContents } from "electron";
 import { engineCacheDir, engineDir, enginePath } from "../paths";
-import { AUDIO_DEVICE_PROTO, jsonLineReader, mpvVolume, protoAfter, type EngineDevice } from "./engine-protocol";
+import { AUDIO_DEVICE_PROTO, EngineGate, jsonLineReader, mpvVolume, type EngineDevice } from "./engine-protocol";
 
 /**
  * The media engine (`native/engine/engine.cpp`): ONE file per process, played by libmpv, which also
@@ -39,6 +39,10 @@ export type EngineStatus = { time: number; duration: number; paused: boolean; en
 /** The sound's sample peak per channel [left, right] in dBFS, −120 for none: what the file carries, before its
  *  volume, at the moment the room hears it; every 40 ms while it plays, one at −120 when it stops. */
 export type EngineLevel = [number, number];
+/** Whether the sound reaches the output `EngineLoad.device` / `setDevice` named (`device`, «auto» the system's): false
+ *  when it could not be opened (the file plays on, unheard) or it left the system (the OS may play it elsewhere), true
+ *  when it is back (the engine reopens a device that comes back by itself). Said on changes, never as an `error`. */
+export type EngineAudioOut = { ok: boolean; device: string };
 /** `engine-open`: the file can't be played · `engine-gpu`: no device or no shared texture ·
  *  `engine-args`: a bug on this side · `engine-exit`: the process died. */
 export type EngineError = { code: string; detail: string };
@@ -48,6 +52,7 @@ export type EngineEvents = {
   status?: (status: EngineStatus) => void;
   error?: (error: EngineError) => void;
   level?: (peak: EngineLevel) => void;
+  audioOut?: (state: EngineAudioOut) => void;
   exit?: () => void;
 };
 
@@ -60,7 +65,8 @@ type EngineEvent =
   | ({ ev: "status" } & EngineStatus)
   | ({ ev: "error" } & EngineError)
   | { ev: "devices"; list: EngineDevice[] }
-  | { ev: "level"; peak: EngineLevel };
+  | { ev: "level"; peak: EngineLevel }
+  | ({ ev: "audio-out" } & EngineAudioOut);
 
 /** `native/handles`: what Node can't do to take another process's textures, or to hand one over (the
  *  NDI output, `ndi/ndi-output.ts`). Windows has none. */
@@ -222,9 +228,8 @@ export class MediaEngine {
   private loadedInfo: EngineLoaded | null = null;
   private lastStatus: EngineStatus | null = null;
   private failed = false;
-  /** What it said it speaks (`hello`, or 7 when `ready` came first); what waits for it to say. */
-  private proto: number | null = null;
-  private untilProto: (() => void)[] = [];
+  /** Every line to the engine, held until it says which protocol it speaks (`hello`, or 7 when `ready` came first). */
+  private readonly gate = new EngineGate((line) => this.writeNow(line));
   private deviceReplies: ((list: EngineDevice[] | null) => void)[] = [];
 
   constructor() {
@@ -264,19 +269,16 @@ export class MediaEngine {
     const volume = mpvVolume(opts.volume);
     const flag = (b: boolean) => (b ? "1" : "0");
     const line = `load ${Math.max(0, opts.startAtSeconds)} ${flag(opts.paused)} ${volume} ${flag(opts.loop)} ${flag(opts.audio)} ${longPathSafe(opts.file)}`;
-    const { device } = opts;
-    if (device === undefined) return this.write(line);
     // The output opens where it is told before the file: the device goes first, to an engine that knows it.
-    this.setDevice(device);
-    this.afterHello(() => this.write(line));
+    if (opts.device !== undefined) this.setDevice(opts.device);
+    this.write(line);
   }
 
-  /** Where its sound goes from now on (mpv reopens its output there, a gap of a moment); «auto» the system's. */
+  /** Where its sound goes from now on (mpv reopens its output there, a gap of a moment); «auto» the system's. The same
+   *  device again reopens it if its sound was lost (`EngineEvents.audioOut`). */
   setDevice(device: string): void {
     if (/[\r\n]/.test(device)) throw new Error("a device name with a line break");
-    this.afterHello(() => {
-      if (this.speaks(AUDIO_DEVICE_PROTO)) this.write(`device ${device}`);
-    });
+    this.gate.send(`device ${device}`, AUDIO_DEVICE_PROTO);
   }
 
   /** mpv's outputs as this engine sees them; null from an older engine, or with no answer in `timeoutMs`. */
@@ -287,28 +289,12 @@ export class MediaEngine {
         clearTimeout(timer);
         resolve(list);
       };
-      this.afterHello(() => {
-        if (this.exited || !this.speaks(AUDIO_DEVICE_PROTO)) return reply(null);
+      this.gate.after((proto) => {
+        if (this.exited || proto < AUDIO_DEVICE_PROTO) return reply(null);
         this.deviceReplies.push(reply);
-        this.write("devices");
+        this.writeNow("devices");
       });
     });
-  }
-
-  private speaks(proto: number): boolean {
-    return (this.proto ?? 0) >= proto;
-  }
-
-  /** `then` once the engine has said which protocol it speaks: at once when it has. */
-  private afterHello(then: () => void): void {
-    if (this.proto !== null) then();
-    else this.untilProto.push(then);
-  }
-
-  private heard(proto: number): void {
-    if (this.proto !== null) return;
-    this.proto = engineProto = proto;
-    for (const then of this.untilProto.splice(0)) then();
   }
 
   /** Still playing its file, with nothing gone wrong: one another session may take over (`retarget`). */
@@ -375,12 +361,17 @@ export class MediaEngine {
     if (!this.exited) this.child.kill("SIGKILL");
   }
 
+  /** In order with everything else, once the engine has said its protocol. */
   private write(line: string): void {
+    this.gate.send(line);
+  }
+
+  private writeNow(line: string): void {
     if (!this.exited && this.child.stdin?.writable) this.child.stdin.write(line + "\n");
   }
 
   private onEvent(event: EngineEvent): void {
-    this.heard(protoAfter(this.proto, event));
+    engineProto = this.gate.heard(event);
     switch (event.ev) {
       case "hello":
         return;
@@ -403,6 +394,8 @@ export class MediaEngine {
         return;
       case "level":
         return this.events.level?.(event.peak);
+      case "audio-out":
+        return this.events.audioOut?.({ ok: event.ok, device: event.device });
     }
   }
 

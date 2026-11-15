@@ -8,7 +8,8 @@
 //
 // Which output (proto 8): a stereo mixdown taps the processes' sound whatever device it goes to, PREVIEW's
 // headphones included; when main names the LIVE output, or says PREVIEW plays apart, the tap is that device's
-// (`initWithProcesses:andDeviceUID:withStream:`, the default output's for «auto»), in that device's format.
+// (`initWithProcesses:andDeviceUID:withStream:`, the default output's for «auto», followed when it moves), in that
+// device's format.
 #include "ndi-audio.h"
 
 #import <CoreAudio/AudioHardwareTapping.h>
@@ -19,6 +20,7 @@
 #include <mach/mach_time.h>
 #include <time.h>
 
+#include <atomic>
 #include <vector>
 
 int64_t nowTc() {
@@ -32,10 +34,24 @@ pid_t app = 0;
 AudioSink* sink = nullptr;
 AudioObjectID tap = kAudioObjectUnknown, device = kAudioObjectUnknown;
 AudioDeviceIOProcID proc = nullptr;
-id tapDescription = nil;
 AudioObjectPropertyListenerBlock listener = nil;
+// The process list's listener runs here, one at a time: on a concurrent queue an old call could write the previous
+// route's description over the new tap (2026-11-15 review). `stopAppAudio` drains it before the tap goes.
+dispatch_queue_t listenerQueue = nullptr;
 const AudioObjectPropertyAddress processList{kAudioHardwarePropertyProcessObjectList, kAudioObjectPropertyScopeGlobal,
                                              kAudioObjectPropertyElementMain};
+// The device the tap hears (nil: every device, the mixdown), whether it stands for the default output, and when the
+// IOProc last ran: it runs on the device's clock, silence included, so a pause of a second means the device is gone.
+NSString* tappedUID = nil;
+bool followsDefault = false;
+std::atomic<uint64_t> lastIO{0};
+uint64_t startedAt = 0;
+mach_timebase_info_data_t timebase;
+
+uint64_t msSince(uint64_t host) {
+  uint64_t now = mach_absolute_time();
+  return now > host ? (now - host) * timebase.numer / timebase.denom / 1000000 : 0;
+}
 
 // Main and its children, as Core Audio knows them (a process that never played a sound has no object yet).
 NSArray<NSNumber*>* appProcesses() {
@@ -56,8 +72,9 @@ NSArray<NSNumber*>* appProcesses() {
   return out;
 }
 
+// The default output, as mpv's «auto» and Chromium's «default» play to it (not the system output, where alerts go).
 NSString* defaultOutputUID() {
-  AudioObjectPropertyAddress a{kAudioHardwarePropertyDefaultSystemOutputDevice, kAudioObjectPropertyScopeGlobal,
+  AudioObjectPropertyAddress a{kAudioHardwarePropertyDefaultOutputDevice, kAudioObjectPropertyScopeGlobal,
                                kAudioObjectPropertyElementMain};
   AudioObjectID out = kAudioObjectUnknown;
   UInt32 size = sizeof out;
@@ -69,31 +86,37 @@ NSString* defaultOutputUID() {
   return (__bridge_transfer NSString*)uid;
 }
 
+bool deviceExists(NSString* uid) {
+  AudioObjectPropertyAddress a{kAudioHardwarePropertyTranslateUIDToDevice, kAudioObjectPropertyScopeGlobal,
+                               kAudioObjectPropertyElementMain};
+  CFStringRef key = (__bridge CFStringRef)uid;
+  AudioObjectID out = kAudioObjectUnknown;
+  UInt32 size = sizeof out;
+  return AudioObjectGetPropertyData(kAudioObjectSystemObject, &a, sizeof key, &key, &size, &out) == noErr && out != kAudioObjectUnknown;
+}
+
 API_AVAILABLE(macos(14.2)) bool startTap(NSString* deviceUID, std::string& why) {
   CATapDescription* description =
       deviceUID ? [[CATapDescription alloc] initWithProcesses:appProcesses() andDeviceUID:deviceUID withStream:0]
                 : [[CATapDescription alloc] initStereoMixdownOfProcesses:appProcesses()];
   description.privateTap = YES;
   description.muteBehavior = CATapUnmuted;
-  tapDescription = description;
   OSStatus st = AudioHardwareCreateProcessTap(description, &tap);
   if (st != noErr) {
     why = "AudioHardwareCreateProcessTap " + std::to_string((int)st);
     return false;
   }
-  NSString* output = deviceUID ?: defaultOutputUID();
-  NSMutableDictionary* aggregate = [@{
+  // The tap alone, no output device beside it: with one, a device that has inputs too (a USB interface, a virtual
+  // loopback) put ITS input first in the IOProc's buffers, and NDI carried that instead of the app (2026-11-15
+  // review; measured on ZoomAudioDevice, which has one input and one output). Chromium's own tap capture does the same.
+  NSDictionary* aggregate = @{
     @kAudioAggregateDeviceUIDKey : NSUUID.UUID.UUIDString,
     @kAudioAggregateDeviceNameKey : @"Himnova Live NDI",
     @kAudioAggregateDeviceIsPrivateKey : @YES,
     @kAudioAggregateDeviceIsStackedKey : @NO,
     @kAudioAggregateDeviceTapAutoStartKey : @YES,
     @kAudioAggregateDeviceTapListKey : @[ @{@kAudioSubTapUIDKey : description.UUID.UUIDString, @kAudioSubTapDriftCompensationKey : @YES} ],
-  } mutableCopy];
-  if (output) {
-    aggregate[@kAudioAggregateDeviceMainSubDeviceKey] = output;
-    aggregate[@kAudioAggregateDeviceSubDeviceListKey] = @[ @{@kAudioSubDeviceUIDKey : output} ];
-  }
+  };
   st = AudioHardwareCreateAggregateDevice((__bridge CFDictionaryRef)aggregate, &device);
   if (st != noErr) {
     why = "AudioHardwareCreateAggregateDevice " + std::to_string((int)st);
@@ -110,12 +133,11 @@ API_AVAILABLE(macos(14.2)) bool startTap(NSString* deviceUID, std::string& why) 
   const bool planar = format.mFormatFlags & kAudioFormatFlagIsNonInterleaved;
   const int channels = (int)format.mChannelsPerFrame;
   const int rate = (int)format.mSampleRate;
-  static mach_timebase_info_data_t timebase;
-  mach_timebase_info(&timebase);
   __block std::vector<float> interleaved;
   st = AudioDeviceCreateIOProcIDWithBlock(
       &proc, device, nullptr,
       ^(const AudioTimeStamp*, const AudioBufferList* in, const AudioTimeStamp* when, AudioBufferList*, const AudioTimeStamp*) {
+        lastIO = mach_absolute_time();
         if (!in || in->mNumberBuffers == 0) return;
         // ponytail: allocation on Core Audio's IO thread the first time a buffer is larger than before; a fixed
         // ring if it is ever heard to glitch.
@@ -146,16 +168,18 @@ API_AVAILABLE(macos(14.2)) bool startTap(NSString* deviceUID, std::string& why) 
     why = "AudioDeviceCreateIOProcIDWithBlock " + std::to_string((int)st);
     return false;
   }
-  // A media engine started now plays from a process the tap does not include yet: follow the list.
+  // A media engine started now plays from a process the tap does not include yet: follow the list. This tap and this
+  // description only, whatever runs by then.
+  const AudioObjectID mine = tap;
   listener = ^(UInt32, const AudioObjectPropertyAddress*) {
-    if (tap == kAudioObjectUnknown) return;
-    CATapDescription* current = tapDescription;
-    current.processes = appProcesses();
+    description.processes = appProcesses();
+    CATapDescription* current = description;
     AudioObjectPropertyAddress d{kAudioTapPropertyDescription, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMain};
-    AudioObjectSetPropertyData(tap, &d, 0, nullptr, sizeof current, &current);
+    AudioObjectSetPropertyData(mine, &d, 0, nullptr, sizeof current, &current);
   };
-  AudioObjectAddPropertyListenerBlock(kAudioObjectSystemObject, &processList,
-                                      dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), listener);
+  if (!listenerQueue) listenerQueue = dispatch_queue_create("himnova.ndi.processes", DISPATCH_QUEUE_SERIAL);
+  AudioObjectAddPropertyListenerBlock(kAudioObjectSystemObject, &processList, listenerQueue, listener);
+  startedAt = lastIO = mach_absolute_time();
   st = AudioDeviceStart(device, proc);  // the first start is when macOS asks for the permission
   if (st != noErr) {
     why = "AudioDeviceStart " + std::to_string((int)st);
@@ -168,13 +192,15 @@ API_AVAILABLE(macos(14.2)) bool startTap(NSString* deviceUID, std::string& why) 
 bool startAppAudio(unsigned long appPid, const AudioRoute& route, AudioSink* audioSink, std::string& why) {
   app = (pid_t)appPid;
   sink = audioSink;
+  if (!timebase.denom) mach_timebase_info(&timebase);
   // mpv names a Core Audio device «coreaudio/<its UID>».
   const std::string prefix = "coreaudio/";
-  NSString* uid = route.device.compare(0, prefix.size(), prefix) == 0 ? @(route.device.substr(prefix.size()).c_str())
-                  : route.previewApart                                ? defaultOutputUID()
-                                                                      : nil;
+  const bool named = route.device.compare(0, prefix.size(), prefix) == 0;
+  followsDefault = !named && route.previewApart;
+  tappedUID = named ? @(route.device.substr(prefix.size()).c_str()) : followsDefault ? defaultOutputUID() : nil;
   if (@available(macOS 14.2, *)) {
-    if (startTap(uid, why)) return true;
+    if ((!named || deviceExists(tappedUID)) && startTap(tappedUID, why)) return true;
+    if (why.empty()) why = "no output " + route.device;
     stopAppAudio();
     return false;
   }
@@ -182,9 +208,22 @@ bool startAppAudio(unsigned long appPid, const AudioRoute& route, AudioSink* aud
   return false;
 }
 
+bool appAudioHealthy() {
+  // The IOProc stopped (its device went), the device the tap hears is gone, or «auto» now means another one.
+  if (msSince(lastIO) > 1000 && msSince(startedAt) > 2000) return false;
+  if (tappedUID && !deviceExists(tappedUID)) return false;
+  if (followsDefault) {
+    NSString* now = defaultOutputUID();
+    if (now && ![now isEqualToString:tappedUID]) return false;
+  }
+  return true;
+}
+
 void stopAppAudio() {
-  if (listener) AudioObjectRemovePropertyListenerBlock(kAudioObjectSystemObject, &processList,
-                                                       dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), listener);
+  if (listener) {
+    AudioObjectRemovePropertyListenerBlock(kAudioObjectSystemObject, &processList, listenerQueue, listener);
+    dispatch_sync(listenerQueue, ^{});  // a call already running ends before its tap goes
+  }
   listener = nil;
   if (device != kAudioObjectUnknown && proc) {
     AudioDeviceStop(device, proc);
@@ -197,5 +236,4 @@ void stopAppAudio() {
     if (tap != kAudioObjectUnknown) AudioHardwareDestroyProcessTap(tap);
   }
   tap = kAudioObjectUnknown;
-  tapDescription = nil;
 }

@@ -40,6 +40,55 @@ export function protoAfter(known: number | null, event: { ev: string; proto?: un
   return known ?? (event.ev === "hello" && typeof event.proto === "number" ? event.proto : 7);
 }
 
+/**
+ * What main writes to one engine, in the order it wrote it, held until the engine has said which protocol it speaks
+ * (`protoAfter`): a `pause`, `seek` or `loop` written before then went out ahead of a `load` that was waiting for
+ * `hello`, and the `load` then set the old value again. A line for a newer protocol than the engine's is dropped.
+ */
+export class EngineGate {
+  private known: number | null = null;
+  private readonly waiting: ((proto: number) => void)[] = [];
+
+  constructor(private readonly write: (line: string) => void) {}
+
+  /** null until the engine's first event. */
+  get proto(): number | null {
+    return this.known;
+  }
+
+  /** Every event the engine prints: the first says its protocol, and what waited for it goes out, in order. */
+  heard(event: { ev: string; proto?: unknown }): number {
+    if (this.known === null) {
+      const proto = protoAfter(null, event);
+      this.known = proto;
+      for (const then of this.waiting.splice(0)) then(proto);
+    }
+    return this.known;
+  }
+
+  /** `then` once the protocol is known (at once when it is), in order with every `send`. */
+  after(then: (proto: number) => void): void {
+    if (this.known === null) this.waiting.push(then);
+    else then(this.known);
+  }
+
+  /** `line` to the engine, in order; dropped by an engine older than `since`. */
+  send(line: string, since = 0): void {
+    this.after((proto) => {
+      if (proto >= since) this.write(line);
+    });
+  }
+}
+
+/** The NDI sender's lines that move its capture (`native/engine/ndi.cpp`), the device last: it is the one the sender
+ *  acts on. Sent whole every time, unchanged too: the same route starts a capture that stopped (its device was gone and
+ *  is back). None to a sender older than `AUDIO_DEVICE_PROTO`, which on Windows answers an unknown line with `done`
+ *  and main would release the texture it is still reading. */
+export function ndiRouteLines(proto: number, route: { device: string | null; previewApart: boolean }): string {
+  if (proto < AUDIO_DEVICE_PROTO) return "";
+  return `preview-apart ${route.previewApart ? 1 : 0}\naudio-device ${route.device ?? "auto"}\n`;
+}
+
 /** One of mpv's outputs (`audio-device-list`): `name` is what `device` takes, `description` what the OS calls it. */
 export type EngineDevice = { name: string; description: string };
 

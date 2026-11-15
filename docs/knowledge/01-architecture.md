@@ -144,7 +144,8 @@ and a link to ndi.video wherever NDI is used or chosen — the app, the landing 
   so PREVIEW on headphones stays out of NDI: macOS taps that device (a plain mixdown hears the processes on every
   device), Linux reads its sink's monitor, and Windows, which has no per-device process loopback, takes that output's
   endpoint loopback only while PREVIEW plays apart, other apps sounding there included, and at that output's Windows
-  volume (owner's D6). Picture and sound are stamped on one clock — the picture when painted, the sound
+  volume (owner's D6). A capture that stops on its own (its device unplugged, the audio service restarted) is said off
+  and tried again every 2 s, and main sending the same route restarts it at once. Picture and sound are stamped on one clock — the picture when painted, the sound
   when played — and the sound leaves `ndi.output.audioDelayMs` late (0 by default, «Sincronía del sonido» in
   Settings, −200…+400). The engine holds a video's own sound 65 ms (40 on Windows, `audio-delay`): +2 ms in the Mac's room, +3…+29 ms
   over NDI. Settings shows the sound's peak level once a second: a refused macOS permission sends silence.

@@ -24,9 +24,14 @@ int64_t nowTc();
 struct AudioRoute {
   std::string device = "auto";
   bool previewApart = false;
+  bool operator==(const AudioRoute& o) const { return device == o.device && previewApart == o.previewApart; }
+  bool operator!=(const AudioRoute& o) const { return !(*this == o); }
 };
 
 // Starts capturing the sound of process `appPid` and its children, as `route` says, into `sink`. False with `why`
-// when this OS or version has no way to (the output then stays video only, and says so).
+// when it cannot now (this OS or version has no way to, or the device is not there): ndi.cpp tries again every 2 s.
 bool startAppAudio(unsigned long appPid, const AudioRoute& route, AudioSink* sink, std::string& why);
+// False once the capture has stopped on its own (its device gone, a read that failed), or when it follows the default
+// output («auto») and the default has moved: ndi.cpp stops it and starts it again. Asked twice a second.
+bool appAudioHealthy();
 void stopAppAudio();
