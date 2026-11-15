@@ -19,7 +19,10 @@
 //   {"ev":"devices","list":[{"name":…,"description":…}]}           mpv's `audio-device-list`, «auto» first
 //   {"ev":"level","peak":[l,r]}                     the sound's sample peak per channel in dBFS (−120 for none), as
 //                                                    decoded, before the volume: every 40 ms at most while it plays,
-//                                                    and one at −120 when it pauses or ends
+//                                                    and one at −120 when it pauses, ends or its output is lost
+//   {"ev":"audio-out","ok":…,"device":…}            the output `device` names could not be opened (false: the file
+//                                                    plays on in silence, never an error) or opened again (true); said
+//                                                    when that changes, or when another device fails too
 //   {"ev":"error","code":"engine-…","detail":…}     codes: engine-gpu, engine-open, engine-args
 //
 // Args: [--parent <pid>] (Windows) [--fd-socket <path>] (Linux) [--max-width 1920 --max-height 1080]
@@ -297,6 +300,18 @@ static const int METER_LEAD_MS = 230;
 static const double FLOOR_DB = -120;
 static std::atomic<bool> meterPlaying{false}, meterSeeked{false};
 
+// The filter: frames of 40 ms at the file's rate (`samples`), each one's peak per channel and nothing else. The full
+// `astats` measured every statistic of every sample: a 600 s AAC cost 3.55 s of CPU against 0.78 s (0.58 decoding
+// alone; M3, 2026-11-15). FFmpeg 4.4 (Ubuntu 22.04's libmpv 0.34, the oldest the engine runs on) has
+// `measure_perchannel` too: checked there, the same `lavfi.astats.<n>.Peak_level` keys come out. A libavfilter that
+// refuses it fails the audio chain at the file's start, and the engine then plays the file again with the full one
+// (`meterFull`): the meter is never what costs the sound.
+static bool meterFull = false;
+static std::string meterFilter(int samples) {
+  return "@meter:lavfi=[asetnsamples=n=" + std::to_string(samples) + ":p=0,astats=metadata=1:reset=1" +
+         (meterFull ? "" : ":measure_perchannel=Peak_level:measure_overall=none") + "]";
+}
+
 static void emitLevel(double l, double r) {
   char b[96];
   snprintf(b, sizeof b, "{\"ev\":\"level\",\"peak\":[%.1f,%.1f]}", l, r);
@@ -348,7 +363,9 @@ static void meterLoop() {
       continue;
     }
     Reading r{now, {}};
-    if (meterRead(r.peak)) held.push_back(r);
+    // No meter while it should play: the sound failed (its track dropped). Silence, never the last level frozen.
+    if (!meterRead(r.peak)) r.peak[0] = r.peak[1] = FLOOR_DB;
+    held.push_back(r);
     while (!held.empty() && now - held.front().at >= std::chrono::milliseconds(METER_LEAD_MS)) {
       for (int c = 0; c < 2; c++) out[c] = pending ? std::max(out[c], held.front().peak[c]) : held.front().peak[c];
       pending = true;
@@ -363,8 +380,59 @@ static void meterLoop() {
   }
 }
 
+// The output `device` names is lost (gone from the system, or mpv fell back to its null output): a `device` naming the
+// same one must reopen it, since mpv sees no change.
+static std::atomic<bool> outputLost{false};
+
+static void reopenOutput() {
+  const char* c[] = {"ao-reload", nullptr};
+  mpv_command_async(E.mpv, 0, c);
+}
+
+// Whether the sound reaches the output `device` names, said as `audio-out` when that changes. Two ways to lose it: mpv
+// cannot open it and plays on its null output (`audio-fallback-to-null`), or the device leaves the system while
+// playing and the OS moves the sound elsewhere without a word to mpv (macOS put it on the speakers: measured
+// 2026-11-15 with an output unplugged). mpv's own list of outputs, which it follows as devices come and go, tells the
+// second; when the device is back, its output is reopened there. Silent on a device that is there (the system's audio
+// restarted under it: Windows' audio service, measured 2026-11-15), mpv never tries again by itself: the engine does,
+// 2 s later and then less and less often (a device that refuses keeps refusing, and main is told once).
+static struct {
+  std::string device = "auto", said = "auto", judged = "auto";
+  std::string ao;               // mpv's `current-ao`: «» before one opens or between two, «null» its fallback
+  std::vector<std::string> listed;
+  bool ok = true, present = true;
+  std::chrono::steady_clock::time_point retryAt{};
+  int retryMs = 0;
+  bool silent() const { return ao == "null"; }
+  void tick(std::chrono::steady_clock::time_point now) {
+    if (!silent() || !present) {
+      retryMs = 0;
+      return;
+    }
+    if (!retryMs) retryMs = 1000, retryAt = now + std::chrono::milliseconds(2000);
+    if (now < retryAt) return;
+    reopenOutput();
+    retryMs = std::min(retryMs * 2, 30000);
+    retryAt = now + std::chrono::milliseconds(retryMs);
+  }
+  void judge() {
+    bool was = present || device != judged;  // another device: mpv opens it by itself
+    judged = device;
+    present = device == "auto" || listed.empty() || std::find(listed.begin(), listed.end(), device) != listed.end();
+    if (present && !was) reopenOutput();  // back: mpv still plays where the OS moved it, or on null
+    bool now = present && !silent();
+    outputLost = !now;
+    if (now == ok && (now || device == said)) return;
+    ok = now;
+    said = device;
+    emit(std::string("{\"ev\":\"audio-out\",\"ok\":") + boolean(now) + ",\"device\":" + js(device) + "}");
+  }
+} output;
+static std::string loadedPath;
+
 // One command line from main. Returns false on `quit`.
 static bool command(const std::string& line) {
+  static std::string askedDevice = "auto";
   auto word = [&](size_t& at) {
     size_t end = line.find(' ', at);
     std::string w = line.substr(at, end == std::string::npos ? std::string::npos : end - at);
@@ -383,8 +451,14 @@ static bool command(const std::string& line) {
   else if (cmd == "pause") set("pause", word(at) == "1" ? "yes" : "no");
   else if (cmd == "volume") set("volume", word(at));
   else if (cmd == "loop") set("loop-file", word(at) == "1" ? "inf" : "no");
-  // Before `load` it is where the output opens; while playing, mpv reopens its output there.
-  else if (cmd == "device") set("audio-device", line.substr(at));
+  // Before `load` it is where the output opens; while playing, mpv reopens its output there. The same name again
+  // changes nothing in mpv: after a lost output (the device unplugged and back) the output is reopened by hand.
+  else if (cmd == "device") {
+    std::string device = line.substr(at);
+    if (device != askedDevice) set("audio-device", device);
+    else if (outputLost) reopenOutput();
+    askedDevice = device;
+  }
   else if (cmd == "devices") emitDevices();
   else if (cmd == "seek") {
     std::string to = word(at), how = word(at) == "exact" ? "absolute+exact" : "absolute+keyframes";
@@ -400,7 +474,7 @@ static bool command(const std::string& line) {
     set("volume", word(at));
     set("loop-file", word(at) == "1" ? "inf" : "no");
     set("aid", word(at) == "1" ? "auto" : "no");
-    std::string path = line.substr(at);
+    std::string path = loadedPath = line.substr(at);
     const char* c[] = {"loadfile", path.c_str(), nullptr};
     mpv_command_async(E.mpv, 0, c);
   } else {
@@ -488,10 +562,12 @@ int main(int argc, char** argv) {
                            // 0.41 defaults to `no`: every moving edge was combed (2026-11-10 review,
                            // agent1-01). A libmpv too old for `auto` (Linux's system one) refuses it, harmless.
                            {"deinterlace", "auto"},
-                           // The level meter (`meterLoop`): 40 ms frames, each one's own peak. No
-                           // `measure_perchannel`: FFmpeg 4.4 (Ubuntu 22.04's libmpv) does not have it.
-                           {"af", "@meter:lavfi=[asetnsamples=n=1920:p=0,astats=metadata=1:reset=1]"}};
+                           // An output that cannot be opened (unplugged, refused) plays the file on in silence
+                           // instead of dropping its sound or failing it: `audio-out` says so (`current-ao`).
+                           {"audio-fallback-to-null", "yes"}};
   for (auto& o : opts) mpv_set_option_string(E.mpv, o[0], o[1]);
+  // The level meter (`meterLoop`): 40 ms frames at 48 kHz; a file at another rate gets its own (FILE_LOADED).
+  mpv_set_option_string(E.mpv, "af", meterFilter(1920).c_str());
   // Compiled shaders kept between engines: libmpv with config=no has no cache dir of its own.
   if (!cacheDir.empty()) mpv_set_option_string(E.mpv, "gpu-shader-cache-dir", cacheDir.c_str());
   mpv_request_log_messages(E.mpv, logLevel.c_str());
@@ -502,6 +578,9 @@ int main(int argc, char** argv) {
   mpv_observe_property(E.mpv, 0, "duration", MPV_FORMAT_DOUBLE);
   mpv_observe_property(E.mpv, 0, "dwidth", MPV_FORMAT_INT64);
   mpv_observe_property(E.mpv, 0, "dheight", MPV_FORMAT_INT64);
+  mpv_observe_property(E.mpv, 0, "current-ao", MPV_FORMAT_STRING);
+  mpv_observe_property(E.mpv, 0, "audio-device", MPV_FORMAT_STRING);
+  mpv_observe_property(E.mpv, 0, "audio-device-list", MPV_FORMAT_NODE);
 
   std::thread renderer(renderLoop, options);
   std::thread meter(meterLoop);
@@ -521,6 +600,8 @@ int main(int argc, char** argv) {
 
   auto lastStatus = std::chrono::steady_clock::now();
   std::string lastError;
+  // The file played again with the full meter (`meterFull`): the failed one's end is not an error.
+  bool replaying = false;
   while (!E.quitting && E.started >= 0) {
     mpv_event* ev = mpv_wait_event(E.mpv, 0.05);
     bool changed = false;
@@ -560,6 +641,16 @@ int main(int argc, char** argv) {
         // +43…+60 ms over NDI, later than Chromium's +5…+39 there; 50 ms +7…+50; 40 ms +14…+31. Only a file
         // with a picture: a song alone has nothing to meet.
         if (video > 0) set("audio-delay", AUDIO_DELAY);
+        // 1920 samples are 40 ms at 48 kHz but 10 ms at 192: polled every 20 ms, most of those frames (and their
+        // peaks) went unread. Above 48 kHz, frames of 40 ms at the file's own rate; set before any sound is out.
+        int64_t rate = 0;
+        if (audio > 0 && mpv_get_property(E.mpv, "current-tracks/audio/demux-samplerate", MPV_FORMAT_INT64, &rate) >= 0 &&
+            rate > 48000) {
+          std::string af = meterFilter((int)(rate / 25));
+          const char* c[] = {"set", "af", af.c_str(), nullptr};
+          mpv_command_async(E.mpv, 0, c);
+        }
+        replaying = false;
         E.loaded = true;
         changed = true;
         break;
@@ -570,7 +661,7 @@ int main(int argc, char** argv) {
         break;
       case MPV_EVENT_END_FILE: {
         auto* ef = (mpv_event_end_file*)ev->data;
-        if (ef->reason == MPV_END_FILE_REASON_ERROR)
+        if (ef->reason == MPV_END_FILE_REASON_ERROR && !replaying)
           emitError({"engine-open", std::string(mpv_error_string(ef->error)) + (lastError.empty() ? "" : ": " + lastError)});
         break;
       }
@@ -580,13 +671,47 @@ int main(int argc, char** argv) {
         while (!text.empty() && text.back() == '\n') text.pop_back();
         fprintf(stderr, "%s\n", text.c_str());
         if (lm->log_level <= MPV_LOG_LEVEL_ERROR) lastError = text;
+        // The meter's filter refused (an older libavfilter): the sound went with it. The same file again, at the same
+        // start, with the full one; the end of the failed one is not an error of the file.
+        if (!meterFull && !strcmp(lm->prefix, "cplayer") && strstr(lm->text, "Audio filter initialized failed")) {
+          meterFull = replaying = true;
+          std::string af = meterFilter(1920);
+          const char* set[] = {"set", "af", af.c_str(), nullptr};
+          mpv_command_async(E.mpv, 0, set);
+          const char* load[] = {"loadfile", loadedPath.c_str(), nullptr};
+          mpv_command_async(E.mpv, 0, load);
+        }
         break;
       }
       case MPV_EVENT_PROPERTY_CHANGE: {
         auto* pc = (mpv_event_property*)ev->data;
         std::string name = pc->name;
         bool has = pc->data != nullptr;
-        if (name == "time-pos") seen.time = has && pc->format == MPV_FORMAT_DOUBLE ? *(double*)pc->data : 0;
+        if (name == "audio-device" || name == "current-ao") {
+          const char* v = has && pc->format == MPV_FORMAT_STRING ? *(char**)pc->data : nullptr;
+          if (name == "audio-device") {
+            output.device = v ? v : "auto";
+            if (output.silent()) output.ao.clear();  // to be opened again there: no verdict on the old one's
+            output.judge();
+          } else if (v && *v) {  // unavailable between two outputs (a move)
+            output.ao = v;
+            output.judge();
+          }
+        } else if (name == "audio-device-list") {
+          if (has && pc->format == MPV_FORMAT_NODE) {
+            auto* list = (mpv_node*)pc->data;
+            output.listed.clear();
+            if (list->format == MPV_FORMAT_NODE_ARRAY)
+              for (int i = 0; i < list->u.list->num; i++) {
+                mpv_node& d = list->u.list->values[i];
+                if (d.format != MPV_FORMAT_NODE_MAP) continue;
+                for (int k = 0; k < d.u.list->num; k++)
+                  if (!strcmp(d.u.list->keys[k], "name") && d.u.list->values[k].format == MPV_FORMAT_STRING)
+                    output.listed.push_back(d.u.list->values[k].u.string);
+              }
+            output.judge();
+          }
+        } else if (name == "time-pos") seen.time = has && pc->format == MPV_FORMAT_DOUBLE ? *(double*)pc->data : 0;
         else if (name == "duration") seen.duration = has && pc->format == MPV_FORMAT_DOUBLE ? *(double*)pc->data : 0;
         else if (name == "dwidth" || name == "dheight") {
           (name == "dwidth" ? seen.dwidth : seen.dheight) = has && pc->format == MPV_FORMAT_INT64 ? *(int64_t*)pc->data : 0;
@@ -607,8 +732,9 @@ int main(int argc, char** argv) {
       default:
         break;
     }
-    meterPlaying = E.loaded && seen.sound && !seen.paused && !seen.ended;
+    meterPlaying = E.loaded && seen.sound && !seen.paused && !seen.ended && !output.silent();
     auto now = std::chrono::steady_clock::now();
+    if (E.loaded) output.tick(now);
     if (changed || now - lastStatus >= std::chrono::milliseconds(250)) {
       lastStatus = now;
       if (E.loaded) emitStatus();
