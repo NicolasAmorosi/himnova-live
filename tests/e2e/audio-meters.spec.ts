@@ -66,6 +66,17 @@ async function silent(app: WorshipApp, bus: "live" | "preview", what: string): P
   await expect.poll(() => meter(app, bus), { message: `${bus} silent (${what})`, timeout: 10_000 }).toEqual([-Infinity, -Infinity]);
 }
 
+/** Settings ▸ Sonido ▸ «Mostrar las tiras», to the state asked for (the real switch: the renderer mirrors it). */
+async function setStrips(app: WorshipApp, on: boolean): Promise<void> {
+  await app.control.getByRole("button", { name: "Configuración" }).click();
+  const settings = app.control.getByRole("dialog", { name: "Configuración" });
+  await settings.getByRole("tab", { name: "Sonido" }).click();
+  const strips = settings.getByRole("switch", { name: "Mostrar las tiras" });
+  if ((await strips.isChecked()) !== on) await strips.click();
+  await settings.getByRole("button", { name: "Volver" }).click();
+  await expect(settings).toBeHidden();
+}
+
 const master = (app: WorshipApp) => app.liveColumn().getByRole("slider", { name: "Volumen general de EN VIVO" });
 const liveMute = (app: WorshipApp) =>
   app.liveColumn().getByRole("group", { name: STRIPS.live }).getByRole("button", { name: "Silenciar EN VIVO" });
@@ -147,4 +158,50 @@ test("PREVIEW's meter hears PREVIEW at its own volume, from the engine and from 
   expect(await meter(app, "live")).toEqual([-Infinity, -Infinity]);
   await fader.fill("0");
   await silent(app, "preview", "PREVIEW video at 0");
+});
+
+test("with the strips off nothing is measured or sent, and turning them on mid-play measures without a remount", async ({ app }) => {
+  await add(app, "audio", "tone.wav");
+  // Counts what crosses: the projector's reports (wrapped at main's handler: Electron keeps them in a private map) and
+  // the buses main broadcasts (heard in the control window).
+  await app.electron.evaluate(({ ipcMain }) => {
+    const handlers = (ipcMain as unknown as { _invokeHandlers: Map<string, (...args: unknown[]) => unknown> })._invokeHandlers;
+    const original = handlers.get("projection:reportLevels");
+    if (!original) throw new Error("projection:reportLevels has no handler");
+    const counter = globalThis as unknown as { reports: number };
+    counter.reports = 0;
+    handlers.set("projection:reportLevels", (...args) => {
+      counter.reports++;
+      return original(...args);
+    });
+  });
+  const reports = () => app.electron.evaluate(() => (globalThis as unknown as { reports: number }).reports);
+  await app.control.evaluate(() => {
+    type Bridge = { worship: { on: (channel: string, listener: () => void) => void } };
+    const counter = window as unknown as { buses: number };
+    counter.buses = 0;
+    (window as unknown as Bridge).worship.on("audio-levels", () => counter.buses++);
+  });
+  const buses = () => app.control.evaluate(() => (window as unknown as { buses: number }).buses);
+
+  await setStrips(app, false);
+  await app.previewFile("Audios", "tone");
+  await app.goLive();
+  const projector = await app.projector();
+  await expect.poll(() => projector.evaluate(() => document.querySelector("audio")?.paused)).toBe(false);
+  await app.control.waitForTimeout(1_500);
+  // Fails if anything measures while the strips are off: the tone is audible the whole time.
+  expect([await reports(), await buses()]).toEqual([0, 0]);
+
+  const audio = await projector.evaluate(() => {
+    const element: (HTMLAudioElement & { __kept?: boolean }) | null = document.querySelector("audio");
+    if (element) element.__kept = true;
+    return element?.currentTime ?? 0;
+  });
+  await setStrips(app, true);
+  await reads(app, "live", TONE_DB, "strips turned on mid-play");
+  expect(await reports()).toBeGreaterThan(0);
+  // Fails if turning them on remounts the element or restarts it.
+  expect(await projector.evaluate(() => (document.querySelector("audio") as HTMLAudioElement & { __kept?: boolean }).__kept)).toBe(true);
+  expect(await projector.evaluate(() => document.querySelector("audio")!.currentTime)).toBeGreaterThanOrEqual(audio);
 });

@@ -1,5 +1,6 @@
 import type { AudioBus } from "@shared/types/audio";
 import { broadcast } from "../services/broadcast";
+import { getSettingsRepo } from "../services/repos";
 
 /** Left and right in dBFS (sample peak); `-Infinity` is silence. */
 export type StereoDb = [number, number];
@@ -26,9 +27,10 @@ export function heardAt(peak: readonly [number, number], gain: number): StereoDb
  * One source's level as the room (LIVE) or the operator (PREVIEW) hears it, in dBFS after its final gain: an engine
  * session (its peak through its volume) or the projector's own Chromium elements (already through theirs). Each bus
  * is the loudest of its sources per channel, sent to the control windows as ONE `audio-levels` every 40 ms while any
- * of them sounds, then one silent message: nothing crosses while nothing plays.
+ * of them sounds, then one silent message: nothing crosses while nothing plays, nor while the strips are off.
  */
 export function reportLevel(source: unknown, bus: AudioBus, level: StereoDb): void {
+  if (!getSettingsRepo().get("audio.strips")) return;
   sources.set(source, { bus, level, at: Date.now() });
   timer ??= setInterval(tick, TICK_MS);
 }

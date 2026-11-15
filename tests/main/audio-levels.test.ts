@@ -5,6 +5,9 @@ import { afterEach, expect, test, vi } from "vitest";
 const sent = vi.hoisted(() => [] as unknown[]);
 vi.mock("../../src/main/services/broadcast", () => ({ broadcast: (_channel: string, payload: unknown) => sent.push(payload) }));
 
+const strips = vi.hoisted(() => ({ on: true }));
+vi.mock("../../src/main/services/repos", () => ({ getSettingsRepo: () => ({ get: () => strips.on }) }));
+
 const { heardAt, mixBuses, reportLevel } = await import("../../src/main/media/audio-levels");
 
 afterEach(() => {
@@ -52,4 +55,18 @@ test("the control windows hear the buses every 40 ms while something sounds, the
     vi.advanceTimersByTime(40);
   }
   expect(sent).toHaveLength(6);
+});
+
+test("with the strips off nothing is measured into a bus and nothing is sent", () => {
+  vi.useFakeTimers({ now: 0 });
+  // Fails if a source still counts with `audio.strips` off: the control windows would hear levels nobody can see.
+  strips.on = false;
+  try {
+    reportLevel("engine", "live", [-12, -12]);
+    vi.advanceTimersByTime(400);
+    expect(sent).toEqual([]);
+    expect(mixBuses(0)).toEqual({ live: [-Infinity, -Infinity], preview: [-Infinity, -Infinity] });
+  } finally {
+    strips.on = true;
+  }
 });

@@ -299,6 +299,9 @@ export type ProjectionOutput = ProjectionOutputKind & {
   /** Where LIVE sounds: the projector's elements and main's live engine sessions play there. Absent, the system's
    *  default output. */
   audioOut?: AudioOut;
+  /** The audio strips are on: the projector measures what its own elements sound at and reports it. Absent, it
+   *  measures nothing (`audio.strips` off). */
+  meters?: true;
 };
 
 /** Identifies one media element in the projection window: the full-screen
