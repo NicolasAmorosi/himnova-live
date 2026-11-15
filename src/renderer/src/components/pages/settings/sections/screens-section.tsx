@@ -24,8 +24,8 @@ function parsePhrases(text: string): string[] {
 }
 
 /** «Escenario»: how the stage screen is dressed. What it SAYS (message, countdown) is run from the work screen's
- *  stage panel, never from here (owner, 2026-11-13). */
-function StageOptionsGroup() {
+ *  stage panel, never from here (owner, 2026-11-13). As a copy of the projector only whether it plays videos. */
+function StageOptionsGroup({ mirror }: { mirror: boolean }) {
   const t = useT();
   const settings = useSettingsStore((s) => s.settings);
   const update = useSettingsStore((s) => s.update);
@@ -43,7 +43,15 @@ function StageOptionsGroup() {
   };
 
   return (
-    <FieldGroup description={t("settings.screens.stageGroupDesc")} title={t("settings.screens.stageGroup")}>
+    <FieldGroup description={mirror ? undefined : t("settings.screens.stageGroupDesc")} title={t("settings.screens.stageGroup")}>
+      <FieldRow description={t("settings.screens.videoMotionDesc")} label={t("settings.screens.videoMotion")}>
+        <Switch
+          checked={settings["stage.videoMotion"]}
+          onChange={(e) => void update({ "stage.videoMotion": e.target.checked })}
+        />
+      </FieldRow>
+      {mirror ? null : (
+        <>
       <FieldRow description={t("settings.screens.textSizeDesc")} label={t("settings.screens.textSize")}>
         <Segmented<StageTextSize>
           label={t("settings.screens.textSize")}
@@ -91,18 +99,20 @@ function StageOptionsGroup() {
           </Button>
         </div>
       </FieldRow>
+        </>
+      )}
     </FieldGroup>
   );
 }
 
 /** Settings ▸ Screens (plan 2026-11-13 §2.4): what each screen does, and how the stage is dressed. */
 export function ScreensSection() {
-  // A copy of the projector shows nothing of the stage's own.
+  // A copy of the projector shows nothing of the stage's own, but it can still play videos or not.
   const mirror = useSettingsStore((s) => s.settings["stage.mirror"]);
   return (
     <div className="flex flex-col gap-8">
       <ScreenGroup />
-      {mirror ? null : <StageOptionsGroup />}
+      <StageOptionsGroup mirror={mirror} />
     </div>
   );
 }

@@ -263,8 +263,8 @@ export class MediaEngine {
     if (!this.targets.has(contents)) this.targets.set(contents, { busy: false });
   }
 
-  /** Its frames go to these windows and no others: one that stopped copying the projector (the stage leaving
-   *  «Proyector») stops receiving them. */
+  /** Its frames go to these windows and no others: one that stopped copying the projector (the stage with its
+   *  videos turned off) stops receiving them. */
   showOnly(contents: readonly WebContents[]): void {
     for (const target of this.targets.keys()) if (!contents.includes(target)) this.targets.delete(target);
     for (const target of contents) this.show(target);

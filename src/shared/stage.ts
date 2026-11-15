@@ -4,7 +4,7 @@
  * same `StageView`.
  */
 import { formatSignedSeconds, timerDisplaySeconds } from "./timer";
-import type { CountdownClock, StageCountdown, StageLayout, StageLayoutChoice } from "./types/stage";
+import type { CountdownClock, StageCountdown, StageLayout, StageLayoutChoice, StopwatchClock } from "./types/stage";
 
 const OVERRUN_FORMAT = { hour12: false, showSeconds: true, hideZeroHours: true, overrun: true } as const;
 
@@ -37,6 +37,7 @@ export type CountdownTone = "normal" | "warn" | "alert" | "over";
 /** Its colour: by what is left as the stage shows it (whole seconds, rounded up), so the colour and the digits
  *  change on the same frame. */
 export function countdownTone(countdown: StageCountdown, now: number): CountdownTone {
+  if (countdown.clock.mode === "stopwatch") return "normal";
   const shown = timerDisplaySeconds(countdown.clock, now, OVERRUN_FORMAT) * 1000;
   if (shown <= 0) return "over";
   if (shown <= countdown.alertMs) return "alert";
@@ -44,7 +45,7 @@ export function countdownTone(countdown: StageCountdown, now: number): Countdown
 }
 
 /** `28:41`, `1:05:00`, and past zero `+2:13`: it keeps counting, never stops nor disappears. */
-export function formatCountdown(clock: CountdownClock, now: number): string {
+export function formatCountdown(clock: CountdownClock | StopwatchClock, now: number): string {
   const seconds = timerDisplaySeconds(clock, now, OVERRUN_FORMAT);
   const text = formatSignedSeconds(seconds, OVERRUN_FORMAT);
   return seconds < 0 ? `+${text.slice(1)}` : text;

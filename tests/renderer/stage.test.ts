@@ -34,6 +34,13 @@ test("it reads MM:SS, H:MM:SS from an hour, and +M:SS past zero, without stoppin
   expect(formatCountdown({ mode: "countdown", state: "held", remainingMs: 30 * 60_000 }, NOW)).toBe("30:00");
 });
 
+test("a Functions stopwatch counts up uncoloured: never amber, red nor «over» at its start", () => {
+  const stopwatch: StageCountdown = { clock: { mode: "stopwatch", state: "running", startedAtMs: NOW }, warnMs: 5 * 60_000, alertMs: 60_000 };
+  expect(countdownTone(stopwatch, NOW)).toBe("normal");
+  expect(countdownTone(stopwatch, NOW + 90_000)).toBe("normal");
+  expect(formatCountdown(stopwatch.clock, NOW + 90_000)).toBe("01:30");
+});
+
 test("short counts scale the thresholds down: amber at a fifth, red at a twentieth", () => {
   expect(stageThresholds(30 * 60_000, 5 * 60_000, 60_000)).toEqual({ warnMs: 5 * 60_000, alertMs: 60_000 });
   expect(stageThresholds(10 * 60_000, 5 * 60_000, 60_000)).toEqual({ warnMs: 2 * 60_000, alertMs: 30_000 });

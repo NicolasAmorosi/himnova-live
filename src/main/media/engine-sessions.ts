@@ -206,7 +206,7 @@ function syncVideo(target: VideoTarget, want: LiveEngineState | null, windows: (
 export function syncLiveEngine(): void {
   const projector = projectionState.getWindow();
   const { output } = projectionState.getSnapshot();
-  // The NDI output and the stage as «Proyector» draw the projector's picture, its videos included.
+  // The NDI output and the stage screen (while it plays videos) draw the projector's videos too.
   const windows = [projector, ...projectionState.getMirrors(), ...controlWindows()];
   syncAudio(projector !== null);
   syncVideo("video", liveEngineState(output, projector !== null), windows);

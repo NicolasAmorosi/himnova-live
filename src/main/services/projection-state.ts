@@ -14,7 +14,8 @@ import type { AudioTrackPush, ProjectionOutput } from "@shared/types/projection"
  */
 class ProjectionState {
   private window: BrowserWindow | null = null;
-  /** Windows that draw the same picture without being the projector: the NDI output's offscreen window.
+  /** Windows that draw the same picture without being the projector: the NDI output's offscreen window, and the
+   *  stage screen while it plays videos.
    *  They get every output, never the audio tracks (they play no sound), and they report nothing. */
   private readonly mirrors = new Set<BrowserWindow>();
   private lastOutput: ProjectionOutput | null = null;
@@ -54,7 +55,7 @@ class ProjectionState {
     win.once("closed", () => this.mirrors.delete(win));
   }
 
-  /** The stage screen stops being a copy of the projector («Proyector» left): no more pushes or videos for it. */
+  /** The stage screen stops playing videos (Settings): no more pushes, reports or frames for it. */
   removeMirror(win: BrowserWindow): void {
     this.mirrors.delete(win);
   }

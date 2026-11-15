@@ -64,6 +64,7 @@ export function startStageSync(): () => void {
       settings["stage.textSize"],
       settings["stage.clockFormat"],
       settings["stage.chords"],
+      settings["stage.videoMotion"],
       settings["stage.warnMs"],
       settings["stage.alertMs"],
     ];
@@ -73,7 +74,6 @@ export function startStageSync(): () => void {
       projection,
       { verses, currentVerseIndex },
       posterUrl,
-      { next: t("stage.next") },
       {
         countdown,
         message: message && { text: message.text, urgent: message.urgent, seq: message.seq },

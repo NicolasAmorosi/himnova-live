@@ -496,12 +496,12 @@ export type StageOutput = {
   current: ProjectionOutput;
   /** The next slide or verse, the one → would bring; `null` when there is none. */
   next: ProjectionOutput | null;
-  /** A live full-screen video as its poster (`OutputView`'s `videoStill`):
-   *  the stage decodes no video, a slide's included — except as a copy of the
-   *  projector («projector»), which plays them as the projector does. */
+  /** A live full-screen video as its poster (`OutputView`'s `videoStill`): what the stage shows with `videoMotion`
+   *  off, and `next` always. */
   videoStill: { posterUrl: string | null; videoUrl: string | null };
-  /** The caption over `next`, in the operator's language. */
-  nextLabel: string;
+  /** Settings ▸ Screens: the stage plays what is live, videos included, as one more of the projector's copies
+   *  (`stage-window.ts`); off, it decodes nothing. */
+  videoMotion: boolean;
   /** The preacher's countdown (the stage panel), or `null` when none is set. */
   countdown: StageCountdown | null;
   /** The message to the platform, a band in both the musicians' and the preacher's view (never over a copy of the

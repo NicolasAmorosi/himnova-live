@@ -137,8 +137,11 @@ keeps what it sent in `stage.store`'s `output`, which the stage panel's monitor 
 **The stage panel** (`components/pages/stage/StagePanel.tsx`, the foot of the left column, only while a stage
 screen is assigned; plan 2026-11-13) runs what the stage says, never Settings (owner). `stores/stage.store.ts`
 holds a manual countdown (a `TimerClock` mark plus its length: one push per change, none per second, the stage
-ticks it itself with `useTimerNow`), one message at a time (`seq` makes a new one blink three times; urgent
-blinks until taken off) and the message field's draft. It travels in the `StageOutput` as state, never as a
+ticks it itself with `useTimerNow`; it runs from the moment it is set, owner 2026-11-14), the length its field
+offers next (the last one started, this session), one message at a time (`seq` makes a new one blink three times; a
+new one always arrives plain, and urgent, blinking until taken off, is set on the one showing) and the message
+field's draft. Without a countdown of its own the stage counts a Functions countdown or stopwatch that is live
+(`stageOutputFor`, owner 2026-11-14). It travels in the `StageOutput` as state, never as a
 command. The view is a setting (`stage.layout`): «auto» is resolved before it leaves (`resolveStageLayout`:
 the pastor's, unless a song, a presentation or a verse whose chapter the Bible tab holds is live, its last slide
 included; owner, 2026-11-13), and Settings' copy of the projector (`stage.mirror`) makes it «projector» whatever
@@ -211,7 +214,7 @@ The NDI® output (`01-architecture.md`) is a copy of the projector, offscreen: `
 `ProjectorCopy` (`components/shared/projector-copy.tsx`) instead of `ProjectionApp`, which draws the same output,
 reports no `media-status`/`media-error` (the panel would see every video twice), mounts no audio track (main mutes
 its window too) and follows the projector's own reports with its Chromium videos. The stage window as «Proyector»
-draws the same component. The projector stays the only window that reports.
+draws the same component (and, playing videos in its other views, is a mirror too, for the same reports and frames). The projector stays the only window that reports.
 
 ## The actions layer
 

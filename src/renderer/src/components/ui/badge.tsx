@@ -1,5 +1,7 @@
-import type { HTMLAttributes } from "react";
+import type { HTMLAttributes, MouseEvent } from "react";
 import { cn } from "@renderer/lib/utils";
+import { Icon, type IconName } from "./icon";
+import { Tooltip } from "./tooltip";
 
 export type BadgeVariant = "blue" | "neutral" | "danger" | "success" | "ppt" | "video" | "image" | "audio" | "bible";
 
@@ -64,5 +66,44 @@ export function Token({ className, danger = false, ...props }: HTMLAttributes<HT
       )}
       {...props}
     />
+  );
+}
+
+type StatusTokenProps = HTMLAttributes<HTMLSpanElement> & {
+  icon: IconName;
+  /** The icon's colour while it is not the ✕: an `-ink`, for a state (a countdown turning red). */
+  iconClassName?: string | undefined;
+  onRemove: (event: MouseEvent<HTMLButtonElement>) => void;
+  removeLabel: string;
+};
+
+/**
+ * Something on now, in a bar (the stage panel's head: its countdown, its message): an icon and its words. The icon
+ * is also the way to take it off: pointed at or focused, it turns into ✕ in its own place, so the token never
+ * changes width and carries no second button that is always there (owner, 2026-11-14; VS Code's modified tab). A
+ * 24 px target, Primer's minimum.
+ */
+export function StatusToken({ children, className, icon, iconClassName, onRemove, removeLabel, ...props }: StatusTokenProps) {
+  return (
+    <span
+      className={cn(
+        "group/token inline-flex h-6 min-w-0 shrink-0 items-center gap-0.5 rounded-md border border-border bg-surface pr-2 text-xs font-medium text-foreground",
+        className,
+      )}
+      {...props}
+    >
+      <Tooltip content={removeLabel} floating>
+        <button
+          aria-label={removeLabel}
+          className="focus-ring-inset grid size-[1.375rem] shrink-0 cursor-pointer place-items-center rounded-sm transition-colors hover:bg-hover"
+          onClick={onRemove}
+          type="button"
+        >
+          <Icon className={cn("size-3.5 group-focus-within/token:hidden group-hover/token:hidden", iconClassName)} name={icon} />
+          <Icon className="hidden size-3.5 group-focus-within/token:block group-hover/token:block" name="close" />
+        </button>
+      </Tooltip>
+      {children}
+    </span>
   );
 }

@@ -20,11 +20,13 @@ export const STAGE_CLOCK_FORMATS = ["auto", "24h", "12h"] as const;
 export type StageClockFormat = (typeof STAGE_CLOCK_FORMATS)[number];
 
 export type CountdownClock = Extract<TimerClock, { mode: "countdown" }>;
+export type StopwatchClock = Extract<TimerClock, { mode: "stopwatch" }>;
 
-/** The countdown as the stage draws it: an absolute mark it subtracts against its own clock each second, so a
- *  change is one push and a running count is none (the `TimerClock` design). Thresholds come resolved. */
+/** The count as the stage draws it: an absolute mark it subtracts against its own clock each second, so a
+ *  change is one push and a running count is none (the `TimerClock` design). Thresholds come resolved. The panel's
+ *  countdown, or a Functions countdown or stopwatch that is live (owner, 2026-11-14), which counts up uncoloured. */
 export type StageCountdown = {
-  clock: CountdownClock;
+  clock: CountdownClock | StopwatchClock;
   /** Amber from here down, red from `alertMs` down, in milliseconds left. */
   warnMs: number;
   alertMs: number;
@@ -36,12 +38,8 @@ export type StageMessage = { text: string; urgent: boolean; seq: number };
 
 /** The longest message: two lines a platform can read at a glance. */
 export const STAGE_MESSAGE_MAX_LENGTH = 120;
-/** How many of the operator's own messages are kept to send again. */
-export const STAGE_RECENT_MESSAGES = 3;
 export const STAGE_PHRASES_MAX = 12;
 
 /** The thresholds the operator can pick, in minutes left. */
 export const STAGE_WARN_OPTIONS_MS = [10, 5, 3, 2].map((m) => m * 60_000);
 export const STAGE_ALERT_OPTIONS_MS = [2, 1, 0.5].map((m) => m * 60_000);
-/** One-click lengths in the panel, in minutes. */
-export const STAGE_PRESET_MINUTES = [20, 25, 30, 35, 40, 45] as const;

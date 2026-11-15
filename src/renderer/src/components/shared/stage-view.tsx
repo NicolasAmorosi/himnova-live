@@ -4,7 +4,7 @@ import { useTimerNow } from "@renderer/lib/hooks/use-timer-now";
 import { OutputView } from "@renderer/components/shared/output-view";
 import { countdownTone, formatCountdown, type CountdownTone } from "@shared/stage";
 import { formatWallClock } from "@shared/timer";
-import type { ProjectionOutput, StageOutput } from "@shared/types/projection";
+import type { MediaStatus, ProjectionOutput, StageOutput } from "@shared/types/projection";
 import type { StageCountdown, StageMessage } from "@shared/types/stage";
 import type { TimerClock, TimerFormat } from "@shared/types/timer";
 
@@ -74,14 +74,25 @@ function Swap({ children, className, swapKey }: { children: ReactNode; className
   );
 }
 
-/** A 16:9 frame drawn by the projector's own renderer, as a muted monitor. Its edge and corners are in the stage's
- *  own units, so the panel's small monitor is a true picture of it and not a box of thick lines. */
-function Frame({ output, videoStill }: { output: ProjectionOutput | null; videoStill: StageOutput["videoStill"] | undefined }) {
+/** The projector's own reports of its videos: given (and the stage set to move them), what is live plays in step
+ *  with it, the way the LIVE monitor's copy does; without them a video is its poster. */
+export type StageMedia = { video: MediaStatus | null; slideVideo: MediaStatus | null };
+
+/** What is live, drawn by the projector's own renderer as a muted monitor: playing with `media`, a poster without. */
+function LiveOutput({ media, output, videoStill }: { media: StageMedia | undefined; output: ProjectionOutput; videoStill: StageOutput["videoStill"] }) {
+  return media ? (
+    <OutputView liveVideoStatus={media.video} mode="monitor" output={output} slideVideoStatus={media.slideVideo} />
+  ) : (
+    <OutputView mode="monitor" output={output} videoStill={videoStill} />
+  );
+}
+
+/** A 16:9 frame, as a muted monitor. Its edge and corners are in the stage's own units, so the panel's small monitor
+ *  is a true picture of it and not a box of thick lines. */
+function Frame({ children }: { children: ReactNode }) {
   return (
     <div className="wa-stage-frame w-full overflow-hidden bg-black">
-      <div className="aspect-video w-full">
-        {output ? <OutputView mode="monitor" output={output} videoStill={videoStill} /> : null}
-      </div>
+      <div className="aspect-video w-full">{children}</div>
     </div>
   );
 }
@@ -167,25 +178,23 @@ function MessageBand({ message }: { message: StageMessage | null }) {
 /** A line `cqw` high whatever it holds: the time, the count or nothing take the same room, so nothing around moves. */
 const line = (cqw: number): CSSProperties => ({ height: `calc(${cqw}cqw * var(--stage-scale))` });
 
-/** What is live (large) and what comes next. With a countdown, the count takes the time's place and the time
- *  goes small beside «Sigue» (owner, 2026-11-13): in «Auto» a verse projected mid-sermon brings this view, and the
- *  pastor still reads the count from the pulpit. Every line keeps its height through that change. */
-function Musicians({ stage }: { stage: StageOutput | null }) {
+/** What is live (large) and what comes next, which needs no caption (owner, 2026-11-14). With a countdown, the
+ *  count takes the time's place and the time goes small over what comes next (owner, 2026-11-13): in «Auto» a verse
+ *  projected mid-sermon brings this view, and the pastor still reads the count from the pulpit. Every line keeps its
+ *  height through that change. */
+function Musicians({ media, stage }: { media: StageMedia | undefined; stage: StageOutput | null }) {
   const countdown = stage?.countdown ?? null;
   const hour12 = stage?.hour12 ?? false;
   return (
     <div className="grid h-full grid-cols-[3fr_2fr] items-center gap-[2cqw] p-[2cqw]">
-      <Frame output={stage?.current ?? null} videoStill={stage?.videoStill} />
+      <Frame>{stage ? <LiveOutput media={media} output={stage.current} videoStill={stage.videoStill} /> : null}</Frame>
       <aside className="flex min-w-0 flex-col gap-[1.5cqw]">
         <div style={line(7)}>
           <Swap className="h-full items-center justify-items-start" swapKey={countdown ? "countdown" : "clock"}>
             {countdown ? <Countdown countdown={countdown} cqw={7} /> : <Clock cqw={7} hour12={hour12} />}
           </Swap>
         </div>
-        <div className="flex items-center justify-between gap-[1cqw]" style={line(2.6)}>
-          <p className="leading-none font-medium tracking-wide text-white/60 uppercase" style={sized(1.6)}>
-            {stage?.nextLabel}
-          </p>
+        <div className="flex items-center justify-end" style={line(2.6)}>
           <Swap swapKey={countdown ? "clock" : "none"}>
             {countdown ? (
               <span className="text-white/80">
@@ -194,7 +203,7 @@ function Musicians({ stage }: { stage: StageOutput | null }) {
             ) : null}
           </Swap>
         </div>
-        <Frame output={stage?.next ?? null} videoStill={stage?.videoStill} />
+        <Frame>{stage?.next ? <OutputView mode="monitor" output={stage.next} videoStill={stage.videoStill} /> : null}</Frame>
       </aside>
     </div>
   );
@@ -202,7 +211,7 @@ function Musicians({ stage }: { stage: StageOutput | null }) {
 
 /** The countdown as large as fits, and below it the time and what the projector shows — always, black and LOGO
  *  included (owner, 2026-11-13). Without a countdown, the time takes its place. */
-function Preacher({ stage }: { stage: StageOutput }) {
+function Preacher({ media, stage }: { media: StageMedia | undefined; stage: StageOutput }) {
   const countdown = stage.countdown;
   return (
     <div className="flex h-full flex-col gap-[1.5cqw] p-[2cqw]">
@@ -212,7 +221,9 @@ function Preacher({ stage }: { stage: StageOutput }) {
       <div className="flex items-end justify-between gap-[2cqw]">
         <Swap swapKey={countdown ? "clock" : "none"}>{countdown ? <Clock cqw={6} hour12={stage.hour12} /> : null}</Swap>
         <div className="w-[30cqw] shrink-0">
-          <Frame output={stage.current} videoStill={stage.videoStill} />
+          <Frame>
+            <LiveOutput media={media} output={stage.current} videoStill={stage.videoStill} />
+          </Frame>
         </div>
       </div>
     </div>
@@ -224,15 +235,27 @@ function Preacher({ stage }: { stage: StageOutput }) {
  * lie to the operator. Everything is in units of its own box (`container-type: size`), never of the window, and in
  * the dark theme's colours whatever the control window's theme is. A pure function of the `StageOutput`.
  *
- * «Projector» is a copy of the projector and nothing else. `copy` draws it: the stage window passes the projector's
- * own picture (`ProjectorCopy`, its videos playing); without it — the panel's monitor — it is `current`, a video as
- * its poster.
+ * What is live moves only when the stage is set to (`videoMotion`) and the caller has the projector's reports
+ * (`media`): the stage window, and the panel's monitor unless the monitors show stills. «Projector» is a copy of the
+ * projector and nothing else: `copy` draws it (the stage window's `ProjectorCopy`), or else `current`.
  */
-export function StageView({ stage, className, copy }: { stage: StageOutput | null; className?: string; copy?: ReactNode }) {
+export function StageView({
+  stage,
+  className,
+  copy,
+  media,
+}: {
+  stage: StageOutput | null;
+  className?: string;
+  copy?: ReactNode;
+  media?: StageMedia | undefined;
+}) {
   const layout = stage?.layout ?? "musicians";
+  const moving = stage?.videoMotion ? media : undefined;
   return (
     <div
       className={cn("size-full overflow-hidden bg-black text-white [container-type:size]", className)}
+      data-layout={layout}
       data-theme="dark"
       style={{ "--stage-scale": stage?.textScale ?? 1 } as CSSProperties}
     >
@@ -240,11 +263,11 @@ export function StageView({ stage, className, copy }: { stage: StageOutput | nul
         {/* Switching views is a crossfade, never a cut. */}
         <Swap className="min-h-0 flex-1 grid-rows-[minmax(0,1fr)]" swapKey={layout}>
           {stage && layout === "projector" ? (
-            (copy ?? <OutputView mode="monitor" output={stage.current} videoStill={stage.videoStill} />)
+            ((moving ? copy : null) ?? <LiveOutput media={moving} output={stage.current} videoStill={stage.videoStill} />)
           ) : stage && layout === "preacher" ? (
-            <Preacher stage={stage} />
+            <Preacher media={moving} stage={stage} />
           ) : (
-            <Musicians stage={stage} />
+            <Musicians media={moving} stage={stage} />
           )}
         </Swap>
         <MessageBand message={layout === "projector" ? null : (stage?.message ?? null)} />

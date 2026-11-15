@@ -129,9 +129,8 @@ describe("the output", () => {
 
   test("the musicians' screen shows the verse in its own version only", () => {
     useProjectionStore.getState().setBase({ kind: "bible", text: "Jesús lloró.", reference: "Juan 11:35", versionLabel: null, parallel: JOHN });
-    const words = { black: "NEGRO", lyricsHidden: "", next: "" };
     const next = { verses: [verse(43, 35), verse(43, 36)], currentVerseIndex: 0 };
-    const stage = stageOutputFor(useProjectionStore.getState(), next, null, words, {
+    const stage = stageOutputFor(useProjectionStore.getState(), next, null, {
       countdown: null,
       message: null,
       settings: DEFAULT_SETTINGS,

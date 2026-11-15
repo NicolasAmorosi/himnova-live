@@ -20,7 +20,6 @@ import {
   STAGE_LAYOUT_CHOICES,
   STAGE_MESSAGE_MAX_LENGTH,
   STAGE_PHRASES_MAX,
-  STAGE_RECENT_MESSAGES,
   STAGE_TEXT_SIZES,
   STAGE_WARN_OPTIONS_MS,
   type StageClockFormat,
@@ -113,13 +112,14 @@ export type SettingsMap = {
   "stage.clockFormat": StageClockFormat;
   /** A live song's chords over its words on the stage (since 2.6.0, the only place they show). */
   "stage.chords": boolean;
+  /** The stage plays what is live, videos included (owner, 2026-11-14: a church with a stage screen has the machine
+   *  for one more copy); off, it shows a video as its poster and decodes nothing. */
+  "stage.videoMotion": boolean;
   /** The countdown turns amber, then red, with this much left (scaled down for short counts: `stageThresholds`). */
   "stage.warnMs": number;
   "stage.alertMs": number;
   /** The panel's ready phrases; `null` is the language's own (`stage.defaultPhrases`), so they follow it. */
   "stage.phrases": string[] | null;
-  /** The last messages the operator wrote, newest first, offered next to the phrases. */
-  "stage.recentMessages": string[];
   "ui.theme": Theme;
   "ui.locale": Locale;
   "media.volume": number;
@@ -271,10 +271,10 @@ export const DEFAULT_SETTINGS: SettingsMap = {
   "stage.textSize": "normal",
   "stage.clockFormat": "auto",
   "stage.chords": true,
+  "stage.videoMotion": true,
   "stage.warnMs": 5 * 60_000,
   "stage.alertMs": 60_000,
   "stage.phrases": null,
-  "stage.recentMessages": [],
   "ui.theme": "dark",
   "ui.locale": "es",
   // Full. Anything sent live is meant to be heard, and a level the operator
@@ -406,6 +406,7 @@ export const SETTINGS_VALIDATORS: Record<keyof SettingsMap, (value: unknown) => 
   "stage.textSize": isOneOf(STAGE_TEXT_SIZES),
   "stage.clockFormat": isOneOf(STAGE_CLOCK_FORMATS),
   "stage.chords": isBoolean,
+  "stage.videoMotion": isBoolean,
   "stage.warnMs": (v) => STAGE_WARN_OPTIONS_MS.includes(v as number),
   "stage.alertMs": (v) => STAGE_ALERT_OPTIONS_MS.includes(v as number),
   "stage.phrases": isNullOr(
@@ -414,10 +415,6 @@ export const SETTINGS_VALIDATORS: Record<keyof SettingsMap, (value: unknown) => 
       v.length <= STAGE_PHRASES_MAX &&
       v.every((p) => typeof p === "string" && p.trim().length > 0 && p.length <= STAGE_MESSAGE_MAX_LENGTH),
   ),
-  "stage.recentMessages": (v) =>
-    Array.isArray(v) &&
-    v.length <= STAGE_RECENT_MESSAGES &&
-    v.every((p) => typeof p === "string" && p.length <= STAGE_MESSAGE_MAX_LENGTH),
   "ui.theme": isOneOf(THEMES),
   "ui.locale": isOneOf(LOCALES),
   "media.volume": isNumberIn(0, 1),

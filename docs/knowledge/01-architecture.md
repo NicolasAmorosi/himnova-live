@@ -61,14 +61,15 @@ before the first GO LIVE it would be what the room sees. The roles exclude each 
 given the projector's moves the projector, each said in a toast); the operator's own screen takes both, as
 movable windows. While it exists a `powerSaveBlocker` keeps the screens awake, as the projector's does, and
 whether it is on screen reaches the control window as `stage-screen` (the stage panel's dot; a toast when a
-screen coming or going is why). It plays nothing: a video is
-its poster (`OutputView`'s `videoStill`), so it has no audio, no media commands and no engine
-session. **Except as «Proyector»** (the panel's view, or Settings' «Copia del proyector» role, `stage.mirror`, which
-locks it there and hides the panel; owner 2026-11-13): then it draws `ProjectorCopy` (the NDI window's copy of the
-projector, `components/shared/projector-copy.tsx`) and main counts it among `projectionState`'s mirrors
-(`syncCopy`, keyed on the `StageOutput`'s resolved layout), so it gets the projector's pushes, its `media-status`
-and the engine's frames; leaving the view takes it out again and `showOnly` stops the frames. Its window is always
-muted. The control window builds its picture (`lib/stage-output.ts`, pushed by
+screen coming or going is why). **It plays what is live, videos included** (owner, 2026-11-14), unless Settings ▸
+Screens' «Videos en el escenario» (`stage.videoMotion`) is off: then a video is its poster (`OutputView`'s
+`videoStill`) and it decodes nothing. Playing, main counts it among `projectionState`'s mirrors (`syncCopy`, keyed on
+the `StageOutput`'s `videoMotion`), so it gets the projector's pushes, its `media-status` and the engine's frames: its
+live frame follows those reports like the LIVE monitor's copy, and as «Proyector» (the panel's view, or Settings'
+«Copia del proyector» role, `stage.mirror`, which locks it there and hides the panel; owner 2026-11-13) it draws
+`ProjectorCopy` (the NDI window's copy of the projector, `components/shared/projector-copy.tsx`). Turning it off takes
+it out again and `showOnly` stops the frames. Its window is always muted: no audio and no media commands of its own.
+The control window builds its picture (`lib/stage-output.ts`, pushed by
 `effects/stage-sync.ts` through `stage:show`); main keeps the last one for a window that opens
 later (`stage:getSnapshot`). On the operator's own screen it is a movable 800×450 window, never a
 fullscreen one over the control window. Its keys are forwarded to the control window, like the

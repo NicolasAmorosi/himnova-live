@@ -8,7 +8,6 @@ import type { CountdownClock, StageMessage, StageTextSize } from "@shared/types/
 
 /** The Bible tab's cursor: a verse projected from it can tell what follows. */
 export type StageBibleCursor = { verses: readonly BibleVerseDTO[]; currentVerseIndex: number | null };
-export type StageWords = { next: string };
 
 /** What the stage panel set (the stage store) and how Settings ▸ Screens dresses it. */
 export type StageControls = {
@@ -21,6 +20,7 @@ export type StageControls = {
     | "stage.textSize"
     | "stage.clockFormat"
     | "stage.chords"
+    | "stage.videoMotion"
     | "stage.warnMs"
     | "stage.alertMs"
     | "ui.locale"
@@ -87,23 +87,27 @@ function nextOutput(state: ProjectionStoreState, bible: StageBibleCursor): Proje
 
 /**
  * The musicians' screen (`StageOutput`): what the projector shows and what comes next. `posterUrl` is the live
- * video's thumbnail, fetched by the caller: the stage shows a video as its poster.
+ * video's thumbnail, fetched by the caller: what the stage shows for it with its videos off, and under `next`.
  */
 export function stageOutputFor(
   state: ProjectionStoreState,
   bible: StageBibleCursor,
   posterUrl: string | null,
-  words: StageWords,
   controls: StageControls,
 ): StageOutput {
   const { base } = state;
   const { settings } = controls;
   const withStageChords = <T extends ProjectionOutput | null>(output: T, position: SongPosition | null): T =>
     settings["stage.chords"] ? (withChords(output, state, position) as T) : output;
-  const countdown = controls.countdown && {
-    clock: controls.countdown.clock,
-    ...stageThresholds(controls.countdown.totalMs, settings["stage.warnMs"], settings["stage.alertMs"]),
-  };
+  const thresholds = (totalMs: number) => stageThresholds(totalMs, settings["stage.warnMs"], settings["stage.alertMs"]);
+  // The panel's own countdown; without one, a Functions countdown or stopwatch that is live, in the stage's style
+  // (owner, 2026-11-14). A countdown to a time has no length: the operator's thresholds as they are.
+  const live = base?.kind === "utility" ? base : null;
+  const countdown = controls.countdown
+    ? { clock: controls.countdown.clock, ...thresholds(controls.countdown.totalMs) }
+    : live && live.clock.mode !== "clock"
+      ? { clock: live.clock, ...thresholds(live.scene.tool === "countdown" ? live.scene.config.durationMs : Infinity) }
+      : null;
   const clockFormat = settings["stage.clockFormat"];
   // Followed: a song, a presentation, or a verse whose chapter the Bible tab holds (a next is known).
   const layout = settings["stage.mirror"]
@@ -119,7 +123,7 @@ export function stageOutputFor(
     current: layout === "projector" ? selectOutput(state) : withStageChords(onStage(shown), base?.kind === "song" ? base : null),
     next: withStageChords(nextOutput(state, bible), base?.kind === "song" ? stepSong(base.song, base, 1) : null),
     videoStill: { posterUrl, videoUrl: base?.kind === "video" ? base.url : null },
-    nextLabel: words.next,
+    videoMotion: settings["stage.videoMotion"],
     countdown,
     message: controls.message,
     layout,

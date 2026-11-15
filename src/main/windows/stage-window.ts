@@ -15,11 +15,11 @@ const PRELOAD = path.join(__dirname, "../preload/index.js");
 
 /**
  * The musicians' screen: what is live, what comes next and the time, on the
- * screen chosen in Settings ▸ Projection (`stage.displayId`). Unlike the
+ * screen chosen in Settings ▸ Screens (`stage.displayId`). Unlike the
  * projector it is open whenever that screen is connected — the band reads the
- * time before anything goes live — and it plays nothing: a video shows as its
- * poster, so there is no media, no audio and no engine to keep in step. Except
- * as «Proyector», a copy of the projector (`syncCopy`), always silent.
+ * time before anything goes live. It plays what is live, videos included,
+ * unless Settings turns that off (`videoMotion`): then a video is its poster
+ * and it decodes nothing (`syncCopy`). Always silent.
  *
  * `syncStageWindow` is the one place that decides whether it exists and where:
  * called when the control window opens, when its setting or the projector's
@@ -91,13 +91,12 @@ export function showOnStage(output: StageOutput): void {
   syncCopy();
 }
 
-/** As «Proyector» the stage is a copy of the projector (`ProjectorCopy`): one of its mirrors, so it gets the
- *  projector's pushes, its reports and the engine's frames — and only then, so the musicians' and the preacher's
- *  views decode nothing. */
+/** While the stage plays videos (`videoMotion`, the default) it is one of the projector's mirrors, so it gets the
+ *  projector's pushes, its reports and the engine's frames — and only then: with stills it decodes nothing. */
 function syncCopy(): void {
   const win = current?.win;
   if (!win || win.isDestroyed()) return;
-  const copy = lastOutput?.layout === "projector";
+  const copy = lastOutput?.videoMotion === true;
   if (copy === projectionState.isMirror(win)) return;
   if (copy) projectionState.addMirror(win);
   else projectionState.removeMirror(win);
@@ -136,7 +135,7 @@ function createStageWindow(display: Electron.Display): BrowserWindow {
     },
   });
   trustWindow(win);
-  // Never a sound: as a copy of the projector it plays what the projector plays, and the room hears the projector.
+  // Never a sound: it plays what the projector plays, and the room hears the projector.
   win.webContents.setAudioMuted(true);
   forwardKeysToControl(win);
   win.on("page-title-updated", (event) => event.preventDefault());

@@ -2,7 +2,7 @@ export { Button } from "./button";
 export { BrandMark, Wordmark } from "./brand";
 export { IconButton } from "./icon-button";
 export { Icon, iconNames, type IconName } from "./icon";
-export { Badge, Token, type BadgeVariant } from "./badge";
+export { Badge, StatusToken, Token, type BadgeVariant } from "./badge";
 export { Box, Card, CardHeader, CardContent, CardFooter } from "./card";
 export { Input } from "./input";
 export { Menu, type MenuOption } from "./menu";

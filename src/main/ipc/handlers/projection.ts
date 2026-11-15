@@ -161,7 +161,7 @@ export const projectionHandlers: Pick<
 
   /** The projection window describing its own media element; forwarded to the
    *  control window, which owns the autoplay clock, and to the projector's copies
-   *  (the NDI window, the stage as «Proyector»), whose Chromium videos follow it. */
+   *  (the NDI window, the stage while it plays videos), whose Chromium videos follow it. */
   "projection:reportMediaStatus": (status) => {
     broadcast("media-status", status);
     if (status.target.kind === "audio") return;

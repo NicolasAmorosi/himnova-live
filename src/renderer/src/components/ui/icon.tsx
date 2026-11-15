@@ -1,5 +1,7 @@
 import {
   AlarmClock,
+  CornerDownLeft,
+  Zap,
   DatabaseBackup,
   House,
   Keyboard,
@@ -112,6 +114,10 @@ const icons = {
   // A verse in two versions side by side (the Bible tab's «En paralelo»).
   columns: Columns2,
   alarm: AlarmClock,
+  /** Enter: sends what the field holds (the stage panel's message). */
+  enter: CornerDownLeft,
+  /** The stage message blinking until it is taken off. */
+  flash: Zap,
   hourglass: Hourglass,
   timer: Timer,
   copy: Copy,

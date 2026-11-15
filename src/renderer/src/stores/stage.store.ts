@@ -27,22 +27,21 @@ type StageStoreState = {
    *  fold it. For this session. */
   panelPinned: boolean;
   setPanelPinned: (pinned: boolean) => void;
-  /** The message field's text and urgency, kept while the panel folds. */
+  /** The message field's text, kept while the panel folds. */
   draft: string;
-  draftUrgent: boolean;
+  /** The length the countdown field offers: the last one started, for this session. */
+  lengthMs: number;
 
-  /** Set to `totalMs`, held: ▶ starts it. */
-  armCountdown: (totalMs: number) => void;
+  /** Running at once, for `totalMs` (owner, 2026-11-14: no «set, then start»). */
+  startCountdown: (totalMs: number) => void;
   /** Running at once, to today's `HH:MM`. */
   countdownUntil: (minuteOfDay: number) => void;
   toggleCountdown: () => void;
-  /** Back to its length, held. */
-  resetCountdown: () => void;
   /** ±1 min, running or not; the length follows, so the colours keep their place. */
   nudgeCountdown: (deltaMs: number) => void;
   clearCountdown: () => void;
-  showMessage: (text: string, urgent: boolean) => void;
-  /** The next message's urgency, and the one showing now's. */
+  /** A new message always arrives plain: blinking until it is taken off is asked of the one showing (`setUrgent`). */
+  showMessage: (text: string) => void;
   setUrgent: (urgent: boolean) => void;
   clearMessage: () => void;
 };
@@ -55,13 +54,14 @@ export const useStageStore = create<StageStoreState>((set, get) => ({
   output: null,
   shown: false,
   draft: "",
-  draftUrgent: false,
+  lengthMs: 30 * MINUTE,
   panelOpen: false,
   setPanelOpen: (panelOpen) => set({ panelOpen }),
   panelPinned: false,
   setPanelPinned: (panelPinned) => set({ panelPinned }),
 
-  armCountdown: (totalMs) => set({ countdown: { clock: { mode: "countdown", state: "held", remainingMs: totalMs }, totalMs } }),
+  startCountdown: (totalMs) =>
+    set({ countdown: { clock: { mode: "countdown", state: "running", endsAtMs: Date.now() + totalMs }, totalMs }, lengthMs: totalMs }),
 
   countdownUntil: (minuteOfDay) => {
     const now = Date.now();
@@ -75,11 +75,6 @@ export const useStageStore = create<StageStoreState>((set, get) => ({
     const now = Date.now();
     const clock = countdown.clock.state === "running" ? holdClock(countdown.clock, now) : resumeClock(countdown.clock, now);
     set({ countdown: { ...countdown, clock: clock as CountdownClock } });
-  },
-
-  resetCountdown: () => {
-    const { countdown } = get();
-    if (countdown) get().armCountdown(countdown.totalMs);
   },
 
   nudgeCountdown: (deltaMs) => {
@@ -99,14 +94,13 @@ export const useStageStore = create<StageStoreState>((set, get) => ({
 
   clearCountdown: () => set({ countdown: null }),
 
-  showMessage: (text, urgent) => {
+  showMessage: (text) => {
     const trimmed = text.trim();
     if (trimmed === "") return;
-    set({ message: { text: trimmed, urgent, since: Date.now(), seq: ++seq } });
+    set({ message: { text: trimmed, urgent: false, since: Date.now(), seq: ++seq } });
   },
 
   setUrgent: (urgent) => {
-    set({ draftUrgent: urgent });
     const { message } = get();
     // A new `seq`: switching it off still announces the message once more, as it reads now.
     if (message && message.urgent !== urgent) set({ message: { ...message, urgent, seq: ++seq } });
@@ -115,7 +109,7 @@ export const useStageStore = create<StageStoreState>((set, get) => ({
   clearMessage: () => set({ message: null }),
 }));
 
-/** Opens the stage panel's card and puts the keyboard in its message field: the M key and the bar's «Mensaje». At once
+/** Opens the stage panel's card and puts the keyboard in its message field: the M key. At once
  *  when the card is open, so a letter typed right after it lands in the field and is never a shortcut (a «b» was
  *  BLACK); closed, the card mounts on the next render, so the focus waits a frame. */
 export function focusStageMessage(): void {
