@@ -15,6 +15,8 @@ const h = vi.hoisted(() => {
   class FakeEngine {
     readonly calls: string[] = [];
     load: { device?: string; paused?: boolean } | null = null;
+    /** What the session told it to report to: a real engine's stdout events go there. */
+    events: { audioOut?: (state: { ok: boolean; device: string }) => void } = {};
     paused = false;
     usable = true;
     position = 0;
@@ -29,6 +31,7 @@ const h = vi.hoisted(() => {
     list: vi.fn<() => Promise<{ name: string; description: string }[] | null>>(),
     proto: vi.fn<() => number | null>(() => 8),
     ndi: vi.fn(),
+    broadcast: vi.fn(),
   };
 });
 
@@ -38,7 +41,10 @@ vi.mock("../../src/main/media/media-engine", () => ({
     h.engines.push(engine);
     const log = (line: string) => () => engine.calls.push(line);
     return Object.assign(engine, {
-      load: (opts: { device?: string; paused?: boolean }) => engine.loadFile(opts),
+      load: (opts: { device?: string; paused?: boolean }, _key: string, events: typeof engine.events) => {
+        engine.events = events;
+        engine.loadFile(opts);
+      },
       setDevice: (device: string) => engine.calls.push(`device ${device}`),
       seek: (at: number) => engine.calls.push(`seek ${at}`),
       setPaused: (paused: boolean) => {
@@ -47,7 +53,10 @@ vi.mock("../../src/main/media/media-engine", () => ({
       },
       setVolume: log("volume"),
       setLoop: log("loop"),
-      retarget: log("retarget"),
+      retarget: (_key: string, events: typeof engine.events) => {
+        engine.events = events;
+        engine.calls.push("retarget");
+      },
       show: () => undefined,
       showOnly: () => undefined,
       redraw: () => {
@@ -62,7 +71,7 @@ vi.mock("../../src/main/media/media-engine", () => ({
 }));
 vi.mock("../../src/main/ndi/ndi-output", () => ({ setNdiAudioRoute: h.ndi }));
 vi.mock("../../src/main/services/repos", () => ({ getMediaRepo: () => ({ getPathById: (id: number) => `/media/${id}.avi` }) }));
-vi.mock("../../src/main/services/broadcast", () => ({ broadcast: () => undefined, controlWindows: () => [] }));
+vi.mock("../../src/main/services/broadcast", () => ({ broadcast: h.broadcast, controlWindows: () => [] }));
 
 const { matchAudioOutputs, setAudioRoute } = await import("../../src/main/media/audio-route");
 const { setPreviewVideo, syncLiveEngine } = await import("../../src/main/media/engine-sessions");
@@ -147,6 +156,47 @@ test("a paused session moved to another output is sought where it stands, so pla
   paused.calls.length = 0;
   setAudioRoute({ live: null, preview: null, previewApart: false });
   expect(paused.calls).toEqual(["device auto"]);
+});
+
+test("an output the engine sessions lose reaches the control window once, and again once it is chosen again", () => {
+  setAudioRoute({ live: SCARLETT, preview: null, previewApart: true });
+  projectionState.setWindow(projector);
+  // Two live sessions on LIVE's output (a video and a deck's WMA) and PREVIEW's on the default.
+  projectionState.send(liveVideo(20, 20));
+  projectionState.setAudioTracks([{ trackId: "t1", url: engineAssetUrl(21), epoch: 20, paused: false, startAtSeconds: 0, volume: 1, loop: false }]);
+  syncLiveEngine();
+  const [music, video] = h.engines.slice(-2); // the audio tracks are synced first
+  setPreviewVideo({ url: engineAssetUrl(22), paused: true, startAtSeconds: 0, volume: 0, picture: true }, control);
+  const previewEngine = h.engines.at(-1)!;
+  const said = () => h.broadcast.mock.calls.filter(([channel]) => channel === "audio-out").map(([, payload]) => payload as unknown);
+  h.broadcast.mockClear();
+
+  // The engine's own stdout line (`{"ev":"audio-out","ok":false,…}`), through the session's events. Fails if a session
+  // never forwards it: the strip stayed green while the room heard nothing (the 2026-11-15 final review).
+  video!.events.audioOut?.({ ok: false, device: SCARLETT });
+  expect(said()).toEqual([{ device: SCARLETT, ok: false }]);
+  // Every other session on that output says the same: once is enough.
+  music!.events.audioOut?.({ ok: false, device: SCARLETT });
+  expect(said()).toHaveLength(1);
+  // PREVIEW's engine speaks too.
+  previewEngine.events.audioOut?.({ ok: false, device: "auto" });
+  expect(said()).toEqual([{ device: SCARLETT, ok: false }, { device: "auto", ok: false }]);
+
+  // The control window routes LIVE to the default, then the operator chooses that output again and it fails again:
+  // said again, or the strip would stay green on a retry.
+  setAudioRoute({ live: null, preview: null, previewApart: false });
+  setAudioRoute({ live: SCARLETT, preview: null, previewApart: true });
+  video!.events.audioOut?.({ ok: false, device: SCARLETT });
+  expect(said()).toHaveLength(3);
+
+  // A session that is no longer live (a new file went live) says nothing.
+  projectionState.send(liveVideo(23, 23));
+  syncLiveEngine();
+  setAudioRoute({ live: null, preview: null, previewApart: false });
+  video!.events.audioOut?.({ ok: true, device: SCARLETT });
+  expect(said()).toHaveLength(3);
+  projectionState.setAudioTracks([]);
+  syncLiveEngine();
 });
 
 test("outputs are matched against the engine's own list; one that cannot choose is told from one that has not answered", async () => {

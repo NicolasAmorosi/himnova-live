@@ -59,6 +59,9 @@ let preview: Session | null = null;
 /** Where each bus sounds (mpv's `audio-device` names, `EngineDevice.name`): null is the system's default, and then
  *  nothing is sent, as before there was a choice. */
 const devices: { live: string | null; preview: string | null } = { live: null, preview: null };
+/** What the control window was last told of each output (`audio-out`, by mpv name): every session on a bus says the
+ *  same thing, so it is said once. A route that changes forgets it: an output chosen again that still fails is said again. */
+const audioOutSaid = new Map<string, boolean>();
 /** What PREVIEW last asked for, and from which window: GO LIVE takes its engine and starts it another. */
 let previewAsked: { video: PreviewEngineVideo; contents: WebContents } | null = null;
 
@@ -109,6 +112,17 @@ function start(
   );
 }
 
+/** An engine session lost its output or could not open it (`ok: false`), or has it back: the control window routes
+ *  that bus to the default whole and says so (`effects/audio-route.ts`). */
+function audioOut(isCurrent: () => boolean): NonNullable<EngineEvents["audioOut"]> {
+  return ({ device, ok }) => {
+    if (!isCurrent() || audioOutSaid.get(device) === ok) return;
+    audioOutSaid.set(device, ok);
+    console.info(`[engine] audio-out ${device}: ${ok ? "ok" : "lost"}`);
+    broadcast("audio-out", { device, ok });
+  };
+}
+
 /** The live sessions' `media-status` and `media-error`, as the projector's own elements report them. */
 function liveEvents(session: Session, target: MediaTarget, isCurrent: () => boolean): EngineEvents {
   return {
@@ -135,6 +149,7 @@ function liveEvents(session: Session, target: MediaTarget, isCurrent: () => bool
     level: (peak) => {
       if (isCurrent()) reportLevel(session, "live", heardAt(peak, session.volume));
     },
+    audioOut: audioOut(isCurrent),
   };
 }
 
@@ -320,6 +335,7 @@ export function setPreviewVideo(video: PreviewEngineVideo | null, contents: WebC
     level: (peak) => {
       if (preview === session) reportLevel(session, "preview", heardAt(peak, session.volume));
     },
+    audioOut: audioOut(() => preview === session),
   });
   if (video.picture) session.engine?.show(contents);
 }
@@ -327,6 +343,7 @@ export function setPreviewVideo(video: PreviewEngineVideo | null, contents: WebC
 /** Moves each bus to its output (mpv names, null the system's default): the sessions playing now and every one
  *  after. The song's video background is silent and stays put. */
 export function setEngineAudioDevices(next: { live: string | null; preview: string | null }): void {
+  if (next.live !== devices.live || next.preview !== devices.preview) audioOutSaid.clear();
   if (next.live !== devices.live) {
     devices.live = next.live;
     for (const session of [videos.video, videos.slideVideo, ...audio.values()]) moveSession(session, next.live);

@@ -147,6 +147,31 @@ test("an output the engine says it cannot open sends the bus to the default, unt
   expect(useProjectionStore.getState().liveAudioOut).toEqual({ sinkId: "b2", engineDevice: SCARLETT });
 });
 
+test("an output refused for the session is tried again when the operator chooses it again", async () => {
+  plugged = [...speakers, scarlett];
+  stop = startAudioRouteEffects();
+  await settle();
+  emit("audio-out", { device: SCARLETT, ok: false });
+  await settle();
+  expect(useAudioRouteStore.getState().live.state).toBe("unusable");
+  expect(toasts()).toHaveLength(1);
+  // The menu and Settings write a new choice even for the output already chosen. Fails if the refusal outlives it:
+  // choosing it did nothing until it was unplugged.
+  const choose = () =>
+    useSettingsStore.setState((state) => ({ settings: { ...state.settings, "audio.output.live": { label: "Scarlett 2i2", deviceId: "b2" } } }));
+  choose();
+  await settle();
+  expect(useProjectionStore.getState().liveAudioOut).toEqual({ sinkId: "b2", engineDevice: SCARLETT });
+  expect(useAudioRouteStore.getState().live.state).toBe("ok");
+  // No «connected again» for an output the operator is looking at.
+  expect(toasts()).toHaveLength(1);
+  // It fails again: said again, back to the default.
+  emit("audio-out", { device: SCARLETT, ok: false });
+  await settle();
+  expect(useProjectionStore.getState().liveAudioOut.sinkId).toBe("");
+  expect(toasts()).toHaveLength(2);
+});
+
 test("main hears both buses in one route, before the projector's output carries LIVE's", async () => {
   // Fails if PREVIEW's half reaches main alone: main applied «LIVE old, PREVIEW apart» and moved the NDI capture twice.
   const seen: string[] = [];

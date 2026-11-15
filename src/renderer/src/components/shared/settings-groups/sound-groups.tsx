@@ -1,5 +1,6 @@
 import { useT } from "@renderer/lib/i18n/i18n-provider";
 import { Caption, FieldGroup, FieldRow, Select, Slider, Switch } from "@renderer/components/ui";
+import { setAudioStrips } from "@renderer/lib/actions/audio-strips";
 import { useAudioOutputPicker, useAudioOutputs, type AudioOutputs } from "@renderer/lib/hooks/use-audio-outputs";
 import { useSettingsStore } from "@renderer/stores/settings.store";
 import type { AudioBus } from "@shared/types/audio";
@@ -19,7 +20,7 @@ export function StripsGroup({ essentials = false }: { essentials?: boolean }) {
         <Switch
           aria-label={t("settings.sound.strips")}
           checked={strips}
-          onChange={(e) => void update({ "audio.strips": e.target.checked })}
+          onChange={(e) => void setAudioStrips(e.target.checked)}
         />
       </FieldRow>
       {essentials ? null : (

@@ -5,20 +5,25 @@ import { DEFAULT_AUDIO_OUT, type AudioBus, type AudioOut, type AudioOutputChoice
 
 export type AudioOutputDevice = { deviceId: string; label: string; groupId: string };
 
-/** This computer's audio outputs as Chromium lists them, and which physical device the system's default is. */
-export type AudioOutputs = { devices: AudioOutputDevice[]; defaultGroupId: string | null };
+/** This computer's audio outputs as Chromium lists them, and which one the system's default is: its entry
+ *  (`defaultDeviceId`) or, when it cannot be told, its physical device (`defaultGroupId`). */
+export type AudioOutputs = { devices: AudioOutputDevice[]; defaultDeviceId: string | null; defaultGroupId: string | null };
 
 /** Chromium's pseudo-entries: they name another device of the list, never one of their own. */
 const PSEUDO_IDS = new Set(["default", "communications"]);
 
 export function audioOutputsOf(list: readonly MediaDeviceInfo[]): AudioOutputs {
   const outputs = list.filter((device) => device.kind === "audiooutput");
-  return {
-    devices: outputs
-      .filter((device) => !PSEUDO_IDS.has(device.deviceId) && device.label !== "")
-      .map(({ deviceId, label, groupId }) => ({ deviceId, label, groupId })),
-    defaultGroupId: outputs.find((device) => device.deviceId === "default")?.groupId ?? null,
-  };
+  const devices = outputs
+    .filter((device) => !PSEUDO_IDS.has(device.deviceId) && device.label !== "")
+    .map(({ deviceId, label, groupId }) => ({ deviceId, label, groupId }));
+  const fallback = outputs.find((device) => device.deviceId === "default");
+  // Labelled «Default - <the real entry's label>» (Electron 44 on a Mac, 2026-11-15): that entry, the longest label
+  // when two end alike. Its `groupId` alone takes «Out 1-2» and «Out 3-4» of one interface for the same output.
+  const real = devices
+    .filter((device) => fallback?.label.endsWith(` - ${device.label}`))
+    .sort((a, b) => b.label.length - a.label.length)[0];
+  return { devices, defaultDeviceId: real?.deviceId ?? null, defaultGroupId: fallback?.groupId ?? null };
 }
 
 /** The chosen device in the list: by its name (what the media engine can match too), its id breaking a tie. */
@@ -67,18 +72,24 @@ export function resolveBus(
 
 /** Whether two buses play through the same device (D6: PREVIEW is then heard in the room, and in the NDI®), each
  *  where it really plays (`AudioBusRoute.device`, null the default). Two outputs of one interface («Out 1-2», «Out
- *  3-4») share a `groupId` and are different; the `groupId` only tells which physical device the default is. */
-export function sameAudioOutput(a: AudioOutputDevice | null, b: AudioOutputDevice | null, defaultGroupId: string | null): boolean {
-  if (a === null && b === null) return true;
+ *  3-4») share a `groupId` and are different: the default is compared by its entry, by `groupId` only when its entry
+ *  could not be told. */
+export function sameAudioOutput(
+  a: AudioOutputDevice | null,
+  b: AudioOutputDevice | null,
+  { defaultDeviceId, defaultGroupId }: Pick<AudioOutputs, "defaultDeviceId" | "defaultGroupId">,
+): boolean {
   if (a !== null && b !== null) return a.deviceId === b.deviceId;
   const device = a ?? b;
-  return device !== null && defaultGroupId !== null && device.groupId === defaultGroupId;
+  if (device === null) return true;
+  if (defaultDeviceId !== null) return device.deviceId === defaultDeviceId;
+  return defaultGroupId !== null && device.groupId === defaultGroupId;
 }
 
 /** The outputs, read again whenever one is plugged in or out. Empty until Chromium answers, and where it has no
  *  `mediaDevices` at all. */
 export function useAudioOutputs(): AudioOutputs {
-  const [outputs, setOutputs] = useState<AudioOutputs>({ devices: [], defaultGroupId: null });
+  const [outputs, setOutputs] = useState<AudioOutputs>({ devices: [], defaultDeviceId: null, defaultGroupId: null });
   useEffect(() => {
     const media = navigator.mediaDevices as MediaDevices | undefined;
     if (!media) return;

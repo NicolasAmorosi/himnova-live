@@ -10,6 +10,10 @@ import { engineAvailable, engineProtocol, listAudioDevices } from "./media-engin
  * D6) never see one bus moved and the other not yet.
  */
 let logged = "";
+/** E2E only: every output the engine could use is answered with a name it has not («coreaudio/NOPE»), so what refuses
+ *  it is the engine's own `audio-out` (`audio-outputs.spec.ts`). No computer has an output both sides name alike that
+ *  mpv then cannot open. */
+const UNOPENABLE = process.argv.includes("--unopenable-engine-outputs");
 
 /** Always applied, even unchanged: the NDI sender re-arms a capture that failed when told its route again. */
 export function setAudioRoute(route: AudioRoute): void {
@@ -30,6 +34,11 @@ export async function matchAudioOutputs(
   let list = await listAudioDevices();
   // A spare replaced before it answered (the app's card found at launch) leaves no answer: asked once more.
   if (list === null && canChoose()) list = await listAudioDevices();
-  if (list) return outputs.map((output) => matchEngineDevice(output, list));
+  if (list) {
+    return outputs.map((output) => {
+      const name = matchEngineDevice(output, list);
+      return UNOPENABLE && name !== null && name !== "auto" ? name.replace(/\/.*/s, "/NOPE") : name;
+    });
+  }
   return canChoose() ? "pending" : "none";
 }

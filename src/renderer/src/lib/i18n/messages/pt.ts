@@ -785,8 +785,8 @@ const pt: Messages = {
     previewVolume: "Volume do preview",
     liveOutput: "Saída ao vivo",
     previewOutput: "Saída do preview",
-    liveMute: "Silenciar Ao vivo",
-    previewMute: "Silenciar preview",
+    liveMute: "Silenciar ao vivo",
+    previewMute: "Silenciar o preview",
     outputIs: "{output}: {name}",
     systemDefault: "Padrão do sistema",
     unplugged: "{name} (desconectada)",
@@ -798,6 +798,7 @@ const pt: Messages = {
     toastMissing: "{output}: {name} não está conectada. Toca pela padrão do sistema.",
     toastUnusable: "{output}: {name} não pode ser usada. Toca pela padrão do sistema.",
     toastBack: "{output}: {name} está conectada de novo.",
+    toastStripsOff: "Faixas desligadas: o volume geral ao vivo volta a 100%.",
   },
   live: {
     takeOffAir: "Tirar do ar",

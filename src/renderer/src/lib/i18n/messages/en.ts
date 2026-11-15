@@ -797,6 +797,7 @@ const en: Messages = {
     toastMissing: "{output}: {name} isn't connected. Playing through the system default.",
     toastUnusable: "{output}: {name} can't be used. Playing through the system default.",
     toastBack: "{output}: {name} is connected again.",
+    toastStripsOff: "Strips off: the Live master volume is back to 100%.",
   },
   live: {
     takeOffAir: "Take off air",
@@ -1256,7 +1257,7 @@ const en: Messages = {
     audioEndHelp: "“Go to the next schedule audio” plays the row that follows, if it is an audio too (overlays are skipped), at the same volume as the one that ended; otherwise it stops. An audio sent from the library, outside the schedule, stops.",
     audioEndOptions: { stop: "Stop", loop: "Loop", next: "Go to the next schedule audio" },
     startVolume: "Starting volume",
-    startVolumeDesc: "The volume what you send live starts at.",
+    startVolumeDesc: "The volume anything you send live starts at.",
     startVolumeHelp: "Each video, audio file or presentation's music. With the strips, Live's master volume sets them all; without them, each one is adjusted in the Live panel.",
     transitionStyle: "Style",
     transitionStyleDesc: "How the projector changes from what's on screen to what comes next.",

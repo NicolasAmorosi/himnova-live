@@ -800,6 +800,7 @@ const es = {
     toastMissing: "{output}: {name} no está conectada. Suena por la predeterminada del sistema.",
     toastUnusable: "{output}: {name} no se puede usar. Suena por la predeterminada del sistema.",
     toastBack: "{output}: {name} está conectada de nuevo.",
+    toastStripsOff: "Tiras apagadas: el volumen general de EN VIVO vuelve al 100 %.",
   },
   live: {
     takeOffAir: "Sacar del aire",

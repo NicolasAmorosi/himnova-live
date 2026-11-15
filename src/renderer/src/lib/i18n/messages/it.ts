@@ -788,8 +788,8 @@ const it: Messages = {
     previewVolume: "Volume dell'anteprima",
     liveOutput: "Uscita in onda",
     previewOutput: "Uscita dell'anteprima",
-    liveMute: "Disattiva audio In onda",
-    previewMute: "Disattiva audio anteprima",
+    liveMute: "Disattiva audio in onda",
+    previewMute: "Disattiva audio dell'anteprima",
     outputIs: "{output}: {name}",
     systemDefault: "Predefinita di sistema",
     unplugged: "{name} (scollegata)",
@@ -801,6 +801,7 @@ const it: Messages = {
     toastMissing: "{output}: {name} non è collegata. Suona dalla predefinita di sistema.",
     toastUnusable: "{output}: {name} non si può usare. Suona dalla predefinita di sistema.",
     toastBack: "{output}: {name} è di nuovo collegata.",
+    toastStripsOff: "Strisce spente: il volume generale in onda torna al 100%.",
   },
   live: {
     takeOffAir: "Togli dalla diretta",

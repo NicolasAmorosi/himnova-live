@@ -25,15 +25,17 @@ const PENDING_RETRY_MS = 2000;
 type Settled = { state: AudioBusState; choice: AudioOutputChoice | null };
 
 /** A bus that just stopped (or started again) playing through its chosen output, said once (D3: never a sound the
- *  operator cannot place). A choice the operator just changed is not «back»: he is looking at it. Waiting for the
- *  engine's answer is not a change: the strip says it, and what comes after is compared with what came before. */
+ *  operator cannot place). A choice the operator just made is not «back», even of the same output: he is looking at
+ *  it. Waiting for the engine's answer is not a change: the strip says it, and what comes after is compared with what
+ *  came before. */
 function announce(bus: AudioBus, before: Settled | null, now: AudioBusRoute, choice: AudioOutputChoice | null): void {
   const was = before?.state ?? "ok";
   if (now.state === "pending" || now.state === was || choice === null) return;
   const params = { output: t(bus === "live" ? "audio.liveOutput" : "audio.previewOutput"), name: choice.label };
   if (now.state === "missing") toast.warning(t("audio.toastMissing", params));
   else if (now.state === "unusable") toast.warning(t("audio.toastUnusable", params));
-  else if (before?.choice?.label === choice.label) toast.info(t("audio.toastBack", params));
+  // The same choice object: the pickers write a new one even for the output already chosen (a retry).
+  else if (before?.choice === choice) toast.info(t("audio.toastBack", params));
 }
 
 /**
@@ -46,8 +48,8 @@ function announce(bus: AudioBus, before: Settled | null, now: AudioBusRoute, cho
  *
  * An engine that has not named the outputs yet keeps both buses whole on the default (`pending`) and is asked again
  * until it does. An output one side could not open (an engine session's `audio-out`, a window's `setSinkId`:
- * `audio-sink-failed`) is refused for the session, which sends its bus to the default whole; it is tried again only
- * once it has left Chromium's list and come back.
+ * `audio-sink-failed`) is refused for the session, which sends its bus to the default whole; it is tried again once it
+ * has left Chromium's list and come back, or when the operator chooses it again.
  */
 export function startAudioRouteEffects(): () => void {
   const media = navigator.mediaDevices as MediaDevices | undefined;
@@ -87,7 +89,7 @@ export function startAudioRouteEffects(): () => void {
     const unusable = new Set(refused.keys());
     const live = resolveBus(next.live, outputs.devices, engine, unusable);
     const preview = resolveBus(next.preview, outputs.devices, engine, unusable);
-    const shared = sameAudioOutput(live.device, preview.device, outputs.defaultGroupId);
+    const shared = sameAudioOutput(live.device, preview.device, outputs);
 
     // Main first and in one message: the projector's copy of LIVE's route leaves on the next microtask, and a route
     // half old, half new would move the NDI® capture twice.
@@ -120,13 +122,11 @@ export function startAudioRouteEffects(): () => void {
     refuse(label, "a window could not play through");
   });
   const unsubscribe = useSettingsStore.subscribe((state, previous) => {
-    if (
-      state.loaded !== previous.loaded ||
-      state.settings[OUTPUT_KEY.live] !== previous.settings[OUTPUT_KEY.live] ||
-      state.settings[OUTPUT_KEY.preview] !== previous.settings[OUTPUT_KEY.preview]
-    ) {
-      run();
-    }
+    const chosen = [OUTPUT_KEY.live, OUTPUT_KEY.preview].filter((key) => state.settings[key] !== previous.settings[key]);
+    // Only the output pickers write these (a new object each time, the same output too): an output chosen in the menu
+    // or in Settings is tried again, refused or not.
+    if (state.loaded === previous.loaded) for (const key of chosen) refused.delete(state.settings[key]?.label ?? "");
+    if (state.loaded !== previous.loaded || chosen.length) run();
   });
   return () => {
     stopped = true;

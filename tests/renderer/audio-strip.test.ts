@@ -40,7 +40,7 @@ const outputs = audioOutputsOf([
 
 test("Chromium's pseudo-outputs are not listed; the system's default is known by its device", () => {
   expect(outputs.devices.map((d) => d.label)).toEqual(["Altavoces", "Scarlett 2i2"]);
-  expect(outputs.defaultGroupId).toBe("g-speakers");
+  expect(outputs.defaultDeviceId).toBe("a1");
   // By NAME, what the media engine can match too; a stale id still finds it.
   expect(findAudioOutput({ label: "Scarlett 2i2", deviceId: "old" }, outputs.devices)?.deviceId).toBe("b2");
 });
@@ -54,7 +54,7 @@ function sameAudioOutputOf(
 ): boolean {
   const a = resolveBus(live, list.devices, engineNames);
   const b = resolveBus(preview, list.devices, engineNames);
-  return sameAudioOutput(a.device, b.device, list.defaultGroupId);
+  return sameAudioOutput(a.device, b.device, list);
 }
 
 test("PREVIEW shares LIVE's output when both end up in the same device (D6)", () => {
@@ -93,6 +93,21 @@ test("two outputs of one interface are different devices, whatever their group s
   const out34 = { label: "Out 3-4", deviceId: "o34" };
   expect(sameAudioOutputOf(out12, out34, interfaceOutputs)).toBe(false);
   expect(sameAudioOutputOf(out12, out12, interfaceOutputs)).toBe(true);
+  // LIVE on the system's default, which is «Out 1-2», and PREVIEW on «Out 3-4»: apart, so the NDI capture leaves
+  // PREVIEW out. Fails if the default is told by its group: the same interface, so «shared».
+  expect(sameAudioOutputOf(null, out34, interfaceOutputs)).toBe(false);
+  expect(sameAudioOutputOf(out34, null, interfaceOutputs)).toBe(false);
+  expect(sameAudioOutputOf(null, out12, interfaceOutputs)).toBe(true);
+  // The label as this Mac's Chromium writes it.
+  const mac = audioOutputsOf([
+    device("default", "Default - MacBook Air Speakers (Built-in)", "g-mac"),
+    device("m1", "MacBook Air Speakers (Built-in)", "g-mac"),
+  ]);
+  expect(mac.defaultDeviceId).toBe("m1");
+  // A default whose label names no entry: its group is all there is.
+  const unnamed = audioOutputsOf([device("default", "Default", "g-iface"), device("o12", "Out 1-2", "g-iface")]);
+  expect(unnamed.defaultDeviceId).toBeNull();
+  expect(sameAudioOutputOf(null, out12, unnamed)).toBe(true);
 });
 
 const zoom = device("z1", "ZoomAudioDevice (Virtual)", "g-zoom");

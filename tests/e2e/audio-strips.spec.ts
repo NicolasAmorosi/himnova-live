@@ -189,8 +189,16 @@ test("LIVE's fader is a master: at 50 % the projector plays each item at half it
   await expect.poll(levels).toEqual([0.5, 0.5]);
 
   // D3: with the strips off the master counts as 100 %, never a level nobody can see.
-  await app.audioStripsOff();
+  await mute.click();
+  await expect.poll(levels).toEqual([0, 0]);
+  await setStrips(app, false);
   await expect.poll(levels).toEqual([1, 1]);
+  // The room just heard it jump to 100 %: said once.
+  await expect(app.control.getByText("Tiras apagadas: el volumen general de EN VIVO vuelve al 100 %.")).toBeVisible();
+  // And turning them on again does not silence LIVE: the mute went with them. Fails if it survives the switch.
+  await setStrips(app, true);
+  await expect(mute).toHaveAttribute("aria-pressed", "false");
+  await expect.poll(levels).toEqual([0.5, 0.5]);
 });
 
 test("the NDI output hears LIVE's fader: at 50 % its sound is 6 dB under 100 %", async ({ app }) => {

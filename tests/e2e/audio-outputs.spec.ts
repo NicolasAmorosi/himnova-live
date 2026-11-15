@@ -196,6 +196,42 @@ test("an output the engine cannot open is not used: LIVE stays whole on the defa
   expect(await sinks(projector)).toEqual([""]);
 });
 
+test.describe("an output the engine loses", () => {
+  // Every output reaches the engine under a name it has not (`--unopenable-engine-outputs`): the real engine, playing
+  // a real file, says it cannot open it, as it does for a device unplugged or one mpv cannot drive.
+  test.use({ chromiumArgs: ["--unopenable-engine-outputs"] });
+
+  test("turns LIVE's strip amber, sends the bus whole to the default, and is tried again when chosen again", async ({ app }, testInfo) => {
+    test.setTimeout(120_000);
+    await expect.poll(async () => (await outputsOf(app)).length, { timeout: 5_000 }).toBeGreaterThan(0);
+    const output = (await outputsOf(app)).find((candidate) => !candidate.isDefault && !/teams/i.test(candidate.label));
+    test.skip(!output, "this computer has no second output");
+    const lost = () => app.log.filter((line) => /\[audio\] engine output: LIVE \S+\/NOPE,/.test(line)).length;
+    await choose(app, "live", output!.label);
+    await expect.poll(lost).toBe(1);
+    // Nothing plays yet, so nothing has failed.
+    await expect(outputButton(app, "live")).not.toHaveClass(/text-warning-ink/);
+
+    const [avi] = await stereoTone(app, testInfo.outputPath("tone-stereo.avi"), "video");
+    if (!avi) throw new Error("import failed");
+    await expect.poll(async () => (await app.invoke<number[]>("engine:assets")).includes(avi.id), { timeout: 30_000 }).toBe(true);
+    await app.previewFile("Videos", "tone-stereo");
+    await app.goLive();
+    // Fails if the engine's `audio-out` never reaches the control window: the strip stayed calm while the room heard
+    // nothing (the 2026-11-15 final review).
+    await expect(outputButton(app, "live")).toHaveAccessibleName(/no se puede usar: suena por la predeterminada/, { timeout: 10_000 });
+    await expect(outputButton(app, "live")).toHaveClass(/text-warning-ink/);
+    await expect.poll(() => engineRoute(app)).toMatch(/LIVE default,/);
+    await expect(app.control.getByText(/no se puede usar\. Suena por la predeterminada del sistema\./)).toHaveCount(1);
+
+    // Chosen again in the menu: tried again (it was refused for the session), and refused again by the engine.
+    await choose(app, "live", output!.label);
+    await expect.poll(lost).toBe(2);
+    await expect.poll(() => engineRoute(app), { timeout: 10_000 }).toMatch(/LIVE default,/);
+    await expect(outputButton(app, "live")).toHaveClass(/text-warning-ink/);
+  });
+});
+
 /** Stops (or resumes) every media engine the app runs: one that never answers, as a spare stuck at launch would. */
 function signalEngines(app: WorshipApp, signal: "SIGSTOP" | "SIGCONT"): number[] {
   const pids = execFileSync("ps", ["-A", "-o", "pid=,ppid=,comm="], { encoding: "utf8" })
