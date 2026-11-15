@@ -44,6 +44,7 @@ import { startStageSync } from "@renderer/effects/stage-sync";
 import { startEngineAssetsSync } from "@renderer/effects/engine-assets-sync";
 import { startUpdateAnnouncement } from "@renderer/effects/update-announcement";
 import { startFirstSteps } from "@renderer/effects/first-steps";
+import { startAudioLevels } from "@renderer/effects/audio-levels";
 import { useGlobalShortcuts } from "@renderer/lib/hooks/use-global-shortcuts";
 
 /**
@@ -205,6 +206,7 @@ export function App() {
     // settings it reads have loaded.
     const stopUpdateAnnouncement = startUpdateAnnouncement();
     const stopFirstSteps = startFirstSteps();
+    const stopAudioLevels = startAudioLevels();
     return () => {
       stopProjectionEffects();
       stopStageSync();
@@ -214,6 +216,7 @@ export function App() {
       stopOpenProgramMemory();
       stopUpdateAnnouncement();
       stopFirstSteps();
+      stopAudioLevels();
     };
   }, [loadSettings]);
 

@@ -59,6 +59,7 @@ import type { CloseDecision } from "../types/window";
 import type { UpdateStatus } from "../types/updates";
 import type { NdiOutputStatus } from "../types/ndi";
 import type { BackupEntry, LaunchRestore } from "../types/backups";
+import type { AudioBus } from "../types/audio";
 
 /**
  * The single source of truth for every main<->renderer call. Add a channel here
@@ -105,6 +106,10 @@ export type IpcContract = {
    *  main has it draw the current one again — a projector rebuilt onto another
    *  screen, or a monitor remounted, would otherwise stay black until play. */
   "projection:wantVideoFrame": { req: { key: string }; res: void };
+  /** The projector's own Chromium elements, as the room hears them: their sample peak through their volume, in
+   *  dBFS (`-Infinity` silence), every 40 ms while one sounds and once silent after (`lib/level-tap.ts`). Main mixes
+   *  them into LIVE's `audio-levels`; from any other window it is ignored. */
+  "projection:reportLevels": { req: [number, number]; res: void };
 
   /** Control window -> main -> the stage window, like `projection:show`; main
    *  keeps the last one for a stage window that opens later. */
@@ -485,6 +490,9 @@ export type IpcEvents = {
   /** The PREVIEW monitor's engine (`preview:setVideo`), ~4/s. */
   "preview-video-status": PreviewVideoStatus;
   "preview-video-error": { url: string };
+  /** What each bus sounds at, after its faders (`media/audio-levels.ts`): left and right in dBFS, `-Infinity`
+   *  silence. Every 40 ms while something sounds, then once silent; the audio strips' meters draw it. */
+  "audio-levels": Record<AudioBus, [number, number]>;
   "deck-progress": DeckProgress;
   "prewarm-progress": PrewarmProgress;
   /** What `deck:statuses` would answer changed for reasons that are not a

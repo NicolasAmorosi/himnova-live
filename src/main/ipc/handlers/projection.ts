@@ -9,6 +9,7 @@ import { IpcError } from "@shared/ipc/result";
 import { deckIdOfUrl } from "@shared/urls";
 import { keepLiveDeckSource } from "../../protocol/worship-protocol";
 import { reopenStageWindow, showOnStage, stageShown, stageSnapshot } from "../../windows/stage-window";
+import { reportLevel } from "../../media/audio-levels";
 
 let currentProgramId: number | null = null;
 
@@ -38,6 +39,7 @@ export const projectionHandlers: Pick<
   | "projection:reportMediaError"
   | "projection:getSnapshot"
   | "projection:wantVideoFrame"
+  | "projection:reportLevels"
   | "stage:show"
   | "stage:getSnapshot"
   | "stage:shown"
@@ -159,6 +161,15 @@ export const projectionHandlers: Pick<
   "projection:wantVideoFrame": (req, ev) => {
     if (typeof req?.key !== "string") throw new IpcError({ code: "INVALID_ARGUMENT", message: "Invalid frame key." });
     redrawEngineFrame(req.key, ev.sender);
+  },
+
+  /** Only the projector's: its copies (the NDI window, the stage) are silent, and the room hears that one. */
+  "projection:reportLevels": (level, ev) => {
+    if (ev.sender !== projectionState.getWindow()?.webContents) return;
+    if (!Array.isArray(level) || level.length !== 2 || !level.every((db) => typeof db === "number" && !Number.isNaN(db))) {
+      throw new IpcError({ code: "INVALID_ARGUMENT", message: "Invalid level." });
+    }
+    reportLevel("projector", "live", [level[0], level[1]]);
   },
 
   /** The projection window describing its own media element; forwarded to the

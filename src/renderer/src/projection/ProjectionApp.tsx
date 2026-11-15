@@ -6,6 +6,7 @@ import { useMediaStatusReporter } from "./use-media-status-reporter";
 import { INSTANT_TRANSITION } from "@shared/types/projection";
 import { isEngineUrl } from "@shared/urls";
 import { releaseMedia } from "@renderer/lib/release-media";
+import { startLevelTap } from "@renderer/lib/level-tap";
 import type {
   AudioTrackPush,
   MediaCommand,
@@ -222,6 +223,16 @@ export function ProjectionApp() {
             break;
         }
       }),
+    [],
+  );
+
+  // What the room hears from this window's own elements, for LIVE's meter (the engine's sessions are main's).
+  useEffect(
+    () =>
+      startLevelTap(
+        () => document.querySelectorAll<HTMLMediaElement>("video, audio"),
+        (level) => void api.projection.reportLevels(level),
+      ),
     [],
   );
 

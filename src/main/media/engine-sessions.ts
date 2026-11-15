@@ -5,6 +5,7 @@ import { getMediaRepo, getSlidesRepo } from "../services/repos";
 import { broadcast, controlWindows } from "../services/broadcast";
 import { projectionState } from "../services/projection-state";
 import { takeEngine, type EngineEvents, type MediaEngine } from "./media-engine";
+import { heardAt, reportLevel } from "./audio-levels";
 import {
   applyToSession,
   keepsSession,
@@ -129,6 +130,10 @@ function liveEvents(session: Session, target: MediaTarget, isCurrent: () => bool
       if (!isCurrent()) return;
       console.warn("[engine] live", target.kind, error.code, error.detail);
       broadcast("media-error", { target, url: session.url, code: null });
+    },
+    // The engine measures before its volume; the room hears it through the session's (item × LIVE's fader).
+    level: (peak) => {
+      if (isCurrent()) reportLevel(session, "live", heardAt(peak, session.volume));
     },
   };
 }
@@ -311,6 +316,9 @@ export function setPreviewVideo(video: PreviewEngineVideo | null, contents: WebC
       if (preview !== session) return;
       console.warn("[engine] preview", error.code, error.detail);
       broadcast("preview-video-error", { url: session.url });
+    },
+    level: (peak) => {
+      if (preview === session) reportLevel(session, "preview", heardAt(peak, session.volume));
     },
   });
   if (video.picture) session.engine?.show(contents);

@@ -15,10 +15,7 @@ type AudioLevelsState = {
 /**
  * What each bus sounds at right now, for the meters of the audio strips (`AudioStrip`). Written up to ~25 times a
  * second while something sounds, so a strip reads it with `subscribe`, never as React state: a re-render per level
- * would redraw the whole column.
- *
- * ponytail: nothing feeds it yet (the meters stay silent); the media engine's `level` events and the projector's
- * analysers write here once they exist.
+ * would redraw the whole column. Fed by `effects/audio-levels.ts`.
  */
 export const useAudioLevelsStore = create<AudioLevelsState>()(
   subscribeWithSelector((set) => ({
