@@ -90,7 +90,7 @@ export type IpcContract = {
    *  fresh `projection:open` — see `docs/knowledge/01-architecture.md`. */
   "projection:getSnapshot": {
     req: void;
-    res: { output: ProjectionOutput | null; audioTracks: AudioTrackPush[] };
+    res: { output: ProjectionOutput | null; audioTracks: AudioTrackPush[]; mediaStatus: MediaStatus[] };
   };
   /** Projection window -> main -> control window. The projection window is
    *  describing its own <video>/<audio> element, not making a decision. */

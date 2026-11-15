@@ -33,6 +33,16 @@ export function StageApp() {
     return off;
   }, []);
 
+  // A window opened while the projector is paused gets no report: the snapshot's last ones, unless one came first.
+  useEffect(() => {
+    void api.projection.getSnapshot().then(({ mediaStatus }) => {
+      for (const status of mediaStatus) {
+        if (status.target.kind === "video") setMedia((m) => ({ ...m, video: m.video ?? status }));
+        else if (status.target.kind === "slideVideo") setMedia((m) => ({ ...m, slideVideo: m.slideVideo ?? status }));
+      }
+    });
+  }, []);
+
   useEffect(
     () =>
       onIpc("media-status", (status) => {
