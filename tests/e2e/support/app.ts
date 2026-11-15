@@ -190,6 +190,19 @@ export class WorshipApp {
     return this.control.locator("section").filter({ has: this.control.getByRole("heading", { name: this.tr("Preview") }) });
   }
 
+  /** Settings ▸ Sonido ▸ «Mostrar las tiras» off: each media row has its own volume again (owner, 2026-11-15, D2),
+   *  for the specs that drive it. Through Settings, as the operator does: `settings:set` never reaches the open window. */
+  async audioStripsOff(): Promise<void> {
+    await this.control.getByRole("button", { name: this.tr("Configuración") }).click();
+    const settings = this.control.getByRole("dialog", { name: this.tr("Configuración") });
+    await settings.getByRole("tab", { name: this.tr("Sonido") }).click();
+    const strips = settings.getByRole("switch", { name: this.tr("Mostrar las tiras") });
+    await strips.click();
+    await expect(strips).not.toBeChecked();
+    await settings.getByRole("button", { name: this.tr("Volver") }).click();
+    await expect(settings).toBeHidden();
+  }
+
   /** The top bar's EN VIVO, which every kind of content shares. (A plate's
    *  own row carries a second one, and so does a time scene's.) */
   goLive(): Promise<void> {

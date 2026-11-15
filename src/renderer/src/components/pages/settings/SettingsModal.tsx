@@ -9,6 +9,7 @@ import { SlidesSection } from "./sections/slides-section";
 import { SystemSection } from "./sections/system-section";
 import { BackupsSection } from "./sections/backups-section";
 import { ScreensSection } from "./sections/screens-section";
+import { SoundSection } from "./sections/sound-section";
 import { AboutSection } from "./sections/about-section";
 import { useUiStore, type SettingsSection } from "@renderer/stores/ui.store";
 
@@ -47,6 +48,7 @@ export function SettingsModal() {
   const sections: readonly TabItem<SettingsSection>[] = [
     { icon: "display", label: t("settings.sections.projection"), value: "projection" },
     { icon: "columns", label: t("settings.sections.screens"), value: "screens" },
+    { icon: "volume", label: t("settings.sections.sound"), value: "sound" },
     { icon: "ppt", label: t("settings.sections.slides"), value: "slides" },
     { icon: "bible", label: t("settings.sections.bible"), value: "bible" },
     { icon: "song", label: t("settings.sections.songs"), value: "songs" },
@@ -89,6 +91,8 @@ export function SettingsModal() {
                     <ProjectionSection />
                   ) : value === "screens" ? (
                     <ScreensSection />
+                  ) : value === "sound" ? (
+                    <SoundSection />
                   ) : value === "slides" ? (
                     // `active` is not about painting — the panel does that.
                     // The cache figure is read at mount, and a section that

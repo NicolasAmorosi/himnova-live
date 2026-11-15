@@ -6,6 +6,7 @@ import { useDisplayStore } from "@renderer/stores/display.store";
 import { selectOutputMemo, useProjectionStore } from "@renderer/stores/projection.store";
 import { useLiveHeading, useLiveStatus } from "@renderer/lib/hooks/use-live";
 import { cn } from "@renderer/lib/utils";
+import { MonitorWithStrip } from "@renderer/components/shared/audio-strip";
 import { LiveMonitor } from "./live-monitor";
 import { LiveContentGrid } from "./live-content-grid";
 import { LiveMediaPanel } from "./live-media-panel";
@@ -87,7 +88,9 @@ export function MonitorsColumn() {
           than the PREVIEW row; it caps its own height instead, so any number
           of tracks only ever takes part of the live grid's room. */}
       <div className="flex min-h-0 flex-1 flex-col gap-4 p-4">
-        <LiveMonitor />
+        <MonitorWithStrip bus="live">
+          <LiveMonitor />
+        </MonitorWithStrip>
         <DeckTransport />
         <VerseTransport />
         <SongTransport />

@@ -84,6 +84,8 @@ test("closing the projector window from outside does not strand the operator", a
 });
 
 test("PREVIEW sounds at its own volume, 0 to start, and goes quiet when it goes live", async ({ app }) => {
+  // The row's own volume, as with the strips off; the strip's fader is the same `preview.store` volume.
+  await app.audioStripsOff();
   await app.addMedia("video", "clip.mp4");
   await app.previewFile("Videos", "clip");
   const preview = app.previewColumn();

@@ -25,6 +25,8 @@ type MenuProps<T extends string> = {
    *  of a pressed tool, without `aria-pressed` (see `triggerProps`). */
   active?: boolean;
   align?: "start" | "end";
+  /** A chevron after the icon, for a trigger that shows its choice (an audio strip's output). */
+  caret?: boolean;
   className?: string;
   disabled?: boolean;
   icon: IconName;
@@ -37,6 +39,8 @@ type MenuProps<T extends string> = {
    *  menu is a list of COMMANDS (`menuitem`, nothing checked): an editor's
    *  «⋯» with Duplicate and Delete. */
   value?: T | undefined;
+  /** The list's width, for options longer than a sort order (an audio device's name). */
+  width?: number;
 };
 
 /** Sized by its longest label rather than by its trigger: an icon button is
@@ -67,6 +71,7 @@ const triggerSizes: Record<MenuSize, string> = { xs: "size-7", sm: "size-8" };
 export function Menu<T extends string>({
   active = false,
   align = "start",
+  caret = false,
   className,
   disabled,
   icon,
@@ -75,6 +80,7 @@ export function Menu<T extends string>({
   options,
   size = "xs",
   value,
+  width = MENU_WIDTH_PX,
 }: MenuProps<T>) {
   const id = useId();
   const menuId = `${id}-menu`;
@@ -91,7 +97,7 @@ export function Menu<T extends string>({
   useFollowTrigger(
     open,
     triggerRef,
-    (trigger) => setPosition(computeMenuPosition(trigger, MENU_WIDTH_PX, align)),
+    (trigger) => setPosition(computeMenuPosition(trigger, width, align)),
     () => close(true),
   );
 
@@ -114,7 +120,7 @@ export function Menu<T extends string>({
 
   function openMenu() {
     if (options.length === 0 || !triggerRef.current) return;
-    setPosition(computeMenuPosition(triggerRef.current, MENU_WIDTH_PX, align));
+    setPosition(computeMenuPosition(triggerRef.current, width, align));
     const current = options.findIndex((option) => option.value === value && !option.disabled);
     setFocusIndex(current >= 0 ? current : Math.max(0, options.findIndex((option) => !option.disabled)));
     setOpen(true);
@@ -189,11 +195,18 @@ export function Menu<T extends string>({
     <IconButton
       {...triggerProps}
       aria-label={label}
-      className={cn(triggerSizes[size], open && "border-accent bg-muted", active && TOGGLED_CLASS, className)}
+      className={cn(
+        triggerSizes[size],
+        caret && "w-auto gap-0.5 px-1",
+        open && "border-accent bg-muted",
+        active && TOGGLED_CLASS,
+        className,
+      )}
       size="xs"
       variant="ghost"
     >
       <Icon name={icon} />
+      {caret ? <Icon className="size-3" name="chevronDown" /> : null}
     </IconButton>
   );
 

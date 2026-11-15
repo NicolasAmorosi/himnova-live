@@ -12,6 +12,7 @@ their place, **Zustand** in per-domain slices (`src/renderer/src/stores/`):
 | `library.store.ts` | media library by type, active tab, selection |
 | `settings.store.ts` | in-memory mirror of the `settings` table, applies `data-theme` to `<html>` |
 | `display.store.ts` | available screens, which one is chosen (persisted in `settings['projection.displayId']`), `open()/close()` of the projection window |
+| `audio-levels.store.ts` | each bus's level for the audio strips' meters (dBFS, left and right), read with `subscribe` and never as React state |
 
 Each store touches only what belongs to it — the PPT polling (previously every 800ms over the
 whole global `state`) no longer re-renders components that don't read that slice.
@@ -178,6 +179,12 @@ after the ended track's `fromItemId` (the row it was sent from: an id, since eve
 and found by its audio after a save renumbers them), plates skipped, only when that row
 is an audio too and at the ended track's volume (owner): the offertory's music further down never starts on its own.
 A deck's own soundtrack and sounds are never touched by it.
+
+**The LIVE master** (2026-11-15): `settings["audio.live.volume"]`, or 1 with the strips off (`liveMasterVolume`), is
+mirrored into `projection.store` (`liveMasterVolume`) by `App.tsx` like the transition. `selectOutput` multiplies it into
+the video's and the slide clip's `volume` (`busVolume`, `shared/types/audio.ts`) and `toAudioTrackPush` into every audio
+track's, re-pushed when it moves: the projector and the media engine get the level they play at as state, and the
+stores keep each item's own level.
 
 A video's end is the operator's choice since 2026-11-05 (`projection.videoEnd`, Settings ▸ Projection,
 mirrored into `projection.store` by `App.tsx` like the transition): «logo» clears as above, «black» clears

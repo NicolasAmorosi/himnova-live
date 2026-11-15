@@ -441,7 +441,8 @@ the chosen section as a page in a reading column (`max-w-3xl`) CENTRED in the ca
 (`scrollbar-gutter: stable both-edges`) — a `PageHeader` (20 px, no line under it since 2026-11-05), then one
 `sections/<name>-section.tsx` per category. Inside each section, `FieldGroup` + `FieldRow`: each group a titled box
 of rows (see «Forms» above), 32 px from the next; each row follows the standard there. Today's categories: **Projection** (screen,
-open/close the window, logo, clear live content, transition, starting volume), **Slides** (the slides'
+open/close the window, logo, clear live content, transition), **Sound** (the audio strips, the starting volume, each
+bus's output and the NDI® note), **Slides** (the slides'
 text fallback face, the cache and PDF rasterizing quality),
 **Bible** (which versions are installed: import, rename, default, delete), **System** (theme,
 language, folders, performance) and **About** (logo, version and logs folder). A new setting goes
@@ -548,6 +549,17 @@ monitor's `<video>` (`OutputView`'s `audible`, which ONLY `PreviewMonitor` passe
 live stage must never play the room's video twice) or PREVIEW's engine; a sound through PREVIEW's engine with no
 picture (`usePreviewEngineSound`), started on the first play so a click through the library spins no engine up.
 A deck in PREVIEW gets EN VIVO's transport (◀ ▶, counter, «Auto-avance») but never advances on its own.
+
+### The audio strips (2026-11-15)
+
+While `audio.strips` is on (the default), each monitor has a 48 px strip at its right (`MonitorWithStrip`,
+`components/shared/audio-strip.tsx`, the same in both columns so the monitors stay twins): a stereo meter (canvas,
+`ChannelStrip` in `ui/channel-strip.tsx`, fed by `stores/audio-levels.store.ts`), a vertical native range, mute, and an
+output menu that writes `audio.output.<bus>`. The strip lays its content out in an absolute box, so it never adds height
+to the monitor's row. LIVE's fader is a master (`audio.live.volume`) multiplied into every live level (`busVolume`);
+PREVIEW's is `preview.store`'s own volume. On, `MediaTrackRow` draws no volume of its own (owner's D2); off, the rows have
+it back and the master counts as 100 % (D3). PREVIEW's output icon turns amber when both buses end in the same device
+(D6).
 
 ### `OutputView`, the primitive that keeps a monitor from lying
 

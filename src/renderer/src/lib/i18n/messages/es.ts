@@ -779,6 +779,20 @@ const es = {
     mute: "Silenciar",
     unmute: "Activar sonido",
   },
+  /** The audio strips beside PREVIEW and LIVE (`AudioStrip`). */
+  audio: {
+    liveStrip: "Sonido de EN VIVO",
+    previewStrip: "Sonido de PREVIEW",
+    liveVolume: "Volumen general de EN VIVO",
+    previewVolume: "Volumen de PREVIEW",
+    liveOutput: "Salida de EN VIVO",
+    previewOutput: "Salida de PREVIEW",
+    outputIs: "{output}: {name}",
+    systemDefault: "Predeterminada del sistema",
+    unplugged: "{name} (desconectada)",
+    sharedOutput: "También se escucha en la sala: sale por la misma salida que EN VIVO.",
+    sharedOutputNdi: "También se escucha en la sala y en el NDI: sale por la misma salida que EN VIVO.",
+  },
   live: {
     takeOffAir: "Sacar del aire",
     title: "En Vivo",
@@ -878,6 +892,7 @@ const es = {
       backups: "Copias de seguridad",
       about: "Acerca de",
       screens: "Pantallas",
+      sound: "Sonido",
     },
     /** Settings ▸ Screens (`sections/screens-section.tsx`). */
     screens: {
@@ -937,6 +952,15 @@ const es = {
       usageEmpty: "Ninguna canción salió en vivo entre esas fechas.",
       usageError: "No se pudo exportar el informe.",
     },
+    /** Settings ▸ Sound (`sections/sound-section.tsx`). */
+    sound: {
+      strips: "Mostrar las tiras",
+      stripsDesc: "Medidor, volumen y salida al lado de PREVIEW y EN VIVO.",
+      stripsHelp: "Apagadas, cada video y audio vuelve a mostrar su propio volumen, y el volumen general de EN VIVO queda en 100 %.",
+      liveOutputDesc: "Lo que escucha la sala. El NDI lleva solo esto.",
+      previewOutputDesc: "Para escuchar lo que viene sin que suene en la sala.",
+      ndiNote: "El NDI® lleva solo EN VIVO. Si PREVIEW sale por la misma salida, el NDI también lo lleva. En Windows, con salidas separadas, también se cuela en el NDI lo que otras apps hagan sonar en la salida de EN VIVO.",
+    },
     groups: {
       logo: "Logo",
       liveContent: "Contenido en vivo",
@@ -955,6 +979,8 @@ const es = {
       about: "Versión y actualizaciones",
       ndi: "Salida NDI®",
       help: "Ayuda",
+      strips: "Tiras de sonido",
+      outputs: "Salidas",
     },
     /** How a verse is DRESSED — the Bible tab's «Estilo» editor
      *  (`VerseStyleModal`). The keys kept their old `settings.` home when it
@@ -1229,7 +1255,7 @@ const es = {
     audioEndOptions: { stop: "Detenerse", loop: "Repetir en bucle", next: "Pasar al siguiente audio del programa" },
     startVolume: "Volumen inicial",
     startVolumeDesc: "Con qué volumen arranca lo que mandás en vivo.",
-    startVolumeHelp: "Cada video, audio o música de PPT. Podés ajustar cada uno mientras suena, desde el panel de En Vivo.",
+    startVolumeHelp: "Cada video, audio o música de PPT. Con las tiras, el volumen general de EN VIVO los ajusta a todos; sin ellas, cada uno se ajusta en el panel de En Vivo.",
     transitionStyle: "Estilo",
     transitionStyleDesc: "Cómo pasa el proyector de una escena a la siguiente.",
     transitionDuration: "Duración",

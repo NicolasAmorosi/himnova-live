@@ -1,7 +1,7 @@
-import { useRef } from "react";
 import { cn } from "@renderer/lib/utils";
 import { Icon } from "./icon";
 import { IconButton } from "./icon-button";
+import { useMuteToggle } from "./use-mute-toggle";
 
 type VolumeControlProps = {
   className?: string;
@@ -22,9 +22,6 @@ const accent: Record<NonNullable<VolumeControlProps["tone"]>, string> = {
   audio: "accent-badge-audio",
 };
 
-/** Where an unmute lands when the operator never chose a level before muting. */
-const FALLBACK_LEVEL = 0.5;
-
 /**
  * Level control for one live media target: a mute toggle and a slider.
  *
@@ -43,17 +40,14 @@ const FALLBACK_LEVEL = 0.5;
  */
 export function VolumeControl({ className, label, muteLabel, onChange, tone = "accent", value }: VolumeControlProps) {
   const muted = value === 0;
-  /** Only ever written with a level the operator actually heard, so unmuting
-   *  restores what they set rather than a default they never chose. */
-  const lastAudible = useRef(value > 0 ? value : FALLBACK_LEVEL);
-  if (value > 0) lastAudible.current = value;
+  const toggleMute = useMuteToggle(value, onChange);
 
   return (
     <div className={cn("flex shrink-0 items-center gap-1", className)}>
       <IconButton
         aria-label={muteLabel}
         aria-pressed={muted}
-        onClick={() => onChange(muted ? lastAudible.current : 0)}
+        onClick={toggleMute}
         size="xs"
         variant="ghost"
       >

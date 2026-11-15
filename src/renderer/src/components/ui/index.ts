@@ -16,6 +16,7 @@ export { ProgressBar, ProgressMeter } from "./progress-bar";
 export { LoadingState } from "./loading-state";
 export { MediaScrubber } from "./media-scrubber";
 export { VolumeControl } from "./volume-control";
+export { ChannelStrip } from "./channel-strip";
 export { Title, Label, Caption, PageHeader } from "./title";
 export { DependentFields, FieldGroup, FieldRow } from "./field";
 export { FieldLayoutContext, type FieldLayout } from "./field-layout";

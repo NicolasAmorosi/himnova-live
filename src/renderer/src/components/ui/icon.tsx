@@ -41,6 +41,7 @@ import {
   FolderOpen,
   FolderPlus,
   GripVertical,
+  Headphones,
   HelpCircle,
   Hourglass,
   Image as ImageIcon,
@@ -72,6 +73,7 @@ import {
   SkipBack,
   SkipForward,
   SlidersHorizontal,
+  Speaker,
   Square,
   Star,
   Sun,
@@ -175,6 +177,9 @@ const icons = {
   upload: Upload,
   volume: Volume2,
   volumeOff: VolumeX,
+  /** The audio strips' output menus: LIVE sounds in the room, PREVIEW in the operator's ears. */
+  speaker: Speaker,
+  headphones: Headphones,
   camera: Webcam,
   close: X,
 } satisfies Record<string, LucideIcon>;

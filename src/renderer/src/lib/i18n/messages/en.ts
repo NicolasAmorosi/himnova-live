@@ -776,6 +776,20 @@ const en: Messages = {
     mute: "Mute",
     unmute: "Unmute",
   },
+  /** The audio strips beside PREVIEW and LIVE (`AudioStrip`). */
+  audio: {
+    liveStrip: "Live sound",
+    previewStrip: "Preview sound",
+    liveVolume: "Live master volume",
+    previewVolume: "Preview volume",
+    liveOutput: "Live output",
+    previewOutput: "Preview output",
+    outputIs: "{output}: {name}",
+    systemDefault: "System default",
+    unplugged: "{name} (unplugged)",
+    sharedOutput: "Also heard in the room: it plays through the same output as Live.",
+    sharedOutputNdi: "Also heard in the room and on NDI: it plays through the same output as Live.",
+  },
   live: {
     takeOffAir: "Take off air",
     title: "Live",
@@ -875,6 +889,7 @@ const en: Messages = {
       backups: "Backups",
       about: "About",
       screens: "Screens",
+      sound: "Sound",
     },
     screens: {
       title: "Your screens",
@@ -933,6 +948,15 @@ const en: Messages = {
       usageEmpty: "No song went live between those dates.",
       usageError: "The report couldn't be exported.",
     },
+    /** Settings ▸ Sound (`sections/sound-section.tsx`). */
+    sound: {
+      strips: "Show the strips",
+      stripsDesc: "Meter, volume and output beside Preview and Live.",
+      stripsHelp: "Off, every video and audio shows its own volume again, and Live's master volume stays at 100%.",
+      liveOutputDesc: "What the room hears. NDI carries only this.",
+      previewOutputDesc: "To hear what comes next without the room hearing it.",
+      ndiNote: "NDI® carries only Live. If Preview plays through the same output, NDI carries it too. On Windows, with separate outputs, whatever other apps play on Live's output gets into NDI as well.",
+    },
     groups: {
       logo: "Logo",
       liveContent: "Live content",
@@ -951,6 +975,8 @@ const en: Messages = {
       about: "Version and updates",
       ndi: "NDI® output",
       help: "Help",
+      strips: "Audio strips",
+      outputs: "Outputs",
     },
     verse: {
       sample: "Sample",
@@ -1220,7 +1246,7 @@ const en: Messages = {
     audioEndOptions: { stop: "Stop", loop: "Loop", next: "Go to the next schedule audio" },
     startVolume: "Starting volume",
     startVolumeDesc: "The volume what you send live starts at.",
-    startVolumeHelp: "Each video, audio file or presentation's music. You can adjust each one while it plays, from the Live panel.",
+    startVolumeHelp: "Each video, audio file or presentation's music. With the strips, Live's master volume sets them all; without them, each one is adjusted in the Live panel.",
     transitionStyle: "Style",
     transitionStyleDesc: "How the projector changes from what's on screen to what comes next.",
     transitionDuration: "Duration",

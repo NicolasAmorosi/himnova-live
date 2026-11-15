@@ -780,6 +780,20 @@ const it: Messages = {
     mute: "Disattiva audio",
     unmute: "Riattiva audio",
   },
+  /** The audio strips beside PREVIEW and LIVE (`AudioStrip`). */
+  audio: {
+    liveStrip: "Audio in onda",
+    previewStrip: "Audio dell'anteprima",
+    liveVolume: "Volume generale in onda",
+    previewVolume: "Volume dell'anteprima",
+    liveOutput: "Uscita in onda",
+    previewOutput: "Uscita dell'anteprima",
+    outputIs: "{output}: {name}",
+    systemDefault: "Predefinita di sistema",
+    unplugged: "{name} (scollegata)",
+    sharedOutput: "Si sente anche in sala: esce dalla stessa uscita di In onda.",
+    sharedOutputNdi: "Si sente anche in sala e nell'NDI: esce dalla stessa uscita di In onda.",
+  },
   live: {
     takeOffAir: "Togli dalla diretta",
     title: "In onda",
@@ -879,6 +893,7 @@ const it: Messages = {
       backups: "Copie di sicurezza",
       about: "Informazioni",
       screens: "Schermi",
+      sound: "Audio",
     },
     screens: {
       title: "I tuoi schermi",
@@ -937,6 +952,15 @@ const it: Messages = {
       usageEmpty: "Nessun canto è andato in onda tra quelle date.",
       usageError: "Non è stato possibile esportare il rapporto.",
     },
+    /** Settings ▸ Sound (`sections/sound-section.tsx`). */
+    sound: {
+      strips: "Mostra le strisce",
+      stripsDesc: "Livelli, volume e uscita accanto ad Anteprima e In onda.",
+      stripsHelp: "Spente, ogni video e audio mostra di nuovo il proprio volume, e il volume generale in onda resta al 100%.",
+      liveOutputDesc: "Ciò che sente la sala. L'NDI porta solo questo.",
+      previewOutputDesc: "Per ascoltare ciò che viene dopo senza che si senta in sala.",
+      ndiNote: "L'NDI® porta solo In onda. Se l'anteprima esce dalla stessa uscita, l'NDI porta anche lei. Su Windows, con uscite separate, nell'NDI entra anche ciò che altre app suonano sull'uscita In onda.",
+    },
     groups: {
       logo: "Logo",
       liveContent: "Contenuto in onda",
@@ -955,6 +979,8 @@ const it: Messages = {
       about: "Versione e aggiornamenti",
       ndi: "Uscita NDI®",
       help: "Aiuto",
+      strips: "Strisce audio",
+      outputs: "Uscite",
     },
     verse: {
       sample: "Esempio",
@@ -1224,7 +1250,7 @@ const it: Messages = {
     audioEndOptions: { stop: "Fermati", loop: "Ripeti in loop", next: "Passa al prossimo audio della scaletta" },
     startVolume: "Volume iniziale",
     startVolumeDesc: "Il volume con cui parte ciò che mandi in onda.",
-    startVolumeHelp: "Ogni video, audio o musica di PPT. Puoi regolarli uno per uno mentre suonano, dal pannello In onda.",
+    startVolumeHelp: "Ogni video, audio o musica di PPT. Con le strisce, il volume generale in onda li regola tutti; senza, ognuno si regola dal pannello In onda.",
     transitionStyle: "Stile",
     transitionStyleDesc: "Come il proiettore passa da una scena alla successiva.",
     transitionDuration: "Durata",

@@ -777,6 +777,20 @@ const pt: Messages = {
     mute: "Silenciar",
     unmute: "Ativar som",
   },
+  /** The audio strips beside PREVIEW and LIVE (`AudioStrip`). */
+  audio: {
+    liveStrip: "Som ao vivo",
+    previewStrip: "Som do preview",
+    liveVolume: "Volume geral ao vivo",
+    previewVolume: "Volume do preview",
+    liveOutput: "Saída ao vivo",
+    previewOutput: "Saída do preview",
+    outputIs: "{output}: {name}",
+    systemDefault: "Padrão do sistema",
+    unplugged: "{name} (desconectada)",
+    sharedOutput: "Também se ouve na igreja: sai pela mesma saída que o Ao vivo.",
+    sharedOutputNdi: "Também se ouve na igreja e no NDI: sai pela mesma saída que o Ao vivo.",
+  },
   live: {
     takeOffAir: "Tirar do ar",
     title: "Ao vivo",
@@ -876,6 +890,7 @@ const pt: Messages = {
       backups: "Cópias de segurança",
       about: "Sobre",
       screens: "Telas",
+      sound: "Som",
     },
     screens: {
       title: "Suas telas",
@@ -934,6 +949,15 @@ const pt: Messages = {
       usageEmpty: "Nenhuma música foi ao vivo entre essas datas.",
       usageError: "Não foi possível exportar o relatório.",
     },
+    /** Settings ▸ Sound (`sections/sound-section.tsx`). */
+    sound: {
+      strips: "Mostrar as faixas",
+      stripsDesc: "Medidor, volume e saída ao lado do Preview e do Ao vivo.",
+      stripsHelp: "Desligadas, cada vídeo e áudio volta a mostrar o seu volume, e o volume geral ao vivo fica em 100%.",
+      liveOutputDesc: "O que a igreja ouve. O NDI leva só isto.",
+      previewOutputDesc: "Para ouvir o que vem sem que toque para a igreja.",
+      ndiNote: "O NDI® leva só o Ao vivo. Se o Preview sai pela mesma saída, o NDI leva ele também. No Windows, com saídas separadas, o que outros apps tocarem na saída ao vivo também entra no NDI.",
+    },
     groups: {
       logo: "Logo",
       liveContent: "Conteúdo ao vivo",
@@ -952,6 +976,8 @@ const pt: Messages = {
       about: "Versão e atualizações",
       ndi: "Saída NDI®",
       help: "Ajuda",
+      strips: "Faixas de som",
+      outputs: "Saídas",
     },
     verse: {
       sample: "Amostra",
@@ -1221,7 +1247,7 @@ const pt: Messages = {
     audioEndOptions: { stop: "Parar", loop: "Repetir em loop", next: "Passar ao próximo áudio do roteiro" },
     startVolume: "Volume inicial",
     startVolumeDesc: "Com que volume começa o que você manda ao vivo.",
-    startVolumeHelp: "Cada vídeo, áudio ou música de PPT. Dá para ajustar cada um enquanto toca, no painel Ao vivo.",
+    startVolumeHelp: "Cada vídeo, áudio ou música de PPT. Com as faixas, o volume geral ao vivo ajusta todos; sem elas, cada um se ajusta no painel Ao vivo.",
     transitionStyle: "Estilo",
     transitionStyleDesc: "Como o projetor passa de uma cena para a seguinte.",
     transitionDuration: "Duração",

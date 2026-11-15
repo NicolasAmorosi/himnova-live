@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Button, IconButton, Icon, MediaScrubber, VolumeControl, type IconName } from "@renderer/components/ui";
 import { useT } from "@renderer/lib/i18n/i18n-provider";
 import { cn, formatClock } from "@renderer/lib/utils";
+import { useSettingsStore } from "@renderer/stores/settings.store";
 
 export type MediaTrackKind = "video" | "audio" | "image" | "bible" | "utility" | "plate" | "song";
 
@@ -70,7 +71,10 @@ type MediaTrackRowProps = {
    *  without a `readout`. */
   readoutNote?: string | undefined;
   /** Omit the pair to render the row without a level control — an image or a
-   *  verse has nothing to turn down, and the preview bar reaches no speaker. */
+   *  verse has nothing to turn down, and the preview bar reaches no speaker.
+   *  Hidden anyway while the audio strips are on (owner, 2026-11-15, D2): the
+   *  strip beside each monitor is then the one volume control, and this is the
+   *  one place every row's level is drawn. */
   onVolumeChange?: ((volume: number) => void) | undefined;
   /** 0..1. Required whenever `onVolumeChange` is given. */
   volume?: number | undefined;
@@ -181,6 +185,7 @@ export function MediaTrackRow({
   volume,
 }: MediaTrackRowProps) {
   const t = useT();
+  const strips = useSettingsStore((s) => s.settings["audio.strips"]);
   const hasTiming = durationSeconds !== undefined;
   // Where the scrubber is painting while it is ahead of the reported position
   // — dragging, or holding a committed seek until the projector confirms it.
@@ -255,7 +260,7 @@ export function MediaTrackRow({
           </IconButton>
         ) : null}
 
-        {onVolumeChange && volume !== undefined ? (
+        {onVolumeChange && volume !== undefined && !strips ? (
           <VolumeControl
             label={t("media.volumeFor", { name: label })}
             muteLabel={volume === 0 ? t("media.unmute") : t("media.mute")}
