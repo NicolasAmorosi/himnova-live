@@ -1475,7 +1475,7 @@ const en: Messages = {
       title: "A screen for the stage",
       subtitle: "If you have a screen facing the platform, Himnova Live shows the preacher how much time is left and the musicians what's coming up. You run it from the Stage panel, bottom left.",
       countdown: { title: "Countdown", body: "Set the minutes and the preacher sees it big. It turns amber, then red, as time runs out." },
-      message: { title: "Messages", body: "Type something like “Last chorus”, or tap a ready phrase, and it shows in a band at the bottom. The congregation doesn't see it." },
+      message: { title: "Messages", body: "Type something like “Last chorus”, or click a ready phrase, and it shows in a band at the bottom. The congregation doesn't see it." },
       views: { title: "Preacher and Musicians", body: "Preacher: a big countdown, the time and what's projected. Musicians: what's live and what's next, with the song's chords." },
       configure: "Choose the stage screen",
     },

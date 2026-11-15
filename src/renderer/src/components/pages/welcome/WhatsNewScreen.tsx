@@ -78,7 +78,12 @@ function DoneStep({ go }: { go: (step: WhatsNewStepId) => void }) {
           }
           label={t("whatsNew.steps.stage")}
         >
-          <Button onClick={() => useUiStore.getState().openSettings("screens")} size="sm" variant="outline">
+          <Button
+            aria-label={`${t("whatsNew.done.screens")}: ${t("whatsNew.steps.stage")}`}
+            onClick={() => useUiStore.getState().openSettings("screens")}
+            size="sm"
+            variant="outline"
+          >
             {t("whatsNew.done.screens")}
           </Button>
         </FieldRow>

@@ -1491,7 +1491,7 @@ const es = {
       title: "Una pantalla para el escenario",
       subtitle: "Si tienen una pantalla que mira a la plataforma, Himnova Live le muestra al pastor cuánto tiempo le queda y a los músicos lo que viene. Lo manejás desde el panel Escenario, abajo a la izquierda.",
       countdown: { title: "Cuenta regresiva", body: "Le ponés los minutos y el pastor la ve bien grande. Se pone ámbar y después roja cuando se termina el tiempo." },
-      message: { title: "Mensajes", body: "Escribís algo como «Último coro», o tocás una frase lista, y aparece en una banda abajo. La congregación no lo ve." },
+      message: { title: "Mensajes", body: "Escribís algo como «Último coro», o elegís una frase lista, y aparece en una banda abajo. La congregación no lo ve." },
       views: { title: "Pastor y Músicos", body: "Pastor: la cuenta grande, la hora y lo que se proyecta. Músicos: lo que está en vivo y lo que sigue, con los acordes de la canción." },
       configure: "Elegir la pantalla del escenario",
     },

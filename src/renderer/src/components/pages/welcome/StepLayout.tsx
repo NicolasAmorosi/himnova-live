@@ -10,11 +10,15 @@ import type { ProjectionOutput } from "@shared/types/projection";
  *  reading width when there is no picture. */
 export function StepLayout({
   aside,
+  asideFromNarrow = false,
   children,
   subtitle,
   title,
 }: {
   aside?: ReactNode;
+  /** Put the aside beside from 900 px (the app's 1000 px minimum included) instead of from `xl`, for a step whose
+   *  controls would otherwise fall below the fold under a full-width picture. */
+  asideFromNarrow?: boolean;
   children: ReactNode;
   subtitle: string;
   title: string;
@@ -25,11 +29,16 @@ export function StepLayout({
         <Title as="h1">{title}</Title>
         <p className="text-sm text-muted-foreground">{subtitle}</p>
       </header>
-      <div className="flex flex-col gap-8 xl:flex-row xl:gap-10">
+      <div className={cn("flex flex-col gap-8 xl:flex-row xl:gap-10", asideFromNarrow && "min-[900px]:flex-row")}>
         <div className={cn("flex min-w-0 flex-1 flex-col gap-8", !aside && "max-w-3xl")}>{children}</div>
         {/* Beside, it stays in view while a long step scrolls (the Bibles' list). */}
         {aside ? (
-          <aside className="flex w-full max-w-sm shrink-0 flex-col gap-3 xl:sticky xl:top-10 xl:w-80 xl:self-start">
+          <aside
+            className={cn(
+              "flex w-full max-w-sm shrink-0 flex-col gap-3 xl:sticky xl:top-10 xl:w-80 xl:self-start",
+              asideFromNarrow && "min-[900px]:sticky min-[900px]:top-10 min-[900px]:w-72 min-[900px]:self-start xl:w-80",
+            )}
+          >
             {aside}
           </aside>
         ) : null}
