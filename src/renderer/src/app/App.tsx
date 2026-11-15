@@ -28,6 +28,7 @@ import { loadSongs, refreshLiveSong } from "@renderer/lib/actions/songs";
 import { useProjectionStore } from "@renderer/stores/projection.store";
 import { useProgramStore } from "@renderer/stores/program.store";
 import { logoLook } from "@shared/types/settings";
+import { liveMasterVolume } from "@shared/types/audio";
 import { useSettingsStore } from "@renderer/stores/settings.store";
 import { useBibleStore } from "@renderer/stores/bible.store";
 import { useDisplayStore } from "@renderer/stores/display.store";
@@ -107,6 +108,8 @@ export function App() {
   const fallbackFont = useSettingsStore((s) => s.settings["slides.fallbackFont"]);
   const locale = useSettingsStore((s) => s.settings["ui.locale"]);
   const setSlideText = useProjectionStore((s) => s.setSlideText);
+  const liveMaster = useSettingsStore((s) => liveMasterVolume(s.settings["audio.strips"], s.settings["audio.live.volume"]));
+  const setLiveMasterVolume = useProjectionStore((s) => s.setLiveMasterVolume);
 
   useGlobalShortcuts(useAnyModalOpen());
 
@@ -232,6 +235,11 @@ export function App() {
   useEffect(() => {
     setVideoEnd(videoEnd);
   }, [videoEnd, setVideoEnd]);
+
+  // The LIVE strip's fader (100 % with the strips off), mirrored the same way: it multiplies every live level.
+  useEffect(() => {
+    setLiveMasterVolume(liveMaster);
+  }, [liveMaster, setLiveMasterVolume]);
 
   // The verse's own look, mirrored for the same reason and by the same route.
   // Editing it in Settings while scripture is on the projector therefore

@@ -307,6 +307,21 @@ describe("the video underlay survives the overlay", () => {
     expect(output().videoUnderlay).toMatchObject({ volume: 0 });
   });
 
+  test("the LIVE master multiplies the video's and the slide clip's level, as state", () => {
+    // Fails if the LIVE strip's fader does not reach the projector (or the engine, which reads this output).
+    const store = useProjectionStore.getState();
+    store.setBase({ kind: "video", assetId: 5, url: assetUrl(5), epoch: 1, startAtSeconds: 0 });
+    store.setVideoVolume(0.8);
+    const before = selectOutputMemo(useProjectionStore.getState());
+    store.setLiveMasterVolume(0.5);
+    // A new output, not the memoized one: the projector has to hear about it.
+    expect(selectOutputMemo(useProjectionStore.getState())).not.toBe(before);
+    expect(output().videoUnderlay?.volume).toBeCloseTo(0.4, 6);
+    store.setBase({ kind: "deck", assetId: 9, slideIndex: 1 });
+    store.setLiveDeck(deckOf(9, 2, [slideVideoOn(1, { volume: 0.6 })]));
+    expect(output().slideVideo?.volume).toBeCloseTo(0.3, 6);
+  });
+
   test("anything that is not a video has no underlay", () => {
     useProjectionStore.getState().setBase({ kind: "image", assetId: 3 });
     expect(output().videoUnderlay).toBeNull();

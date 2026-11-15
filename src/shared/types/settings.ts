@@ -27,6 +27,7 @@ import {
   type StageTextSize,
 } from "./stage";
 import { isSceneBackground } from "../style-validators";
+import { isAudioOutputChoice, type AudioOutputChoice } from "./audio";
 import { LOGO_URL } from "../urls";
 import {
   NDI_AUDIO_DELAY_DEFAULT_MS,
@@ -123,6 +124,15 @@ export type SettingsMap = {
   "ui.theme": Theme;
   "ui.locale": Locale;
   "media.volume": number;
+  /** The audio strips beside PREVIEW and LIVE: meter, fader, mute and output (owner, 2026-11-15, D1). On, the volume
+   *  of each media row hides (D2); off, the rows have it back and the LIVE master counts as 100 % (D3). */
+  "audio.strips": boolean;
+  /** The LIVE strip's fader, 0..1: a master that multiplies the level of everything that sounds live (`busVolume`),
+   *  remembered across launches. PREVIEW's fader is `preview.store`'s own volume, 0 with every new item. */
+  "audio.live.volume": number;
+  /** Where each bus sounds, `null` for the system's default output. They apply with the strips off too (D3). */
+  "audio.output.live": AudioOutputChoice | null;
+  "audio.output.preview": AudioOutputChoice | null;
   /** How the projector moves between scenes — see `TransitionStyle`. */
   "projection.transition.style": TransitionStyle;
   /** Ignored when the style is "none". */
@@ -282,6 +292,10 @@ export const DEFAULT_SETTINGS: SettingsMap = {
   // looks like the file is quiet. Balancing down is one drag away, per track,
   // in the Live panel.
   "media.volume": 1,
+  "audio.strips": true,
+  "audio.live.volume": 1,
+  "audio.output.live": null,
+  "audio.output.preview": null,
   "projection.transition.style": "crossfade",
   "projection.videoEnd": "logo",
   "projection.deckEnd": "logo",
@@ -418,6 +432,10 @@ export const SETTINGS_VALIDATORS: Record<keyof SettingsMap, (value: unknown) => 
   "ui.theme": isOneOf(THEMES),
   "ui.locale": isOneOf(LOCALES),
   "media.volume": isNumberIn(0, 1),
+  "audio.strips": isBoolean,
+  "audio.live.volume": isNumberIn(0, 1),
+  "audio.output.live": isNullOr(isAudioOutputChoice),
+  "audio.output.preview": isNullOr(isAudioOutputChoice),
   "projection.transition.style": isOneOf(TRANSITION_STYLES),
   "projection.videoEnd": isOneOf(VIDEO_END_ACTIONS),
   "projection.deckEnd": isOneOf(VIDEO_END_ACTIONS),
@@ -486,10 +504,20 @@ export function isSettingsKey(key: string): key is keyof SettingsMap {
 /** The NDI source's factory name before the product became Himnova Live (2026-11-11). */
 const FORMER_NDI_NAME = "Lumina Live";
 
+/** A stored output that is no longer one (a hand-edited row) is the system's default; extra fields are dropped. */
+const normalizeAudioOutput = (v: unknown): AudioOutputChoice | null =>
+  isAudioOutputChoice(v) ? { label: v.label, deviceId: v.deviceId } : null;
+
 export const SETTINGS_NORMALIZERS: {
   [K in keyof SettingsMap]?: (value: unknown) => SettingsMap[K];
 } = {
   "bible.style": normalizeBibleStyle,
+  "audio.strips": (v) => (typeof v === "boolean" ? v : DEFAULT_SETTINGS["audio.strips"]),
+  // A master that read back as anything but a level would be silence or a throw on every live element.
+  "audio.live.volume": (v) =>
+    SETTINGS_VALIDATORS["audio.live.volume"](v) ? (v as number) : DEFAULT_SETTINGS["audio.live.volume"],
+  "audio.output.live": normalizeAudioOutput,
+  "audio.output.preview": normalizeAudioOutput,
   // A profile that stored the old factory name follows the product's new one; a name the church chose stays.
   "ndi.output.name": (v) =>
     v === FORMER_NDI_NAME || !SETTINGS_VALIDATORS["ndi.output.name"](v)
