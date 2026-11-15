@@ -788,6 +788,8 @@ const it: Messages = {
     previewVolume: "Volume dell'anteprima",
     liveOutput: "Uscita in onda",
     previewOutput: "Uscita dell'anteprima",
+    liveMute: "Disattiva audio In onda",
+    previewMute: "Disattiva audio anteprima",
     outputIs: "{output}: {name}",
     systemDefault: "Predefinita di sistema",
     unplugged: "{name} (scollegata)",

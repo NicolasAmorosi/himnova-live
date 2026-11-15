@@ -35,6 +35,8 @@ type MenuProps<T extends string> = {
   onSelect: (value: T) => void;
   options: readonly MenuOption<T>[];
   size?: MenuSize;
+  /** The trigger's accessible name when it says more than the list's (`label`): «Salida de EN VIVO: Auriculares». */
+  triggerLabel?: string;
   /** The option in effect, rendered checked (`menuitemradio`). Left out, the
    *  menu is a list of COMMANDS (`menuitem`, nothing checked): an editor's
    *  «⋯» with Duplicate and Delete. */
@@ -79,6 +81,7 @@ export function Menu<T extends string>({
   onSelect,
   options,
   size = "xs",
+  triggerLabel,
   value,
   width = MENU_WIDTH_PX,
 }: MenuProps<T>) {
@@ -194,7 +197,7 @@ export function Menu<T extends string>({
   const trigger = (
     <IconButton
       {...triggerProps}
-      aria-label={label}
+      aria-label={triggerLabel ?? label}
       className={cn(
         triggerSizes[size],
         caret && "w-auto gap-0.5 px-1",

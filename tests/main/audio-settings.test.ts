@@ -18,6 +18,18 @@ test("with the strips off the LIVE master counts as 100 % (D3)", () => {
   expect(liveMasterVolume(true, 0.3)).toBe(0.3);
 });
 
+test("the LIVE mute silences the master without touching the remembered level, and never outlives the app", () => {
+  expect(liveMasterVolume(true, 0.3, true)).toBe(0);
+  expect(liveMasterVolume(true, 0.3, false)).toBe(0.3);
+  // A mute nobody can see (strips off) does not silence the room either.
+  expect(liveMasterVolume(false, 0.3, true)).toBe(1);
+  // A launch starts unmuted (`ui.store`), and a remembered 0 (an older build's mute) reads back as the default:
+  // fails if a church can open the app with LIVE silent.
+  const normalize = SETTINGS_NORMALIZERS["audio.live.volume"] as (value: unknown) => number;
+  expect(normalize(0)).toBe(1);
+  expect(normalize(0.4)).toBe(0.4);
+});
+
 test("the strips are on by default, the master at 100 %, both outputs the system's (D5)", () => {
   expect(DEFAULT_SETTINGS["audio.strips"]).toBe(true);
   expect(DEFAULT_SETTINGS["audio.live.volume"]).toBe(1);

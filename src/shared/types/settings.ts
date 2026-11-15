@@ -128,7 +128,7 @@ export type SettingsMap = {
    *  of each media row hides (D2); off, the rows have it back and the LIVE master counts as 100 % (D3). */
   "audio.strips": boolean;
   /** The LIVE strip's fader, 0..1: a master that multiplies the level of everything that sounds live (`busVolume`),
-   *  remembered across launches. PREVIEW's fader is `preview.store`'s own volume, 0 with every new item. */
+   *  remembered across launches. Never 0 on read: the LIVE mute is session state (`ui.store`), not this. PREVIEW's fader is `preview.store`'s own volume, 0 with every new item. */
   "audio.live.volume": number;
   /** Where each bus sounds, `null` for the system's default output. They apply with the strips off too (D3). */
   "audio.output.live": AudioOutputChoice | null;
@@ -513,9 +513,12 @@ export const SETTINGS_NORMALIZERS: {
 } = {
   "bible.style": normalizeBibleStyle,
   "audio.strips": (v) => (typeof v === "boolean" ? v : DEFAULT_SETTINGS["audio.strips"]),
-  // A master that read back as anything but a level would be silence or a throw on every live element.
+  // A master that read back as anything but a level would be silence or a throw on every live element, and 0 is no
+  // remembered level: the strip's mute is session state, so a stored 0 (an older build's mute) opens at the default.
   "audio.live.volume": (v) =>
-    SETTINGS_VALIDATORS["audio.live.volume"](v) ? (v as number) : DEFAULT_SETTINGS["audio.live.volume"],
+    SETTINGS_VALIDATORS["audio.live.volume"](v) && (v as number) > 0
+      ? (v as number)
+      : DEFAULT_SETTINGS["audio.live.volume"],
   "audio.output.live": normalizeAudioOutput,
   "audio.output.preview": normalizeAudioOutput,
   // A profile that stored the old factory name follows the product's new one; a name the church chose stays.

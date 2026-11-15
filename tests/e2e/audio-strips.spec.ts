@@ -30,7 +30,11 @@ async function boxes(app: WorshipApp, column: "preview" | "live") {
     });
   });
   const overflows = await section.evaluate((element) => element.scrollWidth > element.clientWidth);
-  return { strip: stripBox!, monitor: monitorBox!, inside, overflows };
+  // The dB scale (drawn in the canvas) ends before the fader's hit area begins.
+  const apart = await strip.evaluate(
+    (group) => group.querySelector("canvas")!.getBoundingClientRect().right <= group.querySelector("input")!.getBoundingClientRect().left,
+  );
+  return { strip: stripBox!, monitor: monitorBox!, inside, overflows, apart };
 }
 
 async function windowAt(app: WorshipApp, width: number, height: number) {
@@ -73,10 +77,79 @@ test("with the strips on, the volume is in two strips beside two identical monit
       expect(Math.abs(column.strip.height - column.monitor.height)).toBeLessThan(1);
       expect(Math.abs(column.strip.y - column.monitor.y)).toBeLessThan(1);
       expect(column.inside).toBe(true);
+      expect(column.apart).toBe(true);
       expect(column.overflows).toBe(false);
     }
     await app.control.screenshot({ path: testInfo.outputPath(`strips-${width}x${height}.png`) });
   }
+});
+
+/** Settings ▸ Sonido ▸ «Mostrar las tiras», to the state asked for. */
+async function setStrips(app: WorshipApp, on: boolean) {
+  await app.control.getByRole("button", { name: "Configuración" }).click();
+  const settings = app.control.getByRole("dialog", { name: "Configuración" });
+  await settings.getByRole("tab", { name: "Sonido" }).click();
+  const strips = settings.getByRole("switch", { name: "Mostrar las tiras" });
+  if ((await strips.isChecked()) !== on) await strips.click();
+  await settings.getByRole("button", { name: "Volver" }).click();
+  await expect(settings).toBeHidden();
+}
+
+/** Marks each column's monitor element, so a remount (a new element) is told from a re-render. */
+async function markMonitors(app: WorshipApp) {
+  for (const section of [app.previewColumn(), app.liveColumn()]) {
+    await section.locator(".aspect-video").first().evaluate((element) => ((element as HTMLElement & { __kept?: boolean }).__kept = true));
+  }
+}
+async function monitorsKept(app: WorshipApp) {
+  return Promise.all(
+    [app.previewColumn(), app.liveColumn()].map((section) =>
+      section.locator(".aspect-video").first().evaluate((element) => (element as HTMLElement & { __kept?: boolean }).__kept === true),
+    ),
+  );
+}
+
+test("turning the strips off and on again does not restart PREVIEW's video or remount a monitor", async ({ app }) => {
+  await app.addMedia("video", "clip.mp4");
+  await app.previewFile("Videos", "clip");
+  await app.previewColumn().getByRole("button", { name: "Reproducir" }).click();
+  const position = app.previewColumn().getByRole("slider", { name: "Posición de clip" });
+  const seconds = async () => Number(await position.getAttribute("aria-valuenow"));
+  await expect.poll(seconds).toBeGreaterThanOrEqual(1);
+  await markMonitors(app);
+  const before = await seconds();
+
+  await setStrips(app, false);
+  expect(await monitorsKept(app)).toEqual([true, true]);
+  // Fails if the remount restarts the video (a jump back to ~0).
+  expect(await seconds()).toBeGreaterThanOrEqual(before);
+  await setStrips(app, true);
+  expect(await monitorsKept(app)).toEqual([true, true]);
+  expect(await seconds()).toBeGreaterThanOrEqual(before);
+});
+
+test("turning the strips off does not restart what plays LIVE", async ({ app }) => {
+  const projector = await videoLive(app);
+  const position = app.liveColumn().getByRole("slider", { name: "Posición de clip" });
+  await expect.poll(async () => Number(await position.getAttribute("aria-valuenow"))).toBeGreaterThanOrEqual(1);
+  await markMonitors(app);
+  const before = (await videoStates(projector))[0]?.currentTime ?? 0;
+  await setStrips(app, false);
+  expect(await monitorsKept(app)).toEqual([true, true]);
+  // The clip may have ended by now (it is 8 s); it never goes back.
+  const after = (await videoStates(projector))[0]?.currentTime ?? before;
+  expect(after).toBeGreaterThanOrEqual(before);
+});
+
+test("PREVIEW at rest is calm; its headphones turn amber only once it is audible on a shared output", async ({ app }) => {
+  const preview = app.previewColumn().getByRole("group", { name: PREVIEW_STRIP });
+  const headphones = preview.getByRole("button", { name: "Salida de PREVIEW" });
+  // At 0 the mute is the dimmed speaker, not an alarm; the headphones are not amber, but still explain themselves.
+  await expect(preview.getByRole("button", { name: "Silenciar PREVIEW" })).toHaveAttribute("aria-pressed", "true");
+  await expect(headphones).not.toHaveClass(/text-warning-ink/);
+  await expect(headphones).toHaveAccessibleName(/También se escucha en la sala/);
+  await preview.getByRole("slider", { name: "Volumen de PREVIEW" }).fill("40");
+  await expect(headphones).toHaveClass(/text-warning-ink/);
 });
 
 test("with the strips off, every row has its volume back and no strip shows", async ({ app }) => {
@@ -104,9 +177,15 @@ test("LIVE's fader is a master: at 50 % the projector plays each item at half it
 
   // Mute is the master at 0; unmute brings back the level it had.
   const strip = app.liveColumn().getByRole("group", { name: LIVE_STRIP });
-  await strip.getByRole("button", { name: "Silenciar" }).click();
+  // The button keeps its name; the state is `aria-pressed`.
+  const mute = strip.getByRole("button", { name: "Silenciar EN VIVO" });
+  await mute.click();
+  await expect(mute).toHaveAttribute("aria-pressed", "true");
   await expect.poll(levels).toEqual([0, 0]);
-  await strip.getByRole("button", { name: "Activar sonido" }).click();
+  // The remembered level is untouched by the mute (it is session state).
+  expect((await app.invoke<Record<string, unknown>>("settings:get"))["audio.live.volume"]).toBe(0.5);
+  await mute.click();
+  await expect(mute).toHaveAttribute("aria-pressed", "false");
   await expect.poll(levels).toEqual([0.5, 0.5]);
 
   // D3: with the strips off the master counts as 100 %, never a level nobody can see.

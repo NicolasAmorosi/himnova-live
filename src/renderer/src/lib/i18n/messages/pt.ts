@@ -785,6 +785,8 @@ const pt: Messages = {
     previewVolume: "Volume do preview",
     liveOutput: "Saída ao vivo",
     previewOutput: "Saída do preview",
+    liveMute: "Silenciar Ao vivo",
+    previewMute: "Silenciar preview",
     outputIs: "{output}: {name}",
     systemDefault: "Padrão do sistema",
     unplugged: "{name} (desconectada)",

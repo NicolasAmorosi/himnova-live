@@ -27,20 +27,27 @@ export function findAudioOutput(choice: AudioOutputChoice, devices: readonly Aud
   return named.find((device) => device.deviceId === choice.deviceId) ?? named[0] ?? null;
 }
 
-/** Whether the two buses end up in the same device (D6: PREVIEW is then heard in the room, and in the NDI®). The
- *  system's default is whichever device it names now; a device that is not plugged in is told apart by its name. */
+/** Where a bus actually plays: a device of the list, or the system's default (no choice, or a choice that is not
+ *  plugged in: Chromium and the engine both fall back to the default). */
+function resolveOutput(choice: AudioOutputChoice | null, devices: readonly AudioOutputDevice[]): AudioOutputDevice | null {
+  return choice === null ? null : findAudioOutput(choice, devices);
+}
+
+/** Whether the two buses end up in the same device (D6: PREVIEW is then heard in the room, and in the NDI®). Each is
+ *  resolved to where it really plays first, then compared by `deviceId`: two outputs of one interface («Out 1-2»,
+ *  «Out 3-4») share a `groupId` and are different. The `groupId` only tells which physical device the system's
+ *  default is, when the other bus names a device. */
 export function sameAudioOutput(
   live: AudioOutputChoice | null,
   preview: AudioOutputChoice | null,
   outputs: AudioOutputs,
 ): boolean {
-  if (live === null && preview === null) return true;
-  const group = (choice: AudioOutputChoice | null) =>
-    choice === null ? outputs.defaultGroupId : (findAudioOutput(choice, outputs.devices)?.groupId ?? null);
-  const a = group(live);
-  const b = group(preview);
-  if (a !== null && b !== null) return a === b;
-  return live !== null && preview !== null && live.label === preview.label;
+  const a = resolveOutput(live, outputs.devices);
+  const b = resolveOutput(preview, outputs.devices);
+  if (a === null && b === null) return true;
+  if (a !== null && b !== null) return a.deviceId === b.deviceId;
+  const device = a ?? b;
+  return device !== null && outputs.defaultGroupId !== null && device.groupId === outputs.defaultGroupId;
 }
 
 /** The outputs, read again whenever one is plugged in or out. Empty until Chromium answers, and where it has no
@@ -51,10 +58,13 @@ export function useAudioOutputs(): AudioOutputs {
     const media = navigator.mediaDevices as MediaDevices | undefined;
     if (!media) return;
     let current = true;
+    // A slower, older answer must not overwrite a newer one (two plug events in a row).
+    let latest = 0;
     const read = () => {
+      const request = ++latest;
       media.enumerateDevices().then(
         (list) => {
-          if (current) setOutputs(audioOutputsOf(list));
+          if (current && request === latest) setOutputs(audioOutputsOf(list));
         },
         (error: unknown) => console.warn("[audio] could not list the outputs", error),
       );

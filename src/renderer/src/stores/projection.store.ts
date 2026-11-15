@@ -665,12 +665,21 @@ function selectVideoUnderlay(state: ProjectionStoreState): VideoUnderlay {
  * the overlay here would unmount the element on every toggle and restart the
  * clip each time the operator uncovered the stage.
  */
-function selectSlideVideo(state: ProjectionStoreState): SlideVideo {
+function liveSlideClip(state: ProjectionStoreState) {
   if (state.base?.kind !== "deck") return null;
   const deck = state.liveDeck;
   if (!deck || deck.assetId !== state.base.assetId || deck.slides.length === 0) return null;
   const index = clamp(state.base.slideIndex, 1, deck.slides.length);
-  const video = deck.videos.find((candidate) => candidate.slideIndex === index);
+  return deck.videos.find((candidate) => candidate.slideIndex === index) ?? null;
+}
+
+/** The live slide clip's OWN level (what its row shows), before the LIVE master that the projector's level carries. */
+export function selectSlideClipVolume(state: ProjectionStoreState): number {
+  return state.slideVideoVolume ?? liveSlideClip(state)?.volume ?? defaultMediaVolume();
+}
+
+function selectSlideVideo(state: ProjectionStoreState): SlideVideo {
+  const video = liveSlideClip(state);
   if (!video) return null;
   return {
     url: video.url,
@@ -680,7 +689,7 @@ function selectSlideVideo(state: ProjectionStoreState): SlideVideo {
     loop: video.loop,
     paused: state.slideVideoPaused,
     startAtSeconds: state.slideVideoStartAt,
-    volume: busVolume(state.slideVideoVolume ?? video.volume ?? defaultMediaVolume(), state.liveMasterVolume),
+    volume: busVolume(selectSlideClipVolume(state), state.liveMasterVolume),
   };
 }
 

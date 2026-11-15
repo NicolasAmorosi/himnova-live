@@ -784,6 +784,8 @@ const en: Messages = {
     previewVolume: "Preview volume",
     liveOutput: "Live output",
     previewOutput: "Preview output",
+    liveMute: "Mute Live",
+    previewMute: "Mute Preview",
     outputIs: "{output}: {name}",
     systemDefault: "System default",
     unplugged: "{name} (unplugged)",

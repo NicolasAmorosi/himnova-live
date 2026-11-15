@@ -1,10 +1,12 @@
 import { useCallback, type ReactNode } from "react";
 import { ChannelStrip, Menu, Tooltip } from "@renderer/components/ui";
+import { useMuteToggle } from "@renderer/components/ui/use-mute-toggle";
 import { useT } from "@renderer/lib/i18n/i18n-provider";
 import { sameAudioOutput, useAudioOutputPicker, useAudioOutputs } from "@renderer/lib/hooks/use-audio-outputs";
 import { useAudioLevelsStore, type StereoLevel } from "@renderer/stores/audio-levels.store";
 import { usePreviewStore } from "@renderer/stores/preview.store";
 import { useSettingsStore } from "@renderer/stores/settings.store";
+import { useUiStore } from "@renderer/stores/ui.store";
 import type { AudioBus } from "@shared/types/audio";
 
 /** Wide enough for «Predeterminada del sistema» and a USB interface's name beside the check. */
@@ -15,9 +17,12 @@ const OUTPUT_MENU_WIDTH_PX = 288;
  * columns stay identical, shown only while `audio.strips` is on.
  *
  * - LIVE's fader is the master (`audio.live.volume`, remembered): everything that sounds live plays at its own level
- *   times this one (`busVolume`). PREVIEW's IS PREVIEW's volume (`preview.store`), 0 with every new item.
+ *   times this one (`busVolume`). Its mute is session state (`ui.store`), so the app never opens with LIVE silent;
+ *   dragging the fader to 0 is that mute, and the remembered level stays. PREVIEW's IS PREVIEW's volume
+ *   (`preview.store`), 0 with every new item.
  * - The output menu writes `audio.output.<bus>`. PREVIEW's turns amber when both buses end up in the same device
- *   (D6): then PREVIEW is heard in the room, and in the NDI® when it is on.
+ *   AND PREVIEW is audible (D6): then it is heard in the room, and in the NDI® when it is on. The tooltip says so
+ *   whenever the outputs are shared.
  */
 export function AudioStrip({ bus }: { bus: AudioBus }) {
   const t = useT();
@@ -29,6 +34,10 @@ export function AudioStrip({ bus }: { bus: AudioBus }) {
   const liveChoice = useSettingsStore((s) => s.settings["audio.output.live"]);
   const previewChoice = useSettingsStore((s) => s.settings["audio.output.preview"]);
   const ndi = useSettingsStore((s) => s.settings["ndi.output.enabled"]);
+  const liveMuted = useUiStore((s) => s.liveMuted);
+  const setLiveMuted = useUiStore((s) => s.setLiveMuted);
+  const toggleLiveMute = () => setLiveMuted(!liveMuted);
+  const togglePreviewMute = useMuteToggle(previewVolume, setPreviewVolume);
   const outputs = useAudioOutputs();
   const picker = useAudioOutputPicker(bus, outputs);
   const shared = !live && sameAudioOutput(liveChoice, previewChoice, outputs);
@@ -41,18 +50,27 @@ export function AudioStrip({ bus }: { bus: AudioBus }) {
 
   const outputLabel = t(live ? "audio.liveOutput" : "audio.previewOutput");
   const notice = shared ? t(ndi ? "audio.sharedOutputNdi" : "audio.sharedOutput") : null;
+  const warn = shared && previewVolume > 0;
+  const outputName = t("audio.outputIs", { output: outputLabel, name: picker.name });
+  const setMaster = (volume: number) => {
+    // 0 is the mute, not a level to remember.
+    setLiveMuted(volume === 0);
+    if (volume > 0) void update({ "audio.live.volume": Number(volume.toFixed(2)) });
+  };
 
   return (
     <ChannelStrip
       alarmWhenMuted={live}
       label={t(live ? "audio.liveStrip" : "audio.previewStrip")}
-      muteLabel={t("media.mute")}
-      onChange={live ? (volume) => void update({ "audio.live.volume": Number(volume.toFixed(2)) }) : setPreviewVolume}
+      muted={live ? liveMuted : previewVolume === 0}
+      muteLabel={t(live ? "audio.liveMute" : "audio.previewMute")}
+      onChange={live ? setMaster : setPreviewVolume}
+      onToggleMute={live ? toggleLiveMute : togglePreviewMute}
       output={
         <Tooltip
           content={
             <>
-              {t("audio.outputIs", { output: outputLabel, name: picker.name })}
+              {outputName}
               {notice ? <span className="mt-1 block text-warning-ink">{notice}</span> : null}
             </>
           }
@@ -61,19 +79,19 @@ export function AudioStrip({ bus }: { bus: AudioBus }) {
           <Menu
             align="end"
             caret
-            {...(shared ? { className: "text-warning-ink" } : {})}
+            {...(warn ? { className: "text-warning-ink" } : {})}
             icon={live ? "speaker" : "headphones"}
             label={outputLabel}
             onSelect={picker.choose}
             options={picker.options}
+            triggerLabel={notice ? `${outputName}. ${notice}` : outputName}
             value={picker.value}
             width={OUTPUT_MENU_WIDTH_PX}
           />
         </Tooltip>
       }
       subscribeLevels={subscribeLevels}
-      unmuteLabel={t("media.unmute")}
-      value={live ? master : previewVolume}
+      value={live ? (liveMuted ? 0 : master) : previewVolume}
       volumeLabel={t(live ? "audio.liveVolume" : "audio.previewVolume")}
     />
   );
@@ -83,11 +101,11 @@ export function AudioStrip({ bus }: { bus: AudioBus }) {
  *  LIVE's columns both go through here, so the two monitors stay the same size. */
 export function MonitorWithStrip({ bus, children }: { bus: AudioBus; children: ReactNode }) {
   const strips = useSettingsStore((s) => s.settings["audio.strips"]);
-  if (!strips) return children;
+  // The same tree with or without the strip: a different one remounts the monitor, and with it PREVIEW's video.
   return (
     <div className="flex shrink-0 gap-2">
       <div className="min-w-0 flex-1">{children}</div>
-      <AudioStrip bus={bus} />
+      {strips ? <AudioStrip bus={bus} /> : null}
     </div>
   );
 }

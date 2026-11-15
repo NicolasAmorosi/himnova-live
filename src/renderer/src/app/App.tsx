@@ -108,7 +108,10 @@ export function App() {
   const fallbackFont = useSettingsStore((s) => s.settings["slides.fallbackFont"]);
   const locale = useSettingsStore((s) => s.settings["ui.locale"]);
   const setSlideText = useProjectionStore((s) => s.setSlideText);
-  const liveMaster = useSettingsStore((s) => liveMasterVolume(s.settings["audio.strips"], s.settings["audio.live.volume"]));
+  const liveMuted = useUiStore((s) => s.liveMuted);
+  const liveMaster = useSettingsStore((s) =>
+    liveMasterVolume(s.settings["audio.strips"], s.settings["audio.live.volume"], liveMuted),
+  );
   const setLiveMasterVolume = useProjectionStore((s) => s.setLiveMasterVolume);
 
   useGlobalShortcuts(useAnyModalOpen());

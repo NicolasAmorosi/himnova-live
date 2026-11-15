@@ -67,6 +67,30 @@
   &:focus-visible { outline: 2px solid var(--color-ring); outline-offset: -2px; }
 }
 
+/* A channel strip's fader (`ChannelStrip`): a native vertical range whose track is painted here, filled up to
+ * `--fill` (set inline, 0..100%). With `accent-color` set, Chromium paints the unfilled track light on the dark theme,
+ * so the whole track and thumb are drawn instead. `--wa-*`: the `--color-*` of `@theme inline` are not CSS variables. */
+.fader {
+  appearance: none;
+  background: transparent;
+  --fill: 0%;
+}
+.fader::-webkit-slider-runnable-track {
+  width: 4px;
+  height: 100%;
+  border-radius: 9999px;
+  background: linear-gradient(to top, var(--wa-accent) var(--fill), var(--wa-border) var(--fill));
+}
+.fader::-webkit-slider-thumb {
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  margin-left: -5px;
+  border: 0;
+  border-radius: 9999px;
+  background: var(--wa-accent);
+}
+
 @keyframes linear-loader-slide {
   0% { transform: translateX(-120%); }
   60%  { transform: translateX(320%); }

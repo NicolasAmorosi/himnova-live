@@ -40,12 +40,36 @@ test("PREVIEW shares LIVE's output when both end up in the same device (D6)", ()
   const scarlett = { label: "Scarlett 2i2", deviceId: "b2" };
   const speakers = { label: "Altavoces", deviceId: "a1" };
   expect(sameAudioOutput(null, null, outputs)).toBe(true);
-  // The default IS the speakers today.
+  // The default IS the speakers today, whichever side names them.
   expect(sameAudioOutput(null, speakers, outputs)).toBe(true);
+  expect(sameAudioOutput(speakers, null, outputs)).toBe(true);
   expect(sameAudioOutput(scarlett, null, outputs)).toBe(false);
   expect(sameAudioOutput(scarlett, speakers, outputs)).toBe(false);
-  // Unplugged: told apart by name.
+  expect(sameAudioOutput(speakers, speakers, outputs)).toBe(true);
+});
+
+test("a choice that is not plugged in plays through the system's default, so that is what is compared", () => {
   const gone = { label: "USB Headset", deviceId: "z9" };
-  expect(sameAudioOutput(gone, gone, outputs)).toBe(true);
+  const other = { label: "Other Dongle", deviceId: "z8" };
+  const speakers = { label: "Altavoces", deviceId: "a1" };
+  const scarlett = { label: "Scarlett 2i2", deviceId: "b2" };
+  // Unplugged LIVE + default PREVIEW: both end in the default, so shared (a name match alone said no).
+  expect(sameAudioOutput(gone, null, outputs)).toBe(true);
+  // Both unplugged, even different ones: both fall back to the default.
+  expect(sameAudioOutput(gone, other, outputs)).toBe(true);
+  // Unplugged beside the device the default is: shared; beside another device: not.
+  expect(sameAudioOutput(gone, speakers, outputs)).toBe(true);
   expect(sameAudioOutput(gone, scarlett, outputs)).toBe(false);
+});
+
+test("two outputs of one interface are different devices, whatever their group says", () => {
+  const interfaceOutputs = audioOutputsOf([
+    device("default", "Predeterminado - Out 1-2", "g-iface"),
+    device("o12", "Out 1-2", "g-iface"),
+    device("o34", "Out 3-4", "g-iface"),
+  ]);
+  const out12 = { label: "Out 1-2", deviceId: "o12" };
+  const out34 = { label: "Out 3-4", deviceId: "o34" };
+  expect(sameAudioOutput(out12, out34, interfaceOutputs)).toBe(false);
+  expect(sameAudioOutput(out12, out12, interfaceOutputs)).toBe(true);
 });

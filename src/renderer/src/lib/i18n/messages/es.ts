@@ -787,6 +787,8 @@ const es = {
     previewVolume: "Volumen de PREVIEW",
     liveOutput: "Salida de EN VIVO",
     previewOutput: "Salida de PREVIEW",
+    liveMute: "Silenciar EN VIVO",
+    previewMute: "Silenciar PREVIEW",
     outputIs: "{output}: {name}",
     systemDefault: "Predeterminada del sistema",
     unplugged: "{name} (desconectada)",

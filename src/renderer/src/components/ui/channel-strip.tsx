@@ -1,8 +1,8 @@
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useRef, type CSSProperties, type ReactNode } from "react";
 import { cn } from "@renderer/lib/utils";
 import { Icon } from "./icon";
 import { IconButton } from "./icon-button";
-import { useMuteToggle } from "./use-mute-toggle";
+import { Tooltip } from "./tooltip";
 import { FLOOR_DB, SCALE_DB, SILENT_CHANNEL, ZONES, isLit, stepMeterChannel, type MeterChannel } from "./level-meter";
 
 /** Left and right, in dBFS (sample peak); `-Infinity` is silence. */
@@ -159,19 +159,23 @@ function LevelMeter({ subscribe }: { subscribe: (listener: (level: Level) => voi
 }
 
 type ChannelStripProps = {
-  /** Muted is an alarm here (LIVE: the room hears nothing), not the resting state (PREVIEW starts silent). */
+  /** Muted is an alarm here (LIVE: the room hears nothing), not the resting state (PREVIEW starts silent, so its
+   *  mute icon is only dimmed). */
   alarmWhenMuted?: boolean;
   className?: string;
   /** Names the strip: «Sonido de EN VIVO». */
   label: string;
+  /** Whether the strip is silent: what the mute button's pressed state and icon say. */
+  muted: boolean;
+  /** The mute button's name, constant («Silenciar EN VIVO»): the state is `aria-pressed`, never a second label. */
   muteLabel: string;
   onChange: (volume: number) => void;
+  onToggleMute: () => void;
   /** The output control at the strip's foot. */
   output: ReactNode;
   /** Feeds the meter without a re-render per level: called once per mount, returns its unsubscribe. Keep it stable. */
   subscribeLevels: (listener: (level: Level) => void) => () => void;
-  unmuteLabel: string;
-  /** 0..1. */
+  /** 0..1: where the fader stands (0 while muted by the strip's own mute). */
   value: number;
   /** The fader's own name: «Volumen general de EN VIVO». */
   volumeLabel: string;
@@ -191,16 +195,15 @@ export function ChannelStrip({
   alarmWhenMuted = false,
   className,
   label,
+  muted,
   muteLabel,
   onChange,
+  onToggleMute,
   output,
   subscribeLevels,
-  unmuteLabel,
   value,
   volumeLabel,
 }: ChannelStripProps) {
-  const muted = value === 0;
-  const toggleMute = useMuteToggle(value, onChange);
   const db = formatDb(value);
 
   return (
@@ -211,25 +214,25 @@ export function ChannelStrip({
         <input
           aria-label={volumeLabel}
           aria-valuetext={db}
-          className="h-full min-h-0 w-4 cursor-pointer accent-accent [direction:rtl] [writing-mode:vertical-lr]"
+          className="fader h-full min-h-0 w-4 cursor-pointer [direction:rtl] [writing-mode:vertical-lr]"
           max={100}
           min={0}
           onChange={(event) => onChange(Number(event.currentTarget.value) / 100)}
           step={1}
+          style={{ "--fill": `${Math.round(value * 100)}%` } as CSSProperties}
           title={db}
           type="range"
           value={Math.round(value * 100)}
         />
       </div>
-      <IconButton
-        aria-label={muted ? unmuteLabel : muteLabel}
-        aria-pressed={muted}
-        onClick={toggleMute}
-        size="xs"
-        variant="ghost"
-      >
-        <Icon className={cn(muted && alarmWhenMuted && "text-danger-ink")} name={muted ? "volumeOff" : "volume"} />
-      </IconButton>
+      <Tooltip content={muteLabel} floating>
+        <IconButton aria-label={muteLabel} aria-pressed={muted} onClick={onToggleMute} size="xs" variant="ghost">
+          <Icon
+            className={cn(muted && (alarmWhenMuted ? "text-danger-ink" : "text-subtle"))}
+            name={muted ? "volumeOff" : "volume"}
+          />
+        </IconButton>
+      </Tooltip>
       {output}
       </div>
     </div>
