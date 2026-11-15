@@ -4,8 +4,8 @@
  *
  * Each element that sounds is measured off a COPY of its sound (`captureStream()`) in an `AudioContext` that outputs
  * nothing; never `createMediaElementSource`, which reroutes the element's sound through Web Audio: its output device
- * (`setSinkId`) would stop applying, and a Web Audio failure would silence the room. The copy needs CORS, hence
- * `crossOrigin="anonymous"` on every media element and `serve-file.ts`'s header. One analyser pair per sounding
+ * (`setSinkId`) would stop applying, and a Web Audio failure would silence the room. A cross-origin element cannot be
+ * captured, hence `crossOrigin="anonymous"` on every media element (the `worship://` scheme needs nothing else). One analyser pair per sounding
  * element, gone when it stops; nothing runs while nothing plays.
  */
 
@@ -37,6 +37,9 @@ export function startLevelTap(elements: () => Iterable<HTMLMediaElement>, send: 
   let sounded = false;
 
   const open = (element: HTMLMediaElement): Tap | null => {
+    // Elements play() on mount, so one can be "playing" with nothing loaded: a copy taken then has no tracks, and
+    // Chromium adds live ones to it at `loadedmetadata`, to a stream nobody holds. Ask again on the next tick.
+    if (element.readyState < HTMLMediaElement.HAVE_METADATA) return null;
     let captured: MediaStream;
     try {
       captured = (element as Capturable).captureStream();
@@ -49,25 +52,31 @@ export function startLevelTap(elements: () => Iterable<HTMLMediaElement>, send: 
     for (const track of captured.getVideoTracks()) track.stop();
     const sound = captured.getAudioTracks();
     if (!sound.length) {
-      // Before its metadata there is no telling yet; after it, the file has no sound.
-      if (element.readyState >= HTMLMediaElement.HAVE_METADATA) unmeasurable.set(element, element.currentSrc);
+      unmeasurable.set(element, element.currentSrc);
       return null;
     }
-    // An output of none: this context only listens (Electron 44 takes it; it is not in TypeScript's DOM yet).
-    context ??= new AudioContext({ sinkId: { type: "none" } } as AudioContextOptions);
-    if (context.state !== "running") void context.resume();
-    const stream = new MediaStream(sound);
-    const source = context.createMediaStreamSource(stream);
-    // Mono on both sides and more than two channels folded to two: what the speakers make of it.
-    const stereo = new GainNode(context, { channelCount: 2, channelCountMode: "explicit", channelInterpretation: "speakers" });
-    const splitter = context.createChannelSplitter(2);
-    source.connect(stereo).connect(splitter);
-    const analysers = [0, 1].map((channel) => {
-      const analyser = new AnalyserNode(context!, { fftSize: WINDOW_SAMPLES });
-      splitter.connect(analyser, channel);
-      return analyser;
-    });
-    return { stream, nodes: [source, stereo, splitter, ...analysers], analysers };
+    try {
+      // An output of none: this context only listens (Electron 44 takes it; it is not in TypeScript's DOM yet).
+      context ??= new AudioContext({ sinkId: { type: "none" } } as AudioContextOptions);
+      if (context.state !== "running") void context.resume();
+      const stream = new MediaStream(sound);
+      const source = context.createMediaStreamSource(stream);
+      // Mono on both sides and more than two channels folded to two: what the speakers make of it.
+      const stereo = new GainNode(context, { channelCount: 2, channelCountMode: "explicit", channelInterpretation: "speakers" });
+      const splitter = context.createChannelSplitter(2);
+      source.connect(stereo).connect(splitter);
+      const analysers = [0, 1].map((channel) => {
+        const analyser = new AnalyserNode(context!, { fftSize: WINDOW_SAMPLES });
+        splitter.connect(analyser, channel);
+        return analyser;
+      });
+      return { stream, nodes: [source, stereo, splitter, ...analysers], analysers };
+    } catch (error) {
+      // A copy that never gets a tap is nobody's to stop later.
+      for (const track of sound) track.stop();
+      console.warn(`[level-tap] cannot measure ${element.currentSrc}: ${String(error)}`);
+      return null;
+    }
   };
 
   const close = (tap: Tap): void => {

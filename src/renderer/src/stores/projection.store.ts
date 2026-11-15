@@ -138,6 +138,9 @@ export type ProjectionStoreState = {
    *  projector and the media engine get the level they play at as state; the audio tracks get it in
    *  `toAudioTrackPush`. */
   liveMasterVolume: number;
+  /** Whether the audio strips are on (`audio.strips`), mirrored like the master: the projector measures its own
+   *  elements only then (`ProjectionOutput.meters`). */
+  liveMeters: boolean;
   /** Where LIVE sounds (`AudioOut`), resolved by `effects/audio-route.ts` and carried by every output: the projector
    *  applies it, never decides it. */
   liveAudioOut: AudioOut;
@@ -276,6 +279,7 @@ export type ProjectionStoreState = {
   setTransitionSettings: (style: TransitionStyle, durationMs: number) => void;
   setVideoEnd: (videoEnd: VideoEndAction) => void;
   setLiveMasterVolume: (volume: number) => void;
+  setLiveMeters: (on: boolean) => void;
   setLiveAudioOut: (audioOut: AudioOut) => void;
   setBibleStyle: (style: BibleStyle) => void;
   setSlideText: (text: SlideTextSettings) => void;
@@ -373,6 +377,7 @@ export const useProjectionStore = create<ProjectionStoreState>()(
     transitionDurationMs: 300,
     videoEnd: "logo",
     liveMasterVolume: 1,
+    liveMeters: false,
     liveAudioOut: DEFAULT_AUDIO_OUT,
     bibleStyle: DEFAULT_BIBLE_STYLE,
     slideText: { fallbackFont: null, locale: "es" },
@@ -584,6 +589,7 @@ export const useProjectionStore = create<ProjectionStoreState>()(
       set({ transitionStyle, transitionDurationMs }),
     setVideoEnd: (videoEnd) => set({ videoEnd }),
     setLiveMasterVolume: (liveMasterVolume) => set({ liveMasterVolume }),
+    setLiveMeters: (liveMeters) => set({ liveMeters }),
     setLiveAudioOut: (liveAudioOut) =>
       set((state) =>
         state.liveAudioOut.sinkId === liveAudioOut.sinkId && state.liveAudioOut.engineDevice === liveAudioOut.engineDevice
@@ -825,6 +831,7 @@ export function selectOutput(state: ProjectionStoreState): ProjectionOutput {
     ...(songVideo ? { songVideo } : {}),
     plates: selectPlates(state),
     transition: selectTransition(state),
+    ...(state.liveMeters ? { meters: true as const } : {}),
     ...(state.liveAudioOut.sinkId === "" && state.liveAudioOut.engineDevice === null ? {} : { audioOut: state.liveAudioOut }),
   };
 }
@@ -865,6 +872,7 @@ type OutputInputs = readonly [
   ProjectionStoreState["videoPaused"],
   ProjectionStoreState["videoVolume"],
   ProjectionStoreState["liveMasterVolume"],
+  ProjectionStoreState["liveMeters"],
   ProjectionStoreState["liveAudioOut"],
   ProjectionStoreState["slideVideoEpoch"],
   ProjectionStoreState["slideVideoPaused"],
@@ -890,6 +898,7 @@ function outputInputs(state: ProjectionStoreState): OutputInputs {
     state.videoPaused,
     state.videoVolume,
     state.liveMasterVolume,
+    state.liveMeters,
     state.liveAudioOut,
     state.slideVideoEpoch,
     state.slideVideoPaused,

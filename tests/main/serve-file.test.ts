@@ -31,11 +31,3 @@ test("a byte range is answered with 206 and exactly those bytes", async () => {
   // Fails if a range past the end gets bytes that are not there.
   expect(await get("bytes=1000-")).toMatchObject({ status: 416, range: "bytes */1000" });
 });
-
-test("every answer allows a cross-origin element, which the meters need, whole file or range", async () => {
-  // Fails if the header goes: every `<video>`/`<audio>` loads with crossOrigin="anonymous" and would not load at all.
-  for (const range of ["bytes=0-", "bytes=100-199", ""]) {
-    const res = await serveFile(new Request("worship://asset/1", { headers: range ? { Range: range } : {} }), file);
-    expect(res.headers.get("Access-Control-Allow-Origin")).toBe("*");
-  }
-});

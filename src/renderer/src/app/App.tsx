@@ -120,6 +120,8 @@ export function App() {
     liveMasterVolume(s.settings["audio.strips"], s.settings["audio.live.volume"], liveMuted),
   );
   const setLiveMasterVolume = useProjectionStore((s) => s.setLiveMasterVolume);
+  const strips = useSettingsStore((s) => s.settings["audio.strips"]);
+  const setLiveMeters = useProjectionStore((s) => s.setLiveMeters);
 
   useGlobalShortcuts(useAnyModalOpen());
   // Every sound of this window is PREVIEW's (the monitors' copies of LIVE are muted).
@@ -212,7 +214,6 @@ export function App() {
     const stopUpdateAnnouncement = startUpdateAnnouncement();
     const stopFirstSteps = startFirstSteps();
     const stopAudioRoute = startAudioRouteEffects();
-    const stopAudioLevels = startAudioLevels();
     return () => {
       stopAudioRoute();
       stopProjectionEffects();
@@ -223,7 +224,6 @@ export function App() {
       stopOpenProgramMemory();
       stopUpdateAnnouncement();
       stopFirstSteps();
-      stopAudioLevels();
     };
   }, [loadSettings]);
 
@@ -253,6 +253,13 @@ export function App() {
   useEffect(() => {
     setVideoEnd(videoEnd);
   }, [videoEnd, setVideoEnd]);
+
+  // Measuring only while the strips are on: nothing is listened to, sent or crossed to main otherwise. The projector
+  // learns it through its output.
+  useEffect(() => {
+    setLiveMeters(strips);
+    return strips ? startAudioLevels() : undefined;
+  }, [strips, setLiveMeters]);
 
   // The LIVE strip's fader (100 % with the strips off), mirrored the same way: it multiplies every live level.
   useEffect(() => {

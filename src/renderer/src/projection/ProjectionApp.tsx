@@ -229,13 +229,16 @@ export function ProjectionApp() {
 
   useAudioSink(output.audioOut?.sinkId ?? "");
   // What the room hears from this window's own elements, for LIVE's meter (the engine's sessions are main's).
+  const meters = output.meters === true;
   useEffect(
     () =>
-      startLevelTap(
-        () => document.querySelectorAll<HTMLMediaElement>("video, audio"),
-        (level) => void api.projection.reportLevels(level),
-      ),
-    [],
+      meters
+        ? startLevelTap(
+            () => document.querySelectorAll<HTMLMediaElement>("video, audio"),
+            (level) => void api.projection.reportLevels(level),
+          )
+        : undefined,
+    [meters],
   );
 
   useMediaStatusReporter(videoRef, null, output.videoUnderlay?.epoch ?? 0);
