@@ -7,6 +7,7 @@ import mainEn from "../../src/main/i18n/messages/en";
 import mainEs from "../../src/main/i18n/messages/es";
 import mainIt from "../../src/main/i18n/messages/it";
 import mainPt from "../../src/main/i18n/messages/pt";
+import ui from "../../src/renderer/src/lib/i18n/messages/es";
 import { LOCALES, type Locale } from "../../src/shared/types/settings";
 import { engineCanvas, expect, relaunch, test, type WorshipApp } from "./support/app";
 import { FORTRESS_CHORDS, generateDemoMedia, layOut, lyrics, prepare, settle } from "./support/demo";
@@ -164,8 +165,8 @@ for (const locale of LOCALES) {
       await songSlides.getByRole("listitem").nth(2).getByRole("button").click();
       await shoot("songs", { x: 533, y: 0, width: 1067, height: 688 });
 
-      // The stage screen, picked in Ajustes ▸ Pantallas on the control window's own screen: the song's slide on
-      // air and the next.
+      // The stage screen, picked in Ajustes ▸ Pantallas on the control window's own screen: the musicians' view,
+      // the song's slide on air and the next, the preacher's countdown and a ready phrase from the stage panel.
       const stageOpened = app.electron.waitForEvent("window", { predicate: (page) => page.url().endsWith("/stage.html") });
       await control.getByRole("button", { name: tr("Configuración") }).click();
       const settings = control.getByRole("dialog", { name: tr("Configuración") });
@@ -180,7 +181,18 @@ for (const locale of LOCALES) {
       const stageWindow = await stageOpened;
       const stageScreen = await layOut(stageWindow, 1920, 1080, 1);
       await expect(stageWindow.getByText(fortress.stanzas[0]![4]!)).toBeVisible();
+      // Settled before the message: `settle` waits for every `status` to go, and the stage's band is one.
       await settle(stageWindow);
+      await control.getByRole("region", { name: tr("Escenario") }).getByRole("heading", { name: tr("Escenario") }).click();
+      const stagePanel = control.getByRole("dialog", { name: tr("Escenario") });
+      await stagePanel.getByRole("button", { name: tr("Iniciar la cuenta") }).click();
+      const phrase = tr(ui.stage.defaultPhrases).split("\n")[1]!;
+      await stagePanel.getByRole("button", { name: phrase, exact: true }).click();
+      await expect(stageWindow.getByRole("status")).toHaveText(phrase);
+      await control.keyboard.press("Escape");
+      await expect(stagePanel).toHaveCount(0);
+      // The count's crossfade and the band's three blinks over.
+      await stageWindow.waitForTimeout(2500);
       await capture(stageScreen, out, "stage");
 
       // Before the service: the countdown on air, the clock next in PREVIEW.
