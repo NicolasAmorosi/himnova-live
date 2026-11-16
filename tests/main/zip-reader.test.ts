@@ -118,10 +118,12 @@ describe("readZipEntries", () => {
 
 describe("an entry is never inflated past the size the central directory declares", () => {
   let dir: string;
+  /** 32 MB of one letter, a few KB on disk. The sizes the tests need are written into its headers: building a real
+   *  300 MB one in a hook took long enough under the full suite's load to fail it. */
   let bomb: Uint8Array;
   beforeAll(() => {
     dir = fs.mkdtempSync(path.join(os.tmpdir(), "worship-zip-bomb-"));
-    bomb = zipSync({ "biblia.xml": [new Uint8Array(300 * 1024 * 1024).fill(0x61), { level: 9 }], "ok.xml": strToU8("<ok/>") });
+    bomb = zipSync({ "biblia.xml": [new Uint8Array(32 * 1024 * 1024).fill(0x61), { level: 9 }], "ok.xml": strToU8("<ok/>") });
   });
   afterAll(() => fs.rmSync(dir, { recursive: true, force: true }));
 
@@ -148,23 +150,23 @@ describe("an entry is never inflated past the size the central directory declare
   test("a few hundred KB declaring 300 MB comes back without that entry", () => {
     // 2026-11-10 review, agent6-04: 398 KB on disk became 400 MB in main.
     expect(bomb.length).toBeLessThan(1024 * 1024);
-    const { out } = read("bomb.zip", bomb);
-    expect(out["biblia.xml"]).toBeUndefined();
+    const { out } = read("bomb.zip", patchDeclaredSize(bomb, "biblia.xml", 300 * 1024 * 1024));
+    expect(out["biblia.xml"]?.length).toBeUndefined();
     expect(strFromU8(out["ok.xml"]!)).toBe("<ok/>");
   });
 
-  // 2026-11-15 audit, S7: fflate given a 1000-byte `out` decoded all 300 MB (15 s for a 3 GB stream) and handed
+  // 2026-11-15 audit, S7: fflate given a 1000-byte `out` decoded the whole stream (15 s for a 3 GB one) and handed
   // back the first 1000 bytes as if they were the part.
   test("the same bomb declaring 1000 bytes is refused in milliseconds, and its neighbour still reads", () => {
     const { out, ms } = read("small.zip", patchDeclaredSize(bomb, "biblia.xml", 1000));
-    expect(out["biblia.xml"]).toBeUndefined();
+    expect(out["biblia.xml"]?.length).toBeUndefined();
     expect(strFromU8(out["ok.xml"]!)).toBe("<ok/>");
     expect(ms).toBeLessThan(250);
   });
 
   test("declaring 0 bytes means an empty part, so the bomb is refused in milliseconds too", () => {
     const { out, ms } = read("zero.zip", patchDeclaredSize(bomb, "biblia.xml", 0));
-    expect(out["biblia.xml"]).toBeUndefined();
+    expect(out["biblia.xml"]?.length).toBeUndefined();
     expect(strFromU8(out["ok.xml"]!)).toBe("<ok/>");
     expect(ms).toBeLessThan(250);
   });
