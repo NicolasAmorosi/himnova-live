@@ -148,6 +148,7 @@ const it: Messages = {
     images: "Immagini",
     audios: "Audio",
     ppts: "Presentazioni",
+    pptsShort: "Presentaz.",
     add: "Aggiungi",
     addHint: "Aggiungi file alla libreria",
     addUnsupported:

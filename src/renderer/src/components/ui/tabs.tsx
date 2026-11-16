@@ -1,9 +1,18 @@
 import type { KeyboardEvent, ReactNode } from "react";
+import { useEffect, useRef, useState } from "react";
 import { isPointerFocused } from "@renderer/lib/focus-modality";
 import { cn } from "@renderer/lib/utils";
 import { Icon, type IconName } from "./icon";
+import { labelOverflows, watchLabelFit } from "./label-fit";
 
-export type TabItem<T extends string> = { icon?: IconName; label: string; value: T };
+export type TabItem<T extends string> = {
+  icon?: IconName;
+  label: string;
+  /** What the tab shows instead of `label` when the whole label does not fit in it, all tabs keeping their equal
+   *  share (owner, 2026-11-16: «Presentaciones» at 1000 px; 2026-11-15 audit, U14). The hover says the whole one. */
+  short?: string;
+  value: T;
+};
 
 export type TabsVariant = "underline" | "segment" | "sidebar";
 
@@ -88,6 +97,26 @@ export function Tabs<T extends string>({
 }: TabsProps<T>) {
   const vertical = isVertical[variant];
 
+  /** The tabs whose whole label does not fit: they show their `short` (`label-fit.ts`). */
+  const listRef = useRef<HTMLDivElement>(null);
+  const [cramped, setCramped] = useState<ReadonlySet<string>>(() => new Set());
+  const shortened = tabs.some((tab) => tab.short !== undefined);
+  const labels = tabs.map((tab) => tab.label).join("\n");
+  useEffect(() => {
+    const list = listRef.current;
+    if (!shortened || !list) return;
+    return watchLabelFit(list, () => {
+      const next = new Set<string>();
+      for (const button of list.querySelectorAll<HTMLElement>("[data-tab]")) {
+        const whole = button.querySelector<HTMLElement>("[data-whole-label]");
+        if (whole && labelOverflows(button, whole)) next.add(button.dataset["tab"] ?? "");
+      }
+      setCramped((previous) =>
+        previous.size === next.size && [...next].every((value) => previous.has(value)) ? previous : next,
+      );
+    });
+  }, [shortened, labels]);
+
   // Roving arrow-key navigation, the standard `tablist` keyboard contract:
   // Left/Right for a horizontal list, Up/Down for a vertical one.
   function onKeyDown(event: KeyboardEvent<HTMLDivElement>) {
@@ -123,19 +152,25 @@ export function Tabs<T extends string>({
       aria-orientation={vertical ? "vertical" : "horizontal"}
       className={cn(listVariants[variant], className)}
       onKeyDown={onKeyDown}
+      ref={listRef}
       role="tablist"
     >
       {tabs.map((tab) => {
         const active = tab.value === value;
+        const short = tab.short !== undefined && cramped.has(tab.value);
         return (
           <button
             aria-controls={idBase ? panelDomId(idBase, tab.value) : undefined}
+            aria-label={short ? tab.label : undefined}
             aria-selected={active}
             className={cn(
               "focus-ring-inset inline-flex cursor-pointer items-center font-medium transition-colors",
               tabVariants[variant],
               active ? activeVariants[variant] : inactiveVariants[variant],
+              // The invisible copy of the label it measures stays inside it.
+              tab.short !== undefined && "relative overflow-hidden",
             )}
+            data-tab={tab.value}
             id={idBase ? tabDomId(idBase, tab.value) : undefined}
             key={tab.value}
             onClick={() => onChange(tab.value)}
@@ -143,7 +178,7 @@ export function Tabs<T extends string>({
             // hover and not at render: whether it fits depends on the window.
             onPointerEnter={(event) => {
               const label = event.currentTarget.lastElementChild;
-              event.currentTarget.title = label && label.scrollWidth > label.clientWidth ? tab.label : "";
+              event.currentTarget.title = short || (label && label.scrollWidth > label.clientWidth) ? tab.label : "";
             }}
             role="tab"
             tabIndex={active ? 0 : -1}
@@ -156,8 +191,16 @@ export function Tabs<T extends string>({
             {tab.icon && variant !== "segment" ? (
               <Icon className={cn("size-3.5", variant === "underline" && "max-[1100px]:hidden")} name={tab.icon} />
             ) : null}
-            {/* A bare text node is an anonymous flex item and can't ellipsize. */}
-            <span className="truncate">{tab.label}</span>
+            {tab.short !== undefined ? (
+              <span aria-hidden="true" className="invisible absolute whitespace-nowrap" data-whole-label="">
+                {tab.label}
+              </span>
+            ) : null}
+            {/* A bare text node is an anonymous flex item and can't ellipsize. Shown short, the tab's name is still the
+                whole label (`aria-label`). */}
+            <span className="truncate">
+              {short ? tab.short : tab.label}
+            </span>
           </button>
         );
       })}

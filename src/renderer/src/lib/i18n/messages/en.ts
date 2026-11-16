@@ -148,6 +148,7 @@ const en: Messages = {
     images: "Images",
     audios: "Audio",
     ppts: "Presentations",
+    pptsShort: "Present.",
     add: "Add",
     addHint: "Add files to the library",
     addUnsupported:

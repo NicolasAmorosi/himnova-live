@@ -618,4 +618,16 @@ test.describe("the window at its narrowest, in Italian", () => {
     await expect(version).toHaveText("Riveduta 1927", { useInnerText: true });
     expect(await saveWord.evaluate((el) => getComputedStyle(el).position)).toBe("static");
   });
+
+  test("the Media tabs keep their equal shares, and «Presentazioni» is shortened only where it does not fit", async ({
+    app,
+  }) => {
+    await app.openResources("Medios");
+    // Its name stays the whole word, shortened or not.
+    const ppt = app.control.getByRole("tab", { name: "Presentazioni", exact: true });
+    await windowAt(app, 1000, 700);
+    await expect(ppt).toHaveText("Presentaz.", { useInnerText: true });
+    await windowAt(app, 1400, 900);
+    await expect(ppt).toHaveText("Presentazioni", { useInnerText: true });
+  });
 });

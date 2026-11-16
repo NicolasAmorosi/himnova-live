@@ -150,6 +150,8 @@ const es = {
     images: "Imágenes",
     audios: "Audios",
     ppts: "Presentaciones",
+    /** The tab's label when «Presentaciones» does not fit (owner, 2026-11-16; at 1000 px it had 61 px of 87). */
+    pptsShort: "Present.",
     add: "Agregar",
     addHint: "Agregar archivos a la biblioteca",
     addUnsupported:

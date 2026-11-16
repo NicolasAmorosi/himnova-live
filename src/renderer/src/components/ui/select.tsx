@@ -7,6 +7,7 @@ import { cn } from "@renderer/lib/utils";
 import { FieldLabelContext } from "./field-layout";
 import { computeMenuPosition, useFollowTrigger, type MenuPosition } from "./floating-menu";
 import { Icon } from "./icon";
+import { labelOverflows, watchLabelFit } from "./label-fit";
 import { filterOptions, groupHeaderAt, orderByGroup } from "./select.groups";
 
 export type SelectOption = {
@@ -103,32 +104,18 @@ export function Select({
 
   const selectedOption = options.find((o) => o.value === value);
 
-  /** The selected option's whole label is wider than the trigger's room: its `short` is shown instead. Measured on a
-   *  hidden copy of the label against the trigger's content box, again on every resize and once the fonts are in. */
+  /** The selected option's whole label is wider than the trigger's room: its `short` is shown instead (`label-fit.ts`). */
   const fullLabelRef = useRef<HTMLSpanElement>(null);
   const [cramped, setCramped] = useState(false);
   const short = selectedOption?.short;
   useEffect(() => {
     const trigger = triggerRef.current;
     const full = fullLabelRef.current;
-    if (!short || !trigger || !full || typeof ResizeObserver === "undefined") {
+    if (!short || !trigger || !full) {
       setCramped(false);
       return;
     }
-    const measure = () => {
-      const style = getComputedStyle(trigger);
-      const room = trigger.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
-      setCramped(full.offsetWidth > room);
-    };
-    measure();
-    const observer = new ResizeObserver(measure);
-    observer.observe(trigger);
-    let live = true;
-    void document.fonts?.ready.then(() => live && measure());
-    return () => {
-      live = false;
-      observer.disconnect();
-    };
+    return watchLabelFit(trigger, () => setCramped(labelOverflows(trigger, full)));
   }, [short, selectedOption?.label]);
 
   /** What the menu actually lists. Everything below indexes into THIS: with a

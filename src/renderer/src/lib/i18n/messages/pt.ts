@@ -148,6 +148,7 @@ const pt: Messages = {
     images: "Imagens",
     audios: "Áudios",
     ppts: "Apresentações",
+    pptsShort: "Apresent.",
     add: "Adicionar",
     addHint: "Adicionar arquivos à biblioteca",
     addUnsupported:
