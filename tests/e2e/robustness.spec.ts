@@ -39,6 +39,18 @@ test("a projector whose renderer dies leaves its reason in crash.log", async ({ 
     .toMatch(/\[render-process-gone\] \S+\/projection\.html \{"reason":"(crashed|killed)"/);
 });
 
+test("no key of the Mac's app menu hides the app: ⌘H took the projector away with it", async ({ app }) => {
+  test.skip(process.platform !== "darwin", "the app menu is the Mac's; Windows has none");
+  const hide = await app.electron.evaluate(({ Menu }) => {
+    const item = Menu.getApplicationMenu()
+      ?.items[0]
+      ?.submenu?.items.find((entry) => entry.label === "Ocultar Himnova Live");
+    return item ? { role: item.role ?? null, accelerator: item.accelerator ?? null } : null;
+  });
+  // The item is still there, without `role: "hide"` and its ⌘H (2026-11-15 audit, A21).
+  expect(hide).toEqual({ role: null, accelerator: null });
+});
+
 test("a projector closed from outside is announced, and «Reabrir» brings back what was live where it was", async ({ app }) => {
   await app.addMedia("video", "clip.mp4");
   await app.previewFile("Videos", "clip");
