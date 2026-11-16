@@ -13,6 +13,7 @@ import {
 } from "@shared/constants";
 import type { MediaAsset } from "@shared/types/media";
 import { grabFrame } from "./ffmpeg";
+import { ThumbSlots, type Turn } from "./thumb-slots";
 
 /**
  * On-demand, content-keyed cache of small library thumbnails.
@@ -56,7 +57,7 @@ const MAX_REMEMBERED_FAILURES = 2_000;
  *  requester's signal meant one tile scrolling off answered 404 to every other
  *  tile waiting on the same thumbnail, which then kept its icon until it was
  *  remounted. */
-type Pending = { promise: Promise<string | null>; controller: AbortController; waiting: number };
+type Pending = { promise: Promise<string | null>; controller: AbortController; waiting: number; turn: Turn };
 const inFlight = new Map<string, Pending>();
 
 function join(pending: Pending, signal: AbortSignal | undefined): Promise<string | null> {
@@ -73,8 +74,8 @@ function join(pending: Pending, signal: AbortSignal | undefined): Promise<string
   return pending.promise;
 }
 const failed = new Set<string>();
-let running = 0;
-const waiting: (() => void)[] = [];
+/** Newest ask first (`ThumbSlots`): what is on screen before what was scrolled past. */
+const slots = new ThumbSlots(MAX_CONCURRENT);
 
 function cacheKey(asset: MediaAsset, stat: fs.Stats): string {
   // The path is part of the key on purpose: two unrelated files can easily
@@ -90,36 +91,6 @@ function cacheKey(asset: MediaAsset, stat: fs.Stats): string {
     Math.trunc(stat.mtimeMs),
   ].join("|");
   return crypto.createHash("sha1").update(material).digest("hex").slice(0, 32);
-}
-
-/**
- * The slot is owned from the moment it is granted, and handed straight from
- * one holder to the next.
- *
- * The previous version incremented `running` in the *waiter*, after its
- * promise resolved — a microtask later than the `release()` that woke it. In
- * that gap `running` read one below the real occupancy, so a fresh `acquire()`
- * landing in it took a slot that was already spoken for and the limit was
- * quietly exceeded. With a synchronous fallback route that means one more
- * blocking decode on the thread serving the projection window than the number
- * that was chosen as safe.
- */
-function acquire(): Promise<void> {
-  if (running < MAX_CONCURRENT) {
-    running += 1;
-    return Promise.resolve();
-  }
-  return new Promise<void>((resolve) => {
-    waiting.push(resolve);
-  });
-}
-
-function release(): void {
-  const next = waiting.shift();
-  // Transfer, don't decrement-then-grant: `running` never dips, so no caller
-  // arriving in between can overtake a queued one.
-  if (next) next();
-  else running -= 1;
 }
 
 /**
@@ -252,15 +223,14 @@ async function generate(
   cachePath: string,
   key: string,
   signal: AbortSignal | undefined,
+  turn: Turn,
 ): Promise<string | null> {
-  await acquire();
+  await slots.acquire(turn);
   try {
-    // Checked after the wait, not before it: a tile that scrolled off screen
-    // while its turn was queued has nothing left to draw, and on the
-    // synchronous fallback route generating it anyway is a main-thread stall
-    // spent on a thumbnail nobody will see. This is also what bounds the
-    // waiting list — a scroll through a folder of 600 retires its own queue
-    // instead of leaving it to grind through every tile it passed.
+    // Checked after the wait, not before it: a tile that walked away while its
+    // turn was queued has nothing left to draw. Electron 44 never aborts a
+    // `protocol.handle` request's signal, so a scroll does not retire its own
+    // queue; `ThumbSlots` serves the newest ask first instead.
     if (signal?.aborted) return null;
     const buffer = await renderThumbnail(asset);
     if (!buffer || buffer.length === 0) {
@@ -286,7 +256,7 @@ async function generate(
     rememberFailure(key);
     return null;
   } finally {
-    release();
+    slots.release();
     // Hand the event loop back before the next waiter starts. Free insurance
     // on the OS-thumbnailer route; load-bearing on the synchronous fallback,
     // where a burst without a yield is exactly the kind of stall that freezes
@@ -347,15 +317,21 @@ export async function ensureThumbnail(
   }
 
   const existing = inFlight.get(key);
-  if (existing) return join(existing, signal);
+  if (existing) {
+    // A tile back on screen while its generation still waits: it joins the newest ask.
+    slots.bump(existing.turn);
+    return join(existing, signal);
+  }
 
   const controller = new AbortController();
+  const turn: Turn = { at: Date.now() };
   const pending: Pending = {
-    promise: generate(asset, cachePath, key, controller.signal).finally(() => {
+    promise: generate(asset, cachePath, key, controller.signal, turn).finally(() => {
       inFlight.delete(key);
     }),
     controller,
     waiting: 0,
+    turn,
   };
   inFlight.set(key, pending);
   return join(pending, signal);
