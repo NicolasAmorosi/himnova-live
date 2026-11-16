@@ -71,6 +71,20 @@ test("the window that draws PDFs cannot call the app's channels", async ({ app }
   expect(answer).toMatchObject({ ok: false, error: { code: "UNTRUSTED_SENDER" } });
 });
 
+// Electron grants every permission to every page unless told otherwise. Only the app's own windows get the two it
+// uses (device names and choosing an output); the PDF window gets none (2026-11-15 audit, S12).
+test("the window that draws PDFs sees no device names; the control window does", async ({ app }) => {
+  await app.addMedia("ppt", "deck.pdf");
+  await app.previewFile("Presentaciones", "deck");
+  await expect(slideTile(app, 3)).toBeVisible({ timeout: 60_000 });
+  const rasterizer = app.electron.windows().find((page) => page.url().endsWith("/rasterizer.html"));
+  if (!rasterizer) throw new Error("no rasterizer window");
+  const labels = (page: Page) =>
+    page.evaluate(async () => (await navigator.mediaDevices.enumerateDevices()).map((device) => device.label).filter(Boolean));
+  expect((await labels(app.control)).length).toBeGreaterThan(0);
+  expect(await labels(rasterizer)).toEqual([]);
+});
+
 /** The colour of the projected page at fractions of its width (at half its height), from the page image itself. */
 function pageColors(projector: Page, at: readonly number[]): Promise<string[]> {
   return projector.evaluate(async (fractions) => {

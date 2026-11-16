@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog } from "electron";
+import { app, BrowserWindow, dialog, session } from "electron";
 import fs from "node:fs";
 import path from "node:path";
 import { registerWorshipScheme, registerWorshipProtocolHandler } from "./protocol/worship-protocol";
@@ -33,6 +33,7 @@ import {
 import { importPaths } from "./services/library-import";
 import { setBibleDb } from "./ipc/handlers/bible";
 import { registerAllIpcHandlers } from "./ipc";
+import { isTrustedSender } from "./ipc/trusted-senders";
 import { relaunchOnQuit } from "./ipc/handlers/backups";
 import { createControlWindow, operatorDisplay } from "./windows/control-window";
 import { installNavigationGuards } from "./windows/navigation-guards";
@@ -285,6 +286,15 @@ if (gotSingleInstanceLock) {
 
     registerWorshipProtocolHandler(getMediaRepo());
     registerAllIpcHandlers();
+    // Electron grants every permission to every page unless told otherwise, the PDF window included. The app's own
+    // windows (`isTrustedSender`) get the two they use, measured over the audio E2E: `media`, which is what gives
+    // `enumerateDevices` its labels, and `speaker-selection` (`setSinkId`). The audio route matches the chosen output
+    // BY LABEL (`use-audio-outputs.ts`, `effects/audio-route.ts`): denying `media` to them would lose it with no
+    // error. Everything else is denied (2026-11-15 audit, S12).
+    const granted = (contents: Electron.WebContents | null, permission: string): boolean =>
+      (permission === "media" || permission === "speaker-selection") && contents !== null && isTrustedSender(contents.id);
+    session.defaultSession.setPermissionRequestHandler((contents, permission, callback) => callback(granted(contents, permission)));
+    session.defaultSession.setPermissionCheckHandler((contents, permission) => granted(contents, permission));
     watchDisplays();
     // Before the first window: the default menu's Cmd+W (which closes the
     // PROJECTOR) and Cmd+R must never be reachable, not even for one frame.
