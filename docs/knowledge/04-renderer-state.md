@@ -230,6 +230,20 @@ panel's included) still draw on arrival.
 `.claude/knowledge/engine-frames-drawn-as-they-land-beat-against-every-compositor.md` has what is
 left (60 fps on a late main frame) and the alternatives measured worse.
 
+**A control page that starts again starts over what is live** (2026-11-15 audit, A30). Main reloads a control window
+whose renderer died (`windows/control-window.ts`, capped like the projector's), and the error screen offers «Recargar».
+A page that started blind reached the room: its first output blanked the projector and its first sound push silenced
+it, and its first actions did worse (CLEAR left the music on, NEGRO taken off put out LOGO over the video). So
+`effects/live-copy.ts` sends main a copy of the stores that hold what is live (the projection store, the sounds, the
+verse's chapter and cursor, the schedule with its live row, the stage's countdown and message, LIVE's mute, and
+`lib/counters.ts`, whose epochs must never repeat one on the air) on every change; main keeps the last one in memory
+and never reads it (`window:keepLiveCopy`), which keeps the rule above. `main.tsx` asks for it (`window:liveCopy`)
+before the page is drawn, loads the settings, puts the copy back, and only then renders `App`, whose effects find
+nothing changed to push: what reaches the projector is the same output as before, field for field (the E2E
+`control-recovery.spec.ts` compares them). PREVIEW starts empty and its engine stops. A copy that cannot be put back
+leaves the page inert with a message: no effect starts, so nothing reaches the room. The copy is dropped when the
+control window closes.
+
 The NDI® output (`01-architecture.md`) is a copy of the projector, offscreen: `projection.html?role=ndi` mounts
 `ProjectorCopy` (`components/shared/projector-copy.tsx`) instead of `ProjectionApp`, which draws the same output,
 reports no `media-status`/`media-error` (the panel would see every video twice), mounts no audio track (main mutes

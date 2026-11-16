@@ -6,6 +6,9 @@ const it: Messages = {
     modalCrashed: "Si è verificato un problema in quella finestra, che è stata chiusa",
     unexpectedError: "Si è verificato un errore imprevisto. L'applicazione continua a funzionare.",
     reload: "Ricarica",
+    controlRecovered: "La finestra di controllo si è chiusa per un errore e si è ripresa. Ciò che è in onda è rimasto com’era.",
+    controlRecoveryFailed:
+      "La finestra di controllo si è chiusa per un errore e non si è potuta riprendere. Ciò che è in onda resta com’è: riavvia l’app quando puoi.",
   },
   header: {
     openDisplay: "Apri proiezione",

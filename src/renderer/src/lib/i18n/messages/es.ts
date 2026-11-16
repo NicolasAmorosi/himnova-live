@@ -6,6 +6,10 @@ const es = {
     modalCrashed: "Algo falló en esa ventana y se cerró",
     unexpectedError: "Ocurrió un error inesperado. La aplicación sigue funcionando.",
     reload: "Recargar",
+    /** The control window's page died and came back over what is live (A30). */
+    controlRecovered: "La ventana de control se cerró por un error y se recuperó. Lo que está al aire siguió igual.",
+    controlRecoveryFailed:
+      "La ventana de control se cerró por un error y no se pudo recuperar. Lo que está al aire sigue igual: reiniciá la app cuando puedas.",
   },
   header: {
     openDisplay: "Abrir pantalla",

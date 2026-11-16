@@ -21,8 +21,13 @@ import { toast } from "@renderer/lib/toast";
 export function startStageSync(): () => void {
   let lastInputs: readonly unknown[] = [];
   let queued = false;
-  /** The live video's thumbnail, fetched once per video. */
+  /** The live video's thumbnail, fetched once per video. A control page that starts again over a video
+   *  (`effects/live-copy.ts`) takes it from what the stage was last sent: fetched anew, the stage went black for a
+   *  moment (2026-11-15 audit, A30 review). */
   let poster: { assetId: number; url: string | null } | null = null;
+  const { base } = useProjectionStore.getState();
+  const still = useStageStore.getState().output?.videoStill;
+  if (base?.kind === "video" && still?.posterUrl && still.videoUrl === base.url) poster = { assetId: base.assetId, url: still.posterUrl };
 
   const posterFor = (assetId: number | null): string | null => {
     if (assetId === null) return null;

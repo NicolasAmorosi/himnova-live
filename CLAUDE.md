@@ -521,6 +521,8 @@ npm run package:win|mac|linux  # build + electron-builder for that platform
   window. A guard in main that's right 95% of the time is worse than none: the 5% is a rejection the
   operator can neither explain nor bypass mid-service. Diagnosis in
   [`.claude/knowledge/main-cannot-know-what-is-live-under-an-overlay.md`](.claude/knowledge/main-cannot-know-what-is-live-under-an-overlay.md).
+  The control window's copy of what is live (`window:keepLiveCopy`, so a page that starts again after a crash starts
+  over it: `effects/live-copy.ts`) is no exception: main keeps it and hands it back, and never reads it.
 - **Selecting NEVER projects.** The flow has two stages, like EasyWorship: a click (on the
   program, on a resource, on a verse or on a slide) moves the preview target
   (`lib/actions/preview.ts` + `stores/preview.store.ts`), and `goLive()`

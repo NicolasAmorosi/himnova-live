@@ -252,26 +252,31 @@ export function startDeckAutoplay(): () => void {
   const instance = activeInstance;
 
   // Re-arm whenever a deck is loaded or autoplay is toggled from elsewhere.
+  const arm = () => {
+    const state = useProjectionStore.getState();
+    if (state.autoplay !== "playing") {
+      clearTimer();
+      // Every GO LIVE passes through "off" (`setLiveDeck`). Without this
+      // the next deck inherited the previous one's chain (`scheduleDetached`
+      // builds on `max(deadline, now)`), and its first slide stayed up for
+      // whatever was left of the old one's, putting every later slide that
+      // much behind the singers. A resume sets its own fresh deadline.
+      deadline = 0;
+      return;
+    }
+    // Without a soundtrack there's no audio clock to sync to.
+    if (!state.liveDeck?.soundtrack || state.autoplayMode === "detached") {
+      scheduleDetached();
+    }
+  };
   const unsubscribeDeck = useProjectionStore.subscribe(
     (state) => `${state.liveDeck?.assetId ?? "none"}:${state.autoplay}:${state.autoplayMode}`,
-    () => {
-      const state = useProjectionStore.getState();
-      if (state.autoplay !== "playing") {
-        clearTimer();
-        // Every GO LIVE passes through "off" (`setLiveDeck`). Without this
-        // the next deck inherited the previous one's chain — `scheduleDetached`
-        // builds on `max(deadline, now)` — and its first slide stayed up for
-        // whatever was left of the old one's, putting every later slide that
-        // much behind the singers. A resume sets its own fresh deadline.
-        deadline = 0;
-        return;
-      }
-      // Without a soundtrack there's no audio clock to sync to.
-      if (!state.liveDeck?.soundtrack || state.autoplayMode === "detached") {
-        scheduleDetached();
-      }
-    },
+    arm,
   );
+  // A control page that started over a deck already playing (`effects/live-copy.ts`) has no change to arm on: slide 1
+  // stayed up (2026-11-15 audit, A30). ponytail: its slide gets its whole time again, since `deadline` was on the dead
+  // page's clock; carry the time left in the copy if a slide shown twice as long ever matters.
+  arm();
 
   const unsubscribeStatus = useProjectionStore.subscribe(
     (state) => state.mediaStatus[DECK_AUDIO_STATUS_KEY],

@@ -333,6 +333,15 @@ export type IpcContract = {
    *  its own whether unsaved work may be discarded — `CLAUDE.md`: that
    *  decision belongs to the control window. See `CloseDecision`. */
   "window:closeDecision": { req: { decision: CloseDecision }; res: void };
+  /** The control window's own copy of what is live, sent on every change of it (`effects/live-copy.ts`). Main keeps
+   *  the last one in memory, never reads it and never writes it to disk: what is live is the control window's to know
+   *  (`CLAUDE.md`). Dropped when the control window closes (2026-11-15 audit, A30). */
+  "window:keepLiveCopy": { req: unknown; res: void };
+  /** Asked once by a control page as it starts: the copy the page before it kept (`null` at a launch), whether the
+   *  projector is up, and the projector's last report of its videos (an end that came while no page listened). Read,
+   *  never taken: a second crash before any change needs it again. PREVIEW's engine stops: a new page's PREVIEW is
+   *  empty. */
+  "window:liveCopy": { req: void; res: { copy: unknown; projectorOpen: boolean; mediaStatus: MediaStatus[] } };
 
   /** The saved time scenes, in the operator's manual order. Read once at boot
    *  by `utility.store`, and re-read after every write — the list is small and

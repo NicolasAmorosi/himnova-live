@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { holdClock, resolveTargetMs, resumeClock } from "@shared/timer";
 import type { StageOutput } from "@shared/types/projection";
 import type { CountdownClock } from "@shared/types/stage";
+import { counters } from "@renderer/lib/counters";
 
 const MINUTE = 60_000;
 
@@ -47,8 +48,6 @@ type StageStoreState = {
   setUrgent: (urgent: boolean) => void;
   clearMessage: () => void;
 };
-
-let seq = 0;
 
 export const useStageStore = create<StageStoreState>((set, get) => ({
   countdown: null,
@@ -100,13 +99,13 @@ export const useStageStore = create<StageStoreState>((set, get) => ({
   showMessage: (text) => {
     const trimmed = text.trim();
     if (trimmed === "") return;
-    set({ message: { text: trimmed, urgent: false, since: Date.now(), seq: ++seq } });
+    set({ message: { text: trimmed, urgent: false, since: Date.now(), seq: ++counters.stageMessage } });
   },
 
   setUrgent: (urgent) => {
     const { message } = get();
     // A new `seq`: switching it off still announces the message once more, as it reads now.
-    if (message && message.urgent !== urgent) set({ message: { ...message, urgent, seq: ++seq } });
+    if (message && message.urgent !== urgent) set({ message: { ...message, urgent, seq: ++counters.stageMessage } });
   },
 
   clearMessage: () => set({ message: null }),

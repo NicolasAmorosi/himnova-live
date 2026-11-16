@@ -23,6 +23,15 @@ let openInFlight: Promise<void> | null = null;
 /** The operator closed the projector (Settings ▸ Screens): a screen coming or going does not open it again this
  *  session. Whatever opens it next — GO LIVE, BLACK, LOGO, «Abrir» — lets it open by itself again. */
 let closedByOperator = false;
+
+/** Carried by the live copy (`effects/live-copy.ts`): a control page that starts again must not reopen on its own a
+ *  projector the operator closed (2026-11-15 audit, A30 review). */
+export const operatorClosedProjector = {
+  get: (): boolean => closedByOperator,
+  set: (closed: boolean): void => {
+    closedByOperator = closed;
+  },
+};
 /** Off under the E2E suite (`projection:autoOpen`). */
 let autoOpenEnabled = false;
 

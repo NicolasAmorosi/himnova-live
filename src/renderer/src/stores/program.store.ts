@@ -6,6 +6,7 @@ import type {
   ProgramItemUpsert,
 } from "@shared/types/program";
 import { api } from "@renderer/lib/api";
+import { counters } from "@renderer/lib/counters";
 
 type ProgramMeta = {
   name: string;
@@ -72,10 +73,9 @@ function reindex(items: ProgramItemDTO[]): ProgramItemDTO[] {
  * row under the cursor. `ProgramsRepo.save()` renumbers everything from
  * position 0, so this only ever has to be unique within a session.
  */
-let provisionalId = 0;
 function nextProvisionalId(): number {
-  provisionalId += 1;
-  return -provisionalId;
+  counters.provisionalRow += 1;
+  return -counters.provisionalRow;
 }
 
 /** Rows a relocate merged into their twins this session (`remapMediaAsset`). */

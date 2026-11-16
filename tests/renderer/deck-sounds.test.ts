@@ -93,6 +93,19 @@ test("NEGRO and back keeps the deck's sound where it was: the same playback, nev
   expect(soundTracks()).toEqual(playing);
 });
 
+test("a control page that starts again over a deck with its sound playing leaves that playback alone", () => {
+  liveDeckOn(39);
+  useAudioStore.getState().setVolume(useAudioStore.getState().tracks[0]!.trackId, 0.3);
+  const playing = soundTracks();
+  // The page died and started again over the same stores (`effects/live-copy.ts`): a new `startDeckSounds`.
+  stop?.();
+  stop = startDeckSounds();
+  // Before, it took the restored sound for another playback's and sent it again from 0:00 at the default level
+  // (2026-11-15 audit, A30 review).
+  expect(soundTracks()).toEqual(playing);
+  expect(useAudioStore.getState().tracks[0]!.volume).toBe(0.3);
+});
+
 test("a sound kept playing past a move back before its first slide survives NEGRO", () => {
   liveDeckOn(39);
   const playing = soundTracks();

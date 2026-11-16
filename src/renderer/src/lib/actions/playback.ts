@@ -27,8 +27,7 @@ import type { AssetKind } from "@shared/constants";
 import { prepareSong } from "@renderer/lib/actions/songs";
 import { songBackgroundVideo } from "@renderer/lib/song-output";
 import { jumpTo, stepSong, type SongJumpTarget } from "@shared/song-jump";
-
-let videoEpoch = 0;
+import { counters } from "@renderer/lib/counters";
 
 /** Sends a standalone audio asset live. Unlike every other kind of content,
  *  this never touches `base`/`overlay` — audio is never what's on screen, so
@@ -227,8 +226,8 @@ async function goLiveWithMediaAsset(
       }
     }
     beginScene();
-    videoEpoch += 1;
-    setBase({ kind: "video", assetId: asset.id, url: playableAssetUrl(asset.id), epoch: videoEpoch, startAtSeconds });
+    counters.video += 1;
+    setBase({ kind: "video", assetId: asset.id, url: playableAssetUrl(asset.id), epoch: counters.video, startAtSeconds });
   } else if (asset.kind === "image") {
     beginScene();
     setBase({ kind: "image", assetId: asset.id });

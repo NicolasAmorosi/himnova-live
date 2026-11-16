@@ -36,6 +36,7 @@ import { setBibleDb } from "./ipc/handlers/bible";
 import { registerAllIpcHandlers } from "./ipc";
 import { isTrustedSender } from "./ipc/trusted-senders";
 import { relaunchOnQuit } from "./ipc/handlers/backups";
+import { forgetLiveCopy } from "./ipc/handlers/program-draft";
 import { createControlWindow, operatorDisplay } from "./windows/control-window";
 import { installNavigationGuards } from "./windows/navigation-guards";
 import { installApplicationMenu } from "./windows/app-menu";
@@ -214,6 +215,7 @@ function wireMinimizeRestoreSync(controlWindow: BrowserWindow): void {
     // were what a projector opened from the next window played again (2026-11-15 audit, A20).
     stopPreviewEngine();
     projectionState.forget();
+    forgetLiveCopy();
     syncLiveEngine();
   });
 }

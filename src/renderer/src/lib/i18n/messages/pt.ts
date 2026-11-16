@@ -6,6 +6,9 @@ const pt: Messages = {
     modalCrashed: "Algo deu errado nessa janela e ela foi fechada",
     unexpectedError: "Ocorreu um erro inesperado. O app continua funcionando.",
     reload: "Recarregar",
+    controlRecovered: "A janela de controle fechou por um erro e voltou. O que está no ar continuou como estava.",
+    controlRecoveryFailed:
+      "A janela de controle fechou por um erro e não conseguiu voltar. O que está no ar continua como está: reinicie o app quando puder.",
   },
   header: {
     openDisplay: "Abrir tela",

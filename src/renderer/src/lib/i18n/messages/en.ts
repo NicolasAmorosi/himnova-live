@@ -6,6 +6,9 @@ const en: Messages = {
     modalCrashed: "Something went wrong in that window and it closed",
     unexpectedError: "An unexpected error occurred. The app is still running.",
     reload: "Reload",
+    controlRecovered: "The control window closed because of an error and came back. What is live went on as it was.",
+    controlRecoveryFailed:
+      "The control window closed because of an error and could not come back. What is live goes on as it is: restart the app when you can.",
   },
   header: {
     openDisplay: "Open projector",

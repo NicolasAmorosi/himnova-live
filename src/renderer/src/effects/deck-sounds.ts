@@ -49,10 +49,15 @@ function liveSounds(deck: LiveDeck): readonly DeckSound[] {
  *  first slide was gone for good (2026-11-15 audit, A4). */
 let scene: string | null = null;
 
+function playbackOf(state: ProjectionStoreState): string | null {
+  const deck = state.base?.kind === "deck" ? state.liveDeck : null;
+  return deck ? `${state.soundtrackEpoch}:${deck.deckId}` : null;
+}
+
 function reconcile(state: ProjectionStoreState): void {
   const audio = useAudioStore.getState();
   const deck = state.base?.kind === "deck" ? state.liveDeck : null;
-  const current = deck ? `${state.soundtrackEpoch}:${deck.deckId}` : null;
+  const current = playbackOf(state);
   if (current !== scene) {
     scene = current;
     for (const track of audio.tracks) {
@@ -95,7 +100,9 @@ export function restartDeckSounds(): void {
  *  window with the other effects (`projection-sync.ts`); `source: "deck"` is
  *  what makes BLACK/LOGO pause them with the soundtrack. */
 export function startDeckSounds(): () => void {
-  scene = null;
+  // The playback on the air now, if any: a control page that starts again over a deck (`effects/live-copy.ts`) finds
+  // its sounds already playing, and starting from `null` sent them again from 0:00 (2026-11-15 audit, A30 review).
+  scene = playbackOf(useProjectionStore.getState());
   const unsubscribeLive = useProjectionStore.subscribe(
     (state) =>
       state.base?.kind === "deck" && state.liveDeck

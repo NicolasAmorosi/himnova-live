@@ -1,12 +1,32 @@
 import { BrowserWindow } from "electron";
 import type { Handlers } from "../register";
 import { getDraftRepo } from "../../services/repos";
+import { controlWindows } from "../../services/broadcast";
+import { projectionState } from "../../services/projection-state";
+import { stopPreviewEngine } from "../../media/engine-sessions";
 import { resolveClose } from "../../windows/close-guard";
+
+/** The control window's copy of what is live (`window:keepLiveCopy`), for a page of it that starts again. */
+let liveCopy: unknown = null;
+
+/** The control window closed: a window opened after it (macOS keeps the app) starts from nothing. */
+export function forgetLiveCopy(): void {
+  liveCopy = null;
+}
 
 export const programDraftHandlers: Pick<
   Handlers,
-  "program:saveDraft" | "program:loadDraft" | "window:closeDecision"
+  "program:saveDraft" | "program:loadDraft" | "window:closeDecision" | "window:keepLiveCopy" | "window:liveCopy"
 > = {
+  "window:keepLiveCopy": (copy, ev) => {
+    if (controlWindows().some((win) => win.webContents === ev.sender)) liveCopy = copy;
+  },
+  "window:liveCopy": () => {
+    stopPreviewEngine();
+    const { mediaStatus } = projectionState.getSnapshot();
+    return { copy: liveCopy, projectorOpen: projectionState.getWindow() !== null, mediaStatus };
+  },
+
   "program:saveDraft": (draft) => {
     if (draft === null) getDraftRepo().clear();
     else getDraftRepo().save(draft);
