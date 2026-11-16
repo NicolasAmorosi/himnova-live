@@ -510,6 +510,9 @@ export type IpcEvents = {
   /** An engine session could not open the output it was told (`device`, mpv's name) or lost it (`ok: false`), or
    *  has it again: the control window then routes that bus to the default whole (`effects/audio-route.ts`). */
   "audio-out": { device: string; ok: boolean };
+  /** An engine said `ready` after one could not start (`engineFailsToStart`): the control window asks for the outputs
+   *  again, which it had taken as «none» (`effects/audio-route.ts`). */
+  "engine-starts": void;
   /** `audioRoute:sinkFailed`, from whichever window it failed in, for the control window to resolve again. */
   "audio-sink-failed": { sinkId: string };
   /** What each bus sounds at, after its faders (`media/audio-levels.ts`): left and right in dBFS, `-Infinity`

@@ -116,6 +116,8 @@ export function startAudioRouteEffects(): () => void {
   const offAudioOut = onIpc("audio-out", ({ device, ok }) => {
     if (!ok) refuse(labelOf.get(device), "the engine could not play through");
   });
+  // An engine that could not start answered «none»; one that starts later can choose again (review of A28).
+  const offEngineStarts = onIpc("engine-starts", run);
   const offSinkFailed = onIpc("audio-sink-failed", ({ sinkId }) => {
     const { live, preview } = useAudioRouteStore.getState();
     const label = [live.device, preview.device].find((device) => device?.deviceId === sinkId)?.label;
@@ -134,6 +136,7 @@ export function startAudioRouteEffects(): () => void {
     media.removeEventListener("devicechange", run);
     offAudioOut();
     offSinkFailed();
+    offEngineStarts();
     unsubscribe();
   };
 }

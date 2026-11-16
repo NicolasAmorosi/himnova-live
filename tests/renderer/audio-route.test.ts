@@ -24,6 +24,7 @@ vi.mock("@renderer/lib/ipc", () => ({
 /** What main sends the control window: an engine session's `audio-out`, a window's failed `setSinkId`. */
 function emit(event: "audio-out", payload: { device: string; ok: boolean }): void;
 function emit(event: "audio-sink-failed", payload: { sinkId: string }): void;
+function emit(event: "engine-starts", payload: undefined): void;
 function emit(event: string, payload: unknown): void {
   for (const listener of h.listeners.get(event) ?? []) (listener as (p: unknown) => void)(payload);
 }
@@ -119,6 +120,19 @@ test("with an engine that cannot choose (engine-7), only Chromium moves", async 
   await settle();
   expect(useProjectionStore.getState().liveAudioOut).toEqual({ sinkId: "b2", engineDevice: null });
   expect(useAudioRouteStore.getState().live.state).toBe("ok");
+});
+
+test("an engine that could not start and starts later is asked again: «none» is not for the whole session", async () => {
+  h.match.mockResolvedValue("none");
+  plugged = [...speakers, scarlett];
+  stop = startAudioRouteEffects();
+  await settle();
+  expect(useProjectionStore.getState().liveAudioOut).toEqual({ sinkId: "b2", engineDevice: null });
+  // Main says an engine is ready again (a GPU process restart, a wake from sleep, an antivirus holding the binary).
+  h.match.mockImplementation((outputs) => Promise.resolve(outputs.map((o) => (o.label === "Scarlett 2i2" ? SCARLETT : null))));
+  emit("engine-starts", undefined);
+  await settle();
+  expect(useProjectionStore.getState().liveAudioOut).toEqual({ sinkId: "b2", engineDevice: SCARLETT });
 });
 
 test("an output the engine says it cannot open sends the bus to the default, until it is unplugged and back", async () => {

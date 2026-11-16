@@ -9,7 +9,7 @@ import os from "node:os";
 import path from "node:path";
 import { expect, test, vi } from "vitest";
 
-const h = vi.hoisted(() => ({ dir: "", spawned: 0 }));
+const h = vi.hoisted(() => ({ dir: "", spawned: 0, broadcasts: [] as string[] }));
 h.dir = fs.mkdtempSync(path.join(os.tmpdir(), "engine-start-"));
 const ENGINE = path.join(h.dir, "media-engine");
 
@@ -21,6 +21,7 @@ vi.mock("../../src/main/paths", () => ({
 }));
 vi.mock("../../src/main/ndi/ndi-output", () => ({ setNdiAudioRoute: () => undefined }));
 vi.mock("../../src/main/media/engine-sessions", () => ({ setEngineAudioDevices: () => undefined }));
+vi.mock("../../src/main/services/broadcast", () => ({ broadcast: (channel: string) => h.broadcasts.push(channel) }));
 vi.mock("node:child_process", async (original) => {
   const real = await original<typeof import("node:child_process")>();
   return {
@@ -55,6 +56,7 @@ test.skipIf(process.platform !== "darwin")("an engine that cannot start answers 
   killAllEngines();
   expect(await asked).toBeNull();
   expect(engineFailsToStart()).toBe(false);
+  expect(h.broadcasts).toEqual([]);
 
   // Says hello and dies, as without libmpv: «pending» for good before, two engines per round every 2 s.
   engine(`${HELLO}\necho "libmpv not found" >&2\nexit 1`);
@@ -73,6 +75,13 @@ test.skipIf(process.platform !== "darwin")("an engine that cannot start answers 
   engine(`${HELLO}\necho '{"ev":"ready","gpu":"fake"}'\nexec sleep 30`);
   prewarmEngine();
   await expect.poll(() => engineFailsToStart(), { timeout: 2000 }).toBe(false);
+  // The control window took «none» for the session and is told to ask again, once (review of A28).
+  expect(h.broadcasts).toEqual(["engine-starts"]);
+  killAllEngines();
+  // An engine that starts with no mark standing (every video's) tells nobody.
+  prewarmEngine();
+  await new Promise((resolve) => setTimeout(resolve, 500));
+  expect(h.broadcasts).toEqual(["engine-starts"]);
   killAllEngines();
 
   // Not executable: spawn fails, and no `exit` may follow. 6 s a round before, «pending».

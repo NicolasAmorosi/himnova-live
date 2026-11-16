@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { app, sharedTexture, type SharedTextureHandle, type WebContents } from "electron";
 import { engineCacheDir, engineDir, enginePath } from "../paths";
+import { broadcast } from "../services/broadcast";
 import { AUDIO_DEVICE_PROTO, EngineGate, jsonLineReader, mpvVolume, type EngineDevice } from "./engine-protocol";
 
 /**
@@ -397,6 +398,8 @@ export class MediaEngine {
         return;
       case "ready":
         this.ready = true;
+        // The control window took «none» for the session: told, it asks for the outputs again (review of A28).
+        if (failsToStart) broadcast("engine-starts", undefined);
         failsToStart = false;
         return logEngineGpu(event.gpu, event.adapter);
       case "loaded":
