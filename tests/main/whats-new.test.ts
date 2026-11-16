@@ -1,7 +1,7 @@
 /** «Novedades» (`shared/whats-new.ts`) and the `ui.whatsNewSeen` it reads. */
 import { expect, test } from "vitest";
 import { DEFAULT_SETTINGS, SETTINGS_NORMALIZERS, SETTINGS_VALIDATORS } from "../../src/shared/types/settings";
-import { LATEST_WHATS_NEW, WHATS_NEW_KEYS, whatsNewDue } from "../../src/shared/whats-new";
+import { LATEST_WHATS_NEW, WHATS_NEW_KEYS, whatsNewDue, whatsNewKeysFor } from "../../src/shared/whats-new";
 
 test("a profile that saw none, or an older one, is due; the latest or a later one is not", () => {
   expect(DEFAULT_SETTINGS["ui.whatsNewSeen"]).toBeNull();
@@ -18,6 +18,17 @@ test("a profile that saw none, or an older one, is due; the latest or a later on
 test("the keys go oldest first, so the last one is the latest", () => {
   expect(WHATS_NEW_KEYS.at(-1)).toBe(LATEST_WHATS_NEW);
   for (const key of WHATS_NEW_KEYS.slice(0, -1)) expect(whatsNewDue(key)).toBe(true);
+});
+
+test("a profile that skipped a version is told what each brought, oldest first; by hand, the latest", () => {
+  // 2.9 straight to 2.11: the stage screen and the strips (2.10) were never told, and only the latest was shown.
+  expect(whatsNewKeysFor("2.9")).toEqual(["2.10", "2.11"]);
+  expect(whatsNewKeysFor(null)).toEqual(WHATS_NEW_KEYS);
+  expect(whatsNewKeysFor("2.10")).toEqual(["2.11"]);
+  expect(whatsNewKeysFor("2.10.1")).toEqual(["2.11"]);
+  // Nothing due: Settings ▸ About opens the latest.
+  expect(whatsNewKeysFor(LATEST_WHATS_NEW)).toEqual([LATEST_WHATS_NEW]);
+  expect(whatsNewKeysFor("99.0")).toEqual([LATEST_WHATS_NEW]);
 });
 
 test("the seen key is validated on write and normalized on read", () => {
