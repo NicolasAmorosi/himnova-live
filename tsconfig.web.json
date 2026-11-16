@@ -28,6 +28,7 @@
     "src/renderer/src/**/*",
     "src/shared/**/*",
     "src/preload/index.d.ts",
+    "src/preload/frame-delivery.ts",
     "tests/renderer/**/*.ts"
   ]
 }
