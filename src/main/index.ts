@@ -428,7 +428,7 @@ app.on("will-quit", () => {
   closeDatabase();
 });
 
-/** At most one crash dialog per run. `showErrorBox` is modal and blocking, so
+/** At most one crash dialog per run. The dialog is modal, so
  *  a repeating fault (a listener that throws on every event, say) turned the
  *  "health check" into a wall of dialogs the operator could not get past —
  *  during a service. Everything after the first still reaches `crash.log`. */
@@ -473,7 +473,17 @@ function reportCrash(label: string, error: unknown): void {
     return;
   }
   crashDialogShown = true;
-  dialog.showErrorBox(mt("dialogs.crashTitle"), detail);
+  // A sheet on the visible control window keeps main serving (GO LIVE, NEGRO, the engine's frames, NDI) until the
+  // click; `showErrorBox`, or a box with no visible parent, stopped main whole on macOS (2026-11-15 audit, A23).
+  // Before there is a window, the blocking box is all there is.
+  const parent = mainControlWindow && !mainControlWindow.isDestroyed() && mainControlWindow.isVisible() ? mainControlWindow : null;
+  if (!parent) {
+    dialog.showErrorBox(mt("dialogs.crashTitle"), detail);
+    return;
+  }
+  dialog
+    .showMessageBox(parent, { type: "error", title: mt("dialogs.crashTitle"), message: mt("dialogs.crashTitle"), detail })
+    .catch(() => undefined);
 }
 
 // Surface crashes as a dialog instead of a silent blank window — the health
