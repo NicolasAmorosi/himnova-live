@@ -11,7 +11,7 @@ import { usePreviewStore } from "@renderer/stores/preview.store";
 import { useProgramStore } from "@renderer/stores/program.store";
 import { goLive } from "@renderer/lib/actions/playback";
 import { claimLiveIntent, isCurrentLiveIntent } from "@renderer/lib/actions/live-intent";
-import { platePreviewOutput } from "@renderer/lib/plate-output";
+import { platePreviewOutput, plateStage } from "@renderer/lib/plate-output";
 import { DEFAULT_PLATE_STYLE, type Plate } from "@shared/types/overlay";
 import { assetUrl } from "@shared/urls";
 
@@ -112,5 +112,19 @@ describe("platePreviewOutput", () => {
     expect(preview.plates.map((p) => p.id)).toEqual([pastor.id, bug.id]);
 
     expect(platePreviewOutput(live, pastor, null).kind).toBe("black");
+  });
+});
+
+// The plate editor drew `{ ...live }`: a second decode of a 4K live video, or a black canvas under an engine video,
+// whose frames only reach this window under LIVE's and PREVIEW's keys (2026-11-15 audit, R12).
+describe("plateStage", () => {
+  test("under a plate being edited, the live video is its still and nothing plays", () => {
+    useProjectionStore.getState().showPlate(bug);
+    useProjectionStore.getState().setBase({ kind: "video", assetId: 7, url: assetUrl(7), epoch: 1, startAtSeconds: 0 });
+    const live = selectOutput(useProjectionStore.getState());
+    const stage = plateStage(live, "worship://thumb/7");
+    expect(stage).toMatchObject({ kind: "image", url: "worship://thumb/7", videoUnderlay: null, slideVideo: null });
+    expect(stage.plates).toEqual(live.plates);
+    expect(plateStage(live, null).kind).toBe("black");
   });
 });

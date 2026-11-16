@@ -403,6 +403,27 @@ test("«Repetir en bucle» loops an engine video too: past its end it starts ove
 
 // The engine's textures only open on the card that made them, so it opens Chromium's (engine-7). A PC with one card
 // can still put Chromium elsewhere: on WARP, whose ids read 0xffff:0xffff. Before engine-7 this drew black.
+// The plate editor drew what is LIVE as is: a canvas asking the engine's frames under PREVIEW's key, black unless
+// PREVIEW played the same file, and for a Chromium video a second decode of it (2026-11-15 audit, R12).
+test("the plate editor shows an engine video on the air as its still, never a black canvas", async ({ app }) => {
+  const [avi] = await app.addMedia("video", "long-xvid.avi");
+  if (!avi) throw new Error("import failed");
+  await waitEngine(app, avi);
+  await app.previewFile("Videos", "long-xvid");
+  await app.goLive();
+  const projector = await app.projector();
+  await expect.poll(() => moving(projector, "video:")).toBe(true);
+
+  await app.openResources("Funciones", "Placas");
+  await app.control.getByRole("tabpanel", { name: "Placas" }).getByRole("button", { name: "Editar placas", exact: true }).click();
+  const editor = app.control.getByRole("dialog", { name: "Placas" });
+  // The editor's stage: the box above its «Así se ve…» line (`EditorStage`).
+  const stage = editor.getByText("Así se ve sobre lo que está en vivo ahora.").locator("xpath=../../div[1]");
+  const still = stage.locator(`img[src^="worship://asset/${avi.id}/thumb"]`);
+  await expect.poll(() => still.evaluate((img: HTMLImageElement) => img.naturalWidth), { timeout: 15_000 }).toBeGreaterThan(0);
+  expect(await stage.locator("canvas, video").count()).toBe(0);
+});
+
 test.describe("on Windows, with Chromium on WARP", () => {
   test.skip(process.platform !== "win32", "WARP is Windows' software D3D11");
   test.use({ chromiumArgs: ["--use-angle=d3d11-warp"] });

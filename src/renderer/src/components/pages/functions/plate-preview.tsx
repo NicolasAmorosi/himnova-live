@@ -3,7 +3,8 @@ import { Button } from "@renderer/components/ui";
 import { EditorStage } from "@renderer/components/shared/editor-screen";
 import { OutputView } from "@renderer/components/shared/output-view";
 import { useT } from "@renderer/lib/i18n/i18n-provider";
-import { plateOutputFor } from "@renderer/lib/plate-output";
+import { useLiveVideoPoster } from "@renderer/lib/hooks/use-live-video-poster";
+import { plateOutputFor, plateStage } from "@renderer/lib/plate-output";
 import { selectOutputMemo, useProjectionStore } from "@renderer/stores/projection.store";
 import { platesCollide, type PlateStyle } from "@shared/types/overlay";
 import type { PlateDraft } from "./plate-draft";
@@ -45,6 +46,9 @@ type Stage = "shown" | "leaving" | "reentering" | "returning";
 export function PlatePreview({ draft, id, warning }: { draft: PlateDraft; id: number | null; warning: string | undefined }) {
   const t = useT();
   const live = useProjectionStore(selectOutputMemo);
+  // The live video as a still, like the PREVIEW monitor's (`plateStage`): never a second decode of it.
+  const liveVideoAssetId = useProjectionStore((s) => (s.base?.kind === "video" ? s.base.assetId : null));
+  const videoStillUrl = useLiveVideoPoster(liveVideoAssetId);
   const [stage, setStage] = useState<Stage>("shown");
   // Negative, so the drawn plate's key can never be a live plate's id.
   const [take, setTake] = useState(-1);
@@ -63,12 +67,13 @@ export function PlatePreview({ draft, id, warning }: { draft: PlateDraft; id: nu
   }, [stage, draft.style.animation.durationMs]);
 
   const output = useMemo(() => {
+    const under = plateStage(live, videoStillUrl);
     const others = live.plates.filter((p) => p.id !== id && !platesCollide(p, draft));
-    if (stage === "leaving") return { ...live, plates: others };
+    if (stage === "leaving") return { ...under, plates: others };
     const plate = plateOutputFor({ ...draft, id: take });
     const still = stage === "shown" ? plate : { ...plate, style: { ...plate.style, animation: NO_ANIMATION } };
-    return { ...live, plates: [...others, still] };
-  }, [draft, id, live, stage, take]);
+    return { ...under, plates: [...others, still] };
+  }, [draft, id, live, stage, take, videoStillUrl]);
 
   const testable = draft.style.animation.style !== "none" && draft.style.animation.durationMs > 0;
 
