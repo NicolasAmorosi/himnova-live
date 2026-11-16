@@ -261,8 +261,13 @@ export function openForLaunch(
 
   const { sqlite, db } = openDatabase(dbFilePath);
   try {
-    const repaired = repairDanglingReferences(sqlite);
-    if (repaired > 0) console.warn(`[db] repaired ${repaired} row(s) pointing at a deleted parent`);
+    // Only before a migration, which is what it is for. On every launch, its `foreign_key_check` read every table
+    // with a foreign key: one damaged page of songs or verses threw, and the app never opened again, not even to
+    // «Restaurar…» (2026-11-15 audit, D3). A skipped backup is nothing pending.
+    if (backup.status !== "skipped") {
+      const repaired = repairDanglingReferences(sqlite);
+      if (repaired > 0) console.warn(`[db] repaired ${repaired} row(s) pointing at a deleted parent`);
+    }
     runMigrations(db, migrationsFolder);
   } catch (error) {
     onFailure(error, backup);

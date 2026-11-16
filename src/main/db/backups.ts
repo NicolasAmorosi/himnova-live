@@ -172,6 +172,18 @@ function keepAsItIs(dbFilePath: string, dir: string, now: Date): string | null {
   }
 }
 
+/** The copy a launch that cannot open its database offers to restore (audit D3): the newest daily copy that reads. */
+export function newestDailyCopy(backupDir: string): BackupEntry | null {
+  return backupEntries(backupDir).find((entry) => entry.kind === "daily" && entry.programs !== null) ?? null;
+}
+
+/** Whether a launch failed because the database file is damaged, which a copy can mend; not a migration that
+ *  failed on sound data, which a day-old copy would only fail again. */
+export function isDamagedDatabase(error: unknown): boolean {
+  const code = error instanceof Error ? (error as Error & { code?: unknown }).code : undefined;
+  return typeof code === "string" && (code.startsWith("SQLITE_CORRUPT") || code === "SQLITE_NOTADB");
+}
+
 /** What this launch's restore did, once: the control window says it when it opens. */
 export function takeLaunchRestore(): LaunchRestore | null {
   const outcome = launchRestore;

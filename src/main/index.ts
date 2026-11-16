@@ -2,8 +2,8 @@ import { app, BrowserWindow, dialog } from "electron";
 import fs from "node:fs";
 import path from "node:path";
 import { registerWorshipScheme, registerWorshipProtocolHandler } from "./protocol/worship-protocol";
-import { openForLaunch } from "./db/migrate";
-import { applyPendingRestore } from "./db/backups";
+import { journalNewest, openForLaunch } from "./db/migrate";
+import { applyPendingRestore, isDamagedDatabase, newestDailyCopy, stageRestore, stagedRestorePath } from "./db/backups";
 import { seedBuiltinBibles } from "./db/seed/seed-bible";
 import { seedUtilityScenes } from "./db/seed/seed-utility-scenes";
 import { seedSongThemes } from "./db/seed/seed-song-themes";
@@ -25,6 +25,7 @@ import {
 import { importPaths } from "./services/library-import";
 import { setBibleDb } from "./ipc/handlers/bible";
 import { registerAllIpcHandlers } from "./ipc";
+import { relaunchOnQuit } from "./ipc/handlers/backups";
 import { createControlWindow, operatorDisplay } from "./windows/control-window";
 import { installNavigationGuards } from "./windows/navigation-guards";
 import { installApplicationMenu } from "./windows/app-menu";
@@ -45,7 +46,7 @@ import {
   profileBackgroundsDir,
   systemLinkedFolders,
 } from "./paths";
-import { mainMessages, mt, setMainLocale } from "./i18n";
+import { mainLocale, mainMessages, mt, setMainLocale } from "./i18n";
 import { systemLocale } from "./i18n/system-locale";
 import { initSlidesSubsystem, shutdownSlides } from "./slides/deck-service";
 import { cancelAllPrewarmBatches } from "./services/prewarm-service";
@@ -107,16 +108,17 @@ function initDatabase(): void {
   // the migrations below then bring an older one up to date.
   applyPendingRestore(dbPath, dbBackupDir);
   const { sqlite, db } = openForLaunch(dbPath, dbBackupDir, migrationsDir, (error, backup) => {
-    dialog.showErrorBox(
-      mt("dialogs.dbErrorTitle"),
-      [
-        mt("dialogs.dbErrorMigrations"),
-        backup.status === "ok"
-          ? mt("dialogs.dbErrorBackup", { path: backup.path })
-          : mt("dialogs.dbErrorNoBackup"),
-        String(error),
-      ].join("\n\n"),
-    );
+    // A migration is spoken of only when one was pending (a skipped backup is nothing pending).
+    const message =
+      backup.status === "skipped"
+        ? mt("dialogs.dbErrorOpen")
+        : [
+            mt("dialogs.dbErrorMigrations"),
+            backup.status === "ok" ? mt("dialogs.dbErrorBackup", { path: backup.path }) : mt("dialogs.dbErrorNoBackup"),
+          ].join("\n\n");
+    if (!offerDailyRestore(message, error)) {
+      dialog.showErrorBox(mt("dialogs.dbErrorTitle"), [message, String(error)].join("\n\n"));
+    }
     // Explained already: `reportCrash` still logs it, without a second dialog.
     crashDialogShown = true;
   });
@@ -258,6 +260,8 @@ if (gotSingleInstanceLock) {
       // cannot be pruned — used to quit with no dialog and nothing in
       // `crash.log`: the app simply never opened, on the one launch (the first
       // after an update) when a pending migration makes that most likely.
+      // A damaged database that would not even open: the same offer as a failed migration's.
+      if (!crashDialogShown && offerDailyRestore(mt("dialogs.dbErrorOpen"), error)) crashDialogShown = true;
       reportCrash("startup", error);
       app.quit();
       return;
@@ -378,6 +382,37 @@ app.on("will-quit", () => {
  *  "health check" into a wall of dialogs the operator could not get past —
  *  during a service. Everything after the first still reaches `crash.log`. */
 let crashDialogShown = false;
+
+/**
+ * The database is damaged and the app cannot start on it. With a daily copy that reads, the box offers to restore it:
+ * staged as «Restaurar…» stages one, and the app starts again on it once it quits (2026-11-15 audit, D3: a damaged
+ * page closed the app for good, saying there was no copy while `backups/daily/` held up to seven). Says whether it
+ * showed the box; anything else is the caller's to say.
+ */
+function offerDailyRestore(message: string, error: unknown): boolean {
+  const copy = isDamagedDatabase(error) ? newestDailyCopy(dbBackupDir) : null;
+  if (!copy) return false;
+  const date = new Date(copy.takenAt).toLocaleString(mainLocale(), { dateStyle: "long", timeStyle: "short" });
+  const choice = dialog.showMessageBoxSync({
+    type: "error",
+    title: mt("dialogs.dbErrorTitle"),
+    message,
+    detail: [mt("dialogs.dbRestoreOffer", { date }), String(error)].join("\n\n"),
+    buttons: [mt("dialogs.dbRestoreButton", { date }), mt("menu.quit")],
+    defaultId: 0,
+    cancelId: 1,
+    noLink: true,
+  });
+  if (choice !== 0) return true;
+  const refused = stageRestore(copy.path, stagedRestorePath(dbBackupDir), journalNewest(migrationsDir));
+  if (refused) {
+    dialog.showErrorBox(mt("dialogs.dbErrorTitle"), mt(`backups.${refused}`));
+    return true;
+  }
+  console.warn(`[db] restoring the daily copy of ${new Date(copy.takenAt).toISOString()} at the next launch`);
+  relaunchOnQuit();
+  return true;
+}
 
 function reportCrash(label: string, error: unknown): void {
   const detail = error instanceof Error ? (error.stack ?? error.message) : String(error);

@@ -13,6 +13,8 @@ import { journalNewest, openForLaunch, runMigrations } from "../../src/main/db/m
 import {
   applyPendingRestore,
   backupEntries,
+  isDamagedDatabase,
+  newestDailyCopy,
   stageRestore,
   stagedRestorePath,
   takeLaunchRestore,
@@ -198,4 +200,53 @@ test("the list holds every kind of copy, newest first, with what each holds", ()
     ["update", 1, 0],
     ["daily", null, null],
   ]);
+});
+
+describe("a launch that cannot open its database (audit D3)", () => {
+  test("offers the newest daily copy that reads, or none", () => {
+    const backups = fresh("backups");
+    const daily = path.join(backups, "daily");
+    expect(newestDailyCopy(backups)).toBeNull();
+    const good = profileDb(path.join(daily, "worship-2026-11-13T09-00-00-000Z.db"), "Culto del jueves");
+    fs.utimesSync(good, new Date("2026-11-13T09:00:00Z"), new Date("2026-11-13T09:00:00Z"));
+    // A newer one that does not read (a copy cut half-way) is skipped.
+    fs.writeFileSync(path.join(daily, "worship-2026-11-14T09-00-00-000Z.db"), "SQLite format 3\0 cortada");
+    expect(newestDailyCopy(backups)?.path).toBe(good);
+  });
+
+  test("offers it for a damaged file only, not for a migration that failed on sound data", () => {
+    const dbFile = fresh("worship.db");
+    const { sqlite, db } = openDatabase(dbFile);
+    runMigrations(db, drizzleDir);
+    const programs = new ProgramsRepo(db, sqlite);
+    for (let i = 0; i < 400; i++) programs.save({ name: `Culto ${i} ${"x".repeat(200)}`, items: [] });
+    sqlite.pragma("wal_checkpoint(TRUNCATE)");
+    sqlite.close();
+    const bytes = fs.readFileSync(dbFile);
+    bytes.fill(0xa5, bytes.length - 40 * 4096, bytes.length - 30 * 4096);
+    fs.writeFileSync(dbFile, bytes);
+    const damaged = new Database(dbFile);
+    let thrown: unknown = null;
+    try {
+      // What the launch's copies do first.
+      damaged.exec(`VACUUM INTO '${fresh("copia.db")}'`);
+    } catch (error) {
+      thrown = error;
+    }
+    damaged.close();
+    expect(isDamagedDatabase(thrown)).toBe(true);
+
+    const sound = new Database(":memory:");
+    sound.exec("CREATE TABLE t (id INTEGER PRIMARY KEY)");
+    sound.exec("INSERT INTO t VALUES (1)");
+    let constraint: unknown = null;
+    try {
+      sound.exec("INSERT INTO t VALUES (1)");
+    } catch (error) {
+      constraint = error;
+    }
+    sound.close();
+    expect(isDamagedDatabase(constraint)).toBe(false);
+    expect(isDamagedDatabase(new Error("disk image"))).toBe(false);
+  });
 });

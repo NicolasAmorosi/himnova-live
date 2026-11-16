@@ -609,13 +609,26 @@ update»), so main's quit skips the close guard (`releaseForUpdate`; asked again
 the copy staged for whatever launch came next) and relaunches: `app.relaunch()`, except in an AppImage, where it
 never came back (its relaunch helper runs from the mount that goes with the process), so a detached shell outside
 the mount closes what it inherited, waits for the PID and runs `$APPIMAGE` (`startAfterExit`). At the next launch, before `openForLaunch`, `applyPendingRestore` copies what is there now to
-`before-restore/` (the last 3; without it nothing is replaced), deletes the `-wal` and `-shm` (a `-wal` left next
+`before-restore/` (the last 3), and when the database is too damaged for a verified copy (a damaged page makes
+`VACUUM INTO` throw, the case a restore exists for) it keeps the file itself, `-wal` included, as `…-damaged.db`
+(2026-11-15, audit D2; without either nothing is replaced), deletes the `-wal` and `-shm` (a `-wal` left next
 to the restored file would be replayed onto it; the quit checkpointed it and the copy above holds it anyway) and
 renames the staged file over `worship.db`. The migrations then run as on any launch: a copy from before an update
 takes its pre-migration snapshot and comes up to date. The control window says it once
 (`backups:launchRestore`). The relaunch was verified outside Playwright (its loader waits for a debugger, so a
 relaunched E2E app never starts): the window back with the copy in place in 1.5 s on the Mac, 1.7 s with the Linux
 unpacked binary and 2 s with the AppImage (2026-11-13).
+
+**A launch that cannot open a damaged database offers the newest daily copy** (2026-11-15, audit D3). A damaged
+page of songs or verses used to close the app on every launch, with a box saying there was no copy: the repair of
+dangling references (`repairDanglingReferences`) ran its `foreign_key_check` over every table on every launch. It
+now runs only with a migration pending, which is what it is for, so damage the launch does not read leaves the app
+open and «Restaurar…» within reach. When the launch itself fails on damage (`isDamagedDatabase`: SQLite's
+`SQLITE_CORRUPT*` or `SQLITE_NOTADB`, never a migration that failed on sound data), the box names the newest daily
+copy that reads (`newestDailyCopy`) and offers «Restaurar la copia del <fecha>»: staged like «Restaurar…», then the
+app starts again (`relaunchOnQuit`) and the launch above swaps it in. Seen on the Mac with `settings` overwritten
+(the box, then the app open on the copy, the damaged file in `before-restore/`); a native box at launch is out of
+Playwright's reach.
 
 ## Defensive Bible parsing (the JSON path)
 

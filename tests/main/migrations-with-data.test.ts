@@ -253,6 +253,35 @@ test("a profile one migration behind is backed up, then migrated without losing 
   expect(backupBeforeMigrate(dbFile, backups, drizzleDir).status).toBe("skipped");
 });
 
+test("a damaged page of songs does not keep an up-to-date profile from opening (audit D3)", () => {
+  // The repair read every table with a foreign key on every launch: one damaged page of `songs` (a power cut) threw,
+  // and the app closed on every launch after, saying there was no copy. With nothing pending it does not run.
+  const dbFile = path.join(tmp, "damaged-songs.db");
+  const backups = path.join(tmp, "backups-damaged-songs");
+  const first = openDatabase(dbFile);
+  runMigrations(first.db, drizzleDir);
+  const now = Date.now();
+  const insert = first.sqlite.prepare(
+    "INSERT INTO songs (title, sections_json, order_json, lyrics_text, created_at, updated_at) VALUES (?, '[]', '[]', ?, ?, ?)",
+  );
+  for (let i = 0; i < 200; i++) insert.run(`Himno ${i}`, "x".repeat(300), now, now);
+  const root = (first.sqlite.prepare("SELECT rootpage FROM sqlite_master WHERE name = 'songs'").get() as { rootpage: number })
+    .rootpage;
+  const pageSize = first.sqlite.pragma("page_size", { simple: true }) as number;
+  first.sqlite.pragma("wal_checkpoint(TRUNCATE)");
+  first.sqlite.close();
+  const bytes = fs.readFileSync(dbFile);
+  bytes.fill(0xa5, (root - 1) * pageSize, root * pageSize);
+  fs.writeFileSync(dbFile, bytes);
+
+  const launched = openForLaunch(dbFile, backups, drizzleDir, () => {});
+  // It opens: what is still sound reads, and «Restaurar…» is within reach.
+  expect((launched.sqlite.prepare("SELECT count(*) AS n FROM programs").get() as { n: number }).n).toBe(0);
+  // And the damage is still there: this is the database «Restaurar…» is for.
+  expect(launched.sqlite.pragma("quick_check", { simple: true })).not.toBe("ok");
+  launched.sqlite.close();
+});
+
 test("a daily copy at launch once a day, the last 7 kept, the pre-migration copies left alone", () => {
   const dbFile = path.join(tmp, "daily.db");
   const backups = path.join(tmp, "backups-daily");
