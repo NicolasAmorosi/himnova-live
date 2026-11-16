@@ -610,6 +610,9 @@ export class MediaRepo {
         })
         .where(eq(mediaAssets.id, id))
         .run();
+      // A deck read from the old path names it as its source, and with the same size and date it is served as is: its
+      // pictures were read from a file that is gone, and came back blank (2026-11-15 audit, D1).
+      this.sqlite.prepare("UPDATE slide_decks SET source_path = ? WHERE media_asset_id = ?").run(newPath, id);
       return keepInLibrary;
     })();
 
