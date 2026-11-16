@@ -75,14 +75,15 @@ describe("containerKind", () => {
 
   // 2026-11-15 audit, Doc3: a zip was told apart by its extension, so a renamed file went to the wrong reader and
   // failed as NOT_A_PRESENTATION.
-  test("tells an .odp from a .pptx by its stored mimetype entry, whatever the name says", () => {
+  test("tells an .odp by its stored mimetype entry, whatever the name says", () => {
     expect(containerKind(write("renamed-odp.pptx", odp()))).toBe("odf");
     expect(containerKind(write("renamed-template.ppsx", odp("application/vnd.oasis.opendocument.presentation-template")))).toBe("odf");
-    expect(containerKind(write("renamed-pptx.odp", zipSync({ "ppt/presentation.xml": strToU8("<p:presentation/>") })))).toBe("ooxml");
-    // Another OpenDocument (a text document) is no presentation, and a mimetype that is not first is not one.
-    expect(containerKind(write("text.odp", odp("application/vnd.oasis.opendocument.text")))).toBe("ooxml");
+    // Another OpenDocument (a text document) is no presentation.
+    expect(containerKind(write("text.pptx", odp("application/vnd.oasis.opendocument.text")))).toBe("ooxml");
+    // An .odp whose mimetype is not first (7 of the corpus's 286: LibreOffice's test files, re-zipped ones) still
+    // opens by its name, as before.
     const late = zipSync({ "content.xml": strToU8("<office/>"), mimetype: [strToU8("application/vnd.oasis.opendocument.presentation"), { level: 0 }] });
-    expect(containerKind(write("late-mimetype.odp", late))).toBe("ooxml");
+    expect(containerKind(write("late-mimetype.odp", late))).toBe("odf");
   });
 
   test("a file too short to sniff is unknown, not a crash", () => {

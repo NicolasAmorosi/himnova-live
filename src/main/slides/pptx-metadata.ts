@@ -150,9 +150,10 @@ function attr(node: XmlNode | undefined, name: string): string | undefined {
 const ZIP_HEAD_BYTES = 128;
 const ODF_PRESENTATION = "application/vnd.oasis.opendocument.presentation";
 
-/** A zip is told apart by its bytes too, not by its extension (a renamed file went to the wrong reader): an
+/** A zip is told apart by its bytes too, not only by its extension (a renamed file went to the wrong reader): an
  *  OpenDocument file keeps a `mimetype` entry first and stored, so its media type sits in the opening bytes
- *  (2026-11-15 audit, Doc3). A template's media type starts the same. */
+ *  (2026-11-15 audit, Doc3). A template's media type starts the same. Not every `.odp` does: 7 of the 286 in the
+ *  corpus (LibreOffice's own test files, re-zipped ones) start with another entry, so those still go by name. */
 function isOdfPresentation(head: Buffer): boolean {
   if (head.readUInt32LE(0) !== 0x04034b50 || head.readUInt16LE(8) !== 0) return false;
   const nameLength = head.readUInt16LE(26);
@@ -180,7 +181,9 @@ export function containerKind(filePath: string): ContainerKind {
     if (head[0] === 0x25 && head[1] === 0x50 && head[2] === 0x44 && head[3] === 0x46) {
       return "pdf";
     }
-    if (head[0] === 0x50 && head[1] === 0x4b) return isOdfPresentation(head) ? "odf" : "ooxml";
+    if (head[0] === 0x50 && head[1] === 0x4b) {
+      return isOdfPresentation(head) || path.extname(filePath).toLowerCase() === ".odp" ? "odf" : "ooxml";
+    }
     return "unknown";
   } catch {
     return "unknown";
