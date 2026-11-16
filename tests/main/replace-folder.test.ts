@@ -58,3 +58,14 @@ test("no new folder: the old one goes once the row is written, and nothing is th
   await replaceFolder(fresh, staging, () => undefined);
   expect(read(fresh)).toBe("new");
 });
+
+test("a first folder whose row cannot be written does not stay behind", async () => {
+  const target = path.join(root, "first");
+  const staging = folder("first.tmp", "new");
+  await expect(
+    replaceFolder(target, staging, () => {
+      throw new Error("SQLITE_FULL");
+    }),
+  ).rejects.toThrow("SQLITE_FULL");
+  expect(fs.readdirSync(root).filter((name) => name.startsWith("first"))).toEqual([]);
+});

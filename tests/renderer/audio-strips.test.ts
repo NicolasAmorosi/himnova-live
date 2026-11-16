@@ -96,3 +96,25 @@ test("with something sounding on the air, the notice says it changes too: the sw
     useProjectionStore.setState({ presentationOpen: false });
   }
 });
+
+test("a verse on air after a deck with a clip is no sound: the plain notice", async () => {
+  // `liveDeck` outlives its deck: the notice said what was live changed level over a silent verse (review of
+  // 2026-11-16).
+  const { useAudioStore } = await import("@renderer/stores/audio.store");
+  const { useProjectionStore } = await import("@renderer/stores/projection.store");
+  useAudioStore.setState({ tracks: [] });
+  useProjectionStore.setState({
+    presentationOpen: true,
+    base: { kind: "bible", text: "…", reference: "Juan 3:16", versionLabel: null },
+    liveDeck: { videos: [{ slideIndex: 1 }] } as never,
+  });
+  try {
+    start({ "audio.strips": false, "media.volume": 0.5, "audio.live.volume": 1 });
+    await setAudioStrips(true);
+    expect(useToastStore.getState().toasts.map((toast) => toast.message)).toEqual([
+      "Tiras prendidas: el volumen inicial (50 %) pasa a ser el volumen general de EN VIVO.",
+    ]);
+  } finally {
+    useProjectionStore.setState({ presentationOpen: false, base: null, liveDeck: null });
+  }
+});

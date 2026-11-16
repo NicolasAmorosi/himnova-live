@@ -21,7 +21,9 @@ import { liveMasterVolume } from "@shared/types/audio";
 function soundingOnAir(): boolean {
   const { presentationOpen, base, liveDeck } = useProjectionStore.getState();
   if (!presentationOpen) return false;
-  return base?.kind === "video" || (liveDeck?.videos.length ?? 0) > 0 || useAudioStore.getState().tracks.length > 0;
+  // `liveDeck` outlives its deck (a verse sent after it keeps it): only the deck on air counts (review of 2026-11-16).
+  const deckClips = base?.kind === "deck" && (liveDeck?.videos.length ?? 0) > 0;
+  return base?.kind === "video" || deckClips || useAudioStore.getState().tracks.length > 0;
 }
 
 export function setAudioStrips(on: boolean): Promise<void> {

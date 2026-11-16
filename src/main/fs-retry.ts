@@ -29,19 +29,24 @@ export async function replaceFolder<T>(target: string, staging: string | null, c
   const previous = `${target}.previous`;
   removeQuietly(previous);
   let aside = false;
+  let movedIn = false;
   try {
     if (fs.existsSync(target)) {
       await renameWithRetry(target, previous);
       aside = true;
     }
-    if (staging) await renameWithRetry(staging, target);
+    if (staging) {
+      await renameWithRetry(staging, target);
+      movedIn = true;
+    }
     const result = commit();
     if (aside) removeQuietly(previous);
     return result;
   } catch (error) {
     if (staging) removeQuietly(staging);
+    // The new folder already in place goes too, with or without one to put back.
+    if (movedIn) removeQuietly(target);
     if (aside) {
-      removeQuietly(target);
       await renameWithRetry(previous, target).catch((back: unknown) => console.warn(`[fs] could not put ${target} back`, back));
     }
     throw error;
