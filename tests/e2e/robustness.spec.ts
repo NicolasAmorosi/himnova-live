@@ -1,6 +1,8 @@
+import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
-import { expect, relaunch, test, videoStates, type WorshipApp } from "./support/app";
+import { audioStates, expect, relaunch, test, videoStates, type WorshipApp } from "./support/app";
+import { ffmpegBinary } from "./support/paths";
 
 /** What goes wrong during a real service — a window closed by accident, the
  *  app killed, a key pressed in the wrong place — and must not cost the
@@ -296,6 +298,49 @@ test("a control window reloaded mid video leaves the projector playing it, and o
   // The operator's first action reaches the room.
   await app.control.locator("body").press("b");
   await expect.poll(async () => (await videoStates(projector))[0]?.opacity ?? 0).toBe(0);
+});
+
+/** A tone long enough to outlast the test, live: Chromium plays it in the projector's `<audio>`. */
+async function toneLive(app: WorshipApp, file: string) {
+  execFileSync(ffmpegBinary(), ["-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "sine=frequency=440:duration=90", "-ac", "2", file]);
+  await app.invoke("library:add", { kind: "audio", paths: [file] });
+  await app.previewFile("Audios", "long-tone");
+  await app.goLive();
+  const projector = await app.projector();
+  await expect.poll(async () => (await audioStates(projector))[0]?.currentTime ?? 0).toBeGreaterThan(0.3);
+}
+
+async function reloadControl(app: WorshipApp) {
+  await app.control.reload();
+  await expect(app.control.getByRole("button", { name: "EN VIVO", exact: true })).toBeVisible();
+  await app.control.waitForTimeout(1500); // the reloaded page's startup: settings mirrored, stores loaded
+}
+
+test("after a control reload, playing a sound leaves the room's video playing", async ({ app }, testInfo) => {
+  await toneLive(app, testInfo.outputPath("long-tone.wav"));
+  // A video that outlasts the test (`clip.mp4` lasts 8 s).
+  const video = testInfo.outputPath("long-clip.mp4");
+  execFileSync(ffmpegBinary(), ["-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "testsrc2=size=640x360:rate=30:duration=60", "-c:v", "libx264", "-pix_fmt", "yuv420p", video]);
+  await app.invoke("library:add", { kind: "video", paths: [video] });
+  await app.previewFile("Videos", "long-clip");
+  await app.goLive();
+  const projector = await app.projector();
+  await expect.poll(async () => (await videoStates(projector))[0]?.currentTime ?? 0).toBeGreaterThan(1);
+  await reloadControl(app);
+  // The sound ended both holds: the window's empty picture cut the video to LOGO (A30 review).
+  await app.previewFile("Audios", "long-tone");
+  await app.goLive();
+  await stillPlaying(projector);
+});
+
+test("after a control reload, a verse put up leaves the room's music playing", async ({ app }, testInfo) => {
+  await toneLive(app, testInfo.outputPath("long-tone.wav"));
+  await reloadControl(app);
+  // The verse ended both holds: the window's empty track list replaced main's and the music stopped (A30 review).
+  const projector = await verseLive(app);
+  const at = (await audioStates(projector))[0]?.currentTime ?? 0;
+  await expect.poll(async () => (await audioStates(projector))[0]?.currentTime ?? 0).toBeGreaterThan(at + 0.5);
+  expect((await audioStates(projector))[0]?.paused).toBe(false);
 });
 
 test("a control window whose renderer dies is reloaded by itself, and the projector goes on", async ({ app }) => {

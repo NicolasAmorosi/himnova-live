@@ -68,6 +68,13 @@ export type ProjectionStoreState = {
   /** LOGO without an image: `logo.name` and `logo.background`, mirrored by `App.tsx`. */
   logoScene: LogoScene;
   presentationOpen: boolean;
+  /** Whether this window's picture (`outputHeld`) and sound (`audioHeld`) stay off the room: from its start until
+   *  main says no projector is open, or, in a control window that reloaded with one open, until the operator acts on
+   *  each (`projection-sync.ts`). `recovered` is that reloaded window until both are released: it does not know what
+   *  the room sees and hears, so the quit guard asks (2026-11-15 audit, A30). */
+  outputHeld: boolean;
+  audioHeld: boolean;
+  recovered: boolean;
   /** Declarative, operator-set pause for the live video — see `VideoUnderlay`.
    *  Reset to `false` whenever `base` changes, so a fresh GO LIVE always
    *  starts playing. */
@@ -402,6 +409,9 @@ export const useProjectionStore = create<ProjectionStoreState>()(
     logoUrl: null,
     logoScene: { name: null, background: { kind: "solid", color: "#000000" } },
     presentationOpen: false,
+    outputHeld: true,
+    audioHeld: true,
+    recovered: false,
     videoPaused: false,
     videoVolume: defaultMediaVolume(),
 
