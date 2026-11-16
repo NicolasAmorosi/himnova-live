@@ -66,7 +66,13 @@ const FIT_TOLERANCE_PX = 1;
  */
 function availableHeight(stage: HTMLElement): number {
   const { paddingBottom, paddingTop } = getComputedStyle(stage);
-  return stage.clientHeight - parseFloat(paddingTop) - parseFloat(paddingBottom);
+  // A 16:9 stage's height at most: the monitors are 16:9, and a 16:10 or 4:3 projector measured against its own
+  // height chose a bigger size, with other line breaks, than the LIVE monitor, the NDI and the stage (2026-11-15 audit,
+  // A14). ponytail: a projector WIDER than 16:9 still measures against its own, shorter height (the room's text is
+  // smaller than the monitor's, never cut); carrying the projector's proportion in the `bible` output, as a song's
+  // `measureAspect`, would make the monitors match that one too.
+  const height = Math.min(stage.clientHeight, (stage.clientWidth * 9) / 16);
+  return height - parseFloat(paddingTop) - parseFloat(paddingBottom);
 }
 
 /**
@@ -211,9 +217,9 @@ function useFittedTextSize(
  * Rendered by the projector AND by both confidence monitors, through
  * `OutputView`, which is why every measurement in it is in `cqw`: the operator
  * has to be reading the same line breaks, at the same relative size, as the
- * congregation. The auto-fit obeys the same rule — it is a function of the
- * stage's own proportions, and both stages are 16:9, so the size it settles on
- * is the same number in a 240px monitor and at 4K.
+ * congregation. The auto-fit obeys the same rule: it measures against a 16:9
+ * stage (a taller projector's own is cut to that, `availableHeight`), so the
+ * size it settles on is the same number in a 240px monitor and at 4K.
  *
  * Structurally a sibling of `TimerScene` and deliberately not a
  * generalisation of it: a countdown is one short glyph run that never wraps

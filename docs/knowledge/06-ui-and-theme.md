@@ -365,7 +365,9 @@ roles named for what they are (`text`, `reference`) instead of bent onto
 **Auto-fit is MEASURED, not computed.** Juan 11:35 is two words and Ester 8:9 is eighty: at a
 fixed size, one gets lost in the middle of the frame and the other runs off the bottom — and the
 confidence monitor, which renders the same component with the same aspect ratio, clips it the
-same way, so it isn't visible from the booth either. `useFittedTextSize` runs a seven-step binary
+same way, so it isn't visible from the booth either. The monitors are always 16:9, so a taller projector
+(16:10, 4:3) is measured as if it were 16:9 (`availableHeight`), or the room got a bigger size and other line
+breaks than the monitor (2026-11-15 audit, A14); one wider than 16:9 still measures against its own height. `useFittedTextSize` runs a seven-step binary
 search writing the `font-size` straight onto the element (a measurement needs the browser to have
 already laid out; seven `setState` calls would be seven frames of shrinking text) and only
 commits the ANSWER to state. Two details that aren't optional:
