@@ -232,7 +232,7 @@ This is the core rule of the component system:
 | `bg-muted` / `text-muted-foreground` | secondary backgrounds and text |
 | `text-subtle` | tertiary text (hints, placeholders) |
 | `bg-primary` / `bg-primary-hover` / `border-primary-border` | the primary button (the sheet's Primary navy `#2f557f` in both themes since 2026-11-05). In dark it's only 2.09:1 against the background: the border isn't optional |
-| `bg-secondary` / `bg-secondary-hover` | the secondary button (the sheet's Secondary: navy in light, steel `#8299b2` with dark text in dark) |
+| `bg-secondary` / `bg-secondary-hover` | nothing today: the `secondary` button variant was removed (2026-11-04, F4b) and the secondary look is `Button outline`. The tokens keep the sheet's Secondary (navy in light, steel `#8299b2` with dark text in dark) |
 | `bg-accent` / `ring-accent` / `bg-active` | the teal: **selected / focused / on** — selection, focus ring, switch, slider, progress, active tab, pressed toggle. Never decoration |
 | `bg-danger` / `bg-success` | states |
 | `bg-on-air` / `border-on-air` | **reserved**: this is on the projector NOW (LIVE monitor, the active row's rail) |

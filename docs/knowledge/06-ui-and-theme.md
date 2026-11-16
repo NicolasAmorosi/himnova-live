@@ -442,12 +442,14 @@ the chosen section as a page in a reading column (`max-w-3xl`) CENTRED in the ca
 — left-aligned, all the free space sat on the right and read as broken (owner); one scrollbar at the window's edge
 (`scrollbar-gutter: stable both-edges`) — a `PageHeader` (20 px, no line under it since 2026-11-05), then one
 `sections/<name>-section.tsx` per category. Inside each section, `FieldGroup` + `FieldRow`: each group a titled box
-of rows (see «Forms» above), 32 px from the next; each row follows the standard there. Today's categories: **Projection** (screen,
-open/close the window, logo, clear live content, transition), **Sound** (the audio strips, the starting volume, each
-bus's output and the NDI® note), **Slides** (the slides'
-text fallback face, the cache and PDF rasterizing quality),
-**Bible** (which versions are installed: import, rename, default, delete), **System** (theme,
-language, folders, performance) and **About** (logo, version and logs folder). A new setting goes
+of rows (see «Forms» above), 32 px from the next; each row follows the standard there. Today's categories
+(`SettingsSection`, `stores/ui.store.ts`): **Projection** (screen, open/close the window, logo, clear live content,
+transition), **Screens** (what each connected screen does, «Identify», and what the stage screen shows), **Sound**
+(the audio strips, the starting volume, each bus's output and the NDI® note), **Slides** (the slides' text fallback
+face and the cache; the PDF quality setting was removed on 2026-11-05), **Bible** (which versions are installed:
+import, rename, default, delete), **Songs** (the default theme and the church's CCLI license), **System** (theme,
+language, folders, performance), **Backups** (make a copy, restore one) and **About** (logo, version and logs
+folder). A new setting goes
 into an existing group or creates one inside its section — a category isn't added without need.
 
 How a verse is DRESSED is not in Settings: since 2026-11-04 it is the Bible tab's verse style editor (see

@@ -69,7 +69,8 @@
 
 /* A channel strip's fader (`ChannelStrip`): a native vertical range whose track is painted here, filled up to
  * `--fill` (set inline, 0..100%). With `accent-color` set, Chromium paints the unfilled track light on the dark theme,
- * so the whole track and thumb are drawn instead. `--wa-*`: the `--color-*` of `@theme inline` are not CSS variables. */
+ * so the whole track and thumb are drawn instead. `--wa-*`: Tailwind emits a `--color-*` of `@theme inline` only where a
+ * rule names it in `var()`, so none can be counted on here. */
 .fader {
   appearance: none;
   background: transparent;
@@ -475,8 +476,8 @@
    * Spacing is Tailwind's own 4 px step, used as a rule rather than a token:
    * 4–8 inside a control, 8 between controls, 12–16 at a panel's edge, 24
    * between groups. Control heights (GitHub's Primer): 28 (h-7, a compact
-   * bar), 32 (h-8, the default of every control), 40 (h-10, what is pressed
-   * during a service: GO LIVE, LOGO, BLACK, LIVE). Radii: see
+   * bar) and 32 (h-8, every other control, GO LIVE, LOGO and BLACK included).
+   * Radii: see
    * `tests/renderer/radius-scale.test.ts` and `06-ui-and-theme.md`.
    */
   --text-2xs: 0.6875rem;
