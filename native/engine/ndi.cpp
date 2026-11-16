@@ -463,8 +463,11 @@ struct AudioOut : AudioSink {
     queue(in, frames, ch, r, tc);
   }
   void fillUntil(int64_t until) {  // `m` held
-    if (!watched) return;
-    while (expected && until - expected > 100000) queue(nullptr, rate / 100, channels, rate, expected);  // 10 ms each
+    if (!watched || !expected) return;
+    // Never more than 200 ms of past silence: after a stall (the audio thread waiting on a capture start the OS holds)
+    // the receiver gets a gap, not seconds of old silence in one go (review of 2026-11-15 audit A37).
+    expected = std::max(expected, until - 2000000);
+    while (until - expected > 100000) queue(nullptr, rate / 100, channels, rate, expected);  // 10 ms each
   }
   bool closed = false;  // the sender is destroyed: nothing goes through it again
   void close() {
