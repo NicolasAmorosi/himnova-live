@@ -44,6 +44,7 @@ const es = {
     closeAnyway: "Cerrar igualmente",
     closeOnAirTitle: "¿Cerrar la app?",
     closeOnAirBody: "Hay contenido en el proyector. Al cerrar, la pantalla de proyección se apaga.",
+    closeSoundBody: "Está sonando «{name}». Al cerrar, deja de sonar en la sala.",
     closeEditorBody:
       "Hay un editor abierto con cambios sin guardar: al cerrar, se pierden.",
   },

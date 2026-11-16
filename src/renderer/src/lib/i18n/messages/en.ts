@@ -45,6 +45,7 @@ const en: Messages = {
     closeAnyway: "Close anyway",
     closeOnAirTitle: "Close the app?",
     closeOnAirBody: "Something is on the projector. If you close the app, the projector screen goes dark.",
+    closeSoundBody: "“{name}” is playing. If you close the app, it stops in the room.",
     closeEditorBody:
       "An editor is open with unsaved changes: closing the app loses them.",
   },

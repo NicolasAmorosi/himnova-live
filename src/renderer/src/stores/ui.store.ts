@@ -63,7 +63,9 @@ type UiStoreState = {
 /** Why closing needs a confirmation: work that is not saved — the schedule
  *  (`unsaved`) or an open editor's (`editor`) —, and/or something the
  *  congregation is looking at right now. */
-export type CloseGuardReasons = { unsaved: boolean; editor: boolean; onAir: boolean };
+/** `sound`: the name of what is playing in the room when nothing is on the projector (the prelude over the resting
+ *  LOGO): closing silences it. */
+export type CloseGuardReasons = { unsaved: boolean; editor: boolean; onAir: boolean; sound: string | null };
 
 export const useUiStore = create<UiStoreState>((set) => ({
   settingsSection: null,

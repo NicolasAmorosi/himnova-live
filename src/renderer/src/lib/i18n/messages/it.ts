@@ -45,6 +45,7 @@ const it: Messages = {
     closeAnyway: "Chiudi comunque",
     closeOnAirTitle: "Chiudere l'app?",
     closeOnAirBody: "C'è qualcosa sul proiettore. Chiudendo l'app, lo schermo di proiezione si spegne.",
+    closeSoundBody: "Sta suonando «{name}». Chiudendo l'app, smette di suonare in sala.",
     closeEditorBody:
       "C'è un editor aperto con modifiche non salvate: chiudendo l'app, si perdono.",
   },
