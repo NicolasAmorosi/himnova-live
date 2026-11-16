@@ -170,6 +170,28 @@ async function hymnWithMusicLive(app: WorshipApp) {
   return projector;
 }
 
+test("a projector whose renderer dies mid-hymn comes back on its slide, the music where it was, not from 0:00", async ({
+  app,
+}) => {
+  app.crashLogExpected = true;
+  const first = await hymnWithMusicLive(app);
+  await expect.poll(async () => (await audioStates(first))[0]?.currentTime ?? 0).toBeGreaterThan(2.5);
+  await app.electron.evaluate(({ BrowserWindow }) =>
+    BrowserWindow.getAllWindows()
+      .find((win) => win.webContents.getURL().endsWith("/projection.html"))
+      ?.webContents.forcefullyCrashRenderer(),
+  );
+  await expect(app.control.getByText("La ventana de proyección se cayó y se volvió a abrir sola")).toBeVisible();
+  const projector = await app.projector();
+  // The first reading of the new window, not a later one: a hymn restarted from 0:00 is past 2 s again soon enough.
+  // Its slides follow its music («synced»), so a restart would also show slide 1 (2026-11-15 audit, A1).
+  await expect.poll(async () => (await audioStates(projector))[0]?.readyState ?? 0).toBeGreaterThan(0);
+  expect((await audioStates(projector))[0]?.currentTime ?? 0).toBeGreaterThan(2);
+  expect(await projectedSlide(projector)).toBeGreaterThanOrEqual(2);
+  // How long the room was without a projector, for the record.
+  console.log(app.log.find((line) => line.includes("[projector] mounted again")) ?? "[projector] no timing line");
+});
+
 test("«Reiniciar» under BLACK rewinds the hymn but its music stays paused behind the cover", async ({ app }) => {
   const projector = await hymnWithMusicLive(app);
   await app.control.locator("body").press("b");

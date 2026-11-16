@@ -1,3 +1,4 @@
+import { BrowserWindow } from "electron";
 import type { Handlers } from "../register";
 import { projectionState } from "../../services/projection-state";
 import { createProjectionWindow } from "../../windows/projection-window";
@@ -22,6 +23,8 @@ const mountWaiters = new Map<number, () => void>();
 
 /** Whether a projector that just died may be reopened on its own (`crash-limit.ts`). */
 const projectorCrashed = crashLimit();
+/** When the last projector died, until its replacement mounts: how long the room was without one goes to main.log. */
+let diedAt: number | null = null;
 
 export function setCurrentProgramId(id: number | null): void {
   currentProgramId = id;
@@ -70,6 +73,7 @@ export const projectionHandlers: Pick<
     let reopen = false;
     win.webContents.on("render-process-gone", () => {
       if (win.isDestroyed()) return;
+      diedAt = Date.now();
       reopen = projectorCrashed();
       win.destroy();
     });
@@ -158,6 +162,11 @@ export const projectionHandlers: Pick<
 
   "projection:getSnapshot": (_req, ev) => {
     mountWaiters.get(ev.sender.id)?.();
+    if (diedAt !== null) {
+      const fullScreen = BrowserWindow.fromWebContents(ev.sender)?.isFullScreen() ?? false;
+      console.log(`[projector] mounted again ${Date.now() - diedAt} ms after its renderer died (${fullScreen ? "full screen" : "a window"})`);
+      diedAt = null;
+    }
     return projectionState.getSnapshot();
   },
 
