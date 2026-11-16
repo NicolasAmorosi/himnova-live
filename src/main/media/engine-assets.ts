@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import fsp from "node:fs/promises";
 import { convertedMediaDir } from "../paths";
-import { getConversionsRepo } from "../services/repos";
+import { getConversionsRepo, getMediaRepo } from "../services/repos";
 import { broadcast } from "../services/broadcast";
 import type { ConversionCandidate } from "../db/repositories/conversions.repo";
 import { ffmpegAvailable, killAllFfmpeg, probeMedia } from "./ffmpeg";
@@ -111,9 +111,13 @@ async function probeAndRecord(c: ConversionCandidate): Promise<ConversionCandida
 async function reconcileOnce(caps: DecoderSupport): Promise<void> {
   const candidates = getConversionsRepo().candidates();
 
-  // Removed or gone missing since the last pass.
+  // Removed or gone missing since the last pass. Not a row a relocate merged away: what is on the air under it plays
+  // on as it went out, and the renderer hears of the merge only once the whole move is followed; told first, it
+  // re-pointed an engine video on air at a `<video>` Chromium cannot open (2026-11-15 audit, D4).
   const present = new Set(candidates.map((c) => c.id));
-  for (const id of [...engineAssets]) if (!present.has(id)) setEngine(id, false);
+  for (const id of [...engineAssets]) {
+    if (!present.has(id) && getMediaRepo().survivingId(id) === id) setEngine(id, false);
+  }
 
   const unprobed: ConversionCandidate[] = [];
   for (const c of candidates) {

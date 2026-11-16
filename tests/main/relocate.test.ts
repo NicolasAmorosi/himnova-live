@@ -142,3 +142,35 @@ test("a deck read before its file moved is served from where the file is now, on
   expect(slides.findSourceDeckByAsset(asset.id, "native")?.sourcePath).toBe(newPath);
   expect(slides.getSlideImage(deckId, 1, "full")?.sourcePath).toBe(newPath);
 });
+
+test("a merge counts once committed: one rolled back with a later move of the same relocate never happened", () => {
+  // A whole moved folder is one transaction (`relocateMany`). A later move throwing rolls the merge back and the twin
+  // is a row again; recorded anyway, its file was served from the other row for the rest of the session.
+  const media = new MediaRepo(handle.db, handle.sqlite);
+  const file = (name: string) => {
+    const at = path.join(dir, "rollback", name);
+    fs.mkdirSync(path.dirname(at), { recursive: true });
+    fs.writeFileSync(at, "mp4");
+    return at;
+  };
+  const moved = media.upsertFromPath(file("moved.mp4"), "video", true);
+  const twin = media.upsertFromPath(file("twin.mp4"), "video", false);
+  const other = media.upsertFromPath(file("other.mp4"), "video", true);
+  const failing = { get size(): number { throw new Error("the drive went away"); }, mtimeMs: 1 } as fs.Stats;
+
+  expect(() =>
+    media.relocateMany([
+      { id: moved.id, path: twin.path, stat: fs.statSync(twin.path) },
+      { id: other.id, path: file("other-new.mp4"), stat: failing },
+    ]),
+  ).toThrow("the drive went away");
+
+  expect(media.getById(twin.id)?.path).toBe(twin.path);
+  expect(media.survivingId(twin.id)).toBe(twin.id);
+
+  // The same merge committed is recorded, nested in `relocateMany` as it is.
+  expect(media.relocateMany([{ id: moved.id, path: twin.path, stat: fs.statSync(twin.path) }]).merged).toEqual([
+    { from: twin.id, to: moved.id },
+  ]);
+  expect(media.survivingId(twin.id)).toBe(moved.id);
+});

@@ -400,7 +400,10 @@ them (`merged`), and the renderer moves the schedule rows, PREVIEW and the libra
 (`followMerges`; left on the dead id, «Guardar» failed its foreign key and the draft dropped the rows, audit D4,
 2026-11-15). What is on the air keeps the id it went out with, so nothing the room sees remounts: the renderer compares
 a live id with a row's through `survivingAssetId`, and main serves a merged-away id's file through
-`MediaRepo.survivingId` (the protocol and the engine only, never the getters a write follows).
+`MediaRepo.survivingId` (the protocol and the engine only, never the getters a write follows). The engine's list keeps
+a merged-away id (an engine pass drops only an id that merged into nothing), since the renderer hears of a merge only
+once the whole move is followed; the history and pin of a deck on air go to the row it lives on as; and a merge is
+noted only once its transaction commits (one rolled back with a later move of `relocateMany` never happened).
 
 And no import accepts a `._x.pps` (the AppleDouble that
 macOS leaves on a FAT/exFAT USB stick), a `~$x.pptx` (PowerPoint's lock file) or a file whose

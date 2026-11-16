@@ -2,7 +2,7 @@ import { BrowserWindow } from "electron";
 import type { Handlers } from "../register";
 import { projectionState } from "../../services/projection-state";
 import { createProjectionWindow } from "../../windows/projection-window";
-import { getHistoryRepo, getSlidesRepo, getSongsRepo } from "../../services/repos";
+import { getHistoryRepo, getMediaRepo, getSlidesRepo, getSongsRepo } from "../../services/repos";
 import { broadcast } from "../../services/broadcast";
 import { pinDecks } from "../../slides/deck-service";
 import { commandLiveEngine, redrawEngineFrame, syncLiveEngine, syncLiveEngineIntoNewProjector } from "../../media/engine-sessions";
@@ -126,11 +126,16 @@ export const projectionHandlers: Pick<
     const deckId = output.kind === "slide" ? deckIdOfUrl(output.url) : null;
     if (deckId !== null) keepLiveDeckSource(deckId);
     syncLiveEngine();
+    // A deck on air under a row a relocate merged away is history and pinned as the row it lives on as: under the dead
+    // id its history row failed the foreign key (the first slide after a LOGO lifted) and the next slide unpinned it
+    // (2026-11-15 audit, D4). The projector got the output as it is.
+    const shown =
+      output.kind === "slide" ? { ...output, deckAssetId: getMediaRepo().survivingId(output.deckAssetId) } : output;
     // Never in the way of the projector either: a throw here (a full disk, a read-only database) left the CCLI use
     // uncounted, the deck on air unpinned and the channel answering an error, the projector already changed
     // (2026-11-15 audit, D11).
     try {
-      getHistoryRepo().record(output, currentProgramId);
+      getHistoryRepo().record(shown, currentProgramId);
     } catch (error) {
       console.warn("[history] could not record what went on air", error);
     }
@@ -153,8 +158,8 @@ export const projectionHandlers: Pick<
     // three minutes of BLACK over a deck, an eviction pass in between, and the
     // slides are gone when it comes back up. The pin is released by the next
     // output that genuinely replaces the content (a video, an image, a verse).
-    if (output.kind === "slide") {
-      const deck = getSlidesRepo().findDeckByAsset(output.deckAssetId);
+    if (shown.kind === "slide") {
+      const deck = getSlidesRepo().findDeckByAsset(shown.deckAssetId);
       pinDecks("projected", deck ? [deck.id] : []);
     } else if (output.kind !== "black" && output.kind !== "logo") {
       pinDecks("projected", []);

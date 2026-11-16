@@ -294,9 +294,10 @@ export class MediaRepo {
 
   /** The row `id` lives on as: itself, or the twin a relocate merged it into this session. What is on the air keeps
    *  the id it went out with, and its file must keep coming under it: a video is read in ranges as it plays, and a
-   *  projector reopened asks again (2026-11-15 audit, D4). Only for what serves bytes: anything that writes rows
-   *  under an id must not take a dead one for a live one. Ids are AUTOINCREMENT, so a merged-away id never has a
-   *  row again. */
+   *  projector reopened asks again (2026-11-15 audit, D4). Only for what is on the air: the bytes it is served, the
+   *  engine's list that keeps it playing, the history and pin of the deck it shows. Never inside a getter: anything
+   *  that writes rows under an id must not take a dead one for a live one unasked. Ids are AUTOINCREMENT, so a
+   *  merged-away id never has a row again. */
   survivingId(id: number): number {
     for (let next = this.mergedInto.get(id); next !== undefined; next = this.mergedInto.get(id)) id = next;
     return id;
@@ -596,7 +597,7 @@ export class MediaRepo {
     const mtimeMs = Math.trunc(stat.mtimeMs);
     const now = Date.now();
     const pathKey = toPathKey(newPath);
-    let merged: MergedAsset | null = null;
+    const merged: MergedAsset[] = [];
 
     const inLibrary = this.sqlite.transaction(() => {
       const duplicate = this.db.select().from(mediaAssets).where(eq(mediaAssets.pathKey, pathKey)).get();
@@ -616,8 +617,7 @@ export class MediaRepo {
         keepInLibrary = Math.max(row.inLibrary, duplicate.inLibrary);
         if (row.inLibrary === 0 && duplicate.inLibrary === 1) createdAt = duplicate.createdAt;
         this.db.delete(mediaAssets).where(eq(mediaAssets.id, duplicate.id)).run();
-        merged = { from: duplicate.id, to: id };
-        this.mergedInto.set(duplicate.id, id);
+        merged.push({ from: duplicate.id, to: id });
       }
       this.db
         .update(mediaAssets)
@@ -639,6 +639,7 @@ export class MediaRepo {
       this.sqlite.prepare("UPDATE slide_decks SET source_path = ? WHERE media_asset_id = ?").run(newPath, id);
       return keepInLibrary;
     })();
+    this.noteMerges(merged);
 
     // Same reason as `upsertFromPath`: the relocated file is a different set
     // of bytes as far as the thumbnail cache is concerned.
@@ -652,7 +653,14 @@ export class MediaRepo {
       missingSince: null,
       updatedAt: now,
     });
-    return { asset, merged };
+    return { asset, merged: merged[0] ?? null };
+  }
+
+  /** Merges count once committed: those of a transaction rolled back (a later move of `relocateMany` throwing) never
+   *  happened, and their twins are rows again. Nested, the outer caller notes them after its commit. */
+  private noteMerges(merged: readonly MergedAsset[]): void {
+    if (this.sqlite.inTransaction) return;
+    for (const { from, to } of merged) this.mergedInto.set(from, to);
   }
 
   /** Every row's file and its operator-chosen soundtrack: what a move of
@@ -686,6 +694,7 @@ export class MediaRepo {
         if (relocated?.merged) merged.push(relocated.merged);
       }
     })();
+    this.noteMerges(merged);
     return { kinds, merged };
   }
 }
