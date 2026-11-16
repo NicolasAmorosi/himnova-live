@@ -162,7 +162,8 @@ API_AVAILABLE(macos(14.2)) bool startTap(NSString* deviceUID, std::string& why) 
         uint64_t host = (when && (when->mFlags & kAudioTimeStampHostTimeValid)) ? when->mHostTime : mach_absolute_time();
         uint64_t nowHost = mach_absolute_time();
         int64_t age = nowHost > host ? (int64_t)((nowHost - host) * timebase.numer / timebase.denom / 100) : 0;
-        sink->push(data, frames, planar ? 2 : channels, rate, nowTc() - age);
+        // A planar tap of one buffer is one channel: said as two, the sink read twice the buffer (2026-11-15 audit, A39).
+        sink->push(data, frames, planar ? (in->mNumberBuffers >= 2 ? 2 : 1) : channels, rate, nowTc() - age);
       });
   if (st != noErr) {
     why = "AudioDeviceCreateIOProcIDWithBlock " + std::to_string((int)st);
