@@ -9,7 +9,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { deflateSync } from "node:zlib";
-import { afterAll, beforeAll, describe, expect, test } from "vitest";
+import { afterAll, beforeAll, describe, expect, test, vi } from "vitest";
 import type { ShapeElement, SlideElement, SlideModel } from "../../src/shared/types/slide-model";
 import { color, parseMsoShapes, shapeGeometry, emptyProps, P } from "../../src/main/slides/ppt/escher";
 import { readPptModelDeck } from "../../src/main/slides/ppt/model-reader";
@@ -286,4 +286,13 @@ describe("autonumbered bullets", () => {
     const body = textBody(data, emptyProps(), { sheets: new Map(), fonts: [], scheme, slideNumber: 1, footer: null, date: null, miss: () => {} });
     expect(body.paragraphs.map((p) => (p.bullet?.kind === "char" ? p.bullet.char : null))).toEqual(["ii.", "iii.", "iv."]);
   });
+});
+
+// 2026-11-15 audit, S4, review: the deck worker's timer restarts at each slide.
+test("the legacy reader beats once per slide", () => {
+  const file = path.join(dir, "beat.ppt");
+  fs.writeFileSync(file, buildLegacyPpt({ slides: [{ slideFlags: 0x7 }, { slideFlags: 0x7 }] }));
+  const onSlide = vi.fn();
+  expect(readPptModelDeck(file, { msoShapes, onSlide }).deck.slides).toHaveLength(2);
+  expect(onSlide).toHaveBeenCalledTimes(2);
 });

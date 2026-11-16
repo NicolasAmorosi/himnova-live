@@ -7,7 +7,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { afterAll, beforeAll, expect, test } from "vitest";
+import { afterAll, beforeAll, expect, test, vi } from "vitest";
 import { strToU8, zipSync } from "fflate";
 import { parsePresetDefinitions } from "../../src/main/slides/pptx/geometry";
 import { readPptxDeck, type PptxResources } from "../../src/main/slides/pptx/reader";
@@ -209,4 +209,12 @@ test("a slide's show attribute reads the same in the model and in the metadata, 
     expect(readPptxDeck(file, resources).slides[0]!.hidden, show).toBe(hidden);
     expect(readPresentationMeta(file).slides[0]!.hidden, show).toBe(hidden);
   }
+});
+
+// 2026-11-15 audit, S4, review: the deck worker's timer restarts at each slide, so a long deck on a slow PC is read
+// to the end; a reader that stopped beating would bring back the whole-deck limit.
+test("the reader beats once per slide", () => {
+  const onSlide = vi.fn();
+  readPptxDeck(writeDeck("beat.pptx", slide("")), { ...resources, onSlide });
+  expect(onSlide).toHaveBeenCalledTimes(1);
 });

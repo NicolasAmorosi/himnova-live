@@ -8,7 +8,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { afterAll, beforeAll, describe, expect, test } from "vitest";
+import { afterAll, beforeAll, describe, expect, test, vi } from "vitest";
 import { strToU8, zipSync } from "fflate";
 import type { GroupElement, PictureElement, ShapeElement, SlideElement } from "../../src/shared/types/slide-model";
 import { readOdpMeta } from "../../src/main/slides/odp/meta";
@@ -251,4 +251,11 @@ describe("list numbering is bounded", () => {
     expect(labels(numbered("i", "1e999"))).toEqual(["i.", "ii."]);
     expect(labels(numbered("a", "-1e999"))).toEqual(["a.", "b."]);
   });
+});
+
+// 2026-11-15 audit, S4, review: the deck worker's timer restarts at each slide.
+test("the .odp reader beats once per page", () => {
+  const onSlide = vi.fn();
+  expect(readOdpDeck(deckFile(), { ...resources, onSlide }).slides).toHaveLength(2);
+  expect(onSlide).toHaveBeenCalledTimes(2);
 });
