@@ -7,6 +7,10 @@ import { fixture } from "./support/paths";
 const JUAN_3_16 = "Porque de tal manera amó Dios al mundo";
 const JUAN_3_17 = "Porque no envió Dios á su Hijo al mundo";
 
+// The projector's text is read on its top layer (`.last()`): a step within a scene no longer cuts a fade short
+// (2026-11-15 audit, A2), so for a moment the layer leaving can show the same words, and a test is faster than any
+// operator.
+
 test("a verse found by book and chapter is previewed, projected and stepped through", async ({ app }) => {
   const { control } = app;
   await app.openChapter("Juan 3");
@@ -18,11 +22,11 @@ test("a verse found by book and chapter is previewed, projected and stepped thro
 
   await app.goLive();
   const projector = await app.projector();
-  await expect(projector.getByText(JUAN_3_16, { exact: false })).toBeVisible();
+  await expect(projector.getByText(JUAN_3_16, { exact: false }).last()).toBeVisible();
 
   // → steps the projected passage, not just the preview.
   await control.keyboard.press("ArrowRight");
-  await expect(projector.getByText(JUAN_3_17, { exact: false })).toBeVisible();
+  await expect(projector.getByText(JUAN_3_17, { exact: false }).last()).toBeVisible();
   await expect(projector.getByText(JUAN_3_16, { exact: false })).toHaveCount(0);
 });
 
@@ -46,16 +50,16 @@ test("after clicking EN VIVO, the arrows and Space still belong to the operator"
   // A real mouse click leaves EN VIVO focused, the way an operator's does.
   await app.goLive();
   const projector = await app.projector();
-  await expect(projector.getByText(JUAN_3_16, { exact: false })).toBeVisible();
+  await expect(projector.getByText(JUAN_3_16, { exact: false }).last()).toBeVisible();
 
   await control.keyboard.press("ArrowRight");
-  await expect(projector.getByText(JUAN_3_17, { exact: false })).toBeVisible();
+  await expect(projector.getByText(JUAN_3_17, { exact: false }).last()).toBeVisible();
   // Space must not press EN VIVO again. 3:16 left PREVIEW when it went out (owner, 2026-11-15), so EN VIVO has
   // nothing to send and is off.
   await expect(control.getByRole("button", { name: "EN VIVO", exact: true })).toBeDisabled();
   await control.keyboard.press("Space");
   await control.waitForTimeout(800);
-  await expect(projector.getByText(JUAN_3_17, { exact: false })).toBeVisible();
+  await expect(projector.getByText(JUAN_3_17, { exact: false }).last()).toBeVisible();
   await expect(projector.getByText(JUAN_3_16, { exact: false })).toHaveCount(0);
 });
 
@@ -99,7 +103,7 @@ async function verseLive(app: WorshipApp) {
   await app.control.getByRole("listitem").filter({ hasText: JUAN_3_16 }).click();
   await app.goLive();
   const projector = await app.projector();
-  await expect(projector.getByText(JUAN_3_16, { exact: false })).toBeVisible();
+  await expect(projector.getByText(JUAN_3_16, { exact: false }).last()).toBeVisible();
   return projector;
 }
 
@@ -206,7 +210,7 @@ test("an image background for the verse can be picked: nothing is saved until th
   await picker.getByRole("combobox").click();
   await app.control.getByRole("option", { name: "photo" }).click();
   await expect(projector.locator(`img[src="worship://asset/${photo?.id}"]`)).toBeVisible();
-  await expect(projector.getByText(JUAN_3_16, { exact: false })).toBeVisible();
+  await expect(projector.getByText(JUAN_3_16, { exact: false }).last()).toBeVisible();
 
   // Importing lives inside the picker (owner, 2026-11-05) and leaves the new image chosen.
   const other = path.join(os.tmpdir(), `worship-e2e-imported-${Date.now()}.png`);
@@ -233,21 +237,19 @@ test("a verse sent leaves PREVIEW, so ↓ and Enter do nothing; the LIVE transpo
   await app.control.keyboard.press("ArrowDown");
   await app.control.keyboard.press("Enter");
   await app.control.waitForTimeout(500);
-  await expect(projector.getByText(JUAN_3_16, { exact: false })).toBeVisible();
+  await expect(projector.getByText(JUAN_3_16, { exact: false }).last()).toBeVisible();
   await expect(app.control.getByRole("button", { name: "EN VIVO", exact: true })).toBeDisabled();
   // Another verse of the tab goes through PREVIEW and EN VIVO, as always.
   await bibleTab(app).getByRole("listitem").filter({ hasText: "El que en él cree, no es condenado" }).click();
   await app.control.keyboard.press("Enter");
-  await expect(projector.getByText("El que en él cree, no es condenado", { exact: false })).toBeVisible();
+  await expect(projector.getByText("El que en él cree, no es condenado", { exact: false }).last()).toBeVisible();
   await expect(live.getByText("18/36", { exact: true })).toBeVisible();
 
   await live.getByRole("button", { name: "Siguiente" }).click();
-  await expect(projector.getByText("Y esta es la condenación", { exact: false })).toBeVisible();
+  await expect(projector.getByText("Y esta es la condenación", { exact: false }).last()).toBeVisible();
   await live.getByRole("button", { name: "Anterior" }).click();
-  await expect(projector.getByText("El que en él cree, no es condenado", { exact: false })).toBeVisible();
+  await expect(projector.getByText("El que en él cree, no es condenado", { exact: false }).last()).toBeVisible();
   await live.getByRole("list", { name: "Biblia" }).getByRole("button", { name: / 16$/ }).click();
-  // `.last()`: still inside the fade from 16 to 18, the layer leaving is 16 too: a step within the scene no longer
-  // cuts a fade short (2026-11-15 audit, A2), and the top layer is the last.
   await expect(projector.getByText(JUAN_3_16, { exact: false }).last()).toBeVisible();
   await expect(live.getByText("16/36", { exact: true })).toBeVisible();
 });
@@ -301,7 +303,7 @@ test("a verse of the program previews its whole chapter, and another verse is wa
   // EN VIVO sends the row itself.
   await app.goLive();
   const projector = await app.projector();
-  await expect(projector.getByText(JUAN_3_16, { exact: false })).toBeVisible();
+  await expect(projector.getByText(JUAN_3_16, { exact: false }).last()).toBeVisible();
 
   // The row left PREVIEW when it went out (owner, 2026-11-15), and its chapter went to the Bible tab at once — its
   // pickers too.
@@ -311,7 +313,7 @@ test("a verse of the program previews its whole chapter, and another verse is wa
   await expect(tab.getByRole("combobox", { name: "Libro", exact: true })).toHaveText("Juan");
   // The row's verse is the live one of that chapter: → walks the projector on from it.
   await control.keyboard.press("ArrowRight");
-  await expect(projector.getByText(JUAN_3_17, { exact: false })).toBeVisible();
+  await expect(projector.getByText(JUAN_3_17, { exact: false }).last()).toBeVisible();
 });
 
 test("a starred verse and the passage read live come back from Favoritos y recientes, after a restart too", async ({
@@ -327,9 +329,9 @@ test("a starred verse and the passage read live come back from Favoritos y recie
   // Read on through the chapter: one recent passage, not two.
   await app.goLive();
   const projector = await app.projector();
-  await expect(projector.getByText(JUAN_3_16, { exact: false })).toBeVisible();
+  await expect(projector.getByText(JUAN_3_16, { exact: false }).last()).toBeVisible();
   await control.keyboard.press("ArrowRight");
-  await expect(projector.getByText(JUAN_3_17, { exact: false })).toBeVisible();
+  await expect(projector.getByText(JUAN_3_17, { exact: false }).last()).toBeVisible();
   await app.quit();
 
   const again = await relaunch(app);
@@ -536,16 +538,15 @@ test("a program's verse sent live: → and a remote's PageDown walk on through i
 
   await row.dblclick();
   const projector = await app.projector();
-  await expect(projector.getByText(JUAN_3_16, { exact: false })).toBeVisible();
+  await expect(projector.getByText(JUAN_3_16, { exact: false }).last()).toBeVisible();
   await expect(rail).toHaveCount(1);
   await control.keyboard.press("ArrowRight");
-  await expect(projector.getByText(JUAN_3_17, { exact: false })).toBeVisible();
+  await expect(projector.getByText(JUAN_3_17, { exact: false }).last()).toBeVisible();
 
   // The preacher's remote, right after the row went live.
   await row.dblclick();
-  await expect(projector.getByText(JUAN_3_16, { exact: false })).toBeVisible();
+  await expect(projector.getByText(JUAN_3_16, { exact: false }).last()).toBeVisible();
   await control.keyboard.press("PageDown");
-  // `.last()`: inside the fade from 17 to 16, the layer leaving is 17 too (a step no longer cuts the fade: audit A2).
   await expect(projector.getByText(JUAN_3_17, { exact: false }).last()).toBeVisible();
 
   // Another verse of the row's chapter, double-clicked in PREVIEW: live, and no longer the row's. The row sent left
@@ -554,10 +555,10 @@ test("a program's verse sent live: → and a remote's PageDown walk on through i
   await expect(rail).toHaveCount(1);
   await row.click();
   await app.previewColumn().getByRole("list", { name: "Biblia" }).getByRole("button", { name: / 17$/ }).dblclick();
-  await expect(projector.getByText(JUAN_3_17, { exact: false })).toBeVisible();
+  await expect(projector.getByText(JUAN_3_17, { exact: false }).last()).toBeVisible();
   await expect(rail).toHaveCount(0);
   await control.keyboard.press("ArrowLeft");
-  await expect(projector.getByText(JUAN_3_16, { exact: false })).toBeVisible();
+  await expect(projector.getByText(JUAN_3_16, { exact: false }).last()).toBeVisible();
 });
 
 test("a colour picked for the verse reaches the live verse at once and is kept after a restart; «Restaurar» undoes it", async ({
