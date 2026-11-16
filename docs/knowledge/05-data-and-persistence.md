@@ -609,9 +609,11 @@ from Settings in the meantime counts as today's. Measured on a 77 MB profile wit
 window 651 to 659 ms on the first launch of the day before, 91 to 116 ms after (104 ms on a launch with today's copy
 in place), and the copy is in `daily/` 5.8 to 6.0 s after the window is usable (three runs; a fourth took 13 s,
 cause not found). A database this
-launch created (a new profile) is not copied, as before. Backup jobs run one at a time (`runBackupJob` chains
-them): the daily copy and «Hacer una copia» write into the same folder, and `takeSnapshot` starts by deleting
-every `.partial` there, the other job's copy in progress included.
+launch created (a new profile) is not copied, as before. Copies run one at a time (`runBackupJob` chains them, a
+failed one does not stop the next): the daily copy and «Hacer una copia» write into the same folder, and
+`takeSnapshot` starts by deleting every `.partial` there, the other job's copy in progress included. A restore
+staged («Restaurar») is not chained: it writes only into `restore-pending/`, and one read from a share that hangs
+held every copy after it for the session.
 
 **Settings › Backups** (2.9.0, owner 2026-11-13: its own section; `db/backups.ts`). «Hacer una copia» takes the same
 snapshot into `daily/` (it counts within the 7) on a worker thread (`backup-worker.ts`): on that 90 MB profile

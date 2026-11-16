@@ -348,7 +348,14 @@ if (gotSingleInstanceLock) {
     if (hadDatabase) {
       setTimeout(() => {
         const dir = dailyBackupDir(dbBackupDir);
-        if (!dailyBackupDue(dir)) return;
+        try {
+          if (!dailyBackupDue(dir)) return;
+        } catch (error) {
+          // A copy rotated out between the listing and its `stat` («Hacer una copia» in these five seconds): a chore,
+          // not a crash dialog.
+          console.warn("[db] daily backup failed:", error);
+          return;
+        }
         runBackupJob({ op: "daily", dbPath, dir })
           .then((reply) => {
             if ("snapshot" in reply && reply.snapshot.status === "failed") {
