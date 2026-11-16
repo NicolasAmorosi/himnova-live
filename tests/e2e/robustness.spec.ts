@@ -343,6 +343,14 @@ test("after a control reload, a verse put up leaves the room's music playing", a
   expect((await audioStates(projector))[0]?.paused).toBe(false);
 });
 
+test("after a control reload with a video on air, ⌘Q asks first", async ({ app }) => {
+  await videoLive(app);
+  await reloadControl(app);
+  // The reloaded window saw nothing live, and the quit took the room's video down without a word (A30 review).
+  await app.quit("cancel");
+  await expect(app.control.getByRole("button", { name: "EN VIVO", exact: true })).toBeVisible();
+});
+
 test("a control window whose renderer dies is reloaded by itself, and the projector goes on", async ({ app }) => {
   app.crashLogExpected = true;
   const projector = await videoLive(app);
