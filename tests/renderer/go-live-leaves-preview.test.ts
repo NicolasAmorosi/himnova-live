@@ -159,7 +159,8 @@ test("the deck already on air, picked again, is only uncovered — never back to
   const after = useProjectionStore.getState();
   expect(after.base).toMatchObject({ kind: "deck", assetId: 7, slideIndex: 3 });
   expect(after.overlay).toBe("none");
-  expect(after.sceneEpoch).toBe(sceneEpoch);
+  // Uncovered with a fade, one new scene, as VIVO does (owner, 2026-11-16, audit U17), and its music where it was.
+  expect(after.sceneEpoch).toBe(sceneEpoch + 1);
   expect(after.soundtrackEpoch).toBe(soundtrackEpoch);
   expect(usePreviewStore.getState().target).toBeNull();
 });

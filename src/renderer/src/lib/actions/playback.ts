@@ -222,7 +222,7 @@ async function goLiveWithMediaAsset(
       const status = mediaStatus.video;
       const ended = status?.ended === true && status.epoch === base.epoch;
       if (!failed && !ended) {
-        setOverlay("none");
+        uncoverLive();
         return "base";
       }
     }
@@ -268,7 +268,7 @@ function goLiveWithUtilityScene(sceneId: number, scheduleIndex: number | null): 
   const live = useProjectionStore.getState().base;
   if (live?.kind === "utility" && live.sceneId === scene.id) {
     useProgramStore.getState().setActive(scheduleIndex);
-    useProjectionStore.getState().setOverlay("none");
+    uncoverLive();
     return true;
   }
 
@@ -643,6 +643,15 @@ export async function goLive(): Promise<void> {
   if (await sendPreviewed(target, item, verses, slideIndex, positionSeconds, intent)) dropSentPreview(target);
 }
 
+/** GO LIVE on what is already live under NEGRO or LOGO: uncovered with a fade, as B, L and VIVO do; it was a cut
+ *  (owner, 2026-11-16, audit U17). Nothing when it is not covered: a fade between the same pictures would flash. */
+function uncoverLive(): void {
+  const store = useProjectionStore.getState();
+  if (store.overlay === "none") return;
+  store.beginScene();
+  store.setOverlay("none");
+}
+
 /** `goLive()`'s commit, by what PREVIEW named before the projector opened. Says whether it reached the projector or
  *  the speakers. */
 async function sendPreviewed(
@@ -657,7 +666,7 @@ async function sendPreviewed(
   // its first slide and its music to 0:00 (2026-11-15 audit, A3), as a video's own check does. «Reiniciar» starts it
   // over and both grids jump.
   if (isAlreadyLive(target, item)) {
-    useProjectionStore.getState().setOverlay("none");
+    uncoverLive();
     return true;
   }
   switch (target.kind) {
@@ -809,11 +818,9 @@ export async function toggleOverlay(kind: Extract<OverlayState, "black" | "logo"
   setOverlay(overlay === kind ? "none" : kind);
 }
 
-/** Shared by the three status-bar buttons (LOGO/BLACK/LIVE) — each always
- *  forces its own state (never "un-toggles" on a second press, unlike B/L's
- *  `toggleOverlay`). Opens the projection window on demand, same as
- *  `goLive()`, and begins a new scene so switching overlays fades like every
- *  other "send something new" action. */
+/** The VIVO button: forces «uncovered» (never a toggle). LOGO and NEGRO toggle like L and B since 2026-11-16
+ *  (owner: a second press of the button did nothing while the key uncovered). Opens the projection window on
+ *  demand, same as `goLive()`, and begins a new scene so it fades like every other "send something new" action. */
 export async function setOverlayDirect(kind: OverlayState): Promise<void> {
   // Claimed before the early return below, unlike `advanceSlide`: pressing
   // LOGO while the logo is already up changes no pixels, but it is still the

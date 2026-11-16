@@ -158,7 +158,12 @@ test("an extra Enter on the deck on air only uncovers it: never back to its firs
   previewScheduleItem(2);
   await goLive();
 
-  expect(useProjectionStore.getState()).toMatchObject({ base: { assetId: TWIN, slideIndex: 3 }, overlay: "none", sceneEpoch });
+  // Uncovered with a fade, as VIVO does (owner, 2026-11-16, audit U17): one new scene, the same slide.
+  expect(useProjectionStore.getState()).toMatchObject({
+    base: { assetId: TWIN, slideIndex: 3 },
+    overlay: "none",
+    sceneEpoch: sceneEpoch + 1,
+  });
 });
 
 test("an extra Enter on a sound on air does not play it a second time over itself", async () => {
