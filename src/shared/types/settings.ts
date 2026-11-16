@@ -23,6 +23,7 @@ import {
   STAGE_PHRASES_MAX,
   STAGE_TEXT_SIZES,
   STAGE_WARN_OPTIONS_MS,
+  normalizeStagePhrases,
   type StageClockFormat,
   type StageLayoutChoice,
   type StageTextSize,
@@ -519,6 +520,10 @@ export const SETTINGS_NORMALIZERS: {
   [K in keyof SettingsMap]?: (value: unknown) => SettingsMap[K];
 } = {
   "bible.style": normalizeBibleStyle,
+  // Phrase by phrase: one too long, or one too many, from another build or a hand-edited row, threw the operator's
+  // whole list away for the language's own (final pass of the 2026-11-15 audit, D13).
+  "stage.phrases": (v) =>
+    Array.isArray(v) ? normalizeStagePhrases(v.filter((phrase): phrase is string => typeof phrase === "string")) : null,
   // A hand-edited row that is no version reads as «none yet»: «Novedades» once more, never a throw at launch.
   "ui.whatsNewSeen": (v) => (isWhatsNewKey(v) ? v : null),
   "audio.strips": (v) => (typeof v === "boolean" ? v : DEFAULT_SETTINGS["audio.strips"]),

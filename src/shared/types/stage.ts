@@ -40,6 +40,14 @@ export type StageMessage = { text: string; urgent: boolean; seq: number };
 export const STAGE_MESSAGE_MAX_LENGTH = 120;
 export const STAGE_PHRASES_MAX = 12;
 
+/** The panel's phrases as they may be kept: trimmed and cut to a message's length, blanks and repeats dropped (two
+ *  equal ones were two buttons that went on air together, 2026-11-15 audit D7), at most `STAGE_PHRASES_MAX`. What
+ *  Settings saves, and how a stored list another build wrote is read (D13). */
+export function normalizeStagePhrases(phrases: readonly string[]): string[] {
+  const kept = phrases.map((phrase) => phrase.trim().slice(0, STAGE_MESSAGE_MAX_LENGTH)).filter(Boolean);
+  return [...new Set(kept)].slice(0, STAGE_PHRASES_MAX);
+}
+
 /** The thresholds the operator can pick, in minutes left. */
 export const STAGE_WARN_OPTIONS_MS = [10, 5, 3, 2].map((m) => m * 60_000);
 export const STAGE_ALERT_OPTIONS_MS = [2, 1, 0.5].map((m) => m * 60_000);

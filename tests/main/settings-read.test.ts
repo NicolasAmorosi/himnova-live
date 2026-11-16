@@ -53,3 +53,18 @@ test("a valid value is read as stored, and a structure is left as it is", () => 
   expect(read["media.volume"]).toBe(0.4);
   expect(read["library.linkedFolders"]).toEqual(folders);
 });
+
+test("the stage's phrases are read phrase by phrase: one too long or too many keep the rest", () => {
+  // Another build's list (longer limits) or a hand-edited row: the scalar check read `null`, the language's own
+  // phrases, and the operator's whole list was gone (final pass of the 2026-11-15 audit, D13).
+  const phrases = Array.from({ length: 14 }, (_, i) => `Frase ${i + 1}`);
+  phrases[1] = "x".repeat(200);
+  phrases[2] = "  ";
+  store("stage.phrases", phrases);
+  const read = new SettingsRepo(opened.db).getAll()["stage.phrases"];
+  expect(read).toEqual(["Frase 1", "x".repeat(120), ...phrases.slice(3, 13)]);
+  store("stage.phrases", "Frase");
+  expect(new SettingsRepo(opened.db).getAll()["stage.phrases"]).toBeNull();
+  store("stage.phrases", []);
+  expect(new SettingsRepo(opened.db).getAll()["stage.phrases"]).toEqual([]);
+});
