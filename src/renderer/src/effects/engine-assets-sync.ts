@@ -43,11 +43,15 @@ export function rearmLive(assetId: number): void {
   if (survivingAssetId(assetId) !== assetId) return;
   const url = playableAssetUrl(assetId);
   const projection = useProjectionStore.getState();
-  const { base } = projection;
+  const { base, videoPaused, videoVolume } = projection;
   if (base?.kind === "video" && base.assetId === assetId && base.url !== url) {
     const status = projection.mediaStatus.video;
     const at = status?.epoch === base.epoch ? status.currentTimeSeconds : base.startAtSeconds;
     projection.setBase({ ...base, url, startAtSeconds: at });
+    // `setBase` means «something new is live» and resets the operator's pause and volume; this is the same video
+    // (2026-11-15 audit, A33). Put back in the same synchronous batch, so `projection-sync` pushes one output.
+    projection.setVideoPaused(videoPaused);
+    projection.setVideoVolume(videoVolume);
   }
   const audio = useAudioStore.getState();
   for (const track of audio.tracks) {
