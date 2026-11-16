@@ -18,6 +18,7 @@ import { openDatabase } from "../../src/main/db/client";
 import {
   backupBeforeMigrate,
   dailyBackup,
+  dailyBackupDue,
   openForLaunch,
   repairDanglingReferences,
   runMigrations,
@@ -301,7 +302,44 @@ test("a daily copy cut half-way is not today's copy, and what it left is cleared
   expect(fs.readdirSync(daily)).toEqual([path.basename((taken as { path: string }).path)]);
 });
 
-test("a daily copy at launch once a day, the last 7 kept, the pre-migration copies left alone", () => {
+test("the launch opens the database without taking the daily copy (audit R1)", () => {
+  // `VACUUM INTO` + `integrity_check` of the whole profile ran before the first window: 0.7 to 1.0 s with no window
+  // on the first launch of each day. The copy is the backup thread's now, once the window is up (`index.ts`).
+  const dbFile = path.join(tmp, "launch.db");
+  const backups = path.join(tmp, "backups-launch");
+  const first = openDatabase(dbFile);
+  runMigrations(first.db, drizzleDir);
+  first.sqlite.close();
+
+  openForLaunch(dbFile, backups, drizzleDir, () => {}).sqlite.close();
+
+  expect(fs.existsSync(path.join(backups, "daily"))).toBe(false);
+});
+
+test("a daily copy is due with none, or with the newest a day old or dated in the future", () => {
+  const daily = path.join(tmp, "backups-due", "daily");
+  const hour = 60 * 60 * 1000;
+  expect(dailyBackupDue(daily)).toBe(true);
+  fs.mkdirSync(daily, { recursive: true });
+  // What a copy cut half-way leaves is no copy (D9).
+  fs.writeFileSync(path.join(daily, "worship-b.db.partial"), "");
+  expect(dailyBackupDue(daily)).toBe(true);
+  const copy = path.join(daily, "worship-a.db");
+  fs.writeFileSync(copy, "");
+  const at = (offset: number) => {
+    const when = new Date(Date.now() + offset);
+    fs.utimesSync(copy, when, when);
+  };
+  at(-23 * hour);
+  expect(dailyBackupDue(daily)).toBe(false);
+  at(-25 * hour);
+  expect(dailyBackupDue(daily)).toBe(true);
+  // A clock set back: the newest copy is «from the future».
+  at(2 * hour);
+  expect(dailyBackupDue(daily)).toBe(true);
+});
+
+test("a daily copy once a day, the last 7 kept, the pre-migration copies left alone", () => {
   const dbFile = path.join(tmp, "daily.db");
   const backups = path.join(tmp, "backups-daily");
   const daily = path.join(backups, "daily");
@@ -312,9 +350,9 @@ test("a daily copy at launch once a day, the last 7 kept, the pre-migration copi
   const preMigration = path.join(backups, "worship-2026-01-01T00-00-00-000Z.db");
   fs.writeFileSync(preMigration, "");
 
-  // Two launches the same day: one copy, verified and readable.
-  openForLaunch(dbFile, backups, drizzleDir, () => {}).sqlite.close();
-  openForLaunch(dbFile, backups, drizzleDir, () => {}).sqlite.close();
+  // Twice the same day: one copy, verified and readable.
+  expect(dailyBackup(dbFile, daily).status).toBe("ok");
+  expect(dailyBackup(dbFile, daily).status).toBe("skipped");
   expect(fs.readdirSync(daily)).toHaveLength(1);
 
   // A launch a day for nine days: the seven newest stay.

@@ -594,11 +594,21 @@ the three slots with post-migration copies and **rotated out the only copy this 
 keep**. It showed in the user's real folder: the 3 copies were from the same day and the same size,
 all after the last migration.
 
-**And once a day** (2.8.1): a month without migrations left a month-old copy as the newest. At launch,
-before the database opens, `dailyBackup` takes the same verified snapshot into `userData/backups/daily/`
-when the newest copy there is 24 h old (or dated in the future: a clock set back), keeping the last 7.
-Their own folder, so they never rotate out the pre-migration copies. It costs a launch about 0.45 s once a
-day on a 90 MB profile with nine Bibles (measured 2026-11-13); a typical one is a fraction of that.
+**And once a day** (2.8.1): a month without migrations left a month-old copy as the newest. `dailyBackup`
+takes the same verified snapshot into `userData/backups/daily/` when the newest copy there is 24 h old (or
+dated in the future: a clock set back; `dailyBackupDue`), keeping the last 7. Their own folder, so they never
+rotate out the pre-migration copies. **Not at launch** (2026-11-15, audit R1): it ran before the database opened,
+on main, and the first launch of each day waited for it with no window, 0.7 to 1.0 s on a 90 MB profile with nine
+Bibles (`VACUUM INTO` about 200 to 450 ms plus `integrity_check` about 420 to 500 ms; the 0.45 s written here
+before was one half of it). Now `index.ts` asks the rule 5 s after the control window opens and, if a copy is due,
+runs `dailyBackup` on the backup thread (`backup-worker.ts`, op `daily`), which asks the rule again: a copy made
+from Settings in the meantime counts as today's. Measured on a 77 MB profile with nine Bibles: `ready` to the control
+window 651 to 659 ms on the first launch of the day before, 91 to 116 ms after (104 ms on a launch with today's copy
+in place), and the copy is in `daily/` 5.8 to 6.0 s after the window is usable (three runs; a fourth took 13 s,
+cause not found). A database this
+launch created (a new profile) is not copied, as before. Backup jobs run one at a time (`runBackupJob` chains
+them): the daily copy and «Hacer una copia» write into the same folder, and `takeSnapshot` starts by deleting
+every `.partial` there, the other job's copy in progress included.
 
 **Settings › Backups** (2.9.0, owner 2026-11-13: its own section; `db/backups.ts`). «Hacer una copia» takes the same
 snapshot into `daily/` (it counts within the 7) on a worker thread (`backup-worker.ts`): on that 90 MB profile

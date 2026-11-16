@@ -92,21 +92,27 @@ export function backupBeforeMigrate(
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 /**
- * A verified copy at launch when the newest one in `dailyDir` is a day old, keeping the last 7.
+ * A verified copy when the newest one in `dailyDir` is a day old, keeping the last 7.
  *
  * `backupBeforeMigrate` only copies when an update brings migrations: a month without one left a month-old
  * copy as the newest (2026-11-13 plan, 2.8.1). Its own folder, so these never rotate out the pre-migration
- * copies. A newest copy dated in the future (a clock set back) counts as stale, or none would ever be taken.
+ * copies. Run on the backup thread a few seconds after the window opens (`index.ts`), never on main: before the
+ * window it held main 0.7 to 1.0 s on a 90 MB profile (2026-11-15 audit, R1).
  */
 export function dailyBackup(dbFilePath: string, dailyDir: string, now = new Date()): BackupResult {
-  if (!fs.existsSync(dbFilePath)) return { status: "skipped" };
+  if (!fs.existsSync(dbFilePath) || !dailyBackupDue(dailyDir, now)) return { status: "skipped" };
+  return takeSnapshot(dbFilePath, dailyDir, 7, now);
+}
+
+/** Whether the newest copy in `dailyDir` is a day old, or there is none. A newest copy dated in the future (a clock
+ *  set back) counts as stale, or none would ever be taken. A few `stat`s: main asks before starting the thread. */
+export function dailyBackupDue(dailyDir: string, now = new Date()): boolean {
   const newest = Math.max(
     ...listBackups(dailyDir).map((name) => fs.statSync(path.join(dailyDir, name)).mtimeMs),
     Number.NEGATIVE_INFINITY,
   );
   const age = now.getTime() - newest;
-  if (age >= 0 && age < DAY_MS) return { status: "skipped" };
-  return takeSnapshot(dbFilePath, dailyDir, 7, now);
+  return !(age >= 0 && age < DAY_MS);
 }
 
 export function listBackups(dir: string): string[] {
@@ -178,9 +184,9 @@ export function writeSnapshot(dbFilePath: string, dest: string): void {
   }
 }
 
-/** A backup nobody has read is an assumption. `integrity_check` against the
- *  copy — not the original — is what turns it into a fact, and on a file this
- *  size it costs milliseconds. */
+/** A backup nobody has read is an assumption. `integrity_check` against the copy (not the original) is what turns it
+ *  into a fact. It is not cheap: 418 to 496 ms on a 90 MB profile with nine Bibles, more than the `VACUUM INTO`
+ *  itself (2026-11-15 audit, R1), so a copy taken while the app runs goes to the backup thread. */
 export function verifySnapshot(dest: string): void {
   const sqlite = new Database(dest, { readonly: true });
   try {
@@ -253,7 +259,8 @@ export function runMigrations(db: Db, migrationsFolder: string): void {
  * opened and migrated — afterwards nothing is pending, so `backupBeforeMigrate` rightly skips and the
  * upgrade runs with no copy to go back to (2026-11-10 review, mutation M11). Rows pointing at nothing are
  * repaired before migrating (`repairDanglingReferences`). A migration that fails is reported to
- * `onFailure` with what the backup managed, then thrown on.
+ * `onFailure` with what the backup managed, then thrown on. The daily copy is not taken here: it waits for the
+ * window, on the backup thread (`dailyBackup`).
  */
 export function openForLaunch(
   dbFilePath: string,
@@ -265,8 +272,6 @@ export function openForLaunch(
   // on the one morning it matters sends the operator looking for a file that may not be there.
   const backup = backupBeforeMigrate(dbFilePath, backupDir, migrationsFolder);
   if (backup.status === "failed") console.warn("[db] pre-migration backup failed:", backup.reason);
-  const daily = dailyBackup(dbFilePath, path.join(backupDir, "daily"));
-  if (daily.status === "failed") console.warn("[db] daily backup failed:", daily.reason);
 
   const { sqlite, db } = openDatabase(dbFilePath);
   try {

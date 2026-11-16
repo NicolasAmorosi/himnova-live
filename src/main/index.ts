@@ -2,8 +2,16 @@ import { app, BrowserWindow, dialog } from "electron";
 import fs from "node:fs";
 import path from "node:path";
 import { registerWorshipScheme, registerWorshipProtocolHandler } from "./protocol/worship-protocol";
-import { journalNewest, openForLaunch } from "./db/migrate";
-import { applyPendingRestore, isDamagedDatabase, newestDailyCopy, stageRestore, stagedRestorePath } from "./db/backups";
+import { dailyBackupDue, journalNewest, openForLaunch } from "./db/migrate";
+import {
+  applyPendingRestore,
+  dailyBackupDir,
+  isDamagedDatabase,
+  newestDailyCopy,
+  stageRestore,
+  stagedRestorePath,
+} from "./db/backups";
+import { runBackupJob } from "./db/backup-thread";
 import { seedBuiltinBibles } from "./db/seed/seed-bible";
 import { seedUtilityScenes } from "./db/seed/seed-utility-scenes";
 import { seedSongThemes } from "./db/seed/seed-song-themes";
@@ -74,6 +82,10 @@ const THUMB_PRUNE_DELAY_MS = 10_000;
  *  enough to be past the control window's first paint. */
 const CONTENT_HASH_BACKFILL_DELAY_MS = 2_000;
 
+/** The daily copy of the database (`dailyBackup`), past the control window's first paint. It used to run before the
+ *  window: 0.7 to 1.0 s with no window on the first launch of each day (2026-11-15 audit, R1). */
+const DAILY_BACKUP_DELAY_MS = 5_000;
+
 // First of all, so nothing main says is lost on a machine with no console.
 installMainLog(path.join(userDataDir, "main.log"));
 
@@ -96,7 +108,8 @@ if (!gotSingleInstanceLock) {
   app.quit();
 }
 
-function initDatabase(): void {
+/** Says whether the database existed before this launch: one the launch creates has nothing to copy yet. */
+function initDatabase(): boolean {
   // Asked before `openDatabase` creates the file. A profile holding the legacy
   // app's data is not new either: that church has always run in Spanish.
   const isNewProfile = ![dbPath, legacySettingsPath, legacyMediaLibraryPath].some((file) => fs.existsSync(file));
@@ -107,6 +120,7 @@ function initDatabase(): void {
   // A copy the operator chose to restore (Settings) takes the database's place before anything opens it;
   // the migrations below then bring an older one up to date.
   applyPendingRestore(dbPath, dbBackupDir);
+  const hadDatabase = fs.existsSync(dbPath);
   const { sqlite, db } = openForLaunch(dbPath, dbBackupDir, migrationsDir, (error, backup) => {
     // A migration is spoken of only when one was pending (a skipped backup is nothing pending).
     const message =
@@ -173,6 +187,7 @@ function initDatabase(): void {
       isNewProfile,
     );
   }
+  return hadDatabase;
 }
 
 function wireMinimizeRestoreSync(controlWindow: BrowserWindow): void {
@@ -252,8 +267,9 @@ app.on("second-instance", () => {
 
 if (gotSingleInstanceLock) {
   void app.whenReady().then(() => {
+    let hadDatabase: boolean;
     try {
-      initDatabase();
+      hadDatabase = initDatabase();
     } catch (error) {
       // A migration failure has already explained itself (`initDatabase`).
       // Anything else — a locked or corrupt `worship.db`, a backup that
@@ -327,6 +343,21 @@ if (gotSingleInstanceLock) {
     }, THUMB_PRUNE_DELAY_MS);
 
     mainControlWindow = openControlWindow();
+    // On the backup thread: main stays free for the window and whatever goes on air. Asked again there, so a copy
+    // made from Settings in the meantime counts as today's.
+    if (hadDatabase) {
+      setTimeout(() => {
+        const dir = dailyBackupDir(dbBackupDir);
+        if (!dailyBackupDue(dir)) return;
+        runBackupJob({ op: "daily", dbPath, dir })
+          .then((reply) => {
+            if ("snapshot" in reply && reply.snapshot.status === "failed") {
+              console.warn("[db] daily backup failed:", reply.snapshot.reason);
+            }
+          })
+          .catch((error: unknown) => console.warn("[db] daily backup failed:", error));
+      }, DAILY_BACKUP_DELAY_MS);
+    }
     // After the window, like every launch chore: the check itself waits ten
     // more seconds, and a failed one only reaches `main.log`.
     initUpdates();
