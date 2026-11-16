@@ -1054,7 +1054,9 @@ describe("A time scene as an order-of-service item", () => {
   let scene: UtilityScene;
   let program: ProgramSummary;
 
-  test("a program saves and reloads an item that points at a scene", () => {
+  // Set up here, not in the first test: a test run alone (`-t`) found `program` undefined, and a bare `toThrow()`
+  // took that TypeError for the CHECK (2026-11-15 audit, P7).
+  beforeAll(() => {
     initRepos(db, sqlite);
     scene = utilityRepo.create({ ...DEFAULT_UTILITY_SCENES[0]!, name: "Cuenta del culto" });
     program = programsRepo.save({
@@ -1064,7 +1066,9 @@ describe("A time scene as an order-of-service item", () => {
         { kind: "utility", utilitySceneId: scene.id, title: "Antes de empezar" },
       ],
     });
+  });
 
+  test("a program saves and reloads an item that points at a scene", () => {
     const [first, second] = programsRepo.load(program.id).items;
     assert(
       first?.kind === "utility" && first.utilitySceneId === scene.id,
@@ -1084,7 +1088,7 @@ describe("A time scene as an order-of-service item", () => {
           `INSERT INTO program_items (program_id, position, kind, created_at) VALUES (?, 99, 'utility', ?)`,
         )
         .run(program.id, Date.now()),
-    ).toThrow();
+    ).toThrow(/CHECK constraint failed/);
   });
 
   test("deleting a scene a saved program uses is refused, and names the program", () => {
@@ -1140,7 +1144,7 @@ describe("An overlay plate as an order-of-service item", () => {
   let plate: Plate;
   let program: ProgramSummary;
 
-  test("a program saves and reloads an item that points at a plate", () => {
+  beforeAll(() => {
     initRepos(db, sqlite);
     plate = getOverlaysRepo().create({
       name: "Pastor Juan Pérez",
@@ -1155,6 +1159,9 @@ describe("An overlay plate as an order-of-service item", () => {
       name: "Culto con zócalo",
       items: [{ kind: "plate", overlayPlateId: plate.id, title: null }],
     });
+  });
+
+  test("a program saves and reloads an item that points at a plate", () => {
     const [first] = programsRepo.load(program.id).items;
     assert(
       first?.kind === "plate" && first.overlayPlateId === plate.id,
@@ -1166,14 +1173,14 @@ describe("An overlay plate as an order-of-service item", () => {
     const insert = (sql: string) => () => sqlite.prepare(sql).run(program.id, Date.now());
     expect(
       insert(`INSERT INTO program_items (program_id, position, kind, created_at) VALUES (?, 99, 'plate', ?)`),
-    ).toThrow();
+    ).toThrow(/CHECK constraint failed/);
     const scene = utilityRepo.list()[0]!;
     expect(
       insert(
         `INSERT INTO program_items (program_id, position, kind, overlay_plate_id, utility_scene_id, created_at)
          VALUES (?, 99, 'plate', ${plate.id}, ${scene.id}, ?)`,
       ),
-    ).toThrow();
+    ).toThrow(/CHECK constraint failed/);
   });
 
   test("deleting a plate a saved program uses is refused, and names the program", () => {
