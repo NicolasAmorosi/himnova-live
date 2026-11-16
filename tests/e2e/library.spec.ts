@@ -74,6 +74,20 @@ test("a file is found by name, and the chosen order survives a restart", async (
   await expect(panel(again, "Imágenes").getByRole("textbox", { name: "Buscar por nombre…" })).toHaveValue("");
 });
 
+// The removal is done when its undo window ends, by a timer of the control window's: closing the app within those
+// seconds dropped it, and the file was back at the next launch (2026-11-15 audit, D14).
+test("a file removed seconds before closing the app stays removed", async ({ app }) => {
+  await app.addMedia("image", "photo.png");
+  await app.openResources("Medios", "Imágenes");
+  await panel(app, "Imágenes").getByRole("button", { name: "photo" }).click();
+  await panel(app, "Imágenes").getByRole("button", { name: "Quitar", exact: true }).click();
+  await expect(panel(app, "Imágenes").getByRole("button", { name: "photo" })).toHaveCount(0);
+  await app.quit("close");
+
+  const again = await relaunch(app);
+  expect(await again.invoke<MediaAsset[]>("library:list", { kind: "image" })).toEqual([]);
+});
+
 test("removing a file can be undone, and otherwise it is gone for good — off the projector too", async ({ app }) => {
   await app.addMedia("image", "photo.png");
   await app.previewFile("Imágenes", "photo");

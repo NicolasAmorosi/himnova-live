@@ -7,6 +7,7 @@ import { useProgramStore } from "@renderer/stores/program.store";
 import { useProjectionStore } from "@renderer/stores/projection.store";
 import { useUiStore, type CloseGuardReasons } from "@renderer/stores/ui.store";
 import type { ProgramDraft } from "@shared/types/program";
+import { commitPendingRemovals } from "@renderer/lib/actions/remove-asset";
 
 /** Short enough that the work at risk is a keystroke or two, long enough that
  *  dragging a row across a 40-item schedule is one write and not forty. */
@@ -118,7 +119,9 @@ export function startDraftAutosave(): () => void {
     timer = window.setTimeout(flushDraft, DEBOUNCE_MS);
   });
 
-  const stopCloseListener = onIpc("close-requested", () => {
+  const answerClose = async () => {
+    // Before any answer: a file removed seconds ago is gone for good, not back at the next launch (audit D14).
+    await commitPendingRemovals();
     const risks = quitRisks();
     if (!risks) {
       void api.window.closeDecision("close");
@@ -129,7 +132,8 @@ export function startDraftAutosave(): () => void {
     // reading — and the answer still knows whether this started as a quit.
     void api.window.closeDecision("hold");
     useUiStore.getState().setCloseGuard(risks);
-  });
+  };
+  const stopCloseListener = onIpc("close-requested", () => void answerClose());
 
   return () => {
     unsubscribe();

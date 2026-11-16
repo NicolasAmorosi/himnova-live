@@ -105,6 +105,15 @@ function undoRemoval(id: number): void {
   library.select(id);
 }
 
+/** Every removal still in its undo window, done now: the app is closing. Its timer is the renderer's, so a close
+ *  within those seconds dropped it and the file was back in the library at the next launch (2026-11-15 audit, D14).
+ *  Never throws: a removal refused here leaves its row, and the close goes on. */
+export async function commitPendingRemovals(): Promise<void> {
+  const ids = [...pending.keys()];
+  for (const id of ids) clearPending(id);
+  await Promise.all(ids.map((id) => commitRemoval(id).catch((error: unknown) => console.warn("[library] removal on close", error))));
+}
+
 async function commitRemoval(id: number): Promise<void> {
   pending.delete(id);
   try {
