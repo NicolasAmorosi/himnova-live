@@ -535,17 +535,20 @@ export class MediaRepo {
 
   /** A linked folder was just listed: its rows (`inLibrary = 0`, this folder only, not a subfolder's) that did not
    *  come back are marked missing, never deleted. The sweep leaves those rows out, so a file deleted from the folder
-   *  kept a row that every reconcile probed again (2026-11-15 audit, D10). The next listing that finds it clears it. */
-  markAbsentFromFolder(kind: AssetKind, folder: string, present: readonly string[]): void {
+   *  kept a row that every reconcile probed again (2026-11-15 audit, D10). The next listing that finds it clears it.
+   *  A row the listing left out whose file still opens is not gone: a case-only rename on a case-insensitive drive
+   *  lists the new spelling, and the old one opens the same file (final pass of the audit). */
+  async markAbsentFromFolder(kind: AssetKind, folder: string, present: readonly string[]): Promise<void> {
     const folderKey = toPathKey(path.resolve(folder));
     const presentKeys = new Set(present.map(toPathKey));
-    const gone = this.db
-      .select({ id: mediaAssets.id, pathKey: mediaAssets.pathKey })
+    const absent = this.db
+      .select({ id: mediaAssets.id, path: mediaAssets.path, pathKey: mediaAssets.pathKey })
       .from(mediaAssets)
       .where(and(eq(mediaAssets.kind, kind), eq(mediaAssets.inLibrary, 0), sql`${mediaAssets.missingSince} IS NULL`))
       .all()
-      .filter((row) => path.dirname(row.pathKey) === folderKey && !presentKeys.has(row.pathKey))
-      .map((row) => row.id);
+      .filter((row) => path.dirname(row.pathKey) === folderKey && !presentKeys.has(row.pathKey));
+    const opens = await Promise.all(absent.map((row) => fs.promises.stat(row.path).then(() => true, () => false)));
+    const gone = absent.filter((_, i) => !opens[i]).map((row) => row.id);
     const now = Date.now();
     for (let i = 0; i < gone.length; i += ID_CHUNK) {
       this.db

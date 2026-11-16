@@ -36,12 +36,13 @@ function files(...names: string[]) {
   });
 }
 
-test("the rows of a listed folder that did not come back are marked missing, nothing else", () => {
+test("the rows of a listed folder that did not come back are marked missing, nothing else", async () => {
   const folder = path.join(tmpDir, "Videos");
   const [kept, gone, sub, other] = repo.upsertBatch(files("Videos/kept.mp4", "Videos/gone.mp4", "Videos/sub/deep.mp4", "Otra/x.mp4"), "video", false).assets;
   const [library] = repo.upsertBatch(files("Videos/library.mp4"), "video", true).assets;
 
-  repo.markAbsentFromFolder("video", folder, [kept!.path, library!.path]);
+  fs.rmSync(gone!.path);
+  await repo.markAbsentFromFolder("video", folder, [kept!.path, library!.path]);
 
   expect(repo.getById(gone!.id)?.missingSince).not.toBeNull();
   for (const row of [kept, sub, other, library]) expect(repo.getById(row!.id)?.missingSince).toBeNull();
@@ -49,4 +50,14 @@ test("the rows of a listed folder that did not come back are marked missing, not
   // Back in the folder: the next listing's import clears it, as it always did.
   repo.upsertBatch(files("Videos/gone.mp4"), "video", false);
   expect(repo.getById(gone!.id)?.missingSince).toBeNull();
+});
+
+test("a row the listing no longer names but whose file still opens is not marked missing", async () => {
+  // A case-only rename on a case-insensitive drive (macOS, an SMB share): the listing names «song.mp4», and the row of
+  // «Song.mp4» still opens the same file. It was marked missing, and the order of service that uses it with it (final
+  // pass of the 2026-11-15 audit, D10). Here the listing just leaves it out, on any platform.
+  const folder = path.join(tmpDir, "Cantos");
+  const [still] = repo.upsertBatch(files("Cantos/still.mp4"), "video", false).assets;
+  await repo.markAbsentFromFolder("video", folder, []);
+  expect(repo.getById(still!.id)?.missingSince).toBeNull();
 });

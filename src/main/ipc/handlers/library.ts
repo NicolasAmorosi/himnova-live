@@ -141,7 +141,7 @@ export const libraryHandlers: Pick<
     // block comment on `importPaths` for why that would loop.
     const listed = await importPaths(matched, kind, { inLibrary: false, emitChanged: false });
     // Only after a listing that worked: an unplugged drive threw above and marks nothing.
-    getMediaRepo().markAbsentFromFolder(kind, folderPath, matched);
+    await getMediaRepo().markAbsentFromFolder(kind, folderPath, matched);
     return listed;
   },
 };
