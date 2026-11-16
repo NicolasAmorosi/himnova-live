@@ -29,6 +29,7 @@
 //       [--slots 6] [--hwdec …] [--close-in-parent <handle,…>] (Windows: a dead engine's ring)
 //       [--log-level error|warn|info|v|debug] (mpv's log on stderr; main keeps its tail for errors)
 //       [--adapter vendor:device:subsys:revision] (Windows, Linux: Chromium's card) [--cache-dir <shader cache>]
+//       [--ndi-tap 1] (macOS: the NDI output takes the app's sound, see becomeKnownToCoreAudio)
 // `--ndi-send <name> …` as the first argument runs the NDI output mode instead: see ndi.cpp.
 #include <mpv/client.h>
 #include <mpv/render.h>
@@ -71,7 +72,9 @@ int ndiSendMain(int argc, char** argv);
 // becomes known when it first plays: each new engine joined the tap 300–400 ms into its video, and that much of its
 // first sound never reached NDI (measured 2026-11-12; 70–83 ms for an engine that had played before). 100 ms of
 // silence on the default output when the engine starts, before any file, makes it known. Windows and Linux capture
-// the process tree and lost nothing.
+// the process tree and lost nothing. Only with `--ndi-tap 1`, which main passes while the NDI output takes the app's
+// sound: every other engine (the spare, a song's background, PREVIEW) opened the output for nothing (2026-11-15
+// audit, X21).
 static void becomeKnownToCoreAudio() {
   AudioObjectID out = kAudioObjectUnknown;
   UInt32 size = sizeof out;
@@ -521,6 +524,7 @@ int main(int argc, char** argv) {
 #endif
   GpuOptions options;
   std::string closeHandles, logLevel = "error", cacheDir;
+  bool ndiTap = false;
 #ifdef _WIN32
   std::string hwdec = "d3d11va";
   timeBeginPeriod(1);
@@ -550,6 +554,7 @@ int main(int argc, char** argv) {
     else if (k == "--log-level") logLevel = v;
     else if (k == "--adapter") options.adapter = v;
     else if (k == "--cache-dir") cacheDir = v;
+    else if (k == "--ndi-tap") ndiTap = v == "1";
   }
 #ifdef _WIN32
   std::vector<unsigned long long> handles;
@@ -562,7 +567,9 @@ int main(int argc, char** argv) {
 #endif
 
 #ifdef __APPLE__
-  std::thread(becomeKnownToCoreAudio).detach();
+  if (ndiTap) std::thread(becomeKnownToCoreAudio).detach();
+#else
+  (void)ndiTap;
 #endif
   E.mpv = mpv_create();
   if (!E.mpv) { emitError({"engine-gpu", "mpv_create"}); return 1; }

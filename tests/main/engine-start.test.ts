@@ -9,7 +9,7 @@ import os from "node:os";
 import path from "node:path";
 import { expect, test, vi } from "vitest";
 
-const h = vi.hoisted(() => ({ dir: "", spawned: 0, broadcasts: [] as string[] }));
+const h = vi.hoisted(() => ({ dir: "", spawned: 0, broadcasts: [] as string[], ndi: new Map<string, boolean>() }));
 h.dir = fs.mkdtempSync(path.join(os.tmpdir(), "engine-start-"));
 const ENGINE = path.join(h.dir, "media-engine");
 
@@ -22,6 +22,7 @@ vi.mock("../../src/main/paths", () => ({
 vi.mock("../../src/main/ndi/ndi-output", () => ({ setNdiAudioRoute: () => undefined }));
 vi.mock("../../src/main/media/engine-sessions", () => ({ setEngineAudioDevices: () => undefined }));
 vi.mock("../../src/main/services/broadcast", () => ({ broadcast: (channel: string) => h.broadcasts.push(channel) }));
+vi.mock("../../src/main/services/repos", () => ({ getSettingsRepo: () => ({ get: (key: string) => h.ndi.get(key) ?? false }) }));
 vi.mock("node:child_process", async (original) => {
   const real = await original<typeof import("node:child_process")>();
   return {
@@ -94,3 +95,24 @@ test.skipIf(process.platform !== "darwin")("an engine that cannot start answers 
   expect((await timed()).answer).toBe("none");
   expect(h.spawned - spawned).toBe(1);
 }, 20_000);
+
+// Each engine opened the Mac's default output for 100 ms on start, which only the NDI output's sound tap needs (it
+// hears a process Core Audio already knows): only while that output takes the app's sound (2026-11-15 audit, X21).
+test.skipIf(process.platform !== "darwin")("an engine opens the Mac's output on start only while NDI takes the app's sound", async () => {
+  const { killAllEngines, prewarmEngine } = await import("../../src/main/media/media-engine");
+  const said = path.join(h.dir, "args");
+  killAllEngines();  // the spare the test above left, which never started
+  engine(`echo "$@" > "${said}"\n${HELLO}\nexec sleep 30`);
+  for (const [enabled, audio, joins] of [
+    [true, true, true],
+    [true, false, false],
+    [false, true, false],
+  ] as const) {
+    h.ndi = new Map([["ndi.output.enabled", enabled], ["ndi.output.audio", audio]]);
+    fs.rmSync(said, { force: true });
+    prewarmEngine();
+    await expect.poll(() => fs.existsSync(said) && fs.readFileSync(said, "utf8").includes("--max-width"), { timeout: 2000 }).toBe(true);
+    expect(fs.readFileSync(said, "utf8").includes("--ndi-tap 1"), `NDI ${enabled}, its sound ${audio}`).toBe(joins);
+    killAllEngines();
+  }
+});

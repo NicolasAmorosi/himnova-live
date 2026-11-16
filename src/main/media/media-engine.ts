@@ -6,6 +6,7 @@ import path from "node:path";
 import { app, sharedTexture, type SharedTextureHandle, type WebContents } from "electron";
 import { engineCacheDir, engineDir, enginePath } from "../paths";
 import { broadcast } from "../services/broadcast";
+import { getSettingsRepo } from "../services/repos";
 import {
   AUDIO_DEVICE_PROTO,
   EngineGate,
@@ -158,6 +159,20 @@ export function listAudioDevices(): Promise<EngineDevice[] | null> {
   return spare ? spare.devices() : Promise.resolve(null);
 }
 
+/** Whether the NDI output takes the app's sound, read as each engine starts (the first spare starts before the NDI
+ *  output does). On macOS such an engine opens the default output for 100 ms on start, which the NDI sound tap needs
+ *  to hear it from its first file and nothing else does (`becomeKnownToCoreAudio`; 2026-11-15 audit, X21).
+ *  ponytail: a spare started before the sound was turned on misses the tap's first 300–400 ms of its first file;
+ *  replace the spare on that setting if it is ever heard. */
+function ndiTakesSound(): boolean {
+  try {
+    const settings = getSettingsRepo();
+    return settings.get("ndi.output.enabled") && settings.get("ndi.output.audio");
+  } catch {
+    return false;
+  }
+}
+
 /** Starts the spare before the first file needs it. */
 export function prewarmEngine(): void {
   if (!spare || spare.exited) spare = new MediaEngine();
@@ -261,6 +276,7 @@ export class MediaEngine {
   constructor() {
     const args = ["--max-width", "1920", "--max-height", "1080", "--cache-dir", engineCacheDir];
     if (engineAdapter) args.push("--adapter", engineAdapter);
+    if (process.platform === "darwin" && ndiTakesSound()) args.push("--ndi-tap", "1");
     if (process.platform === "win32") {
       args.push("--parent", String(process.pid));
       if (orphanedWindowsHandles.length) args.push("--close-in-parent", orphanedWindowsHandles.join(","));
