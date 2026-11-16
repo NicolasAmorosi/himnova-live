@@ -109,7 +109,8 @@ src/
 │   ├── index.ts                # entry: DB, migrations, seed, IPC, windows
 │   ├── paths.ts                 # dev vs. packaged, ALL paths resolved here
 │   ├── windows/                 # control-window.ts, projection-window.ts, stage-window.ts (the stage screen: musicians
-│   │                            #   and preacher), identify-displays.ts («Identificar»)
+│   │                            #   and preacher), identify-displays.ts («Identificar»), projector-screen.ts (the
+│   │                            #   projector bound to its screen: anti-sleep and reconnection)
 │   ├── db/
 │   │   ├── schema.ts             # Drizzle tables
 │   │   ├── client.ts             # SQLite opening + pragmas
@@ -134,7 +135,6 @@ src/
 │   │                              #   (probes, frames), engine-assets.ts (which library files the engine plays),
 │   │                              #   deck-clips.ts (video/audio embedded in a .pptx), thumbnail-service.ts,
 │   │                              #   media-engine.ts (one libmpv process per file) + engine-sessions.ts (live video, slide clip and audio, PREVIEW)
-│   ├── windows/projector-screen.ts # the projector bound to its screen: anti-sleep and reconnection
 │   ├── ndi/ndi-output.ts          # the NDI® output: an offscreen projection whose textures the engine's
 │   │                              #   NDI mode sends (native/engine/ndi.cpp; the runtime is the user's)
 │   ├── updates/                   # updater.ts (owns UpdateStatus, wraps electron-updater), mac-dmg.ts
@@ -144,13 +144,16 @@ src/
 │   │                              #   song saved into its own file — services/song-files.ts), rtf.ts (RTF → text), easyworship.ts (EasyWorship 6's song database),
 │   │                              #   openlp.ts (OpenLP's songs.sqlite and OpenLyrics files), text-files.ts (SongSelect .txt and
 │   │                              #   ChordPro, told apart by their words), usage-report.ts (CCLI CSV)
-│   └── services/                  # repos.ts (registry), projection-state.ts, broadcast.ts
+│   └── services/                  # what crosses repos and windows: repos.ts (registry), projection-state.ts,
+│                                  #   broadcast.ts, library-import/-sweeper, song-files/-import, the removals…
 ├── preload/
 │   ├── index.ts                  # GENERIC invoke/on bridge — never edited when adding channels
 │   └── index.d.ts                # declare global { interface Window { worship: WorshipBridge } }
 └── renderer/
     ├── index.html                 # control window
-    ├── projection.html            # projection window
+    ├── projection.html            # projection window (also the NDI output's offscreen copy)
+    ├── stage.html                 # the stage screen
+    ├── rasterizer.html            # the hidden window that draws a PDF's pages
     └── src/
         ├── main.tsx / projection.tsx    # entries
         ├── app/App.tsx                   # control window shell
@@ -176,10 +179,10 @@ src/
         │       ├── welcome/    # the first-run welcome (new profiles only; Settings ▸ About reopens it) and
         │       │               #   «Primeros pasos», the checklist that ticks itself (`effects/first-steps.ts`)
         │       └── programs/   # the saved programs screen
-        ├── stores/          # Zustand: program, toast, preview, projection, deck, bible,
-        │                    #   library, settings, audio, display, ui
-        ├── effects/         # projection-sync.ts + deck-autoplay.ts + deck-sounds.ts +
-        │                    #   end-of-playback.ts — the "order-dependent" logic
+        ├── stores/          # Zustand, one store per domain (program, preview, projection, deck, bible, songs,
+        │                    #   library, settings, audio, display, stage, ui…)
+        ├── effects/         # what follows the stores without a component: projection-sync.ts, deck-autoplay.ts,
+        │                    #   deck-sounds.ts, end-of-playback.ts, stage-sync.ts… — the "order-dependent" logic
         └── lib/             # api.ts, ipc.ts, i18n/, utils.ts, hooks/, actions/ (crosses stores),
                              #   utility-output.ts + bible-output.ts (the two builders shared
                              #   between selectOutput and the PREVIEW monitor)
@@ -365,7 +368,7 @@ npm install              # installs deps — better-sqlite3 ships prebuilt binar
 npm run dev               # electron-vite dev (HMR in the renderer, main restarts on watch)
 npm run typecheck          # tsc --noEmit over node (main+preload+shared) and web (renderer+shared)
 npm run lint                # eslint .
-npm run test                 # vitest run — 920 cases in two projects: `main` (Node: migrations, seed,
+npm run test                 # vitest run — two projects: `main` (Node: migrations, seed,
                               #   FTS5, repos and the library sweep, draft, settings and scene validators, WAL backup,
                               #   zip reader, the legacy-deck reader against an OLE2 file built in the test
                               #   (`tests/fixtures/legacy-ppt.ts`: pictures, master inheritance, what it refuses),
@@ -391,7 +394,7 @@ npm run test                 # vitest run — 920 cases in two projects: `main` 
                               #   frozen frame, toast store, utils). Nothing imports `electron`: that's
                               #   the suite's boundary
 npm run test:watch            # the same suite in watch mode, while working on a module
-npm run test:e2e              # build + Playwright: 268 walkthroughs of the real app (~14 min) with a
+npm run test:e2e              # build + Playwright: walkthroughs of the real app (~26 min on the M3) with a
                               #   throwaway, bare profile (`--no-starter-look`, `--no-welcome`, `--no-system-folders`; a spec turns each back on)
                               #   and media generated on the fly — videos, AVI and WMA with the
                               #   bundled FFmpeg; PDFs, a legacy .pps made of pictures and .pptx with auto-advance, a
@@ -405,7 +408,9 @@ npm run test:e2e              # build + Playwright: 268 walkthroughs of the real
                               #   resolves from `resources/` —, and with WORSHIP_E2E_HYMNAL=<folder with 522.pps>
                               #   it also runs the real hymnal (`hymnal.spec.ts`). The suite runs the app in
                               #   Spanish on purpose (`--lang=es`, `tests/e2e/support/app.ts`): its locators are
-                              #   the `es.ts` strings, so they stay in Spanish
+                              #   the `es.ts` strings, so they stay in Spanish. E2E_NO_FIXTURES=1 skips the global
+                              #   setup (the generated media): the CI's launch check uses it, and it suits any spec
+                              #   that projects no generated file
 npm run tutorials             # build + Playwright: films the landing's tutorial videos off the real app in the four
                               #   languages (`tests/e2e/tutorials.record.ts`, captions in `tutorials.content.ts`) into
                               #   $TMPDIR/himnova-tutorials (TUTORIALS=song,bible TUTORIAL_LOCALES=es pick); composed outside this repo
