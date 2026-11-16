@@ -24,12 +24,25 @@ function filtersFor(kind: AssetKind | "all") {
   return [{ name, extensions: [...ASSET_EXTENSIONS[kind]] }];
 }
 
-function isDirectory(candidate: string): boolean {
-  try {
-    return fs.statSync(candidate).isDirectory();
-  } catch {
-    return false;
+/** Folders being asked about, so a second «Agregar» waits on the same question. */
+const asking = new Map<string, Promise<boolean>>();
+
+/**
+ * Whether `candidate` is a folder, asked off main's thread and answered `false` after a second. A folder on a share
+ * that does not answer (a NAS turned off) held a synchronous stat 21 s on Windows (2.7 s for a name that does not
+ * resolve; measured 2026-11-16), with main and so the projector's files frozen (2026-11-15 audit, A26). One question
+ * per folder at a time: each one hung holds a thread of the pool the app's own file reads share.
+ */
+function isDirectory(candidate: string): Promise<boolean> {
+  let answer = asking.get(candidate);
+  if (!answer) {
+    answer = fs.promises
+      .stat(candidate)
+      .then((stat) => stat.isDirectory(), () => false)
+      .finally(() => asking.delete(candidate));
+    asking.set(candidate, answer);
   }
+  return Promise.race([answer, new Promise<boolean>((resolve) => setTimeout(resolve, 1000, false))]);
 }
 
 /**
@@ -47,11 +60,11 @@ function isDirectory(candidate: string): boolean {
  * than being handed to the dialog: `defaultPath` pointing at nothing behaves
  * differently on every platform, from "ignored" to "opens an empty parent".
  */
-function defaultFolderFor(kind: AssetKind): string | undefined {
+async function defaultFolderFor(kind: AssetKind): Promise<string | undefined> {
   const override = getSettingsRepo().get("files.defaultFolders")[kind];
-  if (override && isDirectory(override)) return override;
+  if (override && (await isDirectory(override))) return override;
   const system = systemMediaFolder(kind);
-  return isDirectory(system) ? system : undefined;
+  return (await isDirectory(system)) ? system : undefined;
 }
 
 export const filesHandlers: Pick<
@@ -66,7 +79,7 @@ export const filesHandlers: Pick<
     // tab's «Agregar» takes every kind (each file goes to its own tab) but
     // still opens where that tab's files live.
     const folderKind = kind === "all" ? startIn : kind;
-    const defaultPath = folderKind ? defaultFolderFor(folderKind) : undefined;
+    const defaultPath = folderKind ? await defaultFolderFor(folderKind) : undefined;
     const result = await showOpenDialogFor(ev.sender, {
       properties: multiple ? ["openFile", "multiSelections"] : ["openFile"],
       filters: filtersFor(kind),
@@ -79,7 +92,7 @@ export const filesHandlers: Pick<
   "files:pickFolder": async ({ defaultPath }, ev) => {
     const result = await showOpenDialogFor(ev.sender, {
       properties: ["openDirectory"],
-      ...(defaultPath && isDirectory(defaultPath) ? { defaultPath } : {}),
+      ...(defaultPath && (await isDirectory(defaultPath)) ? { defaultPath } : {}),
     });
     if (result.canceled || result.filePaths.length === 0) return null;
     return result.filePaths[0]!;
@@ -95,7 +108,7 @@ export const filesHandlers: Pick<
 
   "files:setLogo": async (_req, ev) => {
     // The logo is an image like any other, so it starts where images start.
-    const defaultPath = defaultFolderFor("image");
+    const defaultPath = await defaultFolderFor("image");
     const result = await showOpenDialogFor(ev.sender, {
       properties: ["openFile"],
       filters: [{ name: mt("filters.image"), extensions: [...ASSET_EXTENSIONS.image] }],
