@@ -331,8 +331,12 @@ function readDeckPart(sourcePath: string, kind: "part" | "font", part: string): 
 
 /** Parts already read, by the file's stamp: every window drawing a deck (control, projector, stage, NDI) asks for
  *  the same fonts and pictures, and each was read and converted on main again, 70 to 104 ms a font and up to 460 ms
- *  a metafile, over a video of the engine on air (2026-11-15 audit, A11). */
-const deckParts = byteLru<DeckPart>(64 * 1024 * 1024, (found) => (typeof found === "number" ? 0 : found.body.byteLength));
+ *  a metafile, over a video of the engine on air (2026-11-15 audit, A11). A 415 is kept (the same bytes never
+ *  convert); a 404 never is, sized past the budget: the readers answer a read error (a pen drive that hiccups) as a
+ *  missing part, and kept it was a missing picture for the session (review follow-up). */
+const deckParts = byteLru<DeckPart>(64 * 1024 * 1024, (found) =>
+  found === 404 ? Number.POSITIVE_INFINITY : found === 415 ? 0 : found.body.byteLength,
+);
 
 /**
  * A part of a model deck's package: a picture as is, a metafile (EMF/WMF,
