@@ -11,6 +11,7 @@ import { afterAll, beforeAll, expect, test } from "vitest";
 import { strToU8, zipSync } from "fflate";
 import { parsePresetDefinitions } from "../../src/main/slides/pptx/geometry";
 import { readPptxDeck, type PptxResources } from "../../src/main/slides/pptx/reader";
+import { readPresentationMeta } from "../../src/main/slides/pptx-metadata";
 import { parseTableStyles } from "../../src/main/slides/pptx/table-style";
 import { SYMBOL_BULLETS } from "../../src/main/slides/pptx/text";
 
@@ -198,4 +199,14 @@ test("an arc that sweeps thousands of turns draws one turn and ends where it wou
   const end = (path: string): string => /A[^A]* ([-\d.]+ [-\d.]+)L/.exec(path)?.[1] ?? "";
   expect(end(long)).not.toBe("");
   expect(end(long)).toBe(end(d("5400000")));
+});
+
+// 2026-11-15 audit, A45: `show` is an xsd:boolean. The metadata took "false" as hidden and the model did not, so the
+// model drew a slide the timings left out.
+test("a slide's show attribute reads the same in the model and in the metadata, \"false\" included", () => {
+  for (const [show, hidden] of [[' show="0"', true], [' show="false"', true], [' show="1"', false], [' show="true"', false], ["", false]] as const) {
+    const file = writeDeck(`show${show.replace(/\W/g, "")}.pptx`, `<p:sld ${NS}${show}><p:cSld><p:spTree/></p:cSld></p:sld>`);
+    expect(readPptxDeck(file, resources).slides[0]!.hidden, show).toBe(hidden);
+    expect(readPresentationMeta(file).slides[0]!.hidden, show).toBe(hidden);
+  }
 });

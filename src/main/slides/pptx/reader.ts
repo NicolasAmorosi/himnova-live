@@ -70,11 +70,14 @@ export function readPptxDeck(file: string, resources: PptxResources): PptxDeck {
     const rel = presRels.get(attr(sldId, "r:id") ?? "");
     if (!rel || rel.external) continue;
     number += 1;
+    // The same test as the metadata's (`pptx-metadata.ts`): an xsd:boolean, so "false" hides it too. Read
+    // differently, the model drew a slide the timings left out, and every later timing and video moved one slide.
+    const show = attr(pkg.xml(rel.target), "show");
     const unsupported = new Map<string, number>();
     const model = readSlide(pkg, rel.target, { width, height, defaultTextStyle, presets, themes, unsupported, number, tableStyles, builtinTableStyles: resources.tableStyles, fonts });
     slides.push({
       number,
-      hidden: attr(pkg.xml(rel.target), "show") === "0",
+      hidden: show === "0" || show === "false",
       model,
       unsupported: Object.fromEntries(unsupported),
     });
