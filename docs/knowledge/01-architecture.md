@@ -161,7 +161,7 @@ and a link to ndi.video wherever NDI is used or chosen — the app, the landing 
   projector's `media-status` to the NDI window and its copy follows it (`lib/follow-projector.ts`: within 12 ms as
   is, past it ±10 % speed at most — a copy ahead repeats frames, never skips one —, past a second a seek). Measured
   after: −11…+18 ms in every start. An engine video needs none of it: one decoder sends both windows its frames.
-- **Engine frames go up on the page's clock** in the projector and the NDI window (`FramePacer`,
+- **Engine frames go up on the page's clock** in the projector, the NDI window and the stage window (`FramePacer`,
   `04-renderer-state.md`): drawn as they landed, the NDI window lost 8–37 % of an engine video by phase.
 - **Testing:** `LUMINA_NDI_LIB=<path to libndi>` points at a runtime that isn't installed;
   `tests/e2e/ndi-output.spec.ts` runs with and without one, and `tests/e2e/ndi-receiver.spec.ts` asks a real
