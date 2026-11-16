@@ -2,7 +2,7 @@ import type { Handlers } from "../register";
 import { getProgramsRepo, getSettingsRepo, getSongsRepo } from "../../services/repos";
 import { removeSong } from "../../services/song-removal";
 import { importSongFiles } from "../../services/song-import";
-import { inSaveOrder, listSongFolder, writeSongFile } from "../../services/song-files";
+import { listSongFolder, saveSong } from "../../services/song-files";
 import { exportSongUsage } from "../../services/song-usage";
 import { showOpenDialogFor } from "../open-dialog";
 import fs from "node:fs";
@@ -76,10 +76,7 @@ export const songsHandlers: Pick<
     const id = input.id;
     // `isSongUpsert` lets a missing id through (it is `song:create`'s shape).
     if (typeof id !== "number") throw new IpcError({ code: "INVALID_SONG", message: mt("songs.invalid") });
-    return inSaveOrder(async () => {
-      await writeSongFile(id, song);
-      return getSongsRepo().update(id, song);
-    });
+    return saveSong(id, song);
   },
   "song:duplicate": ({ id, title }) => {
     if (!isSongTitle(title)) throw new IpcError({ code: "INVALID_SONG", message: mt("songs.invalidTitle") });

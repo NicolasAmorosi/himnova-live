@@ -679,6 +679,24 @@ Letra de la tercera
     expect(readSongText(fs.readFileSync(file, "utf8"), "x", "es").map((s) => s?.title)).toEqual(["Uno (2)", "Dos (2)"]);
   });
 
+  test("a song with no file is saved at once, even with a file's save stuck on a share that does not answer", async () => {
+    const { inSaveOrder, saveSong } = await import("../../src/main/services/song-files");
+    const created = repo.create(song("Sin archivo", "[Estrofa 1]\nUna letra"));
+    let release = () => undefined as void;
+    const stuck = inSaveOrder(() => new Promise<void>((resolve) => (release = resolve)));
+    try {
+      const saved = await Promise.race([
+        Promise.resolve(saveSong(created.id, song("Sin archivo (2)", "[Estrofa 1]\nUna letra"))),
+        new Promise<"stalled">((resolve) => setTimeout(() => resolve("stalled"), 500)),
+      ]);
+      // In the one line of saves, it waited for the stuck one (review of A25).
+      expect(saved === "stalled" ? saved : saved.title).toBe("Sin archivo (2)");
+    } finally {
+      release();
+      await stuck;
+    }
+  });
+
   test("only a change the file holds writes it: a theme, or notes a ChordPro file has no place for, never touch it", async () => {
     const folder = fresh("theme-only");
     const file = path.join(folder, "domingo.cho");

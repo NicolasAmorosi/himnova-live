@@ -273,6 +273,17 @@ export function inSaveOrder<T>(save: () => Promise<T>): Promise<T> {
   return run;
 }
 
+/** `song:update`: a song tied to a file writes the file first, `inSaveOrder`. One with no file has nothing to wait
+ *  for: in the line, one save stuck on a share that does not answer held every song's (review of A25). */
+export function saveSong(id: number, song: ReadSong): Song | Promise<Song> {
+  const repo = getSongsRepo();
+  if (repo.source(id) === null) return repo.update(id, song);
+  return inSaveOrder(async () => {
+    await writeSongFile(id, song);
+    return repo.update(id, song);
+  });
+}
+
 /** What a file holds now, or nothing when it no longer reads. */
 async function readSongFileSafely(file: string): Promise<ReturnType<typeof readSongFile>> {
   try {
