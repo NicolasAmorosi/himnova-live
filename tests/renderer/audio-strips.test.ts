@@ -70,3 +70,29 @@ test("turned off with the starting volume at 100 %, LIVE's master goes back to b
     expect(levels()).toEqual({ strips: false, master, start: startAt });
   }
 });
+
+test("with something sounding on the air, the notice says it changes too: the switch moves only the starting volume", async () => {
+  // Turning the strips off, what is live goes back to 100 % (LIVE ignores its master), and the notice spoke only of the
+  // starting volume (owner, 2026-11-16: keep the round trip, say it). On, what is live plays under the new master.
+  const { useAudioStore } = await import("@renderer/stores/audio.store");
+  const { useProjectionStore } = await import("@renderer/stores/projection.store");
+  useProjectionStore.setState({ presentationOpen: true });
+  useAudioStore.setState({
+    tracks: [
+      { trackId: "a", source: "asset", assetId: 1, label: "Preludio", url: "u", epoch: 1, paused: false, startAtSeconds: 0, volume: 1, loop: false },
+    ],
+  });
+  try {
+    start({ "audio.strips": true, "media.volume": 1, "audio.live.volume": 0.5 });
+    await setAudioStrips(false);
+    start({ "audio.strips": false, "media.volume": 0.5, "audio.live.volume": 1 });
+    await setAudioStrips(true);
+    expect(useToastStore.getState().toasts.map((toast) => toast.message)).toEqual([
+      "Tiras apagadas: el volumen general de EN VIVO (50 %) pasa a ser el volumen inicial, y lo que ya está al aire vuelve al 100 %.",
+      "Tiras prendidas: el volumen inicial (50 %) pasa a ser el volumen general de EN VIVO, y lo que ya está al aire suena más bajo.",
+    ]);
+  } finally {
+    useAudioStore.setState({ tracks: [] });
+    useProjectionStore.setState({ presentationOpen: false });
+  }
+});

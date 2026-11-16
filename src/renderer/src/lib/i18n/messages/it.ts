@@ -803,6 +803,10 @@ const it: Messages = {
     toastStripsOff: "Strisce spente: il volume generale in onda torna al 100%.",
     toastStripsOffKept: "Strisce spente: il volume generale in onda ({level}%) diventa il volume iniziale.",
     toastStripsOn: "Strisce accese: il volume iniziale ({level}%) diventa il volume generale in onda.",
+    toastStripsOffKeptLive:
+      "Strisce spente: il volume generale in onda ({level}%) diventa il volume iniziale, e ciò che è già in onda torna al 100%.",
+    toastStripsOnLive:
+      "Strisce accese: il volume iniziale ({level}%) diventa il volume generale in onda, e ciò che è già in onda suona più basso.",
   },
   live: {
     takeOffAir: "Togli dalla diretta",

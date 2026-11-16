@@ -193,7 +193,9 @@ stores keep each item's own level. Turning the strips on folds a «Volumen inici
 (`setAudioStrips`, owner 2026-11-15, audit U5): the master takes it and the start goes back to 1, so the room keeps
 its level and the strip shows it instead of a ceiling it hides. Turning them off with the start at 1 moves a master
 under 1 back to the start (and the master to 1): off, LIVE ignores its master, so the room's level would be lost
-(review of U5, 2026-11-16).
+(review of U5, 2026-11-16). The switch moves the starting volume only: what is already live keeps its own level, so
+the room hears it change (off, back to 100 %; on, under the new master), and the notice says so when something
+sounds (owner, 2026-11-16: keep the round trip, say it).
 
 A video's end is the operator's choice since 2026-11-05 (`projection.videoEnd`, Settings ▸ Projection,
 mirrored into `projection.store` by `App.tsx` like the transition): «logo» clears as above, «black» clears

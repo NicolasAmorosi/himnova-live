@@ -193,8 +193,14 @@ test("LIVE's fader is a master: at 50 % the projector plays each item at half it
   await expect.poll(levels).toEqual([0, 0]);
   await setStrips(app, false);
   await expect.poll(levels).toEqual([1, 1]);
-  // The room just heard it jump to 100 %: said once.
-  await expect(app.control.getByText("Tiras apagadas: el volumen general de EN VIVO vuelve al 100 %.")).toBeVisible();
+  // The room just heard what is live jump to 100 %: said once, with the master's 50 % kept as the starting volume
+  // (review of U5; the notice names the jump, owner 2026-11-16).
+  await expect(
+    app.control.getByText(
+      "Tiras apagadas: el volumen general de EN VIVO (50 %) pasa a ser el volumen inicial, y lo que ya está al aire vuelve al 100 %.",
+    ),
+  ).toBeVisible();
+  expect((await app.invoke<Record<string, unknown>>("settings:get"))["media.volume"]).toBe(0.5);
   // And turning them on again does not silence LIVE: the mute went with them. Fails if it survives the switch.
   await setStrips(app, true);
   await expect(mute).toHaveAttribute("aria-pressed", "false");

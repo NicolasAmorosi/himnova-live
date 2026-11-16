@@ -799,6 +799,10 @@ const en: Messages = {
     toastStripsOff: "Strips off: the Live master volume is back to 100%.",
     toastStripsOffKept: "Strips off: the Live master volume ({level}%) is now the starting volume.",
     toastStripsOn: "Strips on: the starting volume ({level}%) is now the Live master volume.",
+    toastStripsOffKeptLive:
+      "Strips off: the Live master volume ({level}%) is now the starting volume, and what is already live is back to 100%.",
+    toastStripsOnLive:
+      "Strips on: the starting volume ({level}%) is now the Live master volume, and what is already live plays quieter.",
   },
   live: {
     takeOffAir: "Take off air",

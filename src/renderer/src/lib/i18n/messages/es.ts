@@ -802,6 +802,10 @@ const es = {
     toastStripsOff: "Tiras apagadas: el volumen general de EN VIVO vuelve al 100 %.",
     toastStripsOffKept: "Tiras apagadas: el volumen general de EN VIVO ({level} %) pasa a ser el volumen inicial.",
     toastStripsOn: "Tiras prendidas: el volumen inicial ({level} %) pasa a ser el volumen general de EN VIVO.",
+    toastStripsOffKeptLive:
+      "Tiras apagadas: el volumen general de EN VIVO ({level} %) pasa a ser el volumen inicial, y lo que ya está al aire vuelve al 100 %.",
+    toastStripsOnLive:
+      "Tiras prendidas: el volumen inicial ({level} %) pasa a ser el volumen general de EN VIVO, y lo que ya está al aire suena más bajo.",
   },
   live: {
     takeOffAir: "Sacar del aire",

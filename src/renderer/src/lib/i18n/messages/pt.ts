@@ -800,6 +800,10 @@ const pt: Messages = {
     toastStripsOff: "Faixas desligadas: o volume geral ao vivo volta a 100%.",
     toastStripsOffKept: "Faixas desligadas: o volume geral ao vivo ({level}%) passa a ser o volume inicial.",
     toastStripsOn: "Faixas ligadas: o volume inicial ({level}%) passa a ser o volume geral ao vivo.",
+    toastStripsOffKeptLive:
+      "Faixas desligadas: o volume geral ao vivo ({level}%) passa a ser o volume inicial, e o que já está ao vivo volta a 100%.",
+    toastStripsOnLive:
+      "Faixas ligadas: o volume inicial ({level}%) passa a ser o volume geral ao vivo, e o que já está ao vivo toca mais baixo.",
   },
   live: {
     takeOffAir: "Tirar do ar",
