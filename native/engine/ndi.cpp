@@ -466,9 +466,15 @@ struct AudioOut : AudioSink {
     if (!watched) return;
     while (expected && until - expected > 100000) queue(nullptr, rate / 100, channels, rate, expected);  // 10 ms each
   }
+  bool closed = false;  // the sender is destroyed: nothing goes through it again
+  void close() {
+    std::lock_guard<std::mutex> l(m);
+    closed = true;
+  }
   // Every few milliseconds: what is due goes out — or, unwatched, away.
   void pump(const NDIlib_v6* ndi, NDIlib_send_instance_t sender) {
     std::lock_guard<std::mutex> l(m);
+    if (closed) return;
     int64_t now = nowTc(), d = delay;
     // Silence is invented only where the capture should already have delivered: up to as old as its samples arrive,
     // less 50 ms of grace. Never by the delay: a negative one (the sound sent early, −200 ms in Settings) filled the
@@ -700,8 +706,12 @@ int ndiSendMain(int argc, char** argv) {
     f.timecode = fresh ? q.tc[send] : nowTc();
     ndi->send_send_video_v2(sender, &f);
   }
-  if (audioThread.joinable()) audioThread.join();
+  // The source leaves the network before the audio thread is waited for: it may be in a slow capture start, and main
+  // kills this process a second after «quit», which left a ghost source (2026-11-15 audit, A40). `close` first, so the
+  // thread never sends through the destroyed sender.
+  audio.close();
   ndi->send_destroy(sender);
+  if (audioThread.joinable()) audioThread.join();
   ndi->destroy();
   // The reader may be blocked on its pipe, port or socket; the process is ending, which unblocks it.
   reader.detach();
