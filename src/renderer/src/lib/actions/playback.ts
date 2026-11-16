@@ -401,6 +401,13 @@ function previewedPlateId(target: PreviewTarget, item: ProgramItemDTO | undefine
  *  goes up over it, `goLive()`'s own branch). */
 type RowLiveResult = "base" | "audio" | "failed";
 
+/** Where a schedule row is now, by id: every edit of the schedule copies all of its rows (`reindex`), so the object
+ *  held across an `await` is never in `items` again (2026-11-15 audit, A16). ponytail: a save landing meanwhile gives
+ *  every row a new id (`adoptSaved`) and the rail stays off; match by position if that ever shows up. */
+function rowIndexNow(item: ProgramItemDTO): number {
+  return useProgramStore.getState().items.findIndex((row) => row.id === item.id);
+}
+
 async function goLiveWithScheduleItem(
   index: number,
   startSlideIndex: number,
@@ -414,7 +421,7 @@ async function goLiveWithScheduleItem(
    *  dropped above it or deleted meanwhile used to put the on-air rail on
    *  whatever row ended up at the old position. */
   const settleRail = () => {
-    const at = useProgramStore.getState().items.indexOf(item);
+    const at = rowIndexNow(item);
     useProgramStore.getState().setActive(at >= 0 ? at : null);
   };
 
@@ -656,7 +663,7 @@ async function sendPreviewed(
   switch (target.kind) {
     case "scheduleItem": {
       // Where that row is NOW: rows moved or added during the wait shifted its index.
-      const index = item ? useProgramStore.getState().items.indexOf(item) : -1;
+      const index = item ? rowIndexNow(item) : -1;
       return index >= 0 && (await goLiveWithScheduleItem(index, slideIndex, positionSeconds, intent)) !== "failed";
     }
     case "asset":

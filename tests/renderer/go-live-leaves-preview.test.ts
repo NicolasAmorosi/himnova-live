@@ -163,3 +163,74 @@ test("the deck already on air, picked again, is only uncovered — never back to
   expect(after.soundtrackEpoch).toBe(soundtrackEpoch);
   expect(usePreviewStore.getState().target).toBeNull();
 });
+
+/** Every edit of the schedule copies all of its rows (`reindex`): a row held across an `await` is found by id, or the
+ *  rail and the verse cursor were lost (2026-11-15 audit, A16). */
+test("a row added while the hymn's deck is read keeps the on-air rail on the hymn", async () => {
+  let read: (() => void) | null = null;
+  const deck = {
+    assetId: 5,
+    deckId: 3,
+    status: "ready",
+    slides: [{ index: 1, url: "worship://deck/3/1", thumbUrl: "t", modelUrl: null, advanceAfterMs: null, transition: null }],
+    soundtrack: null,
+    sounds: [],
+    videos: [],
+    autoAdvance: false,
+    slideCount: 1,
+    error: null,
+  };
+  (window as unknown as { worship: { invoke: unknown } }).worship.invoke = (channel: string) =>
+    channel === "deck:ensure"
+      ? new Promise((resolve) => (read = () => resolve({ ok: true, data: deck })))
+      : Promise.resolve({ ok: true, data: null });
+  useProgramStore.setState({ items: [{ id: 10, position: 0, kind: "ppt", mediaAssetId: 5, title: "Himno" }] });
+  previewScheduleItem(0);
+  const pressed = goLive();
+  await vi.waitFor(() => expect(read).not.toBeNull());
+  useProgramStore.getState().addItem({ kind: "media", mediaAssetId: 9, title: "x" } as never);
+  read!();
+  await pressed;
+
+  expect(useProjectionStore.getState().base).toMatchObject({ kind: "deck", assetId: 5 });
+  expect(useProgramStore.getState().activeIndex).toBe(0);
+});
+
+test("a row dropped above while the projector opens: the pressed row still goes out, with the rail", async () => {
+  useProgramStore.setState({ items: [row(10, 1), row(11, 2)] });
+  const open = coldProjector();
+  previewScheduleItem(1);
+  const pressed = goLive();
+  useProgramStore.getState().addItem({ kind: "media", mediaAssetId: 9, title: "x" } as never, 0);
+  open();
+  await pressed;
+
+  expect(useProjectionStore.getState().base).toMatchObject({ kind: "image", assetId: 2 });
+  expect(useProgramStore.getState().activeIndex).toBe(2);
+});
+
+test("a verse row edited around while its chapter loads still marks its verse as the live one there", async () => {
+  useProgramStore.setState({
+    items: [
+      {
+        id: 20,
+        position: 0,
+        kind: "bible",
+        bibleVersionId: null,
+        bibleBookId: 43,
+        chapter: 3,
+        verseFrom: 16,
+        verseTo: null,
+        reference: "Juan 3:16",
+        text: "A",
+      },
+    ],
+  });
+  previewScheduleItem(0);
+  await goLive();
+  useProgramStore.getState().addItem({ kind: "media", mediaAssetId: 9, title: "x" } as never);
+  await vi.waitFor(() => expect(useBibleStore.getState().chapter).toBe(3));
+
+  expect(useProgramStore.getState().activeIndex).toBe(0);
+  expect(useBibleStore.getState().currentVerseIndex).toBe(15);
+});
