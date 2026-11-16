@@ -281,6 +281,44 @@ test("a WMV embedded in a .pptx slide plays through the media engine on its slid
   expect(await moving(projector, "slideVideo:")).toBe(false);
 });
 
+test("an MP4 embedded in a .pptx slide plays in Chromium: NEGRO holds it, and «Reabrir» goes on from there (2026-11-15 audit, P3)", async ({ app }) => {
+  // The common case (a modern deck, an MP4 on a slide), which `clipdeck.pptx`'s WMV, played by the engine, is not.
+  const deck = path.join(app.profile, "clipdeck-mp4.pptx");
+  const clip =
+    '<p:pic><p:nvPicPr><p:cNvPr id="3" name="Clip"/><p:cNvPicPr/><p:nvPr><a:videoFile r:link="rIdVideo"/></p:nvPr></p:nvPicPr>' +
+    '<p:blipFill><a:blip r:embed="rIdPoster"/><a:stretch><a:fillRect/></a:stretch></p:blipFill>' +
+    `<p:spPr><a:xfrm><a:off x="${4 * CM}" y="${2 * CM}"/><a:ext cx="${20 * CM}" cy="${11.25 * CM}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></p:spPr></p:pic>`;
+  const rels =
+    `<Relationship Id="rIdVideo" Type="${REL}/video" Target="../media/media1.mp4"/>` +
+    `<Relationship Id="rIdPoster" Type="${REL}/image" Target="../media/poster.png"/>`;
+  const media = { "ppt/media/media1.mp4": fs.readFileSync(fixture("clip.mp4")), "ppt/media/poster.png": fs.readFileSync(fixture("photo.png")) };
+  fs.writeFileSync(deck, buildPptx([{ shapes: clip, rels }], media));
+  await app.invoke("library:add", { kind: "ppt", paths: [deck] });
+  await app.previewFile("Presentaciones", "clipdeck-mp4");
+  await expect(slideTile(app, 1)).toBeVisible({ timeout: 90_000 });
+
+  await app.goLive();
+  const first = await app.projector();
+  await expect.poll(async () => (await videoStates(first))[0]?.currentTime ?? 0).toBeGreaterThan(2);
+
+  // NEGRO pauses it where it is and keeps it.
+  await app.control.locator("body").press("b");
+  await expect.poll(async () => (await videoStates(first))[0]?.paused).toBe(true);
+  const held = (await videoStates(first))[0]!.currentTime;
+  await app.control.waitForTimeout(1000);
+  expect((await videoStates(first))[0]?.currentTime).toBe(held);
+  await app.control.locator("body").press("b");
+  await expect.poll(async () => (await videoStates(first))[0]?.paused).toBe(false);
+
+  // Its projector closed and reopened mid-clip: the same clip, from where it was, not from 0:00.
+  await first.close();
+  const notice = app.control.getByRole("status").filter({ hasText: "Se cerró la ventana de proyección" });
+  await notice.getByRole("button", { name: "Reabrir" }).click();
+  const second = await app.projector();
+  await expect.poll(async () => (await videoStates(second))[0]?.playedFrom ?? null).not.toBeNull();
+  expect((await videoStates(second))[0]?.playedFrom).toBeGreaterThan(held - 0.5);
+});
+
 test("after a restart, a deck prepared before still plays its WMV through the engine", async ({ app }) => {
   await app.addMedia("ppt", "clipdeck.pptx");
   await app.previewFile("Presentaciones", "clipdeck");
