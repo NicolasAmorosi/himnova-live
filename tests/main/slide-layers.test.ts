@@ -4,7 +4,7 @@
  * damaged one (2026-11-15 audit, S5, the worker's half).
  */
 import { expect, test } from "vitest";
-import { MAX_SLIDE_LAYERS, slideLayers } from "../../src/main/slides/pptx-worker";
+import { MAX_SLIDE_LAYERS, deckLayers, slideLayers } from "../../src/main/slides/pptx-worker";
 import type { SlideModel } from "../../src/shared/types/slide-model";
 
 const slide = (elements: unknown[]): SlideModel =>
@@ -21,4 +21,13 @@ test("a slide whose model passes 16 MB comes back empty and damaged, its size an
 test("a slide under the cap is its model as is", () => {
   const small = slide([{ kind: "shape", id: 1 }]);
   expect(slideLayers(small)).toBe(JSON.stringify(small));
+});
+
+// Review follow-up: the cap was per slide, so a deck of a hundred slides of 15 MB each still handed main 1.5 GB.
+test("a deck past its budget in all keeps the slides after it empty and damaged, each under its own cap", () => {
+  const shapes = slide(Array.from({ length: 100 }, (_, at) => ({ kind: "shape", id: at })));
+  const each = JSON.stringify(shapes).length;
+  const out = deckLayers([shapes, shapes, shapes, shapes], 2.5 * each);
+  expect(out.slice(0, 2)).toEqual([JSON.stringify(shapes), JSON.stringify(shapes)]);
+  for (const kept of out.slice(2)) expect(JSON.parse(kept)).toEqual({ ...slide([]), damaged: true });
 });

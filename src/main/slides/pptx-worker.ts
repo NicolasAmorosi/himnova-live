@@ -94,14 +94,28 @@ export const MAX_SLIDE_LAYERS = 16 * 1024 * 1024;
  * (2026-11-15 audit, S5). Past the cap, or past what a string can hold, the slide keeps its size and background,
  * and the control window says it is damaged.
  */
-export function slideLayers(model: SlideModel): string {
+export function slideLayers(model: SlideModel, room = MAX_SLIDE_LAYERS): string {
   try {
     const json = JSON.stringify(model);
-    if (json.length <= MAX_SLIDE_LAYERS) return json;
+    if (json.length <= Math.min(room, MAX_SLIDE_LAYERS)) return json;
   } catch {
     // RangeError: longer than a string can be.
   }
   return JSON.stringify({ ...model, elements: [], damaged: true } satisfies SlideModel);
+}
+
+/** A whole deck's models, as JSON, past which the slides left are kept empty and damaged too. */
+export const MAX_DECK_LAYERS = 128 * 1024 * 1024;
+
+/** Every slide's `slideLayers`, against one running total: the cap per slide still let a deck of a hundred slides
+ *  of 15 MB each hand main 1.5 GB (2026-11-15 audit, S5, review). The budget is a parameter for the test. */
+export function deckLayers(models: SlideModel[], budget = MAX_DECK_LAYERS): string[] {
+  let room = budget;
+  return models.map((model) => {
+    const layers = slideLayers(model, room);
+    room -= layers.length;
+    return layers;
+  });
 }
 
 function read(file: string): PptxRead {
@@ -117,10 +131,11 @@ function read(file: string): PptxRead {
   };
   const { deck, meta } = readModel(file, resources);
   beat();
+  const layers = deckLayers(deck.slides.map((slide) => slide.model));
   return {
     width: deck.width,
     height: deck.height,
-    slides: deck.slides.map((slide) => ({ hidden: slide.hidden, layers: slideLayers(slide.model) })),
+    slides: deck.slides.map((slide, at) => ({ hidden: slide.hidden, layers: layers[at]! })),
     meta,
   };
 }
