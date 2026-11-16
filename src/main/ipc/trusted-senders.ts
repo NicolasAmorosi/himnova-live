@@ -10,8 +10,10 @@ import type { BrowserWindow } from "electron";
  * contract, so any context that gets hold of it gets hold of the whole surface,
  * including the ones that delete files and write settings.
  *
- * This is an allowlist of the three windows the app itself creates (control,
- * projection, and the offscreen rasterizer). It does not defend against a
+ * This is an allowlist of the windows the app itself creates that use the
+ * contract (control, projection, stage and the NDI one); never the offscreen
+ * rasterizer, which reads PDFs from anywhere and answers on its own channel
+ * (`raster:reply`, checked against that window). It does not defend against a
  * script injected into one of those pages — that is the same webContents, and
  * what guards against it is never building markup from untrusted text (see
  * `.claude/knowledge/fts5-snippet-is-markup-wrapped-around-user-supplied-text.md`).

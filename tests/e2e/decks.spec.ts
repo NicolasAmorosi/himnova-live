@@ -54,6 +54,23 @@ test("a PDF is a deck: drawn page by page, projected, stepped", async ({ app }) 
   await expect.poll(() => projectedSlide(projector)).toBe(1);
 });
 
+// The hidden window that draws PDFs reads files from anywhere: it gets its task and answers it, and nothing else of
+// the app's IPC (2026-11-15 audit, S11).
+test("the window that draws PDFs cannot call the app's channels", async ({ app }) => {
+  await app.addMedia("ppt", "deck.pdf");
+  await app.previewFile("Presentaciones", "deck");
+  await expect(slideTile(app, 3)).toBeVisible({ timeout: 60_000 });
+  const rasterizer = app.electron.windows().find((page) => page.url().endsWith("/rasterizer.html"));
+  if (!rasterizer) throw new Error("no rasterizer window");
+  const answer = await rasterizer.evaluate(() =>
+    (window as unknown as { worship: { invoke: (channel: string, req: unknown) => Promise<unknown> } }).worship.invoke(
+      "deck:statuses",
+      { assetIds: [] },
+    ),
+  );
+  expect(answer).toMatchObject({ ok: false, error: { code: "UNTRUSTED_SENDER" } });
+});
+
 /** The colour of the projected page at fractions of its width (at half its height), from the page image itself. */
 function pageColors(projector: Page, at: readonly number[]): Promise<string[]> {
   return projector.evaluate(async (fractions) => {
