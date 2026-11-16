@@ -1,4 +1,4 @@
-import { useProgramStore } from "@renderer/stores/program.store";
+import { survivingAssetId, useProgramStore } from "@renderer/stores/program.store";
 import { buildCumulativeMs, useProjectionStore } from "@renderer/stores/projection.store";
 import { useDeckStore } from "@renderer/stores/deck.store";
 import { useDisplayStore } from "@renderer/stores/display.store";
@@ -47,7 +47,9 @@ function goLiveWithAudioAsset(
   volume = defaultMediaVolume(),
 ): void {
   const audioStore = useAudioStore.getState();
-  const existing = audioStore.tracks.find((t) => t.source === "asset" && t.assetId === asset.id);
+  const existing = audioStore.tracks.find(
+    (t) => t.source === "asset" && t.assetId !== null && survivingAssetId(t.assetId) === asset.id,
+  );
   if (existing) {
     if (!existing.paused) return;
     audioStore.restartTrack(existing.trackId, startAtSeconds);
@@ -215,7 +217,7 @@ async function goLiveWithMediaAsset(
     // is re-sent — that is the operator's retry (its new epoch drops its
     // error, which BLACK/LOGO over it kept: audit A18) — and so is one that
     // already ended.
-    if (base?.kind === "video" && base.assetId === asset.id) {
+    if (base?.kind === "video" && survivingAssetId(base.assetId) === asset.id) {
       const failed = mediaErrors.video?.url === base.url;
       const status = mediaStatus.video;
       const ended = status?.ended === true && status.epoch === base.epoch;
@@ -565,7 +567,7 @@ function isAlreadyLive(target: PreviewTarget, item: ProgramItemDTO | undefined):
   const { base } = useProjectionStore.getState();
   if (base?.kind === "deck") {
     const deck = target.kind === "asset" && target.assetKind === "ppt" ? target.assetId : item?.kind === "ppt" ? item.mediaAssetId : null;
-    return deck === base.assetId;
+    return deck === survivingAssetId(base.assetId);
   }
   if (base?.kind === "song") {
     const song = target.kind === "song" ? target.songId : item?.kind === "song" ? item.songId : null;

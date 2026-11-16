@@ -70,7 +70,9 @@ vi.mock("../../src/main/media/media-engine", () => ({
   engineProtocol: h.proto,
 }));
 vi.mock("../../src/main/ndi/ndi-output", () => ({ setNdiAudioRoute: h.ndi }));
-vi.mock("../../src/main/services/repos", () => ({ getMediaRepo: () => ({ getPathById: (id: number) => `/media/${id}.avi` }) }));
+vi.mock("../../src/main/services/repos", () => ({
+  getMediaRepo: () => ({ getPathById: (id: number) => `/media/${id}.avi`, survivingId: (id: number) => id }),
+}));
 vi.mock("../../src/main/services/broadcast", () => ({ broadcast: h.broadcast, controlWindows: () => [] }));
 
 const { matchAudioOutputs, setAudioRoute } = await import("../../src/main/media/audio-route");

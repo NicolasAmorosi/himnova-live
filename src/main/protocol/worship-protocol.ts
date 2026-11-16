@@ -83,7 +83,7 @@ export function registerWorshipProtocolHandler(mediaRepo: MediaRepo): void {
           // virtualized grid, an <img> asking for the bytes IS the signal
           // that this tile is on screen right now.
           if (segments[1] === "thumb") {
-            const asset = mediaRepo.getById(id);
+            const asset = mediaRepo.getById(mediaRepo.survivingId(id));
             // The signal is what retires a queued generation whose tile has
             // scrolled away: Chromium aborts the <img> request when the
             // virtualized grid unmounts it, and there is no point stalling the
@@ -104,7 +104,7 @@ export function registerWorshipProtocolHandler(mediaRepo: MediaRepo): void {
             });
           }
 
-          return serveFile(request, mediaRepo.getPathById(id));
+          return serveFile(request, mediaRepo.getPathById(mediaRepo.survivingId(id)));
         }
         case "logo": {
           return serveFile(request, getSettingsRepo().get("logo.path"));
@@ -190,7 +190,7 @@ export function registerWorshipProtocolHandler(mediaRepo: MediaRepo): void {
           // arbitrary library location.
           const assetId = Number(segments[0]);
           if (!Number.isFinite(assetId)) return new Response("Not found", { status: 404 });
-          return serveFile(request, mediaRepo.linkedAudioPathById(assetId));
+          return serveFile(request, mediaRepo.linkedAudioPathById(mediaRepo.survivingId(assetId)));
         }
         case "raster": {
           // Short-lived capability handed to the offscreen rasterizer window so

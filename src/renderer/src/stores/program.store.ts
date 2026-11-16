@@ -78,6 +78,17 @@ function nextProvisionalId(): number {
   return -provisionalId;
 }
 
+/** Rows a relocate merged into their twins this session (`remapMediaAsset`). */
+const mergedInto = new Map<number, number>();
+
+/** The id the schedule knows `id` by: itself, or the twin a relocate merged it into. What is on the air keeps the
+ *  id it went out with (2026-11-15 audit, D4), so it is compared with a row's id through here: read as another file,
+ *  an extra Enter restarted the video on air, or played its sound a second time over itself. */
+export function survivingAssetId(id: number): number {
+  for (let next = mergedInto.get(id); next !== undefined; next = mergedInto.get(id)) id = next;
+  return id;
+}
+
 /** `dirty` after an edit that left `items`: a never-saved schedule emptied
  *  again is back to what «Nuevo programa» starts from, with nothing to save. */
 function editedDirty(currentProgramId: number | null, items: readonly ProgramItemDTO[]): boolean {
@@ -252,7 +263,8 @@ export const useProgramStore = create<ProgramStoreState>((set, get) => ({
 
   // Rows stay where they are, so do both cursors: the on-air rail still names its row. `dirty` untouched: main
   // moved the saved rows in the same merge, and the draft autosave writes the new id.
-  remapMediaAsset: (from, to) =>
+  remapMediaAsset: (from, to) => {
+    mergedInto.set(from, to);
     set((state) =>
       state.items.some((item) => (item.kind === "media" || item.kind === "ppt") && item.mediaAssetId === from)
         ? {
@@ -263,7 +275,8 @@ export const useProgramStore = create<ProgramStoreState>((set, get) => ({
             ),
           }
         : state,
-    ),
+    );
+  },
 
   /** The same thing for a time scene force-deleted from the «Scenes» editor.
    *  The unsaved schedule is the one place main's `ON DELETE restrict` cannot

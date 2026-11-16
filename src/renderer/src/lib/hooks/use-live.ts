@@ -1,12 +1,12 @@
 import { useT } from "@renderer/lib/i18n/i18n-provider";
 import { selectOutputMemo, useProjectionStore } from "@renderer/stores/projection.store";
-import { useProgramStore } from "@renderer/stores/program.store";
+import { survivingAssetId, useProgramStore } from "@renderer/stores/program.store";
 import { useMediaAsset } from "@renderer/lib/hooks/use-media-asset";
 import type { BaseContent } from "@shared/types/projection";
 
 function liveAssetId(base: BaseContent | null): number | null {
   if (!base) return null;
-  if (base.kind === "deck" || base.kind === "video" || base.kind === "image") return base.assetId;
+  if (base.kind === "deck" || base.kind === "video" || base.kind === "image") return survivingAssetId(base.assetId);
   return null;
 }
 

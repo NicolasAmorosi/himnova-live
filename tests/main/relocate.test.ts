@@ -74,6 +74,13 @@ test("relocating onto a file the library already has merges the two rows", () =>
   // Named, so the renderer moves the open order of service off the deleted id too (audit D4): left on it, «Guardar»
   // failed on its foreign key and the draft dropped those rows at the next launch.
   expect(relocated?.merged).toEqual({ from: duplicate.id, to: original.id });
+  // What is on the air keeps the id it went out with: its file keeps coming under it, for the ranges a video reads
+  // as it plays and for a projector reopened.
+  expect(media.survivingId(duplicate.id)).toBe(original.id);
+  expect(media.getPathById(media.survivingId(duplicate.id))).toBe(newPath);
+  expect(media.survivingId(9999)).toBe(9999);
+  // Never in the shared getter: a deck read under the dead id would write rows its foreign key refuses.
+  expect(media.getPathById(duplicate.id)).toBeNull();
   expect(programs.load(program.id).items.map((item) => (item.kind === "media" ? item.mediaAssetId : null))).toEqual([
     original.id,
     original.id,

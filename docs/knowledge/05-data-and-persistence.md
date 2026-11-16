@@ -395,6 +395,12 @@ works is touched and nothing points at a file that does not exist. Paths are spl
 profile opened on a Mac or Linux follows too. The stats are asynchronous and in chunks (a gone drive answers slowly);
 the rows move in one transaction (`relocateMany`). Song rows move before the settings: `song:list` lets go of the songs
 of a folder no longer linked. A folder linked by hand at the new place keeps its own songs and is not linked twice.
+A merge deletes the twin, and the open order of service is not SQL: `relocate` names each pair, both channels return
+them (`merged`), and the renderer moves the schedule rows, PREVIEW and the library's selection to the row that stays
+(`followMerges`; left on the dead id, «Guardar» failed its foreign key and the draft dropped the rows, audit D4,
+2026-11-15). What is on the air keeps the id it went out with, so nothing the room sees remounts: the renderer compares
+a live id with a row's through `survivingAssetId`, and main serves a merged-away id's file through
+`MediaRepo.survivingId` (the protocol and the engine only, never the getters a write follows).
 
 And no import accepts a `._x.pps` (the AppleDouble that
 macOS leaves on a FAT/exFAT USB stick), a `~$x.pptx` (PowerPoint's lock file) or a file whose

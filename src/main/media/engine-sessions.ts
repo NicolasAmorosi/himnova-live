@@ -88,13 +88,13 @@ function start(
   const linked = linkedAudioAssetIdOfUrl(session.url);
   const file =
     assetId !== null
-      ? getMediaRepo().getPathById(assetId)
+      ? getMediaRepo().getPathById(getMediaRepo().survivingId(assetId))
       : clip?.kind === "audio"
         ? getSlidesRepo().getAudioPath(clip.id)
         : clip?.kind === "video"
           ? getSlidesRepo().getVideoPath(clip.id)
           : linked !== null
-            ? getMediaRepo().linkedAudioPathById(linked)
+            ? getMediaRepo().linkedAudioPathById(getMediaRepo().survivingId(linked))
             : null;
   if (!file) {
     events.error?.({ code: "engine-open", detail: `no file for ${session.url}` });

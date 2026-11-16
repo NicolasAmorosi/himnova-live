@@ -3,6 +3,7 @@ import { onIpc } from "@renderer/lib/ipc";
 import { playableAssetUrl, useEngineAssetsStore } from "@renderer/stores/engine-assets.store";
 import { useProjectionStore } from "@renderer/stores/projection.store";
 import { useAudioStore } from "@renderer/stores/audio.store";
+import { survivingAssetId } from "@renderer/stores/program.store";
 import type { DecoderSupport } from "@shared/types/media";
 
 /**
@@ -37,6 +38,9 @@ function decoderSupport(): DecoderSupport {
  * in place, from where it is: the same scene, no fade, and main starts the engine for the new url.
  */
 export function rearmLive(assetId: number): void {
+  // A row a relocate merged away left the engine's list, but what is on the air with it plays on as it went out
+  // (2026-11-15 audit, D4): re-pointed at a `<video>` Chromium cannot open, it went black.
+  if (survivingAssetId(assetId) !== assetId) return;
   const url = playableAssetUrl(assetId);
   const projection = useProjectionStore.getState();
   const { base } = projection;

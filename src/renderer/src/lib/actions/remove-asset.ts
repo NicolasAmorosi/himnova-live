@@ -8,7 +8,7 @@ import { useAudioStore } from "@renderer/stores/audio.store";
 import { useLibraryStore } from "@renderer/stores/library.store";
 import { usePreviewStore } from "@renderer/stores/preview.store";
 import { useProjectionStore } from "@renderer/stores/projection.store";
-import { useProgramStore } from "@renderer/stores/program.store";
+import { survivingAssetId, useProgramStore } from "@renderer/stores/program.store";
 import { useUiStore } from "@renderer/stores/ui.store";
 import { clearBaseContent } from "./playback";
 import { clearPreview } from "./preview";
@@ -29,13 +29,13 @@ function purgeAsset(id: number): void {
   useProgramStore.getState().removeByMediaAsset(id);
 
   const base = useProjectionStore.getState().base;
-  if (base && "assetId" in base && base.assetId === id) clearBaseContent();
+  if (base && "assetId" in base && survivingAssetId(base.assetId) === id) clearBaseContent();
 
   const target = usePreviewStore.getState().target;
   if (target?.kind === "asset" && target.assetId === id) clearPreview();
 
   for (const track of useAudioStore.getState().tracks) {
-    if (track.assetId === id) useAudioStore.getState().removeTrack(track.trackId);
+    if (track.assetId !== null && survivingAssetId(track.assetId) === id) useAudioStore.getState().removeTrack(track.trackId);
   }
 
   forgetMediaAsset(id);

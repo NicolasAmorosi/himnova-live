@@ -2,6 +2,7 @@ import { t } from "@renderer/lib/i18n/i18n-provider";
 import { toast } from "@renderer/lib/toast";
 import { useDeckStore } from "@renderer/stores/deck.store";
 import { useProjectionStore } from "@renderer/stores/projection.store";
+import { survivingAssetId } from "@renderer/stores/program.store";
 
 /**
  * "Convert again" from the slide grid.
@@ -22,7 +23,7 @@ import { useProjectionStore } from "@renderer/stores/projection.store";
  */
 export function reconvertDeck(assetId: number): void {
   const base = useProjectionStore.getState().base;
-  if (base?.kind === "deck" && base.assetId === assetId) {
+  if (base?.kind === "deck" && survivingAssetId(base.assetId) === assetId) {
     toast.warning(t("deck.reconvertBlockedLive"));
     return;
   }

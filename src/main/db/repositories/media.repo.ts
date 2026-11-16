@@ -38,6 +38,9 @@ function toDTO(row: typeof mediaAssets.$inferSelect): MediaAsset {
 }
 
 export class MediaRepo {
+  /** Rows `relocate` merged away this session, to the twin they live on as (`survivingId`). */
+  private readonly mergedInto = new Map<number, number>();
+
   constructor(
     private readonly db: Db,
     private readonly sqlite: Database.Database,
@@ -287,6 +290,16 @@ export class MediaRepo {
     this.pathStatement ??= this.sqlite.prepare(`SELECT path FROM media_assets WHERE id = ?`);
     const row = this.pathStatement.get(id) as { path: string } | undefined;
     return row?.path ?? null;
+  }
+
+  /** The row `id` lives on as: itself, or the twin a relocate merged it into this session. What is on the air keeps
+   *  the id it went out with, and its file must keep coming under it: a video is read in ranges as it plays, and a
+   *  projector reopened asks again (2026-11-15 audit, D4). Only for what serves bytes: anything that writes rows
+   *  under an id must not take a dead one for a live one. Ids are AUTOINCREMENT, so a merged-away id never has a
+   *  row again. */
+  survivingId(id: number): number {
+    for (let next = this.mergedInto.get(id); next !== undefined; next = this.mergedInto.get(id)) id = next;
+    return id;
   }
 
   /**
@@ -604,6 +617,7 @@ export class MediaRepo {
         if (row.inLibrary === 0 && duplicate.inLibrary === 1) createdAt = duplicate.createdAt;
         this.db.delete(mediaAssets).where(eq(mediaAssets.id, duplicate.id)).run();
         merged = { from: duplicate.id, to: id };
+        this.mergedInto.set(duplicate.id, id);
       }
       this.db
         .update(mediaAssets)
