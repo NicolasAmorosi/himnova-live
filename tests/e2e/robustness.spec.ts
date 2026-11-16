@@ -64,6 +64,36 @@ test("an uncaught error in main is said in a box that leaves main serving the co
   }
 });
 
+test("with the control window minimized, an uncaught error in main brings it back and still leaves main serving", async ({ app }) => {
+  test.skip(process.platform !== "darwin", "measured on macOS: a minimized parent gets the blocking box");
+  app.crashLogExpected = true;
+  const control = () =>
+    app.electron.evaluate(({ BrowserWindow }) => {
+      const w = BrowserWindow.getAllWindows().find((win) => win.webContents.getURL().endsWith("/index.html"))!;
+      return { minimized: w.isMinimized(), visible: w.isVisible() };
+    });
+  // The operator may minimize it mid-service with the projector up (owner, 2026-11-13).
+  await app.electron.evaluate(({ BrowserWindow }) =>
+    BrowserWindow.getAllWindows().find((w) => w.webContents.getURL().endsWith("/index.html"))!.minimize(),
+  );
+  await expect.poll(async () => (await control()).minimized).toBe(true);
+  await app.electron.evaluate(() => {
+    setTimeout(() => {
+      throw new Error("zz-a23 uncaught with the window minimized");
+    }, 0);
+  });
+  const crashLog = path.join(app.profile, "crash.log");
+  await expect.poll(() => (fs.existsSync(crashLog) ? fs.readFileSync(crashLog, "utf8") : "")).toContain("zz-a23");
+  // A minimized window is not visible: the box fell back to `showErrorBox` and held main (review of A23).
+  const within = <T>(promise: Promise<T>) =>
+    Promise.race([promise.then(() => "answered"), new Promise((resolve) => setTimeout(() => resolve("main is held"), 3000))]);
+  for (let i = 0; i < 3; i++) {
+    expect(await within(app.invoke("engine:assets"))).toBe("answered");
+    expect(await within(app.electron.evaluate(() => Date.now()))).toBe("answered");
+  }
+  expect(await control()).toEqual({ minimized: false, visible: true });
+});
+
 test("no key of the Mac's app menu hides the app: ⌘H took the projector away with it", async ({ app }) => {
   test.skip(process.platform !== "darwin", "the app menu is the Mac's; Windows has none");
   const hide = await app.electron.evaluate(({ Menu }) => {
