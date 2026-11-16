@@ -77,7 +77,7 @@ function hymn(overrides: { first?: LegacyShape[]; second?: LegacyShape[] } = {})
         shapes: overrides.second ?? [{ rect: FULL, pib: 2 }],
       },
     ],
-    externalPaths: ["C:\\Documents and Settings\\Joel Rivas\\Escritorio\\himnos\\522 Suenen las palabras.mp3"],
+    externalPaths: ["C:\\Documents and Settings\\Ana Gomez\\Escritorio\\himnos\\522 Suenen las palabras.mp3"],
   };
 }
 
@@ -261,7 +261,7 @@ describe("served straight from the source", () => {
 describe("the rest of what the source says", () => {
   test("the linked song's path is read from its record", () => {
     expect(readBinaryExternalPaths(write(hymn()))).toEqual([
-      "C:\\Documents and Settings\\Joel Rivas\\Escritorio\\himnos\\522 Suenen las palabras.mp3",
+      "C:\\Documents and Settings\\Ana Gomez\\Escritorio\\himnos\\522 Suenen las palabras.mp3",
     ]);
   });
 

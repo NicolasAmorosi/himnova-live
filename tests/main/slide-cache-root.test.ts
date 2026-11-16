@@ -53,7 +53,7 @@ test("a copied profile's decks point at this cache, and nothing outside it is to
 
   const copied = deckAt(path.join(original, "aaa-1920-webp"), "aaa");
   const lost = deckAt(path.join(original, "bbb-1920-webp"), "bbb");
-  const windows = deckAt("C:\\Users\\emili\\AppData\\Roaming\\worship-app\\slides-cache\\aaa-1920-webp", "ccc");
+  const windows = deckAt("C:\\Users\\ana\\AppData\\Roaming\\worship-app\\slides-cache\\aaa-1920-webp", "ccc");
   const local = deckAt(path.join(here, "aaa-1920-webp"), "ddd");
 
   expect(slidesRepo.adoptCacheRoot(here)).toEqual({ rebased: 2, forgotten: 1 });
