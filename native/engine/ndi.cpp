@@ -570,6 +570,7 @@ int ndiSendMain(int argc, char** argv) {
 
   static AudioOut audio;
   audio.delay = (int64_t)o.audioDelayMs * 10000;
+  static std::atomic<bool> audioDone{false};
   std::thread audioThread;
   if (o.audio) {
 #ifdef _WIN32
@@ -636,6 +637,7 @@ int ndiSendMain(int argc, char** argv) {
         std::this_thread::sleep_for(std::chrono::milliseconds(5));
       }
       if (on) stopAppAudio();
+      audioDone = true;
     });
   }
 
@@ -714,7 +716,16 @@ int ndiSendMain(int argc, char** argv) {
   // thread never sends through the destroyed sender.
   audio.close();
   ndi->send_destroy(sender);
-  if (audioThread.joinable()) audioThread.join();
+  if (audioThread.joinable()) {
+    // A second at most: when the whole app quits nobody kills this process later, and a capture start the OS holds
+    // would keep it alive on its own (review of A40). Its capture goes with the process.
+    for (int i = 0; i < 100 && !audioDone; i++) std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    if (!audioDone) {
+      fflush(stdout);
+      std::_Exit(0);
+    }
+    audioThread.join();
+  }
   ndi->destroy();
   // The reader may be blocked on its pipe, port or socket; the process is ending, which unblocks it.
   reader.detach();
