@@ -54,7 +54,7 @@ export function StageApp() {
 
   return (
     <main className="h-screen w-screen">
-      <StageView copy={COPY} media={media} stage={stage} />
+      <StageView copy={COPY} media={media} paced stage={stage} />
     </main>
   );
 }

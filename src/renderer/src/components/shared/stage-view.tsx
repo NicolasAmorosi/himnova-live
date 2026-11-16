@@ -79,9 +79,25 @@ function Swap({ children, className, swapKey }: { children: ReactNode; className
 export type StageMedia = { video: MediaStatus | null; slideVideo: MediaStatus | null };
 
 /** What is live, drawn by the projector's own renderer as a muted monitor: playing with `media`, a poster without. */
-function LiveOutput({ media, output, videoStill }: { media: StageMedia | undefined; output: ProjectionOutput; videoStill: StageOutput["videoStill"] }) {
+function LiveOutput({
+  media,
+  output,
+  paced,
+  videoStill,
+}: {
+  media: StageMedia | undefined;
+  output: ProjectionOutput;
+  paced: boolean;
+  videoStill: StageOutput["videoStill"];
+}) {
   return media ? (
-    <OutputView liveVideoStatus={media.video} mode="monitor" output={output} slideVideoStatus={media.slideVideo} />
+    <OutputView
+      liveVideoStatus={media.video}
+      mode="monitor"
+      output={output}
+      pacedVideo={paced}
+      slideVideoStatus={media.slideVideo}
+    />
   ) : (
     <OutputView mode="monitor" output={output} videoStill={videoStill} />
   );
@@ -203,12 +219,12 @@ const line = (cqw: number): CSSProperties => ({ height: `calc(${cqw}cqw * var(--
  *  count takes the time's place and the time goes small over what comes next (owner, 2026-11-13): in «Auto» a verse
  *  projected mid-sermon brings this view, and the pastor still reads the count from the pulpit. Every line keeps its
  *  height through that change. */
-function Musicians({ media, stage }: { media: StageMedia | undefined; stage: StageOutput | null }) {
+function Musicians({ media, paced, stage }: { media: StageMedia | undefined; paced: boolean; stage: StageOutput | null }) {
   const countdown = stage?.countdown ?? null;
   const hour12 = stage?.hour12 ?? false;
   return (
     <div className="grid h-full grid-cols-[3fr_2fr] items-center gap-[2cqw] p-[2cqw]">
-      <Frame>{stage ? <LiveOutput media={media} output={stage.current} videoStill={stage.videoStill} /> : null}</Frame>
+      <Frame>{stage ? <LiveOutput media={media} output={stage.current} paced={paced} videoStill={stage.videoStill} /> : null}</Frame>
       <aside className="flex min-w-0 flex-col gap-[1.5cqw]">
         <div style={line(7)}>
           <Swap className="h-full items-center justify-items-start" swapKey={countdown ? "countdown" : "clock"}>
@@ -232,7 +248,7 @@ function Musicians({ media, stage }: { media: StageMedia | undefined; stage: Sta
 
 /** The countdown as large as fits, and below it the time and what the projector shows — always, black and LOGO
  *  included (owner, 2026-11-13). Without a countdown, the time takes its place. */
-function Preacher({ media, stage }: { media: StageMedia | undefined; stage: StageOutput }) {
+function Preacher({ media, paced, stage }: { media: StageMedia | undefined; paced: boolean; stage: StageOutput }) {
   const countdown = stage.countdown;
   return (
     <div className="flex h-full flex-col gap-[1.5cqw] p-[2cqw]">
@@ -243,7 +259,7 @@ function Preacher({ media, stage }: { media: StageMedia | undefined; stage: Stag
         <Swap swapKey={countdown ? "clock" : "none"}>{countdown ? <Clock cqw={6} hour12={stage.hour12} /> : null}</Swap>
         <div className="w-[30cqw] shrink-0">
           <Frame>
-            <LiveOutput media={media} output={stage.current} videoStill={stage.videoStill} />
+            <LiveOutput media={media} output={stage.current} paced={paced} videoStill={stage.videoStill} />
           </Frame>
         </div>
       </div>
@@ -258,18 +274,22 @@ function Preacher({ media, stage }: { media: StageMedia | undefined; stage: Stag
  *
  * What is live moves only when the stage is set to (`videoMotion`) and the caller has the projector's reports
  * (`media`): the stage window, and the panel's monitor unless the monitors show stills. «Projector» is a copy of the
- * projector and nothing else: `copy` draws it (the stage window's `ProjectorCopy`), or else `current`.
+ * projector and nothing else: `copy` draws it (the stage window's `ProjectorCopy`), or else `current`. `paced`: the
+ * stage window, a screen people watch, puts the engine's frames up on its own clock like the projector; the panel's
+ * monitor draws them as they land (2026-11-15 audit, A32).
  */
 export function StageView({
   stage,
   className,
   copy,
   media,
+  paced = false,
 }: {
   stage: StageOutput | null;
   className?: string;
   copy?: ReactNode;
   media?: StageMedia | undefined;
+  paced?: boolean;
 }) {
   const layout = stage?.layout ?? "musicians";
   const moving = stage?.videoMotion ? media : undefined;
@@ -284,11 +304,13 @@ export function StageView({
         {/* Switching views is a crossfade, never a cut. */}
         <Swap className="min-h-0 flex-1 grid-rows-[minmax(0,1fr)]" swapKey={layout}>
           {stage && layout === "projector" ? (
-            ((moving ? copy : null) ?? <LiveOutput media={moving} output={stage.current} videoStill={stage.videoStill} />)
+            ((moving ? copy : null) ?? (
+              <LiveOutput media={moving} output={stage.current} paced={paced} videoStill={stage.videoStill} />
+            ))
           ) : stage && layout === "preacher" ? (
-            <Preacher media={moving} stage={stage} />
+            <Preacher media={moving} paced={paced} stage={stage} />
           ) : (
-            <Musicians media={moving} stage={stage} />
+            <Musicians media={moving} paced={paced} stage={stage} />
           )}
         </Swap>
         <MessageBand message={layout === "projector" ? null : (stage?.message ?? null)} />

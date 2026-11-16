@@ -342,7 +342,7 @@ function LiveVideo({
 
 type EngineVideoProps = {
   className: string;
-  /** The projector and the NDI window: frames go up on the page's clock (`FramePacer`). A monitor
+  /** The projector, the NDI window and the stage window: frames go up on the page's clock (`FramePacer`). A monitor
    *  draws them as they land — its cadence nobody watches, and it costs the control window less. */
   paced: boolean;
   /** What main sends this video's frames under (`liveEngineFrameKey`, `previewEngineFrameKey`). */
@@ -456,6 +456,8 @@ type SlideVideoLayerProps = {
   incomingCovers: boolean;
   mode: OutputViewMode;
   onError: (code: number | null) => void;
+  /** An engine clip's frames go up on the page's clock (`EngineVideo`). */
+  paced: boolean;
   role: LayerRole;
   slideVideo: NonNullable<SlideVideo>;
   /** The projector's own report for this element — only passed in
@@ -500,6 +502,7 @@ function SlideVideoLayer({
   incomingCovers,
   mode,
   onError,
+  paced,
   role,
   slideVideo,
   status,
@@ -614,7 +617,7 @@ function SlideVideoLayer({
           <EngineVideo
             className="absolute object-contain"
             frameKey={liveEngineFrameKey("slideVideo", slideVideo.epoch)}
-            paced={mode === "live"}
+            paced={paced}
             style={rectStyle}
           />
         ) : (
@@ -1036,6 +1039,10 @@ type OutputViewProps = {
    *  a local failure already shows up in this view's own notice. */
   onMediaError?: (error: ProjectionMediaError) => void;
   output: ProjectionOutput;
+  /** A monitor that is a screen people watch (the stage window): the engine's frames go up on the page's clock, as on
+   *  the projector (`EngineVideo`), not as they land. Drawn on arrival, a 30 fps video alternated 17 and 50 ms there
+   *  (2026-11-15 audit, A32). Always so in `mode === "live"`. */
+  pacedVideo?: boolean | undefined;
   /** Urls the *projector* reported as failed. What makes the LIVE monitor's
    *  notice describe the projector rather than its own second, independently
    *  decoding copy of the same file — the monitor may well be able to play
@@ -1179,12 +1186,14 @@ export function OutputView({
   noticeLabel,
   onMediaError,
   output,
+  pacedVideo = false,
   reportedErrorUrls,
   slideVideoRef,
   slideVideoStatus,
   videoRef,
   videoStill,
 }: OutputViewProps) {
+  const paced = mode === "live" || pacedVideo;
   // Warm the neighbouring slides so a change never waits on a decode. Plain
   // Image objects rather than hidden DOM nodes: no layout, no paint, and
   // nothing stray in the render tree. Only the real projector needs this.
@@ -1633,7 +1642,7 @@ export function OutputView({
           covered={output.kind !== "song" || borrowed}
           key={songVideo.epoch}
           onError={handleSongVideoError}
-          paced={mode === "live"}
+          paced={paced}
           songVideo={songVideo}
         />
       ) : null}
@@ -1668,7 +1677,7 @@ export function OutputView({
           key={engineFrameKey}
           onFirstFrame={() => handleVideoFirstFrame(output.videoUnderlay?.epoch ?? 0)}
           onFreezeFrame={shouldAnimate ? freezeFrame : undefined}
-          paced={mode === "live"}
+          paced={paced}
           style={transitionStyle(videoRole, transition, output.kind !== "video" ? 0 : 1, held, incomingCovers)}
         />
       ) : output.videoUnderlay && videoMounted ? (
@@ -1706,6 +1715,7 @@ export function OutputView({
           key={output.slideVideo.epoch}
           mode={mode}
           onError={handleSlideVideoError}
+          paced={paced}
           role={slideVideoRole}
           slideVideo={output.slideVideo}
           status={slideVideoStatus}
