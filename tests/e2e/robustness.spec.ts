@@ -341,6 +341,9 @@ test("after a control reload, a verse put up leaves the room's music playing", a
   const at = (await audioStates(projector))[0]?.currentTime ?? 0;
   await expect.poll(async () => (await audioStates(projector))[0]?.currentTime ?? 0).toBeGreaterThan(at + 0.5);
   expect((await audioStates(projector))[0]?.paused).toBe(false);
+  // The sound is still held: the LIVE mute reaches nothing in the room, and says so instead of doing it in silence.
+  await app.liveColumn().getByRole("button", { name: "Silenciar EN VIVO" }).click();
+  await expect(app.control.getByText("El volumen de EN VIVO no llega a lo que ya sonaba", { exact: false })).toBeVisible();
 });
 
 test("after a control reload with a video on air, ⌘Q asks first", async ({ app }) => {
