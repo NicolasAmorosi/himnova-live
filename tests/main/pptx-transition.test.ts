@@ -19,7 +19,9 @@ const NS =
 
 let dir: string;
 
-function writeDeck(transitions: string[]): string {
+/** One slide per entry, the entry written after `p:cSld`. With `sound`, each slide also carries a sound
+ *  (`p:pic` id 4) for a `p:timing` in the entry to play. */
+function writeDeck(transitions: string[], sound = false): string {
   const files: Record<string, Uint8Array> = {
     "ppt/presentation.xml": strToU8(
       `<p:presentation ${NS}><p:sldIdLst>${transitions
@@ -35,10 +37,16 @@ function writeDeck(transitions: string[]): string {
         .join("")}</Relationships>`,
     ),
   };
+  const pic = `<p:pic><p:nvPicPr><p:cNvPr id="4" name="Audio"/><p:cNvPicPr/><p:nvPr><a:audioFile r:link="rId2"/></p:nvPr></p:nvPicPr><p:blipFill/><p:spPr/></p:pic>`;
   transitions.forEach((transition, i) => {
     files[`ppt/slides/slide${i + 1}.xml`] = strToU8(
-      `<p:sld ${NS}><p:cSld><p:spTree/></p:cSld>${transition}</p:sld>`,
+      `<p:sld ${NS}><p:cSld><p:spTree>${sound ? pic : ""}</p:spTree></p:cSld>${transition}</p:sld>`,
     );
+    if (sound) {
+      files[`ppt/slides/_rels/slide${i + 1}.xml.rels`] = strToU8(
+        `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/audio" Target="../media/sound${i + 1}.mp3"/></Relationships>`,
+      );
+    }
   });
   const file = path.join(dir, `deck-${transitions.length}-${Math.random().toString(36).slice(2)}.pptx`);
   fs.writeFileSync(file, zipSync(files));
@@ -80,4 +88,23 @@ test("each slide's transition, as PowerPoint and LibreOffice write it", () => {
     null,
     null,
   ]);
+});
+
+// 2026-11-15 audit, A31: PowerPoint wraps the timing too when an animation needs 2010 or later, and two wrappers at
+// the slide root came back as an array, which was read as none: the slide lost its `advTm` and its sound's settings.
+test("a slide with its transition and its timing each wrapped keeps both", () => {
+  const timing = `<p:timing><p:tnLst><p:par><p:cTn id="1"><p:childTnLst><p:audio><p:cMediaNode vol="80000" numSld="3"><p:cTn id="2" repeatCount="indefinite"/><p:tgtEl><p:spTgt spid="4"/></p:tgtEl></p:cMediaNode></p:audio></p:childTnLst></p:cTn></p:par></p:tnLst></p:timing>`;
+  const meta = readPresentationMeta(
+    writeDeck(
+      [
+        `<mc:AlternateContent><mc:Choice Requires="p14"><p:transition spd="slow" p14:dur="1250" advClick="0" advTm="7000"><p14:vortex/></p:transition></mc:Choice><mc:Fallback><p:transition spd="slow" advClick="0" advTm="7000"><p:fade/></p:transition></mc:Fallback></mc:AlternateContent>` +
+          `<mc:AlternateContent><mc:Choice Requires="p14">${timing}</mc:Choice><mc:Fallback>${timing}</mc:Fallback></mc:AlternateContent>`,
+        "",
+        "",
+      ],
+      true,
+    ),
+  );
+  expect(meta.slides[0]).toMatchObject({ autoAdvanceMs: 7000, advanceOnClick: false, transition: { style: "crossfade", durationMs: 1250 } });
+  expect(meta.audio[0]).toMatchObject({ startSlideIndex: 1, slides: 3, loop: true });
 });

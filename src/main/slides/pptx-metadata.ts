@@ -236,16 +236,28 @@ function parseRels(xml: string | null, baseDir: string): Rels {
  * `mc:AlternateContent/mc:Choice[@Requires="p14"]`, keeping a legacy copy in
  * `mc:Fallback`. A bare `p:transition` also occurs. Checking only the bare
  * element is the single most common way to silently read no timings at all.
+ *
+ * The timing gets the same wrapper when an animation uses something of 2010 or
+ * later, and then the slide root holds TWO `mc:AlternateContent`, which the
+ * parser hands over as an array: every one is looked in, the first `mc:Choice`
+ * that has the element winning over any `mc:Fallback` (2026-11-15 audit, A31:
+ * reading only a lone wrapper lost the slide's `advTm`).
  */
+function findAtRoot(slide: XmlNode, name: string): XmlNode | undefined {
+  const alts = asNodes(slide["mc:AlternateContent"]);
+  for (const branch of ["mc:Choice", "mc:Fallback"]) {
+    for (const alt of alts) {
+      for (const choice of asNodes(alt[branch])) {
+        const found = asNode(choice[name]);
+        if (found) return found;
+      }
+    }
+  }
+  return asNode(slide[name]);
+}
+
 function findTransition(slide: XmlNode): XmlNode | undefined {
-  const alt = asNode(slide["mc:AlternateContent"]);
-  const fromChoice = asNode(asNode(alt?.["mc:Choice"])?.["p:transition"]);
-  if (fromChoice) return fromChoice;
-
-  const fromFallback = asNode(asNode(alt?.["mc:Fallback"])?.["p:transition"]);
-  if (fromFallback) return fromFallback;
-
-  return asNode(slide["p:transition"]);
+  return findAtRoot(slide, "p:transition");
 }
 
 /** Children of `p:transition` that are not the effect itself. */
@@ -518,7 +530,7 @@ export function readPresentationMeta(filePath: string): PresentationMeta {
 
     // Media playback semantics live in p:timing.
     const mediaNodes: XmlNode[] = [];
-    collectMediaNodes(sld["p:timing"], mediaNodes);
+    collectMediaNodes(findAtRoot(sld, "p:timing"), mediaNodes);
     // Slide-wide aggregate: whatever ANY media node on this slide says — the
     // fallback for a shape no node names.
     const anyLoop = mediaNodes.some(mediaNodeLoops);
