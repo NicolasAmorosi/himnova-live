@@ -193,7 +193,13 @@ function useFittedTextSize(
 
     const observer = new ResizeObserver(measure);
     observer.observe(stage);
-    return () => observer.disconnect();
+    // A typeface that arrives after this measure (the window's first text, a verse in another alphabet) lays the verse
+    // out taller: measured with the fallback, it came out cut on the projector (2026-11-15 audit, A15).
+    document.fonts.addEventListener("loadingdone", measure);
+    return () => {
+      observer.disconnect();
+      document.fonts.removeEventListener("loadingdone", measure);
+    };
   }, [enabled, max, min, key]);
 
   return { blockRef, sizeCqw, textRefs };

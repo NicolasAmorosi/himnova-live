@@ -104,8 +104,11 @@ function TickerLine({ plate }: { plate: ProjectionPlate }) {
     start();
     const observer = new ResizeObserver(start);
     observer.observe(band);
+    // Measured with the fallback font, the loop's length was wrong and the line jumped on every turn.
+    document.fonts.addEventListener("loadingdone", start);
     return () => {
       observer.disconnect();
+      document.fonts.removeEventListener("loadingdone", start);
       animation?.cancel();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `key` is every input the loop depends on
