@@ -91,7 +91,13 @@ test("with the control window minimized, an uncaught error in main brings it bac
     expect(await within(app.invoke("engine:assets"))).toBe("answered");
     expect(await within(app.electron.evaluate(() => Date.now()))).toBe("answered");
   }
-  expect(await control()).toEqual({ minimized: false, visible: true });
+  // Back on screen, with the sheet on it (the restore is animated, and the sheet waits for it): main still serves.
+  await expect.poll(control).toEqual({ minimized: false, visible: true });
+  await new Promise((resolve) => setTimeout(resolve, 500));
+  for (let i = 0; i < 3; i++) {
+    expect(await within(app.invoke("engine:assets"))).toBe("answered");
+    expect(await within(app.electron.evaluate(() => Date.now()))).toBe("answered");
+  }
 });
 
 test("no key of the Mac's app menu hides the app: ⌘H took the projector away with it", async ({ app }) => {
