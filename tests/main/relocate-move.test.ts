@@ -196,4 +196,20 @@ describe("following a move", () => {
     expect(songs.get(old!.id)?.sourceFolder).toBe(before);
     expect(songs.get(mine!.id)?.sourceFolder).toBe(after);
   });
+
+  test("the LOGO's picture follows the move too (audit D5)", async () => {
+    // Juan's profile carried to María's computer: everything followed but the LOGO's picture, and LOGO went black.
+    const songs = new SongsRepo(handle.db, handle.sqlite);
+    const settings = new SettingsRepo(handle.db);
+    const media = new MediaRepo(handle.db, handle.sqlite);
+    const juan = path.join(dir, "Users", "juan");
+    const maria = path.join(dir, "Users", "maria");
+    write(path.join(maria, "Pictures", "logo.png"));
+    settings.setMany({ "logo.path": path.join(juan, "Pictures", "logo.png") });
+
+    const { fixed } = await followMove(moveBetween(namesOf(juan), namesOf(maria))!, { media, songs, settings });
+
+    expect(settings.get("logo.path")).toBe(path.join(maria, "Pictures", "logo.png"));
+    expect(fixed.has(path.join(juan, "Pictures", "logo.png"))).toBe(true);
+  });
 });

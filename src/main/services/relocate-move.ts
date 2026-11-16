@@ -113,9 +113,15 @@ export async function followMove(
   const mediaFolders = settings.get("library.linkedFolders");
   const songFolders = settings.get("songs.linkedFolders");
   const soundtracks = rows.filter((row) => row.linkedAudioManual === 1 && row.linkedAudioPath !== null);
+  // The LOGO's picture is a setting, not a library row: it was left behind, and LOGO went black (2026-11-15 audit, D5).
+  const logo = settings.get("logo.path");
 
   const [files, folders] = await Promise.all([
-    explained([...rows.map((row) => row.path), ...soundtracks.map((row) => row.linkedAudioPath!), ...sources.files], move, "file"),
+    explained(
+      [...rows.map((row) => row.path), ...soundtracks.map((row) => row.linkedAudioPath!), ...sources.files, ...(logo ? [logo] : [])],
+      move,
+      "file",
+    ),
     explained([...ASSET_KINDS.flatMap((kind) => mediaFolders[kind]), ...songFolders, ...sources.folders], move, "folder"),
   ]);
 
@@ -152,6 +158,8 @@ export async function followMove(
   }
   const songView = settings.get("songs.activeView");
   if (moved(songView) !== songView) changed["songs.activeView"] = moved(songView);
+  const logoAfter = logo ? files.get(logo)?.after : undefined;
+  if (logoAfter) changed["logo.path"] = logoAfter;
   if (Object.keys(changed).length > 0) settings.setMany(changed);
 
   return { fixed: new Set([...files.keys(), ...folders.keys()]), kinds };

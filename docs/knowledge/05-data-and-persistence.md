@@ -389,7 +389,8 @@ their common trailing folder names dropped (`moveBetween`: `D:\Iglesia\Videos` â
 part is then tried under the new one: library rows (any `in_library`, merged by `relocate` when the new path is a row
 already), a deck's operator-chosen soundtrack (the automatic one re-resolves itself), Media's and Songs' linked folders
 and the views open on them, folder songs (`source_folder`, so their ids and the programs singing them stay) and library
-songs tied to a file. A path changes **only when its old place is gone and its twin is there**, so nothing that still
+songs tied to a file, and the LOGO's picture (`logo.path`, since 2026-11-15, audit D5; a deck's own source moves with
+its library row, `relocate`, since the same day, audit D1). A path changes **only when its old place is gone and its twin is there**, so nothing that still
 works is touched and nothing points at a file that does not exist. Paths are split on either separator, so a Windows
 profile opened on a Mac or Linux follows too. The stats are asynchronous and in chunks (a gone drive answers slowly);
 the rows move in one transaction (`relocateMany`). Song rows move before the settings: `song:list` lets go of the songs
