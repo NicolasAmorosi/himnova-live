@@ -227,6 +227,41 @@ test("an engine that dies is reported and left to the operator", async ({ app })
   await expect.poll(() => moving(projector, "video:")).toBe(true);
 });
 
+test("closing the control window on the Mac stops PREVIEW's engine, and the Dock's window starts from nothing", async ({ app }) => {
+  test.skip(process.platform !== "darwin", "only macOS keeps the app running with no window");
+  const engines = () => {
+    try {
+      return execFileSync("pgrep", ["-P", String(app.mainPid), "-f", "media-engine"], { encoding: "utf8" }).trim().split("\n").length;
+    } catch {
+      return 0;
+    }
+  };
+  const [avi] = await app.addMedia("video", "long-xvid.avi");
+  if (!avi) throw new Error("import failed");
+  await waitEngine(app, avi);
+  const idle = engines();
+  await app.previewFile("Videos", "long-xvid");
+  await expect.poll(async () => (await engineCanvas(app.control, "preview:"))?.width ?? 0).toBe(1920);
+  await app.previewColumn().getByRole("button", { name: "Reproducir" }).click();
+  // PREVIEW's engine, and the spare started behind it.
+  await expect.poll(engines).toBe(idle + 1);
+
+  // The red button: nothing to ask (nothing on air), so the window closes and macOS keeps the app.
+  await app.electron.evaluate(({ BrowserWindow }) =>
+    BrowserWindow.getAllWindows()
+      .find((win) => win.webContents.getURL().endsWith("/index.html"))
+      ?.close(),
+  );
+  // It played on with no window to the file's end, heard by nobody who could stop it (2026-11-15 audit, A20).
+  await expect.poll(engines, { timeout: 10_000 }).toBe(idle);
+
+  await app.electron.evaluate(({ app: electronApp }) => electronApp.emit("activate"));
+  const control = await app.electron.waitForEvent("window", { predicate: (page) => page.url().endsWith("/index.html") });
+  await expect(control.getByRole("button", { name: "EN VIVO", exact: true })).toBeVisible();
+  await control.waitForTimeout(1000);
+  expect(engines()).toBe(idle);
+});
+
 test("a video whose picture the engine can't decode is reported, not left playing sound over black", async ({ app }) => {
   // 2026-11-10 review, agent1-06: its sound played, the projector stayed black, nobody was told.
   const [avi] = await app.addMedia("video", "no-picture.avi");

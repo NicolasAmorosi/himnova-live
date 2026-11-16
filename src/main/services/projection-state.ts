@@ -100,6 +100,13 @@ class ProjectionState {
     this.lastMediaStatus.set(status.target.kind, status);
   }
 
+  /** The control window that sent them is gone: a projector opened from the next one starts from nothing. */
+  forget(): void {
+    this.lastOutput = null;
+    this.lastAudioTracks = [];
+    this.lastMediaStatus.clear();
+  }
+
   getSnapshot(): { output: ProjectionOutput | null; audioTracks: AudioTrackPush[]; mediaStatus: MediaStatus[] } {
     return { output: this.lastOutput, audioTracks: this.lastAudioTracks, mediaStatus: [...this.lastMediaStatus.values()] };
   }

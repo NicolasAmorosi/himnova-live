@@ -332,6 +332,13 @@ function releaseHold(session: Session): void {
   if (session.paused) session.engine?.redraw();
 }
 
+/** The control window closed (macOS keeps the app): nothing of PREVIEW's plays on with no window to show it. */
+export function stopPreviewEngine(): void {
+  previewAsked = null;
+  preview?.engine?.quit();
+  preview = null;
+}
+
 export function setPreviewVideo(video: PreviewEngineVideo | null, contents: WebContents): void {
   previewAsked = video ? { video, contents } : null;
   if (preview && preview.url !== video?.url) {

@@ -66,6 +66,7 @@ import { backfillContentHashes } from "./media/content-hash";
 import { initEngineAssets, shutdownEngineAssets } from "./media/engine-assets";
 import { engineAvailable, killAllEngines, startEngines } from "./media/media-engine";
 import { stopDeckClips } from "./media/deck-clips";
+import { stopPreviewEngine, syncLiveEngine } from "./media/engine-sessions";
 import { appendLogLine, installMainLog } from "./logging";
 import { initUpdates } from "./updates/updater";
 import { retireFormerMacApp } from "./updates/former-mac-app";
@@ -208,6 +209,11 @@ function wireMinimizeRestoreSync(controlWindow: BrowserWindow): void {
     projectionState.getWindow()?.close();
     closeStageWindow();
     stopNdiOutput();
+    // macOS keeps the app with no window: PREVIEW's engine sounded on to the file's end, and the live tracks kept
+    // were what a projector opened from the next window played again (2026-11-15 audit, A20).
+    stopPreviewEngine();
+    projectionState.forget();
+    syncLiveEngine();
   });
 }
 
