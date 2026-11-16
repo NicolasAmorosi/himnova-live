@@ -19,6 +19,9 @@ const FIT_TOLERANCE_PX = 1;
 
 const MAX_CACHED = 500;
 
+/** How long the typing (or a colour drag) pauses before an editor measures its song again. */
+const EDIT_SETTLE_MS = 150;
+
 /**
  * The proportion a song is measured at: the projector's, unless the 16:9
  * monitors are SHORTER than it — then theirs, so a slide that fits the
@@ -192,4 +195,25 @@ export function useSongFit(song: ResolvedSong | null, theme: SongTheme | null): 
   }, [aspect, key, song, theme]);
 
   return cached ?? (measured?.key === key ? measured.fit : null);
+}
+
+/**
+ * `useSongFit` for the song and theme editors: measured once the typing or the colour drag pauses
+ * `EDIT_SETTLE_MS`, the last size kept meanwhile. Measured on every event, each key laid the whole song out off
+ * screen on the control window (24 slides: every key over 16 ms, p50 32), the cache kept a key the size of the song
+ * per key, and the `null` while measuring took the editor's preview down (2026-11-15 audit, R11). What goes on air is
+ * measured apart, when the song is shown (`actions/songs.ts`).
+ */
+export function useSettledSongFit(song: ResolvedSong, theme: SongTheme): SongFit | null {
+  const [settled, setSettled] = useState({ song, theme });
+  useEffect(() => {
+    if (settled.song === song && settled.theme === theme) return;
+    const timer = setTimeout(() => setSettled({ song, theme }), EDIT_SETTLE_MS);
+    return () => clearTimeout(timer);
+  }, [settled, song, theme]);
+  const fit = useSongFit(settled.song, settled.theme);
+  // The last size, kept while the next is measured (React's "information from previous renders").
+  const [last, setLast] = useState<SongFit | null>(fit);
+  if (fit !== null && fit !== last) setLast(fit);
+  return fit ?? last;
 }

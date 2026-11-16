@@ -27,7 +27,7 @@ import { api } from "@renderer/lib/api";
 import { toast } from "@renderer/lib/toast";
 import { transitionDurationOptions } from "@renderer/lib/transition";
 import { copyName } from "@renderer/lib/named-list";
-import { useSongFit } from "@renderer/lib/song-fit";
+import { useSettledSongFit } from "@renderer/lib/song-fit";
 import { footerAt, slideLines, slideTranslation, songOutputFor } from "@renderer/lib/song-output";
 import { deleteSongTheme, saveSongTheme } from "@renderer/lib/actions/songs";
 import { findSong, resolveSong, useSongStore } from "@renderer/stores/song.store";
@@ -195,7 +195,7 @@ export function SongThemesModal({ onOpenChange, open }: { onOpenChange: (open: b
       ? resolveSong(SAMPLE, style, license)
       : resolved;
   }, [previewed, style, license, sample]);
-  const fit = useSongFit(preview, style);
+  const fit = useSettledSongFit(preview, style);
   // «Con traducción» on the first slide that HAS one: a song's translation may start later.
   const position =
     sample === "last"

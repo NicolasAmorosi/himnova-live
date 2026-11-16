@@ -20,7 +20,7 @@ import {
   type MenuOption,
 } from "@renderer/components/ui";
 import { toast } from "@renderer/lib/toast";
-import { useSongFit } from "@renderer/lib/song-fit";
+import { useSettledSongFit } from "@renderer/lib/song-fit";
 import { footerAt, slideLines, slideTranslation, songOutputFor } from "@renderer/lib/song-output";
 import { duplicateSong, saveSong, songDeleteTarget, type SongDeleteTarget } from "@renderer/lib/actions/songs";
 import { findSong, resolveSong, themeForSong, useSongStore } from "@renderer/stores/song.store";
@@ -136,8 +136,8 @@ export function SongEditorModal({ onOpenChange, onSaved, open, songId }: SongEdi
     () => ({ ...toSongUpsert(draft, parsed, null), id: currentId ?? 0, updatedAt: 0, sourceFolder: null, file: null }),
     [currentId, draft, parsed],
   );
-  const preview = resolveSong(draftSong, theme, license);
-  const fit = useSongFit(preview, theme);
+  const preview = useMemo(() => resolveSong(draftSong, theme, license), [draftSong, theme, license]);
+  const fit = useSettledSongFit(preview, theme);
 
   const upsert = toSongUpsert(draft, parsed, null);
   const dirty = JSON.stringify(upsert) !== JSON.stringify(toSongUpsert(baseline, baselineParsed, null));
@@ -420,6 +420,7 @@ export function SongEditorModal({ onOpenChange, onSaved, open, songId }: SongEdi
                 onSelect={selectSlide}
                 scrollToIndex={slideIndex}
                 selectedIndex={slideIndex}
+                fit={fit}
                 song={preview}
                 theme={theme}
               />
