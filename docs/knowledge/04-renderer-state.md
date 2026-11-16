@@ -189,7 +189,9 @@ A deck's own soundtrack and sounds are never touched by it.
 mirrored into `projection.store` (`liveMasterVolume`) by `App.tsx` like the transition. `selectOutput` multiplies it into
 the video's and the slide clip's `volume` (`busVolume`, `shared/types/audio.ts`) and `toAudioTrackPush` into every audio
 track's, re-pushed when it moves: the projector and the media engine get the level they play at as state, and the
-stores keep each item's own level.
+stores keep each item's own level. Turning the strips on folds a «Volumen inicial» under 100 % into the master
+(`setAudioStrips`, owner 2026-11-15, audit U5): the master takes it and the start goes back to 1, so the room keeps
+its level and the strip shows it instead of a ceiling it hides.
 
 A video's end is the operator's choice since 2026-11-05 (`projection.videoEnd`, Settings ▸ Projection,
 mirrored into `projection.store` by `App.tsx` like the transition): «logo» clears as above, «black» clears
