@@ -273,7 +273,7 @@ test("each strip's output menu lists this computer's outputs and keeps the one c
   const menu = app.control.getByRole("menu", { name: "Salida de PREVIEW" });
   const options = menu.getByRole("menuitemradio");
   // Named by the device behind it when Chromium says which (2026-11-15 audit, U15).
-  await expect(options.first()).toHaveText(/^Predeterminada del sistema( \(.+\))?$/);
+  await expect(options.first()).toHaveText(/^(Predeterminada del sistema|Del sistema: .+)$/);
   await expect(options.first()).toHaveAttribute("aria-checked", "true");
   // Chromium lists the outputs a moment after launch (the first time, Core Audio takes a second).
   const listed = await expect
@@ -295,5 +295,5 @@ test("each strip's output menu lists this computer's outputs and keeps the one c
   const settings = app.control.getByRole("dialog", { name: "Configuración" });
   await settings.getByRole("tab", { name: "Sonido" }).click();
   await expect(settings.getByRole("combobox", { name: "Salida de PREVIEW" })).toHaveText(names[1]!);
-  await expect(settings.getByRole("combobox", { name: "Salida de EN VIVO" })).toHaveText(/^Predeterminada del sistema/);
+  await expect(settings.getByRole("combobox", { name: "Salida de EN VIVO" })).toHaveText(/^(Predeterminada del|Del) sistema/);
 });

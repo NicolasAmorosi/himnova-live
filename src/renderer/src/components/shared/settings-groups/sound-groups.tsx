@@ -49,7 +49,13 @@ function OutputRow({ bus, outputs }: { bus: AudioBus; outputs: AudioOutputs }) {
       description={t(bus === "live" ? "settings.sound.liveOutputDesc" : "settings.sound.previewOutputDesc")}
       label={t(bus === "live" ? "audio.liveOutput" : "audio.previewOutput")}
     >
-      <Select onChange={picker.choose} options={picker.options} value={picker.value} />
+      {/* The whole name on hover: a device's own name can be wider than the field (a MacBook's, at 1000 px). */}
+      <Select
+        onChange={picker.choose}
+        options={picker.options}
+        title={picker.options.find((option) => option.value === picker.value)?.label}
+        value={picker.value}
+      />
     </FieldRow>
   );
 }
