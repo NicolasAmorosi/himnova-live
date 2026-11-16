@@ -841,7 +841,9 @@ test("opening a copy of the deck on air, read again, leaves its music playing", 
   const [original, other, copy] = ["Himno con musica.pptx", "Otro himno.pptx", "Copia del himno.pptx"].map((name) => path.join(app.profile, name));
   fs.writeFileSync(original!, hymn("Estrofa"));
   fs.writeFileSync(other!, hymn("Verso"));
-  fs.writeFileSync(copy!, hymn("Estrofa"));
+  // Copied, not built again: a build a zip timestamp tick later is other bytes, another deck, and a test that passes
+  // without testing anything.
+  fs.copyFileSync(original!, copy!);
   await app.invoke<MediaAsset[]>("library:add", { kind: "ppt", paths: [original, other] });
 
   await app.previewFile("Presentaciones", "Himno con musica");
