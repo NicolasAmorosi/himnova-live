@@ -101,6 +101,33 @@ describe("audio tracks", () => {
   });
 });
 
+describe("the live slide's video (2026-11-15 audit, P3)", () => {
+  // A modern deck's MP4 plays through Chromium in the slide: moving or reopening the projector mid-clip mounts it
+  // again at `slideVideoStartAt`.
+  function deckLive(): number {
+    useProjectionStore.getState().setBase({ kind: "deck", assetId: 7, slideIndex: 2 });
+    return useProjectionStore.getState().slideVideoEpoch;
+  }
+
+  test("its resume point becomes where it actually is", () => {
+    const epoch = deckLive();
+    useProjectionStore.getState().setMediaStatus(status({ kind: "slideVideo" }, epoch, 42.5));
+
+    freezeLivePositions();
+
+    expect(useProjectionStore.getState().slideVideoStartAt).toBe(42.5);
+  });
+
+  test("a report from the slide before is ignored", () => {
+    const epoch = deckLive();
+    useProjectionStore.getState().setMediaStatus(status({ kind: "slideVideo" }, epoch - 1, 900));
+
+    freezeLivePositions();
+
+    expect(useProjectionStore.getState().slideVideoStartAt).toBe(0);
+  });
+});
+
 describe("the live video", () => {
   test("its resume point becomes where it actually is, without a remount", () => {
     useProjectionStore.getState().setBase({ kind: "video", assetId: 5, url: assetUrl(5), epoch: 2, startAtSeconds: 0 });
