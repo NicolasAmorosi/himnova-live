@@ -218,3 +218,60 @@ test("with a full-screen editor open, no key drives the projector — typed in i
   await untouched();
   await expect(themes).toBeVisible();
 });
+
+/** The control window's page, read from main: after a crash Playwright's own handle on it is gone. A script sent
+ *  while the page is dying never answers, so each try gives up after a second. */
+const controlPage = (app: WorshipApp, script: string) =>
+  app.electron.evaluate(({ BrowserWindow }, script) => {
+    const control = BrowserWindow.getAllWindows().find((win) => win.webContents.getURL().endsWith("/index.html"));
+    if (!control || control.webContents.isCrashed() || control.webContents.isLoading()) return null;
+    return Promise.race([
+      control.webContents.executeJavaScript(script) as Promise<unknown>,
+      new Promise((resolve) => setTimeout(() => resolve(null), 1000)),
+    ]);
+  }, script);
+
+async function videoLive(app: WorshipApp) {
+  await app.addMedia("video", "clip.mp4");
+  await app.previewFile("Videos", "clip");
+  await app.goLive();
+  const projector = await app.projector();
+  await expect.poll(async () => (await videoStates(projector))[0]?.currentTime ?? 0).toBeGreaterThan(1);
+  return projector;
+}
+
+/** The room's video keeps moving, uncovered. */
+async function stillPlaying(projector: Awaited<ReturnType<WorshipApp["projector"]>>) {
+  const at = (await videoStates(projector))[0]?.currentTime ?? 0;
+  await expect.poll(async () => (await videoStates(projector))[0]?.currentTime ?? 0).toBeGreaterThan(at + 0.5);
+  expect((await videoStates(projector))[0]).toMatchObject({ paused: false, opacity: 1 });
+}
+
+test("a control window reloaded mid video leaves the projector playing it, and open, until the operator acts", async ({
+  app,
+}) => {
+  const projector = await videoLive(app);
+  await app.control.reload();
+  await expect(app.control.getByRole("button", { name: "EN VIVO", exact: true })).toBeVisible();
+  await app.control.waitForTimeout(1500); // the reloaded page's startup: settings mirrored, stores loaded
+  // Its first, empty output blanked the room, and the header offered to open a projector that was open (A30).
+  await stillPlaying(projector);
+  await expect(app.liveColumn().getByText("Sin pantalla")).toHaveCount(0);
+  // The operator's first action reaches the room.
+  await app.control.locator("body").press("b");
+  await expect.poll(async () => (await videoStates(projector))[0]?.opacity ?? 0).toBe(0);
+});
+
+test("a control window whose renderer dies is reloaded by itself, and the projector goes on", async ({ app }) => {
+  app.crashLogExpected = true;
+  const projector = await videoLive(app);
+  await app.electron.evaluate(({ BrowserWindow }) =>
+    BrowserWindow.getAllWindows()
+      .find((win) => win.webContents.getURL().endsWith("/index.html"))
+      ?.webContents.forcefullyCrashRenderer(),
+  );
+  // Before, the control stayed dead: the app could only be quit, and the projector with it (2026-11-15 audit, A30).
+  await expect.poll(() => controlPage(app, 'document.body.innerText.includes("EN VIVO")'), { timeout: 15_000 }).toBe(true);
+  await stillPlaying(projector);
+  expect(await controlPage(app, 'document.body.innerText.includes("Sin pantalla")')).toBe(false);
+});

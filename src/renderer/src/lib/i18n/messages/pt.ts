@@ -819,6 +819,7 @@ const pt: Messages = {
   projector: {
     closedUnexpectedly: "A janela de projeção foi fechada",
     recovered: "A janela de projeção travou e reabriu sozinha",
+    controlRecovered: "A janela de controle se recuperou sozinha. O que está no ar continua igual até a sua próxima ação.",
     screenLost:
       "A tela do projetor foi desconectada. O que está ao vivo continua rodando, com som, e volta a aparecer assim que a tela se reconectar.",
     screenBack: "A tela do projetor voltou",

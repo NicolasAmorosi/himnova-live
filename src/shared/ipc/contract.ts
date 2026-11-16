@@ -77,6 +77,9 @@ export type IpcContract = {
    *  has already told the control, which must not then mark the projector open. */
   "projection:open": { req: { displayId: number }; res: boolean };
   "projection:close": { req: void; res: void };
+  /** Whether a projector window exists: a control window that reloaded asks it before pushing anything, since the
+   *  projector, its sound and main's snapshot went on without it. */
+  "projection:isOpen": { req: void; res: boolean };
   /** Whether the projector opens by itself (at launch, and when its screen appears): `false` only under the E2E
    *  suite's `--no-auto-projector`, written against a closed projector. */
   "projection:autoOpen": { req: void; res: boolean };

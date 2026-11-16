@@ -95,15 +95,22 @@ export function startProjectionEffects(): () => void {
   // `sceneEpoch`) correspond to exactly one push to the projection window.
   let pendingOutput: ProjectionOutput | null = null;
   let flushScheduled = false;
-  const unsubscribeOutput = useProjectionStore.subscribe(selectOutputMemo, (next) => {
+  // A control window that reloaded (its renderer died and main reloaded it) starts empty, while the projector, its
+  // sound and main's snapshot went on without it: its first output, built from nothing, blanked the room
+  // (2026-11-15 audit, A30). So nothing goes out until main says whether a projector is open, and with one open,
+  // until the operator acts (`releaseHold`).
+  let held = true;
+  let audioPending = false;
+  const scheduleOutput = (next: ProjectionOutput) => {
     pendingOutput = next;
     if (flushScheduled) return;
     flushScheduled = true;
     queueMicrotask(() => {
       flushScheduled = false;
-      if (pendingOutput) void api.projection.show(pendingOutput);
+      if (pendingOutput && !held) void api.projection.show(pendingOutput);
     });
-  });
+  };
+  const unsubscribeOutput = useProjectionStore.subscribe(selectOutputMemo, scheduleOutput);
 
   // Coalesced the same way as the output above, and for the same reason: going
   // live from BLACK from deck A to deck B is `setOverlay("none")` and then
@@ -115,6 +122,10 @@ export function startProjectionEffects(): () => void {
     audioFlushScheduled = true;
     queueMicrotask(() => {
       audioFlushScheduled = false;
+      if (held) {
+        audioPending = true;
+        return;
+      }
       const { overlay, liveMasterVolume } = useProjectionStore.getState();
       const covered = overlay !== "none";
       const loopStandalone = useSettingsStore.getState().settings["projection.audioEnd"] === "loop";
@@ -143,6 +154,42 @@ export function startProjectionEffects(): () => void {
   const unsubscribeAudioEnd = useSettingsStore.subscribe((state, previous) => {
     if (state.settings["projection.audioEnd"] !== previous.settings["projection.audioEnd"]) pushAudioTracks();
   });
+
+  // What only the operator changes: settings mirrored at startup (transitions, the verse's style, the levels) are not
+  // an action; a scene, a cover, a plate or a sound is. CLEAR on an empty store still begins a scene.
+  const operatorActs = [
+    useProjectionStore.subscribe((state) => state.sceneEpoch, () => releaseHold(true)),
+    useProjectionStore.subscribe((state) => state.base, () => releaseHold(true)),
+    useProjectionStore.subscribe((state) => state.overlay, () => releaseHold(true)),
+    useProjectionStore.subscribe((state) => state.livePlates, () => releaseHold(true)),
+    useAudioStore.subscribe((state) => state.tracks, () => releaseHold(true)),
+  ];
+  /** Ends the hold: `everything` pushes what this window has now (the operator acted, so it is what the room must
+   *  see); otherwise only what changed meanwhile goes out, as it would have without the hold. */
+  function releaseHold(everything: boolean): void {
+    if (!held) return;
+    held = false;
+    for (const stop of operatorActs) stop();
+    if (everything) scheduleOutput(selectOutputMemo(useProjectionStore.getState()));
+    else if (pendingOutput) scheduleOutput(pendingOutput);
+    if (everything || audioPending) pushAudioTracks();
+  }
+  let stopped = false;
+  api.projection.isOpen().then(
+    (open) => {
+      if (stopped) return;
+      if (!open) {
+        releaseHold(false);
+        return;
+      }
+      // Open with this window just started: it reloaded. Said, and the header knows the projector is there.
+      useProjectionStore.getState().setPresentationOpen(true);
+      toast.warning(t("projector.controlRecovered"));
+    },
+    () => {
+      if (!stopped) releaseHold(false);
+    },
+  );
 
   // The projector went away without this window asking (Cmd+W on it, a crash).
   // Nothing else can tell: `presentationOpen` is otherwise only ever written by
@@ -270,6 +317,8 @@ export function startProjectionEffects(): () => void {
   const stopPlateAutoHide = startPlateAutoHide();
 
   return () => {
+    stopped = true;
+    for (const stop of operatorActs) stop();
     unsubscribeOutput();
     unsubscribeAudioTracks();
     unsubscribeOverlayForAudio();

@@ -3,8 +3,12 @@ import path from "node:path";
 import { trustWindow } from "../ipc/trusted-senders";
 import { broadcast, controlWindows, registerBroadcastTarget } from "../services/broadcast";
 import { syncStageWindow } from "./stage-window";
+import { crashLimit } from "./crash-limit";
 
 const PRELOAD = path.join(__dirname, "../preload/index.js");
+
+/** Whether a control window that just died may be reloaded on its own (`crash-limit.ts`). */
+const controlCrashed = crashLimit();
 
 export function createControlWindow(): BrowserWindow {
   const { width, height } = screen.getPrimaryDisplay().workAreaSize;
@@ -43,6 +47,12 @@ export function createControlWindow(): BrowserWindow {
   }
 
   win.once("ready-to-show", () => win.show());
+  // A dead page left the operator without controls for the rest of the service: only quitting, which took the
+  // projector with it (2026-11-15 audit, A30). Reloaded, it holds its pushes until the operator acts
+  // (`projection-sync.ts`), so what the room sees and hears goes on. Past the cap it stays down, as before.
+  win.webContents.on("render-process-gone", () => {
+    if (!win.isDestroyed() && controlCrashed()) win.webContents.reload();
+  });
   // The operator's screen is where this window is (`operatorDisplay`): dragged to another one,
   // Settings' list of screens and the stage window follow.
   let lastDisplayId = screen.getDisplayMatching(win.getBounds()).id;

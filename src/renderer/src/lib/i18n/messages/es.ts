@@ -821,6 +821,7 @@ const es = {
   projector: {
     closedUnexpectedly: "Se cerró la ventana de proyección",
     recovered: "La ventana de proyección se cayó y se volvió a abrir sola",
+    controlRecovered: "La ventana de control se recuperó sola. Lo que está al aire sigue igual hasta tu próxima acción.",
     screenLost:
       "Se desconectó la pantalla del proyector. Lo que está en vivo sigue corriendo, con su sonido, y vuelve a verse en cuanto la pantalla se conecte.",
     screenBack: "Volvió la pantalla del proyector",
