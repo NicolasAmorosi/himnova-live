@@ -31,7 +31,9 @@ function stripDevCsp(): Plugin {
 
 export default defineConfig({
   main: {
-    plugins: [externalizeDepsPlugin()],
+    // `drizzle-orm` bundled: external, Node resolved each of its internal files as ESM against a 177 KB
+    // `package.json` with 443 `exports`, ~100 to 180 ms of main before the first window (2026-11-15 audit, R6).
+    plugins: [externalizeDepsPlugin({ exclude: ["drizzle-orm"] })],
     resolve: {
       alias: {
         "@shared": resolve("src/shared"),
