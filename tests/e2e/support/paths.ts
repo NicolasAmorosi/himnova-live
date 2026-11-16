@@ -13,6 +13,15 @@ export function fixture(name: string): string {
   return path.join(FIXTURES_DIR, name);
 }
 
+/** The media engine this run plays with: the package's (`WORSHIP_E2E_EXECUTABLE`) or this checkout's. */
+export function engineBinary(): string {
+  const exe = process.platform === "win32" ? ".exe" : "";
+  const packaged = process.env["WORSHIP_E2E_EXECUTABLE"];
+  if (!packaged) return path.join(ROOT, "resources/engine", `${process.platform}-${process.arch}`, `media-engine${exe}`);
+  const resources = process.platform === "darwin" ? path.resolve(path.dirname(packaged), "../Resources") : path.join(path.dirname(packaged), "resources");
+  return path.join(resources, "engine", `media-engine${exe}`);
+}
+
 export function ffmpegBinary(): string {
   const exe = process.platform === "win32" ? "ffmpeg.exe" : "ffmpeg";
   return path.join(ROOT, "resources/ffmpeg", `${process.platform}-${process.arch}`, exe);

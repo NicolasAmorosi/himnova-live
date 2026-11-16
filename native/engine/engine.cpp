@@ -557,6 +557,11 @@ int main(int argc, char** argv) {
   const char* opts[][2] = {{"vo", "libmpv"}, {"hwdec", hwdec.c_str()}, {"keep-open", "yes"}, {"idle", "yes"},
                            {"terminal", "no"}, {"config", "no"}, {"input-default-bindings", "no"}, {"osc", "no"},
                            {"load-scripts", "no"}, {"sub-auto", "no"}, {"audio-display", "no"},
+                           // The file itself and nothing it points at: a playlist, an HLS list or an EDL named like a
+                           // video (`himno.avi` holding `#EXTM3U`) made mpv project another local file and then fetch a
+                           // URL; an archive or a .mov's references the same. `load-unsafe-playlists=no`, already the
+                           // default, did not stop it (2026-11-15 audit, S1; main refuses such text before, too).
+                           {"access-references", "no"},
                            // An interlaced file (a DVD, a camcorder's 1080i) is shown deinterlaced, as the
                            // conversion before 2.2.0 did with bwdif; a progressive one costs nothing. mpv
                            // 0.41 defaults to `no`: every moving edge was combed (2026-11-10 review,

@@ -1,8 +1,11 @@
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import fs from "node:fs";
+import http from "node:http";
+import type { AddressInfo } from "node:net";
 import path from "node:path";
+import readline from "node:readline";
 import type { MediaAsset } from "../../src/shared/types/media";
-import { fixture } from "./support/paths";
+import { engineBinary, fixture } from "./support/paths";
 import { audioStates, engineCanvas, expect, moving, relaunch, test, videoStates, type WorshipApp } from "./support/app";
 
 /**
@@ -460,4 +463,63 @@ test.describe("on Windows, with Chromium on WARP", () => {
     // From main.log, not the app's stdout: the spare can say it before the test listens.
     expect(fs.readFileSync(path.join(app.profile, "main.log"), "utf8")).toContain("[engine] gpu: D3D11 Microsoft Basic Render Driver (match)");
   });
+});
+
+type EngineEvent = { ev: string; code?: string; slot?: number };
+
+/** The engine on its own, as main drives it (no app: main's own guard refuses such text first): one file loaded,
+ *  playing and muted, and every event it says within `ms`. */
+async function engineEvents(file: string, ms: number): Promise<EngineEvent[]> {
+  const child = spawn(engineBinary(), ["--max-width", "1920", "--max-height", "1080"], { stdio: ["pipe", "pipe", "ignore"] });
+  const events: EngineEvent[] = [];
+  readline.createInterface({ input: child.stdout }).on("line", (line) => {
+    if (!line.startsWith("{")) return;
+    const event = JSON.parse(line) as EngineEvent;
+    if (event.ev === "frame") child.stdin.write(`release ${event.slot}\n`);
+    events.push(event);
+  });
+  const exited = new Promise((resolve) => child.once("exit", resolve));
+  child.stdin.write(`load 0 0 0 0 0 ${file}\n`);
+  await new Promise((resolve) => setTimeout(resolve, ms));
+  child.stdin.write("quit\n");
+  if (!(await Promise.race([exited.then(() => true), new Promise((resolve) => setTimeout(() => resolve(false), 3000))]))) child.kill();
+  return events;
+}
+
+// mpv recognises a playlist, an HLS list or an EDL by its content, whatever its name: `himno.avi` holding `#EXTM3U`
+// projected another local file and then fetched a URL (on Windows and Linux, a GET to someone else's server). The
+// engine opens the file itself and nothing it points at (2026-11-15 audit, S1, the native half).
+test("the engine plays a file, never what a playlist, an HLS list or an EDL named like a video points at", async () => {
+  test.setTimeout(60_000);
+  expect(fs.existsSync(engineBinary()), `no media engine at ${engineBinary()}`).toBe(true);
+  const hits: string[] = [];
+  const server = http.createServer((request, response) => {
+    hits.push(request.url ?? "");
+    response.writeHead(404).end();
+  });
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  const other = fixture("ndi-av.mp4");
+  const decoys = {
+    "playlist.avi": `#EXTM3U\n${other}\n${url}/beacon.mp4\n`,
+    "url.avi": `#EXTM3U\n${url}/beacon.mp4\n`,
+    "hls.avi": `#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:10\n#EXTINF:10.0,\n${url}/seg0.ts\n#EXT-X-ENDLIST\n`,
+    "edl.wmv": `# mpv EDL v0\n${other},0,2\n`,
+  };
+  try {
+    for (const [name, content] of Object.entries(decoys)) {
+      const file = test.info().outputPath(name);
+      fs.writeFileSync(file, content);
+      const events = await engineEvents(file, 2500);
+      const said = events.map((e) => e.code ?? e.ev);
+      expect(said, `${name}: the engine started`).toContain("ready");
+      expect(said, `${name}: nothing loaded`).not.toContain("loaded");
+      expect(said, `${name}: refused as a file that does not open`).toContain("engine-open");
+    }
+    // The same driver does see a real file load: the refusals above are the engine's, not a silent driver.
+    expect((await engineEvents(other, 1500)).map((e) => e.ev)).toContain("loaded");
+    expect(hits, "no URL fetched").toEqual([]);
+  } finally {
+    server.close();
+  }
 });
