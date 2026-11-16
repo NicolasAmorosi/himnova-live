@@ -131,16 +131,22 @@ async function fetchTarget(kind: string, builds: Record<string, Archive[]>, requ
   }
 
   const outDir = path.resolve("resources", kind, target);
-  if (fs.existsSync(path.join(outDir, ".local"))) {
-    if (RELEASE) {
-      const differs = await differsFromPinned(archives, outDir);
-      if (differs.length > 0 && process.env["ALLOW_LOCAL_ENGINE"] !== "1")
-        throw new Error(
-          `[${kind}] ${target}: the local build is not the pinned one (${differs.join(", ")}). Publish it and pin it, ` +
-            `delete the folder to package the pinned one, or ALLOW_LOCAL_ENGINE=1 to package it anyway.`,
-        );
-      if (differs.length > 0) console.warn(`[${kind}] ${target}: local build NOT the pinned one, packaged anyway`);
-    }
+  const local = fs.existsSync(path.join(outDir, ".local"));
+  const differs = local && RELEASE ? await differsFromPinned(archives, outDir) : [];
+  if (local && RELEASE && differs.length > 0 && process.env["ALLOW_LOCAL_ENGINE"] !== "1")
+    throw new Error(
+      `[${kind}] ${target}: the local build is not the pinned one (${differs.join(", ")}). Publish it and pin it, ` +
+        `delete the folder to package the pinned one, or ALLOW_LOCAL_ENGINE=1 to package it anyway.`,
+    );
+  if (local && RELEASE && differs.length === 0) {
+    // The same bytes: the published files replace it, so the package has exactly them and their NOTICE.txt, never a
+    // file the local build left beside them (review of X23).
+    console.log(`[${kind}] ${target}: local build is the pinned one, replaced by the published files`);
+    fs.rmSync(outDir, { recursive: true, force: true });
+  } else if (local) {
+    if (differs.length > 0) console.warn(`[${kind}] ${target}: local build NOT the pinned one, packaged anyway`);
+    // What the licenses ask of a binary that ships, which only a download wrote.
+    fs.copyFileSync(path.resolve("resources", `${kind}-NOTICE.txt`), path.join(outDir, "NOTICE.txt"));
     console.log(`[${kind}] ${target}: local build (native/build.sh) kept`);
     return;
   }
