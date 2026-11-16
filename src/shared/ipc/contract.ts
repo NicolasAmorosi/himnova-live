@@ -6,6 +6,7 @@ import type {
   ImportProgress,
   MediaAsset,
   MediaAssetUsages,
+  MergedAsset,
 } from "../types/media";
 import type {
   BibleBookDTO,
@@ -255,13 +256,14 @@ export type IpcContract = {
    *  delete never takes away something they were not told about. */
   "library:usages": { req: { id: number }; res: MediaAssetUsages };
   /** Points a missing row at the file the operator picks, keeping its id;
-   *  `more` = what else the same move fixed (`services/relocate-move.ts`).
+   *  `more` = what else the same move fixed (`services/relocate-move.ts`);
+   *  `merged` = the rows it folded into their twins, gone now (the renderer moves its references).
    *  `null` = the dialog was closed. */
-  "library:relocate": { req: { id: number }; res: { asset: MediaAsset; more: number } | null };
+  "library:relocate": { req: { id: number }; res: { asset: MediaAsset; more: number; merged: MergedAsset[] } | null };
   /** A linked folder that is gone, found where the operator picks: it and
    *  everything else the same move left behind. `name` = the chosen folder's;
-   *  `more` = what else it fixed. `null` = the dialog was closed. */
-  "library:relocateFolder": { req: { path: string }; res: { name: string; more: number } | null };
+   *  `more` = what else it fixed; `merged` as above. `null` = the dialog was closed. */
+  "library:relocateFolder": { req: { path: string }; res: { name: string; more: number; merged: MergedAsset[] } | null };
   /** Manual override for a `ppt` asset's linked soundtrack — `path: null`
    *  clears it back to automatic resolution (`linked-audio.ts`). Never
    *  triggers a deck reconversion: the linked audio is served by reference,

@@ -20,6 +20,10 @@ export type MediaAsset = {
   updatedAt: number;
 };
 
+/** A row a relocate folded into its twin: `from` is gone, and everything that pointed at it points at `to`
+ *  (`MediaRepo.relocate`). */
+export type MergedAsset = { from: number; to: number };
+
 /** One saved program that still references an asset — surfaced to the
  *  operator when a delete is blocked, so they can see what would break. */
 export type MediaAssetUsage = {

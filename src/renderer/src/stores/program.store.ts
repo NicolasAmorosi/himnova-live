@@ -40,6 +40,8 @@ type ProgramStoreState = {
   addItem: (item: ProgramItemUpsert, insertAt?: number) => void;
   removeAt: (index: number) => void;
   removeByMediaAsset: (assetId: number) => void;
+  /** A relocate merged row `from` into its twin `to` (`MediaRepo.relocate`). */
+  remapMediaAsset: (from: number, to: number) => void;
   removeByUtilityScene: (sceneId: number) => void;
   removeByPlate: (plateId: number) => void;
   removeBySong: (songId: number) => void;
@@ -246,6 +248,21 @@ export const useProgramStore = create<ProgramStoreState>((set, get) => ({
         state,
         (item) => (item.kind === "media" || item.kind === "ppt") && item.mediaAssetId === assetId,
       ),
+    ),
+
+  // Rows stay where they are, so do both cursors: the on-air rail still names its row. `dirty` untouched: main
+  // moved the saved rows in the same merge, and the draft autosave writes the new id.
+  remapMediaAsset: (from, to) =>
+    set((state) =>
+      state.items.some((item) => (item.kind === "media" || item.kind === "ppt") && item.mediaAssetId === from)
+        ? {
+            items: state.items.map((item) =>
+              (item.kind === "media" || item.kind === "ppt") && item.mediaAssetId === from
+                ? { ...item, mediaAssetId: to }
+                : item,
+            ),
+          }
+        : state,
     ),
 
   /** The same thing for a time scene force-deleted from the «Scenes» editor.

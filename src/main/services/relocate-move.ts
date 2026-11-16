@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { ASSET_KINDS, type AssetKind } from "@shared/constants";
+import type { MergedAsset } from "@shared/types/media";
 import type { SettingsMap } from "@shared/types/settings";
 import type { MediaRepo } from "../db/repositories/media.repo";
 import type { SongsRepo } from "../db/repositories/songs.repo";
@@ -102,12 +103,13 @@ export type MoveRepos = { media: MediaRepo; songs: SongsRepo; settings: Settings
 /**
  * Applies `move` to everything it explains. `fixed` = the old paths that now
  * point at their new place (a file used twice, say as a library row and as a
- * deck's soundtrack, counts once); `kinds` = the library kinds that changed.
+ * deck's soundtrack, counts once); `kinds` = the library kinds that changed;
+ * `merged` = the rows folded into a twin (`MediaRepo.relocate`).
  */
 export async function followMove(
   move: PathMove,
   { media, songs, settings }: MoveRepos,
-): Promise<{ fixed: ReadonlySet<string>; kinds: ReadonlySet<AssetKind> }> {
+): Promise<{ fixed: ReadonlySet<string>; kinds: ReadonlySet<AssetKind>; merged: MergedAsset[] }> {
   const rows = media.pathRows();
   const sources = songs.sourcePaths();
   const mediaFolders = settings.get("library.linkedFolders");
@@ -125,7 +127,7 @@ export async function followMove(
     explained([...ASSET_KINDS.flatMap((kind) => mediaFolders[kind]), ...songFolders, ...sources.folders], move, "folder"),
   ]);
 
-  const kinds = media.relocateMany(
+  const { kinds, merged } = media.relocateMany(
     rows.flatMap((row) => {
       const found = files.get(row.path);
       return found ? [{ id: row.id, path: found.after, stat: found.stat }] : [];
@@ -162,5 +164,5 @@ export async function followMove(
   if (logoAfter) changed["logo.path"] = logoAfter;
   if (Object.keys(changed).length > 0) settings.setMany(changed);
 
-  return { fixed: new Set([...files.keys(), ...folders.keys()]), kinds };
+  return { fixed: new Set([...files.keys(), ...folders.keys()]), kinds, merged };
 }

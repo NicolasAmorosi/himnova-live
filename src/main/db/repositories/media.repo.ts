@@ -5,7 +5,7 @@ import Database from "better-sqlite3";
 import type { Db } from "../client";
 import { mediaAssets } from "../schema";
 import { LINKED_AUDIO_RESOLVER_VERSION, type AssetKind } from "@shared/constants";
-import type { MediaAsset } from "@shared/types/media";
+import type { MediaAsset, MergedAsset } from "@shared/types/media";
 import { resolveLinkedAudio } from "../../slides/linked-audio";
 import { IpcError } from "@shared/ipc/result";
 
@@ -568,13 +568,22 @@ export class MediaRepo {
    * image) are not rewritten. They are read through normalizers that already
    * tolerate an asset that is gone, and a linked-folder duplicate is not what
    * an operator picks as a background.
+   *
+   * The open order of service is not SQL either: `merged` names the duplicate, so the renderer moves its rows
+   * to this id too. Left on the deleted id they failed «Guardar» on its foreign key and were dropped from the
+   * draft at the next launch (2026-11-15 audit, D4).
    */
-  relocate(id: number, newPath: string, stat: fs.Stats = fs.statSync(newPath)): MediaAsset | null {
+  relocate(
+    id: number,
+    newPath: string,
+    stat: fs.Stats = fs.statSync(newPath),
+  ): { asset: MediaAsset; merged: MergedAsset | null } | null {
     const row = this.db.select().from(mediaAssets).where(eq(mediaAssets.id, id)).get();
     if (!row) return null;
     const mtimeMs = Math.trunc(stat.mtimeMs);
     const now = Date.now();
     const pathKey = toPathKey(newPath);
+    let merged: MergedAsset | null = null;
 
     const inLibrary = this.sqlite.transaction(() => {
       const duplicate = this.db.select().from(mediaAssets).where(eq(mediaAssets.pathKey, pathKey)).get();
@@ -594,6 +603,7 @@ export class MediaRepo {
         keepInLibrary = Math.max(row.inLibrary, duplicate.inLibrary);
         if (row.inLibrary === 0 && duplicate.inLibrary === 1) createdAt = duplicate.createdAt;
         this.db.delete(mediaAssets).where(eq(mediaAssets.id, duplicate.id)).run();
+        merged = { from: duplicate.id, to: id };
       }
       this.db
         .update(mediaAssets)
@@ -618,7 +628,7 @@ export class MediaRepo {
 
     // Same reason as `upsertFromPath`: the relocated file is a different set
     // of bytes as far as the thumbnail cache is concerned.
-    return toDTO({
+    const asset = toDTO({
       ...row,
       path: newPath,
       pathKey,
@@ -628,6 +638,7 @@ export class MediaRepo {
       missingSince: null,
       updatedAt: now,
     });
+    return { asset, merged };
   }
 
   /** Every row's file and its operator-chosen soundtrack: what a move of
@@ -647,15 +658,20 @@ export class MediaRepo {
   /** `relocate` for many rows at once, in ONE transaction (nested ones become
    *  savepoints): a whole moved drive is hundreds of rows, and one commit each
    *  held main, and with it the projector, for seconds. The stats were taken
-   *  already, asynchronously. Returns the kinds that changed. */
-  relocateMany(moves: readonly { id: number; path: string; stat: fs.Stats }[]): Set<AssetKind> {
+   *  already, asynchronously. Returns the kinds that changed and the rows merged away. */
+  relocateMany(moves: readonly { id: number; path: string; stat: fs.Stats }[]): {
+    kinds: Set<AssetKind>;
+    merged: MergedAsset[];
+  } {
     const kinds = new Set<AssetKind>();
+    const merged: MergedAsset[] = [];
     this.sqlite.transaction(() => {
       for (const move of moves) {
-        const asset = this.relocate(move.id, move.path, move.stat);
-        if (asset) kinds.add(asset.kind);
+        const relocated = this.relocate(move.id, move.path, move.stat);
+        if (relocated) kinds.add(relocated.asset.kind);
+        if (relocated?.merged) merged.push(relocated.merged);
       }
     })();
-    return kinds;
+    return { kinds, merged };
   }
 }

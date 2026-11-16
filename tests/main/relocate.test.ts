@@ -69,8 +69,11 @@ test("relocating onto a file the library already has merges the two rows", () =>
 
   const relocated = media.relocate(original.id, newPath);
 
-  expect(relocated).toMatchObject({ id: original.id, path: newPath, inLibrary: true, missingSince: null });
+  expect(relocated?.asset).toMatchObject({ id: original.id, path: newPath, inLibrary: true, missingSince: null });
   expect(media.getById(duplicate.id)).toBeNull();
+  // Named, so the renderer moves the open order of service off the deleted id too (audit D4): left on it, «Guardar»
+  // failed on its foreign key and the draft dropped those rows at the next launch.
+  expect(relocated?.merged).toEqual({ from: duplicate.id, to: original.id });
   expect(programs.load(program.id).items.map((item) => (item.kind === "media" ? item.mediaAssetId : null))).toEqual([
     original.id,
     original.id,
