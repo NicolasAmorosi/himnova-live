@@ -134,6 +134,10 @@ export function fromFile(row: Song, file: Omit<SongUpsert, "id">, format: SongFi
 }
 
 /** `songs` and `song_themes`. Knows nothing about what is live. */
+/** The most hits one search returns. It was 200, and «gloria», in 260 songs, showed 200 without a word of the rest
+ *  (2026-11-15 audit, U12): the owner chose a cap above any real library (2026-11-16). */
+const SONG_SEARCH_LIMIT = 1000;
+
 export class SongsRepo {
   constructor(
     private readonly db: Db,
@@ -253,7 +257,7 @@ export class SongsRepo {
    * characters `parseSnippet` reads — never markup; `null` when the lyrics
    * did not match at all.
    */
-  search(query: string, limit = 200, folder: string | null = null): SongSearchHit[] {
+  search(query: string, limit = SONG_SEARCH_LIMIT, folder: string | null = null): SongSearchHit[] {
     const ftsQuery = toFtsQuery(query);
     if (!ftsQuery) return [];
     // Inside what the tab shows (owner, 2026-11-05): the library, or one

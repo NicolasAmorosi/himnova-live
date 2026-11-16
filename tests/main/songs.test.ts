@@ -191,6 +191,17 @@ describe("the repo and its search", () => {
     expect(repo.search("corazon").length).toBe(1);
   });
 
+  test("a common word in the lyrics finds every song that has it, not the first 200", () => {
+    // «gloria» in 260 songs showed 200 and said nothing of the rest (2026-11-15 audit, U12); the owner chose a higher
+    // cap over a «200 of N» notice (2026-11-16).
+    const ids = Array.from({ length: 260 }, (_, i) => repo.create(song(`Himno ${i + 1}`, "[Coro]\nGloria al Rey")).id);
+    try {
+      expect(repo.search("gloria").length).toBe(260);
+    } finally {
+      for (const id of ids) repo.delete(id);
+    }
+  });
+
   test("a match in the title only has no lyrics fragment; an edit re-indexes", () => {
     const [hit] = repo.search("grande");
     expect(hit).toBeDefined();
