@@ -517,7 +517,8 @@ that changes with it, a field (the last length, minutes or a time of day to coun
 and ▶, which starts it at once, then the count, −1, +1 and Pause; the message is the ready phrases (one press shows
 one, another takes it off) and a field Enter sends; «Parpadear» (blink until taken off) is offered only while a
 message is showing, beside how long it has been there. Every row keeps its height, so the card never changes size.
-Taking either off the stage is its token in the head. Esc or a press anywhere else folds it, unless it is pinned (for the session). Its tooltips are
+Taking either off the stage is its token in the head. A press anywhere else folds it unless it is pinned (for the
+session); Esc inside it folds it pinned or not, on purpose (the 2.10.0 decision). Its tooltips are
 `floating`: in-flow bubbles widened the card's scroll area. Measured 2026-11-14: 629 px tall at 1366×768 and 561 at
 1000×700, no scroll.
 
