@@ -42,3 +42,10 @@ jobs:
       - run: npm run lint
       - run: npm test
       - run: npm run build
+      # The app opened once. A named import from a CommonJS package, or Electron without its binary, passes
+      # typecheck, lint, Vitest and the build, and the app dies at launch (2026-11-15 audit, P4). Linux only for now
+      # (Playwright adds --no-sandbox there); Windows and the Mac once it proves stable.
+      - if: runner.os == 'Linux'
+        run: xvfb-run -a npx playwright test tests/e2e/startup.spec.ts --reporter=line
+        env:
+          E2E_NO_FIXTURES: "1"
