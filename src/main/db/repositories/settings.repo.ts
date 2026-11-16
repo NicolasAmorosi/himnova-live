@@ -1,6 +1,12 @@
 import type { Db } from "../client";
 import { settings } from "../schema";
-import { DEFAULT_SETTINGS, SETTINGS_NORMALIZERS, type SettingsMap } from "@shared/types/settings";
+import { DEFAULT_SETTINGS, SETTINGS_NORMALIZERS, SETTINGS_VALIDATORS, type SettingsMap } from "@shared/types/settings";
+
+/** A key whose default is a single value (a string, a number, a boolean, or null), not a structure. */
+const isScalarKey = (key: keyof SettingsMap): boolean => {
+  const fallback = DEFAULT_SETTINGS[key];
+  return fallback === null || typeof fallback !== "object";
+};
 
 /**
  * Settings are read from a hot path, so they are held in memory.
@@ -28,13 +34,17 @@ export class SettingsRepo {
       if (row.key in result) {
         try {
           const parsed: unknown = JSON.parse(row.value);
+          const key = row.key as keyof SettingsMap;
           // A structured key gets read field by field rather than trusted
-          // whole — see `SETTINGS_NORMALIZERS`. A scalar key has no entry and
-          // lands exactly as it always did.
-          const normalize = SETTINGS_NORMALIZERS[row.key as keyof SettingsMap];
-          (result as Record<string, unknown>)[row.key] = normalize
-            ? (normalize as (value: unknown) => unknown)(parsed)
-            : parsed;
+          // whole (see `SETTINGS_NORMALIZERS`). A scalar key goes through its
+          // validator: a value another build wrote (`ui.locale: "fr"`) left a
+          // `Select` empty, or the UI in raw keys, and reads as the default
+          // (2026-11-15 audit, D13). A structure without a normalizer (a
+          // folder list) still lands as stored: all-or-nothing would drop the
+          // operator's own entries over one that is off.
+          const normalize = SETTINGS_NORMALIZERS[key];
+          if (normalize) (result as Record<string, unknown>)[key] = (normalize as (value: unknown) => unknown)(parsed);
+          else if (!isScalarKey(key) || SETTINGS_VALIDATORS[key](parsed)) (result as Record<string, unknown>)[key] = parsed;
         } catch {
           // A row that isn't valid JSON (a hand-edited DB) must not take the
           // whole settings map down with it — the default stands.
