@@ -45,6 +45,12 @@ export class SettingsRepo {
     return result;
   }
 
+  /** Drops what is cached: a transaction that wrote settings and then rolled back left them here for the whole
+   *  session, a theme id that no longer exists among them (2026-11-15 audit, D12). The next read reloads. */
+  forget(): void {
+    this.cache = null;
+  }
+
   /** A fresh copy every time: the two `Record`-valued keys would otherwise
    *  hand the cache's own objects to a caller that may mutate them. */
   getAll(): SettingsMap {

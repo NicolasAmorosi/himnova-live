@@ -68,6 +68,27 @@ function profile() {
   return { dir, seed, sqlite };
 }
 
+test("a starter look that fails half-way leaves no setting it wrote behind in the cache (audit D12)", () => {
+  // Rolled back in the database, the theme id it chose stayed in the settings cache for the whole session.
+  const { dir, sqlite } = profile();
+  const settings = getSettingsRepo();
+  const before = settings.get("songs.defaultThemeId");
+  const overlays = getOverlaysRepo();
+  const failing = Object.assign(Object.create(Object.getPrototypeOf(overlays) as object) as typeof overlays, overlays, {
+    create: () => {
+      throw new Error("disk full");
+    },
+  });
+  seedStarterLook(
+    { sqlite, media: getMediaRepo(), songs: getSongsRepo(), utility: getUtilityRepo(), overlays: failing, settings },
+    { from: backgroundsDir, to: path.join(dir, "backgrounds") },
+    mainEs.look,
+    true,
+  );
+  expect(settings.get("songs.defaultThemeId")).toBe(before);
+  expect(settings.get("look.seeded")).toBe(0);
+});
+
 describe("the starter look", () => {
   test("a new church gets the backgrounds, the themes, a dressed verse and time scenes, and three overlays — once", () => {
     const { dir, seed } = profile();

@@ -141,6 +141,8 @@ export function seedStarterLook(repos: Repos, dirs: Dirs, text: Text, isNewProfi
       repos.settings.setMany({ "look.seeded": STARTER_LOOK_VERSION });
     })();
   } catch (error) {
+    // Rolled back: the settings it wrote are not in the database, and must not stay in the cache (audit D12).
+    repos.settings.forget();
     console.warn("[look] seeding the starter look failed", error);
   }
 }
