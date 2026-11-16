@@ -18,7 +18,8 @@
  *
  * An engine built here with `native/build.sh` leaves a `.local` marker and is
  * kept as it is: whoever changes `native/` tests their own build. Delete the
- * folder to go back to the published one.
+ * folder to go back to the published one. `--release` (every `package:*` but
+ * `package:dir`) keeps it only when it is byte for byte the pinned one.
  *
  * Publishing a new engine (`engine-<n+1>`, asked of the owner first):
  * `native/build.sh <target>` for each target, `native/build.sh pack`, a
@@ -131,6 +132,15 @@ async function fetchTarget(kind: string, builds: Record<string, Archive[]>, requ
 
   const outDir = path.resolve("resources", kind, target);
   if (fs.existsSync(path.join(outDir, ".local"))) {
+    if (RELEASE) {
+      const differs = await differsFromPinned(archives, outDir);
+      if (differs.length > 0 && process.env["ALLOW_LOCAL_ENGINE"] !== "1")
+        throw new Error(
+          `[${kind}] ${target}: the local build is not the pinned one (${differs.join(", ")}). Publish it and pin it, ` +
+            `delete the folder to package the pinned one, or ALLOW_LOCAL_ENGINE=1 to package it anyway.`,
+        );
+      if (differs.length > 0) console.warn(`[${kind}] ${target}: local build NOT the pinned one, packaged anyway`);
+    }
     console.log(`[${kind}] ${target}: local build (native/build.sh) kept`);
     return;
   }
@@ -171,7 +181,29 @@ async function fetchTarget(kind: string, builds: Record<string, Archive[]>, requ
   console.log(`[${kind}] ${target}: ready in ${path.relative(process.cwd(), outDir)}`);
 }
 
-const targets = process.argv.slice(2);
+/** The files of a local build that are not byte for byte the pinned archive's (missing ones included). */
+async function differsFromPinned(archives: Archive[], outDir: string): Promise<string[]> {
+  const differs: string[] = [];
+  for (const archive of archives) {
+    const zip = await download(archive.url);
+    const digest = createHash("sha256").update(zip).digest("hex");
+    if (digest !== archive.sha256) throw new Error(`Checksum mismatch for ${archive.url}: expected ${archive.sha256}, got ${digest}`);
+    const wanted = new Set(Object.values(archive.entries));
+    const files = unzipSync(zip, { filter: (file) => wanted.has(file.name) });
+    for (const [name, entry] of Object.entries(archive.entries)) {
+      const local = path.join(outDir, name);
+      const pinned = files[entry];
+      if (!pinned || !fs.existsSync(local) || !fs.readFileSync(local).equals(pinned)) differs.push(name);
+    }
+  }
+  return differs;
+}
+
+// `package:*` pass `--release`: a package ships what is pinned. A local build (`native/build.sh`) is kept only when it is
+// byte for byte the published one: an engine rebuilt after publishing, or `build.sh pack` zipping a folder that was not
+// rebuilt, left an installer with an engine nobody published and no error (2026-11-15 audit, X23).
+const RELEASE = process.argv.includes("--release");
+const targets = process.argv.slice(2).filter((arg) => !arg.startsWith("--"));
 for (const target of targets.length > 0 ? targets : [`${process.platform}-${process.arch}`]) {
   for (const { kind, builds, required } of KINDS) await fetchTarget(kind, builds, required, target);
 }

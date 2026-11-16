@@ -27,10 +27,10 @@
     "tutorials": "npm run build && playwright test -c playwright.tutorials.config.ts",
     "db:generate": "drizzle-kit generate",
     "fetch:binaries": "tsx scripts/fetch-binaries.ts",
-    "package": "npm run build && tsx scripts/fetch-binaries.ts && electron-builder",
-    "package:win": "npm run build && tsx scripts/fetch-binaries.ts win32-x64 && electron-builder --win",
-    "package:mac": "npm run build && tsx scripts/fetch-binaries.ts darwin-arm64 && electron-builder --mac",
-    "package:linux": "npm run build && tsx scripts/fetch-binaries.ts linux-x64 && electron-builder --linux -c.productName=himnova-live",
+    "package": "npm run build && tsx scripts/fetch-binaries.ts --release && electron-builder",
+    "package:win": "npm run build && tsx scripts/fetch-binaries.ts --release win32-x64 && electron-builder --win",
+    "package:mac": "npm run build && tsx scripts/fetch-binaries.ts --release darwin-arm64 && electron-builder --mac",
+    "package:linux": "npm run build && tsx scripts/fetch-binaries.ts --release linux-x64 && electron-builder --linux -c.productName=himnova-live",
     "package:dir": "npm run build && tsx scripts/fetch-binaries.ts && electron-builder --dir"
   },
   "dependencies": {
