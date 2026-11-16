@@ -595,12 +595,15 @@ export const useProjectionStore = create<ProjectionStoreState>()(
     setAutoplayMode: (autoplayMode) => set({ autoplayMode }),
     // The engine reports ~4 times a second even paused (under LOGO, a whole sermon): the same report again is no
     // change, or every reader of the map (the LIVE panel whole) re-rendered 3.5 times a second for nothing
-    // (2026-11-15 audit, R4). `onIpc("media-status")` still sees every report.
+    // (2026-11-15 audit, R4). `onIpc("media-status")` still sees every report. Only a stopped report: a playing one
+    // with a frozen time (a disk stall) must still re-run `deck-autoplay`'s `scheduleSynced`, or the slide timer
+    // fires on the wall clock and the next real report sends the deck back a slide.
     setMediaStatus: (status) =>
       set((state) => {
         const key = mediaTargetKey(status.target);
         const kept = state.mediaStatus[key];
         if (
+          (status.paused || status.ended) &&
           kept &&
           kept.epoch === status.epoch &&
           kept.currentTimeSeconds === status.currentTimeSeconds &&

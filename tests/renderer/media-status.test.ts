@@ -29,6 +29,16 @@ test("the same paused report again notifies nobody", () => {
   expect(notified).toBe(0);
 });
 
+test("the same playing report again still reaches subscribers (a disk stall keeps the deck's slide on the music)", () => {
+  const { setMediaStatus } = useProjectionStore.getState();
+  setMediaStatus(report({ paused: false }));
+  let notified = 0;
+  const off = useProjectionStore.subscribe(() => (notified += 1));
+  for (let i = 0; i < 10; i += 1) setMediaStatus(report({ paused: false }));
+  off();
+  expect(notified).toBe(10);
+});
+
 test.each<[string, Partial<MediaStatus>]>([
   ["position", { currentTimeSeconds: 12.75 }],
   ["epoch", { epoch: 4 }],
