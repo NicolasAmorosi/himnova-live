@@ -51,6 +51,9 @@ export function startStageSync(): () => void {
       lastInputs = [];
       return;
     }
+    // A copy of the projector waits with the projector's picture: a control window that reloaded sent its empty
+    // store there, and that screen dropped to LOGO while the room's video played on (2026-11-15 audit, A30 review).
+    if (settings["stage.mirror"] && projection.outputHeld) return;
     const posterUrl = posterFor(projection.base?.kind === "video" ? projection.base.assetId : null);
     const inputs = [
       // What the projector shows (the stage draws it, covered or copied whole) and what comes next.

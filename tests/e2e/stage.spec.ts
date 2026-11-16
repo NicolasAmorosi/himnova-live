@@ -463,6 +463,26 @@ test("Settings' «Copia del proyector»: the stage screen copies the projector a
   await expect(stage.getByText(JUAN_3_16, { exact: false })).toBeHidden();
 });
 
+test("«Copia del proyector» keeps the projector's picture when the control window reloads", async ({ app }) => {
+  const opened = app.electron.waitForEvent("window", { predicate: isStage });
+  await chooseStageScreen(app, "Copia del proyector");
+  const stage = await opened;
+  await stage.waitForLoadState("domcontentloaded");
+  await stageVideos(app, false); // with videos the copy also gets the projector's own pushes
+  await app.openChapter("Juan 3");
+  await app.control.getByRole("listitem").filter({ hasText: JUAN_3_16 }).click();
+  await app.goLive();
+  const verse = stage.getByText(JUAN_3_16, { exact: false });
+  await expect(verse).toBeVisible();
+  await app.control.reload();
+  await expect(app.control.getByRole("button", { name: "EN VIVO", exact: true })).toBeVisible();
+  await app.control.waitForTimeout(1500); // the reloaded page's startup: settings mirrored, stores loaded
+  // The reloaded window's empty store went to the copy, which dropped to LOGO while the projector kept the verse
+  // (2026-11-15 audit, A30 review).
+  await expect(verse).toBeVisible();
+  await expect((await app.projector()).getByText(JUAN_3_16, { exact: false })).toBeVisible();
+});
+
 test("«Proyector» plays what the projector plays: an engine video's frames move there, a Chromium video keeps step, silent", async ({
   app,
 }) => {
