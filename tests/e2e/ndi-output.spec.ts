@@ -95,4 +95,13 @@ test("dragging the sound's sync saves it on release, and the NDI page stays: onl
   await expect.poll(started).toBe(senders + 1);
   await expect(status).toContainText("Enviando");
   expect(await ndiWindow()).toBe(page);
+
+  // Released off the slider, as a drag often ends: saved all the same.
+  const saved = await delay();
+  await app.control.mouse.move(box.x + box.width * 0.75, y);
+  await app.control.mouse.down();
+  await app.control.mouse.move(box.x + box.width * 0.9, y, { steps: 3 });
+  await app.control.mouse.move(box.x + box.width * 0.9, y + 80, { steps: 3 });
+  await app.control.mouse.up();
+  await expect.poll(delay).toBeGreaterThan(saved as number);
 });
