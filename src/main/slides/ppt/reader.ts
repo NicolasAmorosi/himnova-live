@@ -466,7 +466,9 @@ function headersFooters(buf: Buffer, parent: Rec[], base?: HeadersFooters): Head
       out.showDate = (flags & 0x1) !== 0;
       out.slideNumber = (flags & 0x8) !== 0;
       out.showFooter = (flags & 0x20) !== 0;
-      if (flags & 0x2) out.date = new Date().toLocaleDateString();
+      // «Today's date» (0x2) is not computed here: the model is kept, so `new Date()` showed the day of the first
+      // read for weeks, in the system's format. The date the file stored stands, as a .pptx's and an .odp's
+      // (2026-11-15 audit, A43).
     } else if (c.recType === RT_CSTRING) {
       const s = buf.toString("utf16le", c.body, c.body + c.len);
       if (c.recInstance === 0) out.date = s;

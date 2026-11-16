@@ -151,6 +151,24 @@ describe("text", () => {
     expect(number(true)).toEqual(["1", "2"]);
     expect(number(false)).toEqual([]);
   });
+
+  test("an automatic date says the date the file stored, never the day the deck was first read", () => {
+    // `new Date()` at read time: the model is kept, so the footer showed the day of the first read for weeks, in the
+    // system's format (2026-11-15 audit, A43; the stored text, as .pptx and .odp do).
+    const date = (stored: string | null): string[] => {
+      const flags = Buffer.alloc(4);
+      flags.writeUInt16LE(0x1 | 0x2, 2); // shown, «today's date»
+      const records = [rec(0x0, 0, 0x0fda, flags), ...(stored === null ? [] : [rec(0x0, 0, 0x0fba, Buffer.from(stored, "utf16le"))])];
+      const { deck } = read({
+        documentRecords: [rec(0xf, 3, 0x0fd9, records)],
+        masterDrawing: [{ type: 1, rect: [100, 4800, 1700, 4300], clientData: [placeholderAtom(7)], textRecords: [header(4), chars("*"), rec(0x0, 0, 0x0ff8, u32s(0))] }],
+        slides: [{ slideFlags: 0x7 }],
+      });
+      return deck.slides.flatMap((s) => textShapes(s.model).map(runText));
+    };
+    expect(date("12/10/2025")).toEqual(["12/10/2025"]);
+    expect(date(null).filter((text) => text !== "")).toEqual([]);
+  });
 });
 
 describe("drawing", () => {
