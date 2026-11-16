@@ -201,6 +201,26 @@ test("LIVE's fader is a master: at 50 % the projector plays each item at half it
   await expect.poll(levels).toEqual([0.5, 0.5]);
 });
 
+test("a fade-out down to 0 on LIVE's fader is a mute: unmuting, and the next launch, come back to where it started", async ({
+  app,
+}) => {
+  const master = app.liveColumn().getByRole("slider", { name: MASTER });
+  await master.fill("80");
+  await expect.poll(async () => (await app.invoke<Record<string, unknown>>("settings:get"))["audio.live.volume"]).toBe(0.8);
+
+  // The operator holds ↓ on the fader to the bottom: one gesture, every step reported (a slow drag does the same).
+  await master.focus();
+  for (let step = 0; step < 85; step += 1) await app.control.keyboard.down("ArrowDown");
+  await app.control.keyboard.up("ArrowDown");
+  const mute = app.liveColumn().getByRole("group", { name: LIVE_STRIP }).getByRole("button", { name: "Silenciar EN VIVO" });
+  await expect(mute).toHaveAttribute("aria-pressed", "true");
+  // Fails with the last step before 0 remembered (0.01, −40 dB): the room barely hears the next song, and the app
+  // opens like that tomorrow (2026-11-15 audit, A8).
+  expect((await app.invoke<Record<string, unknown>>("settings:get"))["audio.live.volume"]).toBe(0.8);
+  await mute.click();
+  await expect(master).toHaveValue("80");
+});
+
 test("the NDI output hears LIVE's fader: at 50 % its sound is 6 dB under 100 %", async ({ app }) => {
   test.setTimeout(120_000);
   // The NDI output's own capture of the app's sound is the meter (`native/engine/ndi-audio.h`): the loudest sample
