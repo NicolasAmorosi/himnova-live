@@ -538,6 +538,10 @@ describe("a media error lasts as long as its element (audit A18)", () => {
     useProjectionStore.getState().hidePlate(plate.id);
     useProjectionStore.getState().showPlate(plate);
     expect(errors()).toEqual([]);
+    // A lower third has no image to try: the bug's warning stays.
+    fail("plate");
+    useProjectionStore.getState().showPlate({ ...plate, id: 2, kind: "lower-third", position: "bottom-left", imageAssetId: null });
+    expect(errors()).toEqual(["plate"]);
   });
 
   test("nothing replaced, nothing new: the store hands back the same record", () => {

@@ -367,11 +367,12 @@ function errorsAfter(
   );
 }
 
-/** The plate's error slot once `plate` goes up or is re-dressed: a plate that was not up, or one with another image,
- *  is a new attempt at loading it; the same image re-dressed is the same broken `<img>`, still there. */
+/** The plate's error slot once `plate` goes up or is re-dressed: a plate with an image that was not up, or one given
+ *  another image, is a new attempt at loading it; the same image re-dressed is the same broken `<img>`, still there.
+ *  A plate without an image tries nothing: a lower third going up leaves a broken bug's warning where it is. */
 function plateErrorsAfter(state: ProjectionStoreState, plate: Plate): Record<string, ProjectionMediaError> {
   const current = state.livePlates.find((p) => p.id === plate.id);
-  return current?.imageAssetId === plate.imageAssetId
+  return plate.imageAssetId === null || current?.imageAssetId === plate.imageAssetId
     ? state.mediaErrors
     : withoutErrors(state.mediaErrors, [mediaErrorKey({ kind: "plate" })]);
 }
