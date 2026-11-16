@@ -515,7 +515,7 @@ it got:
 | MyBible.zone / MySword | `better-sqlite3` in `readonly` | `book_number` (10..730) / `Book` (1..66) |
 
 `detectBibleFormat` sniffs magic numbers (`SQLite format 3\0`, `PK\x03\x04`) and then the root
-element — **never the extension**, same as `container-kind.ts` does with a presentation. A `.zip`
+element (**never the extension**), the same as `containerKind` (`slides/pptx-metadata.ts`) does with a presentation. A `.zip`
 is opened with `readZipEntries` (not `unzipSync`) and the largest entry wins; a compressed SQLite
 module is **not** supported, because it would have to be written to a temp file.
 
