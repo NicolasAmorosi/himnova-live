@@ -787,6 +787,7 @@ const en: Messages = {
     previewMute: "Mute Preview",
     outputIs: "{output}: {name}",
     systemDefault: "System default",
+    systemDefaultNamed: "System default ({name})",
     unplugged: "{name} (unplugged)",
     sharedOutput: "Also heard in the room: it plays through the same output as Live.",
     sharedOutputNdi: "Also heard in the room and on NDI: it plays through the same output as Live.",

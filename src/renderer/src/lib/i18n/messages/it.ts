@@ -791,6 +791,7 @@ const it: Messages = {
     previewMute: "Disattiva audio dell'anteprima",
     outputIs: "{output}: {name}",
     systemDefault: "Predefinita di sistema",
+    systemDefaultNamed: "Predefinita di sistema ({name})",
     unplugged: "{name} (scollegata)",
     sharedOutput: "Si sente anche in sala: esce dalla stessa uscita di In onda.",
     sharedOutputNdi: "Si sente anche in sala e nell'NDI: esce dalla stessa uscita di In onda.",

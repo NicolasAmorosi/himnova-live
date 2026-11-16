@@ -788,6 +788,7 @@ const pt: Messages = {
     previewMute: "Silenciar o preview",
     outputIs: "{output}: {name}",
     systemDefault: "Padrão do sistema",
+    systemDefaultNamed: "Padrão do sistema ({name})",
     unplugged: "{name} (desconectada)",
     sharedOutput: "Também se ouve na igreja: sai pela mesma saída que o Ao vivo.",
     sharedOutputNdi: "Também se ouve na igreja e no NDI: sai pela mesma saída que o Ao vivo.",

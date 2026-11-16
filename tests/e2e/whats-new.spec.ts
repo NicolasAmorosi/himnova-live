@@ -117,7 +117,7 @@ test.describe("a new profile", () => {
     await welcome.getByRole("button", { name: "Siguiente: Sonido" }).click();
     await expect(welcome.getByRole("heading", { name: "Sonido", exact: true })).toBeVisible();
     await expect(welcome.getByRole("switch", { name: "Mostrar las tiras" })).toBeChecked();
-    await expect(welcome.getByRole("combobox", { name: "Salida de EN VIVO" })).toHaveText("Predeterminada del sistema");
+    await expect(welcome.getByRole("combobox", { name: "Salida de EN VIVO" })).toHaveText(/^Predeterminada del sistema/);
     await expect(welcome.getByRole("group", { name: "Tira de muestra: En Vivo" })).toBeVisible();
 
     await welcome.getByRole("tab", { name: "Listo" }).click();

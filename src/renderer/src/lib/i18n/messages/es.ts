@@ -790,6 +790,7 @@ const es = {
     previewMute: "Silenciar PREVIEW",
     outputIs: "{output}: {name}",
     systemDefault: "Predeterminada del sistema",
+    systemDefaultNamed: "Predeterminada del sistema ({name})",
     unplugged: "{name} (desconectada)",
     sharedOutput: "También se escucha en la sala: sale por la misma salida que EN VIVO.",
     sharedOutputNdi: "También se escucha en la sala y en el NDI: sale por la misma salida que EN VIVO.",
