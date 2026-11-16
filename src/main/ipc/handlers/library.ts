@@ -139,7 +139,10 @@ export const libraryHandlers: Pick<
     // Read-only from the caller's point of view: it returns the fresh list
     // directly, so it must never broadcast `library-changed` — see the
     // block comment on `importPaths` for why that would loop.
-    return importPaths(matched, kind, { inLibrary: false, emitChanged: false });
+    const listed = await importPaths(matched, kind, { inLibrary: false, emitChanged: false });
+    // Only after a listing that worked: an unplugged drive threw above and marks nothing.
+    getMediaRepo().markAbsentFromFolder(kind, folderPath, matched);
+    return listed;
   },
 };
 

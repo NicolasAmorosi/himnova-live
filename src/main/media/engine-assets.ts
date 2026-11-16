@@ -85,7 +85,7 @@ async function probeAndRecord(c: ConversionCandidate): Promise<ConversionCandida
   try {
     stat = await fsp.stat(c.path);
   } catch {
-    // Vanished since the library saw it; the sweep will mark it missing.
+    // Vanished since the library saw it: the sweep, or the next listing of its linked folder, marks it missing.
     return null;
   }
   const probe = parseProbe(await probeMedia(c.path));

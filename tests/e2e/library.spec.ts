@@ -395,9 +395,13 @@ test("a file copied into a linked folder shows up when the operator comes back, 
   await app.control.evaluate(() => window.dispatchEvent(new Event("focus")));
   await expect.poll(() => tileNames(app, "Imágenes"), { timeout: 8_000 }).toEqual(["primera", "segunda"]);
 
+  const listed = await app.invoke<MediaAsset[]>("library:listFolder", { kind: "image", path: folder });
+  const gone = listed.find((asset) => asset.name === "primera")!;
   fs.rmSync(path.join(folder, "primera.png"));
   await panel(app, "Imágenes").getByRole("button", { name: "Actualizar carpeta" }).click();
   await expect.poll(() => tileNames(app, "Imágenes")).toEqual(["segunda"]);
+  // Its row is marked missing, not left for every reconcile to probe again (2026-11-15 audit, D10).
+  await expect.poll(async () => (await app.invoke<MediaAsset | null>("library:get", { id: gone.id }))?.missingSince ?? null).not.toBeNull();
 });
 
 test("a linked folder gone from disk says so instead of looking empty", async ({ app }) => {

@@ -565,6 +565,29 @@ export class MediaRepo {
     return changedKinds;
   }
 
+  /** A linked folder was just listed: its rows (`inLibrary = 0`, this folder only, not a subfolder's) that did not
+   *  come back are marked missing, never deleted. The sweep leaves those rows out, so a file deleted from the folder
+   *  kept a row that every reconcile probed again (2026-11-15 audit, D10). The next listing that finds it clears it. */
+  markAbsentFromFolder(kind: AssetKind, folder: string, present: readonly string[]): void {
+    const folderKey = toPathKey(path.resolve(folder));
+    const presentKeys = new Set(present.map(toPathKey));
+    const gone = this.db
+      .select({ id: mediaAssets.id, pathKey: mediaAssets.pathKey })
+      .from(mediaAssets)
+      .where(and(eq(mediaAssets.kind, kind), eq(mediaAssets.inLibrary, 0), sql`${mediaAssets.missingSince} IS NULL`))
+      .all()
+      .filter((row) => path.dirname(row.pathKey) === folderKey && !presentKeys.has(row.pathKey))
+      .map((row) => row.id);
+    const now = Date.now();
+    for (let i = 0; i < gone.length; i += ID_CHUNK) {
+      this.db
+        .update(mediaAssets)
+        .set({ missingSince: now })
+        .where(inArray(mediaAssets.id, gone.slice(i, i + ID_CHUNK)))
+        .run();
+    }
+  }
+
   /**
    * Points the row at `newPath`, keeping its id — the one the program items,
    * plates and history already reference.
