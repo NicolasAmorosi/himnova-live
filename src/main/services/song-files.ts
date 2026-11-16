@@ -3,6 +3,7 @@ import { renameSyncWithRetry } from "../fs-retry";
 import path from "node:path";
 import { IpcError } from "@shared/ipc/result";
 import { SONG_FILE_LIMITS, songFileFormat, type SongFileFormat } from "@shared/song-file-limits";
+import { mayHaveBeenFitted } from "@shared/song-validators";
 import { SONG_FILE_EXTENSIONS, type Song, type SongSection, type SongUpsert } from "@shared/types/song";
 import { matchRows, type FileSong } from "../db/repositories/songs.repo";
 import { encodeText, readText } from "../decode-text";
@@ -183,6 +184,16 @@ export function writeSongFile(id: number, song: ReadSong): void {
   }
   const format = read ? formatOf(file, read.text) : songFileFormat(file);
   if (!changesFile(before, song, format)) return;
+  // Read past a limit, the song came in fitted (`fitSongLimits`, audit D8): what was cut is still in the file, and the
+  // app's copy written back would lose it. At a limit the file is left alone: a library song is untied and saved in
+  // the app, a linked folder's (which IS its file) is refused, and the operator edits that file elsewhere.
+  if (mayHaveBeenFitted(before)) {
+    if (source.folder === null) {
+      repo.untieFile(id);
+      return;
+    }
+    throw new IpcError({ code: "SONG_FILE_TOO_LONG", message: mt("songs.fileTooLong") });
+  }
   if (mtimeOf(stat) !== source.mtime) {
     if (source.folder === null) {
       const again = readSongFileSafely(file);

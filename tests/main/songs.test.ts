@@ -449,6 +449,21 @@ describe("a linked folder of song files (owner, 2026-11-05)", () => {
     expect(only.file).toBeNull();
     expect(() => writeSongFile(only.id, edited)).not.toThrow();
   });
+
+  test("a song read past a limit comes in fitted, and its file is never written back cut (audit D8)", async () => {
+    const { listSongFolder, writeSongFile } = await import("../../src/main/services/song-files");
+    const folder = fs.mkdtempSync(path.join(tmpDir, "long-"));
+    const file = path.join(folder, "larga.cho");
+    const verses = Array.from({ length: 61 }, (_, i) => `{start_of_verse: Estrofa ${i + 1}}\nlinea ${i + 1}\n{end_of_verse}\n`);
+    const original = `{title: Larga}\n${verses.join("")}`;
+    fs.writeFileSync(file, original);
+    const [larga] = await listSongFolder(folder);
+    expect(larga?.sections).toHaveLength(60);
+    const { id, updatedAt: _u, sourceFolder: _s, file: _f, ...edited } = { ...larga!, title: "Larga (editada)" };
+    expect(() => writeSongFile(id, edited)).toThrow(expect.objectContaining({ code: "SONG_FILE_TOO_LONG" }));
+    // Verse 61 is still in the church's file.
+    expect(fs.readFileSync(file, "utf8")).toBe(original);
+  });
 });
 
 describe("a song imported from a song file stays tied to it (owner, 2026-11-05)", () => {

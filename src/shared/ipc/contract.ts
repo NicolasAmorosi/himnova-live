@@ -387,7 +387,8 @@ export type IpcContract = {
    *  unchanged since the last read keeps its rows. Throws `FOLDER_MISSING`
    *  when the folder is gone. Saving one of them (`song:update`) writes its
    *  file too, in its format; refused as `SONG_FILE_CHANGED` when the file
-   *  changed outside the app, `SONG_FILE_MISSING`, `SONG_FILE_UNWRITABLE`. */
+   *  changed outside the app, `SONG_FILE_MISSING`, `SONG_FILE_UNWRITABLE`, and `SONG_FILE_TOO_LONG` for a song at a
+   *  limit, which came in cut (`fitSongLimits`) and would lose the rest of its file. */
   "song:listFolder": { req: { path: string }; res: Song[] };
   /** Asks for song files of any supported format in one picker and imports
    *  them into the library; `null` when the operator cancels. A database that

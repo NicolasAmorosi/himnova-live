@@ -124,6 +124,7 @@ const es = {
     importFilter: "Canciones (OpenLyrics, SongSelect, ChordPro, OpenLP, EasyWorship)",
     fileMissing: "No se encuentra el archivo de esta canción: se movió o se borró.",
     fileChanged: "El archivo de esta canción cambió fuera de Himnova. Si guardás de nuevo, lo reemplaza lo que estás editando; si cerrás sin guardar, queda el del disco.",
+    fileTooLong: "Esta canción es más larga de lo que la app guarda y se ve recortada: su archivo no se reescribe, para no perder lo que no entró. Editala en el programa del archivo.",
     fileUnwritable: "No se pudo escribir el archivo de esta canción: ¿está abierto en otro programa, es de solo lectura o falta permiso? Lo editado sigue acá: cerralo y guardá de nuevo.",
     openLpUnreadable: "Ese archivo no es una base de canciones de OpenLP (songs.sqlite) o no se pudo abrir.",
     usageSaveTitle: "Guardar el informe CCLI",

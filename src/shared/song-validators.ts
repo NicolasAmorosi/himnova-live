@@ -341,6 +341,23 @@ export function fitSongLimits<T extends { sections: SongSection[]; order: string
   };
 }
 
+/** Whether a song sits at one of the counts `fitSongLimits` cuts to: read from a file past it, the rest is still in
+ *  that file, and writing the app's copy back would lose it. A song exactly at a limit by itself counts too: its file
+ *  is only left alone. A split line loses no words, so length is not a sign. */
+export function mayHaveBeenFitted(song: { sections: SongSection[]; order: string[] }): boolean {
+  return (
+    song.sections.length >= SONG_MAX_SECTIONS ||
+    song.order.length >= SONG_MAX_ORDER ||
+    song.sections.some(
+      (section) =>
+        section.slides.length >= SONG_MAX_SLIDES_PER_SECTION ||
+        section.slides.some(
+          (slide) => slide.lines.length >= SONG_MAX_LINES_PER_SLIDE || (slide.translation?.length ?? 0) >= SONG_MAX_LINES_PER_SLIDE,
+        ),
+    )
+  );
+}
+
 function fitSlide(slide: SongSlide): SongSlide {
   const pieces = slide.lines.map((line, i) => splitLine(line, slide.chords?.[i] ?? []));
   const fitted: SongSlide = { lines: pieces.flat().map((piece) => piece.text).slice(0, SONG_MAX_LINES_PER_SLIDE) };

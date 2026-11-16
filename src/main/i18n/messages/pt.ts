@@ -122,6 +122,7 @@ const pt: MainMessages = {
     importFilter: "Músicas (OpenLyrics, SongSelect, ChordPro, OpenLP, EasyWorship)",
     fileMissing: "O arquivo desta música não foi encontrado: foi movido ou apagado.",
     fileChanged: "O arquivo desta música mudou fora do Himnova. Se salvar de novo, ele é substituído pelo que você está editando; se fechar sem salvar, fica o do disco.",
+    fileTooLong: "Esta música é mais longa do que o app guarda e aparece cortada: o arquivo dela não é regravado, para não perder o que não coube. Edite-a no programa do arquivo.",
     fileUnwritable: "Não foi possível gravar o arquivo desta música: está aberto em outro programa, é somente leitura ou falta permissão? A edição continua aqui: feche-o e salve de novo.",
     openLpUnreadable: "Esse arquivo não é um banco de músicas do OpenLP (songs.sqlite) ou não foi possível abri-lo.",
     usageSaveTitle: "Salvar o relatório CCLI",
