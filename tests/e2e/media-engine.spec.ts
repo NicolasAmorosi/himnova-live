@@ -186,6 +186,13 @@ test("an engine that dies is reported and left to the operator", async ({ app })
   // Not started again on its own, and the congregation sees no error text.
   await expect.poll(() => moving(projector, "video:")).toBe(false);
   await expect(projector.locator("body")).not.toContainText("No se pudo");
+  // NEGRO and back is the same video, still broken: the warning stays, and so does GO LIVE's knowledge of it. NEGRO
+  // used to forget it, and then GO LIVE on the same file only uncovered the dead video (2026-11-15 audit, A18).
+  await app.control.locator("body").press("b");
+  await app.control.locator("body").press("b");
+  await expect(app.liveColumn().getByText("No se pudo reproducir", { exact: true })).toBeVisible();
+  await app.control.waitForTimeout(500);
+  await expect(app.liveColumn().getByText("No se pudo reproducir", { exact: true })).toBeVisible();
 
   // GO LIVE again is the operator's way back — picked again: it left PREVIEW when it went out (owner, 2026-11-15).
   await app.previewFile("Videos", "long-xvid");

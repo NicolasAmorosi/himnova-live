@@ -101,9 +101,14 @@ Two rules keep it honest without any timer or explicit cleanup:
 
 - **An entry is only shown while its `url` is still what is live.** Moving to the next slide
   or sending something else to air makes it invisible on its own.
-- **`beginScene()` clears the `scene` and `video` entries.** That is what makes re-sending the
-  *same* file a real retry, instead of dragging along the warning about a file the operator
-  already replaced. Audio entries are not cleared: they belong to the lifecycle of the track
+- **An entry goes with its element, never with a scene** (2026-11-15, audit A18). `beginScene()`
+  clears only `scene`; `video`, `slideVideo` and `songVideo` go when their element is replaced (the
+  video's `epoch`, `slideVideoEpoch`, the song background's `epoch`: `errorsAfter` in `setBase`,
+  `setLiveSong`, `setLiveDeck` and `setSlideIndex`), and `plate` when a plate goes up or gets another
+  image. That is what makes re-sending the *same* file a real retry, instead of dragging along the
+  warning about a file the operator already replaced, while BLACK/LOGO over a broken video keeps its
+  warning (the same element, still broken, never reports again) and GO LIVE on it still re-sends it.
+  `OutputView`'s own slots follow the same rule. Audio entries belong to the lifecycle of the track
   list and are removed by `pruneMediaStatus`, in the same pass as the dead `mediaStatus` entries.
 
 `src/renderer/src/effects/deck-autoplay.ts` is the only thing with time-based logic. Two modes:

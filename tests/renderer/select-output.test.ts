@@ -26,6 +26,7 @@ import { DEFAULT_SCENE_STYLE } from "@shared/types/scene-style";
 import { DEFAULT_SETTINGS, logoLook } from "@shared/types/settings";
 import { DEFAULT_TIMER_FORMAT } from "@shared/types/timer";
 import type { UtilityScene } from "@shared/types/utility";
+import { DEFAULT_BUG_STYLE, type Plate } from "@shared/types/overlay";
 
 const initialState = useProjectionStore.getState();
 
@@ -463,16 +464,88 @@ describe("the scene transition", () => {
     expect(output().transition.epoch).toBe(before + 1);
   });
 
-  test("a new scene retires the scene and video error notices, but not audio's", () => {
-    // Re-sending the very same file has to be a real retry; an audio track's
-    // notice belongs to the track list's lifecycle instead.
+  test("a new scene retires only the scene's error notice: the video, its clip and audio keep theirs", () => {
+    // Re-sending the very same picture has to be a real retry. A video under
+    // BLACK is the same element, still broken (audit A18); an audio track's
+    // notice belongs to the track list's lifecycle.
     const store = useProjectionStore.getState();
     store.setMediaError({ target: { kind: "scene" }, url: "worship://asset/1", code: null });
     store.setMediaError({ target: { kind: "video" }, url: "worship://asset/2", code: 4 });
+    store.setMediaError({ target: { kind: "slideVideo" }, url: "worship://deck-video/4", code: 4 });
     store.setMediaError({ target: { kind: "audio", trackId: "asset:3:1" }, url: "worship://asset/3", code: 4 });
 
     useProjectionStore.getState().beginScene();
-    expect(Object.keys(useProjectionStore.getState().mediaErrors)).toEqual(["audio:asset:3:1"]);
+    expect(Object.keys(useProjectionStore.getState().mediaErrors).sort()).toEqual([
+      "audio:asset:3:1",
+      "slideVideo",
+      "video",
+    ]);
+  });
+});
+
+describe("a media error lasts as long as its element (audit A18)", () => {
+  const errors = () => Object.keys(useProjectionStore.getState().mediaErrors).sort();
+  const video = (epoch: number) =>
+    useProjectionStore.getState().setBase({ kind: "video", assetId: 2, url: "worship://asset/2", epoch, startAtSeconds: 0 });
+  const fail = (kind: "video" | "slideVideo" | "songVideo" | "plate") =>
+    useProjectionStore.getState().setMediaError({ target: { kind }, url: `worship://${kind}`, code: 4 });
+
+  test("a broken video keeps its notice under BLACK and uncovered, and loses it when it is sent again", () => {
+    video(1);
+    fail("video");
+    const { beginScene, setOverlay } = useProjectionStore.getState();
+    beginScene();
+    setOverlay("black");
+    beginScene();
+    setOverlay("none");
+    expect(errors()).toEqual(["video"]);
+    // GO LIVE on the same file, which `goLiveWithAsset` re-sends because of that notice: a new element.
+    video(2);
+    expect(errors()).toEqual([]);
+  });
+
+  test("a slide's clip loses its notice with the slide, not with the scene", () => {
+    const { setLiveDeck, setSlideIndex, setBase } = useProjectionStore.getState();
+    setLiveDeck(deckOf(9, 2, [slideVideoOn(1)]));
+    setBase({ kind: "deck", assetId: 9, slideIndex: 1 });
+    fail("slideVideo");
+    useProjectionStore.getState().beginScene();
+    expect(errors()).toEqual(["slideVideo"]);
+    setSlideIndex(2);
+    expect(errors()).toEqual([]);
+  });
+
+  test("a plate's image: put up again or given another image is a new attempt; re-dressed, the same one", () => {
+    const plate: Plate = {
+      id: 1,
+      name: "Logo",
+      kind: "bug",
+      position: "top-right",
+      title: null,
+      subtitle: null,
+      imageAssetId: 5,
+      style: DEFAULT_BUG_STYLE,
+    };
+    const { showPlate, setLivePlate } = useProjectionStore.getState();
+    showPlate(plate);
+    fail("plate");
+    useProjectionStore.getState().beginScene();
+    setLivePlate({ ...plate, name: "Otro nombre" });
+    expect(errors()).toEqual(["plate"]);
+    setLivePlate({ ...plate, imageAssetId: 6 });
+    expect(errors()).toEqual([]);
+    fail("plate");
+    useProjectionStore.getState().hidePlate(plate.id);
+    useProjectionStore.getState().showPlate(plate);
+    expect(errors()).toEqual([]);
+  });
+
+  test("nothing replaced, nothing new: the store hands back the same record", () => {
+    video(1);
+    fail("video");
+    const before = useProjectionStore.getState().mediaErrors;
+    useProjectionStore.getState().beginScene();
+    expect(useProjectionStore.getState().mediaErrors).toBe(before);
   });
 });
 

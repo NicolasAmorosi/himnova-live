@@ -212,8 +212,9 @@ async function goLiveWithMediaAsset(
     // The video already on air, playing fine: GO LIVE only uncovers it (owner,
     // 2026-11-10), like a countdown already live. Re-sending it restarted it
     // from 0:00 in front of the congregation on an extra Enter. A failed one
-    // is re-sent — that is the operator's retry (`beginScene` clears its
-    // error) — and so is one that already ended.
+    // is re-sent — that is the operator's retry (its new epoch drops its
+    // error, which BLACK/LOGO over it kept: audit A18) — and so is one that
+    // already ended.
     if (base?.kind === "video" && base.assetId === asset.id) {
       const failed = mediaErrors.video?.url === base.url;
       const status = mediaStatus.video;

@@ -1418,16 +1418,25 @@ export function OutputView({
   // ...except when the SAME url comes back working. A USB drive unplugged and
   // plugged in again, or a file relocated, keeps its `worship://asset/<id>`:
   // the projector played it the second time and the LIVE monitor kept the red
-  // band of the first, lying to the operator about the room. A new scene is a
-  // new attempt, so it starts clean; a failure in it fills the slot again.
+  // band of the first, lying to the operator about the room. A new attempt
+  // starts clean, and each slot knows its own: a new scene for its picture, a
+  // new element for each video (its epoch), a plate put up again. Not a new
+  // scene for a video: under BLACK/LOGO it is the same element, still broken,
+  // and it never says so again (audit A18).
   const sceneEpoch = output.transition.epoch;
-  useEffect(() => {
-    setFailedSceneUrl(null);
-    setFailedVideoUrl(null);
-    setFailedSlideVideoUrl(null);
-    setFailedSongVideoUrl(null);
-    setFailedPlateUrl(null);
-  }, [sceneEpoch]);
+  useEffect(() => setFailedSceneUrl(null), [sceneEpoch]);
+  const videoEpoch = output.videoUnderlay?.epoch;
+  useEffect(() => setFailedVideoUrl(null), [videoEpoch]);
+  const slideVideoEpoch = output.slideVideo?.epoch;
+  useEffect(() => setFailedSlideVideoUrl(null), [slideVideoEpoch]);
+  const songVideoEpoch = output.songVideo?.epoch;
+  useEffect(() => setFailedSongVideoUrl(null), [songVideoEpoch]);
+  // A plate that leaves the stage (taken down, or under BLACK/LOGO) mounts its image again when it comes back.
+  const plateImages = output.plates.map((plate) => plate.imageUrl ?? "").join("\n");
+  useEffect(
+    () => setFailedPlateUrl((failed) => (failed !== null && plateImages.split("\n").includes(failed) ? failed : null)),
+    [plateImages],
+  );
 
   function handleImageError(url: string) {
     setFailedSceneUrl(url);
