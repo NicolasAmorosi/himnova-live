@@ -157,3 +157,11 @@ test("a playing video never idles the loop, not even a 12 fps one with jitter", 
     for (; now < arrival + 83; now += 1000 / 60) if (now >= arrival) expect(pacer.idle(now, 0)).toBe(false);
   }
 });
+
+// The halving alternates show/skip, and the alternation outlived a pause: the one frame a seek while paused sends
+// went up or not by the parity of the frames before it (2026-11-15 audit, R3).
+test.each([30, 31])("a lone frame after a pause of a 60 fps video goes up, whatever the halving left (%s before)", (frames) => {
+  const pacer = new FramePacer();
+  for (let i = 0; i < frames; i += 1) pacer.arrived(i * (1000 / 60));
+  expect(pacer.arrived(frames * (1000 / 60) + 1000)).toBe(true);
+});

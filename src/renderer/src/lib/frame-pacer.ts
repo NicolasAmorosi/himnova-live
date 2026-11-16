@@ -48,6 +48,12 @@ export class FramePacer {
     }
     this.lastArrival = now;
     if (!this.halved()) return true;
+    // A frame after a pause (a seek while paused, the engine's single redraw) is the whole picture: the alternation
+    // left from before the pause threw it away one time in two, off the projector and NDI (2026-11-15 audit, R3).
+    if (gap >= IDLE_AFTER_MS) {
+      this.skipNext = false;
+      return true;
+    }
     this.skipNext = !this.skipNext;
     return this.skipNext;
   }
