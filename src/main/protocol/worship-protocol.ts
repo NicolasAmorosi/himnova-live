@@ -14,6 +14,7 @@ import { readZipEntries } from "../slides/zip-reader";
 import { ensureThumbnail } from "../media/thumbnail-service";
 import { byteLru } from "./byte-lru";
 import { serveFile } from "./serve-file";
+import { renameWithRetry } from "../fs-retry";
 
 /** What `worship://wasm/` serves: the decoders `pdfjs.getDocument` fetches from its `wasmUrl`. */
 const PDFJS_WASM = new Set(["openjpeg.wasm", "jbig2.wasm", "qcms_bg.wasm"]);
@@ -258,6 +259,7 @@ let liveCopy: { deckId: number; path: string; source: DeckSource } | null = null
 let copyingDeckId: number | null = null;
 /** The deck asked for last: the one on air. A copy that lands for another one is dropped. */
 let wantedDeckId: number | null = null;
+let liveCopySeq = 0;
 
 /** Where to read the deck's bytes from: its own file while it is still the one read, else the copy
  *  of it taken when it went live, else nowhere (410). */
@@ -283,14 +285,23 @@ export function keepLiveDeckSource(deckId: number): void {
   const source: DeckSource = { sourcePath: row.sourcePath, sourceSizeBytes: row.sourceSizeBytes, sourceMtimeMs: row.sourceMtimeMs };
   copyingDeckId = deckId;
   const dest = path.join(liveDeckDir, `${deckId}${path.extname(source.sourcePath)}`);
+  // Each copy writes its own file and lands by a rename: two copies of one deck can be under way (D, E, D again inside
+  // D's copy), and one that failed mid-write spoiled the file the other had landed (final pass of the audit, A47).
+  const partial = `${dest}.${++liveCopySeq}.partial`;
   void (async () => {
     try {
       await fs.promises.mkdir(liveDeckDir, { recursive: true });
       if (!(await sourceUnchanged(source))) return;
-      await fs.promises.copyFile(source.sourcePath, dest);
-      if ((await fs.promises.stat(dest)).size !== source.sourceSizeBytes || wantedDeckId !== deckId) {
-        await fs.promises.rm(dest, { force: true });
-        return;
+      try {
+        await fs.promises.copyFile(source.sourcePath, partial);
+        if ((await fs.promises.stat(partial)).size !== source.sourceSizeBytes || wantedDeckId !== deckId) {
+          await fs.promises.rm(partial, { force: true });
+          return;
+        }
+        await renameWithRetry(partial, dest);
+      } catch (error) {
+        await fs.promises.rm(partial, { force: true }).catch(() => undefined);
+        throw error;
       }
       const previous = liveCopy;
       liveCopy = { deckId, path: dest, source };

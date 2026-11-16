@@ -48,15 +48,16 @@ test("back to the deck on air before another deck's copy ends, the copy kept is 
   const checked: Promise<unknown>[] = [];
   const stat = vi.spyOn(fs.promises, "stat").mockImplementation((target: fs.PathLike) => {
     const done = realStat(target);
-    if (String(target) === path.join(LIVE, "1.pptx")) checked.push(done);
+    // The copy is written beside its place (`1.pptx.<n>.partial`) and renamed into it.
+    if (String(target).startsWith(path.join(LIVE, "1.pptx"))) checked.push(done);
     return done;
   });
   keepLiveDeckSource(1);
   await vi.waitFor(() => expect(checked).toHaveLength(1));
   await checked[0];
+  await vi.waitFor(() => expect(kept()).toEqual(["1.pptx"]));
   await new Promise((resolve) => setImmediate(resolve));
   stat.mockRestore();
-  expect(kept()).toEqual(["1.pptx"]);
 
   // B's copy waits until released: a slow pen drive. Settled once its chain removes a file: B's own copy dropped,
   // or A's replaced by it.
@@ -109,4 +110,41 @@ test("back to the deck on air before another deck's copy ends, the copy kept is 
   keepLiveDeckSource(3);
   keepLiveDeckSource(3);
   await vi.waitFor(() => expect(kept()).toEqual(["3.pptx"]));
+});
+
+test("a second copy of the deck on air that fails mid-write leaves the copy that landed whole", async () => {
+  const { keepLiveDeckSource } = await import("../../src/main/protocol/worship-protocol");
+  for (const id of [5, 6]) deck(id);
+  // D (5) from a slow drive, E (6) while it copies, D again: a second copy of D starts, to the same place. The second
+  // lands; then the first, its drive pulled, fails after writing half the file over the copy that landed, and D on air
+  // read its slides from a broken file (final pass of the 2026-11-15 audit, A47).
+  const realCopy = fs.promises.copyFile.bind(fs.promises);
+  let releaseFirst!: () => void;
+  const gate = new Promise<void>((resolve) => (releaseFirst = resolve));
+  let calls = 0;
+  let firstDone!: Promise<void>;
+  const copyFile = vi.spyOn(fs.promises, "copyFile").mockImplementation((from, to) => {
+    calls += 1;
+    if (calls !== 1) return realCopy(from, to);
+    firstDone = (async () => {
+      await gate;
+      fs.writeFileSync(to, "de");
+      throw Object.assign(new Error("EIO: the drive went away"), { code: "EIO" });
+    })();
+    return firstDone;
+  });
+  keepLiveDeckSource(5);
+  await vi.waitFor(() => expect(calls).toBe(1));
+  keepLiveDeckSource(6);
+  keepLiveDeckSource(5);
+  await vi.waitFor(() => expect(kept()).toContain("5.pptx"));
+  const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+  releaseFirst();
+  await firstDone.catch(() => undefined);
+  await vi.waitFor(() => expect(warn).toHaveBeenCalled());
+  await new Promise((resolve) => setImmediate(resolve));
+  expect(fs.readFileSync(path.join(LIVE, "5.pptx"), "utf8")).toBe("deck 5");
+  expect(kept()).toEqual(["5.pptx"]);
+  warn.mockRestore();
+  copyFile.mockRestore();
 });
