@@ -661,8 +661,8 @@ function SongVideoLayer({
     else element.play().catch(() => undefined);
   }, [covered]);
   // Captured on mount (the ref is detached before an unmount's cleanup runs).
-  // An engine background has no element, and a theme changed to another file
-  // reuses this one with a new `src`, which drops the old player by itself.
+  // An engine background has no element, and another file always comes with
+  // another epoch, so another element: this one only ever plays one `src`.
   useEffect(() => {
     const element = videoRef.current;
     return () => {
@@ -1596,11 +1596,18 @@ export function OutputView({
 
   /** The song's video background plays here — not in PREVIEW, which never
    *  starts a video on its own, nor where the still stands in, nor once it
-   *  failed: then each song layer paints its still instead. */
-  const songVideo = output.songVideo ?? null;
+   *  failed: then each song layer paints its still instead. A song leaving
+   *  for anything else keeps it, paused, under its fade until its layer goes:
+   *  the push's output has none, and dropping it there turned the leaving song
+   *  black with its still before it faded (2026-11-15 audit, A13). Borrowed,
+   *  only that layer is see-through over it: a song without one entering
+   *  paints its own background. */
+  const borrowed = !output.songVideo;
+  const songVideo = output.songVideo ?? layers[0]?.output.songVideo ?? null;
   const songVideoMounted =
     songVideo !== null && videoMounted && mode !== "preview" && !hasFailed(songVideo.url);
-  const videoBehind = (layer: Layer) => songVideoMounted && layer.output.kind === "song";
+  const videoBehind = (layer: Layer) =>
+    songVideoMounted && layer.output.kind === "song" && (!borrowed || layer === layers[0]);
 
   const incoming = layers[1];
   // A song over its video is see-through: what it replaces fades out instead
@@ -1621,7 +1628,7 @@ export function OutputView({
           song's video is a new element and the same song's slides are not. */}
       {songVideo && songVideoMounted ? (
         <SongVideoLayer
-          covered={output.kind !== "song"}
+          covered={output.kind !== "song" || borrowed}
           key={songVideo.epoch}
           onError={handleSongVideoError}
           paced={mode === "live"}
