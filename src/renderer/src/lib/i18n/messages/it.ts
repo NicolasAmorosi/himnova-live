@@ -809,6 +809,7 @@ const it: Messages = {
     takeOffAir: "Togli dalla diretta",
     title: "In onda",
     disconnected: "Nessuno schermo",
+    screenLost: "Schermo scollegato",
     noSignal: "Nessun segnale",
     logoMissing: "Nessun logo caricato",
     logoMissingHint: "Scegline uno in Impostazioni › Proiezione",

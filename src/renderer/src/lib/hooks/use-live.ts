@@ -1,5 +1,6 @@
 import { useT } from "@renderer/lib/i18n/i18n-provider";
 import { selectOutputMemo, useProjectionStore } from "@renderer/stores/projection.store";
+import { useDisplayStore } from "@renderer/stores/display.store";
 import { survivingAssetId, useProgramStore } from "@renderer/stores/program.store";
 import { useMediaAsset } from "@renderer/lib/hooks/use-media-asset";
 import type { BaseContent } from "@shared/types/projection";
@@ -44,12 +45,13 @@ export function useLiveHeading(): string | null {
   }
 }
 
-/** The LIVE header's status word (BLACK, LOGO, projector closed) — empty when
- *  content is going out. Shared by the LIVE column and a full-screen editor's
- *  on-air indicator, which must say the same thing. */
+/** The LIVE header's status word (BLACK, LOGO, projector closed, its screen
+ *  unplugged), empty when content is going out. Shared by the LIVE column and
+ *  a full-screen editor's on-air indicator, which must say the same thing. */
 export function useLiveStatus(): string {
   const t = useT();
   const presentationOpen = useProjectionStore((s) => s.presentationOpen);
+  const projectorHidden = useDisplayStore((s) => s.projectorHidden);
   // Read off the SAME value the monitor renders, never a second reading of
   // `overlay`/`base`: this badge used to re-derive the precedence by hand and
   // got it wrong for the one case the two disagree on. With nothing selected
@@ -64,6 +66,9 @@ export function useLiveStatus(): string {
   const outputKind = useProjectionStore((s) => selectOutputMemo(s).kind);
 
   if (!presentationOpen) return t("live.disconnected");
+  // Main hid it with its screen gone: still playing, sound included, but the room sees nothing. The toast goes after
+  // 5 s; this stays until the screen is back (2026-11-15 audit, U4).
+  if (projectorHidden) return t("live.screenLost");
   if (outputKind === "black") return t("status.black");
   if (outputKind === "logo") return t("status.logo");
   return "";

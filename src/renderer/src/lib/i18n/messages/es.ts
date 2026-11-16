@@ -808,6 +808,7 @@ const es = {
     takeOffAir: "Sacar del aire",
     title: "En Vivo",
     disconnected: "Sin pantalla",
+    screenLost: "Pantalla desconectada",
     noSignal: "Sin señal",
     logoMissing: "No hay logo cargado",
     logoMissingHint: "Elegí uno en Configuración › Proyección",

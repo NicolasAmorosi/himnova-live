@@ -805,6 +805,7 @@ const en: Messages = {
     takeOffAir: "Take off air",
     title: "Live",
     disconnected: "Projector off",
+    screenLost: "Screen unplugged",
     noSignal: "No signal",
     logoMissing: "No logo set",
     logoMissingHint: "Choose one in Settings › Projection",

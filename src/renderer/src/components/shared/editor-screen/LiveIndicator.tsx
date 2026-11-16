@@ -3,6 +3,7 @@ import { OutputView } from "@renderer/components/shared/output-view";
 import { useLiveHeading, useLiveStatus } from "@renderer/lib/hooks/use-live";
 import { useLiveVideoPoster } from "@renderer/lib/hooks/use-live-video-poster";
 import { selectOutputMemo, useProjectionStore } from "@renderer/stores/projection.store";
+import { useDisplayStore } from "@renderer/stores/display.store";
 import { cn } from "@renderer/lib/utils";
 
 /**
@@ -23,7 +24,8 @@ export function LiveIndicator() {
   const status = useLiveStatus();
   const output = useProjectionStore(selectOutputMemo);
   const presentationOpen = useProjectionStore((s) => s.presentationOpen);
-  const broadcasting = useProjectionStore((s) => s.presentationOpen && s.overlay === "none" && s.base !== null);
+  const projectorHidden = useDisplayStore((s) => s.projectorHidden);
+  const broadcasting = useProjectionStore((s) => s.presentationOpen && s.overlay === "none" && s.base !== null) && !projectorHidden;
   const videoAssetId = useProjectionStore((s) => (s.base?.kind === "video" ? s.base.assetId : null));
   const videoUrl = useProjectionStore((s) => (s.base?.kind === "video" ? s.base.url : null));
   const posterUrl = useLiveVideoPoster(videoAssetId);

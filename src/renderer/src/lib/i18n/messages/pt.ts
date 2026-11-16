@@ -806,6 +806,7 @@ const pt: Messages = {
     takeOffAir: "Tirar do ar",
     title: "Ao vivo",
     disconnected: "Sem tela",
+    screenLost: "Tela desconectada",
     noSignal: "Sem sinal",
     logoMissing: "Nenhum logo carregado",
     logoMissingHint: "Escolha um em Configurações › Projeção",

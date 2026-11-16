@@ -93,8 +93,8 @@ export function startStageSync(): () => void {
     queueMicrotask(push);
   };
 
-  // Whether the stage window is on its screen: the panel's dot, and a toast when a screen coming or going is the
-  // reason (a cable, a monitor turned off). The warning stays until it is back, like the projector's.
+  // Whether the stage window is on its screen: the panel's dot, which says it until it is back, and a toast when a
+  // screen coming or going is the reason (a cable, a monitor turned off).
   let lostToastId: string | null = null;
   void api.stage.shown().then(({ closed, shown }) => useStageStore.setState({ closed, shown }));
   const stopStageScreen = onIpc("stage-screen", ({ byScreens, closed, shown }) => {

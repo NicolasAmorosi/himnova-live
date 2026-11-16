@@ -31,6 +31,9 @@ import { SongTransport } from "./song-transport";
 export function MonitorsColumn() {
   const t = useT();
   const presentationOpen = useProjectionStore((s) => s.presentationOpen);
+  // Hidden by main because its screen went away: open, playing, and nobody sees it.
+  const projectorHidden = useDisplayStore((s) => s.projectorHidden);
+  const showing = presentationOpen && !projectorHidden;
   const overlay = useProjectionStore((s) => s.overlay);
   const base = useProjectionStore((s) => s.base);
   const heading = useLiveHeading();
@@ -42,7 +45,7 @@ export function MonitorsColumn() {
     return output.kind === "slide" ? output.modelUrl : null;
   });
 
-  const broadcasting = presentationOpen && overlay === "none" && base !== null;
+  const broadcasting = showing && overlay === "none" && base !== null;
 
   return (
     <>
@@ -51,23 +54,27 @@ export function MonitorsColumn() {
           <>
             <DamagedSlideBadge url={liveModelUrl} />
             {/* No projector is the one fault to fix before a service: a warning
-                with its fix beside it, not grey text (2026-11-05 review). */}
-            {presentationOpen ? null : (
+                with its fix beside it, not grey text (2026-11-05 review). An
+                unplugged screen is the same warning without the fix: main puts
+                the window back by itself. */}
+            {showing ? null : (
               <>
                 <Badge variant="danger">{status}</Badge>
-                <Button
-                  disabled={!canOpen}
-                  onClick={() => void useDisplayStore.getState().open()}
-                  size="xs"
-                  variant="outline"
-                >
-                  {t("header.openDisplay")}
-                </Button>
+                {presentationOpen ? null : (
+                  <Button
+                    disabled={!canOpen}
+                    onClick={() => void useDisplayStore.getState().open()}
+                    size="xs"
+                    variant="outline"
+                  >
+                    {t("header.openDisplay")}
+                  </Button>
+                )}
               </>
             )}
           </>
         }
-        meta={[heading, presentationOpen ? status : null]}
+        meta={[heading, showing ? status : null]}
         title={
           <span className="flex items-center gap-1.5">
             {broadcasting ? (

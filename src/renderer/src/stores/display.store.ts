@@ -177,6 +177,7 @@ export const useDisplayStore = create<DisplayStoreState>((set, get) => ({
     freezeLivePositions();
     await api.projection.close();
     useProjectionStore.getState().setPresentationOpen(false);
+    set({ projectorHidden: false });
   },
 
   autoOpen: async (enabled) => {
