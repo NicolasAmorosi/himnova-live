@@ -126,7 +126,9 @@ export const useDisplayStore = create<DisplayStoreState>((set, get) => ({
     // `projection:open` already closes the existing window and recreates it on
     // the chosen display, and the new one repaints itself from
     // `projection:getSnapshot`.
-    if (useProjectionStore.getState().presentationOpen) await api.projection.open(id);
+    // A new window is on a screen: main never says `connected: true` for it, so «Pantalla desconectada» stuck when the
+    // projector role moved off a screen that went away (2026-11-15 audit, U4).
+    if (useProjectionStore.getState().presentationOpen && (await api.projection.open(id))) set({ projectorHidden: false });
   },
 
   open: async () => {
@@ -137,6 +139,7 @@ export const useDisplayStore = create<DisplayStoreState>((set, get) => ({
       return;
     }
     if (!(await api.projection.open(displayId))) return;
+    set({ projectorHidden: false });
     // Opening onto BLACK changes what the projector shows, so it claims an
     // intent like every other such action — otherwise a deck still converting
     // would lift the black the moment it finished. See `live-intent.ts`.
