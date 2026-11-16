@@ -126,7 +126,14 @@ export const projectionHandlers: Pick<
     const deckId = output.kind === "slide" ? deckIdOfUrl(output.url) : null;
     if (deckId !== null) keepLiveDeckSource(deckId);
     syncLiveEngine();
-    getHistoryRepo().record(output, currentProgramId);
+    // Never in the way of the projector either: a throw here (a full disk, a read-only database) left the CCLI use
+    // uncounted, the deck on air unpinned and the channel answering an error, the projector already changed
+    // (2026-11-15 audit, D11).
+    try {
+      getHistoryRepo().record(output, currentProgramId);
+    } catch (error) {
+      console.warn("[history] could not record what went on air", error);
+    }
     if (output.kind === "song") {
       // The CCLI report's count: never in the way of the projector.
       try {
