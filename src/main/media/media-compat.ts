@@ -62,11 +62,8 @@ export const MEDIA_PROBE_VERSION = 2;
 const NATIVE_CONTAINERS = new Set(["mp4", "mov", "matroska", "webm", "ogg", "mp3", "wav", "flac", "aac"]);
 const NATIVE_AUDIO_CODECS = new Set(["aac", "mp3", "opus", "vorbis", "flac"]);
 /** PCM decoded fine in WAV, measured. In MOV only `pcm_s16le` was measured, so
- *  PCM anywhere else is converted — it costs a few seconds of audio encoding
- *  while the picture is copied untouched. */
+ *  PCM anywhere else is left to the media engine. */
 const WAV_PCM_CODECS = new Set(["pcm_u8", "pcm_s16le", "pcm_s24le", "pcm_s32le", "pcm_f32le", "pcm_mulaw"]);
-/** What the MP4 muxer takes without `-strict` and Chromium then plays. VP8 is
- *  missing on purpose: MP4 has no mapping for it. */
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);

@@ -337,10 +337,10 @@ export class MediaRepo {
   // content-addressed.
 
   /** Records the digest together with the `(size, mtime)` it describes, so it
-   *  can be invalidated without re-reading the file. Called from the two
-   *  places that ever compute one: a real conversion (which needs the hash
-   *  anyway, so this is free) and the startup backfill. */
-  /** Stamps the digest of the file as it is NOW — so the row's own
+   *  can be invalidated without re-reading the file. Called where one is
+   *  computed: reading a deck (`deck-service.ts`) and the startup backfill
+   *  (`content-hash.ts`).
+   *  Stamps the digest of the file as it is NOW, so the row's own
    *  `(size, mtime)` is written too, or the stamp would read as stale against
    *  a row that still describes the file before an edit. */
   setContentHash(id: number, contentHash: string, sizeBytes: number, mtimeMs: number): void {
