@@ -46,6 +46,17 @@ test("the transition chosen in Ajustes is kept after a restart", async ({ app })
   await expect(settings.getByRole("combobox", { name: "Estilo", exact: true })).toHaveText(/Instantáneo/);
 });
 
+test("a switch alone in a Settings row is named by the row and flips with a click on its name", async ({ app }) => {
+  // Four of them had no accessible name, and a click on the row's words did nothing (2026-11-15 audit, U10).
+  const settings = await openSettings(app, "Sistema");
+  const motion = settings.getByRole("switch", { name: "Video en movimiento en el monitor En Vivo" });
+  await expect(motion).toBeChecked();
+  await settings.getByText("Video en movimiento en el monitor En Vivo", { exact: true }).click();
+  await expect(motion).not.toBeChecked();
+  await motion.click();
+  await expect(motion).toBeChecked();
+});
+
 test("with the LIVE monitor's video turned off, the projector still plays it", async ({ app }) => {
   await app.addMedia("video", "clip.mp4");
   const settings = await openSettings(app, "Sistema");
