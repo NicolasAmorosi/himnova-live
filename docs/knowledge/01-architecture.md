@@ -74,7 +74,8 @@ live frame follows those reports like the LIVE monitor's copy, and as «Proyecto
 it out again and `showOnly` stops the frames. Its window is always muted: no audio and no media commands of its own.
 It is an **unwatched** mirror (`addMirror(win, false)`): a video taken live from PREVIEW waits for the projector and
 the NDI output to draw it before it sounds (`holdUntilShown`, `projectionState.getWatched()`), never for the stage,
-which the room does not see. A copy mounted mid-video (a view switched, the window reopened) starts where the
+which the room does not see. A video the closed projector paused waits the same way for the new projector alone when
+it opens («Reabrir», or by itself after a crash): `syncLiveEngineIntoNewProjector` (2026-11-15, audit A19). A copy mounted mid-video (a view switched, the window reopened) starts where the
 projector's last report says, not at the GO LIVE point (`startFrom` in `output-view.tsx`): a paused projector sends
 no report to correct it. Whether it is the movable kind is decided with its screen: the control window dragged onto
 the stage's screen (or off it) rebuilds it (`current.own`), or the fullscreen stage covered the operator's. The control window builds its picture (`lib/stage-output.ts`, pushed by

@@ -160,6 +160,33 @@ test("a projector closed from outside pauses the engine, and «Reabrir» goes on
   const second = await app.projector();
   await expect.poll(() => moving(second, "video:")).toBe(true);
   expect(Number(await position.getAttribute("aria-valuenow"))).toBeGreaterThanOrEqual(closedAt);
+  // Held paused until the new window showed it: told to play as the window was made, the room heard it before it
+  // could see it (2026-11-15 audit, A19). How long it waited is how long it used to sound unseen.
+  const held = app.log.find((line) => /\[engine\] live video held \d+ ms until the new projector showed it/.test(line));
+  console.log(`[media-engine] A19: ${held?.replace(/.*\[engine\]/, "[engine]") ?? "never held"}`);
+  expect(held, "the reopened projector's video waited to be seen").toBeDefined();
+});
+
+test("a projector that dies under an engine video comes back by itself, and the video waits to be seen", async ({ app }) => {
+  app.crashLogExpected = true;
+  const [avi] = await app.addMedia("video", "long-xvid.avi");
+  if (!avi) throw new Error("import failed");
+  await waitEngine(app, avi);
+  await app.previewFile("Videos", "long-xvid");
+  await app.goLive();
+  const first = await app.projector();
+  await expect.poll(() => moving(first, "video:")).toBe(true);
+  await app.electron.evaluate(({ BrowserWindow }) =>
+    BrowserWindow.getAllWindows()
+      .find((win) => win.webContents.getURL().endsWith("/projection.html"))
+      ?.webContents.forcefullyCrashRenderer(),
+  );
+  // The reopen of A1, the hold of A19 (2026-11-15 audit).
+  await expect(app.control.getByText("La ventana de proyección se cayó y se volvió a abrir sola")).toBeVisible();
+  await expect
+    .poll(() => app.log.some((line) => /\[engine\] live video held \d+ ms until the new projector showed it/.test(line)))
+    .toBe(true);
+  await expect.poll(async () => moving(await app.projector(), "video:")).toBe(true);
 });
 
 test("an engine that dies is reported and left to the operator", async ({ app }) => {

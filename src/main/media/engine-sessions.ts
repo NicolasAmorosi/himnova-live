@@ -45,7 +45,7 @@ type Session = {
   loop: boolean;
   stall?: StallWatch | null;
   /** Kept paused, whatever the output says, until these windows mount the canvas its frames go to. */
-  hold?: { waiting: Set<number>; timer: NodeJS.Timeout };
+  hold?: { waiting: Set<number>; timer: NodeJS.Timeout; since: number; target: VideoTarget; why: string };
 };
 
 type VideoTarget = "video" | "slideVideo" | "songVideo";
@@ -69,6 +69,10 @@ let previewAsked: { video: PreviewEngineVideo; contents: WebContents } | null = 
  *  canvas. A cap and not a promise, like the projector's own hold: a window that never asks (hidden, occluded)
  *  must not keep the room silent. */
 const SHOWN_CAP_MS = 1000;
+
+/** The projector window `projection:open` is syncing into, while it does: what it finds paused for the projector's
+ *  absence waits for this window to show it (`syncLiveEngineIntoNewProjector`). */
+let newProjector: number | null = null;
 
 /** `session.engine` playing `session.url`, or none when the url names no file — then `events.error`
  *  says so, like the engine itself would. */
@@ -230,14 +234,29 @@ function syncVideo(target: VideoTarget, want: LiveEngineState | null, windows: (
         taken.engine.setDevice(devices.live ?? "auto");
         taken.engine.seek(want.startAtSeconds);
       }
-      if (!want.paused) holdUntilShown(fresh);
+      if (!want.paused) holdUntilShown(fresh, target, "its windows");
     } else {
       start(fresh, { startAtSeconds: want.startAtSeconds, audio: target !== "songVideo", device: devices.live }, frameKey, events);
     }
+  } else if (newProjector !== null && session.paused && !want.paused && !session.hold && target !== "songVideo") {
+    // Paused while there was no projector, and still open: told to play now, it sounded ~0.25 s before the new
+    // window could show it, longer on a slow PC (audit A19). It waits for that window alone: the NDI one and the LIVE
+    // monitor kept their canvas and ask for nothing, so waiting on them would always run to the cap.
+    holdUntilShown(session, target, "the new projector", [newProjector]);
   }
   applyToSession(session, session.hold ? { ...want, paused: true } : want);
   // The projector, its copies and the control window's LIVE monitor: one decode, the same frame on all.
   session.engine?.showOnly(windows.flatMap((win) => (win ? [win.webContents] : [])));
+}
+
+/** `projection:open` made `win`: the sync that lets what the closed projector paused play again, into it. */
+export function syncLiveEngineIntoNewProjector(win: BrowserWindow): void {
+  newProjector = win.webContents.id;
+  try {
+    syncLiveEngine();
+  } finally {
+    newProjector = null;
+  }
 }
 
 /** Called whenever the output, the audio tracks or the projector window change. */
@@ -282,22 +301,32 @@ function takePreviewEngine(url: string, atSeconds: number): (Session & { engine:
 }
 
 /** The room must not hear a video before it sees it: an engine taken from PREVIEW is already open, so it would
- *  sound the instant it is told to play, before the projector and the NDI window have even mounted its canvas. */
-function holdUntilShown(session: Session): void {
-  const waiting = new Set(projectionState.getWatched().map((win) => win.webContents.id));
+ *  sound the instant it is told to play, before the projector and the NDI window have even mounted its canvas. The
+ *  same for one the closed projector paused, when a new projector opens (`syncLiveEngineIntoNewProjector`). */
+function holdUntilShown(
+  session: Session,
+  target: VideoTarget,
+  why: string,
+  windows: number[] = projectionState.getWatched().map((win) => win.webContents.id),
+): void {
+  const waiting = new Set(windows);
   if (!waiting.size) return;
   const timer = setTimeout(() => {
-    if (videos.video === session) console.warn(`[engine] live video played after ${SHOWN_CAP_MS} ms unseen: ${session.url}`);
+    if (isLive(session)) console.warn(`[engine] live ${target} played after ${SHOWN_CAP_MS} ms unseen: ${session.url}`);
     releaseHold(session);
   }, SHOWN_CAP_MS);
-  session.hold = { waiting, timer };
+  session.hold = { waiting, timer, since: Date.now(), target, why };
 }
 
+const isLive = (session: Session): boolean => Object.values(videos).includes(session);
+
 function releaseHold(session: Session): void {
-  if (!session.hold) return;
-  clearTimeout(session.hold.timer);
+  const hold = session.hold;
+  if (!hold) return;
+  clearTimeout(hold.timer);
   delete session.hold;
-  if (videos.video !== session) return;
+  if (!isLive(session)) return;
+  if (!hold.waiting.size) console.info(`[engine] live ${hold.target} held ${Date.now() - hold.since} ms until ${hold.why} showed it`);
   syncLiveEngine();
   // Paused meanwhile (NEGRO, the operator): the frame its windows asked for, which the hold did not draw.
   if (session.paused) session.engine?.redraw();
