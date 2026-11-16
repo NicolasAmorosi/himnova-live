@@ -3,8 +3,9 @@
 **Trigger:** adding a dependency to main, or changing an import from one, especially a CommonJS package; the app dying at startup with `SyntaxError: Named export '…' not found`
 
 - Main is emitted as ESM (`"type": "module"`, `out/main/index.js`), and `externalizeDepsPlugin`
-  leaves `dependencies` out of the bundle. So Node itself resolves `import { x } from "pkg"` at
-  launch. For a CommonJS package, it only knows the names that `cjs-module-lexer` can find by
+  leaves `dependencies` out of the bundle (all but `drizzle-orm`, bundled since 2026-11-16 because
+  resolving it as an external ESM package cost ~120 ms of main at each launch). So Node itself
+  resolves `import { x } from "pkg"` at launch. For a CommonJS package, it only knows the names that `cjs-module-lexer` can find by
   reading the source.
 - `import { autoUpdater } from "electron-updater"` passes `typecheck`, because the `.d.ts` declares
   it, and `lint` and `build` pass too. At launch it fails with
@@ -23,4 +24,4 @@
   interops leniently and never imports `electron`, so only starting the app catches it:
   `npm run dev`, the E2E suite, or a package.
 
-**Last updated:** 2026-10-26
+**Last updated:** 2026-11-16 (drizzle-orm bundled)
