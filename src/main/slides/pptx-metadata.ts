@@ -146,12 +146,29 @@ function attr(node: XmlNode | undefined, name: string): string | undefined {
   return typeof value === "string" ? value : undefined;
 }
 
+/** A local header (30), `mimetype` (8) and the presentation's media type (47), with room for a small extra field. */
+const ZIP_HEAD_BYTES = 128;
+const ODF_PRESENTATION = "application/vnd.oasis.opendocument.presentation";
+
+/** A zip is told apart by its bytes too, not by its extension (a renamed file went to the wrong reader): an
+ *  OpenDocument file keeps a `mimetype` entry first and stored, so its media type sits in the opening bytes
+ *  (2026-11-15 audit, Doc3). A template's media type starts the same. */
+function isOdfPresentation(head: Buffer): boolean {
+  if (head.readUInt32LE(0) !== 0x04034b50 || head.readUInt16LE(8) !== 0) return false;
+  const nameLength = head.readUInt16LE(26);
+  const dataStart = 30 + nameLength + head.readUInt16LE(28);
+  return (
+    head.toString("latin1", 30, 30 + nameLength) === "mimetype" &&
+    head.toString("latin1", dataStart, dataStart + ODF_PRESENTATION.length) === ODF_PRESENTATION
+  );
+}
+
 export function containerKind(filePath: string): ContainerKind {
   let fd: number | null = null;
   try {
     fd = fs.openSync(filePath, "r");
-    const head = Buffer.alloc(4);
-    fs.readSync(fd, head, 0, 4, 0);
+    const head = Buffer.alloc(ZIP_HEAD_BYTES);
+    fs.readSync(fd, head, 0, ZIP_HEAD_BYTES, 0);
     // OLE2 compound file (legacy .ppt/.pps)
     if (head[0] === 0xd0 && head[1] === 0xcf && head[2] === 0x11 && head[3] === 0xe0) {
       return "binary";
@@ -163,10 +180,7 @@ export function containerKind(filePath: string): ContainerKind {
     if (head[0] === 0x25 && head[1] === 0x50 && head[2] === 0x44 && head[3] === 0x46) {
       return "pdf";
     }
-    if (head[0] === 0x50 && head[1] === 0x4b) {
-      // A zip: OOXML or ODF. Distinguish by extension, cheap and reliable here.
-      return path.extname(filePath).toLowerCase() === ".odp" ? "odf" : "ooxml";
-    }
+    if (head[0] === 0x50 && head[1] === 0x4b) return isOdfPresentation(head) ? "odf" : "ooxml";
     return "unknown";
   } catch {
     return "unknown";
