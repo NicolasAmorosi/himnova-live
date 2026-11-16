@@ -44,7 +44,7 @@ import { DEFAULT_PLATE_STYLE, type Plate } from "../../src/shared/types/overlay"
 import { IpcError } from "../../src/shared/ipc/result";
 import type { UtilityScene } from "../../src/shared/types/utility";
 import { buildLegacyPpt } from "../fixtures/legacy-ppt";
-import type { ProgramSummary } from "../../src/shared/types/program";
+import type { ProgramItemUpsert, ProgramSummary } from "../../src/shared/types/program";
 import type { MediaAsset } from "../../src/shared/types/media";
 
 const DEFAULT_UTILITY_SCENES = defaultUtilityScenes(mainEs.seed);
@@ -178,6 +178,12 @@ describe("Settings and programs", () => {
     const loaded = programsRepo.load(saved.id);
     assert(loaded.items.length === 1, "program round-trip failed");
     assert(loaded.favorite === false, "program should default to not favorite");
+  });
+
+  test("an item of a kind the repo does not know is refused by name, never saved as an empty verse (2026-11-15 audit, P10)", () => {
+    const item = { kind: "input", inputId: 1, title: null } as unknown as ProgramItemUpsert;
+    expect(() => programsRepo.save({ name: "Con una entrada", items: [item] })).toThrow(/program item kind "input"/);
+    expect(programsRepo.list().map((p) => p.name)).not.toContain("Con una entrada");
   });
 
   test("a row an older build wrote for a key that no longer exists is ignored, not an error", () => {
