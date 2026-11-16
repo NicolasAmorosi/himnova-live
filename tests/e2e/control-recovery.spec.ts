@@ -3,6 +3,7 @@ import type { Page } from "@playwright/test";
 import { parseLyrics } from "../../src/shared/song-text";
 import { DEFAULT_SONG_THEME } from "../../src/shared/types/song";
 import { audioStates, engineCanvas, expect, moving, relaunch, test, videoStates, type WorshipApp } from "./support/app";
+import { probe, source } from "./support/ndi";
 import { ffmpegBinary } from "./support/paths";
 
 /**
@@ -316,6 +317,41 @@ test("the stage's countdown and message stay through a control reload", async ({
   for (const { payload } of await pushes(stage)) {
     expect(payload).toMatchObject({ message: { text: "Último coro" }, countdown: expect.anything() });
   }
+});
+
+test("the NDI output goes on through a control reload: every frame, and every beep with its flash", async ({ app }) => {
+  test.setTimeout(180_000);
+  const ndi = await source(app);
+  test.skip(!ndi, "no NDI runtime on this computer");
+  // The first attempt's review heard a cut on NDI at a reload: measured here, at the receiver.
+  await app.addMedia("video", "ndi-bar.mp4");
+  await app.previewFile("Videos", "ndi-bar");
+  await app.goLive();
+  await app.projector();
+  await app.control.waitForTimeout(1500);
+  const counting = probe<{ fresh: number; skipped: number; nobar: number }>("count", ndi!.name, ndi!.url, "8");
+  await app.control.waitForTimeout(2500);
+  await reloadControl(app);
+  const counted = await counting;
+  console.log(`[control-recovery] NDI frames through a reload: ${JSON.stringify(counted)}`);
+  // `ndi-receiver.spec.ts`'s bar for a video with nothing happening: every number once, at most one lost at a joint.
+  expect(counted.fresh).toBeGreaterThanOrEqual(0.97 * 30 * 8);
+  expect(counted.skipped).toBeLessThanOrEqual(1);
+
+  await app.addMedia("video", "ndi-av.mp4");
+  await app.previewFile("Videos", "ndi-av");
+  await app.goLive();
+  await app.control.waitForTimeout(1500);
+  const syncing = probe<{ pairs: number; median: number; flashes: number; beeps: number }>("avsync", ndi!.name, ndi!.url, "12");
+  await app.control.waitForTimeout(3000);
+  await reloadControl(app);
+  const sync = await syncing;
+  console.log(`[control-recovery] NDI sound through a reload: ${JSON.stringify(sync)}`);
+  // A gap in the sound loses a beep its flash then pairs with nothing.
+  expect(sync.beeps).toBeGreaterThanOrEqual(sync.flashes - 1);
+  expect(sync.pairs).toBeGreaterThanOrEqual(10);
+  expect(sync.median).toBeGreaterThanOrEqual(-45);
+  expect(sync.median).toBeLessThanOrEqual(65);
 });
 
 /** The control window's page, read from main: after a crash Playwright's own handle on it is gone. A script sent

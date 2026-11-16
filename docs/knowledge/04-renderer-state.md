@@ -235,14 +235,22 @@ whose renderer died (`windows/control-window.ts`, capped like the projector's), 
 A page that started blind reached the room: its first output blanked the projector and its first sound push silenced
 it, and its first actions did worse (CLEAR left the music on, NEGRO taken off put out LOGO over the video). So
 `effects/live-copy.ts` sends main a copy of the stores that hold what is live (the projection store, the sounds, the
-verse's chapter and cursor, the schedule with its live row, the stage's countdown and message, LIVE's mute, and
-`lib/counters.ts`, whose epochs must never repeat one on the air) on every change; main keeps the last one in memory
+verse's chapter and cursor, the schedule with its live row, the stage's countdown and message, LIVE's mute, whether
+the operator closed the projector, and `lib/counters.ts`, whose epochs must never repeat one on the air) on every
+change; main keeps the last one in memory
 and never reads it (`window:keepLiveCopy`), which keeps the rule above. `main.tsx` asks for it (`window:liveCopy`)
 before the page is drawn, loads the settings, puts the copy back, and only then renders `App`, whose effects find
 nothing changed to push: what reaches the projector is the same output as before, field for field (the E2E
 `control-recovery.spec.ts` compares them). PREVIEW starts empty and its engine stops. A copy that cannot be put back
 leaves the page inert with a message: no effect starts, so nothing reaches the room. The copy is dropped when the
 control window closes.
+
+Two obligations follow for anything new. **State that is live goes in the copy**: a new store, or module-level state
+(a `let` counter or flag) that says what is on the air, is added to `effects/live-copy.ts` or to `lib/counters.ts`.
+And **every effect starts right from restored stores**: one that only reacts to changes leaves a restored deck
+un-armed (its auto-advance had to be armed at start), and one that starts from `null` takes what is playing for
+something else (a deck's sounds went out again from 0:00). `control-recovery.spec.ts` compares what the projector got
+before and after a reload, and measures NDI through one.
 
 The NDI® output (`01-architecture.md`) is a copy of the projector, offscreen: `projection.html?role=ndi` mounts
 `ProjectorCopy` (`components/shared/projector-copy.tsx`) instead of `ProjectionApp`, which draws the same output,
