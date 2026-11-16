@@ -105,6 +105,17 @@ export function ColorField({ className, label, onChange, size = "sm", value }: C
     return () => document.removeEventListener("pointerdown", onPointerDown);
   }, [open]);
 
+  // Opened, the focus moves into the palette, onto the chosen swatch, as `Menu` does: left on the trigger, Esc went
+  // past the palette to the dialog behind and closed the whole editor, and Tab never reached the portal at the end of
+  // the page (2026-11-15 audit, U2).
+  const shown = open && position !== null;
+  useEffect(() => {
+    if (!shown) return;
+    const popover = popoverRef.current;
+    const swatch = popover?.querySelector<HTMLElement>('[aria-pressed="true"]') ?? popover?.querySelector("button");
+    swatch?.focus({ preventScroll: true });
+  }, [shown]);
+
   function close(refocus: boolean) {
     setOpen(false);
     setDraft(null);

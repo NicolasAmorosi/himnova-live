@@ -309,3 +309,27 @@ test("«Quedarse en el último cuadro» holds the video on air, paused, and NEGR
   // Uncovering must not restart an ended clip from 0 — its sound included.
   expect((await videoStates(projector))[0]?.currentTime).toBeGreaterThan(7);
 });
+
+test("a colour palette takes the focus when it opens: Esc closes only the palette, and the keyboard reaches it", async ({ app }) => {
+  const settings = await openSettings(app, "Proyección");
+  const trigger = settings.getByRole("button", { name: "Color", exact: true }).first();
+  const palette = app.control.locator('[role="dialog"][aria-label="Color"]');
+  const focusInPalette = () =>
+    app.control.evaluate(() => document.querySelector('[role="dialog"][aria-label="Color"]')?.contains(document.activeElement) ?? false);
+
+  // Opened with the mouse: Esc used to reach Settings behind it and close the whole dialog (2026-11-15 audit, U2).
+  await trigger.click();
+  await expect(palette).toBeVisible();
+  await expect.poll(focusInPalette).toBe(true);
+  await app.control.keyboard.press("Escape");
+  await expect(palette).toHaveCount(0);
+  await expect(settings).toBeVisible();
+  await expect(trigger).toBeFocused();
+
+  // Opened with the keyboard: Enter puts the focus inside, and Tab walks on from there.
+  await app.control.keyboard.press("Enter");
+  await expect(palette).toBeVisible();
+  await expect.poll(focusInPalette).toBe(true);
+  await app.control.keyboard.press("Tab");
+  expect(await focusInPalette()).toBe(true);
+});
