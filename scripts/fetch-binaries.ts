@@ -85,18 +85,19 @@ function riedl(dir: string, sums: { ffmpeg: string; ffprobe: string }): Archive[
   }));
 }
 
-const ENGINE_RELEASE = "https://github.com/NicolasAmorosi/himnova-live/releases/download/engine-8";
+const ENGINE_RELEASE = "https://github.com/NicolasAmorosi/himnova-live/releases/download/engine-9";
 
-/** Release `engine-8`: `native/` as of the commit its tag points at. engine-7 plus protocol 8: a `hello` handshake (an
- *  older engine gets none of the new commands), each session's audio output (`device`, `devices`) with a lost output
- *  reported as `audio-out` instead of a broken file, a pre-volume peak `level` per channel for the audio strips' meters,
- *  every file played out as float stereo (mono at full level on both sides, a 5.1 downmix that never clips), and the NDI
- *  sound captured from LIVE's own output (`--audio-device`, `--preview-apart`), coming back by itself when it stops.
- *  Linux's is built on Ubuntu 22.04 and ships no libmpv: it loads the system's, .so.2 or .so.1. */
+/** Release `engine-9`: `native/` as of the commit its tag points at (protocol 8, like engine-8). engine-8 plus the
+ *  2026-11-15 audit's engine round: a negative NDI sound delay no longer sends silence (A7), Linux's NDI sound no longer
+ *  clicks (a block a few ms early continues the timeline, A38), no burst of old silence after a capture gap or stall
+ *  (A37), the NDI source leaves the network before the sender waits for its audio thread (A40), a file is played as
+ *  itself and never as a list of others (`access-references=no`, S1), a GPU failure exits cleanly (A35), Windows waits
+ *  for its sound capture to start (A36), and on macOS only an engine whose sound NDI takes opens the output at start
+ *  (`--ndi-tap 1`, X21). Linux's is built on Ubuntu 22.04 and ships no libmpv: it loads the system's, .so.2 or .so.1. */
 const ENGINE: Record<string, Archive[]> = {
-  "darwin-arm64": engine("darwin-arm64", "9481ceb361c1d6db24a925acc4b0ae77b80884784272c9e920736eb8990ab321", ["media-engine", "handles.node", "libmpv.2.dylib"]),
-  "win32-x64": engine("win32-x64", "27be9bfe2fe8bf76337888bea6f218490ebc19b391cf17250523d33fb65c37e5", ["media-engine.exe", "libmpv-2.dll"]),
-  "linux-x64": engine("linux-x64", "bcbf8faa68d8baa7c8cc6a6f57012fc85079781e1a508806a77f7fd9b12f62a6", ["media-engine", "handles.node"]),
+  "darwin-arm64": engine("darwin-arm64", "8cecac7f9313514da2d5ef5e3438b14d7d3bc2e8c64fabd495991c622cfe139e", ["media-engine", "handles.node", "libmpv.2.dylib"]),
+  "win32-x64": engine("win32-x64", "40e50cb12e70f77b18cfcb5b2f73b00d87960a988296fad175eab40f239c53a6", ["media-engine.exe", "libmpv-2.dll"]),
+  "linux-x64": engine("linux-x64", "9d5d547d593ca1b5a8efebaf27d6e5ebc364b9c0dd3e3a9e8c2dd06dda3c0e2a", ["media-engine", "handles.node"]),
 };
 
 function engine(target: string, sha256: string, files: string[]): Archive[] {
