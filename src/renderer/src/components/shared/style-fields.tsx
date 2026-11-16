@@ -262,8 +262,10 @@ export function FontFamilyFields({
     // The stored family, kept selectable even when this machine no longer has
     // it: dropping it silently would rewrite the row to "the app font" the
     // first time somebody opened this on a different computer.
+    // While the list is on its way the stored family is only its name: «not installed» before the answer was a
+    // flash of a wrong warning (2026-11-15 audit, U7).
     ...(value !== null && !(fonts.status === "ready" && fonts.families.includes(value))
-      ? [{ label: t("style.fonts.missing", { name: value }), value }]
+      ? [{ label: fonts.status === "loading" ? value : t("style.fonts.missing", { name: value }), value }]
       : []),
   ];
 

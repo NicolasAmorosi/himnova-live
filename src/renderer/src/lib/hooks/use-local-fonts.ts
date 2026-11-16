@@ -23,12 +23,39 @@ export type LocalFonts =
    *  empty list, since an empty list reads as "this machine has no fonts". */
   | { status: "unavailable" };
 
+/** The one ask of this session, and its answer once it came. */
+let asked: Promise<LocalFonts> | null = null;
+let answered: LocalFonts | null = null;
+
+function askOnce(): Promise<LocalFonts> {
+  asked ??= (async (): Promise<LocalFonts> => {
+    const query = window.queryLocalFonts;
+    if (typeof query !== "function") return { status: "unavailable" };
+    try {
+      const fonts = await query();
+      // One entry per FAMILY: the API returns a row per face, so a font with
+      // eight weights would otherwise appear eight times. And only families
+      // a style may store (`isSafeFontFamily`): «Mom's Typewriter» is a real
+      // font, and offering it made every editor fail on save.
+      const families = [...new Set(fonts.map((font) => font.family))]
+        .filter(isSafeFontFamily)
+        .sort((a, b) => a.localeCompare(b));
+      return { status: "ready", families };
+    } catch (error) {
+      console.warn("[fonts] queryLocalFonts failed", error);
+      return { status: "unavailable" };
+    }
+  })().then((fonts) => (answered = fonts));
+  return asked;
+}
+
 /**
  * The font families installed on this machine.
  *
- * Asked for once per mount of the editor rather than at boot: it is a
- * permission-gated call that walks the system's font directory, and nothing
- * outside the scene editor has any use for the answer.
+ * Asked for once per session, the first time an editor shows the field, not at boot: it is a permission-gated call
+ * that walks the system's font directory, and nothing outside the editors has any use for the answer. Asked again
+ * at every mount, choosing another theme, scene or plate walked it again and showed the stored family as «not
+ * installed» until it answered (2026-11-15 audit, U7); a font installed meanwhile shows at the next launch.
  *
  * Never throws and never leaves the caller in `loading`: `queryLocalFonts` can
  * be absent (a platform or a build without the API) or reject (a permission
@@ -38,32 +65,14 @@ export type LocalFonts =
  * mode here is cosmetic by construction.
  */
 export function useLocalFonts(enabled: boolean): LocalFonts {
-  const [state, setState] = useState<LocalFonts>({ status: "loading" });
+  const [state, setState] = useState<LocalFonts>(() => answered ?? { status: "loading" });
 
   useEffect(() => {
-    if (!enabled) return;
-    const query = window.queryLocalFonts;
-    if (typeof query !== "function") {
-      setState({ status: "unavailable" });
-      return;
-    }
+    if (!enabled || answered) return;
     let alive = true;
-    void query()
-      .then((fonts) => {
-        if (!alive) return;
-        // One entry per FAMILY: the API returns a row per face, so a font with
-        // eight weights would otherwise appear eight times. And only families
-        // a style may store (`isSafeFontFamily`): «Mom's Typewriter» is a real
-        // font, and offering it made every editor fail on save.
-        const families = [...new Set(fonts.map((font) => font.family))]
-          .filter(isSafeFontFamily)
-          .sort((a, b) => a.localeCompare(b));
-        setState({ status: "ready", families });
-      })
-      .catch((error: unknown) => {
-        console.warn("[fonts] queryLocalFonts failed", error);
-        if (alive) setState({ status: "unavailable" });
-      });
+    void askOnce().then((fonts) => {
+      if (alive) setState(fonts);
+    });
     return () => {
       alive = false;
     };
