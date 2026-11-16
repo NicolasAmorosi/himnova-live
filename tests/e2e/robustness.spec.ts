@@ -164,12 +164,14 @@ test("empty files of every kind are added, previewed and sent live without an er
   await app.previewFile("Audios", "vacio");
   await app.goLive();
   await app.control.waitForTimeout(1500);
-  // The two empty decks say they cannot be opened.
+  // The two empty decks say they cannot be opened, in the words main gives. Not «vac»: PREVIEW's header shows the
+  // deck's name, «vacio», which matched with nothing said at all (2026-11-15 audit, P5).
+  const cannotOpen = "No se pudo abrir el archivo como presentación";
   const decks = app.control.getByRole("tabpanel", { name: "Presentaciones" }).getByRole("button", { name: "vacio" });
   await app.previewFile("Presentaciones", "vacio");
-  await expect(app.previewColumn()).toContainText(/no se puede|No se pudo|no es una presentación|vac/i);
+  await expect(app.previewColumn()).toContainText(cannotOpen);
   await decks.nth(1).click();
-  await expect(app.previewColumn()).toContainText(/no se puede|No se pudo|no es una presentación|vac/i);
+  await expect(app.previewColumn()).toContainText(cannotOpen);
   await expect(app.control.getByRole("status").filter({ hasText: "error inesperado" })).toHaveCount(0);
 });
 
