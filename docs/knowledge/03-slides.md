@@ -386,7 +386,8 @@ Two non-obvious details, measured in
 the reader is **synchronous on purpose** (KB-sized reads, so nothing in the caller chain, up to
 `MediaRepo.ensureLinkedAudio` and `toDeckDTO`, had to become `async`), and an entry is inflated
 with `zlib.inflateRawSync` capped (`maxOutputLength`) at the size the central directory declares:
-past it the entry is corrupt, and one read inflates at most 512 MB in all. Never fflate with a
+past it the entry is corrupt, and one read inflates at most 512 MB in all and copies stored
+entries no larger in all than the file. Never fflate with a
 short `out`, which decodes the whole stream anyway and cuts the part in silence (2026-11-15 audit,
 S7 and S10).
 

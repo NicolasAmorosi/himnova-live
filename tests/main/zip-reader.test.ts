@@ -202,3 +202,26 @@ test("one call inflates no more than its budget in all, and stored entries do no
   expect(Object.keys(readZipEntries(file, () => true)).sort()).toEqual(["a.xml", "b.xml", "c.xml", "video.mp4"]);
   fs.rmSync(dir, { recursive: true, force: true });
 });
+
+// 2026-11-15 audit, S10, review: stored entries were not counted at all, so a central directory whose entries all
+// point at one stored blob copied it once per entry, N times a file of about one blob.
+test("stored entries copy no more than the file holds in all, however many entries point at one blob", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "worship-zip-stored-"));
+  const file = path.join(dir, "deck.pptx");
+  const blob = new Uint8Array(1024 * 1024).fill(7);
+  const zip = Buffer.from(
+    zipSync({ "a.mp4": [blob, { level: 0 }], "b.mp4": [new Uint8Array(1), { level: 0 }], "c.mp4": [new Uint8Array(1), { level: 0 }] }),
+  );
+  // The directory says `b` and `c` are `a`'s bytes, at `a`'s offset.
+  for (let at = 0; at < zip.length - 46; at++) {
+    if (zip.readUInt32LE(at) !== 0x02014b50 || zip.subarray(at + 46, at + 51).toString() === "a.mp4") continue;
+    zip.writeUInt32LE(blob.length, at + 20);
+    zip.writeUInt32LE(blob.length, at + 24);
+    zip.writeUInt32LE(0, at + 42);
+  }
+  fs.writeFileSync(file, zip);
+  const out = readZipEntries(file, () => true);
+  expect(out["a.mp4"]!.length).toBe(blob.length);
+  expect(Object.keys(out)).toEqual(["a.mp4"]);
+  fs.rmSync(dir, { recursive: true, force: true });
+});

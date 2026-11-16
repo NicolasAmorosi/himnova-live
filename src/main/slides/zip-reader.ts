@@ -342,8 +342,8 @@ function inflateEntry(raw: Buffer, uncompressedSize: number, budget: number): Ui
 const MAX_INFLATED_BYTES = 256 * 1024 * 1024;
 
 /** What one `readZipEntries` call may inflate in all: the per-entry cap alone let three XML parts of 200 MB of
- *  zeros (a 614 KB `.pptx`) inflate 600 MB together (2026-11-15 audit, S10). Stored entries do not count: they
- *  are the deck's videos, already on disk at their size. */
+ *  zeros (a 614 KB `.pptx`) inflate 600 MB together (2026-11-15 audit, S10). Stored entries do not count here: they
+ *  are the deck's videos, already on disk at their size, and have the file's size as their own budget. */
 const MAX_INFLATED_TOTAL_BYTES = 512 * 1024 * 1024;
 
 /**
@@ -352,7 +352,8 @@ const MAX_INFLATED_TOTAL_BYTES = 512 * 1024 * 1024;
  * encrypted or use a compression method other than store/deflate are skipped
  * rather than throwing: one odd part must not cost a deck its timings. So is
  * a deflated entry past what is left of `inflateBudget` (512 MB per call,
- * stored entries not counted).
+ * stored entries not counted), and a stored one past what is left of the
+ * file's size.
  *
  * Throws `ZipFormatError` when the file is not a readable zip at all, which
  * is the same shape of failure `unzipSync` produced and which every caller
@@ -385,10 +386,16 @@ export function readZipEntries(
 
     const result: Record<string, Uint8Array> = {};
     let budget = inflateBudget;
+    // Stored entries are copied, not inflated: honest ones hold no more than the file between them, but directory
+    // entries that all point at one stored blob copied it once each, N times a file of a few MB (2026-11-15 audit,
+    // S10, review).
+    let storedLeft = size;
     for (const [name, entry] of readable) {
+      if (entry.method === METHOD_STORE && entry.compressedSize > storedLeft) continue;
       try {
         result[name] = readEntryData(fd, entry, window, budget);
         if (entry.method === METHOD_DEFLATE) budget -= result[name].length;
+        else storedLeft -= result[name].length;
       } catch {
         /* One unreadable part is not a reason to lose the rest. */
       }
