@@ -42,7 +42,9 @@ As in the legacy version (removed from the repo on 2026-10-22; still in git hist
 is neither the operator's nor the stage's (`shared/display-roles.ts`, `projectorDisplayFor`, shared with the
 control window's `display.store`). Minimizing the control window leaves the projector and the stage on their
 screens (owner, 2026-11-13); its restore only reasserts the fullscreen projector's `alwaysOnTop`, and closing it
-closes them (`wireMinimizeRestoreSync` in `main/index.ts`).
+closes them (`wireMinimizeRestoreSync` in `main/index.ts`). On macOS, where the app outlives that window, closing it
+also stops PREVIEW's engine and empties `projectionState` (output, tracks, media status) before a live-engine sync:
+nothing plays on with no window, and a projector opened from the next window starts from nothing (audit A20).
 
 Because the projection window is destroyed and recreated, main keeps the last `ProjectionOutput`
 sent (`src/main/services/projection-state.ts`) and replays it on `did-finish-load` — otherwise,
