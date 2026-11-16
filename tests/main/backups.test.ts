@@ -9,7 +9,7 @@ import path from "node:path";
 import Database from "better-sqlite3";
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
 import { openDatabase } from "../../src/main/db/client";
-import { journalNewest, openForLaunch, runMigrations } from "../../src/main/db/migrate";
+import { journalNewest, openForLaunch, runMigrations, takeSnapshot } from "../../src/main/db/migrate";
 import {
   applyPendingRestore,
   backupEntries,
@@ -43,6 +43,24 @@ function profileDb(file: string, program: string, folder = drizzleDir): string {
   runMigrations(db, folder);
   new ProgramsRepo(db, sqlite).save({ name: program, items: [] });
   sqlite.close();
+  return file;
+}
+
+/** A database of this build whose programs index no longer matches its rows. Overwritten bytes make `VACUUM INTO`
+ *  throw before any copy exists; this damage is copied as it is, so only `integrity_check` on the copy sees it
+ *  (2026-11-15 audit, P6). */
+function damagedDb(file: string): string {
+  profileDb(file, "Culto dañado");
+  const sqlite = new Database(file);
+  try {
+    sqlite.unsafeMode(true);
+    sqlite.pragma("writable_schema = ON");
+    sqlite.prepare("UPDATE sqlite_master SET sql = ? WHERE name = 'ix_programs_order'").run(
+      "CREATE INDEX `ix_programs_order` ON `programs` (`name`)",
+    );
+  } finally {
+    sqlite.close();
+  }
   return file;
 }
 
@@ -85,6 +103,12 @@ describe("staging a copy", () => {
     db.close();
     expect(stageRestore(newer, staged, newest)).toBe("newer");
 
+    expect(fs.existsSync(path.dirname(staged))).toBe(false);
+  });
+
+  test("a damaged copy is refused, and nothing is staged (2026-11-15 audit, P6)", () => {
+    const staged = path.join(fresh("backups"), "restore-pending", "worship.db");
+    expect(stageRestore(damagedDb(fresh("dañada.db")), staged, newest)).toBe("damaged");
     expect(fs.existsSync(path.dirname(staged))).toBe(false);
   });
 
@@ -200,6 +224,14 @@ test("the list holds every kind of copy, newest first, with what each holds", ()
     ["update", 1, 0],
     ["daily", null, null],
   ]);
+});
+
+test("a snapshot of a damaged database fails, and leaves no file behind (2026-11-15 audit, P6)", () => {
+  const dir = fresh("daily");
+  const result = takeSnapshot(damagedDb(fresh("worship.db")), dir, 7, new Date("2026-11-15T10:00:00Z"));
+  expect(result.status).toBe("failed");
+  expect(result.status === "failed" && result.reason).toMatch(/integrity_check/);
+  expect(fs.readdirSync(dir)).toEqual([]);
 });
 
 describe("a launch that cannot open its database (audit D3)", () => {
