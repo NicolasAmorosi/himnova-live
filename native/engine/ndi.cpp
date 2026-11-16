@@ -451,12 +451,19 @@ struct AudioOut : AudioSink {
     if (frames <= 0 || ch <= 0 || r <= 0) return;
     std::lock_guard<std::mutex> l(m);
     lag = std::clamp<int64_t>(nowTc() - tc, 0, 10000000);
-    // Captures overlap by a few samples at their joints (two clocks): what the timeline already has goes.
-    if (expected && tc < expected - 20000) {
+    // A block that starts less than 20 ms before where the one before ended continues it. Pulse stamps its blocks with
+    // a latency it reads in steps: on the owner's Linux PC each one landed between −5 and +11 ms of that point, and
+    // dropping whatever started 2 ms early cost 3.8 % of the sound, in clicks (measured 2026-11-16; 2026-11-15 audit,
+    // A38). A later block keeps its own time (a gap of a few ms, filled with silence past 10), so the timeline never
+    // runs further from the capture's own clock than that jitter. More than 20 ms early is a real overlap, when a
+    // capture restarts: what the timeline already has goes.
+    if (expected && tc < expected - 200000) {
       int skip = (int)((expected - tc) * r / 10000000);
       if (skip >= frames) return;
       in += (size_t)skip * ch;
       frames -= skip;
+      tc = expected;
+    } else if (expected && tc < expected) {
       tc = expected;
     }
     fillUntil(tc);
