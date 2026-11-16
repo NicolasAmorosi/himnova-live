@@ -267,10 +267,18 @@ export async function writeSongFile(id: number, song: ReadSong): Promise<void> {
 /** One save of a song file at a time, its row with it: two songs of one ChordPro songbook are one file, and two saves
  *  each read, rewrite and rename it from what it held before the other, losing one edit. */
 let saving: Promise<unknown> = Promise.resolve();
+let pendingSaves = 0;
 export function inSaveOrder<T>(save: () => Promise<T>): Promise<T> {
+  pendingSaves += 1;
   const run = saving.then(save);
-  saving = run.catch(() => undefined);
+  saving = run.catch(() => undefined).finally(() => (pendingSaves -= 1));
   return run;
+}
+
+/** Settles when every file save asked so far has; null with none running. The quit waits on it: `will-quit` closes the
+ *  database, and a save cut there left its temp file beside the songbook or its row stale (review of A25). */
+export function songSavesPending(): Promise<void> | null {
+  return pendingSaves > 0 ? saving.then(() => undefined) : null;
 }
 
 /** `song:update`: a song tied to a file writes the file first, `inSaveOrder`. One with no file has nothing to wait

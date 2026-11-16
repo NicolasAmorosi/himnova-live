@@ -697,6 +697,26 @@ Letra de la tercera
     }
   });
 
+  test("a file save still running is there for the quit to wait on; none, and the quit waits for nothing", async () => {
+    const { inSaveOrder, songSavesPending } = await import("../../src/main/services/song-files");
+    expect(songSavesPending()).toBeNull();
+    let release = () => undefined as void;
+    const stuck = inSaveOrder(() => new Promise<void>((resolve) => (release = resolve)));
+    const failed = inSaveOrder(() => Promise.reject(new Error("refused"))).catch(() => "refused");
+    const pending = songSavesPending();
+    // `will-quit` closed the database under it, and the temp file stayed beside the songbook (review of A25).
+    expect(pending).not.toBeNull();
+    let settled = false;
+    void pending!.then(() => (settled = true));
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(settled).toBe(false);
+    release();
+    await stuck;
+    expect(await failed).toBe("refused");
+    await pending;
+    expect(songSavesPending()).toBeNull();
+  });
+
   test("only a change the file holds writes it: a theme, or notes a ChordPro file has no place for, never touch it", async () => {
     const folder = fresh("theme-only");
     const file = path.join(folder, "domingo.cho");
