@@ -401,7 +401,7 @@ function modelDeck(assetId: number, sourcePath: string, force: boolean, lane: Ra
         unreadableStamp.set(sourcePath, { stamp: stampOf(stat), reason });
         return failUnreadable(assetId, reason);
       }
-      return recordModelDeck(assetId, sourcePath, stat, read, kind, job);
+      return recordModelDeck(assetId, sourcePath, stat, read, kind, job, force);
     })
     .finally(() => modelInFlight.delete(assetId));
   modelInFlight.set(assetId, Object.assign(job, { promise }));
@@ -415,11 +415,26 @@ async function recordModelDeck(
   deck: PptxRead,
   kind: ContainerKind,
   job: { lane: RasterLane },
+  force: boolean,
 ): Promise<DeckDTO> {
   const slidesRepo = getSlidesRepo();
   const mtimeMs = Math.trunc(stat.mtimeMs);
   const contentHash = await hashFile(sourcePath);
   getMediaRepo().setContentHash(assetId, contentHash, stat.size, mtimeMs);
+
+  // The same bytes, already read through another library entry (a copy in
+  // another folder, added this session and not hashed yet): that deck, as it
+  // is. Recording it again emptied the folder the music on air played from
+  // and gave its clips new ids (2026-11-15 audit, A12).
+  const shared = force ? null : slidesRepo.findDeckByIdentity(contentHash, 0, "model");
+  if (
+    shared?.status === "ready" &&
+    shared.converterVersion === SLIDES_MODEL_VERSION &&
+    (shared.cacheDir === "" || fs.existsSync(shared.cacheDir))
+  ) {
+    slidesRepo.relinkDeck(shared.id, assetId, sourcePath, stat.size, mtimeMs);
+    return readyNative({ ...shared, mediaAssetId: assetId, sourcePath, sourceSizeBytes: stat.size, sourceMtimeMs: mtimeMs }, assetId);
+  }
 
   // Timings, transitions, sound and video come from the reader's
   // `PresentationMeta`; the model is only how the slides look. Both number
