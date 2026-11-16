@@ -23,6 +23,9 @@ const HALVE_UNDER_MS = 25;
  *  with 2–3 frames ~2–9 ms apart, and a rate seeded by that burst halved a 30 fps clip for its first ~0.6 s (the
  *  2 h soak, 2026-11-11: 0, 1, 5, 6, 8, 10, 10, 12… on every engine start). */
 const RATE_SEED_GAPS = 5;
+/** No frame for this long (ms) with none waiting: the video is paused or gone, and the page's clock can rest. Above
+ *  the gap of the slowest real source (a 12 fps clip, 83 ms) and an engine start's hiccups. */
+const IDLE_AFTER_MS = 250;
 
 export class FramePacer {
   private frameMs = 0;
@@ -51,6 +54,14 @@ export class FramePacer {
 
   private halved(): boolean {
     return this.frameMs > 0 && this.frameMs < HALVE_UNDER_MS;
+  }
+
+  /** Whether the animation-frame loop can stop at `now` (ms): nothing waiting and no frame for `IDLE_AFTER_MS`. A
+   *  paused engine video (under LOGO or BLACK, a «last frame» end, a whole sermon) sends no frames, and a loop asked
+   *  again regardless kept the projector at 60 Hz with nothing to draw (2026-11-15 audit, R3). The next frame
+   *  restarts it. */
+  idle(now: number, queued: number): boolean {
+    return queued === 0 && now - this.lastArrival > IDLE_AFTER_MS;
   }
 
   /** An animation frame at `now` (ms), `queued` frames waiting: whether the oldest goes up now. */

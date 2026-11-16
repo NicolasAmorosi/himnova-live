@@ -399,6 +399,7 @@ function EngineVideo({ className, frameKey, onFirstFrame, onFreezeFrame, paced, 
       const queue: OffscreenCanvas[] = [];
       const pacer = new FramePacer();
       off = window.worship.onVideoFrame(frameKey, (frame) => {
+        if (!raf) raf = requestAnimationFrame(loop);
         if (!pacer.arrived(performance.now())) return;
         const stage = free.pop() ?? queue.shift();
         const stageContext = stage?.getContext("2d");
@@ -416,7 +417,8 @@ function EngineVideo({ className, frameKey, onFirstFrame, onFreezeFrame, paced, 
           present(stage, stage.width, stage.height);
           free.push(stage);
         }
-        raf = requestAnimationFrame(loop);
+        // Paused: no frames, no loop (the next frame starts it again).
+        raf = pacer.idle(now, queue.length) ? 0 : requestAnimationFrame(loop);
       };
       raf = requestAnimationFrame(loop);
     }
