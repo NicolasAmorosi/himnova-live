@@ -29,7 +29,7 @@ import { extractClips, hurryDeck, readPptx, type PptxRead } from "./pptx-deck";
 import { readPdfPages, shutdownRasterizer, type RasterLane } from "./rasterizer";
 import { hashFile } from "../media/content-hash";
 import { healDeckClips, isEngineClip, revertPlayableCopies } from "../media/deck-clips";
-import { removeQuietly, renameWithRetry } from "../fs-retry";
+import { removeQuietly, replaceFolder } from "../fs-retry";
 import { mt } from "../i18n";
 
 // ---------------------------------------------------------------------------
@@ -542,36 +542,39 @@ async function recordModelDeck(
   }
   const bytesOnDisk = audio.reduce((total, track) => total + track.bytes, 0) + videos.reduce((total, video) => total + video.bytes, 0);
   const ownsFolder = audio.length > 0 || videos.length > 0;
-  removeQuietly(cacheDir);
-  if (ownsFolder) {
-    try {
-      await renameWithRetry(staging, cacheDir);
-    } catch (error) {
-      console.warn(`[slides] could not move the clips of ${sourcePath} into place`, error);
-      removeQuietly(staging);
-      throw new SlideError("RASTER_FAILED", mt("slides.deckUnreadable"));
-    }
-  } else removeQuietly(staging);
+  if (!ownsFolder) removeQuietly(staging);
 
-  const deckId = slidesRepo.insertDeck(
-    {
-      contentHash,
-      renderWidth: 0,
-      imageFormat: "model",
-      converterVersion: SLIDES_MODEL_VERSION,
-      mediaAssetId: assetId,
-      sourcePath,
-      sourceSizeBytes: stat.size,
-      sourceMtimeMs: mtimeMs,
-      cacheDir: ownsFolder ? cacheDir : "",
-      aspectRatio: `${deck.width}:${deck.height}`,
-      timingsSource: timingsUsable && meta.slides.length > 0 ? (kind === "binary" || kind === "odf" ? kind : "ooxml") : "none",
-      bytesOnDisk,
-    },
-    slides,
-    audio,
-    videos,
-  );
+  // The deck's previous folder (a «Reconvertir», a model version bump) is deleted only once the new one is in place
+  // and its row written, and put back if either fails (`replaceFolder`, review of the 2026-11-15 audit, D6).
+  let deckId: number;
+  try {
+    deckId = await replaceFolder(cacheDir, ownsFolder ? staging : null, () =>
+      slidesRepo.insertDeck(
+        {
+          contentHash,
+          renderWidth: 0,
+          imageFormat: "model",
+          converterVersion: SLIDES_MODEL_VERSION,
+          mediaAssetId: assetId,
+          sourcePath,
+          sourceSizeBytes: stat.size,
+          sourceMtimeMs: mtimeMs,
+          cacheDir: ownsFolder ? cacheDir : "",
+          aspectRatio: `${deck.width}:${deck.height}`,
+          timingsSource: timingsUsable && meta.slides.length > 0 ? (kind === "binary" || kind === "odf" ? kind : "ooxml") : "none",
+          bytesOnDisk,
+        },
+        slides,
+        audio,
+        videos,
+      ),
+    );
+  } catch (error) {
+    // A file system error moving the folders (a SQLite error writing the row goes on as it is).
+    if (typeof (error as NodeJS.ErrnoException).errno !== "number") throw error;
+    console.warn(`[slides] could not move the clips of ${sourcePath} into place`, error);
+    throw new SlideError("RASTER_FAILED", mt("slides.deckUnreadable"));
+  }
 
   const row = slidesRepo.getDeckById(deckId);
   if (!row) throw new SlideError("RASTER_FAILED", mt("slides.deckUnreadable"));
