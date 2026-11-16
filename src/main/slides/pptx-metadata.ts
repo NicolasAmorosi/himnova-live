@@ -657,10 +657,13 @@ export function extractAudioParts(
   filePath: string,
   refs: AudioRef[],
   destDir: string,
+  /** Called once the parts are read and after each file is written: the deck worker's beat. */
+  onProgress?: () => void,
 ): ExtractedAudio[] {
   if (refs.length === 0) return [];
 
   const entries = readParts(filePath, new Set(refs.map((ref) => ref.partName)));
+  onProgress?.();
 
   fs.mkdirSync(destDir, { recursive: true });
 
@@ -684,6 +687,7 @@ export function extractAudioParts(
     const file = `${index + 1}.${ext}`;
 
     fs.writeFileSync(path.join(destDir, file), data);
+    onProgress?.();
 
     const record: ExtractedAudio = {
       ...ref,
@@ -716,10 +720,13 @@ export function extractVideoParts(
   filePath: string,
   refs: VideoRef[],
   destDir: string,
+  /** As `extractAudioParts`'s. */
+  onProgress?: () => void,
 ): ExtractedVideo[] {
   if (refs.length === 0) return [];
 
   const entries = readParts(filePath, new Set(refs.map((ref) => ref.partName)));
+  onProgress?.();
 
   fs.mkdirSync(destDir, { recursive: true });
 
@@ -734,6 +741,7 @@ export function extractVideoParts(
     const file = `${index + 1}.${ext}`;
 
     fs.writeFileSync(path.join(destDir, file), data);
+    onProgress?.();
 
     extracted.push({
       ...ref,

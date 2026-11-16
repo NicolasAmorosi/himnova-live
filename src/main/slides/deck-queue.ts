@@ -22,14 +22,15 @@ export type DeckWorker = EventEmitter & { postMessage(request: unknown): void; t
  *
  * A read is timed by its progress, not as a whole: the worker beats once per
  * slide (`{ id, alive: true }`), and `hangMs` without a beat stops it. A deck
- * timed whole failed on a slow PC that was still reading it; copying its clips
- * is not timed at all, since that is only I/O (2026-11-15 audit, S4, review).
+ * timed whole failed on a slow PC that was still reading it (2026-11-15 audit,
+ * S4, review). Copying its clips beats once per clip and gets its own, longer
+ * window (`ask`'s `hangMs`): untimed, a share that went away held the worker.
  */
 export function createDeckQueue<Req extends { id: number }, Reply extends { id: number }>(
   spawn: () => DeckWorker,
   hangMs: number,
 ) {
-  type Job = { file: string; request: Req; timed: boolean; done: (reply: Reply | null) => void };
+  type Job = { file: string; request: Req; hangMs: number; done: (reply: Reply | null) => void };
   let worker: DeckWorker | null = null;
   const lanes: Record<RasterLane, Job[]> = { now: [], later: [] };
   let running: Job | null = null;
@@ -70,14 +71,15 @@ export function createDeckQueue<Req extends { id: number }, Reply extends { id: 
   function arm(): void {
     if (hangTimer) clearTimeout(hangTimer);
     hangTimer = null;
-    if (!running?.timed) return;
+    if (!running) return;
+    const window = running.hangMs;
     hangTimer = setTimeout(() => {
       const stuck = worker;
       worker = null;
-      console.warn(`[slides] the deck reader went ${hangMs / 1000} s without progress on ${running?.file}: stopped`);
+      console.warn(`[slides] the deck reader went ${window / 1000} s without progress on ${running?.file}: stopped`);
       finish(null);
       void stuck?.terminate();
-    }, hangMs);
+    }, window);
   }
 
   function current(): DeckWorker {
@@ -104,10 +106,10 @@ export function createDeckQueue<Req extends { id: number }, Reply extends { id: 
   }
 
   return {
-    /** `timed`: stopped after `hangMs` without a beat. A copy of the clips is not. */
-    ask(file: string, request: Req, lane: RasterLane, timed = true): Promise<Reply | null> {
+    /** Stopped after `windowMs` (the queue's `hangMs` unless given) without a beat. */
+    ask(file: string, request: Req, lane: RasterLane, windowMs = hangMs): Promise<Reply | null> {
       return new Promise((done) => {
-        lanes[lane].push({ file, request, timed, done });
+        lanes[lane].push({ file, request, hangMs: windowMs, done });
         pump();
       });
     },

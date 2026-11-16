@@ -70,7 +70,9 @@ SlideView (React, components/shared/slide-view/) ◄── worship://deck/<id>/<
   and video were being copied when it died is not saved (it would stay mute), so the next open
   reads it again. A read is timed by its progress: the readers beat once per slide (`onSlide`),
   and a worker that goes `SLIDES_DECK_READ_TIMEOUT_MS` (60 s) without a beat on the deck it was
-  handed is stopped, and that deck fails the same way. Copying the clips is not timed (only I/O). A file is never retried on main. The preset
+  handed is stopped, and that deck fails the same way. Copying the clips beats once per clip and gets its
+  own window, `SLIDES_CLIP_COPY_TIMEOUT_MS` (15 min): a single clip off a slow pen drive takes minutes, and a
+  share that went away mid-copy, untimed, held the worker for good. A file is never retried on main. The preset
   geometries and the built-in table styles come from `resources/ooxml/` (`paths.ts` → `ooxmlDir`, shipped as `extraResources`). Pictures, media and
   fonts are never read here — the model names them by part. Every reader writes colours as
   `rgb()`/`rgba()` (`css()` in `pptx/color.ts`): the painter reads gradient stops' channels back

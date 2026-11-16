@@ -147,7 +147,10 @@ parentPort?.on("message", (request: PptxRequest) => {
   try {
     if (request.extract) {
       const { audio, audioDir, file, video, videoDir } = request.extract;
-      reply = { id, clips: { audio: extractAudioParts(file, audio, audioDir), video: extractVideoParts(file, video, videoDir) } };
+      reply = {
+        id,
+        clips: { audio: extractAudioParts(file, audio, audioDir, beat), video: extractVideoParts(file, video, videoDir, beat) },
+      };
     } else {
       reply = { id, read: read(request.file) };
     }

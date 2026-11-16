@@ -113,18 +113,29 @@ describe("deck queue", () => {
     }
   });
 
-  it("copying a deck's clips is not timed: minutes of video off a slow drive are copied to the end", async () => {
+  it("copying a deck's clips gets its own window: minutes on one clip go on, a copy that stops beating is stopped", async () => {
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
     try {
       const { started, spawn } = fakeWorkers();
       const queue = createDeckQueue<Request, Reply>(spawn, 60_000);
-      const outcome = track([queue.ask("clips.pptx", { id: 1, file: "clips.pptx" }, "now", false)]);
+      const outcome = track([
+        queue.ask("clips.pptx", { id: 1, file: "clips.pptx" }, "now", 15 * 60_000),
+        queue.ask("next.pptx", { id: 2, file: "next.pptx" }, "now"),
+      ]);
+      // Ten minutes on one clip off a slow pen drive, then its beat: not stopped.
       vi.advanceTimersByTime(10 * 60_000);
       await flush();
       expect(started[0]!.stopped).toBe(0);
-      started[0]!.emit("message", { id: 1, read: "clips.pptx" });
+      started[0]!.emit("message", { id: 1, alive: true });
+      // Then a network share that went away mid-copy: untimed, it held the worker and every deck behind it for good
+      // (review of the 2026-11-15 audit, S4).
+      vi.advanceTimersByTime(15 * 60_000);
       await flush();
-      expect(outcome).toEqual([{ id: 1, read: "clips.pptx" }]);
+      expect(started[0]!.stopped).toBe(1);
+      expect(outcome).toEqual([null, "pending"]);
+      started[1]!.emit("message", { id: 2, read: "next.pptx" });
+      await flush();
+      expect(outcome).toEqual([null, { id: 2, read: "next.pptx" }]);
     } finally {
       vi.useRealTimers();
     }

@@ -1,4 +1,4 @@
-import { SLIDES_DECK_READ_TIMEOUT_MS } from "@shared/constants";
+import { SLIDES_CLIP_COPY_TIMEOUT_MS, SLIDES_DECK_READ_TIMEOUT_MS } from "@shared/constants";
 import { ooxmlDir } from "../paths";
 import { createDeckQueue } from "./deck-queue";
 import type { RasterLane } from "./rasterizer";
@@ -31,8 +31,9 @@ export async function readPptx(sourcePath: string, lane: RasterLane): Promise<Pp
  *  worker could not copy them (the deck then goes without them, as with a part that won't read);
  *  `null` when the worker stopped before answering, which says nothing about the file. */
 export async function extractClips(extract: PptxExtract, lane: RasterLane): Promise<PptxClips | null> {
-  // Not timed: copying is I/O, and gigabytes of video off a pen drive can take minutes (2026-11-15 audit, S4, review).
-  const reply = await queue.ask(extract.file, { id: ++nextId, extract }, lane, false);
+  // Its own window, a beat per clip: gigabytes of video off a pen drive take minutes, and a share that went away
+  // mid-copy held the worker for good when the copy was not timed at all (review of the 2026-11-15 audit, S4).
+  const reply = await queue.ask(extract.file, { id: ++nextId, extract }, lane, SLIDES_CLIP_COPY_TIMEOUT_MS);
   if (!reply) return null;
   return "clips" in reply ? reply.clips : { audio: [], video: [] };
 }
