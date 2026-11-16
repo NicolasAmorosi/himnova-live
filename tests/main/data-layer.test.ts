@@ -141,6 +141,10 @@ describe("Bible seed", () => {
     assert(hits.length === 100, `expected the finished words to fill the list, got ${hits.length}`);
     assert(!hits.every(holds("p")), "expected hits with no word starting with p: the «p» is not in the query yet");
     assert(bibleRepo.search(versionId, "en el pri").every(holds("pri")), "from 3 letters the last word filters again");
+    // A space after it finishes the short word: «la fe » searches the whole word «fe», not just «la».
+    const faith = bibleRepo.search(versionId, "la fe ");
+    assert(faith.length > 0, "expected «la fe » to find verses");
+    assert(faith.every(holds("fe(?![\\p{L}])")), "expected every hit of «la fe » to hold the whole word «fe»");
   });
 
   test("FTS5 search is accent-insensitive and its snippets are never markup", () => {

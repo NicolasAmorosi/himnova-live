@@ -8,6 +8,9 @@
 export function toFtsQuery(input: string, minLastWord = 0): string {
   const words = input.trim().split(/\s+/).filter(Boolean);
   const quoted = (t: string) => `"${t.replace(/"/g, '""')}"`;
+  // A space after the last word finishes it: every word exact, none dropped («la fe », «a mí »). Read before the
+  // trim, which removes the only sign of it (2026-11-15 audit, R2 review).
+  if (/\s$/.test(input)) return words.map(quoted).join(" ");
   // `minLastWord` (the Bible's, 3): a last word shorter than that, after finished ones, is left out until it grows.
   // Its prefix (`"p"*`) expands every term with that letter across all the installed versions (one FTS index, the
   // version filtered after) and blocked main 60 to 95 ms per pause in «en el p» (2026-11-15 audit, R2). An exact
