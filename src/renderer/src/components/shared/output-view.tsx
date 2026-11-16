@@ -1,6 +1,8 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode, type Ref } from "react";
 import { flushSync } from "react-dom";
-import { Icon } from "@renderer/components/ui";
+// The icon on its own, not the `components/ui` barrel: the barrel brought the four UI dictionaries into the projector,
+// the stage and the NDI copy (298 KB, 2.6 ms and 0.62 MB of heap per output window; 2026-11-15 audit, R23).
+import { Icon } from "@renderer/components/ui/icon";
 import { cn } from "@renderer/lib/utils";
 import { frameCaptureSize } from "@renderer/lib/frame-capture";
 import { entryOf, nextLayers, withoutOutgoing, type Layer, type LayerHold } from "@renderer/lib/output-layers";
