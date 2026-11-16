@@ -2,7 +2,7 @@
  * An overlay plate: a saved, reusable piece of text (and, for a bug, an image)
  * drawn ON TOP of whatever is projected, without replacing it.
  *
- * The operator builds «Pastor Juan Pérez» once and shows it every Sunday after
+ * The operator builds «Pastor Juan Pérez» once and shows it every service after
  * that. Several plates may be up at once, but at most ONE PER KIND AND ONE PER
  * EDGE (`platesCollide`), and BLACK, LOGO and "nothing live" cover every plate.
  *

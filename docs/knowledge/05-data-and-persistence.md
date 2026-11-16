@@ -102,7 +102,7 @@ That gives the two rules that hold the table up:
 
 Seeding the four factory scenes is guarded by the `utility.seeded` flag in `settings`, **not by a
 row count**. Seeding "when the table is empty" would mean the operator who deletes a scene finds it
-back on Monday, and that deleting them all is impossible. With the flag, deleting is deleting: the
+back on the next launch, and that deleting them all is impossible. With the flag, deleting is deleting: the
 panel shows its empty state and offers to create one.
 
 ## "Is it converted?" is asked by CONTENT, not by row ownership

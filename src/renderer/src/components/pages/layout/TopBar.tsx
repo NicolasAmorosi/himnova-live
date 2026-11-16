@@ -73,7 +73,7 @@ export function TopBar({ onOpenPrograms, onOpenSettings }: TopBarProps) {
           headers' 12 px edges, so each group ends where its column does. */}
       <Toolbar className="grid grid-cols-3 items-center gap-px px-0">
         {/* The program's name as plain text, and «Save» with its word
-            (2026-11-04 redesign, P7): saving Saturday's program was a 16 px
+            (2026-11-04 redesign, P7): saving the next service's program was a 16 px
             icon, and the name floated in a capsule. */}
         <div className="flex min-w-0 items-center gap-1.5 px-3">
           <BrandMark className="mr-1" />

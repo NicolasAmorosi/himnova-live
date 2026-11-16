@@ -1,8 +1,8 @@
 /**
  * A utility scene: one saved, reusable, projectable piece of time.
  *
- * The operator builds "10-minute countdown" once — with its background, its
- * typeface, its colour and its message — and picks it off a list every Sunday
+ * The operator builds "10-minute countdown" once (with its background, its
+ * typeface, its colour and its message) and picks it off a list every service
  * after that. From F2 on this is a row in `utility_scenes`; the shape is
  * identical either way, which is what lets F1 ship the whole feature against
  * the built-in defaults below without anything having to be rewritten.

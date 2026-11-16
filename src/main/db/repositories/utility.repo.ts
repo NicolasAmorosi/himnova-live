@@ -15,7 +15,7 @@ import type { UtilityScene } from "@shared/types/utility";
  * not be able to throw during `list()` — which runs at launch, from the
  * control window's boot. The same discipline `DraftRepo.load` and the Bible
  * seed already follow, and for the same reason: a scene that comes back
- * slightly wrong is a bad Sunday, a scene that takes the panel down is a worse
+ * slightly wrong is a bad service, a scene that takes the panel down is a worse
  * one.
  */
 function toScene(row: typeof utilityScenes.$inferSelect): UtilityScene {

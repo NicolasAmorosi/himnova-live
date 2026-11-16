@@ -388,7 +388,7 @@ export class ProgramsRepo {
    * this FK is `set null`, so the delete it precedes cannot fail and cannot
    * remove a row. It exists so the confirmation can NAME what changes —
    * "these schedules lose the version" — instead of the operator finding out
-   * next Sunday that a verse stopped printing «RV1909» underneath itself.
+   * at the next service that a verse stopped printing «RV1909» underneath itself.
    */
   findBibleVersionUsages(versionId: number): BibleVersionUsage[] {
     return this.db
