@@ -54,3 +54,45 @@ test("the NDI output turns on and off from Settings and never touches the projec
   await expect(status).toContainText("Apagada");
   if (!sending) await expect(image).toBeVisible();
 });
+
+test("dragging the sound's sync saves it on release, and the NDI page stays: only the sender restarts", async ({ app }) => {
+  await app.control.getByRole("button", { name: "Configuración" }).click();
+  const settings = app.control.getByRole("dialog", { name: "Configuración" });
+  await settings.getByRole("tab", { name: "Proyección" }).click();
+  await settings.getByRole("group", { name: "Enviar por NDI®" }).getByRole("switch").click();
+  // With its sound (on by default), at 0 ms.
+  await expect(settings.getByRole("group", { name: "Sonido", exact: true }).getByRole("switch")).toBeChecked();
+  const status = settings.getByRole("group", { name: "Estado", exact: true });
+  await expect(status).toContainText(/Enviando|Falta instalar NDI/);
+  test.skip((await status.textContent())?.includes("Falta") ?? false, "no NDI runtime on this computer");
+
+  // The only offscreen window (its URL reads empty from main).
+  const ndiWindow = () =>
+    app.electron.evaluate(({ BrowserWindow }) =>
+      BrowserWindow.getAllWindows().find((win) => win.webContents.isOffscreen())?.id ?? null,
+    );
+  const started = () => app.log.filter((line) => line.includes("[ndi] sending (")).length;
+  const delay = async () => (await app.invoke<Record<string, unknown>>("settings:get"))["ndi.output.audioDelayMs"];
+  const page = await ndiWindow();
+  expect(page).not.toBeNull();
+  await expect.poll(started).toBeGreaterThan(0);
+  const senders = started();
+
+  // A slow drag across the track, as an operator does watching OBS: each step rebuilt the page and the sender, and the
+  // source left OBS and came back on every one (2026-11-15 audit, A22).
+  const box = await settings.getByRole("slider", { name: "Sincronía del sonido" }).boundingBox();
+  if (!box) throw new Error("no slider");
+  const y = box.y + box.height / 2;
+  await app.control.mouse.move(box.x + box.width / 3, y);
+  await app.control.mouse.down();
+  for (const fraction of [0.45, 0.6, 0.75]) {
+    await app.control.mouse.move(box.x + box.width * fraction, y, { steps: 3 });
+    await app.control.waitForTimeout(150);
+  }
+  expect(await delay()).toBe(0);
+  await app.control.mouse.up();
+  await expect.poll(delay).toBeGreaterThan(0);
+  await expect.poll(started).toBe(senders + 1);
+  await expect(status).toContainText("Enviando");
+  expect(await ndiWindow()).toBe(page);
+});
