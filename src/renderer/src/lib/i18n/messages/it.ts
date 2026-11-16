@@ -821,9 +821,6 @@ const it: Messages = {
   projector: {
     closedUnexpectedly: "La finestra di proiezione si è chiusa",
     recovered: "La finestra di proiezione si è bloccata e si è riaperta da sola",
-    controlRecovered: "La finestra di controllo si è ripresa da sola. Ciò che è in onda resta com'è fino alla tua prossima azione.",
-    controlRecoveredSound:
-      "Il volume IN ONDA non raggiunge ciò che suonava già prima che la finestra di controllo si riprendesse. Lo raggiunge di nuovo dal prossimo suono che metti in onda.",
     screenLost:
       "Lo schermo del proiettore si è scollegato. Ciò che è in onda continua, con il suo audio, e torna visibile appena lo schermo si ricollega.",
     screenBack: "Lo schermo del proiettore è tornato",

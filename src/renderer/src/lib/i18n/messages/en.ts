@@ -817,9 +817,6 @@ const en: Messages = {
   projector: {
     closedUnexpectedly: "The projector window closed",
     recovered: "The projector window crashed and reopened on its own",
-    controlRecovered: "The control window recovered on its own. What is on air stays as it is until your next action.",
-    controlRecoveredSound:
-      "The LIVE volume does not reach what was already playing before the control window recovered. It does again from the next sound you put on air.",
     screenLost:
       "The projector's screen was disconnected. What's live keeps running, sound included, and shows again as soon as the screen is reconnected.",
     screenBack: "The projector's screen is back",

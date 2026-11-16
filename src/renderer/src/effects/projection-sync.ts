@@ -5,8 +5,6 @@ import { useAudioStore, type LiveAudioTrack } from "@renderer/stores/audio.store
 import { useDeckStore } from "@renderer/stores/deck.store";
 import { useDisplayStore } from "@renderer/stores/display.store";
 import { useSettingsStore } from "@renderer/stores/settings.store";
-import { useUiStore } from "@renderer/stores/ui.store";
-import { shallow } from "zustand/shallow";
 import { goLiveWithNextScheduleAudio } from "@renderer/lib/actions/playback";
 import { freezeLivePositions } from "@renderer/lib/actions/live-positions";
 import { getCachedMediaAsset } from "@renderer/lib/hooks/use-media-asset";
@@ -97,23 +95,15 @@ export function startProjectionEffects(): () => void {
   // `sceneEpoch`) correspond to exactly one push to the projection window.
   let pendingOutput: ProjectionOutput | null = null;
   let flushScheduled = false;
-  // A control window that reloaded (its renderer died and main reloaded it) starts empty, while the projector, its
-  // sound and main's snapshot went on without it: its first output, built from nothing, blanked the room
-  // (2026-11-15 audit, A30). So nothing goes out until main says whether a projector is open, and with one open,
-  // until the operator acts on each (`releaseOutput`, `releaseAudio`). The holds live in the store
-  // (`outputHeld`, `audioHeld`): the stage's copy of the projector waits on the same one (`stage-sync.ts`).
-  const held = () => useProjectionStore.getState();
-  let audioPending = false;
-  const scheduleOutput = (next: ProjectionOutput) => {
+  const unsubscribeOutput = useProjectionStore.subscribe(selectOutputMemo, (next) => {
     pendingOutput = next;
     if (flushScheduled) return;
     flushScheduled = true;
     queueMicrotask(() => {
       flushScheduled = false;
-      if (pendingOutput && !held().outputHeld) void api.projection.show(pendingOutput);
+      if (pendingOutput) void api.projection.show(pendingOutput);
     });
-  };
-  const unsubscribeOutput = useProjectionStore.subscribe(selectOutputMemo, scheduleOutput);
+  });
 
   // Coalesced the same way as the output above, and for the same reason: going
   // live from BLACK from deck A to deck B is `setOverlay("none")` and then
@@ -125,10 +115,6 @@ export function startProjectionEffects(): () => void {
     audioFlushScheduled = true;
     queueMicrotask(() => {
       audioFlushScheduled = false;
-      if (held().audioHeld) {
-        audioPending = true;
-        return;
-      }
       const { overlay, liveMasterVolume } = useProjectionStore.getState();
       const covered = overlay !== "none";
       const loopStandalone = useSettingsStore.getState().settings["projection.audioEnd"] === "loop";
@@ -157,77 +143,6 @@ export function startProjectionEffects(): () => void {
   const unsubscribeAudioEnd = useSettingsStore.subscribe((state, previous) => {
     if (state.settings["projection.audioEnd"] !== previous.settings["projection.audioEnd"]) pushAudioTracks();
   });
-
-  // What only the operator changes: settings mirrored at startup (transitions, the verse's style, the levels) are not
-  // an action; a scene, a cover, a plate or a sound is. CLEAR on an empty store still begins a scene. Each hold ends
-  // on its own: one ending both put out the empty half too, so playing a sound cut a live video to LOGO, and putting
-  // up a verse replaced main's track list with none and stopped the music (2026-11-15 audit, A30 review).
-  const outputActs = [
-    useProjectionStore.subscribe((state) => state.sceneEpoch, () => releaseOutput(true)),
-    useProjectionStore.subscribe((state) => state.base, () => releaseOutput(true)),
-    useProjectionStore.subscribe((state) => state.overlay, () => releaseOutput(true)),
-    useProjectionStore.subscribe((state) => state.livePlates, () => releaseOutput(true)),
-  ];
-  // By content: a GO LIVE that is not a sound still rewrites the list (`setDeckTrack(null)` filters it into a new, equal
-  // array), and that is no sound action.
-  const audioActs = [useAudioStore.subscribe((state) => state.tracks, () => releaseAudio(true), { equalityFn: shallow })];
-  // While the sound is held the LIVE master and its mute reach nothing in the room (main's tracks are not this
-  // window's): said once, never in silence.
-  let soundHeldSaid = false;
-  const sayMasterHeld = () => {
-    if (soundHeldSaid || !held().audioHeld || !held().recovered) return;
-    soundHeldSaid = true;
-    toast.warning(t("projector.controlRecoveredSound"));
-  };
-  audioActs.push(
-    useUiStore.subscribe((state, previous) => {
-      if (state.liveMuted !== previous.liveMuted) sayMasterHeld();
-    }),
-    useSettingsStore.subscribe((state, previous) => {
-      if (previous.loaded && state.settings["audio.live.volume"] !== previous.settings["audio.live.volume"]) sayMasterHeld();
-    }),
-  );
-  const endRecovery = () => {
-    const { outputHeld, audioHeld, recovered } = held();
-    if (recovered && !outputHeld && !audioHeld) useProjectionStore.setState({ recovered: false });
-  };
-  /** Ends a hold: `everything` pushes what this window has now (the operator acted, so it is what the room must
-   *  see or hear); otherwise only what changed meanwhile goes out, as it would have without the hold. */
-  function releaseOutput(everything: boolean): void {
-    if (!held().outputHeld) return;
-    for (const stop of outputActs) stop();
-    useProjectionStore.setState({ outputHeld: false });
-    endRecovery();
-    if (everything) scheduleOutput(selectOutputMemo(useProjectionStore.getState()));
-    else if (pendingOutput) scheduleOutput(pendingOutput);
-  }
-  function releaseAudio(everything: boolean): void {
-    if (!held().audioHeld) return;
-    for (const stop of audioActs) stop();
-    useProjectionStore.setState({ audioHeld: false });
-    endRecovery();
-    if (everything || audioPending) pushAudioTracks();
-  }
-  const releaseHolds = () => {
-    releaseOutput(false);
-    releaseAudio(false);
-  };
-  let stopped = false;
-  api.projection.isOpen().then(
-    (open) => {
-      if (stopped) return;
-      if (!open) {
-        releaseHolds();
-        return;
-      }
-      // Open with this window just started: it reloaded. Said, and the header knows the projector is there.
-      useProjectionStore.setState({ presentationOpen: true, recovered: true });
-      toast.warning(t("projector.controlRecovered"));
-    },
-    () => {
-      if (!stopped) releaseHolds();
-    },
-  );
 
   // The projector went away without this window asking (Cmd+W on it, a crash).
   // Nothing else can tell: `presentationOpen` is otherwise only ever written by
@@ -355,8 +270,6 @@ export function startProjectionEffects(): () => void {
   const stopPlateAutoHide = startPlateAutoHide();
 
   return () => {
-    stopped = true;
-    for (const stop of [...outputActs, ...audioActs]) stop();
     unsubscribeOutput();
     unsubscribeAudioTracks();
     unsubscribeOverlayForAudio();

@@ -38,7 +38,6 @@ export const projectionHandlers: Pick<
   Handlers,
   | "projection:open"
   | "projection:close"
-  | "projection:isOpen"
   | "projection:autoOpen"
   | "projection:show"
   | "projection:mediaCommand"
@@ -120,8 +119,6 @@ export const projectionHandlers: Pick<
     projectionState.setWindow(null);
     syncLiveEngine();
   },
-
-  "projection:isOpen": () => projectionState.getWindow() !== null,
 
   "projection:show": (output) => {
     projectionState.send(output);
