@@ -83,6 +83,11 @@ test("the window that draws PDFs sees no device names; the control window does",
     page.evaluate(async () => (await navigator.mediaDevices.enumerateDevices()).map((device) => device.label).filter(Boolean));
   expect((await labels(app.control)).length).toBeGreaterThan(0);
   expect(await labels(rasterizer)).toEqual([]);
+  // The editors' font list: the installed fonts, which a check for `local-fonts` gates as quietly.
+  const fonts = await app.control.evaluate(async () =>
+    (await (window as unknown as { queryLocalFonts: () => Promise<unknown[]> }).queryLocalFonts()).length,
+  );
+  expect(fonts).toBeGreaterThan(0);
 });
 
 /** The colour of the projected page at fractions of its width (at half its height), from the page image itself. */

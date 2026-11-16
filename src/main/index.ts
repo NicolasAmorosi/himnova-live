@@ -82,6 +82,8 @@ const THUMB_PRUNE_DELAY_MS = 10_000;
  *  should not have to wait ten seconds to see the truth — but still long
  *  enough to be past the control window's first paint. */
 const CONTENT_HASH_BACKFILL_DELAY_MS = 2_000;
+/** The only permissions a page gets, and only the app's own windows (see `whenReady`). */
+const GRANTED_PERMISSIONS = new Set(["media", "speaker-selection", "local-fonts"]);
 
 /** The daily copy of the database (`dailyBackup`), past the control window's first paint. It used to run before the
  *  window: 0.7 to 1.0 s with no window on the first launch of each day (2026-11-15 audit, R1). */
@@ -287,12 +289,13 @@ if (gotSingleInstanceLock) {
     registerWorshipProtocolHandler(getMediaRepo());
     registerAllIpcHandlers();
     // Electron grants every permission to every page unless told otherwise, the PDF window included. The app's own
-    // windows (`isTrustedSender`) get the two they use, measured over the audio E2E: `media`, which is what gives
-    // `enumerateDevices` its labels, and `speaker-selection` (`setSinkId`). The audio route matches the chosen output
-    // BY LABEL (`use-audio-outputs.ts`, `effects/audio-route.ts`): denying `media` to them would lose it with no
-    // error. Everything else is denied (2026-11-15 audit, S12).
+    // windows (`isTrustedSender`) get the three they use, measured with every check logged: `media`, which is what
+    // gives `enumerateDevices` its labels, `speaker-selection` (`setSinkId`) and `local-fonts` (`queryLocalFonts`, the
+    // editors' font list). The audio route matches the chosen output BY LABEL (`use-audio-outputs.ts`,
+    // `effects/audio-route.ts`): denying `media` to them would lose it with no error, and denying `local-fonts`
+    // empties the font list as quietly. Everything else is denied (2026-11-15 audit, S12).
     const granted = (contents: Electron.WebContents | null, permission: string): boolean =>
-      (permission === "media" || permission === "speaker-selection") && contents !== null && isTrustedSender(contents.id);
+      GRANTED_PERMISSIONS.has(permission) && contents !== null && isTrustedSender(contents.id);
     session.defaultSession.setPermissionRequestHandler((contents, permission, callback) => callback(granted(contents, permission)));
     session.defaultSession.setPermissionCheckHandler((contents, permission) => granted(contents, permission));
     watchDisplays();
