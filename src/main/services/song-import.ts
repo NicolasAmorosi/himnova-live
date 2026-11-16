@@ -161,8 +161,9 @@ function refreshedFrom(copy: Song, file: Omit<SongUpsert, "id">, format: SongFil
  * the library's repeat of it when that one had no file yet — which first
  * takes what the file holds (owner, 2026-11-06: its chords, authors, CCLI
  * number…; `refreshedFrom` keeps its theme and what the file does not hold),
- * or saving it would write them out of the file. One transaction: an import
- * that fails halfway leaves the library as it was.
+ * or saving it would write them out of the file. A hundred songs per
+ * transaction (`WRITE_CHUNK`): an import that fails halfway keeps the batches
+ * already written, and importing again counts those songs as repeated.
  */
 async function writeSongs(read: SongsRead): Promise<SongImportResult> {
   const repo = getSongsRepo();
