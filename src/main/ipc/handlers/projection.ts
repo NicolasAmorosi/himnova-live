@@ -179,7 +179,7 @@ export const projectionHandlers: Pick<
     mountWaiters.get(ev.sender.id)?.();
     if (diedAt !== null) {
       const fullScreen = BrowserWindow.fromWebContents(ev.sender)?.isFullScreen() ?? false;
-      console.log(`[projector] mounted again ${Date.now() - diedAt} ms after its renderer died (${fullScreen ? "full screen" : "a window"})`);
+      console.info(`[projector] mounted again ${Date.now() - diedAt} ms after its renderer died (${fullScreen ? "full screen" : "a window"})`);
       diedAt = null;
     }
     return projectionState.getSnapshot();

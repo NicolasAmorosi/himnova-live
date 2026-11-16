@@ -395,7 +395,7 @@ class NdiSender {
           void this.kill();
           return;
         }
-        console.log(`[ndi] sending (${event.runtime})`);
+        console.info(`[ndi] sending (${event.runtime})`);
         this.ready = true;
         return this.give({ state: "sending", receivers: 0, audio: this.audio });
       case "done":
