@@ -129,7 +129,9 @@ and a link to ndi.video wherever NDI is used or chosen — the app, the landing 
   fresh frame through `stopPainting(); startPainting()` (`invalidate()` paints no texture; painting left stopped
   freezes the page's clock).
 - **Supervised like the media engine:** a crash restarts it after 2 s (`ndi-exit`); exit codes 2–4 (bad arguments,
-  no runtime, NDI refused) wait for the user. Settings reads `ndi:getStatus` and listens to `ndi-status`:
+  no runtime, NDI refused) wait for the user. A settings change rebuilds the page only for its size or frame rate;
+  a new name, the sound or its delay restart the sender alone (receivers lose the source a moment), and the delay
+  slider saves on release, not on each step (audit A22). Settings reads `ndi:getStatus` and listens to `ndi-status`:
   «Enviando · N», «Falta el runtime» with the download link, or the error code.
 - **The OS gates the first network use, and only a packaged app shows how.** macOS asks for Local Network in the
   app's name (the engine is a child), with the `NSLocalNetworkUsageDescription` of `mac.extendInfo`; until it is
