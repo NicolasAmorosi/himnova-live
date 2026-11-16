@@ -13,12 +13,22 @@ let measuring: CanvasRenderingContext2D | null | undefined;
 /** Bumped when a face finishes loading, for the slides to draw again (`useFontsLoaded`). */
 let fontsLoaded = 0;
 const fontWatchers = new Set<() => void>();
-if (typeof document !== "undefined" && document.fonts) {
-  document.fonts.addEventListener("loadingdone", () => {
-    metricsCache.clear();
-    fontsLoaded += 1;
-    for (const watcher of fontWatchers) watcher();
-  });
+/** A face arrived: the metrics measured before it are dropped, and the slides draw again. Called on `loadingdone`,
+ *  and by `slide-models` for a deck's embedded font, which is added to `document.fonts` already loaded and so fires
+ *  no `loadingdone` (review of 2026-11-16). */
+export function fontsChanged(): void {
+  metricsCache.clear();
+  fontsLoaded += 1;
+  for (const watcher of fontWatchers) watcher();
+}
+
+/** How many times a face has arrived: what `useFontsLoaded` reads. */
+export function fontsLoadedCount(): number {
+  return fontsLoaded;
+}
+
+if (typeof document !== "undefined" && typeof document.fonts?.addEventListener === "function") {
+  document.fonts.addEventListener("loadingdone", fontsChanged);
 }
 
 /** Draws the caller again when a face finishes loading. `SlideView` is memoized on what it draws (A27): a face that
@@ -29,7 +39,7 @@ export function useFontsLoaded(): number {
       fontWatchers.add(watch);
       return () => fontWatchers.delete(watch);
     },
-    () => fontsLoaded,
+    fontsLoadedCount,
   );
 }
 

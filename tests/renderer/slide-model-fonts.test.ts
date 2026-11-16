@@ -6,6 +6,7 @@
 import { afterAll, expect, test, vi } from "vitest";
 import { slideModelUrl } from "@shared/urls";
 import { loadSlideModel } from "@renderer/lib/slide-models";
+import { fontsLoadedCount } from "@renderer/components/shared/slide-view/slide-metrics";
 
 let releaseFont!: () => void;
 const fontLoaded = new Promise<void>((resolve) => (releaseFont = resolve));
@@ -48,11 +49,14 @@ test("the second slide of a deck waits for the embedded font the first one is st
   // Neither may reach the screen in the fallback face.
   expect(handed).toEqual([]);
 
+  const before = fontsLoadedCount();
   releaseFont();
   await Promise.all([first, second]);
   expect(handed.sort()).toEqual(["slide 1", "slide 2"]);
   // Registered once for the window, not once per slide.
   expect(added).toHaveLength(1);
+  // Added already loaded, it fires no `loadingdone`: the slides are told directly to draw again (review of 2026-11-16).
+  expect(fontsLoadedCount()).toBe(before + 1);
 });
 
 test("a font whose load never ends holds a slide a few seconds at most, not for good", async () => {
@@ -66,6 +70,11 @@ test("a font whose load never ends holds a slide a few seconds at most, not for 
     expect(handed).toBe(false);
     await vi.advanceTimersByTimeAsync(2500);
     expect(handed).toBe(true);
+    // The next slide of that deck does not wait 3 s more: the cap is the font's, once (review of 2026-11-16).
+    let next = false;
+    void loadSlideModel(slideModelUrl(10, 1)).then((model) => (next = model !== null));
+    await vi.advanceTimersByTimeAsync(10);
+    expect(next).toBe(true);
   } finally {
     vi.useRealTimers();
   }

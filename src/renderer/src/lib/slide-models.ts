@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { SlideModel } from "@shared/types/slide-model";
 import { deckFontUrl, deckIdOfUrl, deckPartUrl } from "@shared/urls";
+import { fontsChanged } from "@renderer/components/shared/slide-view/slide-metrics";
 
 /**
  * The slide models this window has asked for, by url (`slideModelUrl`): each
@@ -115,11 +116,18 @@ async function registerFonts(deckId: number, model: SlideModel): Promise<void> {
           weight: font.style.startsWith("bold") ? "700" : "400",
           style: font.style.toLowerCase().includes("italic") ? "italic" : "normal",
         });
-        load = face.load().then(
-          (loaded) => void document.fonts.add(loaded),
+        const loading = face.load().then(
+          (loaded) => {
+            document.fonts.add(loaded);
+            // Added already loaded, it fires no `loadingdone`: a slide drawn meanwhile in the fallback is told here.
+            fontsChanged();
+          },
           // A font Chromium rejects leaves its metric twin or fallback in place.
           () => undefined,
         );
+        // Capped once for the whole deck: a load that never ends held every later slide 3 s more each (review of
+        // 2026-11-16). What arrives after the cap still lands, through `fontsChanged`.
+        load = Promise.race([loading, new Promise<void>((resolve) => setTimeout(resolve, MODEL_WARM_CAP_MS))]);
         fontLoads.set(url, load);
       }
       return load;
