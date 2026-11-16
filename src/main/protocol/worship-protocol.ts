@@ -272,7 +272,13 @@ async function readableSource(source: DeckSource): Promise<string | null> {
 
 /** The deck `deckId` is on air: copies its source aside unless it already is. Never blocks main. */
 export function keepLiveDeckSource(deckId: number): void {
-  if (liveCopy?.deckId === deckId || copyingDeckId === deckId) return;
+  // Back to the deck already kept: a copy of another one still under way is no longer the deck on air, and finishing
+  // would replace this one's copy and delete it (2026-11-15 audit, A47).
+  if (liveCopy?.deckId === deckId) {
+    copyingDeckId = null;
+    return;
+  }
+  if (copyingDeckId === deckId) return;
   const row = getSlidesRepo().getDeckById(deckId);
   if (!row) return;
   const source: DeckSource = { sourcePath: row.sourcePath, sourceSizeBytes: row.sourceSizeBytes, sourceMtimeMs: row.sourceMtimeMs };
