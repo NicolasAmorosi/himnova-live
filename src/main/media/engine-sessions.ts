@@ -355,14 +355,18 @@ export function setPreviewVideo(video: PreviewEngineVideo | null, contents: WebC
   const session: Session = { engine: null, url: video.url, epoch: 0, paused: video.paused, volume: video.volume, loop: false };
   preview = session;
   start(session, { startAtSeconds: video.startAtSeconds, audio: true, device: devices.preview }, video.picture ? previewEngineFrameKey(video.url) : "", {
-    status: (status) =>
+    status: (status) => {
+      // A report a quit engine had already written: after A, B, A its url is the current PREVIEW's, and its time
+      // and pause would pass for the new engine's (2026-11-15 audit, A34).
+      if (preview !== session) return;
       broadcast("preview-video-status", {
         url: session.url,
         currentTimeSeconds: status.time,
         durationSeconds: status.duration,
         paused: status.paused,
         ended: status.ended,
-      }),
+      });
+    },
     error: (error) => {
       if (preview !== session) return;
       console.warn("[engine] preview", error.code, error.detail);
