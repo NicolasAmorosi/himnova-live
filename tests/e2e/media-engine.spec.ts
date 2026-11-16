@@ -198,11 +198,17 @@ test("an engine that dies is reported and left to the operator", async ({ app })
   const projector = await app.projector();
   await expect.poll(() => moving(projector, "video:")).toBe(true);
 
-  // The live engine and the spare behind it: only the live one has a file.
-  // On Windows by name, which is safe with one worker; that is also the path
-  // where the next engine has to close the dead one's textures.
+  // The live engine and the spare behind it: only the live one has a file. On Windows that is also the path where
+  // the next engine has to close the dead one's textures. Only this app's engines: by name, `taskkill /IM` also cut
+  // the video of a Himnova open on the test PC, which is in daily use (2026-11-15 audit, P9).
   if (process.platform === "win32") {
-    execFileSync("taskkill", ["/F", "/IM", "media-engine.exe"]);
+    const children = `ParentProcessId=${app.mainPid} AND Name='media-engine.exe'`;
+    execFileSync("powershell", [
+      "-NoProfile",
+      "-Command",
+      `$engines = @(Get-CimInstance Win32_Process -Filter "${children}"); if ($engines.Count -eq 0) { exit 1 }; ` +
+        "$engines | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }",
+    ]);
   } else {
     for (const engine of execFileSync("pgrep", ["-P", String(app.mainPid), "-f", "media-engine"], { encoding: "utf8" }).split("\n")) {
       if (engine.trim()) process.kill(Number(engine), "SIGKILL");
