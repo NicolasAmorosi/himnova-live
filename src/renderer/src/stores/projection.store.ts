@@ -593,10 +593,25 @@ export const useProjectionStore = create<ProjectionStoreState>()(
 
     setAutoplay: (autoplay) => set({ autoplay }),
     setAutoplayMode: (autoplayMode) => set({ autoplayMode }),
+    // The engine reports ~4 times a second even paused (under LOGO, a whole sermon): the same report again is no
+    // change, or every reader of the map (the LIVE panel whole) re-rendered 3.5 times a second for nothing
+    // (2026-11-15 audit, R4). `onIpc("media-status")` still sees every report.
     setMediaStatus: (status) =>
-      set((state) => ({
-        mediaStatus: { ...state.mediaStatus, [mediaTargetKey(status.target)]: status },
-      })),
+      set((state) => {
+        const key = mediaTargetKey(status.target);
+        const kept = state.mediaStatus[key];
+        if (
+          kept &&
+          kept.epoch === status.epoch &&
+          kept.currentTimeSeconds === status.currentTimeSeconds &&
+          kept.durationSeconds === status.durationSeconds &&
+          kept.paused === status.paused &&
+          kept.ended === status.ended
+        ) {
+          return state;
+        }
+        return { mediaStatus: { ...state.mediaStatus, [key]: status } };
+      }),
 
     setMediaError: (error) =>
       set((state) => ({
