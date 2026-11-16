@@ -36,26 +36,46 @@ test("back to the deck on air before another deck's copy ends, the copy kept is 
   deck(1);
   deck(2);
   deck(3);
+  // A's copy settled: its size checked (`stat` of the copy), then it is the one kept, synchronously after that.
+  const realStat = fs.promises.stat.bind(fs.promises);
+  const checked: Promise<unknown>[] = [];
+  const stat = vi.spyOn(fs.promises, "stat").mockImplementation((target: fs.PathLike) => {
+    const done = realStat(target);
+    if (String(target) === path.join(LIVE, "1.pptx")) checked.push(done);
+    return done;
+  });
   keepLiveDeckSource(1);
-  await vi.waitFor(() => expect(kept()).toEqual(["1.pptx"]));
-  await new Promise((resolve) => setTimeout(resolve, 20));
+  await vi.waitFor(() => expect(checked).toHaveLength(1));
+  await checked[0];
+  await new Promise((resolve) => setImmediate(resolve));
+  stat.mockRestore();
+  expect(kept()).toEqual(["1.pptx"]);
 
-  // B's copy waits until released: a slow pen drive.
+  // B's copy waits until released: a slow pen drive. Settled once its chain removes a file: B's own copy dropped,
+  // or A's replaced by it.
   const realCopy = fs.promises.copyFile.bind(fs.promises);
+  const realRm = fs.promises.rm.bind(fs.promises);
   let release!: () => void;
   const gate = new Promise<void>((resolve) => (release = resolve));
   const copyFile = vi.spyOn(fs.promises, "copyFile").mockImplementation(async (from, to) => {
     await gate;
     return realCopy(from, to);
   });
+  const removed: Promise<void>[] = [];
+  const rm = vi.spyOn(fs.promises, "rm").mockImplementation((target, options) => {
+    const done = realRm(target, options);
+    removed.push(done);
+    return done;
+  });
   keepLiveDeckSource(2);
   await vi.waitFor(() => expect(copyFile).toHaveBeenCalledTimes(1));
   keepLiveDeckSource(1);
   release();
-  // Settled: the gated copy written and then either kept or dropped.
-  await new Promise((resolve) => setTimeout(resolve, 100));
+  await vi.waitFor(() => expect(rm).toHaveBeenCalledTimes(1));
+  await Promise.all(removed);
   expect(kept()).toEqual(["1.pptx"]);
   copyFile.mockRestore();
+  rm.mockRestore();
 
   // A deck shown again while its own copy is under way (every slide is a show) still gets it.
   keepLiveDeckSource(3);
