@@ -5,6 +5,7 @@ import { useBibleStore } from "@renderer/stores/bible.store";
 import { selectOutputMemo, useProjectionStore } from "@renderer/stores/projection.store";
 import { useSettingsStore } from "@renderer/stores/settings.store";
 import { useStageStore } from "@renderer/stores/stage.store";
+import { survivingAssetId } from "@renderer/stores/program.store";
 import { assetThumbUrl, assetThumbVersion } from "@shared/urls";
 import { onIpc } from "@renderer/lib/ipc";
 import { toast } from "@renderer/lib/toast";
@@ -27,8 +28,10 @@ export function startStageSync(): () => void {
     if (assetId === null) return null;
     if (poster?.assetId === assetId) return poster.url;
     poster = { assetId, url: null };
+    // A video on air keeps the id it went out with; a relocate may have merged its row into a twin since
+    // (2026-11-15 audit, D4).
     void api.library
-      .get(assetId)
+      .get(survivingAssetId(assetId))
       .then((asset) => {
         if (poster?.assetId !== assetId || !asset) return;
         poster = { assetId, url: assetThumbUrl(asset.id, assetThumbVersion(asset)) };

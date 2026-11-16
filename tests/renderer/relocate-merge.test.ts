@@ -6,18 +6,23 @@
  */
 import { beforeEach, expect, test, vi } from "vitest";
 import { relocateAsset } from "@renderer/lib/actions/relocate-asset";
-import { goLive } from "@renderer/lib/actions/playback";
+import { goLive, goLiveWithNextScheduleAudio } from "@renderer/lib/actions/playback";
 import { previewScheduleItem } from "@renderer/lib/actions/preview";
 import { rearmLive } from "@renderer/effects/engine-assets-sync";
 import { forceRemoveAsset } from "@renderer/lib/actions/remove-asset";
+import { startStageSync } from "@renderer/effects/stage-sync";
 import { useAudioStore } from "@renderer/stores/audio.store";
 import { useDisplayStore } from "@renderer/stores/display.store";
 import { useEngineAssetsStore } from "@renderer/stores/engine-assets.store";
 import { useLibraryStore } from "@renderer/stores/library.store";
+import { useOverlayStore } from "@renderer/stores/overlay.store";
+import { useSettingsStore } from "@renderer/stores/settings.store";
 import { usePreviewStore } from "@renderer/stores/preview.store";
 import { useProgramStore } from "@renderer/stores/program.store";
 import { useProjectionStore } from "@renderer/stores/projection.store";
 import type { MediaAsset } from "@shared/types/media";
+import type { Plate } from "@shared/types/overlay";
+import { DEFAULT_SETTINGS } from "@shared/types/settings";
 import { assetUrl, engineAssetUrl } from "@shared/urls";
 
 const TWIN = 5;
@@ -41,7 +46,9 @@ const asset = (id: number, kind: MediaAsset["kind"]): MediaAsset => ({
   createdAt: 0,
   updatedAt: 0,
 });
-const LIBRARY = [asset(KEPT, "video"), asset(7, "ppt"), asset(AUDIO_KEPT, "audio")];
+const NEXT_AUDIO = 21;
+const LIBRARY = [asset(KEPT, "video"), asset(7, "ppt"), asset(AUDIO_KEPT, "audio"), asset(NEXT_AUDIO, "audio")];
+const PLATE = { id: 1, name: "Mosca", kind: "bug", imageAssetId: TWIN } as Plate;
 
 beforeEach(() => {
   (window as unknown as { worship: unknown }).worship = {
@@ -61,7 +68,9 @@ beforeEach(() => {
             }
           : channel === "library:get"
             ? { ok: true, data: LIBRARY.find((candidate) => candidate.id === req.id) ?? null }
-            : { ok: true, data: [] },
+            : channel === "overlay:list"
+              ? { ok: true, data: [{ ...PLATE, imageAssetId: KEPT }] }
+              : { ok: true, data: [] },
       ),
     ),
     on: () => () => {},
@@ -198,4 +207,55 @@ test("removing the row that stays takes its merged-away twin off the air, as it 
   await forceRemoveAsset(KEPT);
 
   expect(useProjectionStore.getState().base).toBeNull();
+});
+
+test("the saved plates are read again: one whose picture was the twin saves under the row that stays", async () => {
+  // Main moved `overlay_plates.image_asset_id` in the merge; the list in memory kept the deleted id, and saving that
+  // plate failed on its foreign key (review follow-up).
+  useOverlayStore.getState().setPlates([PLATE]);
+
+  await relocateAsset(KEPT);
+
+  await vi.waitFor(() => expect(useOverlayStore.getState().plates[0]?.imageAssetId).toBe(KEPT));
+});
+
+test("«Al terminar → siguiente» finds the row of a sound on air under the twin, the program saved since", async () => {
+  useProgramStore.getState().addItem({ kind: "media", mediaAssetId: NEXT_AUDIO, title: null });
+  await relocateAsset(KEPT);
+  const ended = {
+    trackId: `a:${AUDIO_TWIN}`,
+    source: "asset" as const,
+    assetId: AUDIO_TWIN,
+    // Saving gave every row a new id: the one it was sent from is found by its sound.
+    fromItemId: -999,
+    label: "",
+    url: assetUrl(AUDIO_TWIN),
+    epoch: 1,
+    paused: false,
+    startAtSeconds: 0,
+    volume: 0.5,
+    loop: false,
+  };
+
+  await goLiveWithNextScheduleAudio(ended);
+
+  expect(useAudioStore.getState().tracks.map((track) => [track.assetId, track.volume])).toEqual([[NEXT_AUDIO, 0.5]]);
+});
+
+test("a stage screen started after a merge still gets the still of the video on air under the twin", async () => {
+  const projection = useProjectionStore.getState();
+  projection.beginScene();
+  projection.setBase({ kind: "video", assetId: TWIN, url: assetUrl(TWIN), epoch: 1, startAtSeconds: 0 });
+  await relocateAsset(KEPT);
+  useSettingsStore.setState({ settings: { ...DEFAULT_SETTINGS, "stage.displayId": 1 } });
+  const invoke = (window as unknown as { worship: { invoke: ReturnType<typeof vi.fn> } }).worship.invoke;
+
+  const stop = startStageSync();
+  try {
+    // Asked for the twin, main answers nothing: no still on the stage.
+    await vi.waitFor(() => expect(invoke).toHaveBeenCalledWith("library:get", { id: KEPT }));
+  } finally {
+    stop();
+    useSettingsStore.setState({ settings: DEFAULT_SETTINGS });
+  }
 });

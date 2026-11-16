@@ -541,7 +541,9 @@ export async function goLiveWithNextScheduleAudio(ended: LiveAudioTrack): Promis
   // is the one with its audio. ponytail: the first such row if the same audio
   // is in the schedule twice and the program was saved while it played.
   const byId = items.findIndex((item) => item.id === ended.fromItemId);
-  const from = byId >= 0 ? byId : items.findIndex((item) => item.kind === "media" && item.mediaAssetId === ended.assetId);
+  // Its sound keeps the id it went out with; its row may have moved to a twin since (2026-11-15 audit, D4).
+  const playing = ended.assetId === null ? null : survivingAssetId(ended.assetId);
+  const from = byId >= 0 ? byId : items.findIndex((item) => item.kind === "media" && item.mediaAssetId === playing);
   if (from < 0) return;
   const next = items.slice(from + 1).find((item) => item.kind !== "plate");
   if (next?.kind !== "media") return;
