@@ -39,7 +39,7 @@ export type EngineLoad = {
   /** 0..1 */
   volume: number;
   loop: boolean;
-  /** false: the audio is not even decoded (the PREVIEW monitor). */
+  /** false: the audio is not even decoded (a song theme's video background; PREVIEW sounds since 2026-11-05). */
   audio: boolean;
   /** mpv's name for the output it plays through (`EngineDevice.name`); absent, the system's default. An engine
    *  older than `AUDIO_DEVICE_PROTO` plays it on the default. */
