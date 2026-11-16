@@ -9,7 +9,10 @@ import { projectionState } from "../services/projection-state";
 import { syncLiveEngine } from "../media/engine-sessions";
 import { forwardKeysToControl } from "./projection-window";
 import { operatorDisplay } from "./control-window";
+import { crashLimit } from "./crash-limit";
 import { chooseStageDisplay } from "./projector-display-choice";
+
+const stageCrashed = crashLimit();
 
 const PRELOAD = path.join(__dirname, "../preload/index.js");
 
@@ -157,6 +160,13 @@ function createStageWindow(display: Electron.Display, own: boolean): BrowserWind
   win.webContents.setAudioMuted(true);
   forwardKeysToControl(win);
   win.on("page-title-updated", (event) => event.preventDefault());
+  // A dead page left the window up, black or frozen, in front of the musicians and the preacher (2026-11-15 audit,
+  // A1). Reloaded, it pulls the stage's snapshot again; it never sounds, so nothing has a position to keep.
+  win.webContents.on("render-process-gone", () => {
+    if (win.isDestroyed()) return;
+    if (stageCrashed()) win.webContents.reload();
+    else win.destroy();
+  });
   win.once("closed", () => {
     if (current?.win !== win) return;
     powerSaveBlocker.stop(current.blocker);

@@ -476,13 +476,15 @@ export type IpcEvents = {
   "audio-tracks": AudioTrackPush[];
   /** -> control window */
   /** The projection window is gone and the control window did not ask for it:
-   *  the OS closed it (the default Electron menu binds Cmd+W and nothing calls
-   *  `Menu.setApplicationMenu`), the projection renderer crashed, or it was
-   *  force-closed. Without this the control keeps `presentationOpen: true`
-   *  forever, and that flag is what `openIfNeeded()` short-circuits on — so GO
-   *  LIVE, BLACK and LOGO would all stop reaching any projector in complete
-   *  silence while the LIVE header kept claiming to be on air. */
-  "projection-closed": void;
+   *  the OS closed it, or it was force-closed, or its renderer died — a dead
+   *  renderer leaves its window up, black or frozen, so main takes it down
+   *  itself (`render-process-gone`) and says `reopen`: the control window
+   *  opens it again onto what was live, unless it keeps dying. Without this
+   *  the control keeps `presentationOpen: true` forever, and that flag is
+   *  what `openIfNeeded()` short-circuits on — so GO LIVE, BLACK and LOGO
+   *  would all stop reaching any projector in complete silence while the
+   *  LIVE header kept claiming to be on air. */
+  "projection-closed": { reopen: boolean };
   /** A screen was connected or disconnected (`windows/projector-screen.ts`):
    *  the control window re-reads `displays:list`. Main itself moves the
    *  projection window. */

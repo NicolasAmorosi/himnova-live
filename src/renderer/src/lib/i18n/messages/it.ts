@@ -819,6 +819,7 @@ const it: Messages = {
   footerHints: { goLive: "Manda l'anteprima al proiettore", logo: "Mostra il logo", black: "Schermo nero", live: "Mostra di nuovo il contenuto" },
   projector: {
     closedUnexpectedly: "La finestra di proiezione si è chiusa",
+    recovered: "La finestra di proiezione si è bloccata e si è riaperta da sola",
     screenLost:
       "Lo schermo del proiettore si è scollegato. Ciò che è in onda continua, con il suo audio, e torna visibile appena lo schermo si ricollega.",
     screenBack: "Lo schermo del proiettore è tornato",

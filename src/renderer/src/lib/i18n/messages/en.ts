@@ -815,6 +815,7 @@ const en: Messages = {
   footerHints: { goLive: "Send the preview to the projector", logo: "Show the logo", black: "Black screen", live: "Show the content again" },
   projector: {
     closedUnexpectedly: "The projector window closed",
+    recovered: "The projector window crashed and reopened on its own",
     screenLost:
       "The projector's screen was disconnected. What's live keeps running, sound included, and shows again as soon as the screen is reconnected.",
     screenBack: "The projector's screen is back",

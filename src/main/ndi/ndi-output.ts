@@ -13,7 +13,10 @@ import { enginePath } from "../paths";
 import { engineAvailable, handles, type LinuxHandles, type MacHandles } from "../media/media-engine";
 import { syncLiveEngine } from "../media/engine-sessions";
 import { jsonLineReader, ndiRouteLines } from "../media/engine-protocol";
+import { crashLimit } from "../windows/crash-limit";
 import { paintVerdict } from "./ndi-pacing";
+
+const ndiCrashed = crashLimit();
 
 /**
  * The NDI® output (plan `2026-11-09-ndi`, phase 1): the projection drawn a second time in an offscreen
@@ -201,7 +204,8 @@ function createNdiWindow(config: Config): BrowserWindow {
   });
   win.webContents.on("render-process-gone", (_event, details) => {
     console.warn("[ndi] output page gone", details.reason);
-    if (!win.isDestroyed()) win.webContents.reload();
+    // Not forever: one that dies on every load would reload in a loop (2026-11-15 audit, A1).
+    if (!win.isDestroyed() && ndiCrashed()) win.webContents.reload();
   });
   projectionState.addMirror(win);
   const devServerUrl = process.env["ELECTRON_RENDERER_URL"];

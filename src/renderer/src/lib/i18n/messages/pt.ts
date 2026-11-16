@@ -816,6 +816,7 @@ const pt: Messages = {
   footerHints: { goLive: "Mandar a prévia para o projetor", logo: "Mostrar o logo", black: "Tela preta", live: "Voltar a mostrar o conteúdo" },
   projector: {
     closedUnexpectedly: "A janela de projeção foi fechada",
+    recovered: "A janela de projeção travou e reabriu sozinha",
     screenLost:
       "A tela do projetor foi desconectada. O que está ao vivo continua rodando, com som, e volta a aparecer assim que a tela se reconectar.",
     screenBack: "A tela do projetor voltou",

@@ -25,7 +25,7 @@ async function verseLive(app: WorshipApp) {
   return projector;
 }
 
-test("a projector whose renderer dies leaves its reason in crash.log", async ({ app }) => {
+test("a projector whose renderer dies comes back by itself onto what was live, its reason in crash.log", async ({ app }) => {
   app.crashLogExpected = true;
   await verseLive(app);
   await app.electron.evaluate(({ BrowserWindow }) =>
@@ -37,6 +37,11 @@ test("a projector whose renderer dies leaves its reason in crash.log", async ({ 
   await expect
     .poll(() => (fs.existsSync(crashLog) ? fs.readFileSync(crashLog, "utf8") : ""))
     .toMatch(/\[render-process-gone\] \S+\/projection\.html \{"reason":"(crashed|killed)"/);
+  // Before, the dead window stayed up, black or frozen, and nobody was told (2026-11-15 audit, A1).
+  await expect(app.control.getByText("La ventana de proyección se cayó y se volvió a abrir sola")).toBeVisible();
+  await expect.poll(() => app.electron.windows().filter((page) => page.url().endsWith("/projection.html")).length).toBe(1);
+  const projector = await app.projector();
+  await expect(projector.getByText(JUAN_3_16, { exact: false })).toBeVisible();
 });
 
 test("no key of the Mac's app menu hides the app: ⌘H took the projector away with it", async ({ app }) => {

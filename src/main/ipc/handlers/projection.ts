@@ -9,6 +9,7 @@ import { IpcError } from "@shared/ipc/result";
 import { deckIdOfUrl } from "@shared/urls";
 import { keepLiveDeckSource } from "../../protocol/worship-protocol";
 import { reopenStageWindow, showOnStage, stageShown, stageSnapshot } from "../../windows/stage-window";
+import { crashLimit } from "../../windows/crash-limit";
 import { reportLevel } from "../../media/audio-levels";
 
 let currentProgramId: number | null = null;
@@ -18,6 +19,9 @@ let currentProgramId: number | null = null;
 const PROJECTOR_MOUNT_TIMEOUT_MS = 5_000;
 /** `webContents.id` → settles that window's `projection:open`. */
 const mountWaiters = new Map<number, () => void>();
+
+/** Whether a projector that just died may be reopened on its own (`crash-limit.ts`). */
+const projectorCrashed = crashLimit();
 
 export function setCurrentProgramId(id: number | null): void {
   currentProgramId = id;
@@ -59,6 +63,16 @@ export const projectionHandlers: Pick<
     // window sat on screen, very much alive — after which no
     // `projection:show` ever reached the projector again (it froze on
     // whatever was last on it) and `projection:close` closed nothing.
+    // A renderer that dies leaves its window up, black or frozen, and nothing said so: the room watched a dead
+    // projector while the LIVE monitor went on showing what it «projected» (2026-11-15 audit, A1). Taken down, it
+    // goes through the path a window closed from outside takes, and the control window reopens it onto what was
+    // live — the positions folded in first, as for «Reabrir».
+    let reopen = false;
+    win.webContents.on("render-process-gone", () => {
+      if (win.isDestroyed()) return;
+      reopen = projectorCrashed();
+      win.destroy();
+    });
     win.on("closed", () => {
       // The broadcast is gated on `clearWindowIf` having actually fired, for
       // the identity reason spelled out above: during a reopen the OLD
@@ -69,7 +83,7 @@ export const projectionHandlers: Pick<
       // already nulled the reference too, so it stays silent as well — the
       // control window does not need to be told what it just did.
       if (projectionState.clearWindowIf(win)) {
-        broadcast("projection-closed", undefined);
+        broadcast("projection-closed", { reopen });
         syncLiveEngine();
       }
     });
