@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { parentPort, workerData } from "node:worker_threads";
+import type { SlideModel } from "@shared/types/slide-model";
 import { parsePresetDefinitions } from "./pptx/geometry";
 import { readPptxDeck, type PptxDeck, type PptxResources } from "./pptx/reader";
 import { parseTableStyles } from "./pptx/table-style";
@@ -49,7 +50,6 @@ export type PptxReply =
   | { id: number; clips: PptxClips }
   | { id: number; error: string };
 
-const ooxmlDir = (workerData as { ooxmlDir: string }).ooxmlDir;
 type Resources = PptxResources & PptResources;
 let resources: Resources | null = null;
 
@@ -75,8 +75,30 @@ function readModel(file: string, loaded: Resources): { deck: PptxDeck; meta: Pre
   }
 }
 
+/** A slide's model past this, as JSON, is kept as an empty, damaged slide. A real chart at Excel 2007's limit
+ *  (32 000 points) is ~5.8 MB. */
+export const MAX_SLIDE_LAYERS = 16 * 1024 * 1024;
+
+/**
+ * The JSON `deck_slides.layers` stores. A few KB of file can ask for hundreds of MB of model (a chart's `ptCount`,
+ * an arc's sweep): that string crossed to main, was written to SQLite at once and parsed by every window
+ * (2026-11-15 audit, S5). Past the cap, or past what a string can hold, the slide keeps its size and background,
+ * and the control window says it is damaged.
+ */
+export function slideLayers(model: SlideModel): string {
+  try {
+    const json = JSON.stringify(model);
+    if (json.length <= MAX_SLIDE_LAYERS) return json;
+  } catch {
+    // RangeError: longer than a string can be.
+  }
+  return JSON.stringify({ ...model, elements: [], damaged: true } satisfies SlideModel);
+}
+
 function read(file: string): PptxRead {
-  // Loaded on the first deck, not at startup: most sessions never open one.
+  // Loaded on the first deck, not at startup: most sessions never open one. `workerData` read here, not when the
+  // module loads, so a test can import `slideLayers`.
+  const { ooxmlDir } = workerData as { ooxmlDir: string };
   resources ??= {
     presets: parsePresetDefinitions(fs.readFileSync(path.join(ooxmlDir, "presetShapeDefinitions.xml"), "utf8")),
     tableStyles: parseTableStyles(fs.readFileSync(path.join(ooxmlDir, "tableStyles.xml"), "utf8")),
@@ -87,7 +109,7 @@ function read(file: string): PptxRead {
   return {
     width: deck.width,
     height: deck.height,
-    slides: deck.slides.map((slide) => ({ hidden: slide.hidden, layers: JSON.stringify(slide.model) })),
+    slides: deck.slides.map((slide) => ({ hidden: slide.hidden, layers: slideLayers(slide.model) })),
     meta,
   };
 }
