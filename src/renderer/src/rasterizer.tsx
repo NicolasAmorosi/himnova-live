@@ -58,6 +58,10 @@ function openDoc(docKey: string, url: string): Promise<PDFDocumentProxy> {
       // and pointing `standardFontDataUrl` at it; that also needs `connect-src`
       // in rasterizer.html widened, which is why it is not the default here.
       useSystemFonts: true,
+      // Its image decoders (JPEG 2000, CCITT and JBIG2, as in a scanned hymn or a photo, and colour profiles) are
+      // WebAssembly it fetches from here: without it, those images were left out and a scanned page came out blank
+      // (2026-11-15 audit, A9). Served by main; a `file://` url is refused by this window's `connect-src`.
+      wasmUrl: "worship://wasm/",
     }).promise;
   })();
   docs.set(docKey, loading);

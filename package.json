@@ -105,6 +105,16 @@
       {
         "from": "resources/backgrounds",
         "to": "backgrounds"
+      },
+      {
+        "from": "node_modules/pdfjs-dist/wasm",
+        "to": "pdfjs-wasm",
+        "filter": [
+          "openjpeg.wasm",
+          "jbig2.wasm",
+          "qcms_bg.wasm",
+          "LICENSE_*"
+        ]
       }
     ],
     "directories": {

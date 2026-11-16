@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import type { MediaRepo } from "../db/repositories/media.repo";
 import { getSettingsRepo, getSlidesRepo, isDatabaseOpen } from "../services/repos";
-import { liveDeckDir, slidesCacheDir } from "../paths";
+import { liveDeckDir, pdfjsWasmDir, slidesCacheDir } from "../paths";
 import { pdfPageImage, resolveRasterPdf } from "../slides/rasterizer";
 import { renderNativeSlide } from "../slides/native-deck";
 import { decodeEmbeddedFont } from "../slides/pptx/embedded-font";
@@ -13,6 +13,9 @@ import { containerKind } from "../slides/pptx-metadata";
 import { readZipEntries } from "../slides/zip-reader";
 import { ensureThumbnail } from "../media/thumbnail-service";
 import { serveFile } from "./serve-file";
+
+/** What `worship://wasm/` serves: the decoders `pdfjs.getDocument` fetches from its `wasmUrl`. */
+const PDFJS_WASM = new Set(["openjpeg.wasm", "jbig2.wasm", "qcms_bg.wasm"]);
 
 /** Must run before app.whenReady(). `standard: true` gives worship:// URLs a
  *  hostname + pathname like http, which is what the parsing below relies on. */
@@ -209,6 +212,12 @@ export function registerWorshipProtocolHandler(mediaRepo: MediaRepo): void {
             return new Response("Forbidden", { status: 403 });
           }
           return serveFile(request, resolved);
+        }
+        case "wasm": {
+          // pdf.js's decoders, for the rasterizer (its CSP connects to `worship:` only): by name, from a fixed list.
+          const name = segments[0] ?? "";
+          if (!PDFJS_WASM.has(name)) return new Response("Not found", { status: 404 });
+          return serveFile(request, path.join(pdfjsWasmDir, name));
         }
         default:
           return new Response("Not found", { status: 404 });

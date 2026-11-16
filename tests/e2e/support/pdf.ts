@@ -58,3 +58,52 @@ export function buildPdf(colors: readonly string[], texts?: readonly (readonly P
   pdf += `trailer\n<< /Size ${objects.length + 1} /Root ${catalog + 1} 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
   return Buffer.from(pdf, "latin1");
 }
+
+/**
+ * A one-page PDF (16:9) that is a single image filling it: `dict` names its filter and what the filter needs, `data`
+ * is the encoded stream. For the images pdf.js decodes with its own WebAssembly (JPEG 2000, CCITT, JBIG2): a scanned
+ * page is exactly this.
+ */
+export function buildImagePdf(dict: string, data: Uint8Array): Buffer {
+  const parts: Buffer[] = [];
+  const offsets: number[] = [];
+  let size = 0;
+  const push = (chunk: string | Uint8Array) => {
+    const bytes = typeof chunk === "string" ? Buffer.from(chunk, "latin1") : Buffer.from(chunk);
+    parts.push(bytes);
+    size += bytes.length;
+  };
+  const object = (...body: (string | Uint8Array)[]) => {
+    offsets.push(size);
+    push(`${offsets.length} 0 obj\n`);
+    body.forEach(push);
+    push("\nendobj\n");
+  };
+  const content = "q 960 0 0 540 0 0 cm /Im1 Do Q";
+  push("%PDF-1.5\n");
+  object("<< /Type /Catalog /Pages 2 0 R >>");
+  object("<< /Type /Pages /Kids [3 0 R] /Count 1 >>");
+  object("<< /Type /Page /Parent 2 0 R /MediaBox [0 0 960 540] /Resources << /XObject << /Im1 4 0 R >> >> /Contents 5 0 R >>");
+  object(`<< /Type /XObject /Subtype /Image ${dict} /Length ${data.length} >>\nstream\n`, data, "\nendstream");
+  object(`<< /Length ${content.length} >>\nstream\n${content}\nendstream`);
+  const xref = size;
+  push(`xref\n0 ${offsets.length + 1}\n0000000000 65535 f \n`);
+  push(offsets.map((offset) => `${String(offset).padStart(10, "0")} 00000 n \n`).join(""));
+  push(`trailer\n<< /Size ${offsets.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`);
+  return Buffer.concat(parts);
+}
+
+/**
+ * A 64×64 scan whose left half is black, as CCITT Group 3 one-dimensional (`/K 0`): each row a white run of 0, a black
+ * run of 32 and a white run of 32, in ITU-T T.4's codes. pdf.js decodes every CCITT image with the same WebAssembly.
+ */
+export function ccittHalfBlack(): { dict: string; data: Uint8Array } {
+  const row = "00110101" + "000001101010" + "00011011";
+  const bits = row.repeat(64);
+  const data = new Uint8Array(Math.ceil(bits.length / 8));
+  for (let i = 0; i < bits.length; i += 1) if (bits[i] === "1") data[i >> 3]! |= 0x80 >> (i & 7);
+  return {
+    dict: "/Width 64 /Height 64 /ColorSpace /DeviceGray /BitsPerComponent 1 /Filter /CCITTFaxDecode /DecodeParms << /K 0 /Columns 64 /Rows 64 >>",
+    data,
+  };
+}

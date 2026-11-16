@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { strToU8, zipSync } from "fflate";
 import { FIXTURES_DIR, FIXTURE_VERSION, ffmpegBinary } from "./paths";
-import { buildPdf } from "./pdf";
+import { buildImagePdf, buildPdf, ccittHalfBlack } from "./pdf";
 import { CM, REL, buildPptx } from "./pptx";
 import { buildLegacyPpt } from "../../fixtures/legacy-ppt";
 
@@ -52,6 +52,12 @@ export default function globalSetup(): void {
   run("-f", "lavfi", "-i", "testsrc2=size=1280x720", "-frames:v", "1", out("photo.png"));
 
   fs.writeFileSync(out("deck.pdf"), buildPdf(["#1f4e9c", "#c0392b", "#27ae60"]));
+  // A photo in JPEG 2000 and a scanned page in CCITT: pdf.js decodes both with its own WebAssembly, and without it drew
+  // them blank (2026-11-15 audit, A9).
+  run("-f", "lavfi", "-i", "color=c=red:size=64x64", "-frames:v", "1", "-c:v", "jpeg2000", out("red.jp2"));
+  fs.writeFileSync(out("jpx.pdf"), buildImagePdf("/Width 64 /Height 64 /Filter /JPXDecode", fs.readFileSync(out("red.jp2"))));
+  const scan = ccittHalfBlack();
+  fs.writeFileSync(out("scan.pdf"), buildImagePdf(scan.dict, scan.data));
 
   // A legacy hymn as the real ones are: a JPEG per slide, a logo over the
   // first and a speaker icon PowerPoint hides — read straight from the file

@@ -294,6 +294,13 @@ and no media parts (⇒ no embedded soundtrack). The sibling *linked* `.mp3` is 
 any other deck. `worship://raster/<task>` serves the window only a file the library holds, and only
 while that task runs.
 
+pdf.js decodes some images with WebAssembly of its own: JPEG 2000 (`openjpeg.wasm`), CCITT and JBIG2
+(`jbig2.wasm`, every scanned hymn or score), and colour profiles (`qcms_bg.wasm`). The window fetches them from
+`getDocument`'s `wasmUrl`, `worship://wasm/<name>` (main serves the three by name from `pdfjsWasmDir`: the package's
+`wasm/` in development, `resources/pdfjs-wasm` in an installer). Without it, until 2026-11-15, those images were left
+out silently and a scanned page came out blank (audit A9); a `file://` url does not work, the window's `connect-src`
+is `worship:` only.
+
 A page is fitted into a `targetWidth` square, not just by width: a PDF page can be portrait.
 `slides.maxRenderWidth` and `slides.imageFormat` (the owner kept the choice, 2026-11-03) are part of
 a PDF deck's identity, so changing either opens the PDF again under new urls on its next open

@@ -54,6 +54,43 @@ test("a PDF is a deck: drawn page by page, projected, stepped", async ({ app }) 
   await expect.poll(() => projectedSlide(projector)).toBe(1);
 });
 
+/** The colour of the projected page at fractions of its width (at half its height), from the page image itself. */
+function pageColors(projector: Page, at: readonly number[]): Promise<string[]> {
+  return projector.evaluate(async (fractions) => {
+    const image = document.querySelector<HTMLImageElement>('img[src^="worship://deck/"]');
+    if (!image) return [];
+    const bitmap = await createImageBitmap(await (await fetch(image.src)).blob());
+    const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
+    const context = canvas.getContext("2d")!;
+    context.drawImage(bitmap, 0, 0);
+    return fractions.map((x) => {
+      const [r, g, b] = context.getImageData(Math.floor(bitmap.width * x), Math.floor(bitmap.height / 2), 1, 1).data;
+      return `${r! > 128 ? 1 : 0}${g! > 128 ? 1 : 0}${b! > 128 ? 1 : 0}`;
+    });
+  }, at);
+}
+
+// A scanned hymn or a score (CCITT, JBIG2) and a photo in JPEG 2000 are images pdf.js decodes with its own WebAssembly,
+// fetched from the rasterizer's `wasmUrl`. Without it the page was drawn blank, with no word to anyone (2026-11-15
+// audit, A9). Colours as bits: «100» is red, «000» black, «111» white.
+test("a scanned PDF page and a JPEG 2000 photo are drawn, not left blank", async ({ app }) => {
+  await app.addMedia("ppt", "scan.pdf", "jpx.pdf");
+  await app.previewFile("Presentaciones", "scan");
+  await expect(slideTile(app, 1)).toBeVisible({ timeout: 60_000 });
+  await app.goLive();
+  const projector = await app.projector();
+  await expect.poll(() => projectedSlide(projector)).toBe(1);
+  // The scan's left half is black, its right half white.
+  await expect.poll(() => pageColors(projector, [0.25, 0.75])).toEqual(["000", "111"]);
+
+  await app.previewFile("Presentaciones", "jpx");
+  await expect(slideTile(app, 1)).toBeVisible({ timeout: 60_000 });
+  await app.goLive();
+  await expect.poll(() => pageColors(projector, [0.5])).toEqual(["100"]);
+  // And the worker said nothing about a decoder it could not start.
+  expect(app.log.filter((line) => /failed to initialize|wasmUrl/.test(line))).toEqual([]);
+});
+
 test("a deck cached by an older converter is reconverted before it goes live, never under it", async ({ app }) => {
   await app.addMedia("ppt", "deck.pdf");
   await app.previewFile("Presentaciones", "deck");

@@ -31,6 +31,12 @@ export const ooxmlDir = app.isPackaged
   ? path.join(resourcesRoot, "ooxml")
   : path.join(app.getAppPath(), "resources/ooxml");
 
+/** pdf.js's image decoders (JPEG 2000, CCITT and JBIG2, colour profiles), served to the rasterizer as
+ *  `worship://wasm/<name>`: without them a scanned page or a JPEG 2000 photo is drawn blank. */
+export const pdfjsWasmDir = app.isPackaged
+  ? path.join(resourcesRoot, "pdfjs-wasm")
+  : path.join(app.getAppPath(), "node_modules/pdfjs-dist/wasm");
+
 /** FFmpeg + ffprobe, fetched per platform by `scripts/fetch-binaries.ts` into
  *  `resources/ffmpeg/<platform>-<arch>/` and shipped as `resources/ffmpeg/`. */
 const ffmpegDir = app.isPackaged
