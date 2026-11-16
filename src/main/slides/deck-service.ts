@@ -29,7 +29,7 @@ import { extractClips, hurryDeck, readPptx, type PptxRead } from "./pptx-deck";
 import { readPdfPages, shutdownRasterizer, type RasterLane } from "./rasterizer";
 import { hashFile } from "../media/content-hash";
 import { healDeckClips, isEngineClip, revertPlayableCopies } from "../media/deck-clips";
-import { removeQuietly } from "../fs-retry";
+import { removeQuietly, renameSyncWithRetry } from "../fs-retry";
 import { mt } from "../i18n";
 
 // ---------------------------------------------------------------------------
@@ -479,22 +479,27 @@ async function recordModelDeck(
   // cache folder — served from the .pptx by range once the media engine
   // replaces `deck-clips.ts` (plan, phase 3).
   const cacheDir = deckCacheDir(contentHash, 0, "model");
-  removeQuietly(cacheDir);
+  // Copied beside it, and moved in only once the copy is whole: emptied first,
+  // a copy the worker died in left the deck's ready row over a half-filled
+  // folder (2026-11-15 audit, D6, review).
+  const staging = `${cacheDir}.tmp-${assetId}`;
+  removeQuietly(staging);
   // Each sound on the slides it plays on (`placeAudio`), counted among the
   // slides drawn — which only the timings that lined up can say.
   const visibleOoxml = timingsUsable ? visibleMeta.map((slide) => slide.slideIndex) : null;
   const extract = {
     file: sourcePath,
     audio: meta.audio,
-    audioDir: path.join(cacheDir, "audio"),
+    audioDir: path.join(staging, "audio"),
     video: meta.video.length > 0 && timingsUsable ? meta.video : [],
-    videoDir: path.join(cacheDir, "video"),
+    videoDir: path.join(staging, "video"),
   };
   const extracted = await extractClips(extract, job.lane);
   // The worker stopped before copying them: saved now, the deck would stay
   // mute after a restart too (2026-11-15 audit, D6). Nothing is kept, so the
   // next open reads it again.
   if (!extracted && extract.audio.length + extract.video.length > 0) {
+    removeQuietly(staging);
     throw new SlideError("RASTER_FAILED", mt("slides.deckUnreadable"));
   }
   const clips = extracted ?? { audio: [], video: [] };
@@ -537,7 +542,16 @@ async function recordModelDeck(
   }
   const bytesOnDisk = audio.reduce((total, track) => total + track.bytes, 0) + videos.reduce((total, video) => total + video.bytes, 0);
   const ownsFolder = audio.length > 0 || videos.length > 0;
-  if (!ownsFolder) removeQuietly(cacheDir);
+  removeQuietly(cacheDir);
+  if (ownsFolder) {
+    try {
+      renameSyncWithRetry(staging, cacheDir);
+    } catch (error) {
+      console.warn(`[slides] could not move the clips of ${sourcePath} into place`, error);
+      removeQuietly(staging);
+      throw new SlideError("RASTER_FAILED", mt("slides.deckUnreadable"));
+    }
+  } else removeQuietly(staging);
 
   const deckId = slidesRepo.insertDeck(
     {
