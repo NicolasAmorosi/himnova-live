@@ -132,6 +132,17 @@ describe("Bible seed", () => {
     assert(genesis1.length === 31, `expected 31 verses in Génesis 1, got ${genesis1.length}`);
   });
 
+  // `"p"*` expanded every term with a p in all the versions and blocked main 60 to 95 ms per pause while typing
+  // «en el p» (2026-11-15 audit, R2): a last word under 3 letters is left out, the list shows what «en el» matches.
+  test("a Bible search leaves a short last word out instead of expanding it", () => {
+    const holds = (prefix: string) => (hit: { text: string }) =>
+      new RegExp(`(^|[^\\p{L}])${prefix}`, "iu").test(hit.text.normalize("NFD").replace(/\p{M}/gu, ""));
+    const hits = bibleRepo.search(versionId, "en el p");
+    assert(hits.length === 100, `expected the finished words to fill the list, got ${hits.length}`);
+    assert(!hits.every(holds("p")), "expected hits with no word starting with p: the «p» is not in the query yet");
+    assert(bibleRepo.search(versionId, "en el pri").every(holds("pri")), "from 3 letters the last word filters again");
+  });
+
   test("FTS5 search is accent-insensitive and its snippets are never markup", () => {
     const hits = bibleRepo.search(versionId, "espiritu");
     assert(hits.length > 0, "expected FTS search for 'espiritu' to match 'Espíritu'");

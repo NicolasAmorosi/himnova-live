@@ -211,7 +211,7 @@ export class BibleRepo {
   }
 
   search(versionId: number, query: string, limit = 100): BibleSearchHit[] {
-    const ftsQuery = toFtsQuery(query);
+    const ftsQuery = toFtsQuery(query, 3);
     if (!ftsQuery) return [];
 
     // The delimiters are control characters, not `<mark>` tags: a snippet
