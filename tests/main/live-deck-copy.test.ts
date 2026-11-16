@@ -8,7 +8,11 @@ import os from "node:os";
 import path from "node:path";
 import { expect, test, vi } from "vitest";
 
-const h = vi.hoisted(() => ({ dir: "", decks: new Map<number, { sourcePath: string; sourceSizeBytes: number; sourceMtimeMs: number }>() }));
+const h = vi.hoisted(() => ({
+  dir: "",
+  asked: 0,
+  decks: new Map<number, { sourcePath: string; sourceSizeBytes: number; sourceMtimeMs: number }>(),
+}));
 h.dir = fs.mkdtempSync(path.join(os.tmpdir(), "live-deck-"));
 const LIVE = path.join(h.dir, "live-deck");
 
@@ -16,7 +20,12 @@ vi.mock("electron", () => ({ protocol: {} }));
 vi.mock("../../src/main/paths", () => ({ liveDeckDir: LIVE, pdfjsWasmDir: h.dir, slidesCacheDir: h.dir }));
 vi.mock("../../src/main/services/repos", () => ({
   getSettingsRepo: () => ({}),
-  getSlidesRepo: () => ({ getDeckById: (id: number) => h.decks.get(id) ?? null }),
+  getSlidesRepo: () => ({
+    getDeckById: (id: number) => {
+      h.asked += 1;
+      return h.decks.get(id) ?? null;
+    },
+  }),
   isDatabaseOpen: () => true,
 }));
 vi.mock("../../src/main/slides/rasterizer", () => ({}));
@@ -33,9 +42,7 @@ const kept = () => (fs.existsSync(LIVE) ? fs.readdirSync(LIVE).sort() : []);
 
 test("back to the deck on air before another deck's copy ends, the copy kept is still the deck on air's", async () => {
   const { keepLiveDeckSource } = await import("../../src/main/protocol/worship-protocol");
-  deck(1);
-  deck(2);
-  deck(3);
+  for (const id of [1, 2, 3, 4]) deck(id);
   // A's copy settled: its size checked (`stat` of the copy), then it is the one kept, synchronously after that.
   const realStat = fs.promises.stat.bind(fs.promises);
   const checked: Promise<unknown>[] = [];
@@ -74,6 +81,27 @@ test("back to the deck on air before another deck's copy ends, the copy kept is 
   await vi.waitFor(() => expect(rm).toHaveBeenCalledTimes(1));
   await Promise.all(removed);
   expect(kept()).toEqual(["1.pptx"]);
+
+  // A, B (slow), A and B again inside that copy: B's copy under way is B's again, no second one to the same file.
+  copyFile.mockClear();
+  rm.mockClear();
+  removed.length = 0;
+  let releaseB!: () => void;
+  const gateB = new Promise<void>((resolve) => (releaseB = resolve));
+  copyFile.mockImplementation(async (from, to) => {
+    await gateB;
+    return realCopy(from, to);
+  });
+  keepLiveDeckSource(2);
+  await vi.waitFor(() => expect(copyFile).toHaveBeenCalledTimes(1));
+  keepLiveDeckSource(1);
+  const asked = h.asked;
+  keepLiveDeckSource(2);
+  expect(h.asked).toBe(asked);
+  releaseB();
+  await vi.waitFor(() => expect(rm).toHaveBeenCalledTimes(1));
+  await Promise.all(removed);
+  expect(kept()).toEqual(["2.pptx"]);
   copyFile.mockRestore();
   rm.mockRestore();
 

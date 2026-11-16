@@ -256,6 +256,8 @@ async function sourceUnchanged(source: DeckSource): Promise<boolean> {
  */
 let liveCopy: { deckId: number; path: string; source: DeckSource } | null = null;
 let copyingDeckId: number | null = null;
+/** The deck asked for last: the one on air. A copy that lands for another one is dropped. */
+let wantedDeckId: number | null = null;
 
 /** Where to read the deck's bytes from: its own file while it is still the one read, else the copy
  *  of it taken when it went live, else nowhere (410). */
@@ -272,13 +274,10 @@ async function readableSource(source: DeckSource): Promise<string | null> {
 
 /** The deck `deckId` is on air: copies its source aside unless it already is. Never blocks main. */
 export function keepLiveDeckSource(deckId: number): void {
-  // Back to the deck already kept: a copy of another one still under way is no longer the deck on air, and finishing
-  // would replace this one's copy and delete it (2026-11-15 audit, A47).
-  if (liveCopy?.deckId === deckId) {
-    copyingDeckId = null;
-    return;
-  }
-  if (copyingDeckId === deckId) return;
+  // Asked even when it returns here: back to the deck already kept, a copy of another one still under way is no
+  // longer the deck on air, and landing it replaced this one's copy and deleted it (2026-11-15 audit, A47).
+  wantedDeckId = deckId;
+  if (liveCopy?.deckId === deckId || copyingDeckId === deckId) return;
   const row = getSlidesRepo().getDeckById(deckId);
   if (!row) return;
   const source: DeckSource = { sourcePath: row.sourcePath, sourceSizeBytes: row.sourceSizeBytes, sourceMtimeMs: row.sourceMtimeMs };
@@ -289,7 +288,7 @@ export function keepLiveDeckSource(deckId: number): void {
       await fs.promises.mkdir(liveDeckDir, { recursive: true });
       if (!(await sourceUnchanged(source))) return;
       await fs.promises.copyFile(source.sourcePath, dest);
-      if ((await fs.promises.stat(dest)).size !== source.sourceSizeBytes || copyingDeckId !== deckId) {
+      if ((await fs.promises.stat(dest)).size !== source.sourceSizeBytes || wantedDeckId !== deckId) {
         await fs.promises.rm(dest, { force: true });
         return;
       }
