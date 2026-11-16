@@ -115,6 +115,21 @@ test("a .pptx whose file goes away while it is live keeps showing its next slide
   await expect(projector.locator("body")).toContainText("Diapo 4");
 });
 
+test("a PDF whose file goes away while it is live keeps showing its next pages", async ({ app }) => {
+  const pdf = copyIn(app, "long.pdf", "avisos.pdf");
+  await app.invoke<MediaAsset[]>("library:add", { kind: "ppt", paths: [pdf] });
+  await app.previewFile("Presentaciones", "avisos");
+  await expect(app.previewColumn().getByText("1/160", { exact: true })).toBeVisible({ timeout: 60_000 });
+  await app.goLive();
+  const projector = await app.projector();
+  await expect.poll(() => projectedImage(projector)).toEqual({ n: 1, loaded: true });
+  await app.control.waitForTimeout(1500); // its copy is taken in the background as it goes live
+  fs.renameSync(pdf, `${pdf}.gone`);
+  for (let i = 0; i < 3; i++) await app.control.keyboard.press("PageDown");
+  // Pages nobody drew yet. Before, the projector froze on page 2, the last one drawn ahead (2026-11-15 audit, A6).
+  await expect.poll(() => projectedImage(projector), { timeout: 10_000 }).toEqual({ n: 4, loaded: true });
+});
+
 test("an extra Enter on the video live does not restart it; under NEGRO, its row picked again, Enter only uncovers it", async ({
   app,
 }) => {

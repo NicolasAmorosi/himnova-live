@@ -200,9 +200,12 @@ export function registerWorshipProtocolHandler(mediaRepo: MediaRepo): void {
           // no deck yet) or a deck row (every deck was read from a library
           // file) is the positive assertion. Both, because two copies of one
           // PDF share one deck whose source is the copy opened last: taking
-          // THAT copy out of the library left the other — on air — blank.
+          // THAT copy out of the library left the other — on air — blank. And the copy of the deck on air
+          // (`liveCopy`), which is what a page is drawn from once its pendrive is pulled: refused here, the projector
+          // froze on the last page drawn ahead (2026-11-15 audit, A6).
           const resolved = path.resolve(pdfPath);
-          if (!mediaRepo.hasPath(resolved) && !getSlidesRepo().isDeckSource(pdfPath)) {
+          const isLiveCopy = liveCopy !== null && path.resolve(liveCopy.path) === resolved;
+          if (!isLiveCopy && !mediaRepo.hasPath(resolved) && !getSlidesRepo().isDeckSource(pdfPath)) {
             return new Response("Forbidden", { status: 403 });
           }
           return serveFile(request, resolved);
