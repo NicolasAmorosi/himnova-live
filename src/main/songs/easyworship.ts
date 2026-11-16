@@ -84,8 +84,10 @@ const ccliOf = (row: SongRow): string | null => ccliNumber(row.reference_number)
 
 export function readEasyWorship(dataFolder: string, locale: Locale): SongsRead {
   const songsDb = new Database(path.join(dataFolder, "Songs.db"), { readonly: true, fileMustExist: true });
-  const wordsDb = new Database(path.join(dataFolder, "SongWords.db"), { readonly: true, fileMustExist: true });
+  // Opened inside the `try`: one that fails no longer leaves `Songs.db` open until the app quits.
+  let wordsDb: Database.Database | undefined;
   try {
+    wordsDb = new Database(path.join(dataFolder, "SongWords.db"), { readonly: true, fileMustExist: true });
     const rows = songsDb
       .prepare("SELECT rowid, title, author, copyright, administrator, reference_number, vendor_id FROM song")
       .all() as SongRow[];
@@ -121,7 +123,7 @@ export function readEasyWorship(dataFolder: string, locale: Locale): SongsRead {
     return { songs, problems };
   } finally {
     songsDb.close();
-    wordsDb.close();
+    wordsDb?.close();
   }
 }
 
