@@ -29,7 +29,7 @@ import { extractClips, hurryDeck, readPptx, type PptxRead } from "./pptx-deck";
 import { readPdfPages, shutdownRasterizer, type RasterLane } from "./rasterizer";
 import { hashFile } from "../media/content-hash";
 import { healDeckClips, isEngineClip, revertPlayableCopies } from "../media/deck-clips";
-import { removeQuietly, renameSyncWithRetry } from "../fs-retry";
+import { removeQuietly, renameWithRetry } from "../fs-retry";
 import { mt } from "../i18n";
 
 // ---------------------------------------------------------------------------
@@ -545,7 +545,7 @@ async function recordModelDeck(
   removeQuietly(cacheDir);
   if (ownsFolder) {
     try {
-      renameSyncWithRetry(staging, cacheDir);
+      await renameWithRetry(staging, cacheDir);
     } catch (error) {
       console.warn(`[slides] could not move the clips of ${sourcePath} into place`, error);
       removeQuietly(staging);

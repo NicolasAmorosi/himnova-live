@@ -435,19 +435,19 @@ describe("a linked folder of song files (owner, 2026-11-05)", () => {
     const [gracia] = await listSongFolder(folder);
     const { id, updatedAt: _u, sourceFolder: _s, file: _f, ...edited } = { ...gracia!, title: "Sublime gracia (2)" };
     // What `song:update` does: the file first, then the row.
-    writeSongFile(id, edited);
+    await writeSongFile(id, edited);
     repo.update(id, edited);
     expect(fs.readFileSync(file, "utf8")).toContain("Sublime gracia (2)");
     expect((await listSongFolder(folder))[0]?.title).toBe("Sublime gracia (2)");
 
     fs.utimesSync(file, new Date(), new Date(Date.now() + 10_000));
-    expect(() => writeSongFile(id, { ...edited, title: "Sublime gracia (3)" })).toThrow(
+    await expect(writeSongFile(id, { ...edited, title: "Sublime gracia (3)" })).rejects.toThrow(
       expect.objectContaining({ code: "SONG_FILE_CHANGED" }),
     );
     // A song that lives only in the app has no file to write.
     const only = repo.create(song("Biblioteca", "[Estrofa 1]\nuna línea"));
     expect(only.file).toBeNull();
-    expect(() => writeSongFile(only.id, edited)).not.toThrow();
+    await expect(writeSongFile(only.id, edited)).resolves.toBeUndefined();
   });
 
   test("a song read past a limit comes in fitted, and its file is never written back cut (audit D8)", async () => {
@@ -460,7 +460,7 @@ describe("a linked folder of song files (owner, 2026-11-05)", () => {
     const [larga] = await listSongFolder(folder);
     expect(larga?.sections).toHaveLength(60);
     const { id, updatedAt: _u, sourceFolder: _s, file: _f, ...edited } = { ...larga!, title: "Larga (editada)" };
-    expect(() => writeSongFile(id, edited)).toThrow(expect.objectContaining({ code: "SONG_FILE_TOO_LONG" }));
+    await expect(writeSongFile(id, edited)).rejects.toThrow(expect.objectContaining({ code: "SONG_FILE_TOO_LONG" }));
     // Verse 61 is still in the church's file.
     expect(fs.readFileSync(file, "utf8")).toBe(original);
   });
@@ -471,7 +471,7 @@ describe("a song imported from a song file stays tied to it (owner, 2026-11-05)"
   async function save(id: number, change: (song: Song) => Song): Promise<Song> {
     const { writeSongFile } = await import("../../src/main/services/song-files");
     const { id: _id, updatedAt: _u, sourceFolder: _s, file: _f, ...edited } = change(repo.get(id)!);
-    writeSongFile(id, edited);
+    await writeSongFile(id, edited);
     return repo.update(id, edited);
   }
   const titled = (title: string) => repo.listLibrary().find((song) => song.title === title)!;
@@ -606,9 +606,9 @@ const copy = (relative: string, folder: string, as = path.basename(relative)) =>
 /** A change from outside the app: the file's mtime moves on. */
 const touch = (file: string, seconds = 5) => fs.utimesSync(file, new Date(), new Date(Date.now() + seconds * 1000));
 /** What `song:update` does: the file first, then the row. */
-function writeBack(id: number, change: (song: Song) => Song): Song {
+async function writeBack(id: number, change: (song: Song) => Song): Promise<Song> {
   const { id: _id, updatedAt: _u, sourceFolder: _s, file: _f, ...edited } = change(repo.get(id)!);
-  writeSongFile(id, edited);
+  await writeSongFile(id, edited);
   return repo.update(id, edited);
 }
 const inLibrary = (title: string) => repo.listLibrary().find((s) => s.title === title)!;
@@ -635,17 +635,48 @@ Letra de la tercera
     const imported = path.join(fresh("cho-lib"), "cancionero.cho");
     fs.writeFileSync(imported, THREE);
     expect(await importSongFiles([imported])).toEqual({ imported: 2, repeated: 0, problems: 1, unsupported: 0 });
-    writeBack(inLibrary("Tercera").id, (s) => ({ ...s, title: "Tercera (corregida)" }));
+    await writeBack(inLibrary("Tercera").id, (s) => ({ ...s, title: "Tercera (corregida)" }));
     expect(fs.readFileSync(imported, "utf8")).toContain("Tercera (corregida)");
     expect(fs.readFileSync(imported, "utf8")).toContain("{title: Segunda (sin letra todavía)}\n{artist: Alguien}");
 
     const folder = fresh("cho-folder");
     fs.writeFileSync(path.join(folder, "cancionero.cho"), THREE);
     const listed = await listSongFolder(folder);
-    writeBack(listed.find((s) => s.title === "Primera")!.id, (s) => ({ ...s, title: "Primera (corregida)" }));
+    await writeBack(listed.find((s) => s.title === "Primera")!.id, (s) => ({ ...s, title: "Primera (corregida)" }));
     const text = fs.readFileSync(path.join(folder, "cancionero.cho"), "utf8");
     expect(text).toContain("Primera (corregida)");
     expect(text.slice(text.indexOf("{new_song}"))).toBe(THREE.slice(THREE.indexOf("{new_song}")));
+  });
+
+  const TWO = "{title: Uno}\n{start_of_verse}\nLetra uno\n{end_of_verse}\n\n{new_song}\n{title: Dos}\n{start_of_verse}\nLetra dos\n{end_of_verse}\n";
+
+  // A share or a pen drive, or Windows holding the file a moment, held main up to ~0.4 s mid-service (audit A25).
+  test("saving a song of a file does no synchronous file work on main", async () => {
+    const folder = fresh("async-save");
+    fs.writeFileSync(path.join(folder, "libro.cho"), TWO);
+    const [uno] = await listSongFolder(folder);
+    const names = ["statSync", "readFileSync", "realpathSync", "accessSync", "writeFileSync", "chmodSync", "renameSync"] as const;
+    const spies = names.map((name) => vi.spyOn(fs, name));
+    try {
+      await writeBack(uno!.id, (s) => ({ ...s, title: "Uno (2)" }));
+      expect(Object.fromEntries(names.map((name, i) => [name, spies[i]!.mock.calls.length]))).toEqual(
+        Object.fromEntries(names.map((name) => [name, 0])),
+      );
+    } finally {
+      for (const spy of spies) spy.mockRestore();
+    }
+    expect(fs.readFileSync(path.join(folder, "libro.cho"), "utf8")).toContain("{title: Uno (2)}");
+  });
+
+  test("two quick saves of two songs of one songbook keep both edits: one save at a time", async () => {
+    const { inSaveOrder } = await import("../../src/main/services/song-files");
+    const folder = fresh("save-order");
+    const file = path.join(folder, "libro.cho");
+    fs.writeFileSync(file, TWO);
+    const listed = await listSongFolder(folder);
+    // What `song:update` does for each.
+    await Promise.all(listed.map((s) => inSaveOrder(() => writeBack(s.id, (x) => ({ ...x, title: `${x.title} (2)` })))));
+    expect(readSongText(fs.readFileSync(file, "utf8"), "x", "es").map((s) => s?.title)).toEqual(["Uno (2)", "Dos (2)"]);
   });
 
   test("only a change the file holds writes it: a theme, or notes a ChordPro file has no place for, never touch it", async () => {
@@ -657,8 +688,8 @@ Letra de la tercera
     // Changed outside since: no file is written, so nothing is refused either.
     touch(file, -60);
     const before = fs.statSync(file).mtimeMs;
-    writeBack(gracia!.id, (s) => ({ ...s, themeId: someTheme().id }));
-    writeBack(gracia!.id, (s) => ({ ...s, notes: "Capo 2" }));
+    await writeBack(gracia!.id, (s) => ({ ...s, themeId: someTheme().id }));
+    await writeBack(gracia!.id, (s) => ({ ...s, notes: "Capo 2" }));
     expect(fs.readFileSync(file, "utf8")).toBe(original);
     expect(fs.statSync(file).mtimeMs).toBe(before);
     expect(repo.get(gracia!.id)).toMatchObject({ themeId: someTheme().id, notes: "Capo 2" });
@@ -679,7 +710,7 @@ Letra de la tercera
 `;
     fs.writeFileSync(file, original);
     const [gracia] = await listSongFolder(folder);
-    writeBack(gracia!.id, (s) => ({ ...s, themeId: someTheme().id }));
+    await writeBack(gracia!.id, (s) => ({ ...s, themeId: someTheme().id }));
     expect(fs.readFileSync(file, "utf8")).toBe(original);
   });
 
@@ -688,7 +719,7 @@ Letra de la tercera
     const file = copy("creados-a-mano/chordpro-ru-o-blagodat-windows-1251.cho", folder);
     const [read] = await listSongFolder(folder);
     expect(read?.title).toBe("Î, Áëàãîäàòü");
-    writeBack(read!.id, (s) => ({ ...s, title: "O Blagodat" }));
+    await writeBack(read!.id, (s) => ({ ...s, title: "O Blagodat" }));
     expect(new TextDecoder("windows-1251").decode(fs.readFileSync(file))).toContain("лагодать");
   });
 
@@ -699,7 +730,7 @@ Letra de la tercera
       path.join(folder, "dos.xml"),
       Buffer.from(`<?xml version='1.0' encoding='windows-1252'?><song xmlns="http://openlyrics.info/namespace/2009/song" version="0.8"><properties><titles><title>Canción</title></titles></properties><lyrics><verse name="v1"><lines>Señor</lines></verse></lyrics></song>`, "latin1"),
     );
-    for (const listed of await listSongFolder(folder)) writeBack(listed.id, (s) => ({ ...s, title: `${s.title} — Благодать` }));
+    for (const listed of await listSongFolder(folder)) await writeBack(listed.id, (s) => ({ ...s, title: `${s.title} \u2014 Благодать` }));
     const cho = fs.readFileSync(path.join(folder, "uno.cho"));
     expect([...cho.subarray(0, 3)]).toEqual([0xef, 0xbb, 0xbf]);
     expect(decodeText(cho)).toContain("Señor — Благодать");
@@ -719,7 +750,7 @@ Letra de la tercera
     );
     expect(await importSongFiles([file])).toEqual({ imported: 0, repeated: 1, problems: 0, unsupported: 0 });
     expect(repo.get(old.id)).toMatchObject({ file, authors: "Augustus Toplady", ccliNumber: "1234567", notes: "Despacio", themeId: someTheme().id });
-    writeBack(old.id, (s) => ({ ...s, title: "Roca de la eternidad (Toplady)" }));
+    await writeBack(old.id, (s) => ({ ...s, title: "Roca de la eternidad (Toplady)" }));
     const text = fs.readFileSync(file, "utf8");
     for (const kept of ["[G]Roca de la [D]eternidad", "Augustus Toplady", "1234567"]) expect(text).toContain(kept);
   });
@@ -804,10 +835,10 @@ describe("the songs of a file find their rows by title, then by place", () => {
     const tres = inLibrary("Tres");
     fs.writeFileSync(file, make(["Dos", "Tres"]));
     touch(file);
-    expect(() => writeBack(tres.id, (s) => ({ ...s, title: "Tres (editada)" }))).toThrow(
+    await expect(writeBack(tres.id, (s) => ({ ...s, title: "Tres (editada)" }))).rejects.toThrow(
       expect.objectContaining({ code: "SONG_FILE_CHANGED" }),
     );
-    writeBack(tres.id, (s) => ({ ...s, title: "Tres (editada)" }));
+    await writeBack(tres.id, (s) => ({ ...s, title: "Tres (editada)" }));
     expect(readSongText(fs.readFileSync(file, "utf8"), "x", "es").map((s) => s?.title)).toEqual(["Dos", "Tres (editada)"]);
     // «Uno» left the file: still in the library, untied.
     expect(repo.get(uno.id)).toMatchObject({ title: "Uno", file: null });
@@ -823,7 +854,7 @@ describe("the songs of a file find their rows by title, then by place", () => {
     touch(file);
     expect((await listSongFolder(folder)).map((s) => s.title)).toEqual(["Primera"]);
     expect(repo.get(segunda.id)).toMatchObject({ sourceFolder: null, file: null });
-    expect(writeBack(segunda.id, (s) => ({ ...s, notes: "mía" })).notes).toBe("mía");
+    expect((await writeBack(segunda.id, (s) => ({ ...s, notes: "mía" }))).notes).toBe("mía");
     expect(fs.readFileSync(file, "utf8")).toBe(make(["Primera"]));
   });
 
@@ -835,9 +866,9 @@ describe("the songs of a file find their rows by title, then by place", () => {
     const listed = await listSongFolder(folder);
     const preludio = listed.find((s) => s.title === "Preludio")!;
     // Chords alone (owner, 2026-11-06): it read back as no song, and its row got tied to «Otra canción».
-    writeBack(preludio.id, (s) => ({ ...s, sections: parseLyrics("[Intro]\n[G] [D] [Em] [C]", "es").sections, order: [] }));
-    writeBack(preludio.id, (s) => ({ ...s, title: "Preludio (2)" }));
-    writeBack(preludio.id, (s) => ({ ...s, title: "Preludio (3)" }));
+    await writeBack(preludio.id, (s) => ({ ...s, sections: parseLyrics("[Intro]\n[G] [D] [Em] [C]", "es").sections, order: [] }));
+    await writeBack(preludio.id, (s) => ({ ...s, title: "Preludio (2)" }));
+    await writeBack(preludio.id, (s) => ({ ...s, title: "Preludio (3)" }));
     const text = fs.readFileSync(file, "utf8");
     expect(text.endsWith(`\n${OTHER}`)).toBe(true);
     expect(readSongText(text, "libro", "es").map((s) => s?.title)).toEqual(["Preludio (3)", "Otra canción"]);
@@ -846,8 +877,8 @@ describe("the songs of a file find their rows by title, then by place", () => {
     // that new block — saved again, it replaces it, nothing else.
     const mtime = Math.floor(fs.statSync(file).mtimeMs);
     const lone = repo.create(song("Suelta", "[Intro]\n[G] [D]"), { path: file, index: 7, mtime, format: "chordpro" });
-    writeBack(lone.id, (s) => ({ ...s, title: "Suelta (2)" }));
-    writeBack(lone.id, (s) => ({ ...s, title: "Suelta (3)" }));
+    await writeBack(lone.id, (s) => ({ ...s, title: "Suelta (2)" }));
+    await writeBack(lone.id, (s) => ({ ...s, title: "Suelta (3)" }));
     const appended = fs.readFileSync(file, "utf8");
     expect(appended.startsWith(text)).toBe(true);
     expect(readSongText(appended, "libro", "es").map((s) => s?.title)).toEqual(["Preludio (3)", "Otra canción", "Suelta (3)"]);
@@ -866,7 +897,7 @@ describe("the songs of a file find their rows by title, then by place", () => {
     fs.writeFileSync(imported, SANTOS);
     await importSongFiles([imported]);
     const [libFirst, libSecond] = pair(repo.listLibrary(), imported);
-    writeBack(libFirst, (s) => ({ ...s, authors: "Autor Nuevo" }));
+    await writeBack(libFirst, (s) => ({ ...s, authors: "Autor Nuevo" }));
     expect(repo.get(libSecond)).toMatchObject({ authors: null });
     expect(words(libSecond)).toBe("Santo segundo distinto");
     // A linked folder's.
@@ -874,7 +905,7 @@ describe("the songs of a file find their rows by title, then by place", () => {
     const file = path.join(folder, "santos.cho");
     fs.writeFileSync(file, SANTOS);
     const [first, second] = pair(await listSongFolder(folder), file);
-    writeBack(second, (s) => ({ ...s, authors: "Autor Nuevo" }));
+    await writeBack(second, (s) => ({ ...s, authors: "Autor Nuevo" }));
     expect(repo.get(first)).toMatchObject({ authors: null });
     expect(words(first)).toBe("Santo es el Señor primero");
     // Both ways: a linked folder's file imported too — the folder's row of the
@@ -885,7 +916,7 @@ describe("the songs of a file find their rows by title, then by place", () => {
     const [folderFirst, folderSecond] = pair(await listSongFolder(bothFolder), both);
     await importSongFiles([both]);
     const [, libraryCopy] = pair(repo.listLibrary(), both);
-    writeBack(libraryCopy, (s) => ({ ...s, sections: parseLyrics("[Estrofa 1]\nSanctus segundo cambiado", "es").sections }));
+    await writeBack(libraryCopy, (s) => ({ ...s, sections: parseLyrics("[Estrofa 1]\nSanctus segundo cambiado", "es").sections }));
     expect(words(folderSecond)).toBe("Sanctus segundo cambiado");
     expect(words(folderFirst)).toBe("Sanctus es el Señor primero");
   });
@@ -897,10 +928,10 @@ describe("the songs of a file find their rows by title, then by place", () => {
     await importSongFiles([file]);
     const [inFolder] = await listSongFolder(folder);
     repo.update(inFolder!.id, { ...inFolder!, themeId: someTheme().id });
-    writeBack(inLibrary("Ambos").id, (s) => ({ ...s, title: "Ambos (desde la biblioteca)" }));
+    await writeBack(inLibrary("Ambos").id, (s) => ({ ...s, title: "Ambos (desde la biblioteca)" }));
     // The folder's row has the words and the new mtime: its own save goes through, its theme stays.
     expect(repo.get(inFolder!.id)).toMatchObject({ title: "Ambos (desde la biblioteca)", themeId: someTheme().id });
-    writeBack(inFolder!.id, (s) => ({ ...s, title: "Ambos (desde la carpeta)" }));
+    await writeBack(inFolder!.id, (s) => ({ ...s, title: "Ambos (desde la carpeta)" }));
     expect(inLibrary("Ambos (desde la carpeta)")).toBeDefined();
   });
 });
@@ -983,7 +1014,7 @@ describe("a linked folder", () => {
     const file = path.join(folder, "notas.cho");
     fs.writeFileSync(file, "{title: Con notas}\n{start_of_verse}\nUna línea\n{end_of_verse}\n");
     const [listed] = await listSongFolder(folder);
-    writeBack(listed!.id, (s) => ({ ...s, notes: "Capo 2", number: "12" }));
+    await writeBack(listed!.id, (s) => ({ ...s, notes: "Capo 2", number: "12" }));
     fs.writeFileSync(file, "{title: Con notas}\n{start_of_verse}\nUna línea cambiada\n{end_of_verse}\n");
     touch(file);
     expect((await listSongFolder(folder))[0]).toMatchObject({ id: listed!.id, notes: "Capo 2", number: "12" });
@@ -999,7 +1030,7 @@ describe("a linked folder", () => {
     const listed = await listSongFolder(folder);
     expect(listed).toHaveLength(5);
     for (const original of listed) {
-      writeBack(original.id, (s) => ({
+      await writeBack(original.id, (s) => ({
         ...s,
         title: `${s.title} — ñ & «x»`,
         sections: [...s.sections, ...parseLyrics("[Puente]\nNueva línea: ¡Gloria! & <paz>", "es").sections],
@@ -1026,7 +1057,7 @@ describe("writing over the file", () => {
     fs.chmodSync(file, 0o444);
     const [protegido] = await listSongFolder(folder);
     try {
-      expect(() => writeBack(protegido!.id, (s) => ({ ...s, title: "Cambiado" }))).toThrow(
+      await expect(writeBack(protegido!.id, (s) => ({ ...s, title: "Cambiado" }))).rejects.toThrow(
         expect.objectContaining({ code: "SONG_FILE_UNWRITABLE" }),
       );
       expect(fs.readFileSync(file, "utf8")).toContain("{title: Protegido}");
@@ -1043,9 +1074,9 @@ describe("writing over the file", () => {
     try {
       const listed = await listSongFolder(folder);
       expect(listed).toHaveLength(2);
-      for (const s of listed) expect(writeBack(s.id, (x) => ({ ...x, notes: "solo una nota" })).notes).toBe("solo una nota");
+      for (const s of listed) expect((await writeBack(s.id, (x) => ({ ...x, notes: "solo una nota" }))).notes).toBe("solo una nota");
       // What does reach it is still refused.
-      expect(() => writeBack(listed[0]!.id, (x) => ({ ...x, title: "Cambiado" }))).toThrow(
+      await expect(writeBack(listed[0]!.id, (x) => ({ ...x, title: "Cambiado" }))).rejects.toThrow(
         expect.objectContaining({ code: "SONG_FILE_UNWRITABLE" }),
       );
     } finally {
@@ -1058,12 +1089,12 @@ describe("writing over the file", () => {
     const file = path.join(folder, "compartida.cho");
     fs.writeFileSync(file, "{title: Compartida}\n{start_of_verse}\nUna\n{end_of_verse}\n");
     const [listed] = await listSongFolder(folder);
-    const chmod = vi.spyOn(fs, "chmodSync").mockImplementation(() => {
-      throw Object.assign(new Error("EPERM: operation not permitted"), { code: "EPERM" });
-    });
+    const chmod = vi.spyOn(fs.promises, "chmod").mockRejectedValue(
+      Object.assign(new Error("EPERM: operation not permitted"), { code: "EPERM" }),
+    );
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     try {
-      writeBack(listed!.id, (s) => ({ ...s, title: "Compartida (2)" }));
+      await writeBack(listed!.id, (s) => ({ ...s, title: "Compartida (2)" }));
       expect(chmod).toHaveBeenCalled();
     } finally {
       chmod.mockRestore();
@@ -1079,7 +1110,7 @@ describe("writing over the file", () => {
     fs.writeFileSync(file, "{title: Permisos}\n{start_of_verse}\nUna\n{end_of_verse}\n");
     fs.chmodSync(file, 0o640);
     const [permisos] = await listSongFolder(folder);
-    writeBack(permisos!.id, (s) => ({ ...s, title: "Permisos (2)" }));
+    await writeBack(permisos!.id, (s) => ({ ...s, title: "Permisos (2)" }));
     expect(fs.statSync(file).mode & 0o777).toBe(0o640);
   });
 
@@ -1091,14 +1122,14 @@ describe("writing over the file", () => {
     fs.symlinkSync(real, link);
     const [enlazada] = await listSongFolder(folder);
     expect(enlazada?.title).toBe("Enlazada");
-    writeBack(enlazada!.id, (s) => ({ ...s, title: "Enlazada (editada)" }));
+    await writeBack(enlazada!.id, (s) => ({ ...s, title: "Enlazada (editada)" }));
     expect(fs.lstatSync(link).isSymbolicLink()).toBe(true);
     expect(fs.readFileSync(real, "utf8")).toContain("Enlazada (editada)");
 
     const imported = path.join(fresh("symlink-link"), "importada.cho");
     fs.symlinkSync(real, imported);
     expect((await importSongFiles([imported])).imported).toBe(1);
-    writeBack(inLibrary("Enlazada (editada)").id, (s) => ({ ...s, title: "Por enlace" }));
+    await writeBack(inLibrary("Enlazada (editada)").id, (s) => ({ ...s, title: "Por enlace" }));
     expect(fs.lstatSync(imported).isSymbolicLink()).toBe(true);
     expect(fs.readFileSync(real, "utf8")).toContain("Por enlace");
   });
@@ -1182,7 +1213,7 @@ describe.skipIf(!hasCorpus)("imports of real files", () => {
     fs.writeFileSync(file, "{title: Mover}\n{start_of_verse}\nUna letra para mover\n{end_of_verse}\n");
     await importSongFiles([file]);
     fs.renameSync(file, path.join(folder, "movido.cho"));
-    expect(writeBack(inLibrary("Mover").id, (s) => ({ ...s, title: "Mover (editada)" })).file).toBeNull();
+    expect((await writeBack(inLibrary("Mover").id, (s) => ({ ...s, title: "Mover (editada)" }))).file).toBeNull();
     expect(fs.readFileSync(path.join(folder, "movido.cho"), "utf8")).toContain("{title: Mover}");
   });
 });

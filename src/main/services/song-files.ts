@@ -1,5 +1,5 @@
 import fs from "node:fs";
-import { renameSyncWithRetry } from "../fs-retry";
+import { renameWithRetry } from "../fs-retry";
 import path from "node:path";
 import { IpcError } from "@shared/ipc/result";
 import { SONG_FILE_LIMITS, songFileFormat, type SongFileFormat } from "@shared/song-file-limits";
@@ -154,8 +154,11 @@ const formatOf = (file: string, text: string): SongFileFormat =>
  * to a sibling of the file a symbolic link points at (the link stays a link),
  * with the file's permissions where its file system keeps any, and renamed
  * over it, so a crash halfway never leaves half a song on disk.
+ *
+ * Asynchronous, main free meanwhile: a share or a pen drive, or Windows holding the file a moment, held main up to
+ * ~0.4 s mid-service (2026-11-15 audit, A25). Its caller runs it `inSaveOrder`.
  */
-export function writeSongFile(id: number, song: ReadSong): void {
+export async function writeSongFile(id: number, song: ReadSong): Promise<void> {
   const repo = getSongsRepo();
   const source = repo.source(id);
   const before = repo.get(id);
@@ -163,7 +166,7 @@ export function writeSongFile(id: number, song: ReadSong): void {
   const file = source.path;
   let stat: fs.Stats;
   try {
-    stat = fs.statSync(file);
+    stat = await fs.promises.stat(file);
   } catch {
     // Gone: its format by its name — a `.txt` as SongSelect's, the one that
     // holds the least, so only an edit that surely reached it is refused.
@@ -177,7 +180,7 @@ export function writeSongFile(id: number, song: ReadSong): void {
   const unwritable = () => new IpcError({ code: "SONG_FILE_UNWRITABLE", message: mt("songs.fileUnwritable") });
   let read: ReturnType<typeof readText> | null = null;
   try {
-    read = readText(fs.readFileSync(file));
+    read = readText(await fs.promises.readFile(file));
   } catch (error) {
     // Unreadable: its format by its name, and refused below if the edit reaches it.
     console.warn("[songs] song file unreadable", file, error);
@@ -196,15 +199,15 @@ export function writeSongFile(id: number, song: ReadSong): void {
   }
   if (mtimeOf(stat) !== source.mtime) {
     if (source.folder === null) {
-      const again = readSongFileSafely(file);
+      const again = await readSongFileSafely(file);
       if (again) repo.syncLibraryFile(file, mtimeOf(stat), again.songs, again.format);
     }
     throw new IpcError({ code: "SONG_FILE_CHANGED", message: mt("songs.fileChanged") });
   }
   let real: string;
   try {
-    real = fs.realpathSync(file);
-    fs.accessSync(real, fs.constants.W_OK);
+    real = await fs.promises.realpath(file);
+    await fs.promises.access(real, fs.constants.W_OK);
   } catch {
     throw unwritable();
   }
@@ -233,9 +236,9 @@ export function writeSongFile(id: number, song: ReadSong): void {
   if (format === "openlyrics") text = withXmlEncoding(text, encoding);
   const temporary = `${real}.himnova-tmp`;
   try {
-    fs.writeFileSync(temporary, encodeText(text, encoding, bom)!);
+    await fs.promises.writeFile(temporary, encodeText(text, encoding, bom)!);
     try {
-      fs.chmodSync(temporary, stat.mode & 0o7777);
+      await fs.promises.chmod(temporary, stat.mode & 0o7777);
     } catch (error) {
       // Best-effort: a network share or an exFAT stick keeps no Unix
       // permissions, and the song is written all the same.
@@ -243,10 +246,10 @@ export function writeSongFile(id: number, song: ReadSong): void {
     }
     // Windows refuses to replace a file another program holds — Defender or the indexer for a moment, Word or
     // OneDrive for longer (2026-11-10 review, agent8-03).
-    renameSyncWithRetry(temporary, real);
+    await renameWithRetry(temporary, real);
   } catch (error) {
     console.warn("[songs] could not write the song file", file, error);
-    fs.rmSync(temporary, { force: true });
+    await fs.promises.rm(temporary, { force: true });
     throw unwritable();
   }
   // Tied to the block just written — never to another song of the file, even
@@ -255,16 +258,25 @@ export function writeSongFile(id: number, song: ReadSong): void {
   repo.wroteFile(
     [...new Set([file, real])],
     { id, title: before.title, index, readAt: source.mtime },
-    mtimeOf(fs.statSync(real)),
+    mtimeOf(await fs.promises.stat(real)),
     written,
     format,
   );
 }
 
+/** One save of a song file at a time, its row with it: two songs of one ChordPro songbook are one file, and two saves
+ *  each read, rewrite and rename it from what it held before the other, losing one edit. */
+let saving: Promise<unknown> = Promise.resolve();
+export function inSaveOrder<T>(save: () => Promise<T>): Promise<T> {
+  const run = saving.then(save);
+  saving = run.catch(() => undefined);
+  return run;
+}
+
 /** What a file holds now, or nothing when it no longer reads. */
-function readSongFileSafely(file: string): ReturnType<typeof readSongFile> {
+async function readSongFileSafely(file: string): Promise<ReturnType<typeof readSongFile>> {
   try {
-    return readSongFile(file, readText(fs.readFileSync(file)).text);
+    return readSongFile(file, readText(await fs.promises.readFile(file)).text);
   } catch (error) {
     console.warn("[songs] song file unreadable", file, error);
     return null;
