@@ -1,3 +1,4 @@
+import { metricTwin } from "@shared/font-twins";
 import type {
   Chart3D,
   ChartAxis,
@@ -140,17 +141,8 @@ function textWidth(text: string, font: ChartFont): number {
 
 const lineHeight = (font: ChartFont): number => (metrics(font)[0] + metrics(font)[1]) * font.size * PT;
 
-const TWINS: Record<string, string> = {
-  calibri: "Carlito",
-  "calibri light": "Carlito",
-  cambria: "Caladea",
-  arial: "Liberation Sans",
-  "times new roman": "Liberation Serif",
-  "courier new": "Liberation Mono",
-};
-
 function cssFamily(face: string): string {
-  const twin = TWINS[face.toLowerCase()];
+  const twin = metricTwin(face);
   const last = isCalibri(face) ? "Carlito" : (slideText.fallbackFont ?? "Liberation Sans");
   return [face, ...(twin ? [twin] : []), last].map((f) => `"${f.replace(/"/g, "")}"`).join(", ") + ", sans-serif";
 }

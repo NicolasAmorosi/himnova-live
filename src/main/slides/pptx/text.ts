@@ -1,3 +1,4 @@
+import { metricTwin } from "@shared/font-twins";
 import type { Bullet, Fill, Paragraph, TextBody, TextRun } from "@shared/types/slide-model";
 import { colorIn, css, schemeColor } from "./color";
 import { fillIn, miss, NO_EFFECTS, readEffects, readImage, readLine, type StyleContext } from "./style";
@@ -254,27 +255,9 @@ function resolveFace(typeface: string | null, ctx: TextContext): string | null {
   return typeface;
 }
 
-/**
- * Faces that ship with Office but not with macOS or Linux, and the
- * metric-compatible faces that keep the file's line breaks when they are
- * missing. Listed after the file's own face, so an installed original wins.
- */
-export const METRIC_TWINS: Record<string, string[]> = {
-  calibri: ["Carlito"],
-  "calibri light": ["Carlito"],
-  cambria: ["Caladea"],
-  arial: ["Liberation Sans", "Arimo"],
-  "times new roman": ["Liberation Serif", "Tinos"],
-  "courier new": ["Liberation Mono", "Cousine"],
-  "arial narrow": ["Liberation Sans Narrow"],
-  // ChromeOS's names for the Liberation designs (Google Slides writes them).
-  arimo: ["Liberation Sans"],
-  tinos: ["Liberation Serif"],
-  cousine: ["Liberation Mono"],
-};
-
 export function fontList(face: string, ea: string | null): string {
-  const faces = [face, ...(METRIC_TWINS[face.toLowerCase()] ?? []), ...(ea && ea !== face ? [ea] : [])];
+  const twin = metricTwin(face);
+  const faces = [face, ...(twin ? [twin] : []), ...(ea && ea !== face ? [ea] : [])];
   return [...faces.map((f) => `"${f.replace(/"/g, "")}"`), "sans-serif"].join(", ");
 }
 

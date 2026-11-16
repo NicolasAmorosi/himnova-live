@@ -186,6 +186,20 @@ describe("EMF", () => {
     expect(svg).toMatch(/<text x="0 12" y="0" font-family="'Arial', 'Liberation Sans', sans-serif" font-size="20" font-weight="700"[^>]* fill="#336699"[^>]*>Hi<\/text>/);
   });
 
+  test("a run in Calibri Light names Carlito, the twin whose metrics already place it", () => {
+    // Placed with Calibri's ascent but drawn in the generic sans on a Linux box with Carlito: the metafile's own twin
+    // table had lost «calibri light» (2026-11-15 audit, X7).
+    const svg = metafileToSvg(
+      emf(
+        emr(82, 1, logFontW("Calibri Light", -20)),
+        emr(37, 1),
+        emr(84, 0, 0, 0, 0, 1, 0, 0, 30, 60, 2, 76, 0, 0, 0, 0, 0, 80, Buffer.from("Hi", "utf16le"), 12, 15),
+      ),
+      "emf",
+    );
+    expect(svg).toContain(`font-family="'Calibri Light', 'Carlito', sans-serif"`);
+  });
+
   test("a 24-bit DIB stretched over the destination as a PNG data URI, top row first", () => {
     const { info, bits } = dib24();
     // STRETCHDIBITS: bounds, dest x y, src x y w h, bmi/bits offsets and sizes, usage, rop, dest w h.
