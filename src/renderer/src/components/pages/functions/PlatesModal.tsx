@@ -193,7 +193,7 @@ export function PlatesModal({ onOpenChange, open }: { onOpenChange: (open: boole
           editing ? (
             // Keyed by plate, so opening another one starts at its top instead
             // of at the scroll position the previous one was left at.
-            <Inspector key={editing.plateId ?? "new"} label={t("plates.title")}>
+            <Inspector id="plates" key={editing.plateId ?? "new"} label={t("plates.title")}>
               <PlateForm
                 addingImages={addingImages}
                 imageAssets={imageAssets}

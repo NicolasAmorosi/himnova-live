@@ -297,7 +297,7 @@ export function SongEditorModal({ onOpenChange, onSaved, open, songId }: SongEdi
     <>
       <EditorScreen
         inspector={
-          <Inspector label={t("songs.editTitle")}>
+          <Inspector id="songEditor" label={t("songs.editTitle")}>
             <div className="flex flex-col gap-3 border-b border-border pb-4">
               <Monitor>{output ? <OutputView mode="preview" output={output} /> : null}</Monitor>
               <div className="flex flex-col gap-3 px-4">
@@ -324,7 +324,7 @@ export function SongEditorModal({ onOpenChange, onSaved, open, songId }: SongEdi
 
             {/* Nothing to order before the first section exists. */}
             {parsed.sections.length > 0 ? (
-              <InspectorSection title={t("songs.groups.order")}>
+              <InspectorSection id="order" title={t("songs.groups.order")}>
                 <SongOrderField
                   custom={draft.order !== null}
                   onChange={(next) => patch({ order: next })}
@@ -349,7 +349,7 @@ export function SongEditorModal({ onOpenChange, onSaved, open, songId }: SongEdi
               </InspectorSection>
             ) : null}
 
-            <InspectorSection title={t("songs.groups.data")}>
+            <InspectorSection id="data" title={t("songs.groups.data")}>
               {current?.file ? (
                 <Callout className="py-2 break-all" role="note" tone="info">
                   {t("songs.fileSaveHint", { file: current.file })}

@@ -423,8 +423,8 @@ export function ProgramsModal({ initialMode, onOpenChange, open }: ProgramsModal
           editing ? (
             // One section like every inspector; the favourite is the row's star
             // only (it was a second control here too — 2026-11-04 review).
-            <Inspector label={t("programs.title")}>
-              <InspectorSection title={t("schedule.title")}>
+            <Inspector id="programs" label={t("programs.title")}>
+              <InspectorSection id="schedule" title={t("schedule.title")}>
                 {editing.kind === "new" ? (
                   <FieldRow label={t("programs.createAndOpen")}>
                     <Switch

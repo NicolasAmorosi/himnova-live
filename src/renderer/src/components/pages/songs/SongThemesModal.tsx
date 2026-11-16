@@ -321,8 +321,8 @@ export function SongThemesModal({ onOpenChange, open }: { onOpenChange: (open: b
       <EditorScreen
         inspector={
           editing ? (
-            <Inspector key={editing.themeId ?? "new"} label={t("songThemes.title")}>
-          <InspectorSection title={t("style.groups.background")}>
+            <Inspector id="songThemes" key={editing.themeId ?? "new"} label={t("songThemes.title")}>
+          <InspectorSection id="background" title={t("style.groups.background")}>
             <BackgroundFields<SongBackground>
               addingImages={addingImages}
               addingVideos={addingVideos}
@@ -340,7 +340,7 @@ export function SongThemesModal({ onOpenChange, open }: { onOpenChange: (open: b
             />
           </InspectorSection>
 
-          <InspectorSection title={t("songThemes.groups.lyrics")}>
+          <InspectorSection id="lyrics" title={t("songThemes.groups.lyrics")}>
             <FontFamilyFields onChange={(fontFamily) => patchStyle({ fontFamily })} value={style.fontFamily} />
             <TextStyleFields
               onChange={(text) => patchStyle({ text })}
@@ -401,7 +401,7 @@ export function SongThemesModal({ onOpenChange, open }: { onOpenChange: (open: b
             </DependentFields>
           </InspectorSection>
 
-          <InspectorSection title={t("songThemes.groups.spacing")}>
+          <InspectorSection id="spacing" title={t("songThemes.groups.spacing")}>
             <VerticalAlignField onChange={(verticalAlign) => patchStyle({ verticalAlign })} value={style.verticalAlign} />
             <FieldRow label={t("settings.verse.textAlign")}>
               <Select
@@ -449,7 +449,7 @@ export function SongThemesModal({ onOpenChange, open }: { onOpenChange: (open: b
             </FieldRow>
           </InspectorSection>
 
-          <InspectorSection
+          <InspectorSection id="footer"
             // The canvas to a slide that carries the footer by this theme's own rule.
             onFocus={() => setSample(style.footer.show === "first" ? "first" : "last")}
             title={t("songThemes.groups.footer")}
@@ -490,7 +490,7 @@ export function SongThemesModal({ onOpenChange, open }: { onOpenChange: (open: b
             )}
           </InspectorSection>
 
-          <InspectorSection defaultOpen={false} onFocus={() => setSample("translation")} title={t("songThemes.groups.translation")}>
+          <InspectorSection id="translation" defaultOpen={false} onFocus={() => setSample("translation")} title={t("songThemes.groups.translation")}>
             <FieldRow description={t("songThemes.translationScaleHint")} label={t("songThemes.translationScale")}>
               <Slider
                 format={(value) => `${Math.round(value * 100)}%`}
@@ -517,7 +517,7 @@ export function SongThemesModal({ onOpenChange, open }: { onOpenChange: (open: b
             </FieldRow>
           </InspectorSection>
 
-          <InspectorSection defaultOpen={false} title={t("songThemes.groups.transition")}>
+          <InspectorSection id="transition" defaultOpen={false} title={t("songThemes.groups.transition")}>
             <FieldRow description={t("songThemes.transitionHint")} label={t("songThemes.transition")}>
               <Select
                 onChange={(value) =>

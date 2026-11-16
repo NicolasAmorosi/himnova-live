@@ -55,7 +55,7 @@ export function PlateForm({ addingImages, imageAssets, onAddImages, onChange, va
 
   return (
     <>
-      <InspectorSection title={t("plates.groups.plate")}>
+      <InspectorSection id="plate" title={t("plates.groups.plate")}>
         <FieldRow description={t("plates.kindHint")} label={t("plates.kind")}>
           <Select
             onChange={(kind) => onChange(withKind(value, kind as PlateKind))}
@@ -65,7 +65,7 @@ export function PlateForm({ addingImages, imageAssets, onAddImages, onChange, va
         </FieldRow>
       </InspectorSection>
 
-      <InspectorSection title={t("plates.groups.texts")}>
+      <InspectorSection id="texts" title={t("plates.groups.texts")}>
         <FieldRow description={t("plates.titleHint")} label={t("plates.titleText")}>
           <Input
             maxLength={PLATE_TEXT_MAX_LENGTH}
@@ -85,7 +85,7 @@ export function PlateForm({ addingImages, imageAssets, onAddImages, onChange, va
       </InspectorSection>
 
       {value.kind === "bug" ? (
-        <InspectorSection title={t("plates.groups.image")}>
+        <InspectorSection id="image" title={t("plates.groups.image")}>
           <FieldRow description={t("style.imageHint")} label={t("plates.image")}>
             <Select
               action={{ disabled: addingImages, label: t("style.importImage"), onSelect: onAddImages }}
@@ -125,7 +125,7 @@ export function PlateForm({ addingImages, imageAssets, onAddImages, onChange, va
         </InspectorSection>
       ) : null}
 
-      <InspectorSection title={t("plates.groups.band")}>
+      <InspectorSection id="band" title={t("plates.groups.band")}>
         <BackgroundFields
           addingImages={false}
           imageAssets={[]}
@@ -158,7 +158,7 @@ export function PlateForm({ addingImages, imageAssets, onAddImages, onChange, va
         </FieldRow>
       </InspectorSection>
 
-      <InspectorSection title={t("plates.groups.titleLine")}>
+      <InspectorSection id="titleLine" title={t("plates.groups.titleLine")}>
         <TextStyleFields
           onChange={(title) => patchStyle({ title })}
           sizeRange={PLATE_TEXT_SIZES}
@@ -166,7 +166,7 @@ export function PlateForm({ addingImages, imageAssets, onAddImages, onChange, va
           value={style.title}
         />
       </InspectorSection>
-      <InspectorSection title={t("plates.groups.subtitleLine")}>
+      <InspectorSection id="subtitleLine" title={t("plates.groups.subtitleLine")}>
         <TextStyleFields
           onChange={(subtitle) => patchStyle({ subtitle })}
           sizeRange={PLATE_TEXT_SIZES}
@@ -175,7 +175,7 @@ export function PlateForm({ addingImages, imageAssets, onAddImages, onChange, va
         />
       </InspectorSection>
 
-      <InspectorSection title={t("plates.groups.layout")}>
+      <InspectorSection id="layout" title={t("plates.groups.layout")}>
         <FieldRow
           {...(value.kind === "banner" ? { description: t("plates.bannerPositionHint") } : {})}
           label={t("plates.position")}
@@ -203,7 +203,7 @@ export function PlateForm({ addingImages, imageAssets, onAddImages, onChange, va
       </InspectorSection>
 
       {value.kind === "banner" ? (
-        <InspectorSection title={t("plates.groups.ticker")}>
+        <InspectorSection id="ticker" title={t("plates.groups.ticker")}>
           <FieldRow description={t("plates.tickerEnabledHint")} label={t("plates.tickerEnabled")}>
             <Switch
               checked={style.ticker.enabled}
@@ -225,7 +225,7 @@ export function PlateForm({ addingImages, imageAssets, onAddImages, onChange, va
         </InspectorSection>
       ) : null}
 
-      <InspectorSection defaultOpen={false} title={t("plates.groups.animation")}>
+      <InspectorSection id="animation" defaultOpen={false} title={t("plates.groups.animation")}>
         <FieldRow label={t("plates.animation")}>
           <Select
             onChange={(next) =>
@@ -248,7 +248,7 @@ export function PlateForm({ addingImages, imageAssets, onAddImages, onChange, va
         </FieldRow>
       </InspectorSection>
 
-      <InspectorSection defaultOpen={false} title={t("plates.groups.autoHide")}>
+      <InspectorSection id="autoHide" defaultOpen={false} title={t("plates.groups.autoHide")}>
         <FieldRow description={t("plates.autoHideEnabledHint")} label={t("plates.autoHideEnabled")}>
           <Switch
             checked={style.autoHide.enabled}
