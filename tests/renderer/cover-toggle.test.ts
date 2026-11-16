@@ -13,8 +13,9 @@ const initial = useProjectionStore.getState();
 beforeEach(() => {
   useProjectionStore.setState(initial, true);
   useDisplayStore.setState({
-    openIfNeeded: async () => {
+    openIfNeeded: () => {
       useProjectionStore.setState({ presentationOpen: true });
+      return Promise.resolve();
     },
   });
 });
