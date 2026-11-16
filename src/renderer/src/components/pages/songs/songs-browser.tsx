@@ -120,7 +120,7 @@ export function SongsBrowser() {
   }, [folder, listing, songs]);
   const inViewIds = useMemo(() => new Set(inView.map((song) => song.id)), [inView]);
 
-  // ponytail: every row rendered; virtualize when a church's library makes typing lag.
+  // ponytail: every row rendered (off-screen ones skip layout, `content-visibility`); virtualize if typing lags.
   const sorted = useMemo(() => sortSongs(inView, sort, locale), [inView, locale, sort]);
 
   const search = useDebouncedCallback((value: string, scope: string | null) => {
@@ -171,7 +171,11 @@ export function SongsBrowser() {
             </IconButton>
           </Tooltip>
         }
-        onQueryChange={setQuery}
+        onQueryChange={(value) => {
+          setQuery(value);
+          // In the same commit: cleared in the effect below, the 1500 rows were drawn twice (R5).
+          if (value.trim() === "") setHits(null);
+        }}
         // Enter previews the best match; Escape then Enter sends it live.
         onSearchEnter={() => {
           const first = rows[0];
@@ -230,6 +234,9 @@ export function SongsBrowser() {
             {rows.map(({ snippet, song }) => (
               <ListRow
                 active={liveSongId === song.id}
+                // Every row stays in the list (search, keyboard, a11y), but one off screen is not laid out or painted:
+                // showing the tab or clearing the search laid out all 1500 (R5).
+                className="[contain-intrinsic-size:auto_2rem] [content-visibility:auto]"
                 draggable
                 key={song.id}
                 leading={song.number ? <Caption className="shrink-0 tabular-nums">{song.number}</Caption> : undefined}
