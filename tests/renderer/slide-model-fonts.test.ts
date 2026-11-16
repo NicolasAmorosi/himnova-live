@@ -12,8 +12,10 @@ const fontLoaded = new Promise<void>((resolve) => (releaseFont = resolve));
 const added: unknown[] = [];
 
 class FakeFontFace {
+  constructor(private readonly family: string) {}
   load(): Promise<FakeFontFace> {
-    return fontLoaded.then(() => this);
+    // «Stuck Sans»: a font whose request never ends (a protocol read that never answers).
+    return this.family === "Stuck Sans" ? new Promise(() => undefined) : fontLoaded.then(() => this);
   }
 }
 
@@ -21,11 +23,15 @@ vi.stubGlobal("FontFace", FakeFontFace);
 Object.defineProperty(document, "fonts", { configurable: true, value: { add: (face: unknown) => added.push(face) } });
 vi.stubGlobal(
   "fetch",
-  vi.fn(() =>
+  vi.fn((url: string) =>
     Promise.resolve({
       ok: true,
       json: () =>
-        Promise.resolve({ fonts: [{ family: "Deck Sans", part: "ppt/fonts/font1.fntdata", style: "regular" }], elements: [], background: null }),
+        Promise.resolve({
+          fonts: [{ family: url.includes("/10/") ? "Stuck Sans" : "Deck Sans", part: "ppt/fonts/font1.fntdata", style: "regular" }],
+          elements: [],
+          background: null,
+        }),
     }),
   ),
 );
@@ -47,4 +53,20 @@ test("the second slide of a deck waits for the embedded font the first one is st
   expect(handed.sort()).toEqual(["slide 1", "slide 2"]);
   // Registered once for the window, not once per slide.
   expect(added).toHaveLength(1);
+});
+
+test("a font whose load never ends holds a slide a few seconds at most, not for good", async () => {
+  // Every slide of the deck waits for the font's one load (A42): one that never finished held them all, and the deck
+  // on air never changed slide again (final pass of the 2026-11-15 audit, A42).
+  vi.useFakeTimers();
+  try {
+    let handed = false;
+    void loadSlideModel(slideModelUrl(10, 0)).then((model) => (handed = model !== null));
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(handed).toBe(false);
+    await vi.advanceTimersByTimeAsync(2500);
+    expect(handed).toBe(true);
+  } finally {
+    vi.useRealTimers();
+  }
 });

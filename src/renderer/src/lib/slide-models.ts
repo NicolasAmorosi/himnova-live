@@ -14,6 +14,10 @@ const ready = new Map<string, SlideModel>();
 const pending = new Map<string, Promise<SlideModel | null>>();
 /** Each embedded font's load, by url: a second slide of the deck waits for the one the first started. */
 const fontLoads = new Map<string, Promise<void>>();
+/** The longest a model waits for its fonts and pictures. Every slide of a deck waits on its font's one load (A42), so a
+ *  font or a picture whose request never ended held the whole deck on air for good (final pass of the 2026-11-15
+ *  audit). What arrives later still lands; the slide is only not held for it. */
+const MODEL_WARM_CAP_MS = 3000;
 
 const resolvers = new Map<number, (part: string) => string>();
 
@@ -41,7 +45,10 @@ export function loadSlideModel(url: string): Promise<SlideModel | null> {
       if (!response.ok) return null;
       const model = (await response.json()) as SlideModel;
       const deckId = deckIdOfUrl(url) ?? 0;
-      await Promise.all([registerFonts(deckId, model), loadFaces(model), warmPictures(model, partResolver(url))]);
+      await Promise.race([
+        Promise.all([registerFonts(deckId, model), loadFaces(model), warmPictures(model, partResolver(url))]),
+        new Promise((resolve) => setTimeout(resolve, MODEL_WARM_CAP_MS)),
+      ]);
       ready.set(url, model);
       return model;
     } catch {
