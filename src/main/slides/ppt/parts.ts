@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import { inflateSync } from "node:zlib";
 import { openOle } from "../ppt-binary";
+import { MAX_METAFILE_BYTES } from "../pptx/metafile";
 
 /**
  * A picture, font or sound of a legacy deck, named the way a `.pptx` part is
@@ -43,7 +44,7 @@ export function readBinaryPart(file: string, part: string): Uint8Array | null {
     if (!ole) return null;
     const raw = ole.readStreamRange(p.stream === "d" ? "PowerPoint Document" : "Pictures", p.offset, p.length);
     if (!raw) return null;
-    if (p.codec === "z") return new Uint8Array(inflateSync(raw));
+    if (p.codec === "z") return new Uint8Array(inflateSync(raw, { maxOutputLength: MAX_METAFILE_BYTES }));
     if (p.codec === "dib") return dibToBmp(raw);
     return new Uint8Array(raw);
   } catch {

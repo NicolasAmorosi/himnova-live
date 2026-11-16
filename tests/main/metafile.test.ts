@@ -335,6 +335,19 @@ describe("WMF", () => {
   });
 });
 
+// 2026-11-15 audit, S3: this runs in main, per request and per window, and gunzipped with no cap (255 KB of
+// `.emz` gave 256 MB). A raster in a metafile's clothes is what turns those bytes into an SVG, so it is the probe.
+test("a gzipped metafile that inflates past 64 MB is refused, not inflated", () => {
+  const png = Buffer.from("\x89PNG", "latin1");
+  const bomb = gzipSync(Buffer.concat([png, Buffer.alloc(80 * 1024 * 1024)]), { level: 9 });
+  expect(bomb.length).toBeLessThan(1024 * 1024);
+  const t0 = performance.now();
+  expect(metafileToSvg(bomb, "emf")).toBeNull();
+  expect(performance.now() - t0).toBeLessThan(500);
+  // The cap is far above a real one: the same raster at 1 MB still comes back.
+  expect(metafileToSvg(gzipSync(Buffer.concat([png, Buffer.alloc(1024 * 1024)])), "emf")).toContain("data:image/png;base64,");
+});
+
 describe("what is not a metafile", () => {
   test("garbage, nothing at all and a truncated header are null, never a throw", () => {
     expect(metafileToSvg(Buffer.from("not a metafile at all, just some text"), "emf")).toBeNull();

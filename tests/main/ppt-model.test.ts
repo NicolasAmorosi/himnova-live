@@ -8,13 +8,14 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { deflateSync } from "node:zlib";
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
 import type { ShapeElement, SlideElement, SlideModel } from "../../src/shared/types/slide-model";
 import { color, parseMsoShapes, shapeGeometry, emptyProps, P } from "../../src/main/slides/ppt/escher";
 import { readPptModelDeck } from "../../src/main/slides/ppt/model-reader";
 import { decodePart, encodePart, readBinaryPart } from "../../src/main/slides/ppt/parts";
 import { textBody, type TextData } from "../../src/main/slides/ppt/text";
-import { buildLegacyPpt, jpegHeader, rec, u32s, type LegacyDeck } from "../fixtures/legacy-ppt";
+import { buildLegacyPpt, compoundFile, jpegHeader, rec, u32s, type LegacyDeck } from "../fixtures/legacy-ppt";
 
 const msoShapes = parseMsoShapes(fs.readFileSync(path.join(__dirname, "../../resources/ooxml/mso-shapes.json"), "utf8"));
 let dir = "";
@@ -185,6 +186,20 @@ describe("drawing", () => {
     const part = picture.kind === "picture" ? picture.image.part : "";
     expect(decodePart(part)).toMatchObject({ stream: "p", codec: "raw", ext: "jpg" });
     expect(Buffer.from(readBinaryPart(file, part)!)).toEqual(jpeg);
+  });
+
+  // 2026-11-15 audit, S3: a compressed metafile was inflated with no cap, in main, per request and per window.
+  test("a compressed metafile part that inflates past 64 MB is refused, not inflated", () => {
+    const small = deflateSync(Buffer.alloc(1024 * 1024, 7));
+    const bomb = deflateSync(Buffer.alloc(80 * 1024 * 1024), { level: 9 });
+    const file = path.join(dir, "metafile-bomb.ppt");
+    fs.writeFileSync(file, compoundFile([{ name: "Pictures", data: Buffer.concat([small, bomb]) }]));
+    const part = (offset: number, length: number): string => encodePart({ stream: "p", offset, length, codec: "z", ext: "emf" });
+    expect(readBinaryPart(file, part(0, small.length))!.length).toBe(1024 * 1024);
+    const t0 = performance.now();
+    // The length, not the bytes: a failure printing 80 MB would take the worker down with it.
+    expect(readBinaryPart(file, part(small.length, bomb.length))?.length ?? null).toBeNull();
+    expect(performance.now() - t0).toBeLessThan(500);
   });
 
   test("a hidden slide and the slide's timing reach the metadata", () => {
