@@ -12,6 +12,7 @@ import { readBinaryPart } from "../slides/ppt/parts";
 import { containerKind } from "../slides/pptx-metadata";
 import { readZipEntries } from "../slides/zip-reader";
 import { ensureThumbnail } from "../media/thumbnail-service";
+import { byteLru } from "./byte-lru";
 import { serveFile } from "./serve-file";
 
 /** What `worship://wasm/` serves: the decoders `pdfjs.getDocument` fetches from its `wasmUrl`. */
@@ -302,23 +303,18 @@ const PART_TYPES: Record<string, string> = {
   svg: "image/svg+xml", webp: "image/webp", tif: "image/tiff", tiff: "image/tiff", ico: "image/x-icon",
 };
 
-/**
- * A part of a model deck's package: a picture as is, a metafile (EMF/WMF,
- * which Chromium can't decode) as the SVG `metafileToSvg` makes of it, a font
- * as the TrueType `decodeEmbeddedFont` rebuilds. Immutable like everything
- * under a deck id.
- */
-async function serveDeckPart(request: Request, deckId: number, kind: "part" | "font", part: string): Promise<Response> {
-  const source = Number.isFinite(deckId) ? getSlidesRepo().getDeckSource(deckId) : null;
-  const sourcePath = source && (await readableSource(source));
-  if (!sourcePath) return new Response("Gone", { status: 410 });
+/** A part as served: its bytes and type, or why not (404 not in the file, 415 won't convert). */
+type DeckPart = { body: Uint8Array; type: string } | 404 | 415;
+
+/** A part of a model deck's package as `serveDeckPart` serves it, read and converted from `sourcePath`. */
+function readDeckPart(sourcePath: string, kind: "part" | "font", part: string): DeckPart {
   // A legacy binary's parts are ranges of its OLE streams (`ppt/parts.ts`);
   // a `.pptx`'s and an `.odp`'s, zip entries.
   const raw =
     containerKind(sourcePath) === "binary"
       ? (readBinaryPart(sourcePath, part) ?? undefined)
       : readZipEntries(sourcePath, (name) => name === part)[part];
-  if (!raw) return new Response("Not found", { status: 404 });
+  if (!raw) return 404;
   const ext = part.slice(part.lastIndexOf(".") + 1).toLowerCase();
   let body: Uint8Array | string | null = raw;
   let type = PART_TYPES[ext] ?? "application/octet-stream";
@@ -329,10 +325,36 @@ async function serveDeckPart(request: Request, deckId: number, kind: "part" | "f
     body = metafileToSvg(raw, ext.startsWith("w") ? "wmf" : "emf");
     type = "image/svg+xml";
   }
-  if (body === null) return new Response("Unreadable", { status: 415 });
-  const bytes = typeof body === "string" ? Buffer.from(body) : body;
-  return new Response(request.method === "HEAD" ? null : new Uint8Array(bytes), {
+  if (body === null) return 415;
+  return { body: typeof body === "string" ? Buffer.from(body) : body, type };
+}
+
+/** Parts already read, by the file's stamp: every window drawing a deck (control, projector, stage, NDI) asks for
+ *  the same fonts and pictures, and each was read and converted on main again, 70 to 104 ms a font and up to 460 ms
+ *  a metafile, over a video of the engine on air (2026-11-15 audit, A11). */
+const deckParts = byteLru<DeckPart>(64 * 1024 * 1024, (found) => (typeof found === "number" ? 0 : found.body.byteLength));
+
+/**
+ * A part of a model deck's package: a picture as is, a metafile (EMF/WMF,
+ * which Chromium can't decode) as the SVG `metafileToSvg` makes of it, a font
+ * as the TrueType `decodeEmbeddedFont` rebuilds. Immutable like everything
+ * under a deck id.
+ */
+async function serveDeckPart(request: Request, deckId: number, kind: "part" | "font", part: string): Promise<Response> {
+  const source = Number.isFinite(deckId) ? getSlidesRepo().getDeckSource(deckId) : null;
+  const sourcePath = source && (await readableSource(source));
+  if (!source || !sourcePath) return new Response("Gone", { status: 410 });
+  // Synchronous from here: the four windows' asks, awaiting above together, meet in the cache.
+  const key = [source.sourcePath, source.sourceSizeBytes, source.sourceMtimeMs, kind, part].join("\n");
+  const found = deckParts(key, () => readDeckPart(sourcePath, kind, part));
+  if (found === 404) return new Response("Not found", { status: 404 });
+  if (found === 415) return new Response("Unreadable", { status: 415 });
+  return new Response(request.method === "HEAD" ? null : new Uint8Array(found.body), {
     status: 200,
-    headers: { "Cache-Control": "public, max-age=31536000, immutable", "Content-Type": type, "Content-Length": String(bytes.length) },
+    headers: {
+      "Cache-Control": "public, max-age=31536000, immutable",
+      "Content-Type": found.type,
+      "Content-Length": String(found.body.length),
+    },
   });
 }
