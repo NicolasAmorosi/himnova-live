@@ -12,7 +12,8 @@ import { deckFontUrl, deckIdOfUrl, deckPartUrl } from "@shared/urls";
  */
 const ready = new Map<string, SlideModel>();
 const pending = new Map<string, Promise<SlideModel | null>>();
-const fontsLoaded = new Set<string>();
+/** Each embedded font's load, by url: a second slide of the deck waits for the one the first started. */
+const fontLoads = new Map<string, Promise<void>>();
 
 /** A part of the deck a model url belongs to. */
 export function partResolver(modelUrl: string): (part: string) => string {
@@ -89,22 +90,27 @@ export function useSlideModel(
 }
 
 /** A deck's embedded fonts, registered once per window. They beat an installed
- *  face of the same name, as they do in PowerPoint. */
+ *  face of the same name, as they do in PowerPoint. A font another slide is
+ *  still loading is waited for: taking «asked for» as «loaded» let a neighbour
+ *  preloaded right after GO LIVE paint in the fallback face (2026-11-15 audit, A42). */
 async function registerFonts(deckId: number, model: SlideModel): Promise<void> {
   await Promise.all(
-    model.fonts.map(async (font) => {
+    model.fonts.map((font) => {
       const url = deckFontUrl(deckId, font.part);
-      if (fontsLoaded.has(url)) return;
-      fontsLoaded.add(url);
-      const face = new FontFace(font.family, `url("${url}")`, {
-        weight: font.style.startsWith("bold") ? "700" : "400",
-        style: font.style.toLowerCase().includes("italic") ? "italic" : "normal",
-      });
-      try {
-        document.fonts.add(await face.load());
-      } catch {
-        // A font Chromium rejects leaves its metric twin or fallback in place.
+      let load = fontLoads.get(url);
+      if (!load) {
+        const face = new FontFace(font.family, `url("${url}")`, {
+          weight: font.style.startsWith("bold") ? "700" : "400",
+          style: font.style.toLowerCase().includes("italic") ? "italic" : "normal",
+        });
+        load = face.load().then(
+          (loaded) => void document.fonts.add(loaded),
+          // A font Chromium rejects leaves its metric twin or fallback in place.
+          () => undefined,
+        );
+        fontLoads.set(url, load);
       }
+      return load;
     }),
   );
 }
