@@ -66,7 +66,9 @@ SlideView (React, components/shared/slide-view/) ◄── worship://deck/<id>/<
   `layers` handed back already as JSON. The worker gets one request at a time from a queue on main
   (`deck-queue.ts`): a worker that dies on a file fails that deck only, and the decks still waiting
   go to a fresh worker; a deck whose sound and video were being copied when it died is not saved
-  (it would stay mute), so the next open reads it again. A file is never retried on main. The preset geometries and the built-in table styles come from
+  (it would stay mute), so the next open reads it again. A worker silent for
+  `SLIDES_DECK_READ_TIMEOUT_MS` (60 s) on the deck it was handed is stopped, and that deck fails the
+  same way. A file is never retried on main. The preset geometries and the built-in table styles come from
   `resources/ooxml/` (`paths.ts` → `ooxmlDir`, shipped as `extraResources`). Pictures, media and
   fonts are never read here — the model names them by part. Every reader writes colours as
   `rgb()`/`rgba()` (`css()` in `pptx/color.ts`): the painter reads gradient stops' channels back

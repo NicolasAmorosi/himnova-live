@@ -14,13 +14,19 @@ export type DeckWorker = EventEmitter & { postMessage(request: unknown): void; t
  * to the next worker. When it held them all, every healthy deck behind the bad
  * one failed as damaged with it (2026-11-15 audit, D6).
  */
-export function createDeckQueue<Req extends { id: number }, Reply extends { id: number }>(spawn: () => DeckWorker) {
+export function createDeckQueue<Req extends { id: number }, Reply extends { id: number }>(
+  spawn: () => DeckWorker,
+  hangMs: number,
+) {
   type Job = { file: string; request: Req; done: (reply: Reply | null) => void };
   let worker: DeckWorker | null = null;
   const queued: Job[] = [];
   let running: Job | null = null;
+  let hangTimer: ReturnType<typeof setTimeout> | null = null;
 
   function finish(reply: Reply | null): void {
+    if (hangTimer) clearTimeout(hangTimer);
+    hangTimer = null;
     const job = running;
     running = null;
     job?.done(reply);
@@ -30,7 +36,19 @@ export function createDeckQueue<Req extends { id: number }, Reply extends { id: 
   function pump(): void {
     if (running) return;
     running = queued.shift() ?? null;
-    if (running) current().postMessage(running.request);
+    if (!running) return;
+    current().postMessage(running.request);
+    // A file that never finishes (a loop a crafted SmartArt sends on forever,
+    // 2026-11-15 audit, S4) held this deck, every deck after it and «Reintentar»
+    // until a restart. Timed from when the worker gets the deck, never from
+    // when it was queued: behind a long queue a healthy deck waits for minutes.
+    hangTimer = setTimeout(() => {
+      const stuck = worker;
+      worker = null;
+      console.warn(`[slides] the deck reader took over ${hangMs / 1000} s on ${running?.file}: stopped`);
+      finish(null);
+      void stuck?.terminate();
+    }, hangMs);
   }
 
   function current(): DeckWorker {

@@ -1,3 +1,4 @@
+import { SLIDES_DECK_READ_TIMEOUT_MS } from "@shared/constants";
 import { ooxmlDir } from "../paths";
 import { createDeckQueue } from "./deck-queue";
 import createPptxWorker from "./pptx-worker?nodeWorker";
@@ -17,7 +18,7 @@ const queue = createDeckQueue<PptxRequest, PptxReply>(() => {
   // Never what keeps the process alive: quitting doesn't wait for a read.
   started.unref();
   return started;
-});
+}, SLIDES_DECK_READ_TIMEOUT_MS);
 let nextId = 0;
 
 export async function readPptx(sourcePath: string): Promise<PptxRead | null> {

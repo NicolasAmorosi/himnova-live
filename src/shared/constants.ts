@@ -140,6 +140,10 @@ export const PREWARM_VISIBLE_MAX = 32;
  *  the moment it is previewed. */
 export const PREWARM_EXPLICIT_MAX = 20;
 export const SLIDES_RASTER_PAGE_TIMEOUT_MS = 30_000;
+/** How long the deck worker may go without answering the deck it was handed before it is stopped and
+ *  that deck fails. The slowest real deck measured is a 22 MB template: 11.4 s on an M3; this leaves a
+ *  slow church PC five times that. */
+export const SLIDES_DECK_READ_TIMEOUT_MS = 60_000;
 
 export const DEFAULT_MEDIA_VOLUME = 0.5;
 
