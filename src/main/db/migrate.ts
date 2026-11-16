@@ -68,8 +68,8 @@ export type BackupResult =
 
 /**
  * Snapshots the database before applying pending migrations, keeping the last 3.
- * A migration failing on a user's machine on a Sunday morning must be
- * recoverable — SQLite's DDL is transactional so a failed migration itself
+ * A migration failing on a user's machine the morning of the service must be
+ * recoverable. SQLite's DDL is transactional so a failed migration itself
  * rolls back, but this covers the case where the *result* is wrong in a way
  * that only shows up after commit.
  *
