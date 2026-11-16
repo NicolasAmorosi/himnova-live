@@ -120,16 +120,25 @@ export function listBackups(dir: string): string[] {
 export function takeSnapshot(dbFilePath: string, dir: string, keep: number, now: Date): BackupResult {
   const stamp = now.toISOString().replace(/[:.]/g, "-");
   const dest = path.join(dir, `worship-${stamp}.db`);
+  // Built under another name, renamed once verified. A copy cut half-way (the app closed during «Hacer una copia», a
+  // power cut during the daily one) kept a good copy's name: it counted as today's, so the real one was skipped, and
+  // it took one of the slots (2026-11-15 audit, D9). What such a cut left behind goes first.
+  const partial = `${dest}.partial`;
 
   try {
     fs.mkdirSync(dir, { recursive: true });
-    writeSnapshot(dbFilePath, dest);
-    verifySnapshot(dest);
+    for (const name of fs.readdirSync(dir)) {
+      if (name.includes(".partial")) fs.rmSync(path.join(dir, name), { force: true });
+    }
+    writeSnapshot(dbFilePath, partial);
+    verifySnapshot(partial);
+    fs.renameSync(partial, dest);
   } catch (error) {
     // A half-written or corrupt copy is worse than no copy: it survives the
     // rotation below and gets restored with confidence on the worst day.
     try {
-      fs.rmSync(dest, { force: true });
+      fs.rmSync(partial, { force: true });
+      fs.rmSync(`${partial}-journal`, { force: true });
     } catch {
       // Nothing more to do — the reason below is what gets reported.
     }

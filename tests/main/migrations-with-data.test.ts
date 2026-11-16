@@ -282,6 +282,25 @@ test("a damaged page of songs does not keep an up-to-date profile from opening (
   launched.sqlite.close();
 });
 
+test("a daily copy cut half-way is not today's copy, and what it left is cleared (audit D9)", () => {
+  // The app killed during `VACUUM INTO` (or a quit during «Hacer una copia»): the file had a good copy's name, so the
+  // launch skipped the real one for 24 h and the junk took one of the seven slots, its `-journal` kept for ever.
+  const dbFile = path.join(tmp, "cut.db");
+  const daily = path.join(tmp, "backups-cut", "daily");
+  const first = openDatabase(dbFile);
+  runMigrations(first.db, drizzleDir);
+  first.sqlite.close();
+  fs.mkdirSync(daily, { recursive: true });
+  const cut = path.join(daily, `worship-${new Date().toISOString().replace(/[:.]/g, "-")}.db.partial`);
+  fs.writeFileSync(cut, "SQLite format 3\0 cortada");
+  fs.writeFileSync(`${cut}-journal`, "x");
+
+  const taken = dailyBackup(dbFile, daily);
+
+  expect(taken.status).toBe("ok");
+  expect(fs.readdirSync(daily)).toEqual([path.basename((taken as { path: string }).path)]);
+});
+
 test("a daily copy at launch once a day, the last 7 kept, the pre-migration copies left alone", () => {
   const dbFile = path.join(tmp, "daily.db");
   const backups = path.join(tmp, "backups-daily");
