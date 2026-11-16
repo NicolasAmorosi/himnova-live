@@ -1,6 +1,7 @@
 import { SLIDES_DECK_READ_TIMEOUT_MS } from "@shared/constants";
 import { ooxmlDir } from "../paths";
 import { createDeckQueue } from "./deck-queue";
+import type { RasterLane } from "./rasterizer";
 import createPptxWorker from "./pptx-worker?nodeWorker";
 import type { PptxClips, PptxExtract, PptxRead, PptxReply, PptxRequest } from "./pptx-worker";
 
@@ -21,16 +22,21 @@ const queue = createDeckQueue<PptxRequest, PptxReply>(() => {
 }, SLIDES_DECK_READ_TIMEOUT_MS);
 let nextId = 0;
 
-export async function readPptx(sourcePath: string): Promise<PptxRead | null> {
-  const reply = await queue.ask(sourcePath, { id: ++nextId, file: sourcePath });
+export async function readPptx(sourcePath: string, lane: RasterLane): Promise<PptxRead | null> {
+  const reply = await queue.ask(sourcePath, { id: ++nextId, file: sourcePath }, lane);
   return reply && "read" in reply ? reply.read : null;
 }
 
 /** The deck's embedded sound and video, copied into its cache on the worker thread. None when the
  *  worker could not copy them (the deck then goes without them, as with a part that won't read);
  *  `null` when the worker stopped before answering, which says nothing about the file. */
-export async function extractClips(extract: PptxExtract): Promise<PptxClips | null> {
-  const reply = await queue.ask(extract.file, { id: ++nextId, extract });
+export async function extractClips(extract: PptxExtract, lane: RasterLane): Promise<PptxClips | null> {
+  const reply = await queue.ask(extract.file, { id: ++nextId, extract }, lane);
   if (!reply) return null;
   return "clips" in reply ? reply.clips : { audio: [], video: [] };
+}
+
+/** The operator opened a deck that was being read ahead: what is still queued for it goes first. */
+export function hurryDeck(sourcePath: string): void {
+  queue.hurry(sourcePath);
 }

@@ -39,7 +39,7 @@ describe("deck queue", () => {
   it("a worker that dies fails only the deck it was reading; the decks waiting go to a new one", async () => {
     const { started, spawn } = fakeWorkers();
     const queue = createDeckQueue<Request, Reply>(spawn, 60_000);
-    const asks = ["a.pptx", "b.pptx", "c.pptx"].map((file, at) => queue.ask(file, { id: at + 1, file }));
+    const asks = ["a.pptx", "b.pptx", "c.pptx"].map((file, at) => queue.ask(file, { id: at + 1, file }, "now"));
     const outcome = track(asks);
 
     // A crash: Node emits `error`, then `exit`.
@@ -62,7 +62,7 @@ describe("deck queue", () => {
     try {
       const { started, spawn } = fakeWorkers();
       const queue = createDeckQueue<Request, Reply>(spawn, 60_000);
-      const outcome = track(["a.pptx", "b.pptx", "c.pptx"].map((file, at) => queue.ask(file, { id: at + 1, file })));
+      const outcome = track(["a.pptx", "b.pptx", "c.pptx"].map((file, at) => queue.ask(file, { id: at + 1, file }, "now")));
 
       // `a` is slow but answers: the limit is per deck, from when it is handed over, never from the queue.
       vi.advanceTimersByTime(50_000);
@@ -87,10 +87,28 @@ describe("deck queue", () => {
     }
   });
 
+  it("what the operator asks for goes before the read-ahead, and a read-ahead deck the operator opens moves up", async () => {
+    const { started, spawn } = fakeWorkers();
+    const queue = createDeckQueue<Request, Reply>(spawn, 60_000);
+    const later = ["t1.pptx", "t2.pptx", "t3.pptx", "t4.pptx"].map((file, at) => queue.ask(file, { id: at + 1, file }, "later"));
+    const outcome = track([...later, queue.ask("chosen.pptx", { id: 9, file: "chosen.pptx" }, "now")]);
+    // The tile the operator clicks was already read ahead: it joins that read, which moves up.
+    queue.hurry("t4.pptx");
+
+    const worker = started[0]!;
+    for (let answered = 0; answered < worker.posted.length; answered++) {
+      const request = worker.posted[answered]!;
+      worker.emit("message", { id: request.id, read: request.file });
+      await flush();
+    }
+    expect(worker.posted.map((request) => request.file)).toEqual(["t1.pptx", "chosen.pptx", "t4.pptx", "t2.pptx", "t3.pptx"]);
+    expect(outcome.every((reply) => reply !== "pending")).toBe(true);
+  });
+
   it("ignores a reply that is not for the request in flight", async () => {
     const { started, spawn } = fakeWorkers();
     const queue = createDeckQueue<Request, Reply>(spawn, 60_000);
-    const outcome = track([queue.ask("a.pptx", { id: 1, file: "a.pptx" }), queue.ask("b.pptx", { id: 2, file: "b.pptx" })]);
+    const outcome = track([queue.ask("a.pptx", { id: 1, file: "a.pptx" }, "now"), queue.ask("b.pptx", { id: 2, file: "b.pptx" }, "now")]);
     started[0]!.emit("message", { id: 7, read: "stray" });
     await flush();
     expect(outcome).toEqual(["pending", "pending"]);

@@ -1,4 +1,5 @@
 import type { EventEmitter } from "node:events";
+import type { RasterLane } from "./rasterizer";
 
 /** What the queue needs of the deck worker: a `Worker` is one, and so is a test's fake. */
 export type DeckWorker = EventEmitter & { postMessage(request: unknown): void; terminate(): unknown };
@@ -13,6 +14,11 @@ export type DeckWorker = EventEmitter & { postMessage(request: unknown): void; t
  * it dies, only the deck it was reading fails, and the decks still waiting go
  * to the next worker. When it held them all, every healthy deck behind the bad
  * one failed as damaged with it (2026-11-15 audit, D6).
+ *
+ * Two lanes, like the PDF rasterizer's: `now`, what the operator is waiting
+ * on, goes before `later`, the read-ahead. A deck read ahead as its tile
+ * scrolled by waited, when the operator chose it, behind every read queued
+ * before it (2026-11-15 audit, R10); `hurry` moves it up.
  */
 export function createDeckQueue<Req extends { id: number }, Reply extends { id: number }>(
   spawn: () => DeckWorker,
@@ -20,7 +26,7 @@ export function createDeckQueue<Req extends { id: number }, Reply extends { id: 
 ) {
   type Job = { file: string; request: Req; done: (reply: Reply | null) => void };
   let worker: DeckWorker | null = null;
-  const queued: Job[] = [];
+  const lanes: Record<RasterLane, Job[]> = { now: [], later: [] };
   let running: Job | null = null;
   let hangTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -35,7 +41,7 @@ export function createDeckQueue<Req extends { id: number }, Reply extends { id: 
 
   function pump(): void {
     if (running) return;
-    running = queued.shift() ?? null;
+    running = lanes.now.shift() ?? lanes.later.shift() ?? null;
     if (!running) return;
     current().postMessage(running.request);
     // A file that never finishes (a loop a crafted SmartArt sends on forever,
@@ -74,11 +80,18 @@ export function createDeckQueue<Req extends { id: number }, Reply extends { id: 
   }
 
   return {
-    ask(file: string, request: Req): Promise<Reply | null> {
+    ask(file: string, request: Req, lane: RasterLane): Promise<Reply | null> {
       return new Promise((done) => {
-        queued.push({ file, request, done });
+        lanes[lane].push({ file, request, done });
         pump();
       });
+    },
+    /** The read-ahead of `file` still waiting goes to the `now` lane, in the order it was asked. */
+    hurry(file: string): void {
+      const moving = lanes.later.filter((job) => job.file === file);
+      if (moving.length === 0) return;
+      lanes.later = lanes.later.filter((job) => job.file !== file);
+      lanes.now.push(...moving);
     },
   };
 }

@@ -64,12 +64,13 @@ SlideView (React, components/shared/slide-view/) ◄── worship://deck/<id>/<
   twice, and on a template with a 22 MB map slide the two took 11 s on the thread that answers IPC
   and serves `worship://`; on the worker it costs main only the copy of the result, each slide's
   `layers` handed back already as JSON. The worker gets one request at a time from a queue on main
-  (`deck-queue.ts`): a worker that dies on a file fails that deck only, and the decks still waiting
-  go to a fresh worker; a deck whose sound and video were being copied when it died is not saved
-  (it would stay mute), so the next open reads it again. A worker silent for
-  `SLIDES_DECK_READ_TIMEOUT_MS` (60 s) on the deck it was handed is stopped, and that deck fails the
-  same way. A file is never retried on main. The preset geometries and the built-in table styles come from
-  `resources/ooxml/` (`paths.ts` → `ooxmlDir`, shipped as `extraResources`). Pictures, media and
+  (`deck-queue.ts`), in two lanes like the rasterizer's: what the operator opens goes before the
+  read-ahead, and a deck being read ahead that the operator opens moves up. A worker that dies on
+  a file fails that deck only, and the decks still waiting go to a fresh worker; a deck whose sound
+  and video were being copied when it died is not saved (it would stay mute), so the next open
+  reads it again. A worker silent for `SLIDES_DECK_READ_TIMEOUT_MS` (60 s) on the deck it was
+  handed is stopped, and that deck fails the same way. A file is never retried on main. The preset
+  geometries and the built-in table styles come from `resources/ooxml/` (`paths.ts` → `ooxmlDir`, shipped as `extraResources`). Pictures, media and
   fonts are never read here — the model names them by part. Every reader writes colours as
   `rgb()`/`rgba()` (`css()` in `pptx/color.ts`): the painter reads gradient stops' channels back
   out of the string, and a `#rrggbb` stop paints garbage
