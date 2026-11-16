@@ -130,6 +130,21 @@ test("a remote's PageDown/PageUp step the projected deck, even while typing in a
   await expect(bibleSearch(app)).toHaveValue("Jua");
 });
 
+test("the LOGO and NEGRO buttons, pressed again, uncover what was live, as L and B do", async ({ app }) => {
+  // The buttons only ever covered, and a second press did nothing; the keys toggled (owner, 2026-11-16: the buttons
+  // toggle like the keys).
+  const projector = await deckLive(app);
+  const logo = app.control.getByRole("button", { name: "LOGO", exact: true }).first();
+  await logo.click();
+  await expect.poll(() => projectedSlide(projector)).toBeNull();
+  await logo.click();
+  await expect.poll(() => projectedSlide(projector)).toBe(1);
+  await blackButton(app).click();
+  await expect.poll(() => projectedSlide(projector)).toBeNull();
+  await blackButton(app).click();
+  await expect.poll(() => projectedSlide(projector)).toBe(1);
+});
+
 test("the remote's «.» is NEGRO; in a text field it types, and Escape gives the keys back", async ({ app }) => {
   const projector = await deckLive(app);
   await app.control.keyboard.press(".");

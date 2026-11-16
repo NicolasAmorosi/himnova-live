@@ -3,7 +3,7 @@ import { useT } from "@renderer/lib/i18n/i18n-provider";
 import { BrandMark, Button, Icon, IconButton, Kbd, Toolbar, Tooltip } from "@renderer/components/ui";
 import { selectOutputMemo, useProjectionStore } from "@renderer/stores/projection.store";
 import { useProgramStore } from "@renderer/stores/program.store";
-import { goLive, setOverlayDirect } from "@renderer/lib/actions/playback";
+import { goLive, setOverlayDirect, toggleOverlay } from "@renderer/lib/actions/playback";
 import { hasUnsavedChanges, newProgram, saveCurrentProgram } from "@renderer/lib/actions/programs";
 import { ConfirmModal } from "@renderer/components/shared/modal";
 import { usePreviewContent } from "@renderer/lib/hooks/use-preview";
@@ -128,7 +128,8 @@ export function TopBar({ onOpenPrograms, onOpenSettings }: TopBarProps) {
           <Tooltip content={<>{t("footerHints.logo")}<Kbd>L</Kbd></>} floating>
             <Button
               className="w-24 px-2"
-              onClick={() => void setOverlayDirect("logo")}
+              // Pressed again it uncovers, like its key (owner, 2026-11-16).
+              onClick={() => void toggleOverlay("logo")}
               size="sm"
               toggled={outputKind === "logo"}
               toggledTone="warning"
@@ -140,7 +141,8 @@ export function TopBar({ onOpenPrograms, onOpenSettings }: TopBarProps) {
           <Tooltip content={<>{t("footerHints.black")}<Kbd>B</Kbd></>} floating>
             <Button
               className="w-24 px-2"
-              onClick={() => void setOverlayDirect("black")}
+              // Pressed again it uncovers, like its key (owner, 2026-11-16).
+              onClick={() => void toggleOverlay("black")}
               size="sm"
               toggled={outputKind === "black"}
               toggledTone="warning"

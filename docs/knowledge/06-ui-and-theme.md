@@ -420,11 +420,11 @@ group of controls sits exactly above the column it acts on, regardless of the wi
   `lib/actions/playback.ts::goLive()` — it sends what's in preview to the projector, replacing
   whatever was there. It's the only way to cross from preview to live; there's no second
   equivalent button anywhere else.
-- **Column 3** (above Monitors): three mutually exclusive buttons — **LOGO**, **BLACK**,
-  **LIVE** — that call `setOverlay('logo'|'black'|'none')` **directly** (not `toggleOverlay`:
-  each one always forces its own state, it never "un-checks" when pressed again). They're the
-  three possible states of what the projector shows on top of the base content. The B/L keyboard
-  shortcuts still use `toggleOverlay` (behavior unchanged).
+- **Column 3** (above Monitors): three buttons — **LOGO**, **BLACK**, **LIVE** — the three
+  possible states of what the projector shows on top of the base content. LOGO and BLACK call
+  `toggleOverlay`, like the L and B keys: pressed again, they uncover what was live (owner,
+  2026-11-16; until then they forced their state and a second press did nothing). LIVE calls
+  `setOverlayDirect('none')` and always uncovers.
 
 The three columns of the `<main>` are **`grid-cols-3`** — equal widths; none of the three tasks
 (browse, assemble, broadcast) weighs visually more than the others. The line between columns is
