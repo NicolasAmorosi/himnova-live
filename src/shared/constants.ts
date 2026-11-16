@@ -66,8 +66,11 @@ export const SLIDES_NATIVE_VERSION = 1;
  *  is read again. 2: speaker icons «hidden during show» left out, and each
  *  sound placed on its own slides. 3: tab stops, sized line breaks, fill
  *  overlays, SmartArt (cached drawings found, the rest laid out) and the
- *  charts that were refused. */
-export const SLIDES_MODEL_VERSION = 3;
+ *  charts that were refused. 4: a slide with two `mc:AlternateContent` keeps
+ *  its transition and timing, a slide marked `show="false"` is hidden in the
+ *  model too, and the bounds on SmartArt sizes, chart points and `.odp` list
+ *  numbers (2026-11-15 audit A31, A45, S4, S5, S6). */
+export const SLIDES_MODEL_VERSION = 4;
 
 /** Bump to force every non-manual `media_assets` row to re-run
  *  `resolveLinkedAudio` once, next time its deck is opened, even though a
