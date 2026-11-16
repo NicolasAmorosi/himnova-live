@@ -1,5 +1,6 @@
 import { clsx, type ClassValue } from "clsx";
 import { extendTailwindMerge } from "tailwind-merge";
+import { BUNDLED_BIBLE_SHORT } from "@shared/constants";
 
 // The semantic shadow scale (globals.css --shadow-surface/raised/overlay) isn't
 // part of tailwind-merge's default value list for the `shadow` group, so plain
@@ -107,19 +108,24 @@ export function languageName(code: string, locale: string): string {
 }
 
 /** A Bible version picker's options: the interface's language first, the rest in the operator's order (owner,
- *  2026-11-09; `sort` is stable), under a heading per language once there is more than one. */
+ *  2026-11-09; `sort` is stable), under a heading per language once there is more than one. An included version
+ *  carries its short name, for a picker too narrow for the whole one (U14). */
 export function bibleVersionOptions(
-  versions: readonly { id: number; language: string; name: string }[],
+  versions: readonly { id: number; language: string; name: string; code?: string; isBuiltin?: boolean }[],
   locale: string,
-): { group?: string; label: string; value: string }[] {
+): { group?: string; label: string; short?: string; value: string }[] {
   const grouped = new Set(versions.map((v) => v.language)).size > 1;
   return [...versions]
     .sort((a, b) => Number(b.language === locale) - Number(a.language === locale))
-    .map((v) => ({
-      label: v.name,
-      value: String(v.id),
-      ...(grouped ? { group: languageName(v.language, locale) } : {}),
-    }));
+    .map((v) => {
+      const short = v.isBuiltin && v.code !== undefined ? BUNDLED_BIBLE_SHORT[v.code] : undefined;
+      return {
+        label: v.name,
+        value: String(v.id),
+        ...(short ? { short } : {}),
+        ...(grouped ? { group: languageName(v.language, locale) } : {}),
+      };
+    });
 }
 
 /** Items under one heading per language, the languages in the order they first

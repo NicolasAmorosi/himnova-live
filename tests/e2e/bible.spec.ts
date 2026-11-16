@@ -580,3 +580,42 @@ test("a colour picked for the verse reaches the live verse at once and is kept a
   await expect(toast(again, "Se restauró el estilo original")).toBeVisible();
   expect((await again.invoke<Stored>("settings:get"))["bible.style"]?.text.color).not.toBe("#ffa92d");
 });
+
+/** The control window at a size, out of full screen. */
+async function windowAt(app: WorshipApp, width: number, height: number) {
+  await app.electron.evaluate(
+    ({ BrowserWindow }, [w, h]) => {
+      const control = BrowserWindow.getAllWindows().find((win) => win.webContents.getURL().endsWith("/index.html"));
+      control?.setFullScreen(false);
+      control?.unmaximize();
+      control?.setContentSize(w!, h!);
+    },
+    [width, height],
+  );
+  await expect.poll(() => app.control.evaluate(() => window.innerWidth)).toBe(width);
+}
+
+// At 1000×700 the version read «Rive…» among nine versions, and the program «Senza …» (2026-11-15 audit, U14, owner's
+// calls of 2026-11-16): the version's short name when the whole one does not fit, and «Salva» only its icon.
+test.describe("the window at its narrowest, in Italian", () => {
+  test.use({ appLocale: "it" });
+
+  test("the Bible tab says which version is open, and the top bar the program's whole name", async ({ app }) => {
+    const version = app.control.getByRole("combobox", { name: app.tr("Versión"), exact: true });
+    const name = app.control.locator(`span[title="${app.tr("Sin título")}"]`);
+    const saveWord = app.control.getByRole("button", { name: app.tr("Guardar"), exact: true }).locator("span").last();
+    const cut = (locator: typeof name) => locator.evaluate((el) => el.scrollWidth > el.clientWidth);
+    await app.openResources("Biblia");
+
+    await windowAt(app, 1000, 700);
+    await expect(version).toHaveText("R1927", { useInnerText: true });
+    await expect.poll(() => cut(name)).toBe(false);
+    // Still named «Salva» for a screen reader, and its tooltip says it.
+    expect(await saveWord.evaluate((el) => getComputedStyle(el).position)).toBe("absolute");
+
+    // With room, the whole name and the word again.
+    await windowAt(app, 1400, 900);
+    await expect(version).toHaveText("Riveduta 1927", { useInnerText: true });
+    expect(await saveWord.evaluate((el) => getComputedStyle(el).position)).toBe("static");
+  });
+});

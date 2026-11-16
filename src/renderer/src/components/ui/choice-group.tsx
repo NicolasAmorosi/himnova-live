@@ -96,7 +96,8 @@ export function ChoiceGroup<T extends string>({ className, columns, label, onCha
             ) : null}
             <span className="flex min-w-0 items-start gap-1 px-0.5">
               <span className="flex min-w-0 flex-1 flex-col">
-                <span className="truncate text-xs font-medium text-foreground">{option.label}</span>
+                {/* Two lines rather than cut: «Fermo immagine» did not fit a card at 1000 px (2026-11-15 audit, U14). */}
+                <span className="line-clamp-2 text-xs font-medium text-foreground">{option.label}</span>
                 {option.description ? (
                   <span className="line-clamp-2 text-xs text-muted-foreground">{option.description}</span>
                 ) : null}

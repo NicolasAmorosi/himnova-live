@@ -157,3 +157,19 @@ export const SLIDES_CLIP_COPY_TIMEOUT_MS = 15 * 60_000;
  *  rows point at this code and the seed re-imports against it, so it never changes — same rule as
  *  the `worship-app` package name. The file and the name are what say 1909. */
 export const BUILTIN_BIBLE_CODE = "rv1960";
+
+/** The short name of each version the installer carries (`main/db/seed/bundled-bibles.ts`), by its row's `code`: what
+ *  the version picker shows when the whole name does not fit (owner, 2026-11-16: «Rive…» said nothing among nine
+ *  versions; 2026-11-15 audit, U14). Not derived from the code, which says «rv1960» for the 1909. An imported version
+ *  has none and is cut, as before. */
+export const BUNDLED_BIBLE_SHORT: Readonly<Record<string, string>> = {
+  [BUILTIN_BIBLE_CODE]: "RV1909",
+  vbl: "VBL",
+  kjv: "KJV",
+  asv: "ASV",
+  web: "WEB",
+  riveduta1927: "R1927",
+  diodati1885: "D1885",
+  almeida1911: "A1911",
+  biblialivre: "BLivre",
+};

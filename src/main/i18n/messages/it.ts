@@ -154,7 +154,7 @@ const it: MainMessages = {
     bugTitle: "Nome della chiesa",
   },
   seed: {
-    countdownName: "Conto alla rovescia 10 minuti",
+    countdownName: "Countdown 10 minuti",
     countdownTitle: "Il culto inizia tra",
     countdownToTimeName: "Inizio alle 10:00",
     countdownToTimeTitle: "Iniziamo alle 10:00",

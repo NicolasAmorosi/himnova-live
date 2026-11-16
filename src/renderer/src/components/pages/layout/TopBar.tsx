@@ -75,7 +75,7 @@ export function TopBar({ onOpenPrograms, onOpenSettings }: TopBarProps) {
         {/* The program's name as plain text, and «Save» with its word
             (2026-11-04 redesign, P7): saving the next service's program was a 16 px
             icon, and the name floated in a capsule. */}
-        <div className="flex min-w-0 items-center gap-1.5 px-3">
+        <div className="@container/program flex min-w-0 items-center gap-1.5 px-3">
           <BrandMark className="mr-1" />
           <Tooltip content={t("settings.title")} floating>
             <IconButton aria-label={t("settings.title")} onClick={onOpenSettings} variant="ghost">
@@ -98,7 +98,10 @@ export function TopBar({ onOpenPrograms, onOpenSettings }: TopBarProps) {
               variant="outline"
             >
               <Icon name="save" />
-              {t("programs.save")}
+              {/* Only its icon in a column too narrow for the program's name beside the word (owner, 2026-11-16: at
+                  1000 px «Senza titolo» read «Senza …»; 2026-11-15 audit, U14). Still named «Guardar», and the
+                  tooltip says it. */}
+              <span className="@max-[23rem]/program:sr-only">{t("programs.save")}</span>
             </Button>
           </Tooltip>
           <Tooltip content={t("programs.newHint")} floating>

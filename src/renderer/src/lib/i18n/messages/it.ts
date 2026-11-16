@@ -1395,7 +1395,7 @@ const it: Messages = {
       songHint: "Quando vai oltre l'ultima diapositiva.",
       audioHint: "L'audio non si vede: scegli cosa si sente dopo.",
       logoPlaceholder: "Il tuo logo",
-      short: { logo: "Logo", black: "Nero", loop: "Ripeti", hold: "Ultima immagine", next: "Il prossimo", stop: "Ferma" },
+      short: { logo: "Logo", black: "Nero", loop: "Ripeti", hold: "Fermo immagine", next: "Il prossimo", stop: "Ferma" },
     },
     sound: {
       title: "Audio",
