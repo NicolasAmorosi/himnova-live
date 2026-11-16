@@ -184,3 +184,19 @@ describe("an entry is never inflated past the size the central directory declare
     expect(out["empty.xml"]!.length).toBe(0);
   });
 });
+
+// 2026-11-15 audit, S10: the cap was per entry, so three XML parts of 200 MB of zeros (a 614 KB `.pptx`) inflated
+// 600 MB together. The budget is the third parameter so this needs megabytes, not the real 512 MB.
+test("one call inflates no more than its budget in all, and stored entries do not count against it", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "worship-zip-budget-"));
+  const file = path.join(dir, "deck.pptx");
+  const mb = new Uint8Array(1024 * 1024);
+  fs.writeFileSync(file, zipSync({ "a.xml": mb, "b.xml": mb, "video.mp4": [new Uint8Array(3 * 1024 * 1024), { level: 0 }], "c.xml": mb }));
+  const out = readZipEntries(file, () => true, 2.5 * 1024 * 1024);
+  expect(out["a.xml"]!.length).toBe(mb.length);
+  expect(out["b.xml"]!.length).toBe(mb.length);
+  expect(out["video.mp4"]!.length).toBe(3 * 1024 * 1024);
+  expect(out["c.xml"]).toBeUndefined();
+  expect(Object.keys(readZipEntries(file, () => true)).sort()).toEqual(["a.xml", "b.xml", "c.xml", "video.mp4"]);
+  fs.rmSync(dir, { recursive: true, force: true });
+});

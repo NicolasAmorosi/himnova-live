@@ -291,7 +291,7 @@ function sliceWindow(window: ReadWindow, offset: number, length: number): Buffer
   return window.buffer.subarray(from, from + length);
 }
 
-function readEntryData(fd: number, entry: CentralEntry, window: ReadWindow): Uint8Array {
+function readEntryData(fd: number, entry: CentralEntry, window: ReadWindow, budget: number): Uint8Array {
   const header =
     sliceWindow(window, entry.localHeaderOffset, LOCAL_HEADER_FIXED_SIZE) ??
     readChunk(fd, entry.localHeaderOffset, LOCAL_HEADER_FIXED_SIZE);
@@ -309,7 +309,7 @@ function readEntryData(fd: number, entry: CentralEntry, window: ReadWindow): Uin
   // read window, and returning it would pin those megabytes alive for as long
   // as any caller keeps one small XML part.
   if (entry.method === METHOD_STORE) return new Uint8Array(raw);
-  if (entry.method === METHOD_DEFLATE) return inflateEntry(raw, entry.uncompressedSize);
+  if (entry.method === METHOD_DEFLATE) return inflateEntry(raw, entry.uncompressedSize, budget);
   throw new ZipFormatError(`Unsupported compression method ${entry.method}`);
 }
 
@@ -328,10 +328,12 @@ function readEntryData(fd: number, entry: CentralEntry, window: ReadWindow): Uin
  * Copied out, like the stored branch: zlib hands back a view of its own 64 KB
  * output chunk, and every part of a deck stays alive while it is read.
  */
-function inflateEntry(raw: Buffer, uncompressedSize: number): Uint8Array {
+function inflateEntry(raw: Buffer, uncompressedSize: number, budget: number): Uint8Array {
   // A hostile archive of a few KB inflates to gigabytes (398 KB to 400 MB in main, measured: 2026-11-10 review,
   // agent6-04). No part of a deck or a Bible module comes near this: a video is stored, not deflated.
   if (uncompressedSize > MAX_INFLATED_BYTES) throw new ZipFormatError(`An entry of ${uncompressedSize} bytes`);
+  // The output never passes the declared size, so this refuses before inflating anything.
+  if (uncompressedSize > budget) throw new ZipFormatError("An entry past what is left of the call's inflate budget");
   const out = inflateRawSync(raw, { maxOutputLength: Math.max(1, uncompressedSize) });
   if (out.length > uncompressedSize) throw new ZipFormatError("An entry larger than its declared size");
   return new Uint8Array(out);
@@ -339,11 +341,18 @@ function inflateEntry(raw: Buffer, uncompressedSize: number): Uint8Array {
 
 const MAX_INFLATED_BYTES = 256 * 1024 * 1024;
 
+/** What one `readZipEntries` call may inflate in all: the per-entry cap alone let three XML parts of 200 MB of
+ *  zeros (a 614 KB `.pptx`) inflate 600 MB together (2026-11-15 audit, S10). Stored entries do not count: they
+ *  are the deck's videos, already on disk at their size. */
+const MAX_INFLATED_TOTAL_BYTES = 512 * 1024 * 1024;
+
 /**
  * Inflates every entry of `filePath` whose name satisfies `wanted`, and
  * nothing else — the archive itself is never fully read. Entries that are
  * encrypted or use a compression method other than store/deflate are skipped
- * rather than throwing: one odd part must not cost a deck its timings.
+ * rather than throwing: one odd part must not cost a deck its timings. So is
+ * a deflated entry past what is left of `inflateBudget` (512 MB per call,
+ * stored entries not counted).
  *
  * Throws `ZipFormatError` when the file is not a readable zip at all, which
  * is the same shape of failure `unzipSync` produced and which every caller
@@ -352,6 +361,7 @@ const MAX_INFLATED_BYTES = 256 * 1024 * 1024;
 export function readZipEntries(
   filePath: string,
   wanted: (name: string) => boolean,
+  inflateBudget = MAX_INFLATED_TOTAL_BYTES,
 ): Record<string, Uint8Array> {
   const fd = fs.openSync(filePath, "r");
   try {
@@ -374,9 +384,11 @@ export function readZipEntries(
     );
 
     const result: Record<string, Uint8Array> = {};
+    let budget = inflateBudget;
     for (const [name, entry] of readable) {
       try {
-        result[name] = readEntryData(fd, entry, window);
+        result[name] = readEntryData(fd, entry, window, budget);
+        if (entry.method === METHOD_DEFLATE) budget -= result[name].length;
       } catch {
         /* One unreadable part is not a reason to lose the rest. */
       }
