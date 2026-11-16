@@ -131,15 +131,23 @@ export function stageSnapshot(): StageOutput | null {
   return lastOutput;
 }
 
+/** The stage window's size on the operator's own screen: 16:9, small enough to sit beside the work. */
+const OWN_WIDTH = 800;
+const OWN_HEIGHT = 450;
+
 /** `own`: on the operator's own screen (one screen, or testing) a window they can move, never a fullscreen one over
  *  the control window — the projector's rule. */
 function createStageWindow(display: Electron.Display, own: boolean): BrowserWindow {
+  // Windowed on the operator's screen, its lower right corner: `center` does nothing next to an `x`/`y`, so it opened in
+  // the top left corner over the bar and the order of service, and centred it would sit on the projector, which is
+  // centred there too (2026-11-15 audit, U6).
+  const area = display.workArea;
+  const margin = 24;
   const win = new BrowserWindow({
-    x: display.bounds.x,
-    y: display.bounds.y,
-    width: own ? 800 : display.bounds.width,
-    height: own ? 450 : display.bounds.height,
-    center: own,
+    x: own ? area.x + Math.max(0, area.width - OWN_WIDTH - margin) : display.bounds.x,
+    y: own ? area.y + Math.max(0, area.height - OWN_HEIGHT - margin) : display.bounds.y,
+    width: own ? OWN_WIDTH : display.bounds.width,
+    height: own ? OWN_HEIGHT : display.bounds.height,
     frame: own,
     fullscreen: !own,
     alwaysOnTop: !own,
