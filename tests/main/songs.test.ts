@@ -717,6 +717,30 @@ Letra de la tercera
     expect(songSavesPending()).toBeNull();
   });
 
+  test("a second quit while the first waits for a song save is held too; the quit goes on once, when the save is done", async () => {
+    const { inSaveOrder, quitWaitForSongSaves } = await import("../../src/main/services/song-files");
+    let quits = 0;
+    const hold = quitWaitForSongSaves(() => (quits += 1), 5000);
+    let prevented = 0;
+    const prevent = () => (prevented += 1);
+    expect(hold(prevent)).toBe(false);
+    let release = () => undefined as void;
+    const stuck = inSaveOrder(() => new Promise<void>((resolve) => (release = resolve)));
+    expect(hold(prevent)).toBe(true);
+    // A second Cmd+Q, or the last window closed on Windows/Linux, during the wait: it went through and `will-quit`
+    // closed the database under the save (final pass of the 2026-11-15 audit, A25).
+    expect(hold(prevent)).toBe(true);
+    expect(prevented).toBe(2);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(quits).toBe(0);
+    release();
+    await stuck;
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(quits).toBe(1);
+    // The quit it starts is not held again.
+    expect(hold(prevent)).toBe(false);
+  });
+
   test("only a change the file holds writes it: a theme, or notes a ChordPro file has no place for, never touch it", async () => {
     const folder = fresh("theme-only");
     const file = path.join(folder, "domingo.cho");

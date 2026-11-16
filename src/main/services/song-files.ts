@@ -281,6 +281,29 @@ export function songSavesPending(): Promise<void> | null {
   return pendingSaves > 0 ? saving.then(() => undefined) : null;
 }
 
+/** `before-quit`'s wait for the song file saves: true when it held this quit (`prevent` called). Once per quit, at
+ *  most `capMs`, then `quit()` again. Every quit asked during the wait is held too: a second Cmd+Q, or the last window
+ *  closed on Windows/Linux, went through and closed the database under the save (2026-11-15 audit, A25). */
+export function quitWaitForSongSaves(quit: () => void, capMs: number): (prevent: () => void) => boolean {
+  let state: "idle" | "waiting" | "done" = "idle";
+  return (prevent) => {
+    if (state === "waiting") {
+      prevent();
+      return true;
+    }
+    const saves = state === "done" ? null : songSavesPending();
+    if (!saves) return false;
+    state = "waiting";
+    prevent();
+    const cap = new Promise((resolve) => setTimeout(resolve, capMs));
+    void Promise.race([saves, cap]).then(() => {
+      state = "done";
+      quit();
+    });
+    return true;
+  };
+}
+
 /** `song:update`: a song tied to a file writes the file first, `inSaveOrder`. One with no file has nothing to wait
  *  for: in the line, one save stuck on a share that does not answer held every song's (review of A25). */
 export function saveSong(id: number, song: ReadSong): Song | Promise<Song> {

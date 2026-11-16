@@ -31,7 +31,7 @@ import {
   migrateLegacyMediaIfPresent,
 } from "./services/migrate-legacy-data";
 import { importPaths } from "./services/library-import";
-import { songSavesPending } from "./services/song-files";
+import { quitWaitForSongSaves } from "./services/song-files";
 import { setBibleDb } from "./ipc/handlers/bible";
 import { registerAllIpcHandlers } from "./ipc";
 import { isTrustedSender } from "./ipc/trusted-senders";
@@ -406,7 +406,7 @@ app.on("window-all-closed", () => {
 
 /** How long a quit waits for a song file save still running (a share that does not answer must not keep the app). */
 const QUIT_SONG_SAVE_WAIT_MS = 5000;
-let songSavesWaited = false;
+const holdQuitForSongSaves = quitWaitForSongSaves(() => app.quit(), QUIT_SONG_SAVE_WAIT_MS);
 
 // Cancels in-flight jobs and closes the rasterizer. The deck cache is
 // deliberately NOT deleted — persisting it is the point of the pipeline.
@@ -417,14 +417,7 @@ app.on("before-quit", (event) => {
   if (holdQuitUntilAnswered(event)) return;
   // A song file save still running is waited for, once and at most a few seconds, before anything shuts down:
   // `will-quit` closes the database under it (review of 2026-11-15 audit A25). Nothing pending, no wait.
-  const saves = songSavesWaited ? null : songSavesPending();
-  if (saves) {
-    songSavesWaited = true;
-    event.preventDefault();
-    const cap = new Promise((resolve) => setTimeout(resolve, QUIT_SONG_SAVE_WAIT_MS));
-    void Promise.race([saves, cap]).then(() => app.quit());
-    return;
-  }
+  if (holdQuitForSongSaves(() => event.preventDefault())) return;
   cancelAllPrewarmBatches();
   shutdownSlides();
   stopDeckClips();
