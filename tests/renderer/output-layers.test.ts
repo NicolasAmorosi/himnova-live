@@ -8,7 +8,9 @@
  */
 import { beforeEach, describe, expect, test } from "vitest";
 import { entryOf, nextLayers, type Layer, type LayerHold, type LayerStep } from "@renderer/lib/output-layers";
-import { selectOutput, useProjectionStore } from "@renderer/stores/projection.store";
+import { buildCumulativeMs, selectOutput, useProjectionStore, type LiveDeck } from "@renderer/stores/projection.store";
+import { slideUrl } from "@shared/urls";
+import type { DeckSlide } from "@shared/types/deck";
 import { DEFAULT_PLATE_STYLE, type Plate } from "@shared/types/overlay";
 import type { ProjectionOutput } from "@shared/types/projection";
 
@@ -260,6 +262,54 @@ describe("a fade in flight", () => {
     const frame = document.createElement("canvas");
     const step = view.push(frame);
     expect(step.layers[0].frozenFrame).toBe(frame);
+  });
+});
+
+describe("a push that moves the picture mid-fade is the cut it always was", () => {
+  const THROUGH_BLACK = { style: "fade-through-black" as const, durationMs: 800 };
+  function liveDeck(): void {
+    const slides: DeckSlide[] = [1, 2, 3].map((index) => ({
+      index,
+      url: slideUrl(500, index),
+      thumbUrl: `${slideUrl(500, index)}/thumb`,
+      modelUrl: null,
+      advanceAfterMs: null,
+      transition: THROUGH_BLACK,
+    }));
+    const deck: LiveDeck = {
+      assetId: 9,
+      deckId: 500,
+      slides,
+      soundtrack: null,
+      sounds: [],
+      videos: [],
+      cumulativeMs: buildCumulativeMs(slides),
+      autoAdvance: false,
+    };
+    store().beginScene();
+    store().setLiveDeck(deck);
+    store().setBase({ kind: "deck", assetId: 9, slideIndex: 2 });
+    store().setOverlay("none");
+  }
+
+  test("back a slide while the next one fades in through black: a cut, not a dip into black (owner, 2026-10-26)", () => {
+    liveDeck();
+    const view = stage();
+    store().setSlideIndex(3);
+    expect(view.push().kind).toBe("transition");
+    store().setSlideIndex(2);
+    const step = view.push();
+    expect(step.kind).toBe("steady");
+    expect(step.layers[0].output.kind === "slide" && step.layers[0].output.url).toBe(slideUrl(500, 2));
+  });
+
+  test("a plate mid-fade lets the same slide's fade run", () => {
+    liveDeck();
+    const view = stage();
+    store().setSlideIndex(3);
+    view.push();
+    store().showPlate(PLATE);
+    expect(view.push().kind).toBe("patch");
   });
 });
 

@@ -74,6 +74,14 @@ function sceneContentKey(output: ProjectionOutput): string {
   );
 }
 
+/** What a push can change without changing the picture: a level, a pause, a resume point, the meters, the outputs, a
+ *  plate (drawn above the layers on its own). */
+const NOT_PICTURE = new Set(["transition", "plates", "meters", "audioOut", "volume", "paused", "startAtSeconds"]);
+
+function pictureKey(output: ProjectionOutput): string {
+  return JSON.stringify(output, (key: string, value: unknown) => (NOT_PICTURE.has(key) ? undefined : value));
+}
+
 /** Drops the outgoing half of a finished transition, leaving one "steady"
  *  layer (`role` is derived from `layers.length`, so this is also what takes
  *  the survivor off its keyframe and back to a plain opacity). */
@@ -114,7 +122,11 @@ export function nextLayers(push: LayerPush): LayerStep {
   const outgoingInFlight = layers.length === 2 ? layers[0] : undefined;
   // A hold only goes on while what it waits for is still what is coming in.
   const holdStands = hold === null || (output.kind === "video" && output.videoUnderlay?.epoch === hold.epoch);
-  if (push.animate && sameScene && outgoingInFlight && holdStands) {
+  // In a fade, only a push that leaves the picture as it is (a level, a pause, a plate) lets it run: one that moves the
+  // slide, the verse or the song's line is the cut it always was, as going back must be (owner, 2026-10-26). Through
+  // black, a step back mid-fade dipped the slide it went back to into black.
+  const keepsPicture = hold !== null || pictureKey(top.output) === pictureKey(output);
+  if (push.animate && sameScene && outgoingInFlight && holdStands && keepsPicture) {
     return { kind: "patch", layers: [outgoingInFlight, { seq: top.seq, output }] };
   }
 

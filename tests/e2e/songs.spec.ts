@@ -13,9 +13,6 @@ import { expect, relaunch, test, type WorshipApp } from "./support/app";
  * held by reference in the order of service.
  */
 
-// The projector's text is read on its top layer (`.last()`): a step within a scene no longer cuts a fade short
-// (2026-11-15 audit, A2), so for a moment the layer leaving can show the same words, and a test is faster than any
-// operator.
 const tab = (app: WorshipApp) => app.control.getByRole("tabpanel", { name: "Canciones" });
 const songRows = (app: WorshipApp) => tab(app).getByRole("list", { name: "Canciones" }).getByRole("listitem");
 const dialog = (app: WorshipApp) => app.control.getByRole("dialog").first();
@@ -168,19 +165,19 @@ test("a song written in the editor is found by its lyrics without accents and go
 
   await app.goLive();
   const projector = await app.projector();
-  await expect(projector.getByText("Sublime gracia del Señor").last()).toBeVisible();
+  await expect(projector.getByText("Sublime gracia del Señor")).toBeVisible();
 
   await app.control.keyboard.press("ArrowRight");
-  await expect(projector.getByText("Fui ciego mas hoy veo yo").last()).toBeVisible();
+  await expect(projector.getByText("Fui ciego mas hoy veo yo")).toBeVisible();
   await app.control.keyboard.press("PageDown");
-  await expect(projector.getByText("Aleluya, aleluya").last()).toBeVisible();
+  await expect(projector.getByText("Aleluya, aleluya")).toBeVisible();
   await app.control.keyboard.press("ArrowLeft");
-  await expect(projector.getByText("Fui ciego mas hoy veo yo").last()).toBeVisible();
+  await expect(projector.getByText("Fui ciego mas hoy veo yo")).toBeVisible();
   await expect(app.liveColumn().getByText("2/3")).toBeVisible();
 
   // A click on the LIVE grid moves the projector.
   await app.liveColumn().getByRole("listitem").nth(2).click();
-  await expect(projector.getByText("Aleluya, aleluya").last()).toBeVisible();
+  await expect(projector.getByText("Aleluya, aleluya")).toBeVisible();
 });
 
 test("one more step on a song's last slide takes it off to the logo", async ({ app }) => {
@@ -189,7 +186,7 @@ test("one more step on a song's last slide takes it off to the logo", async ({ a
   await app.goLive();
   const projector = await app.projector();
   await app.liveColumn().getByRole("listitem").nth(2).click();
-  await expect(projector.getByText("Aleluya, aleluya").last()).toBeVisible();
+  await expect(projector.getByText("Aleluya, aleluya")).toBeVisible();
   await expect(app.liveColumn().getByRole("button", { name: "Diapositiva siguiente" })).toBeEnabled();
   await app.control.keyboard.press("ArrowRight");
   await expect(projector.getByText("Aleluya, aleluya")).toHaveCount(0);
@@ -202,10 +199,10 @@ test("every slide of a song is drawn at the same size", async ({ app }) => {
   await songRows(app).filter({ hasText: "Tamaño único" }).click();
   await app.goLive();
   const projector = await app.projector();
-  await expect(projector.getByText("corta").last()).toBeVisible();
+  await expect(projector.getByText("corta")).toBeVisible();
   const short = await projectedSize(projector);
   await app.control.keyboard.press("ArrowRight");
-  await expect(projector.getByText(long[0]!).last()).toBeVisible();
+  await expect(projector.getByText(long[0]!)).toBeVisible();
   expect(await projectedSize(projector)).toBe(short);
 });
 
@@ -221,10 +218,10 @@ test("saving the song that is live changes the projector in place, on the same s
   await songRows(app).first().click();
   await app.goLive();
   const projector = await app.projector();
-  await expect(projector.getByText("Sublime gracia del Señor").last()).toBeVisible();
+  await expect(projector.getByText("Sublime gracia del Señor")).toBeVisible();
   await app.control.keyboard.press("ArrowRight");
   await app.control.keyboard.press("ArrowRight");
-  await expect(projector.getByText("Aleluya, aleluya").last()).toBeVisible();
+  await expect(projector.getByText("Aleluya, aleluya")).toBeVisible();
 
   // It left PREVIEW, and the Songs footer with it, when it went out (owner, 2026-11-15): picked again.
   await songRows(app).first().click();
@@ -232,7 +229,7 @@ test("saving the song that is live changes the projector in place, on the same s
   const lyrics = dialog(app).getByRole("textbox", { name: "Letra" });
   await lyrics.fill((await lyrics.inputValue()).replace("Aleluya, aleluya", "Gloria a Dios"));
   await dialog(app).getByRole("button", { name: "Guardar", exact: true }).click();
-  await expect(projector.getByText("Gloria a Dios").last()).toBeVisible();
+  await expect(projector.getByText("Gloria a Dios")).toBeVisible();
   await expect(app.liveColumn().getByText("3/3")).toBeVisible();
 });
 
@@ -300,13 +297,13 @@ test("keys jump to a section: its next time, Shift the previous, and one off the
   await app.goLive();
   const projector = await app.projector();
   const live = app.liveColumn();
-  await expect(projector.getByText("primera").last()).toBeVisible();
+  await expect(projector.getByText("primera")).toBeVisible();
 
   await app.control.keyboard.press("c");
-  await expect(projector.getByText("el coro").last()).toBeVisible();
+  await expect(projector.getByText("el coro")).toBeVisible();
   await expect(live.getByText("2/4")).toBeVisible();
   await app.control.keyboard.press("2");
-  await expect(projector.getByText("segunda").last()).toBeVisible();
+  await expect(projector.getByText("segunda")).toBeVisible();
   await app.control.keyboard.press("c");
   await expect(live.getByText("4/4")).toBeVisible();
   await app.control.keyboard.press("Shift+C");
@@ -314,12 +311,12 @@ test("keys jump to a section: its next time, Shift the previous, and one off the
 
   // The bridge is not in the order: sung as a detour, then → carries on after.
   await app.control.keyboard.press("p");
-  await expect(projector.getByText("puente uno").last()).toBeVisible();
+  await expect(projector.getByText("puente uno")).toBeVisible();
   await expect(live.getByText("fuera del orden · 1/2")).toBeVisible();
   await app.control.keyboard.press("ArrowRight");
-  await expect(projector.getByText("puente dos").last()).toBeVisible();
+  await expect(projector.getByText("puente dos")).toBeVisible();
   await app.control.keyboard.press("ArrowRight");
-  await expect(projector.getByText("segunda").last()).toBeVisible();
+  await expect(projector.getByText("segunda")).toBeVisible();
   await expect(live.getByText("3/4")).toBeVisible();
 
   // T: only the background, and T again brings the words back.
@@ -327,13 +324,13 @@ test("keys jump to a section: its next time, Shift the previous, and one off the
   await expect(projector.getByText("segunda")).toBeHidden();
   await expect(live.getByText("Letra oculta")).toBeVisible();
   await app.control.keyboard.press("t");
-  await expect(projector.getByText("segunda").last()).toBeVisible();
+  await expect(projector.getByText("segunda")).toBeVisible();
 
   // The same jumps by click.
   await live.getByRole("group", { name: "Secciones de la canción" }).getByRole("button", { name: "Estrofa 1" }).click({
     modifiers: ["Shift"],
   });
-  await expect(projector.getByText("primera").last()).toBeVisible();
+  await expect(projector.getByText("primera")).toBeVisible();
   await live.getByRole("button", { name: "Ocultar la letra (T)" }).click();
   await expect(projector.getByText("primera")).toBeHidden();
 });
@@ -352,7 +349,7 @@ test("a theme edited in «Temas» dresses the live song, and the footer carries 
   await songRows(app).first().click();
   await app.goLive();
   const projector = await app.projector();
-  await expect(projector.getByText("Sublime gracia del Señor").last()).toBeVisible();
+  await expect(projector.getByText("Sublime gracia del Señor")).toBeVisible();
   // The footer is on the last slide only (the default theme's choice).
   await expect(projector.locator("[data-song-footer]")).toHaveCount(0);
   await app.control.keyboard.press("c");
@@ -368,7 +365,7 @@ test("a theme edited in «Temas» dresses the live song, and the footer carries 
   await expect
     .poll(() => projector.locator("[data-song-block]").last().evaluate((el) => getComputedStyle(el).textTransform))
     .toBe("uppercase");
-  await expect(projector.getByText("Aleluya, aleluya").last()).toBeVisible();
+  await expect(projector.getByText("Aleluya, aleluya")).toBeVisible();
 });
 
 /** An EasyWorship 6 song database, as EasyWorship writes it, in a profile's
@@ -449,7 +446,7 @@ test("OpenLyrics files come in from «Importar», a second language as the trans
     await expect(grid.getByRole("listitem")).toHaveText([/Estrofa 1/, /Coro/, /Estrofa 2/, /Coro/]);
     await app.goLive();
     const projector = await app.projector();
-    await expect(projector.getByText("Sublime gracia del Señor").last()).toBeVisible();
+    await expect(projector.getByText("Sublime gracia del Señor")).toBeVisible();
     await expect(projector.locator("[data-song-translation]").last()).toContainText("Amazing grace, how sweet the sound");
   } finally {
     fs.rmSync(folder, { recursive: true, force: true });
@@ -484,13 +481,13 @@ test("a song that went live is in the CCLI report, once a day, saved as CSV from
   await songRows(app).first().click();
   await app.goLive();
   const projector = await app.projector();
-  await expect(projector.getByText("Sublime gracia del Señor").last()).toBeVisible();
+  await expect(projector.getByText("Sublime gracia del Señor")).toBeVisible();
   // Live again the same day: still one use. Off the air first — picked again while it is still up, EN VIVO only
   // uncovers it (owner, 2026-11-15) and nothing is sent.
   await app.liveColumn().getByRole("button", { name: "Sacar del aire" }).first().click();
   await songRows(app).first().click();
   await app.goLive();
-  await expect(projector.getByText("Sublime gracia del Señor").last()).toBeVisible();
+  await expect(projector.getByText("Sublime gracia del Señor")).toBeVisible();
 
   const file = path.join(os.tmpdir(), `worship-e2e-ccli-${Date.now()}.csv`);
   try {
@@ -545,20 +542,20 @@ test("a translation written in its own tab goes live stacked, and the LIVE row s
   const projector = await app.projector();
   const translation = projector.locator("[data-song-translation]").last();
   // «Both» first, stacked: the lyrics and, under them, the translation.
-  await expect(projector.getByText("Sublime gracia del Señor").last()).toBeVisible();
+  await expect(projector.getByText("Sublime gracia del Señor")).toBeVisible();
   await expect(translation).toContainText("Amazing grace, how sweet the sound");
 
   const languages = app.liveColumn().getByRole("group", { name: "Idioma" });
   await expect(languages.getByRole("button", { name: "Ambos" })).toHaveAttribute("aria-pressed", "true");
   await languages.getByRole("button", { name: "Original" }).click();
   await expect(projector.locator("[data-song-translation]")).toHaveCount(0);
-  await expect(projector.getByText("Sublime gracia del Señor").last()).toBeVisible();
+  await expect(projector.getByText("Sublime gracia del Señor")).toBeVisible();
   await languages.getByRole("button", { name: "Traducción" }).click();
-  await expect(projector.getByText("Amazing grace, how sweet the sound").last()).toBeVisible();
+  await expect(projector.getByText("Amazing grace, how sweet the sound")).toBeVisible();
   await expect(projector.getByText("Sublime gracia del Señor")).toHaveCount(0);
   // The same slide all along: → goes on to the next one, in that language.
   await app.control.keyboard.press("ArrowRight");
-  await expect(projector.getByText("I once was lost").last()).toBeVisible();
+  await expect(projector.getByText("I once was lost")).toBeVisible();
 });
 
 test("a search open in the Songs tab shows a song as soon as it is written or edited to match, and drops one that stops", async ({
@@ -612,9 +609,9 @@ test("Hebrew, Arabic, CJK and emoji are saved, found, reopened after a restart a
   await songRows(again).first().click();
   await again.goLive();
   const projector = await again.projector();
-  await expect(projector.getByText("הללויה לאל").last()).toBeVisible();
+  await expect(projector.getByText("הללויה לאל")).toBeVisible();
   await again.control.keyboard.press("ArrowRight");
-  await expect(projector.getByText("المجد لله في الأعالي").last()).toBeVisible();
+  await expect(projector.getByText("المجد لله في الأعالي")).toBeVisible();
 });
 
 test("saving a song that is in PREVIEW and in the order of service updates both", async ({ app }) => {
@@ -641,11 +638,11 @@ test("the live song edited so the section on air is gone: the projector moves to
   await songRows(app).first().click();
   await app.goLive();
   const projector = await app.projector();
-  await expect(projector.getByText("uno a").last()).toBeVisible();
+  await expect(projector.getByText("uno a")).toBeVisible();
   await app.control.keyboard.press("ArrowRight");
-  await expect(projector.getByText("uno b").last()).toBeVisible();
+  await expect(projector.getByText("uno b")).toBeVisible();
   await app.control.keyboard.press("ArrowRight");
-  await expect(projector.getByText("el coro").last()).toBeVisible();
+  await expect(projector.getByText("el coro")).toBeVisible();
   await expect(app.liveColumn().getByText("3/3")).toBeVisible();
 
   // It left PREVIEW, and the Songs footer with it, when it went out (owner, 2026-11-15): picked again.
@@ -657,7 +654,7 @@ test("the live song edited so the section on air is gone: the projector moves to
   await dialog(app).getByRole("button", { name: "Cerrar" }).first().click();
   await expect(projector.getByText("el coro")).toHaveCount(0);
   await expect(app.liveColumn().getByText("2/2")).toBeVisible();
-  await expect(projector.getByText("uno b").last()).toBeVisible();
+  await expect(projector.getByText("uno b")).toBeVisible();
 });
 
 test("the live song edited so the slide on air is gone and its section leaves the order: the projector stays on a real slide", async ({
@@ -668,10 +665,10 @@ test("the live song edited so the slide on air is gone and its section leaves th
   await app.goLive();
   const projector = await app.projector();
   const live = app.liveColumn();
-  await expect(projector.getByText("uno", { exact: true }).last()).toBeVisible();
+  await expect(projector.getByText("uno", { exact: true })).toBeVisible();
   await app.control.keyboard.press("2");
   await app.control.keyboard.press("ArrowRight");
-  await expect(projector.getByText("otra de dos").last()).toBeVisible();
+  await expect(projector.getByText("otra de dos")).toBeVisible();
   await expect(live.getByText("4/5")).toBeVisible();
 
   // It left PREVIEW, and the Songs footer with it, when it went out (owner, 2026-11-15): picked again.
@@ -694,7 +691,7 @@ test("the live song deleted from the library stays up and the keys still walk it
   await tab(app).getByRole("button", { name: "Agregar al programa" }).click();
   await app.goLive();
   const projector = await app.projector();
-  await expect(projector.getByText("uno", { exact: true }).last()).toBeVisible();
+  await expect(projector.getByText("uno", { exact: true })).toBeVisible();
 
   // The Songs footer's ✕.
   // It left PREVIEW, and the Songs footer with it, when it went out (owner, 2026-11-15): picked again.
@@ -707,11 +704,11 @@ test("the live song deleted from the library stays up and the keys still walk it
   await expect(scheduleRows(app)).toHaveCount(0);
   await expect(tab(app).getByRole("button", { name: "Editar canción" })).toBeDisabled();
   // What is projected stays until something else goes live.
-  await expect(projector.getByText("uno", { exact: true }).last()).toBeVisible();
+  await expect(projector.getByText("uno", { exact: true })).toBeVisible();
   await app.control.keyboard.press("ArrowRight");
-  await expect(projector.getByText("coro", { exact: true }).last()).toBeVisible();
+  await expect(projector.getByText("coro", { exact: true })).toBeVisible();
   await app.control.keyboard.press("1");
-  await expect(projector.getByText("uno", { exact: true }).last()).toBeVisible();
+  await expect(projector.getByText("uno", { exact: true })).toBeVisible();
 });
 
 test("a song whose order names only sections that do not exist is projected as written, and the editor says so", async ({ app }) => {
@@ -739,12 +736,12 @@ test("a section sung off the order fits the projector like every other slide", a
   await app.goLive();
   const projector = await app.projector();
   const clipped = () => projector.locator("[data-song-block]").last().evaluate((el) => el.scrollHeight > el.clientHeight + 1);
-  await expect(projector.getByText("corta", { exact: true }).last()).toBeVisible();
+  await expect(projector.getByText("corta", { exact: true })).toBeVisible();
   expect(await clipped()).toBe(false);
 
   // P: the bridge, as a detour. Its twelve lines were never measured with the song's own slides.
   await app.control.keyboard.press("p");
-  await expect(projector.getByText(bridge[0]!, { exact: true }).last()).toBeVisible();
+  await expect(projector.getByText(bridge[0]!, { exact: true })).toBeVisible();
   await expect(app.liveColumn().getByText("fuera del orden · 1/1")).toBeVisible();
   await expect.poll(clipped).toBe(false);
 });
@@ -790,9 +787,9 @@ test("a song dragged onto the schedule goes live from its row, again after a vid
   await scheduleRows(app).first().click();
   await app.goLive();
   const projector = await app.projector();
-  await expect(projector.getByText("uno", { exact: true }).last()).toBeVisible();
+  await expect(projector.getByText("uno", { exact: true })).toBeVisible();
   await app.control.keyboard.press("ArrowRight");
-  await expect(projector.getByText("coro", { exact: true }).last()).toBeVisible();
+  await expect(projector.getByText("coro", { exact: true })).toBeVisible();
 
   await app.previewFile("Videos", "clip");
   await app.goLive();
@@ -800,7 +797,7 @@ test("a song dragged onto the schedule goes live from its row, again after a vid
 
   await scheduleRows(app).first().click();
   await app.goLive();
-  await expect(projector.getByText("uno", { exact: true }).last()).toBeVisible();
+  await expect(projector.getByText("uno", { exact: true })).toBeVisible();
   await expect(scheduleRows(app).first().locator(".bg-on-air")).toHaveCount(1);
 });
 
@@ -841,18 +838,18 @@ test("switching the language of a song cut into slides by its theme keeps the pr
   const projector = await app.projector();
   const live = app.liveColumn();
   const languages = live.getByRole("group", { name: "Idioma" });
-  await expect(projector.getByText("uno a").last()).toBeVisible();
+  await expect(projector.getByText("uno a")).toBeVisible();
   await app.control.keyboard.press("ArrowRight");
-  await expect(projector.getByText("coro a").last()).toBeVisible();
+  await expect(projector.getByText("coro a")).toBeVisible();
   await expect(live.getByText("2/2")).toBeVisible();
 
   // On the chorus, which has no translation, «Traducción» leaves it as it is…
   await languages.getByRole("button", { name: "Traducción" }).click();
-  await expect(projector.getByText("coro a").last()).toBeVisible();
+  await expect(projector.getByText("coro a")).toBeVisible();
   await expect(live.getByText("3/3")).toBeVisible();
   // …and back to «Original» from that last slide, which the original does not have, never leaves it without words.
   await languages.getByRole("button", { name: "Original" }).click();
-  await expect(projector.getByText("coro a").last()).toBeVisible();
+  await expect(projector.getByText("coro a")).toBeVisible();
   await expect(live.getByText("2/2")).toBeVisible();
 });
 
