@@ -209,7 +209,12 @@ function drawPath(p: XmlElement, w: number, h: number, vars: Map<string, number>
  * puts the point on that ray (`t = atan2(rx·sin a, ry·cos a)`).
  */
 function arcTo(x: number, y: number, rx: number, ry: number, st: number, sw: number): { d: string; x: number; y: number } {
-  if (rx <= 0 || ry <= 0 || sw === 0) return { d: "", x, y };
+  if (rx <= 0 || ry <= 0 || sw === 0 || !Number.isFinite(sw)) return { d: "", x, y };
+  // Past a full turn an arc only draws the same ellipse again, half a turn per step: a `swAng` of 1e15 (from the
+  // file or a guide) ran the worker out of memory (2026-11-15 audit, S5). One turn plus the remainder draws the
+  // same and ends at the same point.
+  const TURN = 2 * Math.PI;
+  if (Math.abs(sw) > TURN) sw = (sw % TURN) + Math.sign(sw) * TURN;
   const t0 = parametric(st, rx, ry);
   const t1 = parametric(st + sw, rx, ry);
   const centerX = x - rx * Math.cos(t0);
