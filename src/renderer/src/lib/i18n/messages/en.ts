@@ -797,6 +797,7 @@ const en: Messages = {
     toastUnusable: "{output}: {name} can't be used. Playing through the system default.",
     toastBack: "{output}: {name} is connected again.",
     toastStripsOff: "Strips off: the Live master volume is back to 100%.",
+    toastStripsOffKept: "Strips off: the Live master volume ({level}%) is now the starting volume.",
     toastStripsOn: "Strips on: the starting volume ({level}%) is now the Live master volume.",
   },
   live: {

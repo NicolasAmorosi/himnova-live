@@ -49,3 +49,24 @@ test("at 100 %, at 0, or with the strips already on, only the switch moves", asy
   expect(levels()).toEqual({ strips: true, master: 0.7, start: 0.5 });
   expect(useToastStore.getState().toasts).toEqual([]);
 });
+
+test("turned off with the starting volume at 100 %, LIVE's master goes back to being it: off, LIVE ignores its master", async () => {
+  // Off then played every item at 100 %: the room's 50 % was gone (review of U5).
+  start({ "audio.strips": true, "media.volume": 1, "audio.live.volume": 0.5 });
+  await setAudioStrips(false);
+  expect(levels()).toEqual({ strips: false, master: 1, start: 0.5 });
+  expect(h.set.mock.calls).toEqual([[{ "audio.strips": false, "media.volume": 0.5, "audio.live.volume": 1 }]]);
+  expect(useToastStore.getState().toasts.map((toast) => toast.message)).toEqual([
+    "Tiras apagadas: el volumen general de EN VIVO (50 %) pasa a ser el volumen inicial.",
+  ]);
+  // On and off again: the same level both ways.
+  await setAudioStrips(true);
+  expect(levels()).toEqual({ strips: true, master: 0.5, start: 1 });
+
+  // A starting volume already set, or a master at 100 % or 0: only the switch moves.
+  for (const [master, startAt] of [[0.5, 0.8], [1, 1], [0, 1]] as const) {
+    start({ "audio.strips": true, "media.volume": startAt, "audio.live.volume": master });
+    await setAudioStrips(false);
+    expect(levels()).toEqual({ strips: false, master, start: startAt });
+  }
+});

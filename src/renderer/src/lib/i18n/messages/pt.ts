@@ -798,6 +798,7 @@ const pt: Messages = {
     toastUnusable: "{output}: {name} não pode ser usada. Toca pela padrão do sistema.",
     toastBack: "{output}: {name} está conectada de novo.",
     toastStripsOff: "Faixas desligadas: o volume geral ao vivo volta a 100%.",
+    toastStripsOffKept: "Faixas desligadas: o volume geral ao vivo ({level}%) passa a ser o volume inicial.",
     toastStripsOn: "Faixas ligadas: o volume inicial ({level}%) passa a ser o volume geral ao vivo.",
   },
   live: {
