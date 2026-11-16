@@ -76,18 +76,24 @@ export function useFollowTrigger(
     const trigger = triggerRef.current;
     if (!open || !trigger) return;
     const reposition = () => latest.current.place(trigger);
+    // Only a scroll of something that holds the trigger moves it: the menu's own list scrolling placed (and
+    // re-rendered) the menu at every step (2026-11-15 audit, R31).
+    const onScroll = (event: Event) => {
+      if (event.target instanceof Node && !event.target.contains(trigger)) return;
+      reposition();
+    };
     reposition();
     window.addEventListener("resize", reposition);
     // capture: true — a scroll inside a nested panel or modal (the common
     // case here) never bubbles to window, only the capture phase sees it.
-    window.addEventListener("scroll", reposition, true);
+    window.addEventListener("scroll", onScroll, true);
     const observer = new IntersectionObserver(([entry]) => {
       if (entry && !entry.isIntersecting) latest.current.onHidden();
     });
     observer.observe(trigger);
     return () => {
       window.removeEventListener("resize", reposition);
-      window.removeEventListener("scroll", reposition, true);
+      window.removeEventListener("scroll", onScroll, true);
       observer.disconnect();
     };
   }, [open, triggerRef]);
