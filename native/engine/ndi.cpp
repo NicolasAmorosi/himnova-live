@@ -611,7 +611,10 @@ int ndiSendMain(int argc, char** argv) {
         } else if (!on && now - tried >= std::chrono::seconds(2)) {
           start();
         }
-        if (on) audio.pump(ndi, sender);
+        // Off too: a watching receiver keeps getting silence by the clock. Pumped only while on, the timeline froze,
+        // the first capture back filled the whole gap at once (45 ms on Core Audio's IO thread after an hour) and
+        // 4 s of old silence left in one go (2026-11-15 audit, A37).
+        audio.pump(ndi, sender);
         now = clock::now();
         if (on && now - lastLevel >= std::chrono::seconds(1)) {
           lastLevel = now;
