@@ -88,6 +88,14 @@ void Gpu::renderContextParams(std::vector<mpv_render_param>& p) {
 
 std::string Gpu::createRing(int width, int height, int count) {
   std::string handles;
+  // A ring that fails half made is never announced (no `slots`): main does not know the handles already duplicated
+  // into it, ~8 MB of video memory each at 1080p for the whole session. Closed here before failing (2026-11-15 audit,
+  // A35); a ring main was told about is main's to close.
+  auto fail = [&](const std::string& code, const std::string& detail) {
+    releaseShared();
+    for (auto& t : s->ring) t.inParent = nullptr;
+    ::fail(code, detail);
+  };
   for (int i = 0; i < count; i++) {
     D3D11_TEXTURE2D_DESC td{};
     td.Width = width; td.Height = height; td.MipLevels = 1; td.ArraySize = 1; td.Format = DXGI_FORMAT_B8G8R8A8_UNORM;

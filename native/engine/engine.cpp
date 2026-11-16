@@ -184,6 +184,15 @@ static void renderLoop(GpuOptions options) {
     gpu.renderContextParams(params);
     params.push_back({MPV_RENDER_PARAM_INVALID, nullptr});
     mpv_render_context* rctx = nullptr;
+    // Freed on every way out, before the GPU it draws with: a ring that could not be made or 30 failed frames threw
+    // past the free, and mpv aborts the process when its core is destroyed with a render context alive (a crash
+    // report after the `engine-gpu` main already had; 2026-11-15 audit, A35).
+    struct FreeContext {
+      mpv_render_context*& c;
+      ~FreeContext() {
+        if (c) mpv_render_context_free(c);
+      }
+    } freeContext{rctx};
     int e = mpv_render_context_create(&rctx, E.mpv, params.data());
     if (e < 0) fail("engine-gpu", std::string("mpv_render_context_create: ") + mpv_error_string(e));
     mpv_render_context_set_update_callback(rctx, onUpdate, nullptr);
@@ -229,6 +238,9 @@ static void renderLoop(GpuOptions options) {
       mpv_render_context_report_swap(rctx);
     }
     mpv_render_context_free(rctx);
+    rctx = nullptr;
+    // Only on a clean end: after a failure main closes the ring itself (an engine that exits non-zero leaves its
+    // handles to the next one, `--close-in-parent`), and closing them here too would close them twice.
     gpu.releaseShared();
   } catch (const Fail& f) {
     emitError(f);
@@ -766,8 +778,14 @@ int main(int argc, char** argv) {
   E.cv.notify_all();
   renderer.join();
   meter.join();
+  // A GPU that failed: out at once. The input thread may be inside mpv this very moment (a `pause` from main), and
+  // the core torn down under it is a second way to crash (2026-11-15 audit, A35).
+  if (E.started < 0) {
+    fflush(stdout);
+    std::_Exit(1);
+  }
   mpv_terminate_destroy(E.mpv);
   // The input thread may be blocked reading stdin; the process is ending, which unblocks it.
   input.detach();
-  return E.started < 0 ? 1 : 0;
+  return 0;
 }
