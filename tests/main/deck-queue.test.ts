@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { createDeckQueue, type DeckWorker } from "../../src/main/slides/deck-queue";
 
 type Request = { id: number; file: string };
-type Reply = { id: number; read: string };
+type Reply = { id: number; read: string } | { id: number; alive: true };
 
 /** Workers that read nothing on their own: a test answers, kills or hangs them. */
 function fakeWorkers() {
@@ -82,6 +82,49 @@ describe("deck queue", () => {
       started[1]!.emit("message", { id: 3, read: "c.pptx" });
       await flush();
       expect(outcome[2]).toEqual({ id: 3, read: "c.pptx" });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("a read that beats once per slide is never cut, however long; silent for the limit after a beat, it is", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      const { started, spawn } = fakeWorkers();
+      const queue = createDeckQueue<Request, Reply>(spawn, 60_000);
+      const outcome = track([queue.ask("long.pptx", { id: 1, file: "long.pptx" }, "now")]);
+
+      // A slow PC: 50 s a slide, five slides, 250 s in all.
+      for (let slide = 0; slide < 5; slide++) {
+        vi.advanceTimersByTime(50_000);
+        started[0]!.emit("message", { id: 1, alive: true });
+      }
+      await flush();
+      expect(started[0]!.stopped).toBe(0);
+      expect(outcome).toEqual(["pending"]);
+
+      // Then one slide that never ends.
+      vi.advanceTimersByTime(60_000);
+      await flush();
+      expect(started[0]!.stopped).toBe(1);
+      expect(outcome).toEqual([null]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("copying a deck's clips is not timed: minutes of video off a slow drive are copied to the end", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      const { started, spawn } = fakeWorkers();
+      const queue = createDeckQueue<Request, Reply>(spawn, 60_000);
+      const outcome = track([queue.ask("clips.pptx", { id: 1, file: "clips.pptx" }, "now", false)]);
+      vi.advanceTimersByTime(10 * 60_000);
+      await flush();
+      expect(started[0]!.stopped).toBe(0);
+      started[0]!.emit("message", { id: 1, read: "clips.pptx" });
+      await flush();
+      expect(outcome).toEqual([{ id: 1, read: "clips.pptx" }]);
     } finally {
       vi.useRealTimers();
     }

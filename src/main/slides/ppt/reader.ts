@@ -71,7 +71,7 @@ const PH_DATE = 7, PH_SLIDE_NUMBER = 8, PH_FOOTER = 9, PH_HEADER = 10;
 
 const MAX_DEPTH = 12;
 
-export type PptResources = { msoShapes: MsoShapeTable };
+export type PptResources = { msoShapes: MsoShapeTable; onSlide?: () => void };
 
 /** One sound of the deck's collection: where its bytes are, and what it is. */
 export type BinarySound = { id: string; part: string; ext: string };
@@ -235,6 +235,7 @@ function readDeck(doc: Doc, resources: PptResources): PptModelRead {
   const slides: PptxSlide[] = [];
   const metas: BinarySlideMeta[] = [];
   slideIds.forEach((persistId, index) => {
+    resources.onSlide?.();
     const unsupported = new Map<string, number>();
     const miss = (what: string): void => void unsupported.set(what, (unsupported.get(what) ?? 0) + 1);
     const slide = persisted(doc, persistId);

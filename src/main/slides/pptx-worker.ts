@@ -48,16 +48,25 @@ export type PptxRequest = { id: number; file: string; extract?: undefined } | { 
 export type PptxReply =
   | { id: number; read: PptxRead }
   | { id: number; clips: PptxClips }
-  | { id: number; error: string };
+  | { id: number; error: string }
+  /** Still reading `id`: one per slide, which restarts the queue's timer (`deck-queue.ts`). */
+  | { id: number; alive: true };
 
 type Resources = PptxResources & PptResources;
 let resources: Resources | null = null;
+
+/** The request in hand, and the beat the readers send once per slide: a deck is stopped only after the queue's
+ *  limit without one, so a long deck on a slow PC is read to the end (2026-11-15 audit, S4, review). */
+let reading = 0;
+const beat = (): void => parentPort?.postMessage({ id: reading, alive: true } satisfies PptxReply);
 
 /** By what the bytes are, never by the extension. */
 function readModel(file: string, loaded: Resources): { deck: PptxDeck; meta: PresentationMeta | null } {
   switch (containerKind(file)) {
     case "ooxml": {
       const deck = readPptxDeck(file, loaded);
+      // The timings parse every slide again.
+      beat();
       let meta: PresentationMeta | null = null;
       try {
         meta = readPresentationMeta(file);
@@ -104,8 +113,10 @@ function read(file: string): PptxRead {
     tableStyles: parseTableStyles(fs.readFileSync(path.join(ooxmlDir, "tableStyles.xml"), "utf8")),
     // Office's built-in shapes, for a legacy deck (`ppt/escher.ts`).
     msoShapes: parseMsoShapes(fs.readFileSync(path.join(ooxmlDir, "mso-shapes.json"), "utf8")),
+    onSlide: beat,
   };
   const { deck, meta } = readModel(file, resources);
+  beat();
   return {
     width: deck.width,
     height: deck.height,
@@ -116,6 +127,7 @@ function read(file: string): PptxRead {
 
 parentPort?.on("message", (request: PptxRequest) => {
   const { id } = request;
+  reading = id;
   let reply: PptxReply;
   try {
     if (request.extract) {

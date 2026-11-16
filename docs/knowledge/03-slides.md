@@ -68,8 +68,9 @@ SlideView (React, components/shared/slide-view/) ◄── worship://deck/<id>/<
   read-ahead, and a deck being read ahead that the operator opens moves up. A worker that dies on
   a file fails that deck only, and the decks still waiting go to a fresh worker; a deck whose sound
   and video were being copied when it died is not saved (it would stay mute), so the next open
-  reads it again. A worker silent for `SLIDES_DECK_READ_TIMEOUT_MS` (60 s) on the deck it was
-  handed is stopped, and that deck fails the same way. A file is never retried on main. The preset
+  reads it again. A read is timed by its progress: the readers beat once per slide (`onSlide`),
+  and a worker that goes `SLIDES_DECK_READ_TIMEOUT_MS` (60 s) without a beat on the deck it was
+  handed is stopped, and that deck fails the same way. Copying the clips is not timed (only I/O). A file is never retried on main. The preset
   geometries and the built-in table styles come from `resources/ooxml/` (`paths.ts` → `ooxmlDir`, shipped as `extraResources`). Pictures, media and
   fonts are never read here — the model names them by part. Every reader writes colours as
   `rgb()`/`rgba()` (`css()` in `pptx/color.ts`): the painter reads gradient stops' channels back

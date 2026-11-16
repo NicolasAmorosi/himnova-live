@@ -19,12 +19,17 @@ export type DeckWorker = EventEmitter & { postMessage(request: unknown): void; t
  * on, goes before `later`, the read-ahead. A deck read ahead as its tile
  * scrolled by waited, when the operator chose it, behind every read queued
  * before it (2026-11-15 audit, R10); `hurry` moves it up.
+ *
+ * A read is timed by its progress, not as a whole: the worker beats once per
+ * slide (`{ id, alive: true }`), and `hangMs` without a beat stops it. A deck
+ * timed whole failed on a slow PC that was still reading it; copying its clips
+ * is not timed at all, since that is only I/O (2026-11-15 audit, S4, review).
  */
 export function createDeckQueue<Req extends { id: number }, Reply extends { id: number }>(
   spawn: () => DeckWorker,
   hangMs: number,
 ) {
-  type Job = { file: string; request: Req; done: (reply: Reply | null) => void };
+  type Job = { file: string; request: Req; timed: boolean; done: (reply: Reply | null) => void };
   let worker: DeckWorker | null = null;
   const lanes: Record<RasterLane, Job[]> = { now: [], later: [] };
   let running: Job | null = null;
@@ -44,14 +49,24 @@ export function createDeckQueue<Req extends { id: number }, Reply extends { id: 
     running = lanes.now.shift() ?? lanes.later.shift() ?? null;
     if (!running) return;
     current().postMessage(running.request);
-    // A file that never finishes (a loop a crafted SmartArt sends on forever,
-    // 2026-11-15 audit, S4) held this deck, every deck after it and «Reintentar»
-    // until a restart. Timed from when the worker gets the deck, never from
-    // when it was queued: behind a long queue a healthy deck waits for minutes.
+    arm();
+  }
+
+  /**
+   * A file that never finishes (a loop a crafted SmartArt sends on forever,
+   * 2026-11-15 audit, S4) held this deck, every deck after it and «Reintentar»
+   * until a restart. Timed from when the worker gets the deck, never from when
+   * it was queued (behind a long queue a healthy deck waits for minutes), and
+   * armed again at every beat.
+   */
+  function arm(): void {
+    if (hangTimer) clearTimeout(hangTimer);
+    hangTimer = null;
+    if (!running?.timed) return;
     hangTimer = setTimeout(() => {
       const stuck = worker;
       worker = null;
-      console.warn(`[slides] the deck reader took over ${hangMs / 1000} s on ${running?.file}: stopped`);
+      console.warn(`[slides] the deck reader went ${hangMs / 1000} s without progress on ${running?.file}: stopped`);
       finish(null);
       void stuck?.terminate();
     }, hangMs);
@@ -62,6 +77,7 @@ export function createDeckQueue<Req extends { id: number }, Reply extends { id: 
     const started = spawn();
     started.on("message", (reply: Reply) => {
       if (worker !== started || reply.id !== running?.request.id) return;
+      if ("alive" in reply) return arm();
       if ("error" in reply) console.warn(`[slides] no reader could open ${running.file}: ${String(reply.error)}`);
       finish(reply);
     });
@@ -80,9 +96,10 @@ export function createDeckQueue<Req extends { id: number }, Reply extends { id: 
   }
 
   return {
-    ask(file: string, request: Req, lane: RasterLane): Promise<Reply | null> {
+    /** `timed`: stopped after `hangMs` without a beat. A copy of the clips is not. */
+    ask(file: string, request: Req, lane: RasterLane, timed = true): Promise<Reply | null> {
       return new Promise((done) => {
-        lanes[lane].push({ file, request, done });
+        lanes[lane].push({ file, request, timed, done });
         pump();
       });
     },
