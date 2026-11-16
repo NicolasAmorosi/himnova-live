@@ -468,9 +468,15 @@ test.describe("on Windows, with Chromium on WARP", () => {
 type EngineEvent = { ev: string; code?: string; slot?: number };
 
 /** The engine on its own, as main drives it (no app: main's own guard refuses such text first): one file loaded,
- *  playing and muted, and every event it says within `ms`. */
+ *  playing and muted, and every event it says within `ms`. On Windows its GPU opens the process it hands the ring
+ *  to (`--parent`: this one). On Linux, with no socket to hand the ring to, a file that loads ends the engine right
+ *  after `loaded` (`engine-gpu`): what this asks of it is said by then. */
 async function engineEvents(file: string, ms: number): Promise<EngineEvent[]> {
-  const child = spawn(engineBinary(), ["--max-width", "1920", "--max-height", "1080"], { stdio: ["pipe", "pipe", "ignore"] });
+  const args = ["--max-width", "1920", "--max-height", "1080", ...(process.platform === "win32" ? ["--parent", String(process.pid)] : [])];
+  const child = spawn(engineBinary(), args, { stdio: ["pipe", "pipe", "ignore"] });
+  child.stdin.on("error", () => {
+    // Gone already (Linux, above): `exit` says so.
+  });
   const events: EngineEvent[] = [];
   readline.createInterface({ input: child.stdout }).on("line", (line) => {
     if (!line.startsWith("{")) return;
