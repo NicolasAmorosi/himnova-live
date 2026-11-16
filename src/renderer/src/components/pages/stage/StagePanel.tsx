@@ -14,6 +14,7 @@ import { cn } from "@renderer/lib/utils";
 import { useTimerNow } from "@renderer/lib/hooks/use-timer-now";
 import { Button, Caption, Icon, IconButton, Input, Readout, Segmented, StatusToken, Title, Tooltip } from "@renderer/components/ui";
 import { ReopenStage } from "@renderer/components/shared/reopen-stage";
+import { getTopModalId } from "@renderer/components/shared/modal/modal-stack";
 import { StageView } from "@renderer/components/shared/stage-view";
 import { useDisplayStore } from "@renderer/stores/display.store";
 import { useProjectionStore } from "@renderer/stores/projection.store";
@@ -513,6 +514,22 @@ function StageCard({ closing, onClosed }: { closing: boolean; onClosed: () => vo
     return () => clearTimeout(timer);
   }, [closing, onClosed]);
 
+  // Esc folds it wherever the focus is: opened with the mouse (the head is no button), the focus is not inside the card
+  // and its own handler never heard it (2026-11-15 audit, U3). Not an Esc a field or a widget already used, nor one
+  // meant for a dialog on top.
+  useEffect(() => {
+    if (closing) return;
+    const onKeyDown = (e: globalThis.KeyboardEvent) => {
+      if (e.key !== "Escape" || e.defaultPrevented || getTopModalId() !== null) return;
+      // An Esc typed in a field elsewhere (the library's filter, a search) is that field's, even with the card pinned.
+      const target = e.target instanceof HTMLElement ? e.target : null;
+      if (target && !card.current?.contains(target) && target.closest("input, textarea, [contenteditable]")) return;
+      setOpen(false);
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [closing]);
+
   useEffect(() => {
     if (closing) return;
     const onPointerDown = (e: PointerEvent) => {
@@ -524,8 +541,6 @@ function StageCard({ closing, onClosed }: { closing: boolean; onClosed: () => vo
   }, [closing]);
 
   return (
-    /* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- a non-modal dialog that folds
-       on Esc from anywhere inside it: the keys are its controls', the card only answers the one they leave. */
     <div
       aria-label={t("stagePanel.title")}
       className={cn(
@@ -536,9 +551,6 @@ function StageCard({ closing, onClosed }: { closing: boolean; onClosed: () => vo
         if (e.target !== e.currentTarget || e.propertyName !== "height") return;
         if (closing) onClosed();
         else setSettled(true);
-      }}
-      onKeyDown={(e) => {
-        if (e.key === "Escape") setOpen(false);
       }}
       ref={card}
       role="dialog"
@@ -568,7 +580,9 @@ export function StagePanel() {
   const t = useT();
   return (
     <>
-      <section aria-label={t("stagePanel.title")} className="shrink-0 border-t border-border bg-surface">
+      {/* Under the card while it is there: out of the tab order and of a screen reader's reading, or its pin, arrow
+          and ✕ were reached twice and invisibly. */}
+      <section aria-label={t("stagePanel.title")} className="shrink-0 border-t border-border bg-surface" inert={mounted}>
         <StageHead open={false} />
       </section>
       {mounted ? <StageCard closing={!open} onClosed={unmount} /> : null}

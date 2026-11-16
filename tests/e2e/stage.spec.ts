@@ -510,3 +510,45 @@ test("«Proyector» plays what the projector plays: an engine video's frames mov
   await stageVideos(app, false);
   await expect.poll(async () => (await videoStates(stage)).length).toBe(0);
 });
+
+test("the stage card opened with the mouse folds with Esc, and the bar under it is out of the tab order", async ({ app }) => {
+  const bar = app.control.getByRole("region", { name: "Escenario", exact: true });
+  const card = app.control.getByRole("dialog", { name: "Escenario" });
+  const inert = () => bar.evaluate((section) => section.closest("[inert]") !== null);
+  const opened = app.electron.waitForEvent("window", { predicate: isStage });
+  await chooseStageScreen(app, true);
+  await (await opened).waitForLoadState("domcontentloaded");
+
+  // A press on the head leaves the focus outside the card, where its own Esc never got (2026-11-15 audit, U3).
+  await bar.getByRole("heading", { name: "Escenario" }).click();
+  await expect(card).toBeVisible();
+  await app.control.keyboard.press("Escape");
+  await expect(card).toHaveCount(0);
+
+  // By its arrow, the same; and meanwhile the covered bar's pin, arrow and ✕ are out of reach.
+  expect(await inert()).toBe(false);
+  await bar.getByRole("button", { name: "Abrir el panel del escenario" }).click();
+  await expect(card).toBeVisible();
+  expect(await inert()).toBe(true);
+  await app.control.keyboard.press("Escape");
+  await expect(card).toHaveCount(0);
+  expect(await inert()).toBe(false);
+
+  // Pinned, an Esc typed in a field elsewhere (a library filter) is the field's; from anywhere else it still folds.
+  await bar.getByRole("button", { name: "Fijar el panel: no se cierra al tocar afuera" }).click();
+  await expect(card).toBeVisible();
+  const inField = await app.control.evaluate(() => {
+    const open = document.querySelector('[role="dialog"][aria-label="Escenario"]');
+    const fields = [...document.querySelectorAll<HTMLInputElement>('input:not([type]), input[type="text"], input[type="search"]')];
+    const field = fields.find((candidate) => !open?.contains(candidate));
+    field?.focus();
+    return field !== undefined && document.activeElement === field;
+  });
+  expect(inField).toBe(true);
+  await app.control.keyboard.press("Escape");
+  await app.control.waitForTimeout(500);
+  await expect(card).toBeVisible();
+  await app.control.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+  await app.control.keyboard.press("Escape");
+  await expect(card).toHaveCount(0);
+});
