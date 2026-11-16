@@ -288,7 +288,7 @@ function collect(el: XmlElement, styles: TextStyles, ctx: TextContext, out: Read
         for (const li of c.children) {
           if (li.name !== "text:list-item" && li.name !== "text:list-header") continue;
           const start = attr(li, "text:start-value");
-          collect(li, styles, ctx, out, next, { bullet: li.name === "text:list-item", start: start === null ? null : Number(start) || 1 });
+          collect(li, styles, ctx, out, next, { bullet: li.name === "text:list-item", start: start === null ? null : listStart(start) });
         }
         state.counters = next.counters;
         first = false;
@@ -353,7 +353,7 @@ function readParagraph(p: XmlElement, styles: TextStyles, ctx: TextContext, stat
       const counters = state.counters;
       const previous = counters[state.level - 1];
       if (counters.length > state.level) counters.length = state.level;
-      const n = item.start ?? (previous !== undefined ? previous + 1 : Number(attr(levelStyle, "text:start-value") ?? 1) || 1);
+      const n = item.start ?? (previous !== undefined ? previous + 1 : listStart(attr(levelStyle, "text:start-value")));
       counters[state.level - 1] = n;
       if (textRuns.some((r) => r.kind === "text")) bullet = readBullet(levelStyle, n, ctx);
     }
@@ -481,6 +481,16 @@ function readBullet(levelStyle: XmlElement | null, n: number, ctx: TextContext):
   return { kind: "char", char, font, color: c, size };
 }
 
+/** A list's `text:start-value`, finite or 1: `Number("1e999")` is Infinity, which no counter can reach. */
+function listStart(value: string | null): number {
+  const n = Number(value ?? 1);
+  return Number.isFinite(n) && n !== 0 ? n : 1;
+}
+
+/** Letters past 3999 are Arabic numerals, as LibreOffice writes them: a roman 1e10 was ten million `m`s (9.5 MB
+ *  for one slide), and the same bound keeps the letters short (2026-11-15 audit, S6). */
+const MAX_LETTERED = 3999;
+
 function formatNumber(n: number, format: string): string {
   const roman = (v: number): string => {
     const table: [number, string][] = [[1000, "m"], [900, "cm"], [500, "d"], [400, "cd"], [100, "c"], [90, "xc"], [50, "l"], [40, "xl"], [10, "x"], [9, "ix"], [5, "v"], [4, "iv"], [1, "i"]];
@@ -500,6 +510,7 @@ function formatNumber(n: number, format: string): string {
     }
     return out;
   };
+  if (n > MAX_LETTERED) return String(n);
   switch (format) {
     case "i": return roman(n);
     case "I": return roman(n).toUpperCase();
