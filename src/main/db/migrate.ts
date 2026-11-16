@@ -192,6 +192,8 @@ function pruneOldBackups(backupDir: string, keep: number, fresh: string): void {
   for (const stale of older.slice(0, Math.max(0, older.length - (keep - 1)))) {
     try {
       fs.unlinkSync(path.join(backupDir, stale));
+      // A copy kept as it was (`keepAsItIs` in `backups.ts`) may have its `-wal` beside it.
+      fs.rmSync(path.join(backupDir, `${stale}-wal`), { force: true });
     } catch (error) {
       console.warn(`[db] could not prune old backup ${stale}`, error);
     }

@@ -124,6 +124,32 @@ describe("applying it at launch", () => {
     expect(applyPendingRestore(dbFile, backups)).toBeNull();
   });
 
+  test("over a damaged database, the copy goes in all the same, the damaged file kept raw beside it (audit D2)", () => {
+    // The case a restore exists for: the database opens, but a damaged page makes `VACUUM INTO` throw, so there was
+    // no verified copy of it, nothing was replaced and the staged copy was deleted. Every try did the same.
+    const profile = fresh("profile");
+    const dbFile = path.join(profile, "worship.db");
+    const { sqlite, db } = (fs.mkdirSync(profile, { recursive: true }), openDatabase(dbFile));
+    runMigrations(db, drizzleDir);
+    const programs = new ProgramsRepo(db, sqlite);
+    for (let i = 0; i < 400; i++) programs.save({ name: `Culto ${i} ${"x".repeat(200)}`, items: [] });
+    sqlite.pragma("wal_checkpoint(TRUNCATE)");
+    sqlite.close();
+    const bytes = fs.readFileSync(dbFile);
+    bytes.fill(0xa5, bytes.length - 40 * 4096, bytes.length - 30 * 4096);
+    fs.writeFileSync(dbFile, bytes);
+    const backups = path.join(profile, "backups");
+    expect(stageRestore(profileDb(fresh("copia.db"), "Culto de ayer"), stagedRestorePath(backups), newest)).toBeNull();
+
+    expect(applyPendingRestore(dbFile, backups)).toMatchObject({ status: "ok" });
+
+    expect(programNames(dbFile)).toEqual(["Culto de ayer"]);
+    const kept = fs.readdirSync(path.join(backups, "before-restore"));
+    const raw = kept.find((name) => name.endsWith("-damaged.db"));
+    expect(raw).toBeDefined();
+    expect(fs.readFileSync(path.join(backups, "before-restore", raw!)).equals(bytes)).toBe(true);
+  });
+
   test("a copy from before an update is migrated by the launch, with the pre-migration copy taken", () => {
     const older = path.join(tmp, "drizzle-older");
     fs.mkdirSync(path.join(older, "meta"), { recursive: true });
