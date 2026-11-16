@@ -53,6 +53,13 @@ let navEpoch = 0;
 let deadline = 0;
 let seededEpoch = -1;
 let activeInstance = 0;
+/** Set by «Reiniciar»: a report the projector sent before it applied the restart can still land after it, and a
+ *  synced deck followed it back to the music's slide for an instant (1, 3, 1). Reports past slide 1 are dropped until
+ *  the first one inside it, or `RESTART_GUARD_MS` (2026-11-15 audit, A17). */
+let restartGuard: { epoch: number; boundaryMs: number; until: number } | null = null;
+/** ponytail: a fixed bound, so a slide 1 shorter than a report's period cannot hold the deck forever; raise it if the
+ *  engine's seek ever takes longer than this to report. */
+const RESTART_GUARD_MS = 1000;
 
 function clearTimer(): void {
   if (timer !== null) {
@@ -195,6 +202,8 @@ export function restartDeck(): void {
   restartDeckSounds();
   state.setAutoplayMode("synced");
   if (state.liveDeck?.soundtrack) {
+    const boundaryMs = state.liveDeck.cumulativeMs[2] ?? 0;
+    restartGuard = { epoch: state.soundtrackEpoch, boundaryMs, until: performance.now() + RESTART_GUARD_MS };
     useAudioStore.getState().setPaused(DECK_SOUNDTRACK_TRACK_ID, false);
     // Under BLACK/LOGO only rewind: «restart» is a `play()` in the projector,
     // which beat the cover's declarative pause and sang behind the black.
@@ -273,6 +282,11 @@ export function startDeckAutoplay(): () => void {
       if (!deck?.soundtrack || state.base?.kind !== "deck") return;
       // Another play's report (the previous deck's music, still in flight) is not this deck's clock.
       if (status.epoch !== state.soundtrackEpoch) return;
+      if (restartGuard) {
+        const stale = restartGuard.epoch === status.epoch && status.currentTimeSeconds * 1000 >= restartGuard.boundaryMs;
+        if (stale && performance.now() < restartGuard.until) return;
+        restartGuard = null;
+      }
 
       // Reopening the projection window mid-deck gives us a fresh <audio> that
       // starts at 0. Seek it back to where the current slide belongs — but only
@@ -372,5 +386,6 @@ export function startDeckAutoplay(): () => void {
     navEpoch += 1;
     deadline = 0;
     seededEpoch = -1;
+    restartGuard = null;
   };
 }
