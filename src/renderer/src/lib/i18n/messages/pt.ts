@@ -12,7 +12,6 @@ const pt: Messages = {
     /** The name of a schedule never saved: not «New program», the button's command (2026-11-05). */
     untitled: "Sem título",
     closeDisplay: "Fechar tela",
-    controlDisplay: "(tela de controle)",
   },
   schedule: {
     title: "Roteiro",
@@ -619,7 +618,6 @@ const pt: Messages = {
     invalidHint: "Um tema precisa de um nome.",
     name: "Nome",
     groups: {
-      theme: "Tema",
       lyrics: "Letra",
       spacing: "Espaços",
       footer: "Rodapé de copyright",

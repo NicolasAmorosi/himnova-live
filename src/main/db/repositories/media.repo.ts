@@ -336,38 +336,6 @@ export class MediaRepo {
   // asset OWN a deck row?", and ownership is exclusive while the cache is
   // content-addressed.
 
-  /** The stored hash, but only while the `(size, mtime)` it was computed over
-   *  still matches the file the row describes. A stale stamp reads as "no
-   *  hash": the bytes changed, so the old digest answers about a file that no
-   *  longer exists. */
-  private static validHash(row: typeof mediaAssets.$inferSelect): string | null {
-    if (row.contentHash === null) return null;
-    if (row.contentHashSize !== row.sizeBytes) return null;
-    if (row.contentHashMtimeMs !== row.mtimeMs) return null;
-    return row.contentHash;
-  }
-
-  /** `assetId → content hash`, for the assets that have a currently-valid one.
-   *  Chunked for the same reason `sweep` and `statusesByAsset` are: the caller
-   *  is a grid handing over every asset it can see, and one `IN (...)` binds
-   *  one parameter per id. */
-  validContentHashes(ids: readonly number[]): Map<number, string> {
-    const result = new Map<number, string>();
-    if (ids.length === 0) return result;
-    for (let i = 0; i < ids.length; i += ID_CHUNK) {
-      const slice = ids.slice(i, i + ID_CHUNK);
-      for (const row of this.db
-        .select()
-        .from(mediaAssets)
-        .where(inArray(mediaAssets.id, slice))
-        .all()) {
-        const hash = MediaRepo.validHash(row);
-        if (hash !== null) result.set(row.id, hash);
-      }
-    }
-    return result;
-  }
-
   /** Records the digest together with the `(size, mtime)` it describes, so it
    *  can be invalidated without re-reading the file. Called from the two
    *  places that ever compute one: a real conversion (which needs the hash

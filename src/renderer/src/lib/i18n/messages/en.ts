@@ -12,7 +12,6 @@ const en: Messages = {
     /** The name of a schedule never saved: not «New program», the button's command (2026-11-05). */
     untitled: "Untitled",
     closeDisplay: "Close projector",
-    controlDisplay: "(control screen)",
   },
   schedule: {
     title: "Schedule",
@@ -618,7 +617,6 @@ const en: Messages = {
     invalidHint: "A theme needs a name.",
     name: "Name",
     groups: {
-      theme: "Theme",
       lyrics: "Lyrics",
       spacing: "Spacing",
       footer: "Copyright footer",

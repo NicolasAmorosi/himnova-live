@@ -41,8 +41,6 @@ import {
   matchesAll,
   normalizeTextStyle,
   normalizeTransition,
-  STYLE_TEXT_MAX_CQW,
-  STYLE_TEXT_MIN_CQW,
 } from "./style-validators";
 import {
   DEFAULT_SCENE_STYLE,
@@ -65,12 +63,8 @@ import {
 } from "./types/timer";
 import type { UtilityScene, UtilitySceneUpsert } from "./types/utility";
 
-/** Re-exported so a scene's own editor keeps one import: these are the limits
- *  of a scene's text, spelled once in `style-validators.ts` because the Bible
- *  verse is bounded by exactly the same numbers. */
+/** Re-exported so what checks a scene keeps one import. */
 export { isSceneBackground };
-export const SCENE_TEXT_MIN_CQW = STYLE_TEXT_MIN_CQW;
-export const SCENE_TEXT_MAX_CQW = STYLE_TEXT_MAX_CQW;
 
 /* -------------------------------------------------------------------------
  * Field-level limits

@@ -12,7 +12,6 @@ const es = {
     /** The name of a schedule never saved: not «New program», the button's command (2026-11-05). */
     untitled: "Sin título",
     closeDisplay: "Cerrar pantalla",
-    controlDisplay: "(pantalla del control)",
   },
   schedule: {
     title: "Programa",
@@ -621,7 +620,6 @@ const es = {
     invalidHint: "Un tema necesita un nombre.",
     name: "Nombre",
     groups: {
-      theme: "Tema",
       lyrics: "Letra",
       spacing: "Espacios",
       footer: "Pie de copyright",

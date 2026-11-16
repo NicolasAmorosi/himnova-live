@@ -611,19 +611,6 @@ export class SlidesRepo {
       .run();
   }
 
-  setStatus(deckId: number, status: DeckStatus, errorCode?: string, errorMessage?: string): void {
-    this.db
-      .update(slideDecks)
-      .set({
-        status: status === "ready" ? "ready" : status === "failed" ? "error" : "converting",
-        errorCode: errorCode ?? null,
-        errorMessage: errorMessage ?? null,
-        updatedAt: Date.now(),
-      })
-      .where(eq(slideDecks.id, deckId))
-      .run();
-  }
-
   private deleteDeckRow(deckId: number): void {
     this.db.delete(slideDecks).where(eq(slideDecks.id, deckId)).run();
   }

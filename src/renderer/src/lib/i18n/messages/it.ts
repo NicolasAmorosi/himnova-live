@@ -12,7 +12,6 @@ const it: Messages = {
     /** The name of a schedule never saved: not «New program», the button's command (2026-11-05). */
     untitled: "Senza titolo",
     closeDisplay: "Chiudi proiezione",
-    controlDisplay: "(schermo di controllo)",
   },
   schedule: {
     title: "Scaletta",
@@ -620,7 +619,6 @@ const it: Messages = {
     invalidHint: "Un tema ha bisogno di un nome.",
     name: "Nome",
     groups: {
-      theme: "Tema",
       lyrics: "Testo",
       spacing: "Spazi",
       footer: "Piè di pagina del copyright",

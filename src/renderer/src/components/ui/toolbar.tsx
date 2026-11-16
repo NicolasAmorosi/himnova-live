@@ -18,8 +18,3 @@ export function Toolbar({ border = "bottom", className, ...props }: ToolbarProps
     />
   );
 }
-
-/** A visually grouped cluster of controls inside a Toolbar. */
-export function ToolbarGroup({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn("flex items-center gap-1.5", className)} {...props} />;
-}
