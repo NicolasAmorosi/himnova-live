@@ -63,8 +63,10 @@ SlideView (React, components/shared/slide-view/) ◄── worship://deck/<id>/<
   and everything after them is shared (`recordModelDeck`). The OOXML reading parses every slide
   twice, and on a template with a 22 MB map slide the two took 11 s on the thread that answers IPC
   and serves `worship://`; on the worker it costs main only the copy of the result, each slide's
-  `layers` handed back already as JSON. A worker that dies on a file fails that deck; it is never
-  retried on main. The preset geometries and the built-in table styles come from
+  `layers` handed back already as JSON. The worker gets one request at a time from a queue on main
+  (`deck-queue.ts`): a worker that dies on a file fails that deck only, and the decks still waiting
+  go to a fresh worker; a deck whose sound and video were being copied when it died is not saved
+  (it would stay mute), so the next open reads it again. A file is never retried on main. The preset geometries and the built-in table styles come from
   `resources/ooxml/` (`paths.ts` → `ooxmlDir`, shipped as `extraResources`). Pictures, media and
   fonts are never read here — the model names them by part. Every reader writes colours as
   `rgb()`/`rgba()` (`css()` in `pptx/color.ts`): the painter reads gradient stops' channels back
@@ -202,7 +204,7 @@ narrower than it looks — see
 
 ## A deck that won't open
 
-When every reader declines a file (the worker threw on it or died, or all its slides are hidden),
+When every reader declines a file (the worker threw on it or died reading it, or all its slides are hidden),
 `sniffUnreadableDeck` (`ppt-binary.ts`, pure, tested in `tests/main/container-kind.test.ts`) looks
 at its bytes to say what the operator can do, and the deck fails with that `SlideError` code and a
 localized reason (main's `mt()`):

@@ -25,9 +25,11 @@ export async function readPptx(sourcePath: string): Promise<PptxRead | null> {
   return reply && "read" in reply ? reply.read : null;
 }
 
-/** The deck's embedded sound and video, copied into its cache on the worker thread. `null` when the
- *  worker could not (the deck then goes without them, as with a part that won't read). */
+/** The deck's embedded sound and video, copied into its cache on the worker thread. None when the
+ *  worker could not copy them (the deck then goes without them, as with a part that won't read);
+ *  `null` when the worker stopped before answering, which says nothing about the file. */
 export async function extractClips(extract: PptxExtract): Promise<PptxClips | null> {
   const reply = await queue.ask(extract.file, { id: ++nextId, extract });
-  return reply && "clips" in reply ? reply.clips : null;
+  if (!reply) return null;
+  return "clips" in reply ? reply.clips : { audio: [], video: [] };
 }

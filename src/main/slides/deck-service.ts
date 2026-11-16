@@ -453,13 +453,21 @@ async function recordModelDeck(
   // Each sound on the slides it plays on (`placeAudio`), counted among the
   // slides drawn — which only the timings that lined up can say.
   const visibleOoxml = timingsUsable ? visibleMeta.map((slide) => slide.slideIndex) : null;
-  const clips = (await extractClips({
+  const extract = {
     file: sourcePath,
     audio: meta.audio,
     audioDir: path.join(cacheDir, "audio"),
     video: meta.video.length > 0 && timingsUsable ? meta.video : [],
     videoDir: path.join(cacheDir, "video"),
-  })) ?? { audio: [], video: [] };
+  };
+  const extracted = await extractClips(extract);
+  // The worker stopped before copying them: saved now, the deck would stay
+  // mute after a restart too (2026-11-15 audit, D6). Nothing is kept, so the
+  // next open reads it again.
+  if (!extracted && extract.audio.length + extract.video.length > 0) {
+    throw new SlideError("RASTER_FAILED", mt("slides.deckUnreadable"));
+  }
+  const clips = extracted ?? { audio: [], video: [] };
   const audio: NewAudio[] = clips.audio.flatMap(
     (extracted) => {
       const placed = placeAudio(extracted, visibleOoxml);
