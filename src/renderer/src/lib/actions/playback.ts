@@ -812,10 +812,17 @@ export function clearBaseContentUnder(cover: "logo" | "black"): void {
  *  `goLive()`. */
 export async function toggleOverlay(kind: Extract<OverlayState, "black" | "logo">): Promise<void> {
   claimLiveIntent();
+  // A projector closed under a cover, opened again by its button, shows that cover: toggling there uncovered what
+  // was live, a video with its sound (review of 2026-11-16, after the buttons began to toggle).
+  const wasOpen = useProjectionStore.getState().presentationOpen;
   await useDisplayStore.getState().openIfNeeded();
-  const { beginScene, overlay, setOverlay } = useProjectionStore.getState();
-  beginScene();
-  setOverlay(overlay === kind ? "none" : kind);
+  const { base, beginScene, overlay, setOverlay } = useProjectionStore.getState();
+  const next = wasOpen && overlay === kind ? "none" : kind;
+  if (next === overlay) return;
+  // With nothing live, LOGO and «uncovered» are the same picture (the resting logo): a scene between them flashed
+  // under «fade through black».
+  if (!(base === null && next !== "black" && overlay !== "black")) beginScene();
+  setOverlay(next);
 }
 
 /** The VIVO button: forces «uncovered» (never a toggle). LOGO and NEGRO toggle like L and B since 2026-11-16
