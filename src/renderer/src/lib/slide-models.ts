@@ -15,10 +15,15 @@ const pending = new Map<string, Promise<SlideModel | null>>();
 /** Each embedded font's load, by url: a second slide of the deck waits for the one the first started. */
 const fontLoads = new Map<string, Promise<void>>();
 
-/** A part of the deck a model url belongs to. */
+const resolvers = new Map<number, (part: string) => string>();
+
+/** A part of the deck a model url belongs to: one function per deck, the same at every render, which `SlideView`'s
+ *  memo compares. */
 export function partResolver(modelUrl: string): (part: string) => string {
   const deckId = deckIdOfUrl(modelUrl) ?? 0;
-  return (part) => deckPartUrl(deckId, part);
+  let resolve = resolvers.get(deckId);
+  if (!resolve) resolvers.set(deckId, (resolve = (part) => deckPartUrl(deckId, part)));
+  return resolve;
 }
 
 export function peekSlideModel(url: string): SlideModel | null {
@@ -36,7 +41,7 @@ export function loadSlideModel(url: string): Promise<SlideModel | null> {
       if (!response.ok) return null;
       const model = (await response.json()) as SlideModel;
       const deckId = deckIdOfUrl(url) ?? 0;
-      await Promise.all([registerFonts(deckId, model), warmPictures(model, partResolver(url))]);
+      await Promise.all([registerFonts(deckId, model), loadFaces(model), warmPictures(model, partResolver(url))]);
       ready.set(url, model);
       return model;
     } catch {
@@ -111,6 +116,35 @@ async function registerFonts(deckId: number, model: SlideModel): Promise<void> {
         fontLoads.set(url, load);
       }
       return load;
+    }),
+  );
+}
+
+/** Every face the model's text and charts name (a bundled twin like Carlito, Open Sans, Montserrat), loaded before
+ *  the model is handed out. Measured before it arrived, a baseline (`metricsOf`) or a chart's widths were the
+ *  fallback's, and a slide memoized since (`SlideView`) never measures again (2026-11-15 audit, A41). */
+async function loadFaces(model: SlideModel): Promise<void> {
+  if (typeof document === "undefined" || !document.fonts) return;
+  const fonts = new Set<string>();
+  const visit = (value: unknown): void => {
+    if (Array.isArray(value)) value.forEach(visit);
+    else if (value && typeof value === "object") {
+      const record = value as Record<string, unknown>;
+      const style = `${record["italic"] === true ? "italic " : ""}${record["bold"] === true ? 700 : 400} 16px `;
+      // A text run's or a bullet's CSS family list; a chart's single face.
+      if (typeof record["font"] === "string") fonts.add(style + record["font"]);
+      if (typeof record["face"] === "string") fonts.add(`${style}"${record["face"].replace(/"/g, "")}"`);
+      Object.values(record).forEach(visit);
+    }
+  };
+  visit(model.elements);
+  await Promise.all(
+    [...fonts].map(async (font) => {
+      try {
+        await document.fonts.load(font);
+      } catch {
+        // A list the browser can't parse draws in its fallback, as before.
+      }
     }),
   );
 }
