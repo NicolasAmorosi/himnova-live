@@ -227,15 +227,26 @@ test("an engine that dies is reported and left to the operator", async ({ app })
   await expect.poll(() => moving(projector, "video:")).toBe(true);
 });
 
+/** The media engines main is running now: the spare, and one per session. */
+function engineCount(app: WorshipApp): number {
+  try {
+    return execFileSync("pgrep", ["-P", String(app.mainPid), "-f", "media-engine"], { encoding: "utf8" }).trim().split("\n").length;
+  } catch {
+    return 0;
+  }
+}
+
+/** The red button of the control window. */
+const closeControl = (app: WorshipApp) =>
+  app.electron.evaluate(({ BrowserWindow }) =>
+    BrowserWindow.getAllWindows()
+      .find((win) => win.webContents.getURL().endsWith("/index.html"))
+      ?.close(),
+  );
+
 test("closing the control window on the Mac stops PREVIEW's engine, and the Dock's window starts from nothing", async ({ app }) => {
   test.skip(process.platform !== "darwin", "only macOS keeps the app running with no window");
-  const engines = () => {
-    try {
-      return execFileSync("pgrep", ["-P", String(app.mainPid), "-f", "media-engine"], { encoding: "utf8" }).trim().split("\n").length;
-    } catch {
-      return 0;
-    }
-  };
+  const engines = () => engineCount(app);
   const [avi] = await app.addMedia("video", "long-xvid.avi");
   if (!avi) throw new Error("import failed");
   await waitEngine(app, avi);
@@ -247,11 +258,7 @@ test("closing the control window on the Mac stops PREVIEW's engine, and the Dock
   await expect.poll(engines).toBe(idle + 1);
 
   // The red button: nothing to ask (nothing on air), so the window closes and macOS keeps the app.
-  await app.electron.evaluate(({ BrowserWindow }) =>
-    BrowserWindow.getAllWindows()
-      .find((win) => win.webContents.getURL().endsWith("/index.html"))
-      ?.close(),
-  );
+  await closeControl(app);
   // It played on with no window to the file's end, heard by nobody who could stop it (2026-11-15 audit, A20).
   await expect.poll(engines, { timeout: 10_000 }).toBe(idle);
 
@@ -260,6 +267,24 @@ test("closing the control window on the Mac stops PREVIEW's engine, and the Dock
   await expect(control.getByRole("button", { name: "EN VIVO", exact: true })).toBeVisible();
   await control.waitForTimeout(1000);
   expect(engines()).toBe(idle);
+});
+
+test("closing the control window on the Mac with music on air lets it go: nothing is kept to play again", async ({ app }) => {
+  test.skip(process.platform !== "darwin", "only macOS keeps the app running with no window");
+  const engines = () => engineCount(app);
+  const [wma] = await app.addMedia("audio", "song.wma");
+  if (!wma) throw new Error("import failed");
+  await waitEngine(app, wma);
+  const idle = engines();
+  await app.previewFile("Audios", "song");
+  await app.goLive();
+  await expect.poll(engines).toBe(idle + 1);
+
+  await closeControl(app);
+  await app.control.getByRole("dialog", { name: "¿Cerrar la app?" }).getByRole("button", { name: "Cerrar igualmente" }).click();
+  // Paused with the projector, its engine and its track were kept, for a projector opened from the next window to
+  // play again (2026-11-15 audit, A20).
+  await expect.poll(engines, { timeout: 10_000 }).toBe(idle);
 });
 
 test("a video whose picture the engine can't decode is reported, not left playing sound over black", async ({ app }) => {
