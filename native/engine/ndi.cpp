@@ -427,6 +427,7 @@ struct AudioOut : AudioSink {
   std::atomic<int64_t> delay{0};
   std::atomic<bool> watched{false};
   int64_t expected = 0;  // the timecode right after the last sample queued
+  int64_t lag = 0;       // how old the last capture's first sample was when it arrived (its buffer, the OS's latency)
   int rate = 48000, channels = 2;
   float peak = 0;
 
@@ -449,6 +450,7 @@ struct AudioOut : AudioSink {
   void push(const float* in, int frames, int ch, int r, int64_t tc) override {
     if (frames <= 0 || ch <= 0 || r <= 0) return;
     std::lock_guard<std::mutex> l(m);
+    lag = std::clamp<int64_t>(nowTc() - tc, 0, 10000000);
     // Captures overlap by a few samples at their joints (two clocks): what the timeline already has goes.
     if (expected && tc < expected - 20000) {
       int skip = (int)((expected - tc) * r / 10000000);
@@ -468,7 +470,11 @@ struct AudioOut : AudioSink {
   void pump(const NDIlib_v6* ndi, NDIlib_send_instance_t sender) {
     std::lock_guard<std::mutex> l(m);
     int64_t now = nowTc(), d = delay;
-    if (watched) fillUntil(now - d - 500000);  // 50 ms of grace before inventing silence
+    // Silence is invented only where the capture should already have delivered: up to as old as its samples arrive,
+    // less 50 ms of grace. Never by the delay: a negative one (the sound sent early, −200 ms in Settings) filled the
+    // timeline ahead of the capture, and every sample that came after overlapped it and went: a mute stream while a
+    // receiver watched (2026-11-15 audit, A7). A capture whose samples arrive 60 ms old did the same at a delay of 0.
+    if (watched) fillUntil(now - std::max<int64_t>(d, 0) - lag - 500000);
     while (!q.empty() && q.front().tc + d <= now) {
       Chunk& c = q.front();
       if (watched) {
