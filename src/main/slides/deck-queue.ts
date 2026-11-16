@@ -48,7 +48,15 @@ export function createDeckQueue<Req extends { id: number }, Reply extends { id: 
     if (running) return;
     running = lanes.now.shift() ?? lanes.later.shift() ?? null;
     if (!running) return;
-    current().postMessage(running.request);
+    try {
+      current().postMessage(running.request);
+    } catch (error) {
+      // A worker that can't start (or a request that can't be sent): this deck fails, and the next is tried,
+      // instead of `running` held forever with no timer and every later ask never settling.
+      console.warn(`[slides] the deck reader could not take ${running.file}: ${String(error)}`);
+      finish(null);
+      return;
+    }
     arm();
   }
 

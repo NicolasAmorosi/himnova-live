@@ -130,6 +130,32 @@ describe("deck queue", () => {
     }
   });
 
+  it("a worker that can't start, or a request it can't take, fails that deck and the next ones still settle", async () => {
+    const queue = createDeckQueue<Request, Reply>(() => {
+      throw new Error("ERR_WORKER_INIT_FAILED");
+    }, 60_000);
+    const asks = ["a.pptx", "b.pptx"].map((file, at) => queue.ask(file, { id: at + 1, file }, "now"));
+    const outcome = track(asks.map((ask) => ask.catch(() => "rejected" as unknown as Reply)));
+    await flush();
+    expect(outcome).toEqual([null, null]);
+
+    const { started, spawn } = fakeWorkers();
+    const refusing = createDeckQueue<Request, Reply>(() => {
+      const worker = spawn();
+      worker.postMessage = (request: unknown) => {
+        if ((request as Request).file === "bad.pptx") throw new Error("DataCloneError");
+        (worker as unknown as { posted: Request[] }).posted.push(request as Request);
+      };
+      return worker;
+    }, 60_000);
+    const more = track(["bad.pptx", "good.pptx"].map((file, at) => refusing.ask(file, { id: at + 1, file }, "now")));
+    await flush();
+    expect(more).toEqual([null, "pending"]);
+    started[0]!.emit("message", { id: 2, read: "good.pptx" });
+    await flush();
+    expect(more).toEqual([null, { id: 2, read: "good.pptx" }]);
+  });
+
   it("what the operator asks for goes before the read-ahead, and a read-ahead deck the operator opens moves up", async () => {
     const { started, spawn } = fakeWorkers();
     const queue = createDeckQueue<Request, Reply>(spawn, 60_000);
