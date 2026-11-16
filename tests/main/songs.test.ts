@@ -1037,7 +1037,10 @@ describe("a linked folder", () => {
       }));
     }
     for (const file of fs.readdirSync(folder)) touch(path.join(folder, file), 20);
-    for (const read of await listSongFolder(folder)) {
+    // Counted: a file written back empty is skipped when listed, and the loop below would pass on four.
+    const reread = await listSongFolder(folder);
+    expect(reread).toHaveLength(5);
+    for (const read of reread) {
       expect(read.title, read.file ?? "").toContain("— ñ & «x»");
       expect(read.sections.at(-1)?.slides[0]?.lines, read.file ?? "").toEqual(["Nueva línea: ¡Gloria! & <paz>"]);
       expect(JSON.stringify(read), read.file ?? "").not.toMatch(/Ã|Â|�/);
@@ -1064,6 +1067,22 @@ describe("writing over the file", () => {
     } finally {
       fs.chmodSync(file, 0o644);
     }
+  });
+
+  test("a SongSelect .txt of a linked folder written back reads back as the edit, with no corpus (2026-11-15 audit, P1)", async () => {
+    const folder = fresh("songselect");
+    const file = path.join(folder, "santo.txt");
+    fs.writeFileSync(file, "Santo santo santo\n\nVerse 1\nSanto santo santo\n\nReginald Heber\nCCLI Song # 1156\n© Public Domain\nCCLI License # 999\n");
+    const [santo] = await listSongFolder(folder);
+    expect(santo?.title).toBe("Santo santo santo");
+    await writeBack(santo!.id, (s) => ({ ...s, title: "Santo (corregido)", sections: parseLyrics("[Verse 1]\nSanto, corregido", "es").sections }));
+    const text = fs.readFileSync(file, "utf8");
+    expect(text).toContain("Santo (corregido)");
+    expect(text).toContain("CCLI License # 999");
+    touch(file, 20);
+    const [read] = await listSongFolder(folder);
+    expect(read).toMatchObject({ id: santo!.id, title: "Santo (corregido)" });
+    expect(read!.sections[0]?.slides[0]?.lines).toEqual(["Santo, corregido"]);
   });
 
   test("an edit that never reaches the file is never refused because of it: notes on a read-only .txt of either kind (review 2026-11-06)", async () => {
