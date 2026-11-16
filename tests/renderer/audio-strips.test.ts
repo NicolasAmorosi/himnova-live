@@ -1,0 +1,51 @@
+/**
+ * The strips' switch (`lib/actions/audio-strips.ts`). Turned on, a «Volumen inicial» under 100 % was a ceiling the
+ * strip neither showed nor let pass: LIVE's fader at 100 % still played every item at it (2026-11-15 audit, U5). It
+ * becomes LIVE's master instead, and goes back to 100 % (owner): the room keeps its level, and the strip shows it.
+ */
+import { beforeEach, expect, test, vi } from "vitest";
+import { DEFAULT_SETTINGS, type SettingsMap } from "@shared/types/settings";
+
+const h = vi.hoisted(() => ({ set: vi.fn<(partial: Partial<SettingsMap>) => Promise<void>>(() => Promise.resolve()) }));
+vi.mock("@renderer/lib/api", () => ({ api: { settings: { set: h.set } } }));
+
+const { setAudioStrips } = await import("@renderer/lib/actions/audio-strips");
+const { useSettingsStore } = await import("@renderer/stores/settings.store");
+const { useToastStore } = await import("@renderer/stores/toast.store");
+
+const levels = () => {
+  const { settings } = useSettingsStore.getState();
+  return { strips: settings["audio.strips"], master: settings["audio.live.volume"], start: settings["media.volume"] };
+};
+const start = (settings: Partial<SettingsMap>) =>
+  useSettingsStore.setState({ settings: { ...DEFAULT_SETTINGS, ...settings }, loaded: true });
+
+beforeEach(() => {
+  h.set.mockClear();
+  useToastStore.setState({ toasts: [] });
+});
+
+test("turned on, a starting volume under 100 % becomes LIVE's master, in one write", async () => {
+  start({ "audio.strips": false, "media.volume": 0.5, "audio.live.volume": 1 });
+  await setAudioStrips(true);
+  expect(levels()).toEqual({ strips: true, master: 0.5, start: 1 });
+  expect(h.set.mock.calls).toEqual([[{ "audio.strips": true, "audio.live.volume": 0.5, "media.volume": 1 }]]);
+  expect(useToastStore.getState().toasts.map((toast) => toast.message)).toEqual([
+    "Tiras prendidas: el volumen inicial (50 %) pasa a ser el volumen general de EN VIVO.",
+  ]);
+});
+
+test("at 100 %, at 0, or with the strips already on, only the switch moves", async () => {
+  start({ "audio.strips": false, "media.volume": 1, "audio.live.volume": 0.7 });
+  await setAudioStrips(true);
+  expect(levels()).toEqual({ strips: true, master: 0.7, start: 1 });
+
+  start({ "audio.strips": false, "media.volume": 0, "audio.live.volume": 0.7 });
+  await setAudioStrips(true);
+  expect(levels()).toEqual({ strips: true, master: 0.7, start: 0 });
+
+  start({ "audio.strips": true, "media.volume": 0.5, "audio.live.volume": 0.7 });
+  await setAudioStrips(true);
+  expect(levels()).toEqual({ strips: true, master: 0.7, start: 0.5 });
+  expect(useToastStore.getState().toasts).toEqual([]);
+});

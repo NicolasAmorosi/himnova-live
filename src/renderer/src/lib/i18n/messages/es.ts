@@ -802,6 +802,7 @@ const es = {
     toastUnusable: "{output}: {name} no se puede usar. Suena por la predeterminada del sistema.",
     toastBack: "{output}: {name} está conectada de nuevo.",
     toastStripsOff: "Tiras apagadas: el volumen general de EN VIVO vuelve al 100 %.",
+    toastStripsOn: "Tiras prendidas: el volumen inicial ({level} %) pasa a ser el volumen general de EN VIVO.",
   },
   live: {
     takeOffAir: "Sacar del aire",

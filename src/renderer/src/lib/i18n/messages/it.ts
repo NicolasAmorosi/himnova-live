@@ -803,6 +803,7 @@ const it: Messages = {
     toastUnusable: "{output}: {name} non si può usare. Suona dalla predefinita di sistema.",
     toastBack: "{output}: {name} è di nuovo collegata.",
     toastStripsOff: "Strisce spente: il volume generale in onda torna al 100%.",
+    toastStripsOn: "Strisce accese: il volume iniziale ({level}%) diventa il volume generale in onda.",
   },
   live: {
     takeOffAir: "Togli dalla diretta",
