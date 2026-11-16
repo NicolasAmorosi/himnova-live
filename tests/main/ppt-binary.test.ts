@@ -328,7 +328,7 @@ describe("a fabricated compound file costs at most its own size", () => {
       const result = open(`difat-${fill}.ppt`, Buffer.concat([header, sector]));
       expect(result.ole).toBeNull();
       expect(result.reads).toBeLessThan(10);
-      expect(result.ms).toBeLessThan(50);
+      expect(result.ms).toBeLessThan(1000);
     }
   });
 

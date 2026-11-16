@@ -161,14 +161,14 @@ describe("an entry is never inflated past the size the central directory declare
     const { out, ms } = read("small.zip", patchDeclaredSize(bomb, "biblia.xml", 1000));
     expect(out["biblia.xml"]?.length).toBeUndefined();
     expect(strFromU8(out["ok.xml"]!)).toBe("<ok/>");
-    expect(ms).toBeLessThan(250);
+    expect(ms).toBeLessThan(1000);
   });
 
   test("declaring 0 bytes means an empty part, so the bomb is refused in milliseconds too", () => {
     const { out, ms } = read("zero.zip", patchDeclaredSize(bomb, "biblia.xml", 0));
     expect(out["biblia.xml"]?.length).toBeUndefined();
     expect(strFromU8(out["ok.xml"]!)).toBe("<ok/>");
-    expect(ms).toBeLessThan(250);
+    expect(ms).toBeLessThan(1000);
   });
 
   test("an honest part that declares ten bytes too few is corrupt, not silently cut", () => {

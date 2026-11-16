@@ -382,11 +382,12 @@ takes a buffer, so it avoids the inflate but not the `readFileSync`.
 
 Two non-obvious details, measured in
 [`.claude/knowledge/a-pptx-is-random-access-and-inflatesync-needs-its-out-buffer.md`](../../.claude/knowledge/a-pptx-is-random-access-and-inflatesync-needs-its-out-buffer.md):
-the reader is **synchronous on purpose** (KB-sized reads, so nothing in the caller chain — up to
-`MediaRepo.ensureLinkedAudio` and `toDeckDTO` — had to become `async`), and `inflateSync` must be
-given the `out` buffer with the size the central directory already provides: without it, growing
-its own output buffer costs ~16 µs per entry and makes the "fast" version 3× slower than reading
-the whole file.
+the reader is **synchronous on purpose** (KB-sized reads, so nothing in the caller chain, up to
+`MediaRepo.ensureLinkedAudio` and `toDeckDTO`, had to become `async`), and an entry is inflated
+with `zlib.inflateRawSync` capped (`maxOutputLength`) at the size the central directory declares:
+past it the entry is corrupt, and one read inflates at most 512 MB in all. Never fflate with a
+short `out`, which decodes the whole stream anyway and cuts the part in silence (2026-11-15 audit,
+S7 and S10).
 
 - `ppt/presentation.xml` → `<p:sldIdLst>` gives the **real order**. `slide1.xml, slide2.xml…` is
   creation order and diverges as soon as someone reorders.
