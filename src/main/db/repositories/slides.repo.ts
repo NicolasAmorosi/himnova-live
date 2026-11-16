@@ -737,9 +737,25 @@ export class SlidesRepo {
    *  so each cache directory is removed with its row; a bulk delete would
    *  leave the whole `slides-cache` on disk with nothing left pointing at it.
    *  Returns how many decks went. */
+  /** Every deck, in one transaction, and then the folders their rows named: row by row, «Limpiar caché» was one
+   *  commit per deck on main, 142 ms for 680 with the engine's video on the air (2026-11-15 audit, R17). */
   deleteAllDecks(): number {
-    const rows = this.db.select({ id: slideDecks.id }).from(slideDecks).all();
-    for (const row of rows) this.deleteDeck(row.id);
+    const rows = this.db
+      .select({ id: slideDecks.id, imageFormat: slideDecks.imageFormat, cacheDir: slideDecks.cacheDir })
+      .from(slideDecks)
+      .all();
+    this.sqlite.transaction(() => {
+      for (const row of rows) this.deleteDeckRow(row.id);
+    })();
+    // As `deleteDeck`: a native deck owns no folder, and "" is none (resolved, it is the working directory).
+    for (const row of rows) {
+      if (row.imageFormat === "native" || row.cacheDir === "") continue;
+      try {
+        fs.rmSync(row.cacheDir, { recursive: true, force: true });
+      } catch {
+        /* best-effort: a folder no row names is swept at the next launch */
+      }
+    }
     return rows.length;
   }
 
