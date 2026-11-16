@@ -3,6 +3,7 @@ import { useT } from "@renderer/lib/i18n/i18n-provider";
 import { Button, FieldGroup, FieldRow, Segmented, Select, Switch, Textarea } from "@renderer/components/ui";
 import { ScreenGroup } from "@renderer/components/shared/settings-groups/screen-group";
 import { useSettingsStore } from "@renderer/stores/settings.store";
+import { useCommitOnUnmount } from "@renderer/lib/hooks/use-commit-on-unmount";
 import {
   STAGE_ALERT_OPTIONS_MS,
   STAGE_CLOCK_FORMATS,
@@ -14,13 +15,14 @@ import {
   type StageTextSize,
 } from "@shared/types/stage";
 
-/** The phrases as typed: one per line, blank lines and the excess dropped. */
+/** The phrases as typed: one per line, blank lines, repeats and the excess dropped. Two equal lines were two buttons
+ *  that went on air together (2026-11-15 audit, D7). */
 function parsePhrases(text: string): string[] {
-  return text
+  const lines = text
     .split("\n")
     .map((line) => line.trim().slice(0, STAGE_MESSAGE_MAX_LENGTH))
-    .filter((line) => line.length > 0)
-    .slice(0, STAGE_PHRASES_MAX);
+    .filter((line) => line.length > 0);
+  return [...new Set(lines)].slice(0, STAGE_PHRASES_MAX);
 }
 
 /** «Escenario»: how the stage screen is dressed. What it SAYS (message, countdown) is run from the work screen's
@@ -39,8 +41,11 @@ function StageOptionsGroup({ mirror }: { mirror: boolean }) {
   const savePhrases = () => {
     const list = parsePhrases(phrases);
     // The language's own list is stored as «none of mine», so it keeps following the language.
-    void update({ "stage.phrases": list.join("\n") === defaults ? null : list });
+    const next = list.join("\n") === defaults ? null : list;
+    if (JSON.stringify(next) !== JSON.stringify(stored)) void update({ "stage.phrases": next });
   };
+  // Settings left with Esc unmounts the field with no blur: what was typed was dropped (2026-11-15 audit, D7).
+  useCommitOnUnmount(savePhrases);
 
   return (
     <FieldGroup description={mirror ? undefined : t("settings.screens.stageGroupDesc")} title={t("settings.screens.stageGroup")}>

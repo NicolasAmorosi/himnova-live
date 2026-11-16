@@ -369,3 +369,17 @@ test.describe("the projector opens by itself (owner, 2026-11-13)", () => {
     expect(app.hasProjector()).toBe(false);
   });
 });
+
+// Settings left with Esc unmounts the phrases' field with no blur: they were lost, and two equal lines were two buttons
+// that went on air together (2026-11-15 audit, D7).
+test("the stage's ready phrases are kept when Settings is left with Esc, without repeats", async ({ app }) => {
+  await app.control.getByRole("button", { name: "Configuración" }).click();
+  const settings = app.control.getByRole("dialog", { name: "Configuración" });
+  await settings.getByRole("tab", { name: "Pantallas" }).click();
+  await settings.getByRole("textbox", { name: "Frases listas" }).fill("Uno\nDos\nUno");
+  await app.control.keyboard.press("Escape");
+  await expect(settings).toBeHidden();
+  await expect
+    .poll(async () => (await app.invoke<Record<string, unknown>>("settings:get"))["stage.phrases"])
+    .toEqual(["Uno", "Dos"]);
+});

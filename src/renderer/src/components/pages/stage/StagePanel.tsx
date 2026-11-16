@@ -399,7 +399,8 @@ function MessageSection() {
   const stored = useSettingsStore((s) => s.settings["stage.phrases"]);
   const field = useRef<HTMLInputElement>(null);
   const { clearMessage, setUrgent, showMessage } = useStageStore.getState();
-  const phrases = stored ?? t("stage.defaultPhrases").split("\n");
+  // Without repeats: a list saved before 2026-11-15 may have two equal lines, one key (audit D7).
+  const phrases = [...new Set(stored ?? t("stage.defaultPhrases").split("\n"))];
 
   useEffect(() => {
     const focus = () => field.current?.focus();
