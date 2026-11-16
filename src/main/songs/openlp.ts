@@ -401,8 +401,10 @@ export function readOpenLyrics(xml: string): Omit<SongUpsert, "id"> | null {
 }
 
 /** OpenLyrics files, each read on its own: one that cannot be read, or reads
- *  as no song, is a problem and the rest still come in. */
-export function readOpenLyricsFiles(files: readonly string[]): SongsRead {
+ *  as no song, is a problem and the rest still come in. Read asynchronously, so
+ *  main is let go between files: a whole songbook read in one go held it for
+ *  ~0.1 s, and with it a video of the engine on air (2026-11-15 audit, A24). */
+export async function readOpenLyricsFiles(files: readonly string[]): Promise<SongsRead> {
   const songs: SongsRead["songs"] = [];
   let problems = 0;
   let unsupported = 0;
@@ -410,14 +412,14 @@ export function readOpenLyricsFiles(files: readonly string[]): SongsRead {
     let song: Omit<SongUpsert, "id"> | null = null;
     let mtime = 0;
     try {
-      const text = decodeText(fs.readFileSync(file));
+      const text = decodeText(await fs.promises.readFile(file));
       // Another program's XML (EasySlides, ProPresenter…) is no song of this format.
       if (!isOpenLyrics(text)) {
         unsupported += 1;
         continue;
       }
       song = readOpenLyrics(text);
-      mtime = Math.floor(fs.statSync(file).mtimeMs);
+      mtime = Math.floor((await fs.promises.stat(file)).mtimeMs);
     } catch (error) {
       console.warn("[songs] OpenLyrics file unreadable", file, error);
       unsupported += 1;

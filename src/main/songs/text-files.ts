@@ -350,8 +350,9 @@ export const isSongText = (text: string): boolean => isChordPro(text) || songSel
 /** SongSelect and ChordPro files, each read on its own: one that holds a song
  *  with no title or no words is a problem, one that cannot be read or is
  *  neither format is not a song file (`unsupported`), and the rest still come
- *  in. */
-export function readSongTextFiles(files: readonly string[], locale: Locale): SongsRead {
+ *  in. Read asynchronously, letting main go between files (2026-11-15 audit,
+ *  A24). */
+export async function readSongTextFiles(files: readonly string[], locale: Locale): Promise<SongsRead> {
   const songs: SongsRead["songs"] = [];
   let problems = 0;
   let unsupported = 0;
@@ -359,8 +360,8 @@ export function readSongTextFiles(files: readonly string[], locale: Locale): Son
     let text: string;
     let mtime: number;
     try {
-      text = decodeText(fs.readFileSync(file));
-      mtime = Math.floor(fs.statSync(file).mtimeMs);
+      text = decodeText(await fs.promises.readFile(file));
+      mtime = Math.floor((await fs.promises.stat(file)).mtimeMs);
     } catch (error) {
       console.warn("[songs] song file unreadable", file, error);
       unsupported += 1;
