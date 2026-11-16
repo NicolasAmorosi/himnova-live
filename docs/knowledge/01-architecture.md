@@ -33,6 +33,13 @@ in watch mode. Full config in `electron.vite.config.ts` (repo root).
 and the user DB live) are resolved in a single file, `src/main/paths.ts` — don't repeat
 `app.isPackaged ? ... : ...` anywhere else.
 
+A package has its Electron fuses flipped (`build.electronFuses`, 2026-11-15 audit S13): it ignores
+`ELECTRON_RUN_AS_NODE` and `NODE_OPTIONS`, loads only `app.asar` and checks it against the hash electron-builder
+seals in `Info.plist` (macOS) or in the `.exe`'s `INTEGRITY` resource (Windows; Linux has no such check). A package
+is never patched in place: a changed `app.asar` dies at launch (measured on macOS: `Integrity check failed for asar
+archive`, exit 133), so rebuild it. The inspector fuse stays on, because Playwright drives a package through `--inspect=0`;
+`startup.spec.ts` reads the fuses of the package it runs against.
+
 ## The windows
 
 As in the legacy version (removed from the repo on 2026-10-22; still in git history at
