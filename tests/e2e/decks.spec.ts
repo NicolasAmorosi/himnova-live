@@ -782,25 +782,62 @@ test("taking a copy of a PDF out of the library leaves the one on air drawing it
     .toBeGreaterThan(0);
 });
 
+/** Three slides, the first with music that plays across the deck. */
+const hymn = (verse: string) =>
+  buildPptx(
+    [1, 2, 3].map((n, i) => ({
+      text: { paragraphs: [{ text: `${verse} ${n}`, size: 44 }], box: [2 * CM, 5 * CM, 24 * CM, 6 * CM] as [number, number, number, number] },
+      ...(i === 0
+        ? {
+            shapes:
+              '<p:pic><p:nvPicPr><p:cNvPr id="99" name="Music"/><p:cNvPicPr/><p:nvPr><a:audioFile r:link="rIdMusic"/></p:nvPr></p:nvPicPr><p:blipFill/><p:spPr/></p:pic>',
+            rels: `<Relationship Id="rIdMusic" Type="${REL}/audio" Target="../media/music1.mp3"/>`,
+            timing:
+              '<p:timing><p:tnLst><p:par><p:cTn id="1"><p:childTnLst><p:audio><p:cMediaNode numSld="999"><p:cTn id="2"/><p:tgtEl><p:spTgt spid="99"/></p:tgtEl></p:cMediaNode></p:audio></p:childTnLst></p:cTn></p:par></p:tnLst></p:timing>',
+          }
+        : {}),
+    })),
+    { "ppt/media/music1.mp3": fs.readFileSync(fixture("song.mp3")) },
+  );
+
+/** The original live with its music, and another deck with music read after it: the music on air is then no
+ *  longer the newest clip row, whose id SQLite would hand out again. */
+async function hymnOnAir(app: WorshipApp) {
+  const [original, other] = ["Himno con musica.pptx", "Otro himno.pptx"].map((name) => path.join(app.profile, name));
+  fs.writeFileSync(original!, hymn("Estrofa"));
+  fs.writeFileSync(other!, hymn("Verso"));
+  await app.invoke<MediaAsset[]>("library:add", { kind: "ppt", paths: [original, other] });
+  await app.previewFile("Presentaciones", "Himno con musica");
+  await expect(slideTile(app, 3)).toBeVisible({ timeout: 60_000 });
+  await app.goLive();
+  const projector = await app.projector();
+  await expect.poll(async () => (await audioStates(projector))[0]?.src ?? "").toMatch(/^worship:\/\/deck-audio\//);
+  const [music] = await audioStates(projector);
+  const status = (src: string) => projector.evaluate(async (url) => (await fetch(url, { headers: { Range: "bytes=0-1" } })).status, src);
+  expect(await status(music!.src)).toBe(206);
+  await app.previewFile("Presentaciones", "Otro himno");
+  await expect(app.previewColumn().getByText("Verso 3").first()).toBeVisible({ timeout: 60_000 });
+  return { projector, music: music!, status };
+}
+
+test("«Reintentar» on a copy of the deck on air that was never read leaves its music playing", async ({ app }) => {
+  // The copy is on a pen drive browsed as a linked folder: an entry the app knows but never read ahead, so it has
+  // no deck and the renderer's guard (by deck id) lets its «Reintentar» through as a forced read.
+  const { projector, music, status } = await hymnOnAir(app);
+  const pendrive = path.join(app.profile, "pendrive");
+  fs.mkdirSync(pendrive);
+  // Copied, not built again: the zip's entries carry the time they were built at, and other bytes are another deck.
+  fs.copyFileSync(path.join(app.profile, "Himno con musica.pptx"), path.join(pendrive, "Copia del himno.pptx"));
+  const [copy] = await app.invoke<MediaAsset[]>("library:listFolder", { kind: "ppt", path: pendrive });
+  await app.invoke("deck:ensure", { assetId: copy!.id, force: true });
+  const [after] = await audioStates(projector);
+  expect(after?.src).toBe(music.src);
+  expect(await status(music.src)).toBe(206);
+});
+
 test("opening a copy of the deck on air, read again, leaves its music playing", async ({ app }) => {
   // The same deck with music in two library entries (two folders, a copy off a pen drive). The copy is added in
   // this session, so its content hash is not stamped yet: it is read again (read ahead as it arrives, or opened).
-  const hymn = (verse: string) =>
-    buildPptx(
-      [1, 2, 3].map((n, i) => ({
-        text: { paragraphs: [{ text: `${verse} ${n}`, size: 44 }], box: [2 * CM, 5 * CM, 24 * CM, 6 * CM] as [number, number, number, number] },
-        ...(i === 0
-          ? {
-              shapes:
-                '<p:pic><p:nvPicPr><p:cNvPr id="99" name="Music"/><p:cNvPicPr/><p:nvPr><a:audioFile r:link="rIdMusic"/></p:nvPr></p:nvPicPr><p:blipFill/><p:spPr/></p:pic>',
-              rels: `<Relationship Id="rIdMusic" Type="${REL}/audio" Target="../media/music1.mp3"/>`,
-              timing:
-                '<p:timing><p:tnLst><p:par><p:cTn id="1"><p:childTnLst><p:audio><p:cMediaNode numSld="999"><p:cTn id="2"/><p:tgtEl><p:spTgt spid="99"/></p:tgtEl></p:cMediaNode></p:audio></p:childTnLst></p:cTn></p:par></p:tnLst></p:timing>',
-            }
-          : {}),
-      })),
-      { "ppt/media/music1.mp3": fs.readFileSync(fixture("song.mp3")) },
-    );
   const [original, other, copy] = ["Himno con musica.pptx", "Otro himno.pptx", "Copia del himno.pptx"].map((name) => path.join(app.profile, name));
   fs.writeFileSync(original!, hymn("Estrofa"));
   fs.writeFileSync(other!, hymn("Verso"));

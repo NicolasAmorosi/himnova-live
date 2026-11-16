@@ -425,9 +425,14 @@ async function recordModelDeck(
   // The same bytes, already read through another library entry (a copy in
   // another folder, added this session and not hashed yet): that deck, as it
   // is. Recording it again emptied the folder the music on air played from
-  // and gave its clips new ids (2026-11-15 audit, A12).
-  const shared = force ? null : slidesRepo.findDeckByIdentity(contentHash, 0, "model");
+  // and gave its clips new ids (2026-11-15 audit, A12). Forced too while
+  // another entry holds it: «Reintentar» on a copy with no deck yet (failed,
+  // or stale after a cancel) passes the renderer's guard, which only knows a
+  // deck by its id (review follow-up). Forced on the entry that holds it, it
+  // is read again.
+  const shared = slidesRepo.findDeckByIdentity(contentHash, 0, "model");
   if (
+    (!force || shared?.mediaAssetId !== assetId) &&
     shared?.status === "ready" &&
     shared.converterVersion === SLIDES_MODEL_VERSION &&
     (shared.cacheDir === "" || fs.existsSync(shared.cacheDir))
