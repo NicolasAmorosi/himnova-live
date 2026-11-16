@@ -82,6 +82,40 @@ test("«Vaciar» on a saved program starts a new one: undone while nothing chang
   expect((await app.invoke<{ items: unknown[] }>("programs:peek", { id: saved!.id })).items).toHaveLength(2);
 });
 
+test("saving under the name of another program asks: replace it, or keep both", async ({ app }) => {
+  // It was saved as a second program, identical in the list, without a word (2026-11-15 audit, U13; owner,
+  // 2026-11-16: warn and offer to replace).
+  const named = async (name: string) =>
+    (await app.invoke<{ id: number; name: string }[]>("programs:list")).filter((program) => program.name === name);
+  await addAll(app, "clip.mp4", "photo.png");
+  await saveAs(app, "Culto");
+  const [first] = await named("Culto");
+
+  await clearSchedule(app);
+  await addAll(app, "song.mp3");
+  await app.control.getByRole("button", { name: "Guardar", exact: true }).click();
+  await manager(app).getByRole("textbox", { name: "Nombre" }).fill("culto ");
+  await manager(app).getByRole("button", { name: "Guardar", exact: true }).click();
+  const ask = app.control.getByRole("dialog", { name: "Ya hay un programa «culto»" });
+  await expect(ask).toBeVisible();
+  await ask.getByRole("button", { name: "Reemplazar" }).click();
+  await expect(ask).toBeHidden();
+  // The same program, now holding the schedule that was open.
+  const replaced = await named("culto");
+  expect(replaced.map((program) => program.id)).toEqual([first!.id]);
+  expect((await app.invoke<{ items: unknown[] }>("programs:peek", { id: first!.id })).items).toHaveLength(1);
+  await manager(app).getByRole("button", { name: "Cerrar" }).click();
+
+  // «Guardar los dos»: a second one of the same name, as asked.
+  await clearSchedule(app);
+  await addAll(app, "photo.png");
+  await app.control.getByRole("button", { name: "Guardar", exact: true }).click();
+  await manager(app).getByRole("textbox", { name: "Nombre" }).fill("culto");
+  await manager(app).getByRole("button", { name: "Guardar", exact: true }).click();
+  await app.control.getByRole("dialog", { name: "Ya hay un programa «culto»" }).getByRole("button", { name: "Guardar los dos" }).click();
+  await expect.poll(async () => (await named("culto")).length).toBe(2);
+});
+
 test("a saved program is duplicated, renamed, made a favourite and found by search", async ({ app }) => {
   await addAll(app, "clip.mp4", "photo.png");
   await saveAs(app, "Culto A");
