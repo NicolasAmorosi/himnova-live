@@ -67,6 +67,7 @@ vi.mock("../../src/main/media/media-engine", () => ({
   },
   listAudioDevices: h.list,
   engineAvailable: () => true,
+  engineFailsToStart: () => false,
   engineProtocol: h.proto,
 }));
 vi.mock("../../src/main/ndi/ndi-output", () => ({ setNdiAudioRoute: h.ndi }));

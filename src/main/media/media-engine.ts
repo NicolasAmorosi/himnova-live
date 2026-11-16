@@ -130,10 +130,20 @@ export function engineProtocol(): number | null {
   return engineProto;
 }
 
+/** An engine ended by itself before it was ready, or could not even be started (the AppImage on a Linux without
+ *  libmpv: `hello`, then out at `mpv_create`). Until one says `ready`, asking the outputs launches nothing and the
+ *  control window is told the engine cannot choose («none»): it waited on «pending» for good, the strip amber, and
+ *  launched two engines every 2 s (2026-11-15 audit, A28). An engine main kills (a spare for another card,
+ *  `killAllEngines`) is no sign. */
+let failsToStart = false;
+export function engineFailsToStart(): boolean {
+  return failsToStart;
+}
+
 /** mpv's outputs, «auto» first, asked of the spare engine; null when this build's engine cannot say (none, or
  *  older than `AUDIO_DEVICE_PROTO`) or does not answer. */
 export function listAudioDevices(): Promise<EngineDevice[] | null> {
-  if (!engineAvailable()) return Promise.resolve(null);
+  if (!engineAvailable() || failsToStart) return Promise.resolve(null);
   prewarmEngine();
   return spare ? spare.devices() : Promise.resolve(null);
 }
@@ -228,6 +238,8 @@ export class MediaEngine {
   private loadedInfo: EngineLoaded | null = null;
   private lastStatus: EngineStatus | null = null;
   private failed = false;
+  private ready = false;
+  private killed = false;
   /** Every line to the engine, held until it says which protocol it speaks (`hello`, or 7 when `ready` came first). */
   private readonly gate = new EngineGate((line) => this.writeNow(line));
   private deviceReplies: ((list: EngineDevice[] | null) => void)[] = [];
@@ -255,7 +267,12 @@ export class MediaEngine {
     this.child.stdin?.on("error", () => {
       // The engine is gone; `exit` says so.
     });
-    this.child.once("error", (error) => this.fail({ code: "engine-exit", detail: error.message }));
+    this.child.once("error", (error) => {
+      // Not started at all (not executable, say): `exit` may never come.
+      if (!this.ready) failsToStart = true;
+      for (const reply of this.deviceReplies.splice(0)) reply(null);
+      this.fail({ code: "engine-exit", detail: error.message });
+    });
     this.child.once("exit", (code, signal) => this.onExit(code, signal));
   }
 
@@ -283,15 +300,17 @@ export class MediaEngine {
 
   /** mpv's outputs as this engine sees them; null from an older engine, or with no answer in `timeoutMs`. */
   devices(timeoutMs = 3000): Promise<EngineDevice[] | null> {
+    if (this.exited) return Promise.resolve(null);
     return new Promise((resolve) => {
       const timer = setTimeout(() => resolve(null), timeoutMs);
       const reply = (list: EngineDevice[] | null) => {
         clearTimeout(timer);
         resolve(list);
       };
+      // Waiting from now: an engine that dies before it says its protocol answers null at once, not at the timeout.
+      this.deviceReplies.push(reply);
       this.gate.after((proto) => {
-        if (this.exited || proto < AUDIO_DEVICE_PROTO) return reply(null);
-        this.deviceReplies.push(reply);
+        if (proto < AUDIO_DEVICE_PROTO) return reply(null);
         this.writeNow("devices");
       });
     });
@@ -358,6 +377,7 @@ export class MediaEngine {
   }
 
   kill(): void {
+    this.killed = true;
     if (!this.exited) this.child.kill("SIGKILL");
   }
 
@@ -376,6 +396,8 @@ export class MediaEngine {
       case "hello":
         return;
       case "ready":
+        this.ready = true;
+        failsToStart = false;
         return logEngineGpu(event.gpu, event.adapter);
       case "loaded":
         this.loadedInfo = event;
@@ -466,6 +488,7 @@ export class MediaEngine {
 
   private onExit(code: number | null, signal: NodeJS.Signals | null): void {
     this.exited = true;
+    if (!this.killed && !this.ready && code !== 0) failsToStart = true;
     running.delete(this);
     for (const reply of this.deviceReplies.splice(0)) reply(null);
     if (spare === this) spare = null;
