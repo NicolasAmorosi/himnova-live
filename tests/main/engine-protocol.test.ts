@@ -6,6 +6,7 @@ import {
   mpvVolume,
   ndiRouteLines,
   protoAfter,
+  textInsteadOfMedia,
   type EngineDevice,
 } from "../../src/main/media/engine-protocol";
 
@@ -227,4 +228,49 @@ test("Linux: the pulse/ and pipewire/ twins are one device, pulse/ first", () =>
   // An mpv built without pulse (its list has no `pulse/` at all): the `pipewire/` twin.
   expect(match("Raptor Lake-P/U/H cAVS Speaker", LINUX.filter((d) => !d.name.startsWith("pulse/")))).toBe(`pipewire/${SPEAKER}`);
   expect(match("PipeWire Sound Server")).toBeNull();
+});
+
+test("a playlist, an EDL or a reference dressed as a video is refused before the engine opens it, a real file is not", () => {
+  // 2026-11-15 audit, S1: the three decoys of the verification (`crudo/motor-nativo-verificacion.md`), which ffprobe
+  // cannot read and the engine played by their content: another local file, then a URL.
+  const text = (s: string) => new TextEncoder().encode(s);
+  const decoys = {
+    "plain-m3u.avi": "#EXTM3U\n/Users/someone/Movies/other.mp4\nhttp://127.0.0.1:47820/beacon.mp4\n",
+    "hls.avi": "#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:10\n#EXTINF:10.0,\nhttp://127.0.0.1:47821/seg0.ts\n#EXT-X-ENDLIST\n",
+    "edl.wmv": "# mpv EDL v0\n/Users/someone/Movies/other.mp4,0,5\n",
+    // Headerless lists, Windows' line ends, a BOM, Latin-1 accents, PLS, FFmpeg's concat, an SDP.
+    "paths.avi": "C:\\Users\\someone\\Videos\\other.mp4\r\n\\\\server\\share\\x.mp4\r\n",
+    "url.avi": "https://example.com/x.mp4\n",
+    "pls.wmv": "[playlist]\nFile1=/tmp/x.mp4\nNumberOfEntries=1\n",
+    "concat.avi": "ffconcat version 1.0\nfile /tmp/x.mp4\n",
+    "sdp.avi": "v=0\no=- 0 0 IN IP4 127.0.0.1\nm=video 5004 RTP/AVP 96\n",
+  };
+  for (const [name, content] of Object.entries(decoys)) expect(textInsteadOfMedia(text(content)), name).toBe(true);
+  expect(textInsteadOfMedia(Uint8Array.from([0xef, 0xbb, 0xbf, ...text("#EXTM3U\n/tmp/x.mp4\n")]))).toBe(true);
+  expect(textInsteadOfMedia(Uint8Array.from([...text("/tmp/Canci"), 0xf3, ...text("n.mp4\n")]))).toBe(true);
+  // A list with binary after it: refused by its first line all the same.
+  expect(textInsteadOfMedia(Uint8Array.from([...text("#EXTM3U\n/tmp/x.mp4\n"), 0, 0, 0xff]))).toBe(true);
+  expect(textInsteadOfMedia(Uint8Array.from([...text("# mpv EDL v0\n/tmp/x.mp4\n"), 0]))).toBe(true);
+  // UTF-16 with its BOM, which the engine also played as a list (measured), both byte orders.
+  const utf16le = Buffer.from("\ufeff#EXTM3U\n/tmp/x.mp4\n", "utf16le");
+  expect(textInsteadOfMedia(utf16le)).toBe(true);
+  expect(textInsteadOfMedia(Buffer.from(utf16le).swap16())).toBe(true);
+  expect(textInsteadOfMedia(Buffer.from("\ufeffC:\\Videos\\x.mp4\r\n", "utf16le"))).toBe(true);
+
+  // Real containers, from their first bytes: every one carries a NUL or a control byte.
+  const hex = (s: string) => Uint8Array.from(s.split(" ").map((h) => parseInt(h, 16)));
+  const real = {
+    mp4: "00 00 00 20 66 74 79 70 69 73 6f 6d 00 00 02 00 69 73 6f 6d 69 73 6f 32 61 76 63 31 6d 70 34 31",
+    avi: "52 49 46 46 24 6c 10 00 41 56 49 20 4c 49 53 54 ec 11 00 00 68 64 72 6c 61 76 69 68 38 00 00 00",
+    mkv: "1a 45 df a3 a3 42 86 81 01 42 f7 81 01 42 f2 81 04 42 f3 81 08 42 82 88 6d 61 74 72 6f 73 6b 61",
+    mp3: "49 44 33 04 00 00 00 00 00 23 54 53 53 45 00 00 00 0f 00 00 03 4c 61 76 66 36 30 2e 33 2e 31 30",
+    wav: "52 49 46 46 24 08 00 00 57 41 56 45 66 6d 74 20 10 00 00 00 01 00 02 00 44 ac 00 00 10 b1 02 00",
+    wmv: "30 26 b2 75 8e 66 cf 11 a6 d9 00 aa 00 62 ce 6c 3a 13 00 00 00 00 00 00 06 00 00 00 01 02 a1 dc",
+    ts: "47 40 00 10 00 00 b0 0d 00 01 c1 00 00 00 01 f0 00 2a b1 04 b2 ff ff ff ff ff ff ff ff ff ff ff",
+    // An M2TS whose arrival timestamp starts with the byte of a `/`: binary, so not a path.
+    m2ts: "2f 3a 9c 10 47 40 00 10 00 00 b0 0d 00 01 c1 00 00 00 01 f0 00 2a b1 04 b2 ff ff 0a ff ff ff ff",
+    // An MPEG-1 Layer I frame with its CRC starts with the bytes of a UTF-16 BOM.
+    mp1: "ff fe 92 c0 4a 1b 00 00 0a 2f 23 45 58 54 4d 33 55 0a 00 11 22 33 44 55 66 77 88 99 aa bb cc dd",
+  };
+  for (const [name, bytes] of Object.entries(real)) expect(textInsteadOfMedia(hex(bytes)), name).toBe(false);
 });

@@ -1,11 +1,20 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import fs from "node:fs";
+import fsp from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { app, sharedTexture, type SharedTextureHandle, type WebContents } from "electron";
 import { engineCacheDir, engineDir, enginePath } from "../paths";
 import { broadcast } from "../services/broadcast";
-import { AUDIO_DEVICE_PROTO, EngineGate, jsonLineReader, mpvVolume, type EngineDevice } from "./engine-protocol";
+import {
+  AUDIO_DEVICE_PROTO,
+  EngineGate,
+  jsonLineReader,
+  mpvVolume,
+  SNIFF_BYTES,
+  textInsteadOfMedia,
+  type EngineDevice,
+} from "./engine-protocol";
 
 /**
  * The media engine (`native/engine/engine.cpp`): ONE file per process, played by libmpv, which also
@@ -244,6 +253,10 @@ export class MediaEngine {
   /** Every line to the engine, held until it says which protocol it speaks (`hello`, or 7 when `ready` came first). */
   private readonly gate = new EngineGate((line) => this.writeNow(line));
   private deviceReplies: ((list: EngineDevice[] | null) => void)[] = [];
+  /** Every line, in order, behind main's read of the head of the file `load` was given. */
+  private sent: Promise<void> = Promise.resolve();
+  /** The file was text, not audio or video: no line but `quit` reaches the engine. */
+  private refused = false;
 
   constructor() {
     const args = ["--max-width", "1920", "--max-height", "1080", "--cache-dir", engineCacheDir];
@@ -289,7 +302,18 @@ export class MediaEngine {
     const line = `load ${Math.max(0, opts.startAtSeconds)} ${flag(opts.paused)} ${volume} ${flag(opts.loop)} ${flag(opts.audio)} ${longPathSafe(opts.file)}`;
     // The output opens where it is told before the file: the device goes first, to an engine that knows it.
     if (opts.device !== undefined) this.setDevice(opts.device);
-    this.write(line);
+    // Every file the engine plays comes through here (library, PREVIEW, a deck's clips and music, a song's video), and
+    // a playlist with a video's extension made it project another file and fetch URLs (2026-11-15 audit, S1). A file
+    // main cannot read goes on to the engine, which says so itself.
+    this.sent = readHead(opts.file)
+      .then((head) => {
+        if (head && textInsteadOfMedia(head)) {
+          this.refused = true;
+          console.warn(`[engine] refused, text and not audio or video: ${opts.file}`);
+          this.fail({ code: "engine-open", detail: "a text file (a playlist?), not audio or video" });
+        } else this.gate.send(line);
+      })
+      .catch((error: unknown) => console.warn("[engine] load", error));
   }
 
   /** Where its sound goes from now on (mpv reopens its output there, a gap of a moment); «auto» the system's. The same
@@ -382,9 +406,14 @@ export class MediaEngine {
     if (!this.exited) this.child.kill("SIGKILL");
   }
 
-  /** In order with everything else, once the engine has said its protocol. */
+  /** In order with everything else, once the engine has said its protocol and main has read the file's head. */
   private write(line: string): void {
-    this.gate.send(line);
+    // A step that threw would leave the chain rejected, and every later line (a frame's `release`) dropped.
+    this.sent = this.sent
+      .then(() => {
+        if (!this.refused || line === "quit") this.gate.send(line);
+      })
+      .catch((error: unknown) => console.warn("[engine] write", error));
   }
 
   private writeNow(line: string): void {
@@ -508,6 +537,21 @@ export class MediaEngine {
     if (code !== 0 && this.loadedOnce)
       this.fail({ code: "engine-exit", detail: `exit ${signal ?? code}: ${this.stderrTail.trim().slice(-300)}` });
     this.events.exit?.();
+  }
+}
+
+/** The first `SNIFF_BYTES` of `file`, or null when main cannot read it. */
+async function readHead(file: string): Promise<Uint8Array | null> {
+  try {
+    const handle = await fsp.open(file, "r");
+    try {
+      const { buffer, bytesRead } = await handle.read(Buffer.alloc(SNIFF_BYTES), 0, SNIFF_BYTES, 0);
+      return buffer.subarray(0, bytesRead);
+    } finally {
+      await handle.close();
+    }
+  } catch {
+    return null;
   }
 }
 

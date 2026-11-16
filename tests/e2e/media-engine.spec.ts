@@ -304,6 +304,26 @@ test("a video whose picture the engine can't decode is reported, not left playin
   await expect(app.liveColumn().getByText("No se pudo reproducir", { exact: true })).toBeVisible();
 });
 
+test("a playlist named like a video is refused as unreadable, not played as the other file it names", async ({ app }) => {
+  // 2026-11-15 audit, S1: ffprobe cannot read it, so it went to the engine by its extension, and mpv played the list
+  // by its content: another local file on the projector (long-xvid, 1920 wide), then a GET to the URL.
+  const decoy = path.join(app.profile, "decoy", "himno.avi");
+  fs.mkdirSync(path.dirname(decoy), { recursive: true });
+  fs.writeFileSync(decoy, `#EXTM3U\n${fixture("long-xvid.avi")}\nhttp://127.0.0.1:9/beacon.mp4\n`);
+  const [asset] = await app.invoke<MediaAsset[]>("library:add", { kind: "video", paths: [decoy] });
+  if (!asset) throw new Error("import failed");
+  await waitEngine(app, asset);
+  await app.previewFile("Videos", "himno");
+  await app.goLive();
+  const projector = await app.projector();
+  // Long enough for the other file's first frame to reach both canvases, had the engine opened the list.
+  await projector.waitForTimeout(3000);
+  expect((await engineCanvas(projector, "video:"))?.width ?? 0).toBe(0);
+  expect((await engineCanvas(app.control, "preview:"))?.width ?? 0).toBe(0);
+  await expect(app.control.getByText("No se pudo reproducir «himno» en el proyector")).toBeVisible();
+  expect(app.log.some((line) => /\[engine\] refused, text and not audio or video: .*himno\.avi$/.test(line))).toBe(true);
+});
+
 test("an MP4 that played sound over a black picture now shows its picture", async ({ app }) => {
   const [mp4] = await app.addMedia("video", "sound-over-black.mp4");
   if (!mp4) throw new Error("import failed");
