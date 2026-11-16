@@ -246,7 +246,9 @@ test("a verse sent leaves PREVIEW, so ↓ and Enter do nothing; the LIVE transpo
   await live.getByRole("button", { name: "Anterior" }).click();
   await expect(projector.getByText("El que en él cree, no es condenado", { exact: false })).toBeVisible();
   await live.getByRole("list", { name: "Biblia" }).getByRole("button", { name: / 16$/ }).click();
-  await expect(projector.getByText(JUAN_3_16, { exact: false })).toBeVisible();
+  // `.last()`: still inside the fade from 16 to 18, the layer leaving is 16 too: a step within the scene no longer
+  // cuts a fade short (2026-11-15 audit, A2), and the top layer is the last.
+  await expect(projector.getByText(JUAN_3_16, { exact: false }).last()).toBeVisible();
   await expect(live.getByText("16/36", { exact: true })).toBeVisible();
 });
 
@@ -543,7 +545,8 @@ test("a program's verse sent live: → and a remote's PageDown walk on through i
   await row.dblclick();
   await expect(projector.getByText(JUAN_3_16, { exact: false })).toBeVisible();
   await control.keyboard.press("PageDown");
-  await expect(projector.getByText(JUAN_3_17, { exact: false })).toBeVisible();
+  // `.last()`: inside the fade from 17 to 16, the layer leaving is 17 too (a step no longer cuts the fade: audit A2).
+  await expect(projector.getByText(JUAN_3_17, { exact: false }).last()).toBeVisible();
 
   // Another verse of the row's chapter, double-clicked in PREVIEW: live, and no longer the row's. The row sent left
   // PREVIEW (owner, 2026-11-15): picked again to walk its chapter there.

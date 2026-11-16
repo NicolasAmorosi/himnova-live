@@ -654,7 +654,9 @@ test("the live song edited so the section on air is gone: the projector moves to
   await dialog(app).getByRole("button", { name: "Cerrar" }).first().click();
   await expect(projector.getByText("el coro")).toHaveCount(0);
   await expect(app.liveColumn().getByText("2/2")).toBeVisible();
-  await expect(projector.getByText("uno b")).toBeVisible();
+  // `.last()`: faster than any operator, the edit lands inside the fade from «uno b» to the chorus, whose leaving
+  // layer is «uno b» too (a push of the same scene no longer cuts a fade: audit A2).
+  await expect(projector.getByText("uno b").last()).toBeVisible();
 });
 
 test("the live song edited so the slide on air is gone and its section leaves the order: the projector stays on a real slide", async ({

@@ -71,6 +71,54 @@ test("GO LIVE takes the engine PREVIEW opened, and picked again PREVIEW gets one
   expect(await moving(projector, "video:")).toBe(true);
 });
 
+// The owner's rule (2026-11-12): the room keeps the previous picture until the new video has a frame, never black in
+// between. A push of the same scene in that wait (the LIVE fader, a mute, a plate) took the picture down and left the
+// video's empty canvas on screen for the rest of the wait (~1.45 s on the owner's Windows PC); in a fade, it cut the
+// fade. Pressed in the very frame the video's canvas appears, so it lands in the wait (or, if the first frame beat it,
+// in the fade): the picture has to be there one frame later either way (audit A2). Read on the LIVE monitor, the same
+// `OutputView` the projector draws, deciding with the same push.
+test("muting LIVE while an engine video waits for its first frame leaves the picture on screen", async ({ app }) => {
+  const [avi, photo] = [...(await app.addMedia("video", "long-xvid.avi")), ...(await app.addMedia("image", "photo.png"))];
+  if (!avi || !photo) throw new Error("import failed");
+  await waitEngine(app, avi);
+  await app.previewFile("Imágenes", "photo");
+  await app.goLive();
+  const projector = await app.projector();
+  const photoUrl = `worship://asset/${photo.id}`;
+  const stage = app.liveColumn().locator(".aspect-video").first();
+  await expect(stage.locator(`img[src="${photoUrl}"]`)).toHaveCount(1);
+  await app.previewFile("Videos", "long-xvid");
+  await expect.poll(async () => (await engineCanvas(app.control, "preview:"))?.width ?? 0).toBe(1920);
+
+  const goLive = await app.control.getByRole("button", { name: "EN VIVO", exact: true }).first().elementHandle();
+  const mute = await app.liveColumn().getByRole("button", { name: "Silenciar EN VIVO" }).elementHandle();
+  const seen = await stage.evaluate(
+    async (root, { goLive, mute, photoUrl }) => {
+      const frame = () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+      const photoOn = () => root.querySelector(`img[src="${photoUrl}"]`) !== null;
+      (goLive as HTMLButtonElement).click();
+      let canvas: HTMLCanvasElement | null = null;
+      for (const start = performance.now(); canvas === null && performance.now() - start < 3000; ) {
+        await frame();
+        canvas = root.querySelector<HTMLCanvasElement>('canvas[data-frame-key^="video:"]');
+      }
+      const held = canvas?.style.animationPlayState === "paused";
+      const photoAtPush = photoOn();
+      (mute as HTMLButtonElement).click();
+      await frame();
+      return { canvas: canvas !== null, held, photoAtPush, photoAfter: photoOn() };
+    },
+    { goLive, mute, photoUrl },
+  );
+  console.log(`[media-engine] A2: ${JSON.stringify(seen)}`);
+  expect(seen.canvas, "the video's canvas mounted").toBe(true);
+  expect(seen.photoAtPush, "the picture on screen while the video opens").toBe(true);
+  expect(seen.photoAfter, "the picture still on screen after the push of the same scene").toBe(true);
+  // And the video does come in.
+  await expect.poll(() => moving(projector, "video:")).toBe(true);
+  await expect(stage.locator(`img[src="${photoUrl}"]`)).toHaveCount(0);
+});
+
 test("NEGRO pauses an engine video where it is, and uncovering resumes it", async ({ app }) => {
   const [avi] = await app.addMedia("video", "long-xvid.avi");
   if (!avi) throw new Error("import failed");
