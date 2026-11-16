@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import Database from "better-sqlite3";
 import { parseLyrics, songLyricsText, textOrder } from "@shared/song-text";
-import { isSongUpsert, SONG_FIELD_MAX_LENGTH, SONG_TITLE_MAX_LENGTH } from "@shared/song-validators";
+import { fitSongLimits, isSongUpsert, SONG_FIELD_MAX_LENGTH, SONG_TITLE_MAX_LENGTH } from "@shared/song-validators";
 import type { Locale } from "@shared/types/settings";
 import type { SongUpsert } from "@shared/types/song";
 import { rtfToText } from "./rtf";
@@ -113,8 +113,9 @@ export function readEasyWorship(dataFolder: string, locale: Locale): SongsRead {
         themeId: null,
       };
       // A song without a title or without one line of lyrics is counted,
-      // never written half.
-      if (isSongUpsert(song)) songs.push(song);
+      // never written half; one past a limit is fitted (2026-11-15 audit, D8).
+      const fitted = fitSongLimits(song);
+      if (isSongUpsert(fitted)) songs.push(fitted);
       else problems += 1;
     }
     return { songs, problems };

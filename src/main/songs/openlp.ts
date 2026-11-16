@@ -2,7 +2,13 @@ import fs from "node:fs";
 import Database from "better-sqlite3";
 import { XMLParser } from "fast-xml-parser";
 import { isWrittenChord, sectionKey, slideFromWritten, withTranslation } from "@shared/song-text";
-import { isSongUpsert, SONG_FIELD_MAX_LENGTH, SONG_NOTES_MAX_LENGTH, SONG_TITLE_MAX_LENGTH } from "@shared/song-validators";
+import {
+  fitSongLimits,
+  isSongUpsert,
+  SONG_FIELD_MAX_LENGTH,
+  SONG_NOTES_MAX_LENGTH,
+  SONG_TITLE_MAX_LENGTH,
+} from "@shared/song-validators";
 import { SONG_SECTION_NUMBER_MAX, type SongSection, type SongSectionType, type SongUpsert } from "@shared/types/song";
 import { walkXml } from "../db/seed/bible-formats/xml-ordered";
 import { ccliNumber, clip, type SongsRead } from "./easyworship";
@@ -229,7 +235,9 @@ export function readOpenLpDatabase(file: string): SongsRead {
         order: readOrder(row.verse_order, sections),
         themeId: null,
       };
-      if (isSongUpsert(song)) songs.push(song);
+      // Past a limit the song is fitted, never dropped (2026-11-15 audit, D8).
+      const fitted = fitSongLimits(song);
+      if (isSongUpsert(fitted)) songs.push(fitted);
       else problems += 1;
     }
     return { songs, problems };
@@ -388,7 +396,8 @@ export function readOpenLyrics(xml: string): Omit<SongUpsert, "id"> | null {
     order: readOrder(verseOrder, sections),
     themeId: null,
   };
-  return isSongUpsert(song) ? song : null;
+  const fitted = fitSongLimits(song);
+  return isSongUpsert(fitted) ? fitted : null;
 }
 
 /** OpenLyrics files, each read on its own: one that cannot be read, or reads

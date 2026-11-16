@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { decodeText } from "../decode-text";
 import { isSectionLabel, isWrittenChord, parseLyrics, textOrder } from "@shared/song-text";
-import { isSongUpsert, SONG_FIELD_MAX_LENGTH, SONG_TITLE_MAX_LENGTH } from "@shared/song-validators";
+import { fitSongLimits, isSongUpsert, SONG_FIELD_MAX_LENGTH, SONG_TITLE_MAX_LENGTH } from "@shared/song-validators";
 import type { Locale } from "@shared/types/settings";
 import type { SongUpsert } from "@shared/types/song";
 import { ccliNumber, clip, type SongsRead } from "./easyworship";
@@ -32,7 +32,9 @@ function songFrom(fields: Fields, lyrics: string, locale: Locale): ReadSong | nu
     order: textOrder(parsed),
     themeId: null,
   };
-  return isSongUpsert(song) ? song : null;
+  // Past a limit (a 539-character line, 61 verses) the song is fitted, never dropped (2026-11-15 audit, D8).
+  const fitted = fitSongLimits(song);
+  return isSongUpsert(fitted) ? fitted : null;
 }
 
 const lines = (text: string) => text.split(/\r\n?|\n/).map((line) => line.trim());
