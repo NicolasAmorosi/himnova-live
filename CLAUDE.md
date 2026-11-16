@@ -561,8 +561,10 @@ npm run package:win|mac|linux  # build + electron-builder for that platform
 - **Never read a whole `.pptx` to get its XML parts out.** A zip is random access: everything
   goes through `readZipEntries` (`src/main/slides/zip-reader.ts`), which reads the central directory
   and only the requested ranges. `unzipSync` with `filter` does **not** avoid the 200 MB
-  `readFileSync`, only the inflate. And if you add a new entry-reading path, pass `inflateSync` its `out`
-  buffer with the size the central directory already carries. Diagnosis and measurements in
+  `readFileSync`, only the inflate. And an entry is inflated with `zlib.inflateRawSync` capped
+  (`maxOutputLength`) at the size the central directory declares: past it the entry is corrupt. Never
+  fflate with a short `out`, which decodes the whole stream anyway and cuts the part in silence (2026-11-15
+  audit, S7). Diagnosis and measurements in
   [`.claude/knowledge/a-pptx-is-random-access-and-inflatesync-needs-its-out-buffer.md`](.claude/knowledge/a-pptx-is-random-access-and-inflatesync-needs-its-out-buffer.md).
 - **Nothing asynchronous runs in `before-quit`.** Not a `setTimeout`, not a callback, not a promise:
   the process is already gone. Exit cleanup is synchronous, period — a child process that must not

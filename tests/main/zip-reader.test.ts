@@ -116,14 +116,71 @@ describe("readZipEntries", () => {
   });
 });
 
-test("a zip bomb is refused, not inflated: a few hundred KB declaring 300 MB comes back without that entry", () => {
-  // 2026-11-10 review, agent6-04: 398 KB on disk became 400 MB in main.
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "worship-zip-bomb-"));
-  const file = path.join(dir, "bomb.zip");
-  fs.writeFileSync(file, zipSync({ "biblia.xml": [new Uint8Array(300 * 1024 * 1024).fill(0x61), { level: 9 }], "ok.xml": strToU8("<ok/>") }));
-  expect(fs.statSync(file).size).toBeLessThan(1024 * 1024);
-  const out = readZipEntries(file, (name) => name.endsWith(".xml"));
-  expect(out["biblia.xml"]).toBeUndefined();
-  expect(strFromU8(out["ok.xml"]!)).toBe("<ok/>");
-  fs.rmSync(dir, { recursive: true, force: true });
+describe("an entry is never inflated past the size the central directory declares", () => {
+  let dir: string;
+  let bomb: Uint8Array;
+  beforeAll(() => {
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), "worship-zip-bomb-"));
+    bomb = zipSync({ "biblia.xml": [new Uint8Array(300 * 1024 * 1024).fill(0x61), { level: 9 }], "ok.xml": strToU8("<ok/>") });
+  });
+  afterAll(() => fs.rmSync(dir, { recursive: true, force: true }));
+
+  /** Writes `declared` as `name`'s uncompressed size in its local header and in the central directory. */
+  function patchDeclaredSize(zip: Uint8Array, name: string, declared: number): Buffer {
+    const buf = Buffer.from(zip);
+    const target = Buffer.from(name, "utf8");
+    for (let at = 0; at < buf.length - 46; at++) {
+      const sig = buf.readUInt32LE(at);
+      if (sig === 0x04034b50 && buf.subarray(at + 30, at + 30 + target.length).equals(target)) buf.writeUInt32LE(declared, at + 22);
+      if (sig === 0x02014b50 && buf.subarray(at + 46, at + 46 + target.length).equals(target)) buf.writeUInt32LE(declared, at + 24);
+    }
+    return buf;
+  }
+
+  function read(name: string, zip: Uint8Array): { out: Record<string, Uint8Array>; ms: number } {
+    const file = path.join(dir, name);
+    fs.writeFileSync(file, zip);
+    const t0 = performance.now();
+    const out = readZipEntries(file, (entry) => entry.endsWith(".xml"));
+    return { out, ms: performance.now() - t0 };
+  }
+
+  test("a few hundred KB declaring 300 MB comes back without that entry", () => {
+    // 2026-11-10 review, agent6-04: 398 KB on disk became 400 MB in main.
+    expect(bomb.length).toBeLessThan(1024 * 1024);
+    const { out } = read("bomb.zip", bomb);
+    expect(out["biblia.xml"]).toBeUndefined();
+    expect(strFromU8(out["ok.xml"]!)).toBe("<ok/>");
+  });
+
+  // 2026-11-15 audit, S7: fflate given a 1000-byte `out` decoded all 300 MB (15 s for a 3 GB stream) and handed
+  // back the first 1000 bytes as if they were the part.
+  test("the same bomb declaring 1000 bytes is refused in milliseconds, and its neighbour still reads", () => {
+    const { out, ms } = read("small.zip", patchDeclaredSize(bomb, "biblia.xml", 1000));
+    expect(out["biblia.xml"]).toBeUndefined();
+    expect(strFromU8(out["ok.xml"]!)).toBe("<ok/>");
+    expect(ms).toBeLessThan(250);
+  });
+
+  test("declaring 0 bytes means an empty part, so the bomb is refused in milliseconds too", () => {
+    const { out, ms } = read("zero.zip", patchDeclaredSize(bomb, "biblia.xml", 0));
+    expect(out["biblia.xml"]).toBeUndefined();
+    expect(strFromU8(out["ok.xml"]!)).toBe("<ok/>");
+    expect(ms).toBeLessThan(250);
+  });
+
+  test("an honest part that declares ten bytes too few is corrupt, not silently cut", () => {
+    const xml = "<p:sld><p:cSld><p:spTree/></p:cSld></p:sld>";
+    const { out } = read("short.zip", patchDeclaredSize(zipSync({ "slide1.xml": strToU8(xml) }), "slide1.xml", xml.length - 10));
+    expect(out["slide1.xml"]).toBeUndefined();
+  });
+
+  test("an honest part reads whole, as an exact buffer of its own, and an empty one reads empty", () => {
+    const xml = "<p:sld>" + "<a:t>Santo, santo, santo</a:t>".repeat(4000) + "</p:sld>";
+    const { out } = read("honest.zip", zipSync({ "slide1.xml": strToU8(xml), "empty.xml": new Uint8Array(0) }));
+    expect(strFromU8(out["slide1.xml"]!)).toBe(xml);
+    expect(out["slide1.xml"]!.byteOffset).toBe(0);
+    expect(out["slide1.xml"]!.buffer.byteLength).toBe(xml.length);
+    expect(out["empty.xml"]!.length).toBe(0);
+  });
 });

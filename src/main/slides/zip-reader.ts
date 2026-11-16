@@ -1,5 +1,5 @@
 import fs from "node:fs";
-import { Inflate, inflateSync } from "fflate";
+import { inflateRawSync } from "node:zlib";
 
 /**
  * Reads a handful of named entries out of a zip without ever holding the
@@ -75,7 +75,7 @@ export class ZipFormatError extends Error {}
 
 type CentralEntry = {
   compressedSize: number;
-  /** Load-bearing for speed, not just bookkeeping — see `inflateEntry`. */
+  /** The inflate cap: past it the entry is corrupt (see `inflateEntry`). */
   uncompressedSize: number;
   localHeaderOffset: number;
   /** The central directory's copy — only used to size the read window, never
@@ -314,44 +314,27 @@ function readEntryData(fd: number, entry: CentralEntry, window: ReadWindow): Uin
 }
 
 /**
- * `inflateSync` without an `out` buffer has to guess the output size and grow
- * it as it goes, and that guessing is most of the cost of a *small* entry:
- * measured at ~16 µs of fixed overhead per call, which over the ~800 parts of
- * a 400-slide deck is most of a frame. The central directory already knows
- * the exact size, so it is handed over and the whole growth loop disappears
- * (1.9 ms → 0.4 ms over 120 parts) — this is how fflate's own `unzipSync`
- * manages to be faster per entry than its public single-entry API.
+ * Inflated with node's zlib and capped at the size the central directory
+ * declares: that is the only size this reader ever uses (the local header's
+ * copy is ignored, and a data-descriptor entry still has its real sizes in the
+ * directory), so a declared 0 is an empty part, not an unknown one. A stream
+ * that inflates past what it declared is a corrupt entry: zlib stops at the
+ * cap and throws, so a hostile part declaring 1000 bytes over a 3 GB stream
+ * costs nothing (measured 15 s of main with fflate, which decoded the whole
+ * stream into a short `out` and silently cut an honest part instead of
+ * failing). Faster than fflate with `out` too: 5.0 against 15.4 ms over 800
+ * small parts (2026-11-15 audit, S7).
  *
- * A central directory that lies about the size makes fflate throw; that falls
- * back to letting it work the size out, rather than losing the part.
+ * Copied out, like the stored branch: zlib hands back a view of its own 64 KB
+ * output chunk, and every part of a deck stays alive while it is read.
  */
 function inflateEntry(raw: Buffer, uncompressedSize: number): Uint8Array {
   // A hostile archive of a few KB inflates to gigabytes (398 KB to 400 MB in main, measured: 2026-11-10 review,
-  // agent6-04). No part of a deck or a Bible module comes near this — a video is stored, not deflated.
+  // agent6-04). No part of a deck or a Bible module comes near this: a video is stored, not deflated.
   if (uncompressedSize > MAX_INFLATED_BYTES) throw new ZipFormatError(`An entry of ${uncompressedSize} bytes`);
-  if (uncompressedSize > 0) {
-    try {
-      return inflateSync(raw, { out: new Uint8Array(uncompressedSize) });
-    } catch {
-      /* fall through */
-    }
-  }
-  // The directory lied about the size: inflated a piece at a time, never past the cap.
-  const pieces: Uint8Array[] = [];
-  let total = 0;
-  const inflater = new Inflate((piece) => {
-    total += piece.length;
-    if (total > MAX_INFLATED_BYTES) throw new ZipFormatError("An entry past the inflate cap");
-    pieces.push(piece);
-  });
-  inflater.push(raw, true);
-  const out = new Uint8Array(total);
-  let at = 0;
-  for (const piece of pieces) {
-    out.set(piece, at);
-    at += piece.length;
-  }
-  return out;
+  const out = inflateRawSync(raw, { maxOutputLength: Math.max(1, uncompressedSize) });
+  if (out.length > uncompressedSize) throw new ZipFormatError("An entry larger than its declared size");
+  return new Uint8Array(out);
 }
 
 const MAX_INFLATED_BYTES = 256 * 1024 * 1024;
