@@ -318,7 +318,8 @@ a bible module too — goes through `decodeText` (`main/decode-text.ts`): its by
 (`importSongFiles`): each file read by what it is — `.xml` OpenLyrics, EasyWorship's `Songs.db`/`SongWords.db`
 (their folder; EasyWorship 2009's Paradox `Songs.DB` is refused as too old, `EW_OLD`), any other
 `.db`/`.sqlite` as OpenLP's, SongSelect or ChordPro text for the rest. All of it goes through `writeSongs`
-(`services/song-import.ts`): one transaction, the same title with the same words skipped as repeated — and when
+(`services/song-import.ts`): a hundred songs per transaction (an import that fails halfway keeps the batches
+already written, and importing again skips them as repeated), the same title with the same words skipped as repeated; when
 that library copy had no file yet it is tied to this one, first taking what the file holds (chords, authors,
 CCLI…), or its next save would write them out of the file (owner, 2026-11-06); `refreshedFrom` keeps its theme
 and what the file does not hold — its format has no place for it, or this file simply has none (a number, notes,

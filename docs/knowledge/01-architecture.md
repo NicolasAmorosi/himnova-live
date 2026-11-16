@@ -7,8 +7,9 @@ WorshipApp is an Electron 44 app with **TypeScript + React 19 + Vite**, bundled 
 
 - **Main** (`src/main/`) — windows, SQLite DB, IPC, reading decks (and drawing PDF pages on request), the
   media engine, in-app updates.
-- **Preload** (`src/preload/index.ts`) — generic `contextBridge` bridge (`invoke`/`on` by
-  channel string), ~35 lines that never change when features are added.
+- **Preload** (`src/preload/index.ts`): generic `contextBridge` bridge (`invoke`/`on` by
+  channel string) that never changes when features are added, plus its two exceptions,
+  `getPathForFile` and `onVideoFrame` (the media engine's frames, `preload/frame-delivery.ts`).
 - **Control renderer** (`src/renderer/index.html` + `src/renderer/src/`) — the whole UI of the
   operator window: React + Zustand + Tailwind.
 - **Projection renderer** (`src/renderer/projection.html` + `src/renderer/src/projection/`) —
