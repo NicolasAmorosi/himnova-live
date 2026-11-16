@@ -427,6 +427,31 @@ describe("a video embedded in the live slide", () => {
     expect(output().slideVideo).toMatchObject({ volume: 1 });
   });
 
+  test("a clip with no level of its own starts at «Volumen inicial» and keeps it; a later change never jumps it", async () => {
+    // Read from the settings outside the memo: a change of «Volumen inicial» did not reach the clip, then jumped it
+    // the moment anything else rebuilt the output, a cover or a plate (2026-11-15 audit, X25).
+    const { useSettingsStore } = await import("@renderer/stores/settings.store");
+    const before = useSettingsStore.getState().settings;
+    useSettingsStore.setState({ settings: { ...before, "media.volume": 0.5 } });
+    try {
+      const store = useProjectionStore.getState();
+      store.setLiveDeck(deckOf(9, 2, [slideVideoOn(1, { volume: null })]));
+      store.setBase({ kind: "deck", assetId: 9, slideIndex: 1 });
+      expect(selectOutputMemo(useProjectionStore.getState()).slideVideo?.volume).toBe(0.5);
+      useSettingsStore.setState({ settings: { ...before, "media.volume": 1 } });
+      // NEGRO rebuilds the output; the clip plays on under it at its level.
+      useProjectionStore.getState().setOverlay("black");
+      expect(selectOutputMemo(useProjectionStore.getState()).slideVideo?.volume).toBe(0.5);
+      useProjectionStore.getState().setOverlay("none");
+      // The next clip starts at the new one.
+      useProjectionStore.getState().setSlideIndex(2);
+      useProjectionStore.getState().setLiveDeck(deckOf(9, 2, [slideVideoOn(1, { volume: null }), slideVideoOn(2, { volume: null })]));
+      expect(selectOutputMemo(useProjectionStore.getState()).slideVideo?.volume).toBe(1);
+    } finally {
+      useSettingsStore.setState({ settings: before });
+    }
+  });
+
   test("a deck the store has not loaded yet has no slide video", () => {
     const store = useProjectionStore.getState();
     store.setLiveDeck(deckOf(9, 2, [slideVideoOn(1)]));

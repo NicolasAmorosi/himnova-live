@@ -92,6 +92,10 @@ export type ProjectionStoreState = {
    *  them would make a deck authored at 40% come back at 100% the moment
    *  anyone touched any slider. */
   slideVideoVolume: number | null;
+  /** «Volumen inicial» as the live slide came on: the app default of the layers above, taken once per slide like a
+   *  video's `videoVolume`. Read from the settings at every output, a change mid-clip did not reach it and then
+   *  jumped it at the next rebuild (2026-11-15 audit, X25). */
+  slideVideoDefault: number;
   /** Where the element would resume if it had to be mounted again — the same
    *  mount-time seek `VideoUnderlay.startAtSeconds` is, written by
    *  `freezeLivePositions()`. */
@@ -385,12 +389,14 @@ function freshSlideVideo(epoch: number): {
   slideVideoEpoch: number;
   slideVideoPaused: boolean;
   slideVideoVolume: number | null;
+  slideVideoDefault: number;
   slideVideoStartAt: number;
 } {
   return {
     slideVideoEpoch: epoch + 1,
     slideVideoPaused: false,
     slideVideoVolume: null,
+    slideVideoDefault: defaultMediaVolume(),
     slideVideoStartAt: 0,
   };
 }
@@ -408,6 +414,7 @@ export const useProjectionStore = create<ProjectionStoreState>()(
     slideVideoEpoch: 0,
     slideVideoPaused: false,
     slideVideoVolume: null,
+    slideVideoDefault: defaultMediaVolume(),
     slideVideoStartAt: 0,
     slideEntry: null,
 
@@ -764,7 +771,7 @@ function liveSlideClip(state: ProjectionStoreState) {
 
 /** The live slide clip's OWN level (what its row shows), before the LIVE master that the projector's level carries. */
 export function selectSlideClipVolume(state: ProjectionStoreState): number {
-  return state.slideVideoVolume ?? liveSlideClip(state)?.volume ?? defaultMediaVolume();
+  return state.slideVideoVolume ?? liveSlideClip(state)?.volume ?? state.slideVideoDefault;
 }
 
 function selectSlideVideo(state: ProjectionStoreState): SlideVideo {
@@ -949,6 +956,7 @@ type OutputInputs = readonly [
   ProjectionStoreState["slideVideoEpoch"],
   ProjectionStoreState["slideVideoPaused"],
   ProjectionStoreState["slideVideoVolume"],
+  ProjectionStoreState["slideVideoDefault"],
   ProjectionStoreState["slideVideoStartAt"],
   ProjectionStoreState["slideEntry"],
   ProjectionStoreState["liveDeck"],
@@ -975,6 +983,7 @@ function outputInputs(state: ProjectionStoreState): OutputInputs {
     state.slideVideoEpoch,
     state.slideVideoPaused,
     state.slideVideoVolume,
+    state.slideVideoDefault,
     state.slideVideoStartAt,
     state.slideEntry,
     state.liveDeck,
