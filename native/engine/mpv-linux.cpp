@@ -13,10 +13,14 @@
 
 static void* symbol(const char* name) {
   static void* lib = [] {
-    for (const char* soname : {"libmpv.so.2", "libmpv.so.1"})
+    // Main keeps the stderr tail of an engine that exits: this is what main.log shows. Each soname's own reason,
+    // because an installed libmpv whose dependency fails (a libplacebo.so.387 the distro did not update) reads
+    // «cannot open shared object file» too, only naming the dependency instead of libmpv.
+    for (const char* soname : {"libmpv.so.2", "libmpv.so.1"}) {
       if (void* handle = dlopen(soname, RTLD_NOW | RTLD_LOCAL)) return handle;
-    // Main keeps the stderr tail of an engine that exits: this is what main.log shows.
-    fprintf(stderr, "libmpv not found (libmpv.so.2 or libmpv.so.1): install the distribution's libmpv package\n");
+      fprintf(stderr, "libmpv could not be loaded: %s\n", dlerror());
+    }
+    fprintf(stderr, "install the distribution's libmpv package, or update the system if it is installed\n");
     exit(1);
   }();
   void* fn = dlsym(lib, name);

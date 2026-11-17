@@ -60,7 +60,7 @@ test.skipIf(process.platform !== "darwin")("an engine that cannot start answers 
   expect(h.broadcasts).toEqual([]);
 
   // Says hello and dies, as without libmpv: «pending» for good before, two engines per round every 2 s.
-  engine(`${HELLO}\necho "libmpv not found" >&2\nexit 1`);
+  engine(`${HELLO}\necho "libmpv could not be loaded: libmpv.so.2: cannot open shared object file" >&2\nexit 1`);
   let spawned = h.spawned;
   expect((await timed()).answer).toBe("none");
   expect(h.spawned - spawned).toBe(1);
