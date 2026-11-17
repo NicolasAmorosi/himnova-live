@@ -65,10 +65,11 @@ export function AudioStrip({ bus }: { bus: AudioBus }) {
   const setMaster = (volume: number, from: number) => {
     // 0 is the mute, not a level to remember: a fade-out down to it leaves the level its gesture started from, which
     // is what unmuting — and the next launch — come back to. Keeping the last step before 0 left the room at −40 dB
-    // (2026-11-15 audit, A8).
+    // (2026-11-15 audit, A8). Kept unrounded: on the fader's log scale a gain rounded to 0.01 moved the fader back
+    // (three tenths of the way up is 0.013) and saved nothing at all below a fifth.
     setLiveMuted(volume === 0);
     const level = volume > 0 ? volume : from;
-    if (level > 0) void update({ "audio.live.volume": Number(level.toFixed(2)) });
+    if (level > 0) void update({ "audio.live.volume": level });
   };
 
   return (

@@ -3,6 +3,7 @@ import { cn } from "@renderer/lib/utils";
 import { Icon } from "./icon";
 import { IconButton } from "./icon-button";
 import { Tooltip } from "./tooltip";
+import { faderToGain, formatDb, gainToFader } from "./fader";
 import { FLOOR_DB, SCALE_DB, SILENT_CHANNEL, ZONES, isLit, stepMeterChannel, type MeterChannel } from "./level-meter";
 
 /** Left and right, in dBFS (sample peak); `-Infinity` is silence. */
@@ -23,13 +24,6 @@ const BAR_PX = 4;
 const BAR_GAP_PX = 2;
 const SCALE_CENTER_PX = 2 * BAR_PX + BAR_GAP_PX + 9;
 const SCALE_LINE_PX = 11;
-
-/** «−6 dB», «−∞ dB»: a fader's level as a mixer says it. */
-function formatDb(volume: number): string {
-  if (volume <= 0) return "−∞ dB";
-  const db = Math.round(20 * Math.log10(volume));
-  return `${db < 0 ? "−" : ""}${Math.abs(db)} dB`;
-}
 
 /**
  * The stereo meter: two bars and the dB scale, drawn in a canvas. It animates only while something sounds or a peak
@@ -177,7 +171,7 @@ type ChannelStripProps = {
   output: ReactNode;
   /** Feeds the meter without a re-render per level: called once per mount, returns its unsubscribe. Keep it stable. */
   subscribeLevels: (listener: (level: Level) => void) => () => void;
-  /** 0..1: where the fader stands (0 while muted by the strip's own mute). */
+  /** 0..1, the level as a linear gain (0 while muted by the strip's own mute); where the fader stands for it is `fader.ts`. */
   value: number;
   /** The fader's own name: «Volumen general de EN VIVO». */
   volumeLabel: string;
@@ -191,7 +185,8 @@ type ChannelStripProps = {
  * the output control.
  *
  * The fader is a native `<input type="range">` stood up with `writing-mode` (the keyboard, `pointercancel` and a
- * screen reader's value come with it), on the same 0..1 scale as every volume in the app, its value said in dB.
+ * screen reader's value come with it). It moves on OBS's log scale (`fader.ts`) and reports the same 0..1 gain as every
+ * volume in the app, said in dB.
  */
 export function ChannelStrip({
   alarmWhenMuted = false,
@@ -207,6 +202,7 @@ export function ChannelStrip({
   volumeLabel,
 }: ChannelStripProps) {
   const db = formatDb(value);
+  const position = Math.round(gainToFader(value) * 100);
   // Taken when a drag or a key press starts, not on a held key's repeats: those are the same gesture.
   const gestureFrom = useRef(value);
   const beginGesture = () => {
@@ -224,16 +220,16 @@ export function ChannelStrip({
           className="fader h-full min-h-0 w-4 cursor-pointer [direction:rtl] [writing-mode:vertical-lr]"
           max={100}
           min={0}
-          onChange={(event) => onChange(Number(event.currentTarget.value) / 100, gestureFrom.current)}
+          onChange={(event) => onChange(faderToGain(Number(event.currentTarget.value) / 100), gestureFrom.current)}
           onKeyDown={(event) => {
             if (!event.repeat) beginGesture();
           }}
           onPointerDown={beginGesture}
           step={1}
-          style={{ "--fill": `${Math.round(value * 100)}%` } as CSSProperties}
+          style={{ "--fill": `${position}%` } as CSSProperties}
           title={db}
           type="range"
-          value={Math.round(value * 100)}
+          value={position}
         />
       </div>
       <Tooltip content={muteLabel} floating>

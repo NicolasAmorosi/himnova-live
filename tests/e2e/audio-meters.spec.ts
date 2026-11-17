@@ -91,9 +91,9 @@ test("LIVE's meter hears the engine through every fader: −12 at 100 %, −18 a
   // PREVIEW gave its engine to LIVE and is silent.
   expect(await meter(app, "preview")).toEqual([-Infinity, -Infinity]);
 
-  await master(app).fill("50");
-  // 20·log10(0.5) = −6.02 dB: the item's linear level, never mpv's cubic one.
-  await reads(app, "live", TONE_DB - 6, "engine video, 50 %");
+  // Three quarters of the fader is −6.2 dB on its log scale (`fader.ts`): the item's linear level, never mpv's cubic one.
+  await master(app).fill("75");
+  await reads(app, "live", TONE_DB - 6, "engine video, −6 dB");
   await liveMute(app).click();
   await silent(app, "live", "engine video, muted");
   await liveMute(app).click();
@@ -124,9 +124,9 @@ test("LIVE's meter hears the projector's own elements through their volume, and 
   await app.goLive();
   await expect.poll(() => projector.evaluate(() => document.querySelector("audio")?.paused)).toBe(false);
   await reads(app, "live", TONE_DB, "Chromium audio, 100 %");
-  await master(app).fill("50");
-  // The element plays at 0.5; its copy is measured before that volume, so the meter applies it.
-  await reads(app, "live", TONE_DB - 6, "Chromium audio, 50 %");
+  await master(app).fill("75");
+  // The element plays at −6.2 dB; its copy is measured before that volume, so the meter applies it.
+  await reads(app, "live", TONE_DB - 6, "Chromium audio, −6 dB");
   // A muted element's copy stays silent for good: the meter has to take a new one.
   await liveMute(app).click();
   await silent(app, "live", "Chromium audio, muted");

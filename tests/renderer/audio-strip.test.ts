@@ -1,6 +1,7 @@
 /** The audio strips' pure parts: the meter's ballistics, where each bus really plays (`resolveBus`) and whether the two
  *  end up in the same device (D6). */
 import { expect, test } from "vitest";
+import { faderToGain, formatDb, gainToFader } from "@renderer/components/ui/fader";
 import { SILENT_CHANNEL, isLit, stepMeterChannel } from "@renderer/components/ui/level-meter";
 import {
   audioOutputsOf,
@@ -172,4 +173,28 @@ test("an engine that has not answered, or an output one side refused, moves neit
   for (const engine of ["none", "pending", new Map([["z1", "coreaudio/zoom.us.zoomaudiodevice.001"]])] as const) {
     expect(resolveBus(zoomChoice, macOutputs.devices, engine, refused)).toEqual({ out: { sinkId: "", engineDevice: null }, state: "unusable", device: null });
   }
+});
+
+test("the faders move on OBS's log scale: a fade by hand reaches silence gradually, and a level sits where it was left", () => {
+  const db = (position: number): number => 20 * Math.log10(faderToGain(position));
+  expect([faderToGain(0), faderToGain(1), gainToFader(0), gainToFader(1)]).toEqual([0, 1, 0, 1]);
+  // OBS's own numbers (`log_def_to_db`): −18.7 dB halfway, −6.2 at three quarters, −96 just above the bottom.
+  expect(db(0.5)).toBeCloseTo(-18.74, 2);
+  expect(db(0.75)).toBeCloseTo(-6.18, 2);
+  expect(db(1e-9)).toBeCloseTo(-96, 2);
+  // A linear fader's last tenth went from −20 dB to silence; this one is at −71 dB at 0.1.
+  expect(db(0.1)).toBeLessThan(-60);
+  expect(formatDb(faderToGain(0.5))).toBe("−19 dB");
+
+  // Every step of the 0..100 range is a louder gain than the one below it, and comes back to its own step: a level
+  // saved from a fader opens tomorrow with the fader where the hand left it.
+  let previous = -1;
+  for (let step = 0; step <= 100; step++) {
+    const gain = faderToGain(step / 100);
+    expect(gain).toBeGreaterThan(previous);
+    expect(Math.round(gainToFader(gain) * 100)).toBe(step);
+    previous = gain;
+  }
+  // A level saved before this scale (the old linear 50 %, −6 dB) stands at three quarters.
+  expect(Math.round(gainToFader(0.5) * 100)).toBe(75);
 });
