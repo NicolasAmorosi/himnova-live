@@ -151,9 +151,9 @@ export function engineFailsToStart(): boolean {
 }
 
 /** The session's verdict on the engine (owner, 2026-11-17): the first time one main did not kill ends before it was
- *  ready, every file Chromium plays goes to Chromium until the app restarts, as with `--chromium-video`; what only the
- *  engine plays keeps trying it. Not `failsToStart`, which a later `ready` clears: a GPU or a libmpv that failed once
- *  is not trusted with the room's video again. */
+ *  ready, or a GPU texture fails (`engine-gpu`), every file Chromium plays goes to Chromium until the app restarts, as
+ *  with `--chromium-video`; what only the engine plays keeps trying it. Not `failsToStart`, which a later `ready`
+ *  clears: a GPU or a libmpv that failed once is not trusted with the room's video again. */
 let gaveUp = false;
 const gaveUpListeners: (() => void)[] = [];
 export function engineGaveUp(): boolean {
@@ -162,12 +162,15 @@ export function engineGaveUp(): boolean {
 export function onEngineGaveUp(listener: () => void): void {
   gaveUpListeners.push(listener);
 }
-function cannotStart(): void {
-  failsToStart = true;
+function giveUp(why: string): void {
   if (gaveUp) return;
   gaveUp = true;
-  console.warn("[engine] an engine could not start: what Chromium plays goes to Chromium until the app restarts");
+  console.warn(`[engine] ${why}: what Chromium plays goes to Chromium until the app restarts`);
   for (const listener of gaveUpListeners) listener();
+}
+function cannotStart(): void {
+  failsToStart = true;
+  giveUp("an engine could not start");
 }
 
 /** mpv's outputs, «auto» first, asked of the spare engine; null when this build's engine cannot say (none, or
@@ -575,6 +578,7 @@ export class MediaEngine {
 
   private fail(error: EngineError): void {
     this.failed = true;
+    if (error.code === "engine-gpu") giveUp(`the GPU failed the engine (${error.detail})`);
     this.events.error?.(error);
   }
 
