@@ -777,6 +777,7 @@ const es = {
     loadErrorRow: "No se pudo reproducir",
     loadErrorToast: "No se pudo reproducir «{name}» en el proyector",
     loadErrorToastGeneric: "No se pudo reproducir un archivo en el proyector",
+    engineFallbackToast: "El motor de medios falló: el video sigue con el reproductor de respaldo",
     volumeFor: "Volumen de {name}",
     scrubberLabel: "Posición de {name}",
     scrubberValue: "{current} de {total}",

@@ -150,6 +150,29 @@ export function engineFailsToStart(): boolean {
   return failsToStart;
 }
 
+/** The session's verdict on the engine (owner, 2026-11-17): the first time one main did not kill ends before it was
+ *  ready, or a GPU texture fails (`engine-gpu`), every file Chromium plays goes to Chromium until the app restarts, as
+ *  with `--chromium-video`; what only the engine plays keeps trying it. Not `failsToStart`, which a later `ready`
+ *  clears: a GPU or a libmpv that failed once is not trusted with the room's video again. */
+let gaveUp = false;
+const gaveUpListeners: (() => void)[] = [];
+export function engineGaveUp(): boolean {
+  return gaveUp;
+}
+export function onEngineGaveUp(listener: () => void): void {
+  gaveUpListeners.push(listener);
+}
+function giveUp(why: string): void {
+  if (gaveUp) return;
+  gaveUp = true;
+  console.warn(`[engine] ${why}: what Chromium plays goes to Chromium until the app restarts`);
+  for (const listener of gaveUpListeners) listener();
+}
+function cannotStart(): void {
+  failsToStart = true;
+  giveUp("an engine could not start");
+}
+
 /** mpv's outputs, «auto» first, asked of the spare engine; null when this build's engine cannot say (none, or
  *  older than `AUDIO_DEVICE_PROTO`) or does not answer. */
 export function listAudioDevices(): Promise<EngineDevice[] | null> {
@@ -276,6 +299,9 @@ export class MediaEngine {
     const args = ["--max-width", "1920", "--max-height", "1080", "--cache-dir", engineCacheDir];
     if (engineAdapter) args.push("--adapter", engineAdapter);
     if (process.platform === "darwin" && ndiTakesSound()) args.push("--ndi-tap", "1");
+    // QA only: each engine logs its rendered frames' times into this folder (native/engine/engine.cpp, `frameLog`).
+    const frameLog = process.env["HIMNOVA_ENGINE_FRAME_LOG"];
+    if (frameLog) args.push("--frame-log", path.join(frameLog, `engine-${process.pid}-${Date.now()}-${running.size}.log`));
     if (process.platform === "win32") {
       args.push("--parent", String(process.pid));
       if (orphanedWindowsHandles.length) args.push("--close-in-parent", orphanedWindowsHandles.join(","));
@@ -297,9 +323,13 @@ export class MediaEngine {
       // The engine is gone; `exit` says so.
     });
     this.child.once("error", (error) => {
-      // Not started at all (not executable, say): `exit` may never come.
-      if (!this.ready) failsToStart = true;
+      // Not started at all (not executable, say): `exit` may never come, so this stands for it. Kept as the spare, it
+      // was handed to the next file as an engine that never started (2026-11-15 audit).
+      if (!this.ready) cannotStart();
       for (const reply of this.deviceReplies.splice(0)) reply(null);
+      this.exited = true;
+      running.delete(this);
+      if (spare === this) spare = null;
       this.fail({ code: "engine-exit", detail: error.message });
     });
     this.child.once("exit", (code, signal) => this.onExit(code, signal));
@@ -419,6 +449,10 @@ export class MediaEngine {
   kill(): void {
     this.killed = true;
     if (!this.exited) this.child.kill("SIGKILL");
+    // A spare never loaded a file, so it never connected: its socket waited for an `exit` event that a quitting main
+    // never sees, and one E2E run on Linux left 20 of them in /tmp (2026-11-17). Synchronous, for `before-quit`.
+    if (this.socketPath) fs.rmSync(this.socketPath, { force: true });
+    this.socketPath = null;
   }
 
   /** In order with everything else, once the engine has said its protocol and main has read the file's head. */
@@ -477,7 +511,14 @@ export class MediaEngine {
         ringHandles = this.macPointers.map((p) => ({ ioSurface: pointerBuffer(p) }));
       } else if (process.platform === "linux") {
         // The engine sent the fds before this line, so the connection is already waiting.
-        this.linuxFds = handles<LinuxHandles>().accept(this.server, 1000);
+        const linux = handles<LinuxHandles>();
+        this.linuxFds = linux.accept(this.server, 1000);
+        // The ring is made once: nothing connects again, so the path goes now. Left for the exit, a main that was
+        // killed (SIGKILL) left one socket in /tmp per engine it had ever started (2026-11-15 audit, X19).
+        linux.close(this.server);
+        this.server = -1;
+        if (this.socketPath) fs.rmSync(this.socketPath, { force: true });
+        this.socketPath = null;
         if (this.linuxFds.length !== event.handles.length) throw new Error(`${this.linuxFds.length} buffers for ${event.handles.length} slots`);
         const fds = this.linuxFds;
         ringHandles = event.handles.map((plane, i) => {
@@ -530,12 +571,13 @@ export class MediaEngine {
 
   private fail(error: EngineError): void {
     this.failed = true;
+    if (error.code === "engine-gpu") giveUp(`the GPU failed the engine (${error.detail})`);
     this.events.error?.(error);
   }
 
   private onExit(code: number | null, signal: NodeJS.Signals | null): void {
     this.exited = true;
-    if (!this.killed && !this.ready && code !== 0) failsToStart = true;
+    if (!this.killed && !this.ready && code !== 0) cannotStart();
     running.delete(this);
     for (const reply of this.deviceReplies.splice(0)) reply(null);
     if (spare === this) spare = null;

@@ -13,10 +13,14 @@
 
 static void* symbol(const char* name) {
   static void* lib = [] {
-    for (const char* soname : {"libmpv.so.2", "libmpv.so.1"})
+    // Main keeps the stderr tail of an engine that exits: this is what main.log shows. Each soname's own reason,
+    // because an installed libmpv whose dependency fails (a libplacebo.so.387 the distro did not update) reads
+    // «cannot open shared object file» too, only naming the dependency instead of libmpv.
+    for (const char* soname : {"libmpv.so.2", "libmpv.so.1"}) {
       if (void* handle = dlopen(soname, RTLD_NOW | RTLD_LOCAL)) return handle;
-    // Main keeps the stderr tail of an engine that exits: this is what main.log shows.
-    fprintf(stderr, "libmpv not found (libmpv.so.2 or libmpv.so.1): install the distribution's libmpv package\n");
+      fprintf(stderr, "libmpv could not be loaded: %s\n", dlerror());
+    }
+    fprintf(stderr, "install the distribution's libmpv package, or update the system if it is installed\n");
     exit(1);
   }();
   void* fn = dlsym(lib, name);
@@ -49,6 +53,7 @@ FORWARD(const char*, mpv_error_string, (int error), (error))
 FORWARD(int, mpv_render_context_create, (mpv_render_context * *res, mpv_handle* mpv, mpv_render_param* params), (res, mpv, params))
 FORWARD(void, mpv_render_context_free, (mpv_render_context * ctx), (ctx))
 FORWARD(int, mpv_render_context_render, (mpv_render_context * ctx, mpv_render_param* params), (ctx, params))
+FORWARD(int, mpv_render_context_get_info, (mpv_render_context * ctx, mpv_render_param param), (ctx, param))
 FORWARD(void, mpv_render_context_report_swap, (mpv_render_context * ctx), (ctx))
 FORWARD(uint64_t, mpv_render_context_update, (mpv_render_context * ctx), (ctx))
 FORWARD(void, mpv_render_context_set_update_callback, (mpv_render_context * ctx, mpv_render_update_fn cb, void* cb_ctx), (ctx, cb, cb_ctx))

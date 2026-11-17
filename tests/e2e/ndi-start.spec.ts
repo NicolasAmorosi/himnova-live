@@ -114,7 +114,8 @@ test("a cut into an engine video: the picture stays until its first frame, then 
   const waiting = after.slice(0, Math.max(first, 0));
   // 0:01's pair, by its time. Linux's capture hears the whole computer from the first instant, so 0:00's beep arrives
   // there too, paired with the first frame the cut shows ~0.1 s late: −31…−76 ms, taken for 0:01's by `first` until
-  // 2026-11-13. On macOS and Windows 0:00's beep never reaches a receiver (any engine start).
+  // 2026-11-13. Windows gets 0:00's beep too (9…28 ms, 2026-11-17). macOS gets it only sometimes, often ~0.2 s late: this
+  // test turns the sound on after the spare engine started, and such a spare's first sound reaches the tap late.
   const atOne = av.list.find(([flash]) => flash >= liveAt + 500);
   const atZero = av.list.find(([flash]) => flash < liveAt + 500);
   console.log(

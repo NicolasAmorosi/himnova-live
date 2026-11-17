@@ -3,8 +3,15 @@ import { onIpc } from "@renderer/lib/ipc";
 import { playableAssetUrl, useEngineAssetsStore } from "@renderer/stores/engine-assets.store";
 import { useProjectionStore } from "@renderer/stores/projection.store";
 import { useAudioStore } from "@renderer/stores/audio.store";
+import { useDeckStore } from "@renderer/stores/deck.store";
 import { survivingAssetId } from "@renderer/stores/program.store";
+import { t } from "@renderer/lib/i18n/i18n-provider";
+import { toast } from "@renderer/lib/toast";
 import type { DecoderSupport } from "@shared/types/media";
+import { mediaTargetKey } from "@shared/types/projection";
+
+const SLIDE_VIDEO_STATUS_KEY = mediaTargetKey({ kind: "slideVideo" });
+const deckVideoId = (url: string) => /^worship:\/\/(?:engine\/)?deck-video\/(\d+)/.exec(url)?.[1];
 
 /**
  * What only this renderer's Chromium can say: whether the GPU decodes HEVC.
@@ -53,16 +60,58 @@ export function rearmLive(assetId: number): void {
     projection.setVideoPaused(videoPaused);
     projection.setVideoVolume(videoVolume);
   }
+  // A song's video background, re-dressed in place: a background keeps no position, so it starts again.
+  if (
+    base?.kind === "song" &&
+    base.theme.background.kind === "video" &&
+    base.theme.background.assetId === assetId &&
+    base.backgroundVideo !== null &&
+    base.backgroundVideo.url !== url
+  ) {
+    projection.setLiveSong(base.song, base.theme, base.sizeCqw, base.slideIndex, base.language);
+  }
   const audio = useAudioStore.getState();
   for (const track of audio.tracks) {
     if (track.source === "asset" && track.assetId === assetId && track.url !== url) audio.setUrl(track.trackId, url);
   }
 }
 
+/**
+ * The live deck's clips follow its DTO, as `rearmLive` does a library file: a clip the engine takes after GO LIVE, or
+ * one it failed on and gave back to Chromium (owner, 2026-11-17), changes url in the deck store, never in the
+ * `liveDeck` snapshot. Patched in place, from where the clip is: `setLiveDeck` would start the deck's music over and
+ * send a synced deck back to slide 1.
+ */
+export function rearmLiveClips(): void {
+  const state = useProjectionStore.getState();
+  const live = state.liveDeck;
+  const fresh = live ? useDeckStore.getState().byAssetId[live.assetId]?.deck : null;
+  if (!live || !fresh || fresh.deckId !== live.deckId) return;
+  let changed = false;
+  const videos = live.videos.map((video) => {
+    const url = fresh.videos.find((candidate) => candidate.slideIndex === video.slideIndex)?.url;
+    if (url === undefined || url === video.url || deckVideoId(url) !== deckVideoId(video.url)) return video;
+    changed = true;
+    return { ...video, url };
+  });
+  if (!changed) return;
+  const status = state.mediaStatus[SLIDE_VIDEO_STATUS_KEY];
+  const at = status?.epoch === state.slideVideoEpoch ? status.currentTimeSeconds : state.slideVideoStartAt;
+  useProjectionStore.setState({ liveDeck: { ...live, videos }, slideVideoStartAt: at });
+}
+
+/** Once a session: the engine failed and a video went on in Chromium (owner, 2026-11-17). Never in the room. */
+let fallbackSaid = false;
+
 export function startEngineAssetsSync(): () => void {
   const unsubscribe = onIpc("engine-asset-changed", (update) => {
     useEngineAssetsStore.getState().apply(update);
     rearmLive(update.assetId);
+  });
+  const offFallback = onIpc("engine-fallback", () => {
+    if (fallbackSaid) return;
+    fallbackSaid = true;
+    toast.info(t("media.engineFallbackToast"));
   });
   void (async () => {
     try {
@@ -74,5 +123,12 @@ export function startEngineAssetsSync(): () => void {
       console.warn("[engine] sync failed", error);
     }
   })();
-  return unsubscribe;
+  const offClips = useDeckStore.subscribe((next, prev) => {
+    if (next.byAssetId !== prev.byAssetId) rearmLiveClips();
+  });
+  return () => {
+    unsubscribe();
+    offFallback();
+    offClips();
+  };
 }

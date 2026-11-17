@@ -519,6 +519,9 @@ export type IpcEvents = {
   /** An engine said `ready` after one could not start (`engineFailsToStart`): the control window asks for the outputs
    *  again, which it had taken as «none» (`effects/audio-route.ts`). */
   "engine-starts": void;
+  /** A video Chromium plays went back to Chromium because the engine failed (under it, or for good this session):
+   *  the control window says so once a session, in a toast. Nothing reaches the room (owner, 2026-11-17). */
+  "engine-fallback": void;
   /** `audioRoute:sinkFailed`, from whichever window it failed in, for the control window to resolve again. */
   "audio-sink-failed": { sinkId: string };
   /** What each bus sounds at, after its faders (`media/audio-levels.ts`): left and right in dBFS, `-Infinity`

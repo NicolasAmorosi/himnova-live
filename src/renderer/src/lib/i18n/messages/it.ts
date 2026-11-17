@@ -776,6 +776,7 @@ const it: Messages = {
     loadErrorRow: "Impossibile riprodurre",
     loadErrorToast: "Impossibile riprodurre «{name}» sul proiettore",
     loadErrorToastGeneric: "Impossibile riprodurre un file sul proiettore",
+    engineFallbackToast: "Il motore multimediale si è bloccato: il video continua nel lettore di riserva",
     volumeFor: "Volume di {name}",
     scrubberLabel: "Posizione di {name}",
     scrubberValue: "{current} di {total}",

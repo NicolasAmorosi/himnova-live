@@ -55,7 +55,7 @@ test("the NDI output turns on and off from Settings and never touches the projec
   if (!sending) await expect(image).toBeVisible();
 });
 
-test("dragging the sound's sync saves it on release, and the NDI page stays: only the sender restarts", async ({ app }) => {
+test("dragging the sound's sync saves it on release, and the NDI page and its sender stay: the delay moves in place", async ({ app }) => {
   await app.control.getByRole("button", { name: "Configuración" }).click();
   const settings = app.control.getByRole("dialog", { name: "Configuración" });
   await settings.getByRole("tab", { name: "Proyección" }).click();
@@ -92,16 +92,22 @@ test("dragging the sound's sync saves it on release, and the NDI page stays: onl
   expect(await delay()).toBe(0);
   await app.control.mouse.up();
   await expect.poll(delay).toBeGreaterThan(0);
-  await expect.poll(started).toBe(senders + 1);
+  // Engine protocol 9 takes the delay on stdin: the source never leaves the network, not even once (engine-10).
+  await app.control.waitForTimeout(1000);
+  expect(started()).toBe(senders);
   await expect(status).toContainText("Enviando");
   expect(await ndiWindow()).toBe(page);
 
-  // Released off the slider, as a drag often ends: saved all the same.
+  // Released off the slider, as a drag often ends: saved all the same. Measured again: the sender that kept running
+  // has reported its level by now, and the status above grew a line about the sound.
   const saved = await delay();
-  await app.control.mouse.move(box.x + box.width * 0.75, y);
+  const again = await settings.getByRole("slider", { name: "Sincronía del sonido" }).boundingBox();
+  if (!again) throw new Error("no slider");
+  const y2 = again.y + again.height / 2;
+  await app.control.mouse.move(again.x + again.width * 0.75, y2);
   await app.control.mouse.down();
-  await app.control.mouse.move(box.x + box.width * 0.9, y, { steps: 3 });
-  await app.control.mouse.move(box.x + box.width * 0.9, y + 80, { steps: 3 });
+  await app.control.mouse.move(again.x + again.width * 0.9, y2, { steps: 3 });
+  await app.control.mouse.move(again.x + again.width * 0.9, y2 + 80, { steps: 3 });
   await app.control.mouse.up();
   await expect.poll(delay).toBeGreaterThan(saved as number);
 });

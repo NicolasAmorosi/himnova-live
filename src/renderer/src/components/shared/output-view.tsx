@@ -583,9 +583,11 @@ function SlideVideoLayer({
     };
   }, []);
 
-  // Keyed by epoch at the call site, so this instance has exactly one
-  // `startAtSeconds` for its whole life — applied once, on mount; a copy's from
-  // the projector's last report, like `LiveVideo`'s.
+  // Keyed by epoch and url at the call site, so this instance has exactly one
+  // `startAtSeconds` for its whole life, applied once, on mount; a copy's from
+  // the projector's last report, like `LiveVideo`'s. The url is in the key for a
+  // clip the engine gives back to Chromium mid-play (`rearmLiveClips`): the
+  // `<video>` that takes over mounts here and starts where the engine was.
   const statusRef = useRef(status);
   statusRef.current = status;
   useEffect(() => {
@@ -1714,7 +1716,7 @@ export function OutputView({
           covered={output.kind !== "slide"}
           held={held}
           incomingCovers={incomingCovers}
-          key={output.slideVideo.epoch}
+          key={`${output.slideVideo.epoch}:${output.slideVideo.url}`}
           mode={mode}
           onError={handleSlideVideoError}
           paced={paced}

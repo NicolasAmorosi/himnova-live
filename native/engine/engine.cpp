@@ -9,7 +9,7 @@
 //   device <mpv audio-device name, «auto» the system's>   (proto 8: before `load`, or later to move the sound)
 //   devices                                               (proto 8: answered with a `devices` event)
 // Engine → main (stdout), JSON:
-//   {"ev":"hello","proto":8}                         first of all; an engine without it is proto 7, which answers any
+//   {"ev":"hello","proto":9}                         first of all; an engine without it is proto 7, which answers any
 //                                                    command it does not know with `engine-args`
 //   {"ev":"ready","gpu":…,"adapter":""|"match"|"none"}  the device is up, waiting for `load`
 //   {"ev":"loaded","duration":…,"width":…,"height":…,"hasVideo":…,"hasAudio":…}
@@ -159,6 +159,12 @@ struct Engine {
   std::atomic<int> started{0};
 };
 static Engine E;
+// QA only (`--frame-log <file>`, from HIMNOVA_ENGINE_FRAME_LOG): one line per frame rendered, «<steady µs> <mpv's
+// target time> <flags>» (the target in mpv's own clock: nanoseconds in the libmpv we ship). The target is when mpv
+// meant that frame to show, so a frame mpv dropped or held is a gap of two frame times or more there (a silent loop's
+// wrap holds its last frame 60–90 ms on the Mac, 2026-11-17), and one that left the engine is not: the Windows loop that loses the 3rd frame from its end
+// (agent8-04) is told apart from a loss downstream. Never asked for `time-pos`: on this thread that wait is a deadlock.
+static FILE* frameLog = nullptr;
 // Seconds the sound of a video is held (see FILE_LOADED), measured per system. ponytail: Linux has no measurement of
 // its own and takes the Mac's.
 #ifdef _WIN32
@@ -221,6 +227,14 @@ static void renderLoop(GpuOptions options) {
         emit("{\"ev\":\"slots\",\"width\":" + std::to_string(w) + ",\"height\":" + std::to_string(h) + ",\"handles\":" + handles + "}");
       }
       if (!(mpv_render_context_update(rctx) & MPV_RENDER_UPDATE_FRAME) || !ringReady) continue;
+      if (frameLog) {
+        mpv_render_frame_info info{};
+        if (mpv_render_context_get_info(rctx, {MPV_RENDER_PARAM_NEXT_FRAME_INFO, &info}) >= 0) {
+          auto us = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now().time_since_epoch());
+          fprintf(frameLog, "%lld %lld %llu\n", (long long)us.count(), (long long)info.target_time, (unsigned long long)info.flags);
+          fflush(frameLog);  // an engine is killed, never closed: Windows has no line buffering
+        }
+      }
       int slot = E.ring.acquire();
       if (slot < 0) break;
       std::vector<mpv_render_param> rp;
@@ -541,7 +555,7 @@ int main(int argc, char** argv) {
   if (argc > 2 && std::string(argv[1]) == "--ndi-send") return ndiSendMain(argc, argv);
   // What this engine understands, before anything else: main sends an older one (no hello, `ready` first) none of
   // the commands it would answer with `engine-args`, which fails the session it plays.
-  emit("{\"ev\":\"hello\",\"proto\":8}");
+  emit("{\"ev\":\"hello\",\"proto\":9}");
   for (int i = 1; i + 1 < argc; i += 2) {
     std::string k = argv[i], v = argv[i + 1];
     if (k == "--parent") options.parentPid = strtoul(v.c_str(), nullptr, 10);
@@ -555,6 +569,7 @@ int main(int argc, char** argv) {
     else if (k == "--adapter") options.adapter = v;
     else if (k == "--cache-dir") cacheDir = v;
     else if (k == "--ndi-tap") ndiTap = v == "1";
+    else if (k == "--frame-log") frameLog = fopen(v.c_str(), "a");
   }
 #ifdef _WIN32
   std::vector<unsigned long long> handles;
@@ -752,7 +767,13 @@ int main(int argc, char** argv) {
             output.judge();
           }
         } else if (name == "time-pos") seen.time = has && pc->format == MPV_FORMAT_DOUBLE ? *(double*)pc->data : 0;
-        else if (name == "duration") seen.duration = has && pc->format == MPV_FORMAT_DOUBLE ? *(double*)pc->data : 0;
+        else if (name == "duration") {
+          // News on its own: until the scrubber has a length it cannot move, and the 250 ms tick came after
+          // the first frame (2026-11-17, media-engine.spec.ts:49 on Windows).
+          double d = has && pc->format == MPV_FORMAT_DOUBLE ? *(double*)pc->data : 0;
+          if (d != seen.duration) changed = true;
+          seen.duration = d;
+        }
         else if (name == "dwidth" || name == "dheight") {
           (name == "dwidth" ? seen.dwidth : seen.dheight) = has && pc->format == MPV_FORMAT_INT64 ? *(int64_t*)pc->data : 0;
           askForRing();

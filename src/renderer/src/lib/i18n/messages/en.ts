@@ -772,6 +772,7 @@ const en: Messages = {
     loadErrorRow: "Couldn't play",
     loadErrorToast: "Couldn't play “{name}” on the projector",
     loadErrorToastGeneric: "Couldn't play a file on the projector",
+    engineFallbackToast: "The media engine failed: the video carries on in the backup player",
     volumeFor: "Volume for {name}",
     scrubberLabel: "Position in {name}",
     scrubberValue: "{current} of {total}",
