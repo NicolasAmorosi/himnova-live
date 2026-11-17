@@ -460,6 +460,10 @@ export class MediaEngine {
   kill(): void {
     this.killed = true;
     if (!this.exited) this.child.kill("SIGKILL");
+    // A spare never loaded a file, so it never connected: its socket waited for an `exit` event that a quitting main
+    // never sees, and one E2E run on Linux left 20 of them in /tmp (2026-11-17). Synchronous, for `before-quit`.
+    if (this.socketPath) fs.rmSync(this.socketPath, { force: true });
+    this.socketPath = null;
   }
 
   /** In order with everything else, once the engine has said its protocol and main has read the file's head. */
