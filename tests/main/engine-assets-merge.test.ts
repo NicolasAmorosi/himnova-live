@@ -22,7 +22,11 @@ vi.mock("../../src/main/media/ffmpeg", () => ({
   killAllFfmpeg: () => undefined,
   probeMedia: () => Promise.resolve(null),
 }));
-vi.mock("../../src/main/media/media-engine", () => ({ engineAvailable: () => true }));
+vi.mock("../../src/main/media/media-engine", () => ({
+  engineAvailable: () => true,
+  engineGaveUp: () => false,
+  onEngineGaveUp: () => undefined,
+}));
 vi.mock("../../src/main/services/repos", () => ({
   getConversionsRepo: () => ({ candidates: () => h.candidates }),
   getMediaRepo: () => ({ survivingId: (id: number) => h.mergedInto.get(id) ?? id }),
