@@ -5,7 +5,7 @@ import type { BackupEntry, BackupKind, LaunchRestore } from "@shared/types/backu
 import { listBackups, takeSnapshot, verifySnapshot, writeSnapshot } from "./migrate";
 
 /**
- * «Restaurar una copia» (owner, 2026-11-13; plan 2026-11-13-ci-y-2.8.1 §3). A restore never touches the open
+ * «Restaurar una copia» (owner, 2026-11-13). A restore never touches the open
  * database: the chosen copy is STAGED (snapshotted, verified, checked to be a Himnova database no newer than
  * this build) and the app restarts; at the next launch, before the database is opened, what is there now is
  * copied to `before-restore/` and the staged file takes its place (`applyPendingRestore`). The migrations

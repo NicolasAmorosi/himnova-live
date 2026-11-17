@@ -1,5 +1,5 @@
 /**
- * A song theme's video background on the projector (plan 2026-11-05-video-de-fondo): it travels at
+ * A song theme's video background on the projector (owner, 2026-11-05): it travels at
  * the top of the output, survives BLACK, and is the same video across the song's slides and re-dresses.
  */
 import { beforeEach, describe, expect, test } from "vitest";

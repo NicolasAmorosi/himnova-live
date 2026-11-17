@@ -61,7 +61,7 @@ test("the stage screen is the chosen one while it is connected", () => {
 test("never the projector's screen, even when the projector has not opened yet", () => {
   expect(chooseStageDisplay([1, 2, 3], 1, 2, 2)).toBeNull();
   // The projector's own choice unplugged: it opens on the first screen that is neither the operator's nor the
-  // stage's, so the stage keeps its screen whichever it is (plan 2026-11-13 §2.2).
+  // stage's, so the stage keeps its screen whichever it is (2026-11-13).
   expect(chooseStageDisplay([1, 2, 3], 1, 2, 9)).toBe(2);
   expect(chooseStageDisplay([1, 2, 3], 1, 3, 9)).toBe(3);
   // Never chosen at all: the same.

@@ -441,8 +441,8 @@ Every file after the RV1909 is **Zefania XML** (read by `bible-formats/zefania.t
 carries the version's name and language and each verse's OWN number, so a verse a text leaves out (the
 ASV's 16, the WEB's 4) is a gap and never shifts the verses after it — the JSON reader numbers verses by
 array index. Each holds the 66 books with the book names the text itself prints, and nothing but the
-verse's words. They are built from their sources by maintainer scripts kept outside this repo, with the
-plans (`../docs/plans/2026-11-09-bienvenida-y-biblias/scripts/`); `resources/bibles/NOTICE.txt` says
+verse's words. They are built from their sources by maintainer scripts kept outside this repo;
+`resources/bibles/NOTICE.txt` says
 where each text comes from, its licence, and what was changed. A version whose licence asks for a credit
 (the Versión Biblia Libre, CC BY-SA 4.0; the Bíblia Livre, CC BY 4.0 BR) carries it in the catalog, and
 Settings shows it under that version.

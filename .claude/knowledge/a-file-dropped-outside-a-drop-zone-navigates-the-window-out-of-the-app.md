@@ -7,7 +7,7 @@ disappeared / turned into a video / went white and I had to restart it", or any 
 app's Electron hardening.
 
 Found in the 2026-09-13 session, closing `C1` of
-the internal audit `2026-09-13-transversal-general`.
+the internal general audit of 2026-09-13.
 
 ### What was believed, and what is true
 

@@ -45,7 +45,7 @@ The cost compounds three times over, which is why it is worth writing down:
   (`deck.store`'s `readyEpoch`, bumped on every `ready`) is O(1), is a primitive so it compares by
   value, and says exactly the same thing.
 - `broadcast()` reaching every window is the fourth multiplier and is still unfixed — see the
-  internal audit `2026-09-11-cadena-de-media` (M17).
+  internal media-chain audit of 2026-09-11 (M17).
 
 See also [`media-status` must be keyed per target](media-status-is-per-target-not-a-single-slot.md)
 and [prewarm LRU grace](prewarm-lru-grace-and-linked-audio-full-file-read.md).

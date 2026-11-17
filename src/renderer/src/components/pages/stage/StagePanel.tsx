@@ -566,7 +566,7 @@ function StageCard({ closing, onClosed }: { closing: boolean; onClosed: () => vo
 }
 
 /**
- * «Escenario» (plan 2026-11-13 §2.4): the stage screen run from the work screen — a manual countdown for the
+ * «Escenario» (owner, 2026-11-13): the stage screen run from the work screen: a manual countdown for the
  * preacher, a message to the platform and the view, beside a monitor of what the stage shows. Only while a stage
  * screen is assigned, and not as a copy of the projector: a church with two screens sees nothing new. A bar at the
  * foot of the left column (`StageHead`); opened, a card over it (`StageCard`), never remembered across launches.

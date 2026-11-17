@@ -70,7 +70,7 @@ changes *how long* something stays mounted, the effects inside it need re-readin
 render.
 
 Full diagnosis, measurements and the fix options in
-the internal audit `2026-09-13-bugs-de-campo`
+the internal field-bug report of 2026-09-13
 (`F1`).
 
 **Last updated:** 2026-09-13

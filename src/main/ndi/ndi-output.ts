@@ -19,7 +19,7 @@ import { paintVerdict } from "./ndi-pacing";
 const ndiCrashed = crashLimit();
 
 /**
- * The NDI® output (plan `2026-11-09-ndi`, phase 1): the projection drawn a second time in an offscreen
+ * The NDI® output (since 2.7.0): the projection drawn a second time in an offscreen
  * window of its own (`projection.html?role=ndi`, muted, never reporting), each painted frame handed as a
  * shared GPU texture to the media engine in its NDI mode (`native/engine/ndi.cpp`), which reads them and
  * sends them from a short queue, oldest first, at a steady rate (2.7.0 sent only the latest one and lost frames).

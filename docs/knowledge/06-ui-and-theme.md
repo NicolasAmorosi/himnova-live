@@ -205,7 +205,7 @@ pale-blue button that could be pressed.
 ## Full-screen editors: `EditorScreen`, `Inspector`, `EditorStage`
 
 Every editor in the control window (song themes, timer scenes, plates, the verse's look, the song editor, the saved
-programs and Settings; `docs/plans/2026-11-04-rediseno-ui/` in the maintainer workspace) is a full-screen
+programs and Settings; owner, 2026-11-04) is a full-screen
 `EditorScreen` (`components/shared/editor-screen/`) instead of a centred modal: a 48 px bar, and under it a list
 of the things of that kind · the canvas · the inspector.
 

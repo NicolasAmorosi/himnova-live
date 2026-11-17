@@ -1,4 +1,4 @@
-// Where each bus sounds (plan 2026-11-15 §2 «Salidas», F3a): the output chosen for LIVE moves every element of the
+// Where each bus sounds (since 2.10.0): the output chosen for LIVE moves every element of the
 // projector and every live engine session, PREVIEW's moves this window's elements and PREVIEW's engine, and the NDI®
 // sound is captured from LIVE's output only (D6). Measured where it can be: the projector's elements report their
 // `sinkId`, the NDI sender's own capture of LIVE's output (its `levelDb`) hears a tone only when it really plays

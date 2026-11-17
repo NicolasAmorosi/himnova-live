@@ -3,7 +3,7 @@
 **Trigger:** Touching `useMediaAsset`, `usePreviewContent`, `projection-state.ts`,
 `ProjectionApp.tsx`, or anything in the go-live path for decks/video.
 
-Two real bugs were found and fixed in the 2026-09-08 session (see root `HANDOFF.md` for the
+Two real bugs were found and fixed in the 2026-09-08 session (the maintainer's notes of that session have the
 full investigation, including the CDP-driven live-reproduction technique used to pin them down
 with certainty instead of guessing).
 

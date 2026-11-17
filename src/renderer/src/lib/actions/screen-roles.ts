@@ -26,7 +26,7 @@ export function screenRole(
 const nameOf = (id: number): string => useDisplayStore.getState().displays.find((d) => d.id === id)?.label ?? String(id);
 
 /**
- * Gives `id` a role, and the roles exclude each other (plan 2026-11-13 §2.4): the stage and the copy of the projector
+ * Gives `id` a role, and the roles exclude each other (owner, 2026-11-13): the stage and the copy of the projector
  * are the same screen (the stage window, showing one or the other), the projector given the stage's screen
  * leaves the stage without one, and the stage given the projector's screen moves the projector to another
  * (`projectorDisplayFor`) — each said in a toast, never in silence. The projector always has a screen, so «none»

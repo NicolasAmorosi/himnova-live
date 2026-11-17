@@ -141,7 +141,7 @@ projector's transition. It rebuilds only when an input changes by reference (`se
 keeps what it sent in `stage.store`'s `output`, which the stage panel's monitor draws: never a second build.
 
 **The stage panel** (`components/pages/stage/StagePanel.tsx`, the foot of the left column, only while a stage
-screen is assigned; plan 2026-11-13) runs what the stage says, never Settings (owner). `stores/stage.store.ts`
+screen is assigned; owner, 2026-11-13) runs what the stage says, never Settings (owner). `stores/stage.store.ts`
 holds a manual countdown (a `TimerClock` mark plus its length: one push per change, none per second, the stage
 ticks it itself with `useTimerNow`; it runs from the moment it is set, owner 2026-11-14), the length its field
 offers next (the last one started, this session), one message at a time (`seq` makes a new one blink three times; a

@@ -53,7 +53,7 @@ identity heuristic, measure its collision rate **on the user's real data**, not 
 looked perfect until the pairs were grouped by hash.
 
 - Tracked as finding **`N3`** in
-  the internal audit `2026-09-11-cadena-de-media`
+  the internal media-chain audit of 2026-09-11
   §5.2. Raised and deferred on 2026-09-13, fixed the same day in session 4.
 
 **Last updated:** 2026-09-13

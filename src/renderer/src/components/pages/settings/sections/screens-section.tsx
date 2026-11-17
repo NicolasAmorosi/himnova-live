@@ -105,7 +105,7 @@ function StageOptionsGroup({ mirror }: { mirror: boolean }) {
   );
 }
 
-/** Settings ▸ Screens (plan 2026-11-13 §2.4): what each screen does, and how the stage is dressed. */
+/** Settings ▸ Screens (owner, 2026-11-13): what each screen does, and how the stage is dressed. */
 export function ScreensSection() {
   // A copy of the projector shows nothing of the stage's own, but it can still play videos or not.
   const mirror = useSettingsStore((s) => s.settings["stage.mirror"]);

@@ -138,7 +138,7 @@
 }
 
 /* The stage screen (`StageView`): a message that appears, the countdown entering red and reaching zero blink
- * three times and then stay legible; an urgent message keeps blinking (plan 2026-11-13 §2.4). */
+ * three times and then stay legible; an urgent message keeps blinking (owner, 2026-11-13). */
 @keyframes stage-blink {
   0%, 100% { opacity: 1; }
   50%      { opacity: 0.15; }

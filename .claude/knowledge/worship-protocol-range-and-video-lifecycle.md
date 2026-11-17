@@ -99,8 +99,8 @@ The `LiveVideo` component owns the resulting rules:
 
 ### How this was verified (reuse it)
 
-Driven against the running app over CDP (`--remote-debugging-port=9222`, raw `WebSocket`, see
-root `HANDOFF.md` for the technique). The scenarios that must stay green:
+Driven against the running app over CDP (`--remote-debugging-port=9222`, raw `WebSocket`; the
+technique is in the maintainer's notes of that session). The scenarios that must stay green:
 
 | Scenario | Was |
 |---|---|

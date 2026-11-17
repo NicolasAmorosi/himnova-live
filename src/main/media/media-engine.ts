@@ -21,8 +21,7 @@ import {
  * The media engine (`native/engine/engine.cpp`): ONE file per process, played by libmpv, which also
  * plays its sound. Each frame lands in a GPU texture of the engine's ring; this module imports it once
  * and sends it to every window that shows that file, so the projector and the LIVE monitor draw the
- * very same frame from a single decode. Plan: `2026-10-25-reproduccion-instantanea`, §6 «Contrato del
- * motor para el paso 1».
+ * very same frame from a single decode.
  *
  * A window only ever holds the latest frame: one still busy with the previous one skips the next,
  * so a window that stopped drawing (occluded, closing) costs its own frames, never the projector's.

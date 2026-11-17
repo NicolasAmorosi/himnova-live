@@ -52,7 +52,7 @@ export function PlatesModal({ onOpenChange, open }: { onOpenChange: (open: boole
   const dirty = editing !== null && JSON.stringify(editing.draft) !== JSON.stringify(editing.baseline);
   const savable = editing !== null && isPlateDraftSavable(editing.draft);
   // A plate that does not exist yet has nothing to differ from — the lesson
-  // of the scene editor's dead «Save» (HANDOFF B1).
+  // of the scene editor's dead «Save».
   const canSave = savable && (editing.plateId === null || dirty);
 
   useEffect(() => {

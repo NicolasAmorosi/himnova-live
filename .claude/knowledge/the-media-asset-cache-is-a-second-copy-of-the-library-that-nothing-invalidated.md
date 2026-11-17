@@ -31,7 +31,7 @@ you are about to add another module-level cache keyed by id.
 - General rule: **a module-level cache of rows another process can change is not a cache, it is
   a replica — and a replica needs an invalidation channel.** The same map has a second, still
   open defect from the same blind spot (`M26` of
-  the internal audit `2026-09-13-transversal-general`): eviction is FIFO over 500 entries and
+  the internal general audit of 2026-09-13): eviction is FIFO over 500 entries and
   a read during render does not mark an entry as used, so a mounted row can lose the asset it is
   displaying and never ask for it again.
 

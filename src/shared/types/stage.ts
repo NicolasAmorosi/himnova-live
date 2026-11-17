@@ -1,7 +1,7 @@
 import type { TimerClock } from "./timer";
 
 /**
- * The stage screen's own controls (plan 2026-11-13 §2.4): a countdown for the preacher, a message to the platform
+ * The stage screen's own controls (owner, 2026-11-13): a countdown for the preacher, a message to the platform
  * and which of its two layouts it shows. Run from the work screen's stage panel, never from Settings (owner).
  */
 

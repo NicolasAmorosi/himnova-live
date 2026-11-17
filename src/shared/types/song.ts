@@ -209,9 +209,9 @@ export const SONG_FOOTER_LINES = 2;
 export const SONG_THEME_VERSION = 1;
 
 /** A looping video behind the lyrics, never heard — songs only: the verse,
- *  the time scenes and the plates keep `SceneBackground` (owner, 2026-11-05;
- *  plan `2026-11-05-video-de-fondo`). Any video the library takes: one the
- *  projector cannot play goes through the media engine, like a live video. */
+ *  the time scenes and the plates keep `SceneBackground` (owner, 2026-11-05).
+ *  Any video the library takes: one the projector cannot play goes through
+ *  the media engine, like a live video. */
 export type SongVideoBackground = { kind: "video"; assetId: number; fit: BackgroundFit };
 export type SongBackground = SceneBackground | SongVideoBackground;
 

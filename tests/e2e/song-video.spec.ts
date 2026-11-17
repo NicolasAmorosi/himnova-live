@@ -5,7 +5,7 @@ import type { MediaAsset } from "../../src/shared/types/media";
 import { engineCanvas, expect, moving, relaunch, test, type WorshipApp } from "./support/app";
 
 /**
- * A song theme's video background (plan 2026-11-05-video-de-fondo): it loops, silent, under the
+ * A song theme's video background (owner, 2026-11-05): it loops, silent, under the
  * lyrics; the same element through the song's slides; BLACK pauses it and keeps it.
  */
 

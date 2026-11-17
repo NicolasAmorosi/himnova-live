@@ -278,7 +278,7 @@ export type ProjectionPlate = {
 };
 
 /**
- * A live song theme's video background (plan `2026-11-05-video-de-fondo`).
+ * A live song theme's video background (owner, 2026-11-05).
  * At the TOP of the output, for `slideVideo`'s reason: under BLACK the `kind`
  * is "black", and a video inside the song variant would unmount on every
  * toggle. It is drawn UNDER the song's scene layers, and outside them: a

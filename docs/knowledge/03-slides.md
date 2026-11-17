@@ -361,7 +361,7 @@ ownership question about a content cache, and gets it wrong as soon as there are
 files: one shows as ready and the other doesn't, forever.
 
 **It was a real defect, not a theoretical subtlety:** `N3` in
-the internal audit `2026-09-11-cadena-de-media`
+the internal media-chain audit of 2026-09-11
 §5.2, measured at 555 false pendings over 1235 assets with 0 real work. Fixed on 2026-09-13:
 `statusesByAsset` now JOINs by the asset's `content_hash` and falls back to ownership only for an
 asset not stamped yet (see `05-data-and-persistence.md`). Don't count rows per asset to find out

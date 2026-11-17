@@ -41,8 +41,7 @@ import { TOOL_ICON, TOOL_LABEL } from "./tool-display";
  * A scene reaches the order of service the same two ways an asset does — the
  * footer button for the selected row, and dragging the row onto the schedule.
  * It belongs there because a time scene IS full-screen base content; an
- * overlay, which only modifies what is projected, deliberately will not be
- * (see `PLAN.md`).
+ * overlay, which only modifies what is projected, deliberately will not be.
  */
 export function UtilitiesPanel() {
   const { locale, t } = useI18n();

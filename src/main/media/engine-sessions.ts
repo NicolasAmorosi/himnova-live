@@ -22,7 +22,6 @@ import {
 /**
  * The media engine's sessions: the live video, the live slide's clip, each live audio track, and the
  * PREVIEW monitor's video.
- * Plan `2026-10-25-reproduccion-instantanea`, §6 «Contrato del motor para el paso 1».
  *
  * The live ones follow the last `ProjectionOutput` and `AudioTrackPush[]`, the very values
  * `projectionState` replays into a rebuilt projector, so main keeps no record of its own of what is live

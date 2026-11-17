@@ -83,7 +83,7 @@ The LIVE monitor animates too (`mode === "monitor"`), so it shows the same defec
 not lying, it is faithfully reproducing a broken projector.
 
 Full report, all measurements, and the fix options in
-the internal audit `2026-09-13-bugs-de-campo`
+the internal field-bug report of 2026-09-13
 (`F2`).
 
 **Last updated:** 2026-09-13
