@@ -159,6 +159,11 @@ struct Engine {
   std::atomic<int> started{0};
 };
 static Engine E;
+// QA only (`--frame-log <file>`, from HIMNOVA_ENGINE_FRAME_LOG): one line per frame rendered, «<steady µs> <mpv's
+// target µs> <flags>». The target is when mpv meant that frame to show, so a frame mpv dropped is a gap of two frame
+// times there, and one that left the engine is not: the Windows loop that loses the 3rd frame from its end
+// (agent8-04) is told apart from a loss downstream. Never asked for `time-pos`: on this thread that wait is a deadlock.
+static FILE* frameLog = nullptr;
 // Seconds the sound of a video is held (see FILE_LOADED), measured per system. ponytail: Linux has no measurement of
 // its own and takes the Mac's.
 #ifdef _WIN32
@@ -221,6 +226,14 @@ static void renderLoop(GpuOptions options) {
         emit("{\"ev\":\"slots\",\"width\":" + std::to_string(w) + ",\"height\":" + std::to_string(h) + ",\"handles\":" + handles + "}");
       }
       if (!(mpv_render_context_update(rctx) & MPV_RENDER_UPDATE_FRAME) || !ringReady) continue;
+      if (frameLog) {
+        mpv_render_frame_info info{};
+        if (mpv_render_context_get_info(rctx, {MPV_RENDER_PARAM_NEXT_FRAME_INFO, &info}) >= 0) {
+          auto us = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now().time_since_epoch());
+          fprintf(frameLog, "%lld %lld %llu\n", (long long)us.count(), (long long)info.target_time, (unsigned long long)info.flags);
+          fflush(frameLog);  // an engine is killed, never closed: Windows has no line buffering
+        }
+      }
       int slot = E.ring.acquire();
       if (slot < 0) break;
       std::vector<mpv_render_param> rp;
@@ -555,6 +568,7 @@ int main(int argc, char** argv) {
     else if (k == "--adapter") options.adapter = v;
     else if (k == "--cache-dir") cacheDir = v;
     else if (k == "--ndi-tap") ndiTap = v == "1";
+    else if (k == "--frame-log") frameLog = fopen(v.c_str(), "a");
   }
 #ifdef _WIN32
   std::vector<unsigned long long> handles;

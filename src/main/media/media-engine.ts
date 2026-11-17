@@ -287,6 +287,9 @@ export class MediaEngine {
     const args = ["--max-width", "1920", "--max-height", "1080", "--cache-dir", engineCacheDir];
     if (engineAdapter) args.push("--adapter", engineAdapter);
     if (this.tapped) args.push("--ndi-tap", "1");
+    // QA only: each engine logs its rendered frames' times into this folder (native/engine/engine.cpp, `frameLog`).
+    const frameLog = process.env["HIMNOVA_ENGINE_FRAME_LOG"];
+    if (frameLog) args.push("--frame-log", path.join(frameLog, `engine-${process.pid}-${Date.now()}-${running.size}.log`));
     if (process.platform === "win32") {
       args.push("--parent", String(process.pid));
       if (orphanedWindowsHandles.length) args.push("--close-in-parent", orphanedWindowsHandles.join(","));
