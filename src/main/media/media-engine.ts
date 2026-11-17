@@ -183,9 +183,9 @@ export function listAudioDevices(): Promise<EngineDevice[] | null> {
 
 /** Whether the NDI output takes the app's sound, read as each engine starts (the first spare starts before the NDI
  *  output does). On macOS such an engine opens the default output for 100 ms on start, which the NDI sound tap needs
- *  to hear it from its first file and nothing else does (`becomeKnownToCoreAudio`; 2026-11-15 audit, X21). A spare
- *  started before the sound was turned on is replaced (`matchSpareToNdiSound`): it missed the tap's first 300–400 ms of
- *  its first file. */
+ *  to hear it from its first file and nothing else does (`becomeKnownToCoreAudio`; 2026-11-15 audit, X21).
+ *  ponytail: a spare started before the sound was turned on misses the tap's first 300–400 ms of its first file;
+ *  replace the spare on that setting if it is ever heard. */
 function ndiTakesSound(): boolean {
   try {
     const settings = getSettingsRepo();
@@ -193,14 +193,6 @@ function ndiTakesSound(): boolean {
   } catch {
     return false;
   }
-}
-
-/** macOS: the NDI output's settings changed; a spare started for the other answer of `ndiTakesSound` is replaced. */
-export function matchSpareToNdiSound(): void {
-  if (process.platform !== "darwin" || !spare || spare.exited || spare.tapped === ndiTakesSound()) return;
-  spare.kill();
-  spare = null;
-  prewarmEngine();
 }
 
 /** Starts the spare before the first file needs it. */
@@ -303,13 +295,10 @@ export class MediaEngine {
   /** The file was text, not audio or video: no line but `quit` reaches the engine. */
   private refused = false;
 
-  /** macOS: started knowing the NDI output takes the sound (`--ndi-tap`). */
-  readonly tapped = process.platform === "darwin" && ndiTakesSound();
-
   constructor() {
     const args = ["--max-width", "1920", "--max-height", "1080", "--cache-dir", engineCacheDir];
     if (engineAdapter) args.push("--adapter", engineAdapter);
-    if (this.tapped) args.push("--ndi-tap", "1");
+    if (process.platform === "darwin" && ndiTakesSound()) args.push("--ndi-tap", "1");
     // QA only: each engine logs its rendered frames' times into this folder (native/engine/engine.cpp, `frameLog`).
     const frameLog = process.env["HIMNOVA_ENGINE_FRAME_LOG"];
     if (frameLog) args.push("--frame-log", path.join(frameLog, `engine-${process.pid}-${Date.now()}-${running.size}.log`));

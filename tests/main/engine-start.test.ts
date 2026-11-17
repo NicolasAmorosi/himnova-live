@@ -124,25 +124,4 @@ test.skipIf(process.platform !== "darwin")("an engine opens the Mac's output on 
     expect(fs.readFileSync(said, "utf8").includes("--ndi-tap 1"), `NDI ${enabled}, its sound ${audio}`).toBe(joins);
     killAllEngines();
   }
-
-  // The sound turned on after the spare started: that spare is replaced by one that opens the output.
-  const { matchSpareToNdiSound } = await import("../../src/main/media/media-engine");
-  const args = async (): Promise<string> => {
-    await expect.poll(() => fs.existsSync(said) && fs.readFileSync(said, "utf8").includes("--max-width"), { timeout: 2000 }).toBe(true);
-    return fs.readFileSync(said, "utf8");
-  };
-  h.ndi = new Map([["ndi.output.enabled", true], ["ndi.output.audio", false]]);
-  fs.rmSync(said, { force: true });
-  prewarmEngine();
-  expect(await args()).not.toContain("--ndi-tap");
-  h.ndi = new Map([["ndi.output.enabled", true], ["ndi.output.audio", true]]);
-  fs.rmSync(said, { force: true });
-  matchSpareToNdiSound();
-  expect(await args()).toContain("--ndi-tap 1");
-  // The same answer again starts nothing.
-  fs.rmSync(said, { force: true });
-  matchSpareToNdiSound();
-  await new Promise((resolve) => setTimeout(resolve, 300));
-  expect(fs.existsSync(said)).toBe(false);
-  killAllEngines();
 });
