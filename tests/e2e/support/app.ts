@@ -43,6 +43,9 @@ const FLAGS = [
   // The suite was written against a projector that opens on the first GO LIVE, BLACK or LOGO; `screens.spec.ts`
   // turns the launch's own opening back on.
   "--no-auto-projector",
+  // Windows plays every video on the media engine (`ENGINE_PLAYS_EVERY_PICTURE`); the suite's specs read a `<video>`.
+  // `test.use({ chromiumArgs: ["--engine-video"] })` turns the engine back on (`media-engine.spec.ts`).
+  "--chromium-video",
 ];
 
 /** What the renderer's global handlers log before showing the "error
@@ -117,6 +120,7 @@ export class WorshipApp {
       // `test.use({ chromiumArgs: ["--auto-projector"] })`: the projector opens by itself, as it does for a church.
       chromiumArgs.includes("--auto-projector") && "--no-auto-projector",
       chromiumArgs.includes("--whats-new") && "--no-whats-new",
+      chromiumArgs.includes("--engine-video") && "--chromium-video",
     ];
     const flags = [...FLAGS.filter((flag) => !dropped.includes(flag)), `--lang=${locale}`, ...chromiumArgs];
     const app = await electron.launch({

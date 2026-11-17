@@ -447,6 +447,28 @@ test("the plate editor shows an engine video on the air as its still, never a bl
   expect(await stage.locator("canvas, video").count()).toBe(0);
 });
 
+test.describe("on Windows, which plays every video on the engine", () => {
+  test.skip(process.platform !== "win32", "only Windows (`ENGINE_PLAYS_EVERY_PICTURE`)");
+  test.use({ chromiumArgs: ["--engine-video"] });
+
+  // A stage animation on a screen slower than the primary froze Chromium's video decoder (2026-11-16).
+  test("an MP4 Chromium plays goes to the engine, and an MP3 stays off it", async ({ app }) => {
+    const [mp4] = await app.addMedia("video", "clip.mp4");
+    const [mp3] = await app.addMedia("audio", "song.mp3");
+    if (!mp4 || !mp3) throw new Error("import failed");
+    await waitEngine(app, mp4);
+    // Give the background check time to probe both.
+    await app.control.waitForTimeout(3000);
+    expect(await engineAssets(app)).toEqual([mp4.id]);
+    await app.previewFile("Videos", "clip");
+    await app.goLive();
+    const projector = await app.projector();
+    await expect.poll(async () => (await engineCanvas(projector, "video:"))?.width ?? 0).toBe(640);
+    await expect.poll(() => moving(projector, "video:")).toBe(true);
+    expect(await videoStates(projector)).toEqual([]);
+  });
+});
+
 test.describe("on Windows, with Chromium on WARP", () => {
   test.skip(process.platform !== "win32", "WARP is Windows' software D3D11");
   test.use({ chromiumArgs: ["--use-angle=d3d11-warp"] });

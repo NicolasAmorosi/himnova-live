@@ -657,7 +657,12 @@ npm run package:win|mac|linux  # build + electron-builder for that platform
   `.mp4`/`.mov` play sound over black without any `error`, and AC3/DTS/ALAC give a picture WITH NO
   SOUND. `media-compat.ts` decides from ffprobe's streams (and HEVC depending on the GPU, which the
   control window reports); until the probe answers, an extension Chromium never opens (AVI, WMV…)
-  already goes to the engine. The engine is libmpv in its own process (`native/engine/`).
+  already goes to the engine. **On Windows the engine plays every video, not only those** (owner, 2026-11-16;
+  `ENGINE_PLAYS_EVERY_PICTURE`): any animation in a full-screen window on a screen slower than the primary (the stage's
+  red message) blocks Chromium's GPU thread, where its video decoder runs, and froze the room's video. The E2E suite
+  turns it off with `--chromium-video`. Diagnosis in
+  [`.claude/knowledge/on-windows-an-animation-on-a-slower-screen-blocks-chromiums-gpu-thread-and-freezes-its-video.md`](.claude/knowledge/on-windows-an-animation-on-a-slower-screen-blocks-chromiums-gpu-thread-and-freezes-its-video.md).
+  The engine is libmpv in its own process (`native/engine/`).
   `engine-assets.ts` keeps in memory which library files it plays (re-decided every launch), and
   **the video/audio URL comes from `playableAssetUrl`**: `worship://engine/<id>` for those,
   `worship://asset/<id>` (always the original) for the rest. `OutputView` draws the engine's frames

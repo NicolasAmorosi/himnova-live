@@ -353,8 +353,9 @@ One row per video or audio already checked with ffprobe (migration `0016_media_c
 `MEDIA_PROBE_VERSION`), valid while `source_size` and `source_mtime_ms` are still the asset's.
 
 **Whether the media engine plays a file is not stored.** It's recomputed on every startup
-(`media/engine-assets.ts`, `playsNatively`), because one of its inputs belongs to the MACHINE:
-whether the GPU decodes HEVC. A library taken to another PC doesn't keep the previous one's answer.
+(`media/engine-assets.ts`, `playsOnEngine`), because its inputs belong to the MACHINE: whether
+the GPU decodes HEVC, and the platform (on Windows every video goes to the engine, 2026-11-16). A library
+taken to another PC doesn't keep the previous one's answer.
 Clips embedded in a `.pptx` don't use this table: `media/deck-clips.ts` probes them when the deck
 is opened, and keeps its answer in memory too.
 

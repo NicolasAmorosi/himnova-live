@@ -11,7 +11,11 @@ vi.mock("../../src/main/media/ffmpeg", () => ({ ffmpegAvailable: () => true, pro
 vi.mock("../../src/main/media/media-engine", () => ({ engineAvailable: () => true }));
 vi.mock("../../src/main/media/engine-assets", () => ({ currentDecoderSupport: () => ({ hevc: false, hevcMain10: false }) }));
 // A WMV: whatever ffprobe says about it, Chromium does not play it.
-vi.mock("../../src/main/media/media-compat", () => ({ parseProbe: (raw: unknown) => raw, playsNatively: () => false }));
+vi.mock("../../src/main/media/media-compat", () => ({
+  parseProbe: (raw: unknown) => raw,
+  playsNatively: () => false,
+  playsOnEngine: () => true,
+}));
 vi.mock("../../src/main/services/broadcast", () => ({ broadcast: () => undefined }));
 
 let nextId = 1;

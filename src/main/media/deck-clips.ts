@@ -4,7 +4,7 @@ import { getSlidesRepo } from "../services/repos";
 import { broadcast } from "../services/broadcast";
 import { currentDecoderSupport } from "./engine-assets";
 import { ffmpegAvailable, probeMedia } from "./ffmpeg";
-import { parseProbe, playsNatively } from "./media-compat";
+import { parseProbe, playsNatively, playsOnEngine } from "./media-compat";
 import { engineAvailable } from "./media-engine";
 
 /**
@@ -84,13 +84,14 @@ async function healClip(clip: Clip): Promise<boolean> {
     if (tries < PROBE_TRIES) checked.delete(key);
     return false;
   }
-  if (playsNatively(probe, clip.kind, decoders)) {
-    if (clip.playable) return false;
-    // Flagged unplayable by its extension (an `.mkv`), playable by content.
+  let changed = false;
+  if (!clip.playable && playsNatively(probe, clip.kind, decoders)) {
+    // Flagged unplayable by its extension (an `.mkv`), playable by content. Marked where the engine plays it too
+    // (Windows): a package without the engine plays it on Chromium.
     getSlidesRepo().updateClip(clip.kind, clip.id, clip.file, clip.ext, fs.statSync(input).size);
-    return true;
+    changed = true;
   }
-  if (!engineAvailable()) return false;
+  if (!engineAvailable() || !playsOnEngine(probe, clip.kind, decoders)) return changed;
   engineClips.add(`${clip.kind}:${clip.id}`);
   console.info(`[engine] slide clip ${clip.file}`);
   return true;

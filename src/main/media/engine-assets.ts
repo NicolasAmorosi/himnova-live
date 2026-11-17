@@ -6,12 +6,20 @@ import { broadcast } from "../services/broadcast";
 import type { ConversionCandidate } from "../db/repositories/conversions.repo";
 import { ffmpegAvailable, killAllFfmpeg, probeMedia } from "./ffmpeg";
 import { engineAvailable } from "./media-engine";
-import { MEDIA_PROBE_VERSION, normalizeProbe, parseProbe, playsNatively, type MediaProbe } from "./media-compat";
+import {
+  ENGINE_PLAYS_EVERY_PICTURE,
+  MEDIA_PROBE_VERSION,
+  normalizeProbe,
+  parseProbe,
+  playsOnEngine,
+  type MediaProbe,
+} from "./media-compat";
 import type { DecoderSupport } from "@shared/types/media";
 
 /**
  * Which library videos and audios the media engine plays (`engineAssetUrl`): the ones Chromium
- * cannot decode (`media-compat.ts` decides which). Everything else stays on `<video>`/`<audio>`.
+ * cannot decode, and on Windows every video (`media-compat.ts` decides which). Everything else stays on
+ * `<video>`/`<audio>`.
  * Plan §6, step 1: the engine replaced the conversion to a playable copy (step 1.4, 2026-11-02).
  *
  * The decision is kept in memory and made again every launch: one input to it — can this GPU decode
@@ -74,10 +82,11 @@ function storedProbe(c: ConversionCandidate): MediaProbe | null {
   }
 }
 
-/** By the probe once there is one; by the extension until then, and for a file ffprobe cannot read. */
+/** By the probe once there is one; by the kind and the extension until then, and for a file ffprobe cannot read. */
 function needsEngine(c: ConversionCandidate, caps: DecoderSupport): boolean {
   const probe = probeIsCurrent(c) ? storedProbe(c) : null;
-  return probe ? !playsNatively(probe, c.kind, caps) : !LIKELY_NATIVE_EXT.has(c.ext);
+  if (probe) return playsOnEngine(probe, c.kind, caps);
+  return (ENGINE_PLAYS_EVERY_PICTURE && c.kind === "video") || !LIKELY_NATIVE_EXT.has(c.ext);
 }
 
 async function probeAndRecord(c: ConversionCandidate): Promise<ConversionCandidate | null> {
