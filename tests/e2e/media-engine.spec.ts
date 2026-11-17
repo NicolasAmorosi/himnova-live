@@ -63,6 +63,10 @@ test("GO LIVE takes the engine PREVIEW opened, and picked again PREVIEW gets one
   // PREVIEW's scrubber moves a new engine of PREVIEW's, paused — never the one now on air.
   const before = (await engineCanvas(app.control, "preview:"))?.sample;
   const scrubber = app.previewColumn().getByRole("slider", { name: "Posición de long-xvid" });
+  // The bar takes End only once it knows the file's length, which comes with the engine's next status (a paused engine
+  // writes one every 250 ms or so), not with its first frame: on the owner's Windows PC, 4 runs in 45 pressed it before
+  // (2026-11-17).
+  await expect(scrubber).toHaveAttribute("aria-valuemax", "30");
   await scrubber.focus();
   await scrubber.press("End");
   await expect.poll(async () => (await engineCanvas(app.control, "preview:"))?.sample).not.toBe(before);
