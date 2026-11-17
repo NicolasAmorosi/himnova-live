@@ -6,6 +6,7 @@ import { broadcast, controlWindows } from "../services/broadcast";
 import { projectionState } from "../services/projection-state";
 import { takeEngine, type EngineError, type EngineEvents, type MediaEngine } from "./media-engine";
 import { engineFailedOn } from "./engine-assets";
+import { clipEngineFailed } from "./deck-clips";
 import { heardAt, reportLevel } from "./audio-levels";
 import {
   applyToSession,
@@ -133,8 +134,9 @@ function audioOut(isCurrent: () => boolean): NonNullable<EngineEvents["audioOut"
  *  position (`engineFailedOn`). True when it did: then no failure is said, only the move, once a session. */
 function fellBackToChromium(url: string, error: EngineError): boolean {
   if (error.code !== "engine-exit" && error.code !== "engine-gpu") return false;
+  const clip = engineClipOfUrl(url);
   const assetId = engineAssetIdOfUrl(url);
-  if (assetId === null || !engineFailedOn(assetId)) return false;
+  if (clip ? !clipEngineFailed(clip.kind, clip.id) : assetId === null || !engineFailedOn(assetId)) return false;
   broadcast("engine-fallback", undefined);
   return true;
 }

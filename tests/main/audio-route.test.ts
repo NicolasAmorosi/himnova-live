@@ -72,6 +72,7 @@ vi.mock("../../src/main/media/media-engine", () => ({
 }));
 vi.mock("../../src/main/ndi/ndi-output", () => ({ setNdiAudioRoute: h.ndi }));
 vi.mock("../../src/main/media/engine-assets", () => ({ engineFailedOn: () => false }));
+vi.mock("../../src/main/media/deck-clips", () => ({ clipEngineFailed: () => false }));
 vi.mock("../../src/main/services/repos", () => ({
   getMediaRepo: () => ({ getPathById: (id: number) => `/media/${id}.avi`, survivingId: (id: number) => id }),
 }));

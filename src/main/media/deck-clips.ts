@@ -4,8 +4,8 @@ import { getSlidesRepo } from "../services/repos";
 import { broadcast } from "../services/broadcast";
 import { currentDecoderSupport } from "./engine-assets";
 import { ffmpegAvailable, probeMedia } from "./ffmpeg";
-import { parseProbe, playsNatively, playsOnEngine } from "./media-compat";
-import { engineAvailable } from "./media-engine";
+import { ENGINE_PLAYS_EVERY_PICTURE, parseProbe, playsNatively, playsOnEngine } from "./media-compat";
+import { engineAvailable, engineGaveUp, onEngineGaveUp } from "./media-engine";
 
 /**
  * A video or soundtrack embedded in a `.pptx` that Chromium cannot play — a
@@ -35,10 +35,13 @@ const failedProbes = new Map<string, number>();
 const PROBE_TRIES = 3;
 /** The clips the media engine plays (`engineClipUrl`), by `<kind>:<id>`. */
 const engineClips = new Set<string>();
+/** The engine's clips Chromium plays too (Windows: every picture), by key, with their deck: the ones that go back to
+ *  Chromium for the session when the engine fails (owner, 2026-11-17). `checked` keeps them from coming back. */
+const nativeClips = new Map<string, number>();
 let chain: Promise<void> = Promise.resolve();
 let stopped = false;
 
-type Clip = { kind: "video" | "audio"; id: number; dir: string; file: string; ext: string; playable: boolean };
+type Clip = { kind: "video" | "audio"; id: number; deckId: number; dir: string; file: string; ext: string; playable: boolean };
 
 /** The file a playable copy (`<n>.playable.mp4`) was made from: the one next to
  *  it with the same `<n>`, as `pptx-metadata` named it. */
@@ -91,8 +94,11 @@ async function healClip(clip: Clip): Promise<boolean> {
     getSlidesRepo().updateClip(clip.kind, clip.id, clip.file, clip.ext, fs.statSync(input).size);
     changed = true;
   }
-  if (!engineAvailable() || !playsOnEngine(probe, clip.kind, decoders)) return changed;
-  engineClips.add(`${clip.kind}:${clip.id}`);
+  const everyPicture = ENGINE_PLAYS_EVERY_PICTURE && !engineGaveUp();
+  if (!engineAvailable() || !playsOnEngine(probe, clip.kind, decoders, everyPicture)) return changed;
+  const key = `${clip.kind}:${clip.id}`;
+  engineClips.add(key);
+  if (playsNatively(probe, clip.kind, decoders)) nativeClips.set(key, clip.deckId);
   console.info(`[engine] slide clip ${clip.file}`);
   return true;
 }
@@ -105,6 +111,7 @@ async function healDeck(deckId: number): Promise<void> {
     ...repo.listVideos(deckId).map((row) => ({
       kind: "video" as const,
       id: row.id,
+      deckId,
       dir: path.join(deck.cacheDir, "video"),
       file: row.videoFile,
       ext: row.ext,
@@ -113,6 +120,7 @@ async function healDeck(deckId: number): Promise<void> {
     ...repo.listAudio(deckId).map((row) => ({
       kind: "audio" as const,
       id: row.id,
+      deckId,
       dir: path.join(deck.cacheDir, "audio"),
       file: row.audioFile,
       ext: row.ext,
@@ -138,6 +146,29 @@ async function healDeck(deckId: number): Promise<void> {
 export function isEngineClip(kind: "audio" | "video", id: number): boolean {
   return engineClips.has(`${kind}:${id}`);
 }
+
+/** These clips go back to Chromium for the session; each deck's DTO is rebuilt and the renderer re-points what is live. */
+function giveBack(keys: Iterable<string>): void {
+  const decks = new Set<number>();
+  for (const key of [...keys]) {
+    const deckId = nativeClips.get(key);
+    if (deckId === undefined) continue;
+    nativeClips.delete(key);
+    engineClips.delete(key);
+    decks.add(deckId);
+  }
+  for (const deckId of decks) broadcast("deck-updated", { deckId });
+}
+
+/** The engine failed under this clip: true when Chromium plays it, and from now on it does. */
+export function clipEngineFailed(kind: "audio" | "video", id: number): boolean {
+  const key = `${kind}:${id}`;
+  if (!nativeClips.has(key)) return false;
+  giveBack([key]);
+  return true;
+}
+
+onEngineGaveUp(() => giveBack(nativeClips.keys()));
 
 /** Called whenever a deck's authoritative DTO is built. Cheap when there is
  *  nothing to do; serialized, so two decks never probe at once. */
