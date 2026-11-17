@@ -358,8 +358,9 @@ if (gotSingleInstanceLock) {
 
     mainControlWindow = openControlWindow();
     // On the backup thread: main stays free for the window and whatever goes on air. Asked again there, so a copy
-    // made from Settings in the meantime counts as today's.
-    if (hadDatabase) {
+    // made from Settings in the meantime counts as today's. The E2E suite starts most tests from a copy of a bare
+    // profile's database and says so with `--no-daily-backup` on that first launch only: a new profile's has no copy.
+    if (hadDatabase && !process.argv.includes("--no-daily-backup")) {
       setTimeout(() => {
         const dir = dailyBackupDir(dbBackupDir);
         try {

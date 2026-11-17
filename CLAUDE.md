@@ -395,7 +395,9 @@ npm run test                 # vitest run — two projects: `main` (Node: migrat
                               #   the suite's boundary
 npm run test:watch            # the same suite in watch mode, while working on a module
 npm run test:e2e              # build + Playwright: walkthroughs of the real app (~26 min on the M3) with a
-                              #   throwaway, bare profile (`--no-starter-look`, `--no-welcome`, `--no-system-folders`; a spec turns each back on)
+                              #   throwaway, bare profile (`--no-starter-look`, `--no-welcome`, `--no-system-folders`; a spec turns each back on);
+                              #   a test with every option at its default starts from a copy of the run's first one, its
+                              #   Bibles already seeded (`freshProfile` or E2E_FRESH_PROFILES=1 for a real first launch)
                               #   and media generated on the fly — videos, AVI and WMA with the
                               #   bundled FFmpeg; PDFs, a legacy .pps made of pictures and .pptx with auto-advance, a
                               #   WMA soundtrack and an embedded WMV written in code (`tests/e2e/support/pptx.ts`),

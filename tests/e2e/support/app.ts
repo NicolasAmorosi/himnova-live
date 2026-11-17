@@ -1,4 +1,5 @@
 import { execFileSync } from "node:child_process";
+import Database from "better-sqlite3";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -95,7 +96,7 @@ export class WorshipApp {
   }
 
   /** Starts the built app on `profile`, an empty directory for a first launch
-   *  or a previous run's for a relaunch. */
+   *  or a previous run's for a relaunch. `once` goes to this launch only, never to a `relaunch`. */
   static async launch(
     profile: string,
     launchCheck = false,
@@ -103,6 +104,7 @@ export class WorshipApp {
     starterLook = false,
     welcome = false,
     chromiumArgs: string[] = [],
+    once: string[] = [],
   ): Promise<WorshipApp> {
     // `WORSHIP_E2E_EXECUTABLE` runs the suite against an INSTALLED build
     // (`release/mac-arm64/Himnova Live.app/Contents/MacOS/Himnova Live`, or
@@ -122,7 +124,7 @@ export class WorshipApp {
       chromiumArgs.includes("--whats-new") && "--no-whats-new",
       chromiumArgs.includes("--engine-video") && "--chromium-video",
     ];
-    const flags = [...FLAGS.filter((flag) => !dropped.includes(flag)), `--lang=${locale}`, ...chromiumArgs];
+    const flags = [...FLAGS.filter((flag) => !dropped.includes(flag)), `--lang=${locale}`, ...chromiumArgs, ...once];
     const app = await electron.launch({
       cwd: ROOT,
       ...(executable
@@ -418,9 +420,40 @@ export function audioStates(page: Page) {
   );
 }
 
+/**
+ * The database of this worker's first bare profile, just after its first launch (2026-11-15 audit, R35). A new profile
+ * costs every test its first launch: the bundled Bibles seeded, the migrations, the seeds. A test with every option
+ * at its default starts instead from a copy of this one, which is that same first launch, and saves ~0.8 s (measured
+ * on the M3, 13 launches of each interleaved in one run: 1.8 s against 1.0 s to a usable window, medians). Built in
+ * the same run, so it is never from another build;
+ * a worker that starts again after a failure builds its own. `E2E_FRESH_PROFILES=1` turns it off.
+ */
+let template: string | null = null;
+process.on("exit", () => {
+  if (template) fs.rmSync(template, { force: true });
+});
+
+/** A consistent copy of the profile's database while the app holds it (WAL): `VACUUM INTO`, never a file copy. */
+function snapshotTemplate(profile: string): string | null {
+  const file = path.join(os.tmpdir(), `worship-e2e-template-${process.pid}.db`);
+  fs.rmSync(file, { force: true });
+  const db = new Database(path.join(profile, "worship.db"));
+  try {
+    db.prepare("VACUUM INTO ?").run(file);
+    return file;
+  } catch (error) {
+    console.warn(`[e2e] no template profile, every test starts fresh: ${String(error)}`);
+    return null;
+  } finally {
+    db.close();
+  }
+}
+
 type Fixtures = {
   app: WorshipApp;
   appLocale: Locale;
+  /** A new profile even with every option at its default: for a test whose point is the very first launch. */
+  freshProfile: boolean;
   profileDir: string;
   launchCheck: boolean;
   starterLook: boolean;
@@ -439,6 +472,7 @@ export const test = base.extend<Fixtures>({
   chromiumArgs: [[], { option: true }],
   /** The language `app` starts in (`--lang`). Spanish, which the specs are written in. */
   appLocale: ["es", { option: true }],
+  freshProfile: [false, { option: true }],
   // A fresh profile per test, removed afterwards. Playwright requires the
   // destructuring pattern even for a fixture that needs no other fixture.
   // eslint-disable-next-line no-empty-pattern -- Playwright's fixture signature
@@ -451,8 +485,20 @@ export const test = base.extend<Fixtures>({
     fs.rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
   },
 
-  app: async ({ appLocale, profileDir, launchCheck, starterLook, welcome, chromiumArgs }, use, testInfo) => {
-    const app = await WorshipApp.launch(profileDir, launchCheck, appLocale, starterLook, welcome, chromiumArgs);
+  app: async ({ appLocale, freshProfile, profileDir, launchCheck, starterLook, welcome, chromiumArgs }, use, testInfo) => {
+    // Only a profile the template is a first launch of: Spanish, bare, nothing turned back on.
+    const plain =
+      !freshProfile &&
+      !process.env["E2E_FRESH_PROFILES"] &&
+      appLocale === "es" &&
+      !launchCheck &&
+      !starterLook &&
+      !welcome &&
+      chromiumArgs.length === 0;
+    const copied = plain && template !== null && fs.existsSync(template);
+    if (copied) fs.copyFileSync(template!, path.join(profileDir, "worship.db"));
+    const app = await WorshipApp.launch(profileDir, launchCheck, appLocale, starterLook, welcome, chromiumArgs, copied ? ["--no-daily-backup"] : []);
+    if (plain && !copied) template = snapshotTemplate(profileDir);
     await use(app);
     // Whatever app the test ended with — it may have relaunched — is the one
     // registered last; tests that relaunch call `adopt` below.
