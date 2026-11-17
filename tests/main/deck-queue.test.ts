@@ -1,6 +1,6 @@
 import { EventEmitter } from "node:events";
 import { describe, expect, it, vi } from "vitest";
-import { createDeckQueue, type DeckWorker } from "../../src/main/slides/deck-queue";
+import { createDeckQueue, TOO_SLOW, type DeckWorker } from "../../src/main/slides/deck-queue";
 
 type Request = { id: number; file: string };
 type Reply = { id: number; read: string } | { id: number; alive: true };
@@ -27,8 +27,8 @@ function fakeWorkers() {
 }
 
 /** Whatever each promise has settled to so far: `"pending"` until then. */
-function track(promises: Promise<Reply | null>[]) {
-  const outcome: (Reply | null | "pending")[] = promises.map(() => "pending");
+function track(promises: Promise<Reply | null | typeof TOO_SLOW>[]) {
+  const outcome: (Reply | null | typeof TOO_SLOW | "pending")[] = promises.map(() => "pending");
   promises.forEach((promise, at) => void promise.then((reply) => (outcome[at] = reply)));
   return outcome;
 }
@@ -77,7 +77,8 @@ describe("deck queue", () => {
       vi.advanceTimersByTime(1_000);
       await flush();
       expect(started[0]!.stopped).toBe(1);
-      expect(outcome).toEqual([{ id: 1, read: "a.pptx" }, null, "pending"]);
+      // Said apart from a crash: the file took too long, which is no damage (owner, 2026-11-17).
+      expect(outcome).toEqual([{ id: 1, read: "a.pptx" }, TOO_SLOW, "pending"]);
       expect(started[1]!.posted).toEqual([{ id: 3, file: "c.pptx" }]);
       started[1]!.emit("message", { id: 3, read: "c.pptx" });
       await flush();
@@ -107,7 +108,7 @@ describe("deck queue", () => {
       vi.advanceTimersByTime(60_000);
       await flush();
       expect(started[0]!.stopped).toBe(1);
-      expect(outcome).toEqual([null]);
+      expect(outcome).toEqual([TOO_SLOW]);
     } finally {
       vi.useRealTimers();
     }
@@ -132,10 +133,10 @@ describe("deck queue", () => {
       vi.advanceTimersByTime(15 * 60_000);
       await flush();
       expect(started[0]!.stopped).toBe(1);
-      expect(outcome).toEqual([null, "pending"]);
+      expect(outcome).toEqual([TOO_SLOW, "pending"]);
       started[1]!.emit("message", { id: 2, read: "next.pptx" });
       await flush();
-      expect(outcome).toEqual([null, { id: 2, read: "next.pptx" }]);
+      expect(outcome).toEqual([TOO_SLOW, { id: 2, read: "next.pptx" }]);
     } finally {
       vi.useRealTimers();
     }

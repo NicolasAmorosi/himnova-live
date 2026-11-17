@@ -1,6 +1,11 @@
 import type { EventEmitter } from "node:events";
 import type { RasterLane } from "./rasterizer";
 
+/** What `ask` answers for a request stopped by its clock: the file took too long, which says nothing of whether it
+ *  can be read (a slow PC, a share that went away). The operator is told so, apart from a damaged file (owner,
+ *  2026-11-17). */
+export const TOO_SLOW = "too-slow";
+
 /** What the queue needs of the deck worker: a `Worker` is one, and so is a test's fake. */
 export type DeckWorker = EventEmitter & { postMessage(request: unknown): void; terminate(): unknown };
 
@@ -8,7 +13,8 @@ export type DeckWorker = EventEmitter & { postMessage(request: unknown): void; t
  * The requests to the deck worker (`pptx-worker.ts`) and their answers, apart
  * from the worker itself so they can be tested with a fake one. `spawn` starts
  * a worker, the first time something is asked. A request is answered with the
- * worker's reply, or `null` when the worker stopped while reading it.
+ * worker's reply, `null` when the worker stopped while reading it, or `TOO_SLOW`
+ * when its clock stopped it.
  *
  * The queue is here, on main, and the worker gets one request at a time: when
  * it dies, only the deck it was reading fails, and the decks still waiting go
@@ -30,13 +36,14 @@ export function createDeckQueue<Req extends { id: number }, Reply extends { id: 
   spawn: () => DeckWorker,
   hangMs: number,
 ) {
-  type Job = { file: string; request: Req; hangMs: number; done: (reply: Reply | null) => void };
+  type Answer = Reply | null | typeof TOO_SLOW;
+  type Job = { file: string; request: Req; hangMs: number; done: (reply: Answer) => void };
   let worker: DeckWorker | null = null;
   const lanes: Record<RasterLane, Job[]> = { now: [], later: [] };
   let running: Job | null = null;
   let hangTimer: ReturnType<typeof setTimeout> | null = null;
 
-  function finish(reply: Reply | null): void {
+  function finish(reply: Answer): void {
     if (hangTimer) clearTimeout(hangTimer);
     hangTimer = null;
     const job = running;
@@ -77,7 +84,7 @@ export function createDeckQueue<Req extends { id: number }, Reply extends { id: 
       const stuck = worker;
       worker = null;
       console.warn(`[slides] the deck reader went ${window / 1000} s without progress on ${running?.file}: stopped`);
-      finish(null);
+      finish(TOO_SLOW);
       void stuck?.terminate();
     }, window);
   }
@@ -107,7 +114,7 @@ export function createDeckQueue<Req extends { id: number }, Reply extends { id: 
 
   return {
     /** Stopped after `windowMs` (the queue's `hangMs` unless given) without a beat. */
-    ask(file: string, request: Req, lane: RasterLane, windowMs = hangMs): Promise<Reply | null> {
+    ask(file: string, request: Req, lane: RasterLane, windowMs = hangMs): Promise<Answer> {
       return new Promise((done) => {
         lanes[lane].push({ file, request, hangMs: windowMs, done });
         pump();

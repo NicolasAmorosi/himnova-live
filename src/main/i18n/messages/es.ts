@@ -78,6 +78,8 @@ const es = {
       "La presentación es de PowerPoint 95 o anterior, un formato que Himnova Live no lee. Abrila en un PowerPoint más nuevo y guardala como .pptx.",
     notAPresentation:
       "No se pudo abrir el archivo como presentación: puede estar dañado o no ser una presentación. Probá abrirlo en PowerPoint y guardarlo de nuevo como .pptx.",
+    deckTooSlow:
+      "La presentación tardó demasiado en leerse. Probá de nuevo con «Reintentar».",
   },
   bible: {
     unknownFormat:

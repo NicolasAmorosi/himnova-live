@@ -76,6 +76,8 @@ const it: MainMessages = {
       "La presentazione è di PowerPoint 95 o precedente, un formato che Himnova Live non legge. Aprila in un PowerPoint più recente e salvala come .pptx.",
     notAPresentation:
       "Impossibile aprire il file come presentazione: potrebbe essere danneggiato o non essere una presentazione. Prova ad aprirlo in PowerPoint e a salvarlo di nuovo come .pptx.",
+    deckTooSlow:
+      "La lettura della presentazione ha richiesto troppo tempo. Prova di nuovo con «Riprova».",
   },
   bible: {
     unknownFormat:

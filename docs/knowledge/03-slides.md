@@ -26,6 +26,7 @@ source ──containerKind (magic bytes, never the extension)──┐
   ooxml │ binary │ odf ── pptx-worker.ts thread ──► SlideModel per slide ──► model deck   'model'
   pdf ── pdf.js in a hidden window: page sizes ──► PDF deck   'webp'|'png' with cache_dir '' (pages drawn on request)
   no reader opens it ── sniffUnreadableDeck ──► fails: DECK_PASSWORD | DECK_OLD_FORMAT | NOT_A_PRESENTATION
+  stopped by the worker's clock ──► fails: DECK_TOO_SLOW
 ```
 
 `prepareDeck` (`deck-service.ts`) asks in that order: `nativeDeck` → `modelDeck` → `pdfDeck`
@@ -70,9 +71,11 @@ SlideView (React, components/shared/slide-view/) ◄── worship://deck/<id>/<
   and video were being copied when it died is not saved (it would stay mute), so the next open
   reads it again. A read is timed by its progress: the readers beat once per slide (`onSlide`),
   and a worker that goes `SLIDES_DECK_READ_TIMEOUT_MS` (60 s) without a beat on the deck it was
-  handed is stopped, and that deck fails the same way. Copying the clips beats once per clip and gets its
+  handed is stopped. Copying the clips beats once per clip and gets its
   own window, `SLIDES_CLIP_COPY_TIMEOUT_MS` (15 min): a single clip off a slow pen drive takes minutes, and a
-  share that went away mid-copy, untimed, held the worker for good. A file is never retried on main. The preset
+  share that went away mid-copy, untimed, held the worker for good. Either clock answers `TOO_SLOW`, not the `null` of a
+  worker that died, and the deck fails as `DECK_TOO_SLOW` (owner, 2026-11-17): it took too long, try again with
+  «Retry», never «it may be damaged». A file is never retried on main. The preset
   geometries and the built-in table styles come from `resources/ooxml/` (`paths.ts` → `ooxmlDir`, shipped as `extraResources`). Pictures, media and
   fonts are never read here — the model names them by part. Every reader writes colours as
   `rgb()`/`rgba()` (`css()` in `pptx/color.ts`): the painter reads gradient stops' channels back
@@ -222,7 +225,9 @@ localized reason (main's `mt()`):
 | `NOT_A_PRESENTATION` | anything else | it may be damaged or not a presentation; try saving it again from PowerPoint |
 
 The answer is remembered by path and `(size, mtime)` (`unreadableStamp`), so a bad file isn't read
-again on every open and an edited one is. The control window shows it where any failed deck shows:
+again on every open and an edited one is. `DECK_TOO_SLOW` is remembered the same way (owner, 2026-11-17): «Retry» reads
+it again, and a file that always hangs does not hold the worker each time its tile is read ahead. A clip copy the clock
+stopped is not remembered: nothing of the deck was saved, so the next open reads it again. The control window shows it where any failed deck shows:
 the centre panel and the PREVIEW stage (`DeckConversionStatus`, main's reason as the hint, «Retry»),
 and a GO LIVE that changes nothing explains itself in a toast (`explainDeckFailure` in
 `lib/actions/playback.ts`). Nothing anywhere asks to install anything.

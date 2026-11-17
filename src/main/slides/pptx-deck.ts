@@ -1,6 +1,6 @@
 import { SLIDES_CLIP_COPY_TIMEOUT_MS, SLIDES_DECK_READ_TIMEOUT_MS } from "@shared/constants";
 import { ooxmlDir } from "../paths";
-import { createDeckQueue } from "./deck-queue";
+import { createDeckQueue, TOO_SLOW } from "./deck-queue";
 import type { RasterLane } from "./rasterizer";
 import createPptxWorker from "./pptx-worker?nodeWorker";
 import type { PptxClips, PptxExtract, PptxRead, PptxReply, PptxRequest } from "./pptx-worker";
@@ -12,7 +12,8 @@ export type { PptxRead } from "./pptx-worker";
  * one worker thread, started with the first deck. `null` when the file can't be
  * read as a presentation at all, or when the worker died on it: that deck
  * fails as unreadable, and is never retried here on main, where the same file
- * would take the whole app down instead of one thread.
+ * would take the whole app down instead of one thread. `TOO_SLOW` when the
+ * queue's clock stopped it.
  */
 const queue = createDeckQueue<PptxRequest, PptxReply>(() => {
   const started = createPptxWorker({ workerData: { ooxmlDir } });
@@ -22,19 +23,20 @@ const queue = createDeckQueue<PptxRequest, PptxReply>(() => {
 }, SLIDES_DECK_READ_TIMEOUT_MS);
 let nextId = 0;
 
-export async function readPptx(sourcePath: string, lane: RasterLane): Promise<PptxRead | null> {
+export async function readPptx(sourcePath: string, lane: RasterLane): Promise<PptxRead | null | typeof TOO_SLOW> {
   const reply = await queue.ask(sourcePath, { id: ++nextId, file: sourcePath }, lane);
+  if (reply === TOO_SLOW) return reply;
   return reply && "read" in reply ? reply.read : null;
 }
 
 /** The deck's embedded sound and video, copied into its cache on the worker thread. None when the
  *  worker could not copy them (the deck then goes without them, as with a part that won't read);
- *  `null` when the worker stopped before answering, which says nothing about the file. */
-export async function extractClips(extract: PptxExtract, lane: RasterLane): Promise<PptxClips | null> {
+ *  `null` when the worker stopped before answering, which says nothing about the file; `TOO_SLOW` when its clock did. */
+export async function extractClips(extract: PptxExtract, lane: RasterLane): Promise<PptxClips | null | typeof TOO_SLOW> {
   // Its own window, a beat per clip: gigabytes of video off a pen drive take minutes, and a share that went away
   // mid-copy held the worker for good when the copy was not timed at all (review of the 2026-11-15 audit, S4).
   const reply = await queue.ask(extract.file, { id: ++nextId, extract }, lane, SLIDES_CLIP_COPY_TIMEOUT_MS);
-  if (!reply) return null;
+  if (reply === null || reply === TOO_SLOW) return reply;
   return "clips" in reply ? reply.clips : { audio: [], video: [] };
 }
 
