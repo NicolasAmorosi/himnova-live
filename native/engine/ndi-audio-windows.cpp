@@ -257,7 +257,11 @@ bool startAppAudio(unsigned long appPid, const AudioRoute& route, AudioSink* sin
   HANDLE started = CreateEventW(nullptr, TRUE, FALSE, nullptr);
   std::string reason;
   worker = std::thread(capture, (DWORD)appPid, route, wrapper, started, &reason);
-  WaitForSingleObject(started, 8000);
+  // Until the capture says how it went, however long a stuck audio service takes: given up on after 8 s, the thread
+  // wrote later into this dead `reason` and set a closed handle, with the state «on» and no capture (2026-11-15 audit,
+  // A36). Meanwhile the sender keeps sending video, and on quit the source leaves before this thread is waited for
+  // (ndi.cpp, A40).
+  WaitForSingleObject(started, INFINITE);
   CloseHandle(started);
   if (reason.empty()) return true;
   worker.join();

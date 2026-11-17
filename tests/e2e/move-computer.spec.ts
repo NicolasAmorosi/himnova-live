@@ -27,11 +27,17 @@ const FILES = [
   ["intro.mp3", "Music/intro.mp3"],
   ["song.mp3", "Music/himno.mp3"],
   ["hymn.pptx", "Documents/Himnos/hymn.pptx"],
+  ["legacy-hymn.pps", "Documents/Himnos/legacy-hymn.pps"],
 ] as const;
 
 const SONG = "{title: Primera}\n{start_of_verse}\nLetra de la primera\n{end_of_verse}\n";
 
 const toast = (app: WorshipApp, text: string | RegExp) => app.control.getByRole("status").filter({ hasText: text });
+/** PREVIEW's picture of a deck's slide, once it has loaded (a blank one is a picture that never came). */
+const previewSlide = (app: WorshipApp) =>
+  app.previewColumn().locator('img[src^="worship://deck/"]').filter({ visible: true }).first();
+const slideDrawn = (app: WorshipApp) =>
+  previewSlide(app).evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth > 0);
 const panel = (app: WorshipApp, tab: "Videos" | "Imágenes") => app.control.getByRole("tabpanel", { name: tab });
 
 /** Whether `file` exists under `folder`. By real path: macOS's temp folder is behind a symlink, and the
@@ -74,6 +80,11 @@ async function oldComputer(juan: string): Promise<string> {
   const [intro] = await app.invoke<MediaAsset[]>("library:add", { kind: "audio", paths: [file("Music/intro.mp3")] });
   const [deck] = await app.invoke<MediaAsset[]>("library:add", { kind: "ppt", paths: [file("Documents/Himnos/hymn.pptx")] });
   await app.invoke("library:setLinkedAudio", { id: deck!.id, path: file("Music/himno.mp3") });
+  // A hymnal deck read here, so its row names this computer's file (2026-11-15 audit, D1): its pictures are read
+  // straight from it.
+  await app.invoke("library:add", { kind: "ppt", paths: [file("Documents/Himnos/legacy-hymn.pps")] });
+  await app.previewFile("Presentaciones", "legacy-hymn");
+  await expect(previewSlide(app)).toBeVisible({ timeout: 60_000 });
 
   // The order of service on screen, recovered on the next launch.
   await app.previewFile("Videos", "clip");
@@ -140,7 +151,7 @@ async function relocateOneAndCheck(app: WorshipApp, user: string): Promise<void>
       if (asset.linkedAudioPath) expect(existsUnder(asset.linkedAudioPath, user), asset.linkedAudioPath).toBe(true);
     }
   }
-  const [deck] = await app.invoke<MediaAsset[]>("library:list", { kind: "ppt" });
+  const deck = (await app.invoke<MediaAsset[]>("library:list", { kind: "ppt" })).find((asset) => asset.name === "hymn");
   expect(deck?.linkedAudioPath).toBe(path.join(user, "Music", "himno.mp3"));
   const settings = await app.invoke<SettingsMap>("settings:get");
   expect(settings["library.linkedFolders"].video).toEqual([path.join(user, "Videos", "Iglesia")]);
@@ -160,6 +171,9 @@ async function relocateOneAndCheck(app: WorshipApp, user: string): Promise<void>
   await expect(
     app.previewColumn().getByRole("list", { name: "Presentación" }).getByRole("button", { name: "3", exact: true }),
   ).toBeVisible({ timeout: 90_000 });
+  // The hymnal read on the old computer, same file and same date: drawn from where it is now, not the old path.
+  await app.previewFile("Presentaciones", "legacy-hymn");
+  await expect.poll(() => slideDrawn(app), { timeout: 60_000 }).toBe(true);
   await app.control.getByRole("main").getByRole("list").first().getByRole("listitem").filter({ hasText: "clip" }).click();
   await app.goLive();
   const projector = await app.projector();
@@ -171,7 +185,8 @@ test("the whole profile folder carried to another computer: relocating one file 
   const juan = path.join(profileDir, "Users", "juan");
   const maria = path.join(profileDir, "Users", "maria");
   await oldComputer(juan);
-  fs.cpSync(juan, maria, { recursive: true });
+  // With their dates, as a drive or folder carried whole keeps them: then a deck row's size and date still match.
+  fs.cpSync(juan, maria, { recursive: true, preserveTimestamps: true });
   fs.rmSync(juan, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
 
   await relocateOneAndCheck(await launch(path.join(maria, PROFILE)), maria);
@@ -187,7 +202,7 @@ test("a copy on a pen drive restored into a fresh install on another computer: r
   fs.copyFileSync(copy, pendrive);
   // Only the user's files: the app's data travels on the pen drive.
   for (const folder of ["Videos", "Pictures", "Music", "Documents"]) {
-    fs.cpSync(path.join(juan, folder), path.join(ana, folder), { recursive: true });
+    fs.cpSync(path.join(juan, folder), path.join(ana, folder), { recursive: true, preserveTimestamps: true });
   }
   fs.rmSync(juan, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
 

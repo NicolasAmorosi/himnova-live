@@ -1,3 +1,4 @@
+import { metricTwin } from "@shared/font-twins";
 import type {
   Chart3D,
   ChartAxis,
@@ -14,6 +15,7 @@ import type {
 } from "@shared/types/slide-chart";
 import type { Effects, Fill, Line, SlideTextSettings } from "@shared/types/slide-model";
 import { useContext, useId, type ReactNode } from "react";
+import { num, stacks } from "./slide-chart-stacks";
 import { SlideTextContext, strokeProps, svgPaint, type PaintContext, type ResolvePart } from "./slide-paint";
 
 type Chart = Extract<ChartModel, { kind: "chart" }>;
@@ -140,17 +142,8 @@ function textWidth(text: string, font: ChartFont): number {
 
 const lineHeight = (font: ChartFont): number => (metrics(font)[0] + metrics(font)[1]) * font.size * PT;
 
-const TWINS: Record<string, string> = {
-  calibri: "Carlito",
-  "calibri light": "Carlito",
-  cambria: "Caladea",
-  arial: "Liberation Sans",
-  "times new roman": "Liberation Serif",
-  "courier new": "Liberation Mono",
-};
-
 function cssFamily(face: string): string {
-  const twin = TWINS[face.toLowerCase()];
+  const twin = metricTwin(face);
   const last = isCalibri(face) ? "Carlito" : (slideText.fallbackFont ?? "Liberation Sans");
   return [face, ...(twin ? [twin] : []), last].map((f) => `"${f.replace(/"/g, "")}"`).join(", ") + ", sans-serif";
 }
@@ -1520,7 +1513,6 @@ function pointStyle(s: ChartSeries, i: number): { fill: Fill | null; line: Line 
   return p ? { fill: p.fill, line: p.line, effects: p.effects, marker: p.marker } : { fill: s.fill, line: s.line, effects: s.effects, marker: s.marker };
 }
 
-const num = (v: number | string | null | undefined): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
 
 function drawPlot(p: ChartPlot, chart: Chart, layout: Layout, paint: Paint): ReactNode {
   const plot = layout.plot;
@@ -1545,28 +1537,13 @@ function drawPlot(p: ChartPlot, chart: Chart, layout: Layout, paint: Paint): Rea
     // n bars, each overlapping the next by `overlap` of a bar, and a gap
     // between groups of `gapWidth` percent of a bar.
     const bw = catLen / (n - (n - 1) * overlap + p.gapWidth / 100);
-    const stackPos: number[] = Array.from({ length: count }, () => 0);
-    const stackNeg: number[] = Array.from({ length: count }, () => 0);
-    const totals = Array.from({ length: count }, (_, i) => p.series.reduce((sum, s) => sum + Math.abs(num(s.values.values[i]) ?? 0), 0));
+    const spans = stacks(p, count);
     p.series.forEach((s, k) => {
       const shapes: ReactNode[] = [];
       for (let i = 0; i < count; i++) {
-        let v = num(s.values.values[i]);
-        if (v === null) continue;
-        if (p.grouping === "percentStacked") v = totals[i] ? v / totals[i]! : 0;
-        let from = 0;
-        let to = v;
-        if (p.grouping === "stacked" || p.grouping === "percentStacked") {
-          if (v >= 0) {
-            from = stackPos[i]!;
-            to = from + v;
-            stackPos[i] = to;
-          } else {
-            from = stackNeg[i]!;
-            to = from + v;
-            stackNeg[i] = to;
-          }
-        }
+        const span = spans[k]![i];
+        if (!span) continue;
+        const { from, to } = span;
         const clamp = (x: number): number => Math.min(scale.max, Math.max(scale.min, x));
         const a = plot.valPos(clamp(from === 0 ? Math.min(scale.max, Math.max(scale.min, 0)) : from));
         const b = plot.valPos(clamp(to));
@@ -1587,22 +1564,18 @@ function drawPlot(p: ChartPlot, chart: Chart, layout: Layout, paint: Paint): Rea
 
   if (p.kind === "area" || p.kind === "line") {
     const stacked = p.grouping === "stacked" || p.grouping === "percentStacked";
-    const acc = Array.from({ length: count }, () => 0);
-    const totals = Array.from({ length: count }, (_, i) => p.series.reduce((sum, s) => sum + (num(s.values.values[i]) ?? 0), 0));
+    const spans = stacks(p, count);
     const layers: { s: ChartSeries; pts: ([number, number] | null)[]; lower: [number, number][] }[] = [];
-    for (const s of p.series) {
+    for (const [k, s] of p.series.entries()) {
       const pts: ([number, number] | null)[] = [];
       const lower: [number, number][] = [];
       for (let i = 0; i < count; i++) {
-        let v = num(s.values.values[i]);
-        if (v !== null && p.grouping === "percentStacked") v = totals[i] ? v / totals[i]! : 0;
-        const prev = acc[i]!;
-        const top = stacked ? prev + (v ?? 0) : v;
-        if (stacked) acc[i] = top ?? prev;
+        const span = spans[k]![i] ?? null;
+        const prev = span?.from ?? 0;
         const x = plot.catPos(i);
         lower.push(plot.horizontal ? [plot.valPos(stacked ? prev : 0), x] : [x, plot.valPos(stacked ? prev : Math.min(scale.max, Math.max(scale.min, 0)))]);
-        if (top === null || (v === null && !stacked)) pts.push(null);
-        else pts.push(plot.horizontal ? [plot.valPos(top), x] : [x, plot.valPos(top)]);
+        if (!span) pts.push(null);
+        else pts.push(plot.horizontal ? [plot.valPos(span.to), x] : [x, plot.valPos(span.to)]);
       }
       layers.push({ s, pts, lower });
     }
@@ -2330,26 +2303,17 @@ function bars3D(p: Extract<ChartPlot, { kind: "bar" }>, b: Box3D): Bar3D[] {
   const depth = b.size[2] / b.rows;
   const hd = (depth * b.thickness) / 2;
   const sc = b.val.scale!;
-  const totals = Array.from({ length: b.count }, (_, i) => p.series.reduce((sum, s) => sum + Math.abs(num(s.values.values[i]) ?? 0), 0));
   const tops = Array.from({ length: b.count }, (_, i) => p.series.reduce((sum, s) => sum + Math.max(0, num(s.values.values[i]) ?? 0), 0));
-  const pos = Array.from({ length: b.count }, () => 0);
-  const neg = Array.from({ length: b.count }, () => 0);
+  const spans = stacks(p, b.count);
   const shape = b.view.shape;
   const base = Math.min(sc.max, Math.max(sc.min, 0));
   const out: Bar3D[] = [];
   p.series.forEach((s, k) => {
     for (let i = 0; i < b.count; i++) {
-      let v = num(s.values.values[i]);
-      if (v === null) continue;
-      if (p.grouping === "percentStacked") v = totals[i] ? v / totals[i]! : 0;
-      let from = base;
-      let to = v;
-      if (stacked) {
-        const acc = v >= 0 ? pos : neg;
-        from = acc[i]!;
-        to = from + v;
-        acc[i] = to;
-      }
+      const span = spans[k]![i];
+      if (!span) continue;
+      const from = stacked ? span.from : base;
+      const to = span.to;
       // Pyramids and cones narrow to their own top, a stack's top, or the
       // axis's maximum ("…ToMax").
       const apex =
@@ -2402,8 +2366,7 @@ function barFaces(b: Box3D, bar: Bar3D, round: boolean, fill: Fill | null, line:
 function slabs3D(p: Extract<ChartPlot, { kind: "area" | "line" }>, b: Box3D): { s: ChartSeries; faces: Face[]; depth: number }[] {
   const stacked = p.grouping === "stacked" || p.grouping === "percentStacked";
   const depth = b.size[2] / b.rows;
-  const totals = Array.from({ length: b.count }, (_, i) => p.series.reduce((sum, s) => sum + (num(s.values.values[i]) ?? 0), 0));
-  const acc = Array.from({ length: b.count }, () => 0);
+  const spans = stacks(p, b.count);
   const base = b.v(0);
   return p.series.map((s, k) => {
     const row = b.rows > 1 ? k : 0;
@@ -2412,11 +2375,9 @@ function slabs3D(p: Extract<ChartPlot, { kind: "area" | "line" }>, b: Box3D): { 
     const top: [number, number][] = [];
     const low: [number, number][] = [];
     for (let i = 0; i < b.count; i++) {
-      let v = num(s.values.values[i]) ?? 0;
-      if (p.grouping === "percentStacked") v = totals[i] ? v / totals[i]! : 0;
-      const from = stacked ? acc[i]! : 0;
-      if (stacked) acc[i] = from + v;
-      top.push([b.c(i), b.v(from + v)]);
+      // A missing value of an area or line not stacked lies on the floor.
+      const { from, to } = spans[k]![i] ?? { from: 0, to: 0 };
+      top.push([b.c(i), b.v(to)]);
       low.push([b.c(i), stacked ? b.v(from) : base]);
     }
     const fill = p.kind === "line" ? (s.line?.fill ?? null) : s.fill;
@@ -2683,21 +2644,20 @@ function drawDataLabels(chart: Chart, whole: Layout, paint: Paint, key: () => st
     const grouping = "grouping" in p ? p.grouping : "standard";
     const stacked = grouping === "stacked" || grouping === "percentStacked";
     const sizes = p.kind === "bubble" ? bubbleSizes(p, chart, plot.bubbleBase) : null;
-    const acc = Array.from({ length: count }, () => 0);
+    const spans = p.kind === "bar" || p.kind === "area" || p.kind === "line" ? stacks(p, count) : null;
     const n = p.kind === "bar" && !stacked ? p.series.length : 1;
     const catLen = plot.cat?.band ?? (plot.horizontal ? plot.inner.h : plot.inner.w) / count;
     const overlap = p.kind === "bar" ? Math.max(-100, Math.min(100, stacked ? 100 : p.overlap)) / 100 : 0;
     const bw = p.kind === "bar" ? catLen / (n - (n - 1) * overlap + p.gapWidth / 100) : 0;
-    const totals = Array.from({ length: count }, (_, i) => p.series.reduce((sum, s) => sum + Math.abs(num(s.values.values[i]) ?? 0), 0));
     p.series.forEach((s, k) => {
       const xs = p.kind === "scatter" || p.kind === "bubble" ? xValuesOf(s) : null;
       s.values.values.forEach((raw, i) => {
-        let v = num(raw);
+        const v = num(raw);
         if (v === null) return;
-        if (grouping === "percentStacked") v = totals[i] ? v / totals[i] : 0;
-        const from = stacked ? acc[i]! : 0;
-        const to = from + v;
-        if (stacked) acc[i] = to;
+        // Where the drawing put the point; past the category axis it drew none.
+        const span = spans ? spans[k]![i] : { from: 0, to: v };
+        if (!span) return;
+        const { from, to } = span;
         const l = s.labels[i];
         if (!l) return;
         const b = labelBlock(l, s, i, chart, layout, null);
@@ -2802,13 +2762,13 @@ function labels3D(p: ChartPlot, chart: Chart, layout: Layout, b: Box3D, paint: P
     return out;
   }
   if (p.kind === "area" || p.kind === "line") {
-    const stacked = p.grouping === "stacked" || p.grouping === "percentStacked";
-    const acc = Array.from({ length: b.count }, () => 0);
+    const spans = stacks(p, b.count);
     const depth = b.size[2] / b.rows;
-    return pointLabels(p, chart, layout, paint, key, (s, i, v) => {
+    return pointLabels(p, chart, layout, paint, key, (s, i) => {
       const k = p.series.indexOf(s);
-      const top = stacked ? (acc[i] = acc[i]! + v) : v;
-      const q = b.at([b.c(i), b.v(top), ((b.rows > 1 ? k : 0) + 0.5) * depth]);
+      const span = spans[k]?.[i];
+      if (!span) return null;
+      const q = b.at([b.c(i), b.v(span.to), ((b.rows > 1 ? k : 0) + 0.5) * depth]);
       return [q[0], q[1]];
     });
   }

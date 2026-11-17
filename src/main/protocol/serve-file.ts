@@ -34,6 +34,7 @@ const MIME_TYPES: Record<string, string> = {
   bmp: "image/bmp",
   svg: "image/svg+xml",
   pdf: "application/pdf",
+  wasm: "application/wasm",
 };
 
 /** Undefined for an unrecognized extension, in which case the header is left

@@ -427,6 +427,7 @@ struct AudioOut : AudioSink {
   std::atomic<int64_t> delay{0};
   std::atomic<bool> watched{false};
   int64_t expected = 0;  // the timecode right after the last sample queued
+  int64_t lag = 0;       // how old the last capture's first sample was when it arrived (its buffer, the OS's latency)
   int rate = 48000, channels = 2;
   float peak = 0;
 
@@ -449,26 +450,47 @@ struct AudioOut : AudioSink {
   void push(const float* in, int frames, int ch, int r, int64_t tc) override {
     if (frames <= 0 || ch <= 0 || r <= 0) return;
     std::lock_guard<std::mutex> l(m);
-    // Captures overlap by a few samples at their joints (two clocks): what the timeline already has goes.
-    if (expected && tc < expected - 20000) {
+    lag = std::clamp<int64_t>(nowTc() - tc, 0, 10000000);
+    // A block that starts less than 20 ms before where the one before ended continues it. Pulse stamps its blocks with
+    // a latency it reads in steps: on the owner's Linux PC each one landed between −5 and +11 ms of that point, and
+    // dropping whatever started 2 ms early cost 3.8 % of the sound, in clicks (measured 2026-11-16; 2026-11-15 audit,
+    // A38). A later block keeps its own time (a gap of a few ms, filled with silence past 10), so the timeline never
+    // runs further from the capture's own clock than that jitter. More than 20 ms early is a real overlap, when a
+    // capture restarts: what the timeline already has goes.
+    if (expected && tc < expected - 200000) {
       int skip = (int)((expected - tc) * r / 10000000);
       if (skip >= frames) return;
       in += (size_t)skip * ch;
       frames -= skip;
+      tc = expected;
+    } else if (expected && tc < expected) {
       tc = expected;
     }
     fillUntil(tc);
     queue(in, frames, ch, r, tc);
   }
   void fillUntil(int64_t until) {  // `m` held
-    if (!watched) return;
-    while (expected && until - expected > 100000) queue(nullptr, rate / 100, channels, rate, expected);  // 10 ms each
+    if (!watched || !expected) return;
+    // Never more than 200 ms of past silence: after a stall (the audio thread waiting on a capture start the OS holds)
+    // the receiver gets a gap, not seconds of old silence in one go (review of 2026-11-15 audit A37).
+    expected = std::max(expected, until - 2000000);
+    while (until - expected > 100000) queue(nullptr, rate / 100, channels, rate, expected);  // 10 ms each
+  }
+  bool closed = false;  // the sender is destroyed: nothing goes through it again
+  void close() {
+    std::lock_guard<std::mutex> l(m);
+    closed = true;
   }
   // Every few milliseconds: what is due goes out — or, unwatched, away.
   void pump(const NDIlib_v6* ndi, NDIlib_send_instance_t sender) {
     std::lock_guard<std::mutex> l(m);
+    if (closed) return;
     int64_t now = nowTc(), d = delay;
-    if (watched) fillUntil(now - d - 500000);  // 50 ms of grace before inventing silence
+    // Silence is invented only where the capture should already have delivered: up to as old as its samples arrive,
+    // less 50 ms of grace. Never by the delay: a negative one (the sound sent early, −200 ms in Settings) filled the
+    // timeline ahead of the capture, and every sample that came after overlapped it and went: a mute stream while a
+    // receiver watched (2026-11-15 audit, A7). A capture whose samples arrive 60 ms old did the same at a delay of 0.
+    if (watched) fillUntil(now - std::max<int64_t>(d, 0) - lag - 500000);
     while (!q.empty() && q.front().tc + d <= now) {
       Chunk& c = q.front();
       if (watched) {
@@ -555,6 +577,7 @@ int ndiSendMain(int argc, char** argv) {
 
   static AudioOut audio;
   audio.delay = (int64_t)o.audioDelayMs * 10000;
+  static std::atomic<bool> audioDone{false};
   std::thread audioThread;
   if (o.audio) {
 #ifdef _WIN32
@@ -605,7 +628,10 @@ int ndiSendMain(int argc, char** argv) {
         } else if (!on && now - tried >= std::chrono::seconds(2)) {
           start();
         }
-        if (on) audio.pump(ndi, sender);
+        // Off too: a watching receiver keeps getting silence by the clock. Pumped only while on, the timeline froze,
+        // the first capture back filled the whole gap at once (45 ms on Core Audio's IO thread after an hour) and
+        // 4 s of old silence left in one go (2026-11-15 audit, A37).
+        audio.pump(ndi, sender);
         now = clock::now();
         if (on && now - lastLevel >= std::chrono::seconds(1)) {
           lastLevel = now;
@@ -618,6 +644,7 @@ int ndiSendMain(int argc, char** argv) {
         std::this_thread::sleep_for(std::chrono::milliseconds(5));
       }
       if (on) stopAppAudio();
+      audioDone = true;
     });
   }
 
@@ -691,8 +718,21 @@ int ndiSendMain(int argc, char** argv) {
     f.timecode = fresh ? q.tc[send] : nowTc();
     ndi->send_send_video_v2(sender, &f);
   }
-  if (audioThread.joinable()) audioThread.join();
+  // The source leaves the network before the audio thread is waited for: it may be in a slow capture start, and main
+  // kills this process a second after «quit», which left a ghost source (2026-11-15 audit, A40). `close` first, so the
+  // thread never sends through the destroyed sender.
+  audio.close();
   ndi->send_destroy(sender);
+  if (audioThread.joinable()) {
+    // A second at most: when the whole app quits nobody kills this process later, and a capture start the OS holds
+    // would keep it alive on its own (review of A40). Its capture goes with the process.
+    for (int i = 0; i < 100 && !audioDone; i++) std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    if (!audioDone) {
+      fflush(stdout);
+      std::_Exit(0);
+    }
+    audioThread.join();
+  }
   ndi->destroy();
   // The reader may be blocked on its pipe, port or socket; the process is ending, which unblocks it.
   reader.detach();

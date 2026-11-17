@@ -10,7 +10,7 @@ const PRODUCT_NAME = "Himnova Live";
 /**
  * The app's own menu, replacing Electron's default one.
  *
- * Not cosmetic — the default menu ships two accelerators this app cannot
+ * Not cosmetic — the default menu ships accelerators this app cannot
  * afford:
  *
  *   - **Cmd/Ctrl+W (Window -> Close).** It closes whichever window has focus,
@@ -21,6 +21,8 @@ const PRODUCT_NAME = "Himnova Live";
  *     A reload restarts the renderer. The draft autosave now survives that,
  *     but an operator has no reason to reach it, so the whole development
  *     block is packaged-build-only.
+ *   - **Cmd+H (Hide).** It hides every window of the app, the projector
+ *     included. The item stays in the app menu, without the key.
  *
  * Labels come from main's own dictionary (`main/i18n/`): the renderer's
  * cannot serve, a menu is built before any window exists. Changing the
@@ -60,7 +62,9 @@ export function installApplicationMenu(): void {
               { type: "separator" },
               { role: "services", label: mt("menu.services") },
               { type: "separator" },
-              { role: "hide", label: mt("menu.hide", { app: PRODUCT_NAME }) },
+              // Not `role: "hide"`: its ⌘H hides the projector with the app, and the room sees the desktop until
+              // someone brings the app back (2026-11-15 audit, A21). The item stays, without a key.
+              { label: mt("menu.hide", { app: PRODUCT_NAME }), click: () => app.hide() },
               { role: "hideOthers", label: mt("menu.hideOthers") },
               { role: "unhide", label: mt("menu.showAll") },
               { type: "separator" },

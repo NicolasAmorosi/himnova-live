@@ -104,6 +104,19 @@ test("another app's database is refused, and the next launch still opens the chu
   expect(await programs(again)).toEqual(["Culto de hoy"]);
 });
 
+test("the first launch of the day takes the daily copy once the window is up (audit R1)", async ({ app }) => {
+  // Off the launch now, a few seconds after the window, on the backup thread: this is what proves it still happens.
+  await app.invoke("programs:save", { name: "Culto de hoy", items: [] });
+  await app.quit();
+  const daily = path.join(app.profile, "backups", "daily");
+  const again = await relaunch(app);
+  await expect
+    .poll(() => (fs.existsSync(daily) ? fs.readdirSync(daily) : []), { timeout: 30_000 })
+    .toEqual([expect.stringMatching(/^worship-[^.]+\.db$/)]);
+  const dialog = await openRestore(again);
+  await expect(dialog.getByRole("radio")).toContainText("Copia · 1 programa · 0 canciones");
+});
+
 test("with unsaved work, restoring asks first, and «Cancelar» keeps everything as it was", async ({ app }) => {
   await app.invoke("library:add", { kind: "image", paths: [fixture("photo.png")] });
   await app.previewFile("Imágenes", "photo");

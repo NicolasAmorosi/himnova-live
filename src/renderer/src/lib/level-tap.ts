@@ -13,8 +13,10 @@
 export type TapLevel = [number, number];
 
 const TICK_MS = 40;
-/** 43 ms at 48 kHz: read every 40 ms, every sample is seen. */
-const WINDOW_SAMPLES = 2048;
+/** The analysers' window: the smallest power of two that spans a tick at the context's rate (2048, 43 ms, at 44.1 and
+ *  48 kHz; 4096 at 88.2 and 96 kHz), so read every 40 ms every sample is seen. A fixed 2048 saw 21 of every 40 ms at
+ *  96 kHz and missed peaks (2026-11-15 audit, A46). */
+const windowFor = (sampleRate: number): number => 2 ** Math.ceil(Math.log2((sampleRate * TICK_MS) / 1000));
 
 type Tap = { stream: MediaStream; nodes: AudioNode[]; analysers: AnalyserNode[] };
 type Capturable = HTMLMediaElement & { captureStream(): MediaStream };
@@ -32,7 +34,7 @@ export function startLevelTap(elements: () => Iterable<HTMLMediaElement>, send: 
   const taps = new Map<HTMLMediaElement, Tap>();
   /** An element whose source could not be measured (no sound in it, or refused), with that source: not asked again. */
   const unmeasurable = new WeakMap<HTMLMediaElement, string>();
-  const samples = new Float32Array(WINDOW_SAMPLES);
+  let samples = new Float32Array(0);
   let timer: ReturnType<typeof setInterval> | null = null;
   let sounded = false;
 
@@ -58,6 +60,8 @@ export function startLevelTap(elements: () => Iterable<HTMLMediaElement>, send: 
     try {
       // An output of none: this context only listens (Electron 44 takes it; it is not in TypeScript's DOM yet).
       context ??= new AudioContext({ sinkId: { type: "none" } } as AudioContextOptions);
+      const fftSize = windowFor(context.sampleRate);
+      if (samples.length !== fftSize) samples = new Float32Array(fftSize);
       if (context.state !== "running") void context.resume();
       const stream = new MediaStream(sound);
       const source = context.createMediaStreamSource(stream);
@@ -66,7 +70,7 @@ export function startLevelTap(elements: () => Iterable<HTMLMediaElement>, send: 
       const splitter = context.createChannelSplitter(2);
       source.connect(stereo).connect(splitter);
       const analysers = [0, 1].map((channel) => {
-        const analyser = new AnalyserNode(context!, { fftSize: WINDOW_SAMPLES });
+        const analyser = new AnalyserNode(context!, { fftSize });
         splitter.connect(analyser, channel);
         return analyser;
       });

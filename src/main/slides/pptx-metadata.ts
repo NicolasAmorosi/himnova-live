@@ -115,15 +115,23 @@ const PLAYABLE_VIDEO_EXT = new Set(["mp4", "m4v", "mov", "webm"]);
  *  every downstream `.map` silently sees nothing. */
 const ALWAYS_ARRAY = ["p:sldIdLst.p:sldId", "Relationships.Relationship", "p:spTree.p:pic"];
 
-const parser = new XMLParser({
+const PARSER_OPTIONS = {
   ignoreAttributes: false,
   attributeNamePrefix: "@",
   removeNSPrefix: false,
   parseAttributeValue: false,
-  isArray: (_name, jpath) => {
+  isArray: (_name: string, jpath: unknown) => {
     const p = String(jpath);
     return ALWAYS_ARRAY.some((suffix) => p.endsWith(suffix));
   },
+};
+const parser = new XMLParser(PARSER_OPTIONS);
+/** A slide part's: nothing read here lives inside a shape, a group, a table or chart frame or a connector, so those
+ *  stay unparsed text, most of a slide's bytes. The model reader parses every slide whole too, and this second pass
+ *  doubled a deck's opening (2026-11-15 audit, R9). The notes keep `parser`: their text is inside a `p:sp`. */
+const slideParser = new XMLParser({
+  ...PARSER_OPTIONS,
+  stopNodes: ["..p:sp", "..p:grpSp", "..p:graphicFrame", "..p:cxnSp"],
 });
 
 type XmlNode = Record<string, unknown>;
@@ -146,12 +154,30 @@ function attr(node: XmlNode | undefined, name: string): string | undefined {
   return typeof value === "string" ? value : undefined;
 }
 
+/** A local header (30), `mimetype` (8) and the presentation's media type (47), with room for a small extra field. */
+const ZIP_HEAD_BYTES = 128;
+const ODF_PRESENTATION = "application/vnd.oasis.opendocument.presentation";
+
+/** A zip is told apart by its bytes too, not only by its extension (a renamed file went to the wrong reader): an
+ *  OpenDocument file keeps a `mimetype` entry first and stored, so its media type sits in the opening bytes
+ *  (2026-11-15 audit, Doc3). A template's media type starts the same. Not every `.odp` does: 7 of the 286 in the
+ *  corpus (LibreOffice's own test files, re-zipped ones) start with another entry, so those still go by name. */
+function isOdfPresentation(head: Buffer): boolean {
+  if (head.readUInt32LE(0) !== 0x04034b50 || head.readUInt16LE(8) !== 0) return false;
+  const nameLength = head.readUInt16LE(26);
+  const dataStart = 30 + nameLength + head.readUInt16LE(28);
+  return (
+    head.toString("latin1", 30, 30 + nameLength) === "mimetype" &&
+    head.toString("latin1", dataStart, dataStart + ODF_PRESENTATION.length) === ODF_PRESENTATION
+  );
+}
+
 export function containerKind(filePath: string): ContainerKind {
   let fd: number | null = null;
   try {
     fd = fs.openSync(filePath, "r");
-    const head = Buffer.alloc(4);
-    fs.readSync(fd, head, 0, 4, 0);
+    const head = Buffer.alloc(ZIP_HEAD_BYTES);
+    fs.readSync(fd, head, 0, ZIP_HEAD_BYTES, 0);
     // OLE2 compound file (legacy .ppt/.pps)
     if (head[0] === 0xd0 && head[1] === 0xcf && head[2] === 0x11 && head[3] === 0xe0) {
       return "binary";
@@ -164,8 +190,7 @@ export function containerKind(filePath: string): ContainerKind {
       return "pdf";
     }
     if (head[0] === 0x50 && head[1] === 0x4b) {
-      // A zip: OOXML or ODF. Distinguish by extension, cheap and reliable here.
-      return path.extname(filePath).toLowerCase() === ".odp" ? "odf" : "ooxml";
+      return isOdfPresentation(head) || path.extname(filePath).toLowerCase() === ".odp" ? "odf" : "ooxml";
     }
     return "unknown";
   } catch {
@@ -236,16 +261,28 @@ function parseRels(xml: string | null, baseDir: string): Rels {
  * `mc:AlternateContent/mc:Choice[@Requires="p14"]`, keeping a legacy copy in
  * `mc:Fallback`. A bare `p:transition` also occurs. Checking only the bare
  * element is the single most common way to silently read no timings at all.
+ *
+ * The timing gets the same wrapper when an animation uses something of 2010 or
+ * later, and then the slide root holds TWO `mc:AlternateContent`, which the
+ * parser hands over as an array: every one is looked in, the first `mc:Choice`
+ * that has the element winning over any `mc:Fallback` (2026-11-15 audit, A31:
+ * reading only a lone wrapper lost the slide's `advTm`).
  */
+function findAtRoot(slide: XmlNode, name: string): XmlNode | undefined {
+  const alts = asNodes(slide["mc:AlternateContent"]);
+  for (const branch of ["mc:Choice", "mc:Fallback"]) {
+    for (const alt of alts) {
+      for (const choice of asNodes(alt[branch])) {
+        const found = asNode(choice[name]);
+        if (found) return found;
+      }
+    }
+  }
+  return asNode(slide[name]);
+}
+
 function findTransition(slide: XmlNode): XmlNode | undefined {
-  const alt = asNode(slide["mc:AlternateContent"]);
-  const fromChoice = asNode(asNode(alt?.["mc:Choice"])?.["p:transition"]);
-  if (fromChoice) return fromChoice;
-
-  const fromFallback = asNode(asNode(alt?.["mc:Fallback"])?.["p:transition"]);
-  if (fromFallback) return fromFallback;
-
-  return asNode(slide["p:transition"]);
+  return findAtRoot(slide, "p:transition");
 }
 
 /** Children of `p:transition` that are not the effect itself. */
@@ -477,7 +514,7 @@ export function readPresentationMeta(filePath: string): PresentationMeta {
     if (!slideXml) return;
 
     const slideIndex = position + 1;
-    const sld = asNode(asNode(parser.parse(slideXml))?.["p:sld"]) ?? {};
+    const sld = asNode(asNode(slideParser.parse(slideXml))?.["p:sld"]) ?? {};
 
     const slideDir = path.posix.dirname(partName);
     const relsName = path.posix.join(slideDir, "_rels", `${path.posix.basename(partName)}.rels`);
@@ -518,7 +555,7 @@ export function readPresentationMeta(filePath: string): PresentationMeta {
 
     // Media playback semantics live in p:timing.
     const mediaNodes: XmlNode[] = [];
-    collectMediaNodes(sld["p:timing"], mediaNodes);
+    collectMediaNodes(findAtRoot(sld, "p:timing"), mediaNodes);
     // Slide-wide aggregate: whatever ANY media node on this slide says — the
     // fallback for a shape no node names.
     const anyLoop = mediaNodes.some(mediaNodeLoops);
@@ -628,10 +665,13 @@ export function extractAudioParts(
   filePath: string,
   refs: AudioRef[],
   destDir: string,
+  /** Called once the parts are read and after each file is written: the deck worker's beat. */
+  onProgress?: () => void,
 ): ExtractedAudio[] {
   if (refs.length === 0) return [];
 
   const entries = readParts(filePath, new Set(refs.map((ref) => ref.partName)));
+  onProgress?.();
 
   fs.mkdirSync(destDir, { recursive: true });
 
@@ -655,6 +695,7 @@ export function extractAudioParts(
     const file = `${index + 1}.${ext}`;
 
     fs.writeFileSync(path.join(destDir, file), data);
+    onProgress?.();
 
     const record: ExtractedAudio = {
       ...ref,
@@ -687,10 +728,13 @@ export function extractVideoParts(
   filePath: string,
   refs: VideoRef[],
   destDir: string,
+  /** As `extractAudioParts`'s. */
+  onProgress?: () => void,
 ): ExtractedVideo[] {
   if (refs.length === 0) return [];
 
   const entries = readParts(filePath, new Set(refs.map((ref) => ref.partName)));
+  onProgress?.();
 
   fs.mkdirSync(destDir, { recursive: true });
 
@@ -705,6 +749,7 @@ export function extractVideoParts(
     const file = `${index + 1}.${ext}`;
 
     fs.writeFileSync(path.join(destDir, file), data);
+    onProgress?.();
 
     extracted.push({
       ...ref,

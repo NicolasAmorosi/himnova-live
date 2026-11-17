@@ -2,6 +2,7 @@ import type { DragEvent } from "react";
 import { Icon, ListRow } from "@renderer/components/ui";
 import { useItemLabel } from "@renderer/lib/hooks/use-program-item-display";
 import { useAudioStore } from "@renderer/stores/audio.store";
+import { survivingAssetId } from "@renderer/stores/program.store";
 import { PlateAirStatus } from "@renderer/components/shared/plate-air-status";
 import { ProgramItemThumb } from "@renderer/components/shared/program-item-thumb";
 import type { DeckStatusSummary } from "@shared/types/deck";
@@ -38,10 +39,14 @@ export function ScheduleRow({
   const label = useItemLabel(item);
   // Audio never claims the on-air rail (`active`) — that means "this is what
   // the projector shows", and audio never is. Its own indicator here is what
-  // tells the operator it's sounding without implying it's on screen.
+  // tells the operator it's sounding without implying it's on screen. A sound on air keeps the id it went out with,
+  // its row may have moved to a twin since (2026-11-15 audit, D4).
   const sounding = useAudioStore(
     (s) =>
-      item.kind === "media" && s.tracks.some((t) => t.source === "asset" && t.assetId === item.mediaAssetId),
+      item.kind === "media" &&
+      s.tracks.some(
+        (t) => t.source === "asset" && t.assetId !== null && survivingAssetId(t.assetId) === item.mediaAssetId,
+      ),
   );
 
   return (

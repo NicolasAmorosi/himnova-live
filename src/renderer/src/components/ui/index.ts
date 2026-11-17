@@ -1,9 +1,9 @@
 export { Button } from "./button";
 export { BrandMark, Wordmark } from "./brand";
 export { IconButton } from "./icon-button";
-export { Icon, iconNames, type IconName } from "./icon";
+export { Icon, type IconName } from "./icon";
 export { Badge, StatusToken, Token, type BadgeVariant } from "./badge";
-export { Box, Card, CardHeader, CardContent, CardFooter } from "./card";
+export { Box, Card } from "./card";
 export { Input } from "./input";
 export { Menu, type MenuOption } from "./menu";
 export { Select, type SelectAction, type SelectOption } from "./select";
@@ -34,7 +34,7 @@ export { DECK_GRID_COLUMNS, SLIDE_GRID_GAP_PX, VERSE_TILE_MIN_WIDTH_PX } from ".
 export { VirtualGrid } from "./virtual-grid";
 export { ListRow } from "./list-row";
 export { RowThumb } from "./row-thumb";
-export { Toolbar, ToolbarGroup } from "./toolbar";
+export { Toolbar } from "./toolbar";
 export { Callout } from "./callout";
 export { Tooltip } from "./tooltip";
 export { Kbd } from "./kbd";

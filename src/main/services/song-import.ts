@@ -56,9 +56,10 @@ const WRITE_CHUNK = 100;
 
 export const importEasyWorshipFolder = (folder: string): Promise<SongImportResult> => writeSongs(readEasyWorshipFolder(folder));
 export const importOpenLpDatabase = (file: string): Promise<SongImportResult> => writeSongs(readOpenLp(file));
-export const importOpenLyricsFiles = (files: readonly string[]): Promise<SongImportResult> => writeSongs(readOpenLyricsFiles(files));
-export const importSongTextFiles = (files: readonly string[]): Promise<SongImportResult> =>
-  writeSongs(readSongTextFiles(files, getSettingsRepo().get("ui.locale")));
+export const importOpenLyricsFiles = async (files: readonly string[]): Promise<SongImportResult> =>
+  writeSongs(await readOpenLyricsFiles(files));
+export const importSongTextFiles = async (files: readonly string[]): Promise<SongImportResult> =>
+  writeSongs(await readSongTextFiles(files, getSettingsRepo().get("ui.locale")));
 
 /** EasyWorship's two databases: picking either one means its folder. */
 const EASYWORSHIP_FILE = /^song(s|words)\.db$/i;
@@ -70,7 +71,7 @@ const EASYWORSHIP_FILE = /^song(s|words)\.db$/i;
  * text for the rest. A database that cannot be read is a problem among the
  * rest; when nothing at all came in, its own error says why instead.
  */
-export function importSongFiles(files: readonly string[]): Promise<SongImportResult> {
+export async function importSongFiles(files: readonly string[]): Promise<SongImportResult> {
   const reads: SongsRead[] = [];
   let failure: IpcError | null = null;
   const extension = (file: string) => path.extname(file).slice(1).toLowerCase();
@@ -90,15 +91,15 @@ export function importSongFiles(files: readonly string[]): Promise<SongImportRes
       reads.push({ songs: [], problems: 0, unsupported: 1 });
     }
   }
-  reads.push(readOpenLyricsFiles(files.filter((file) => extension(file) === "xml")));
+  reads.push(await readOpenLyricsFiles(files.filter((file) => extension(file) === "xml")));
   const texts = files.filter((file) => !databases.includes(file) && extension(file) !== "xml");
-  reads.push(readSongTextFiles(texts, getSettingsRepo().get("ui.locale")));
+  reads.push(await readSongTextFiles(texts, getSettingsRepo().get("ui.locale")));
   const read: SongsRead = {
     songs: reads.flatMap((r) => r.songs),
     problems: reads.reduce((sum, r) => sum + r.problems, 0),
     unsupported: reads.reduce((sum, r) => sum + (r.unsupported ?? 0), 0),
   };
-  if (failure && read.songs.length === 0) return Promise.reject(failure);
+  if (failure && read.songs.length === 0) throw failure;
   return writeSongs(read);
 }
 
@@ -160,8 +161,9 @@ function refreshedFrom(copy: Song, file: Omit<SongUpsert, "id">, format: SongFil
  * the library's repeat of it when that one had no file yet — which first
  * takes what the file holds (owner, 2026-11-06: its chords, authors, CCLI
  * number…; `refreshedFrom` keeps its theme and what the file does not hold),
- * or saving it would write them out of the file. One transaction: an import
- * that fails halfway leaves the library as it was.
+ * or saving it would write them out of the file. A hundred songs per
+ * transaction (`WRITE_CHUNK`): an import that fails halfway keeps the batches
+ * already written, and importing again counts those songs as repeated.
  */
 async function writeSongs(read: SongsRead): Promise<SongImportResult> {
   const repo = getSongsRepo();

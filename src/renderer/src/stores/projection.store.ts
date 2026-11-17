@@ -92,6 +92,10 @@ export type ProjectionStoreState = {
    *  them would make a deck authored at 40% come back at 100% the moment
    *  anyone touched any slider. */
   slideVideoVolume: number | null;
+  /** «Volumen inicial» as the live slide came on: the app default of the layers above, taken once per slide like a
+   *  video's `videoVolume`. Read from the settings at every output, a change mid-clip did not reach it and then
+   *  jumped it at the next rebuild (2026-11-15 audit, X25). */
+  slideVideoDefault: number;
   /** Where the element would resume if it had to be mounted again — the same
    *  mount-time seek `VideoUnderlay.startAtSeconds` is, written by
    *  `freezeLivePositions()`. */
@@ -331,6 +335,52 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
 
+/** Which element each media error slot belongs to (audit A18). An error goes when its element is replaced (a new
+ *  video, another slide's clip, another song background), never with a scene: under BLACK/LOGO the same element is
+ *  still there, still broken, and GO LIVE on the same file has to know it to retry it. */
+function mediaElements(state: Pick<ProjectionStoreState, "base" | "slideVideoEpoch">): Record<string, number | null> {
+  return {
+    [mediaErrorKey({ kind: "video" })]: state.base?.kind === "video" ? state.base.epoch : null,
+    [mediaErrorKey({ kind: "slideVideo" })]: state.slideVideoEpoch,
+    [mediaErrorKey({ kind: "songVideo" })]:
+      state.base?.kind === "song" ? (state.base.backgroundVideo?.epoch ?? null) : null,
+  };
+}
+
+/** `errors` without `keys`; the same object when none of them is there, so a subscriber has nothing to recompute. */
+function withoutErrors(
+  errors: Record<string, ProjectionMediaError>,
+  keys: readonly string[],
+): Record<string, ProjectionMediaError> {
+  if (!keys.some((key) => key in errors)) return errors;
+  const kept = { ...errors };
+  for (const key of keys) delete kept[key];
+  return kept;
+}
+
+/** The errors still standing once `next` is applied: those whose element it replaces are gone. */
+function errorsAfter(
+  state: ProjectionStoreState,
+  next: Partial<Pick<ProjectionStoreState, "base" | "slideVideoEpoch">>,
+): Record<string, ProjectionMediaError> {
+  const before = mediaElements(state);
+  const after = mediaElements({ ...state, ...next });
+  return withoutErrors(
+    state.mediaErrors,
+    Object.keys(before).filter((key) => before[key] !== after[key]),
+  );
+}
+
+/** The plate's error slot once `plate` goes up or is re-dressed: a plate with an image that was not up, or one given
+ *  another image, is a new attempt at loading it; the same image re-dressed is the same broken `<img>`, still there.
+ *  A plate without an image tries nothing: a lower third going up leaves a broken bug's warning where it is. */
+function plateErrorsAfter(state: ProjectionStoreState, plate: Plate): Record<string, ProjectionMediaError> {
+  const current = state.livePlates.find((p) => p.id === plate.id);
+  return plate.imageAssetId === null || current?.imageAssetId === plate.imageAssetId
+    ? state.mediaErrors
+    : withoutErrors(state.mediaErrors, [mediaErrorKey({ kind: "plate" })]);
+}
+
 /** A new slide is a new element: a fresh identity, playing, at the level the
  *  file asks for, from the beginning. Written as one object so the three
  *  actions that can change which slide is live cannot each reset a different
@@ -339,12 +389,14 @@ function freshSlideVideo(epoch: number): {
   slideVideoEpoch: number;
   slideVideoPaused: boolean;
   slideVideoVolume: number | null;
+  slideVideoDefault: number;
   slideVideoStartAt: number;
 } {
   return {
     slideVideoEpoch: epoch + 1,
     slideVideoPaused: false,
     slideVideoVolume: null,
+    slideVideoDefault: defaultMediaVolume(),
     slideVideoStartAt: 0,
   };
 }
@@ -362,6 +414,7 @@ export const useProjectionStore = create<ProjectionStoreState>()(
     slideVideoEpoch: 0,
     slideVideoPaused: false,
     slideVideoVolume: null,
+    slideVideoDefault: defaultMediaVolume(),
     slideVideoStartAt: 0,
     slideEntry: null,
 
@@ -385,13 +438,16 @@ export const useProjectionStore = create<ProjectionStoreState>()(
     plateHideClocks: {},
 
     setBase: (base) =>
-      set((state) => ({
-        base,
-        videoPaused: false,
-        videoVolume: defaultMediaVolume(),
-        slideEntry: null,
-        ...freshSlideVideo(state.slideVideoEpoch),
-      })),
+      set((state) => {
+        const next = {
+          base,
+          videoPaused: false,
+          videoVolume: defaultMediaVolume(),
+          slideEntry: null,
+          ...freshSlideVideo(state.slideVideoEpoch),
+        };
+        return { ...next, mediaErrors: errorsAfter(state, next) };
+      }),
     setOverlay: (overlay) => set({ overlay }),
     setLogoUrl: (logoUrl) => set({ logoUrl }),
     setLogoScene: (logoScene) => set({ logoScene }),
@@ -470,7 +526,8 @@ export const useProjectionStore = create<ProjectionStoreState>()(
         ) {
           return state;
         }
-        return { base: { ...base, song, theme, sizeCqw, slideIndex: index, detour, backgroundVideo, language: lang } };
+        const next = { base: { ...base, song, theme, sizeCqw, slideIndex: index, detour, backgroundVideo, language: lang } };
+        return { ...next, mediaErrors: errorsAfter(state, next) };
       }),
 
     setSongPosition: (position) =>
@@ -503,14 +560,18 @@ export const useProjectionStore = create<ProjectionStoreState>()(
       }),
 
     setLiveDeck: (liveDeck) =>
-      set((state) => ({
-        liveDeck,
-        autoplay: "off",
-        autoplayMode: "synced",
-        soundtrackEpoch: state.soundtrackEpoch + 1,
-        slideEntry: null,
-        ...freshSlideVideo(state.slideVideoEpoch),
-      })),
+      set((state) => {
+        const slideVideo = freshSlideVideo(state.slideVideoEpoch);
+        return {
+          liveDeck,
+          autoplay: "off",
+          autoplayMode: "synced",
+          soundtrackEpoch: state.soundtrackEpoch + 1,
+          slideEntry: null,
+          ...slideVideo,
+          mediaErrors: errorsAfter(state, slideVideo),
+        };
+      }),
 
     // Writing the cursor into `base` is what makes a slide change flow through
     // selectOutput -> projection:show like every other content change. The COM
@@ -526,19 +587,41 @@ export const useProjectionStore = create<ProjectionStoreState>()(
       // fresh identity is simply never used.
       // Forward onto a slide plays that slide's own way in, as the file says;
       // back is a cut — correcting a mistake mid-service must be instant.
-      set((state) => ({
-        base: { ...base, slideIndex: next },
-        slideEntry: next > base.slideIndex ? (liveDeck.slides[next - 1]?.transition ?? null) : null,
-        ...freshSlideVideo(state.slideVideoEpoch),
-      }));
+      set((state) => {
+        const slideVideo = freshSlideVideo(state.slideVideoEpoch);
+        return {
+          base: { ...base, slideIndex: next },
+          slideEntry: next > base.slideIndex ? (liveDeck.slides[next - 1]?.transition ?? null) : null,
+          ...slideVideo,
+          mediaErrors: errorsAfter(state, slideVideo),
+        };
+      });
     },
 
     setAutoplay: (autoplay) => set({ autoplay }),
     setAutoplayMode: (autoplayMode) => set({ autoplayMode }),
+    // The engine reports ~4 times a second even paused (under LOGO, a whole sermon): the same report again is no
+    // change, or every reader of the map (the LIVE panel whole) re-rendered 3.5 times a second for nothing
+    // (2026-11-15 audit, R4). `onIpc("media-status")` still sees every report. Only a stopped report: a playing one
+    // with a frozen time (a disk stall) must still re-run `deck-autoplay`'s `scheduleSynced`, or the slide timer
+    // fires on the wall clock and the next real report sends the deck back a slide.
     setMediaStatus: (status) =>
-      set((state) => ({
-        mediaStatus: { ...state.mediaStatus, [mediaTargetKey(status.target)]: status },
-      })),
+      set((state) => {
+        const key = mediaTargetKey(status.target);
+        const kept = state.mediaStatus[key];
+        if (
+          (status.paused || status.ended) &&
+          kept &&
+          kept.epoch === status.epoch &&
+          kept.currentTimeSeconds === status.currentTimeSeconds &&
+          kept.durationSeconds === status.durationSeconds &&
+          kept.paused === status.paused &&
+          kept.ended === status.ended
+        ) {
+          return state;
+        }
+        return { mediaStatus: { ...state.mediaStatus, [key]: status } };
+      }),
 
     setMediaError: (error) =>
       set((state) => ({
@@ -564,27 +647,18 @@ export const useProjectionStore = create<ProjectionStoreState>()(
         return { mediaStatus, mediaErrors };
       }),
 
-    // Dropping the scene/video error slots here is what makes re-sending the
-    // very same file a real retry: matching on url alone would keep painting
-    // the old warning over a file the operator has since fixed or plugged
-    // back in. Audio slots are deliberately untouched — they belong to the
-    // track list's lifecycle, and `pruneMediaStatus` is what retires them.
+    // Dropping the scene's error slot here is what makes re-sending the very
+    // same picture a real retry: matching on url alone would keep painting the
+    // old warning over a file the operator has since fixed or plugged back in.
+    // Only the scene's: a video, a slide's clip and a song background keep
+    // theirs until they are replaced (`errorsAfter`), BLACK/LOGO over them
+    // included (audit A18). Audio slots belong to the track list's lifecycle,
+    // and `pruneMediaStatus` is what retires them.
     beginScene: () =>
-      set((state) => {
-        const sceneEpoch = state.sceneEpoch + 1;
-        const keys = [
-          mediaErrorKey({ kind: "scene" }),
-          mediaErrorKey({ kind: "video" }),
-          mediaErrorKey({ kind: "slideVideo" }),
-        ];
-        // The common case by far is that there is nothing to drop, and this
-        // runs on every go-live: handing back a fresh `mediaErrors` object
-        // would make its subscribers recompute for nothing.
-        if (!keys.some((key) => key in state.mediaErrors)) return { sceneEpoch };
-        const mediaErrors = { ...state.mediaErrors };
-        for (const key of keys) delete mediaErrors[key];
-        return { sceneEpoch, mediaErrors };
-      }),
+      set((state) => ({
+        sceneEpoch: state.sceneEpoch + 1,
+        mediaErrors: withoutErrors(state.mediaErrors, [mediaErrorKey({ kind: "scene" })]),
+      })),
     setTransitionSettings: (transitionStyle, transitionDurationMs) =>
       set({ transitionStyle, transitionDurationMs }),
     setVideoEnd: (videoEnd) => set({ videoEnd }),
@@ -604,6 +678,7 @@ export const useProjectionStore = create<ProjectionStoreState>()(
         return {
           livePlates,
           plateHideClocks: withHideClock(state.plateHideClocks, livePlates, plate.id, freshHideClock(plate)),
+          mediaErrors: plateErrorsAfter(state, plate),
         };
       }),
     hidePlate: (id) =>
@@ -628,7 +703,11 @@ export const useProjectionStore = create<ProjectionStoreState>()(
           current.style.autoHide.enabled === plate.style.autoHide.enabled &&
           current.style.autoHide.afterMs === plate.style.autoHide.afterMs;
         const clock = sameAutoHide ? state.plateHideClocks[plate.id] : freshHideClock(plate);
-        return { livePlates, plateHideClocks: withHideClock(state.plateHideClocks, livePlates, plate.id, clock) };
+        return {
+          livePlates,
+          plateHideClocks: withHideClock(state.plateHideClocks, livePlates, plate.id, clock),
+          mediaErrors: plateErrorsAfter(state, plate),
+        };
       }),
     tickPlateClocks: (now) =>
       set((state) => {
@@ -692,7 +771,7 @@ function liveSlideClip(state: ProjectionStoreState) {
 
 /** The live slide clip's OWN level (what its row shows), before the LIVE master that the projector's level carries. */
 export function selectSlideClipVolume(state: ProjectionStoreState): number {
-  return state.slideVideoVolume ?? liveSlideClip(state)?.volume ?? defaultMediaVolume();
+  return state.slideVideoVolume ?? liveSlideClip(state)?.volume ?? state.slideVideoDefault;
 }
 
 function selectSlideVideo(state: ProjectionStoreState): SlideVideo {
@@ -877,6 +956,7 @@ type OutputInputs = readonly [
   ProjectionStoreState["slideVideoEpoch"],
   ProjectionStoreState["slideVideoPaused"],
   ProjectionStoreState["slideVideoVolume"],
+  ProjectionStoreState["slideVideoDefault"],
   ProjectionStoreState["slideVideoStartAt"],
   ProjectionStoreState["slideEntry"],
   ProjectionStoreState["liveDeck"],
@@ -903,6 +983,7 @@ function outputInputs(state: ProjectionStoreState): OutputInputs {
     state.slideVideoEpoch,
     state.slideVideoPaused,
     state.slideVideoVolume,
+    state.slideVideoDefault,
     state.slideVideoStartAt,
     state.slideEntry,
     state.liveDeck,

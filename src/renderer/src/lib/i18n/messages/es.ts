@@ -6,13 +6,16 @@ const es = {
     modalCrashed: "Algo falló en esa ventana y se cerró",
     unexpectedError: "Ocurrió un error inesperado. La aplicación sigue funcionando.",
     reload: "Recargar",
+    /** The control window's page died and came back over what is live (A30). */
+    controlRecovered: "La ventana de control se cerró por un error y se recuperó. Lo que está al aire siguió igual.",
+    controlRecoveryFailed:
+      "La ventana de control se cerró por un error y no se pudo recuperar. Lo que está al aire sigue igual: reiniciá la app cuando puedas.",
   },
   header: {
     openDisplay: "Abrir pantalla",
     /** The name of a schedule never saved: not «New program», the button's command (2026-11-05). */
     untitled: "Sin título",
     closeDisplay: "Cerrar pantalla",
-    controlDisplay: "(pantalla del control)",
   },
   schedule: {
     title: "Programa",
@@ -44,6 +47,7 @@ const es = {
     closeAnyway: "Cerrar igualmente",
     closeOnAirTitle: "¿Cerrar la app?",
     closeOnAirBody: "Hay contenido en el proyector. Al cerrar, la pantalla de proyección se apaga.",
+    closeSoundBody: "Está sonando «{name}». Al cerrar, deja de sonar en la sala.",
     closeEditorBody:
       "Hay un editor abierto con cambios sin guardar: al cerrar, se pierden.",
   },
@@ -146,6 +150,8 @@ const es = {
     images: "Imágenes",
     audios: "Audios",
     ppts: "Presentaciones",
+    /** The tab's label when «Presentaciones» does not fit (owner, 2026-11-16; at 1000 px it had 61 px of 87). */
+    pptsShort: "Present.",
     add: "Agregar",
     addHint: "Agregar archivos a la biblioteca",
     addUnsupported:
@@ -620,7 +626,6 @@ const es = {
     invalidHint: "Un tema necesita un nombre.",
     name: "Nombre",
     groups: {
-      theme: "Tema",
       lyrics: "Letra",
       spacing: "Espacios",
       footer: "Pie de copyright",
@@ -791,6 +796,9 @@ const es = {
     previewMute: "Silenciar PREVIEW",
     outputIs: "{output}: {name}",
     systemDefault: "Predeterminada del sistema",
+    /** The device first and the words short: «Predeterminada del sistema (MacBook Air Speakers (Built-in))» was cut
+     *  right where the device's name begins (owner, 2026-11-16). */
+    systemDefaultNamed: "Del sistema: {name}",
     unplugged: "{name} (desconectada)",
     sharedOutput: "También se escucha en la sala: sale por la misma salida que EN VIVO.",
     sharedOutputNdi: "También se escucha en la sala y en el NDI: sale por la misma salida que EN VIVO.",
@@ -801,11 +809,18 @@ const es = {
     toastUnusable: "{output}: {name} no se puede usar. Suena por la predeterminada del sistema.",
     toastBack: "{output}: {name} está conectada de nuevo.",
     toastStripsOff: "Tiras apagadas: el volumen general de EN VIVO vuelve al 100 %.",
+    toastStripsOffKept: "Tiras apagadas: el volumen general de EN VIVO ({level} %) pasa a ser el volumen inicial.",
+    toastStripsOn: "Tiras prendidas: el volumen inicial ({level} %) pasa a ser el volumen general de EN VIVO.",
+    toastStripsOffKeptLive:
+      "Tiras apagadas: el volumen general de EN VIVO ({level} %) pasa a ser el volumen inicial, y lo que ya está al aire vuelve al 100 %.",
+    toastStripsOnLive:
+      "Tiras prendidas: el volumen inicial ({level} %) pasa a ser el volumen general de EN VIVO, y lo que ya está al aire suena más bajo.",
   },
   live: {
     takeOffAir: "Sacar del aire",
     title: "En Vivo",
     disconnected: "Sin pantalla",
+    screenLost: "Pantalla desconectada",
     noSignal: "Sin señal",
     logoMissing: "No hay logo cargado",
     logoMissingHint: "Elegí uno en Configuración › Proyección",
@@ -817,6 +832,7 @@ const es = {
   footerHints: { goLive: "Mandar la vista previa al proyector", logo: "Mostrar el logo", black: "Pantalla en negro", live: "Volver a mostrar el contenido" },
   projector: {
     closedUnexpectedly: "Se cerró la ventana de proyección",
+    recovered: "La ventana de proyección se cayó y se volvió a abrir sola",
     screenLost:
       "Se desconectó la pantalla del proyector. Lo que está en vivo sigue corriendo, con su sonido, y vuelve a verse en cuanto la pantalla se conecte.",
     screenBack: "Volvió la pantalla del proyector",
@@ -832,6 +848,11 @@ const es = {
     saveHint: "Guardar los cambios en este programa",
     saveNoChanges: "Sin cambios",
     duplicateName: "{name} (copia)",
+    sameNameTitle: "Ya hay un programa «{name}»",
+    sameNameReplaceBody: "Podés reemplazarlo por el programa que tenés abierto, o guardar los dos con el mismo nombre.",
+    sameNameKeepBody: "Van a quedar dos programas con el mismo nombre en la lista.",
+    sameNameReplace: "Reemplazar",
+    sameNameKeepBoth: "Guardar los dos",
     new: "Nuevo programa",
     newHint: "Empezar un programa nuevo y vacío",
     createAndOpen: "Crear y abrir",
@@ -1443,7 +1464,7 @@ const es = {
         title: "Elegí",
         body: "Un clic en un versículo, una canción o un archivo lo pone en la vista previa (Preview). Ahí lo ves solo vos.",
       },
-      live: { title: "Proyectá", body: "Enter, doble clic o EN VIVO lo manda al proyector." },
+      live: { title: "Proyectá", body: "Enter, doble clic o EN VIVO lo manda al proyector, y la vista previa queda libre para lo que sigue." },
       cover: {
         title: "Tapá",
         body: "NEGRO deja la pantalla en negro y LOGO muestra tu iglesia. Con VIVO vuelve lo que estaba.",
@@ -1484,9 +1505,10 @@ const es = {
   whatsNew: {
     title: "Novedades",
     caption: "Lo nuevo de la {version}",
+    captionSince: "Lo nuevo desde la {version}",
     skip: "Cerrar las novedades",
     finish: "Listo",
-    steps: { stage: "Escenario", sound: "Sonido", done: "Resumen" },
+    steps: { stage: "Escenario", sound: "Sonido", preview: "Vista previa", done: "Resumen" },
     stage: {
       title: "Una pantalla para el escenario",
       subtitle: "Si tienen una pantalla que mira a la plataforma, Himnova Live le muestra al pastor cuánto tiempo le queda y a los músicos lo que viene. Lo manejás desde el panel Escenario, abajo a la izquierda.",
@@ -1495,9 +1517,24 @@ const es = {
       views: { title: "Pastor y Músicos", body: "Pastor: la cuenta grande, la hora y lo que se proyecta. Músicos: lo que está en vivo y lo que sigue, con los acordes de la canción." },
       configure: "Elegir la pantalla del escenario",
     },
+    preview: {
+      title: "Lo que sale al aire se va de PREVIEW",
+      subtitle: "Cuando mandás algo al proyector, PREVIEW queda vacía y lista para lo que sigue. Así un Enter de más ya no reinicia el himno que está sonando.",
+      demo: "PREVIEW y EN VIVO mientras se mandan dos versículos",
+      free: { title: "PREVIEW queda libre", body: "Lo que mandaste se ve en EN VIVO. En el programa, la fila se desmarca y conserva su marca de al aire." },
+      enter: { title: "Un Enter de más no hace nada", body: "Con PREVIEW vacía, Enter y EN VIVO no tocan lo que está al aire." },
+      back: { title: "Volver a lo que está al aire", body: "Si lo elegís otra vez, EN VIVO solo lo destapa y nunca lo reinicia. Para empezar de cero está «Reiniciar»." },
+      beats: {
+        pick: "Elegís un versículo: lo ves en PREVIEW.",
+        send: "Lo mandás: pasa a EN VIVO y PREVIEW queda vacía.",
+        pickNext: "Elegís el siguiente.",
+        sendNext: "Lo mandás, y PREVIEW vuelve a quedar libre.",
+      },
+    },
     done: {
       title: "Eso es todo",
       subtitle: "Lo que elegiste ya quedó guardado. Estas novedades se vuelven a ver en Configuración ▸ Acerca de.",
+      subtitleNoChoices: "Estas novedades se vuelven a ver en Configuración ▸ Acerca de.",
       noStage: "Todavía sin pantalla de escenario",
       screens: "Configurar",
       alsoTitle: "También en esta versión",
@@ -1506,6 +1543,15 @@ const es = {
         minimize: "Si minimizás la ventana de control, el proyector y el escenario quedan donde están.",
         screens: "En Configuración ▸ Pantallas elegís qué hace cada pantalla, y «Identificar» muestra en cada una su número.",
         startVolume: "El volumen inicial se mudó a Configuración ▸ Sonido.",
+        extraEnter: "Un Enter de más sobre el himno al aire ya no lo vuelve a empezar.",
+        coverSounds: "NEGRO y LOGO ya no hacen empezar de nuevo los sonidos de una presentación.",
+        projectorBack: "Si la ventana del proyector se cae, se vuelve a abrir sola con lo que estaba al aire.",
+        damagedDb: "Si la base de datos se daña, la app ofrece restaurar la última copia diaria.",
+        fader: "Bajar EN VIVO hasta 0 y volver a subirlo vuelve al nivel que tenía.",
+        quitSound: "Cerrar la app pregunta también cuando solo está sonando música.",
+        scannedPdf: "Los PDF escaneados se proyectan con sus imágenes.",
+        stageFreeze: "En Windows, mandar un mensaje o una cuenta al escenario ya no congela el video de la sala.",
+        controlBack: "Si la ventana de control se cae, vuelve sola sobre lo que está al aire.",
       },
     },
   },

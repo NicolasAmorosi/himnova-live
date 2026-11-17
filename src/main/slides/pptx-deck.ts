@@ -1,5 +1,7 @@
-import type { Worker } from "node:worker_threads";
+import { SLIDES_CLIP_COPY_TIMEOUT_MS, SLIDES_DECK_READ_TIMEOUT_MS } from "@shared/constants";
 import { ooxmlDir } from "../paths";
+import { createDeckQueue } from "./deck-queue";
+import type { RasterLane } from "./rasterizer";
 import createPptxWorker from "./pptx-worker?nodeWorker";
 import type { PptxClips, PptxExtract, PptxRead, PptxReply, PptxRequest } from "./pptx-worker";
 
@@ -8,55 +10,35 @@ export type { PptxRead } from "./pptx-worker";
 /**
  * Reads a deck into its model in `pptx-worker.ts`, one deck after another on
  * one worker thread, started with the first deck. `null` when the file can't be
- * read as a presentation at all — or when the worker died on it: that deck
+ * read as a presentation at all, or when the worker died on it: that deck
  * fails as unreadable, and is never retried here on main, where the same file
  * would take the whole app down instead of one thread.
  */
-let worker: Worker | null = null;
-let nextId = 0;
-const waiting = new Map<number, { file: string; done: (reply: PptxReply | null) => void }>();
-
-function pptxWorker(): Worker {
-  if (worker) return worker;
+const queue = createDeckQueue<PptxRequest, PptxReply>(() => {
   const started = createPptxWorker({ workerData: { ooxmlDir } });
   // Never what keeps the process alive: quitting doesn't wait for a read.
   started.unref();
-  started.on("message", (reply: PptxReply) => {
-    const request = waiting.get(reply.id);
-    waiting.delete(reply.id);
-    if ("error" in reply) console.warn(`[slides] no reader could open ${request?.file}: ${reply.error}`);
-    request?.done(reply);
-  });
-  const lost = (why: string): void => {
-    if (worker !== started) return;
-    worker = null;
-    for (const [id, request] of waiting) {
-      console.warn(`[slides] the deck reader stopped (${why}) while reading ${request.file}`);
-      waiting.delete(id);
-      request.done(null);
-    }
-  };
-  started.on("error", (error) => lost(String(error)));
-  started.on("exit", (code) => lost(`exit ${code}`));
-  worker = started;
   return started;
-}
+}, SLIDES_DECK_READ_TIMEOUT_MS);
+let nextId = 0;
 
-function ask(file: string, request: PptxRequest): Promise<PptxReply | null> {
-  return new Promise((done) => {
-    waiting.set(request.id, { file, done });
-    pptxWorker().postMessage(request);
-  });
-}
-
-export async function readPptx(sourcePath: string): Promise<PptxRead | null> {
-  const reply = await ask(sourcePath, { id: ++nextId, file: sourcePath });
+export async function readPptx(sourcePath: string, lane: RasterLane): Promise<PptxRead | null> {
+  const reply = await queue.ask(sourcePath, { id: ++nextId, file: sourcePath }, lane);
   return reply && "read" in reply ? reply.read : null;
 }
 
-/** The deck's embedded sound and video, copied into its cache on the worker thread. `null` when the
- *  worker could not (the deck then goes without them, as with a part that won't read). */
-export async function extractClips(extract: PptxExtract): Promise<PptxClips | null> {
-  const reply = await ask(extract.file, { id: ++nextId, extract });
-  return reply && "clips" in reply ? reply.clips : null;
+/** The deck's embedded sound and video, copied into its cache on the worker thread. None when the
+ *  worker could not copy them (the deck then goes without them, as with a part that won't read);
+ *  `null` when the worker stopped before answering, which says nothing about the file. */
+export async function extractClips(extract: PptxExtract, lane: RasterLane): Promise<PptxClips | null> {
+  // Its own window, a beat per clip: gigabytes of video off a pen drive take minutes, and a share that went away
+  // mid-copy held the worker for good when the copy was not timed at all (review of the 2026-11-15 audit, S4).
+  const reply = await queue.ask(extract.file, { id: ++nextId, extract }, lane, SLIDES_CLIP_COPY_TIMEOUT_MS);
+  if (!reply) return null;
+  return "clips" in reply ? reply.clips : { audio: [], video: [] };
+}
+
+/** The operator opened a deck that was being read ahead: what is still queued for it goes first. */
+export function hurryDeck(sourcePath: string): void {
+  queue.hurry(sourcePath);
 }

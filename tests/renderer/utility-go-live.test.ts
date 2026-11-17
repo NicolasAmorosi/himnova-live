@@ -38,7 +38,7 @@ beforeEach(() => {
   useDisplayStore.setState({ openIfNeeded: async () => {} });
 });
 
-test("GO LIVE on the countdown already on air keeps its clock and only uncovers it", async () => {
+test("GO LIVE on the countdown already on air keeps its clock and only uncovers it, with a fade", async () => {
   usePreviewStore.getState().setTarget({ kind: "utility", sceneId: a.id });
   await goLive();
   const base = useProjectionStore.getState().base;
@@ -56,7 +56,18 @@ test("GO LIVE on the countdown already on air keeps its clock and only uncovers 
 
   const after = useProjectionStore.getState();
   expect(after.base).toMatchObject({ kind: "utility", sceneId: a.id, clock: running });
-  expect(after.sceneEpoch).toBe(epoch);
+  // Uncovered with a fade, one new scene, as VIVO does (owner, 2026-11-16, audit U17): it was a cut.
+  expect(after.sceneEpoch).toBe(epoch + 1);
   expect(after.overlay).toBe("none");
   expect(useUtilityStore.getState().run).toEqual({ sceneId: b.id, clock: armed, started: false });
+});
+
+test("GO LIVE on the countdown already on air and not covered sends nothing: no scene, no fade", async () => {
+  usePreviewStore.getState().setTarget({ kind: "utility", sceneId: a.id });
+  await goLive();
+  const epoch = useProjectionStore.getState().sceneEpoch;
+  usePreviewStore.getState().setTarget({ kind: "utility", sceneId: a.id });
+  await goLive();
+  // A fade between the same pictures would flash under «fade through black».
+  expect(useProjectionStore.getState().sceneEpoch).toBe(epoch);
 });

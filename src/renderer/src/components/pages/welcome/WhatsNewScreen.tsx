@@ -4,24 +4,49 @@ import { Button, FieldGroup, FieldRow, Icon, type IconName } from "@renderer/com
 import { useDisplayStore } from "@renderer/stores/display.store";
 import { useSettingsStore } from "@renderer/stores/settings.store";
 import { useUiStore } from "@renderer/stores/ui.store";
-import { LATEST_WHATS_NEW, type WhatsNewKey } from "@shared/whats-new";
+import type { Messages } from "@renderer/lib/i18n/messages/es";
+import { LATEST_WHATS_NEW, whatsNewKeysFor, type WhatsNewKey } from "@shared/whats-new";
 import { GuideScreen } from "./GuideScreen";
+import { PreviewNewsStep } from "./PreviewNewsStep";
 import { SoundStep } from "./SoundStep";
 import { StageNewsStep } from "./StageNewsStep";
 import { StepLayout } from "./StepLayout";
 import { useSoundSummary } from "./use-sound-summary";
 
-type WhatsNewStepId = "stage" | "sound" | "done";
+type WhatsNewStepId = "stage" | "sound" | "preview" | "done";
 
-/** Each version's «Novedades», in order; the last step closes it. A new version adds its key in `shared/whats-new.ts`
- *  and its steps here (a key without them does not compile). */
-const WHATS_NEW: Record<WhatsNewKey, readonly { icon: IconName; id: WhatsNewStepId }[]> = {
-  "2.10": [
-    { icon: "columns", id: "stage" },
-    { icon: "volume", id: "sound" },
-    { icon: "circleCheck", id: "done" },
-  ],
+/** Each version's «Novedades»: its steps, and the smaller changes its summary lists. A new version adds its key in
+ *  `shared/whats-new.ts` and its entry here (a key without one does not compile). Every screen ends on one summary. */
+const WHATS_NEW: Record<
+  WhatsNewKey,
+  {
+    steps: readonly { icon: IconName; id: Exclude<WhatsNewStepId, "done"> }[];
+    also: readonly (keyof Messages["whatsNew"]["done"]["also"])[];
+  }
+> = {
+  "2.10": {
+    steps: [
+      { icon: "columns", id: "stage" },
+      { icon: "volume", id: "sound" },
+    ],
+    also: ["projector", "minimize", "screens", "startVolume"],
+  },
+  "2.11": {
+    steps: [{ icon: "play", id: "preview" }],
+    also: [
+      "stageFreeze",
+      "extraEnter",
+      "coverSounds",
+      "projectorBack",
+      "controlBack",
+      "damagedDb",
+      "fader",
+      "quitSound",
+      "scannedPdf",
+    ],
+  },
 };
+const DONE_STEP = { icon: "circleCheck", id: "done" } as const;
 
 const STEP_ID_BASE = "whats-new";
 
@@ -34,7 +59,9 @@ const STEP_ID_BASE = "whats-new";
 export function WhatsNewScreen() {
   const t = useT();
   const open = useUiStore((s) => s.whatsNewOpen);
-  const steps = WHATS_NEW[LATEST_WHATS_NEW];
+  // Read as it opens: closing it stamps the latest, and the steps must not change under the operator meanwhile.
+  const [keys] = useState(() => whatsNewKeysFor(useSettingsStore.getState().settings["ui.whatsNewSeen"]));
+  const steps = [...keys.flatMap((key) => WHATS_NEW[key].steps), DONE_STEP];
   const [step, setStep] = useState<WhatsNewStepId>(steps[0]!.id);
 
   function close() {
@@ -45,7 +72,9 @@ export function WhatsNewScreen() {
 
   return (
     <GuideScreen
-      caption={t("whatsNew.caption", { version: LATEST_WHATS_NEW })}
+      caption={
+        keys.length > 1 ? t("whatsNew.captionSince", { version: keys[0]! }) : t("whatsNew.caption", { version: keys[0]! })
+      }
       finishLabel={t("whatsNew.finish")}
       idBase={STEP_ID_BASE}
       onClose={close}
@@ -56,13 +85,22 @@ export function WhatsNewScreen() {
       steps={steps.map(({ icon, id }) => ({ icon, id, label: t(`whatsNew.steps.${id}`) }))}
       title={t("whatsNew.title")}
     >
-      {step === "stage" ? <StageNewsStep /> : step === "sound" ? <SoundStep /> : <DoneStep go={setStep} />}
+      {step === "stage" ? (
+        <StageNewsStep />
+      ) : step === "sound" ? (
+        <SoundStep />
+      ) : step === "preview" ? (
+        <PreviewNewsStep />
+      ) : (
+        <DoneStep go={setStep} keys={keys} />
+      )}
     </GuideScreen>
   );
 }
 
-/** What this version's steps left chosen, each with its way back, and the smaller changes in one list. */
-function DoneStep({ go }: { go: (step: WhatsNewStepId) => void }) {
+/** What the steps left chosen (2.10's screens and sound, when it is among them), each with its way back, and the
+ *  smaller changes of every version shown, in one list. */
+function DoneStep({ go, keys }: { go: (step: WhatsNewStepId) => void; keys: readonly WhatsNewKey[] }) {
   const t = useT();
   const stageId = useSettingsStore((s) => s.settings["stage.displayId"]);
   const mirror = useSettingsStore((s) => s.settings["stage.mirror"]);
@@ -70,36 +108,42 @@ function DoneStep({ go }: { go: (step: WhatsNewStepId) => void }) {
   const sound = useSoundSummary();
 
   return (
-    <StepLayout subtitle={t("whatsNew.done.subtitle")} title={t("whatsNew.done.title")}>
-      <FieldGroup title={t("welcome.done.group")}>
-        <FieldRow
-          description={
-            stage ? t(mirror ? "welcome.done.mirror" : "welcome.done.stage", { name: stage.label }) : t("whatsNew.done.noStage")
-          }
-          label={t("whatsNew.steps.stage")}
-        >
-          <Button
-            aria-label={`${t("whatsNew.done.screens")}: ${t("whatsNew.steps.stage")}`}
-            onClick={() => useUiStore.getState().openSettings("screens")}
-            size="sm"
-            variant="outline"
+    <StepLayout
+      // Only 2.10's steps choose something (the stage screen, the strips).
+      subtitle={t(keys.includes("2.10") ? "whatsNew.done.subtitle" : "whatsNew.done.subtitleNoChoices")}
+      title={t("whatsNew.done.title")}
+    >
+      {keys.includes("2.10") ? (
+        <FieldGroup title={t("welcome.done.group")}>
+          <FieldRow
+            description={
+              stage ? t(mirror ? "welcome.done.mirror" : "welcome.done.stage", { name: stage.label }) : t("whatsNew.done.noStage")
+            }
+            label={t("whatsNew.steps.stage")}
           >
-            {t("whatsNew.done.screens")}
-          </Button>
-        </FieldRow>
-        <FieldRow description={sound} label={t("whatsNew.steps.sound")}>
-          <Button
-            aria-label={`${t("welcome.done.change")}: ${t("whatsNew.steps.sound")}`}
-            onClick={() => go("sound")}
-            size="sm"
-            variant="outline"
-          >
-            {t("welcome.done.change")}
-          </Button>
-        </FieldRow>
-      </FieldGroup>
+            <Button
+              aria-label={`${t("whatsNew.done.screens")}: ${t("whatsNew.steps.stage")}`}
+              onClick={() => useUiStore.getState().openSettings("screens")}
+              size="sm"
+              variant="outline"
+            >
+              {t("whatsNew.done.screens")}
+            </Button>
+          </FieldRow>
+          <FieldRow description={sound} label={t("whatsNew.steps.sound")}>
+            <Button
+              aria-label={`${t("welcome.done.change")}: ${t("whatsNew.steps.sound")}`}
+              onClick={() => go("sound")}
+              size="sm"
+              variant="outline"
+            >
+              {t("welcome.done.change")}
+            </Button>
+          </FieldRow>
+        </FieldGroup>
+      ) : null}
       <FieldGroup title={t("whatsNew.done.alsoTitle")}>
-        {(["projector", "minimize", "screens", "startVolume"] as const).map((id) => (
+        {keys.flatMap((key) => WHATS_NEW[key].also).map((id) => (
           <p className="flex items-start gap-2.5 px-4 py-3 text-sm" key={id}>
             <Icon className="mt-0.5 text-muted-foreground" name="check" />
             <span>{t(`whatsNew.done.also.${id}`)}</span>

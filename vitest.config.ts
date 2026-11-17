@@ -12,8 +12,8 @@ const alias = {
  * Two projects because the app is two runtimes. `main` is Node: SQLite, the
  * zip reader, the slide pipeline's pure parts. `renderer` is jsdom, which the
  * stores need only because a couple of them touch `document` on a path a test
- * may reach — no component is mounted here (that is a deliberate scope
- * decision).
+ * may reach. A component is mounted only for a defect nothing but its render
+ * shows (a fade in `OutputView`); the rest stays with the E2E suite.
  *
  * Electron itself is never imported by anything under test: a module that
  * needs `electron` is a module this suite does not cover, and that boundary is

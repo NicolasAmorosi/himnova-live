@@ -20,7 +20,7 @@ import {
   type MenuOption,
 } from "@renderer/components/ui";
 import { toast } from "@renderer/lib/toast";
-import { useSongFit } from "@renderer/lib/song-fit";
+import { useSettledSongFit } from "@renderer/lib/song-fit";
 import { footerAt, slideLines, slideTranslation, songOutputFor } from "@renderer/lib/song-output";
 import { duplicateSong, saveSong, songDeleteTarget, type SongDeleteTarget } from "@renderer/lib/actions/songs";
 import { findSong, resolveSong, themeForSong, useSongStore } from "@renderer/stores/song.store";
@@ -136,8 +136,8 @@ export function SongEditorModal({ onOpenChange, onSaved, open, songId }: SongEdi
     () => ({ ...toSongUpsert(draft, parsed, null), id: currentId ?? 0, updatedAt: 0, sourceFolder: null, file: null }),
     [currentId, draft, parsed],
   );
-  const preview = resolveSong(draftSong, theme, license);
-  const fit = useSongFit(preview, theme);
+  const preview = useMemo(() => resolveSong(draftSong, theme, license), [draftSong, theme, license]);
+  const fit = useSettledSongFit(preview, theme);
 
   const upsert = toSongUpsert(draft, parsed, null);
   const dirty = JSON.stringify(upsert) !== JSON.stringify(toSongUpsert(baseline, baselineParsed, null));
@@ -297,7 +297,7 @@ export function SongEditorModal({ onOpenChange, onSaved, open, songId }: SongEdi
     <>
       <EditorScreen
         inspector={
-          <Inspector label={t("songs.editTitle")}>
+          <Inspector id="songEditor" label={t("songs.editTitle")}>
             <div className="flex flex-col gap-3 border-b border-border pb-4">
               <Monitor>{output ? <OutputView mode="preview" output={output} /> : null}</Monitor>
               <div className="flex flex-col gap-3 px-4">
@@ -324,7 +324,7 @@ export function SongEditorModal({ onOpenChange, onSaved, open, songId }: SongEdi
 
             {/* Nothing to order before the first section exists. */}
             {parsed.sections.length > 0 ? (
-              <InspectorSection title={t("songs.groups.order")}>
+              <InspectorSection id="order" title={t("songs.groups.order")}>
                 <SongOrderField
                   custom={draft.order !== null}
                   onChange={(next) => patch({ order: next })}
@@ -349,7 +349,7 @@ export function SongEditorModal({ onOpenChange, onSaved, open, songId }: SongEdi
               </InspectorSection>
             ) : null}
 
-            <InspectorSection title={t("songs.groups.data")}>
+            <InspectorSection id="data" title={t("songs.groups.data")}>
               {current?.file ? (
                 <Callout className="py-2 break-all" role="note" tone="info">
                   {t("songs.fileSaveHint", { file: current.file })}
@@ -420,6 +420,7 @@ export function SongEditorModal({ onOpenChange, onSaved, open, songId }: SongEdi
                 onSelect={selectSlide}
                 scrollToIndex={slideIndex}
                 selectedIndex={slideIndex}
+                fit={fit}
                 song={preview}
                 theme={theme}
               />

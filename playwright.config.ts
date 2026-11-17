@@ -13,7 +13,8 @@ import { defineConfig } from "@playwright/test";
 export default defineConfig({
   testDir: "tests/e2e",
   testMatch: "**/*.spec.ts",
-  globalSetup: "./tests/e2e/support/global-setup.ts",
+  // Off for the CI's launch check (`checks.yml`): `startup.spec.ts` projects none of the generated files.
+  ...(process.env["E2E_NO_FIXTURES"] ? {} : { globalSetup: "./tests/e2e/support/global-setup.ts" }),
   outputDir: "test-results/e2e",
   workers: 1,
   fullyParallel: false,

@@ -149,12 +149,21 @@ export function startProjectionEffects(): () => void {
   // the actions that open and close it deliberately, so it would stay `true`
   // forever and make `openIfNeeded()` a silent no-op.
   let closedToastId: string | null = null;
-  const unsubscribeProjectionClosed = onIpc("projection-closed", () => {
+  const unsubscribeProjectionClosed = onIpc("projection-closed", ({ reopen }) => {
     // Every media element that was playing has just ceased to exist, so its
     // position is folded back into where it would resume before anything can
     // reopen the window. See `live-positions.ts`.
     freezeLivePositions();
     useProjectionStore.getState().setPresentationOpen(false);
+    // A window that is gone is not hidden: reopened, the LIVE header must not say its screen is unplugged.
+    useDisplayStore.setState({ projectorHidden: false });
+    // Its renderer died (main took the window down): back at once onto what was live, as «Reabrir» does — the
+    // room sees the desktop for a moment instead of a dead projector (2026-11-15 audit, A1). Said, never in silence.
+    if (reopen) {
+      toast.warning(t("projector.recovered"));
+      void useDisplayStore.getState().openIfNeeded();
+      return;
+    }
     // The header quietly switching to "Projector off" is not a signal an
     // operator sees: mid-service they are looking at the room, not at the
     // chrome. The toast goes after its 5 s like every toast (owner,
@@ -242,10 +251,10 @@ export function startProjectionEffects(): () => void {
     void useDisplayStore.getState().refresh();
   });
 
-  // The projector's screen went away: main hid the window — still playing,
-  // sound included — and puts it back when a screen returns
-  // (`windows/projector-screen.ts`). The operator only has to be told, and the
-  // notice stays until it is true again.
+  // The projector's screen went away: main hid the window (still playing,
+  // sound included) and puts it back when a screen returns
+  // (`windows/projector-screen.ts`). The operator only has to be told: a toast,
+  // and the LIVE header's warning until it is back (`useLiveStatus`).
   let screenLostToastId: string | null = null;
   const unsubscribeProjectorScreen = onIpc("projector-screen", ({ connected }) => {
     useDisplayStore.setState({ projectorHidden: !connected });

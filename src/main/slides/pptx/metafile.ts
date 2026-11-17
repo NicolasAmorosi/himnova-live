@@ -17,9 +17,13 @@ import { wmfToSvg, isWmf } from "./metafile/wmf";
  * corpus has a `.wmf` part that is an EMF and an `.emf` part that is a PNG — PowerPoint draws all
  * of them, so a mislabelled raster comes back wrapped in an SVG too.
  */
+/** Past this a gzipped metafile is refused, not inflated: this runs in main, per request and per window, and 255 KB
+ *  of `.emz` inflated to 256 MB in 126 ms (2026-11-15 audit, S3). Real clip art and pasted objects are KB to a few MB. */
+export const MAX_METAFILE_BYTES = 64 * 1024 * 1024;
+
 export function metafileToSvg(bytes: Uint8Array, _kind: "emf" | "wmf"): string | null {
   try {
-    const data = bytes[0] === 0x1f && bytes[1] === 0x8b ? new Uint8Array(gunzipSync(bytes)) : bytes;
+    const data = bytes[0] === 0x1f && bytes[1] === 0x8b ? new Uint8Array(gunzipSync(bytes, { maxOutputLength: MAX_METAFILE_BYTES })) : bytes;
     if (isEmf(data)) return emfToSvg(data);
     if (isWmf(data)) return wmfToSvg(data);
     return rasterAsSvg(data);

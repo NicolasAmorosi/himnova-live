@@ -9,7 +9,7 @@
  * matter most, because nothing in the app would ever notice them otherwise.
  */
 import { describe, expect, test } from "vitest";
-import { normalizeProbe, parseProbe, playsNatively } from "../../src/main/media/media-compat";
+import { normalizeProbe, parseProbe, playsNatively, playsOnEngine } from "../../src/main/media/media-compat";
 import type { DecoderSupport } from "../../src/shared/types/media";
 
 const MAC: DecoderSupport = { hevc: true, hevcMain10: true };
@@ -132,6 +132,31 @@ describe("playsNatively — what the media engine plays", () => {
     ["pcm outside a wav", ffprobe(MP4, a("pcm_s16le"))],
   ])("audio %s → engine", (_name, raw) => {
     expect(native(raw, "audio")).toBe(false);
+  });
+});
+
+describe("playsOnEngine: every picture on Windows, where the stage's animations froze Chromium's video", () => {
+  const engine = (raw: unknown, kind: "video" | "audio", everyPicture: boolean): boolean => {
+    const probe = parseProbe(raw);
+    if (!probe) throw new Error("unparseable fixture");
+    return playsOnEngine(probe, kind, MAC, everyPicture);
+  };
+  const h264 = ffprobe(MP4, v("h264"), a("aac"));
+  const wmv = ffprobe("asf", v("wmv3"), a("wmav2"));
+  const mp3 = ffprobe("mp3", a("mp3"));
+
+  test("on Windows a video Chromium plays goes to the engine; its sound alone does not", () => {
+    expect(engine(h264, "video", true)).toBe(true);
+    expect(engine(h264, "audio", true)).toBe(false);
+    expect(engine(mp3, "audio", true)).toBe(false);
+    expect(engine(ffprobe(MP4, a("aac")), "video", true)).toBe(false);
+  });
+
+  test("elsewhere only what Chromium cannot play goes to the engine", () => {
+    expect(engine(h264, "video", false)).toBe(false);
+    expect(engine(wmv, "video", false)).toBe(true);
+    expect(engine(wmv, "video", true)).toBe(true);
+    expect(engine(ffprobe("asf", a("wmav2")), "audio", true)).toBe(true);
   });
 });
 

@@ -22,7 +22,7 @@ sessions of audit over this code never surfaced it.
 `Menu.setApplicationMenu` is never called anywhere in `src/main/` (verify with
 `grep -rn "Menu" src/main/`). Electron's default application menu is therefore active, and on
 macOS it binds **⌘W to Close Window** — including the focused projection window. A crash of the
-projection renderer produces the same state.
+projection renderer was believed to produce the same state; it does not (see the correction below).
 
 ### What that cost
 
@@ -54,4 +54,27 @@ that one is about main not being able to answer a question the control owns; thi
 control not being told a fact only main can know. Both boundaries leak silently, and in opposite
 directions.
 
-**Last updated:** 2026-09-13
+### Correction (2026-11-15): a dead renderer does NOT close its window
+
+Everything above assumed a crash reaches `win.on("closed")` like ⌘W does, and so did the contract of
+`projection-closed`, two comments and `startatseconds-is-a-mount-time-seek-…`'s trigger. It never
+did. Measured by the 2026-11-15 audit with a real crash (`forcefullyCrashRenderer`, `reason:
+crashed`, exit 11) in a sandboxed window: `closed=false isDestroyed=false isCrashed=true`, and
+`webContents.send()` to it does not throw. So `projection-closed` never fired, `presentationOpen`
+stayed `true`, every GO LIVE went to a dead page without an error, the LIVE monitor went on showing
+what it «projected», and EN VIVO could not revive it (`openIfNeeded` short-circuits). The room saw a
+black or frozen projector while the engine's sound went on. Only `crash.log` heard of it.
+
+The fix makes the assumption true instead of rewriting the callers: the projector's
+`webContents.on("render-process-gone")` (`ipc/handlers/projection.ts`) calls `win.destroy()`, which
+takes the tested ⌘W path, with `projection-closed` now carrying `{ reopen }` so the control window
+reopens it at once onto what was live. A `loadURL` or `reload()` on the crashed window also revives
+it; it was not chosen because the destroy path already folds the positions in
+(`freezeLivePositions`) and is covered. The stage window reloads instead (it never sounds), and the
+NDI copy already did; all three are capped by `windows/crash-limit.ts` (3 a minute), or a deck that
+crashes the renderer on every load reloads in a loop.
+
+**Rule:** a window's renderer can die and leave the `BrowserWindow` alive. Anything that reacts to "the
+projector is gone" has to hear about `render-process-gone` too, not only `closed`.
+
+**Last updated:** 2026-11-15

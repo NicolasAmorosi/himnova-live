@@ -45,6 +45,7 @@ import { startEngineAssetsSync } from "@renderer/effects/engine-assets-sync";
 import { startUpdateAnnouncement } from "@renderer/effects/update-announcement";
 import { startFirstSteps } from "@renderer/effects/first-steps";
 import { startAudioRouteEffects } from "@renderer/effects/audio-route";
+import { finishRecovery, startLiveCopy, wasRecovered } from "@renderer/effects/live-copy";
 import { useAudioRouteStore } from "@renderer/stores/audio-route.store";
 import { useAudioSink } from "@renderer/lib/hooks/use-audio-sink";
 import { startAudioLevels } from "@renderer/effects/audio-levels";
@@ -141,7 +142,9 @@ export function App() {
 
   useEffect(() => {
     void (async () => {
-      await loadSettings();
+      // Already read before this page was drawn, when it started over what is live: read again, every setting would
+      // be a new object, and each one mirrored to the projector a push of the same picture.
+      if (!wasRecovered()) await loadSettings();
       // A copy restored before this launch is said once the language is known.
       void announceLaunchRestore();
       const { settings } = useSettingsStore.getState();
@@ -187,7 +190,9 @@ export function App() {
       // app starting with an empty schedule is a bad morning, the app not
       // starting is a worse one.
       try {
-        if (draftRestoreStarted) return;
+        // A page started over what is live has the schedule as it was a moment ago, live row included: the draft
+        // on disk is older (`effects/live-copy.ts`).
+        if (draftRestoreStarted || wasRecovered()) return;
         draftRestoreStarted = true;
         const draft = await api.draft.load();
         // `restoreDraft` raises its own toast — this effect must stay free of
@@ -214,7 +219,11 @@ export function App() {
     const stopUpdateAnnouncement = startUpdateAnnouncement();
     const stopFirstSteps = startFirstSteps();
     const stopAudioRoute = startAudioRouteEffects();
+    const stopLiveCopy = startLiveCopy();
+    // Only once every effect listens: a video's end the projector reported while no page listened runs «Al terminar».
+    finishRecovery();
     return () => {
+      stopLiveCopy();
       stopAudioRoute();
       stopProjectionEffects();
       stopStageSync();

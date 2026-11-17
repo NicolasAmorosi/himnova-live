@@ -34,7 +34,9 @@ export function registerBroadcastTarget(win: BrowserWindow): void {
  */
 export function broadcast<K extends IpcEventName>(channel: K, payload: IpcEvents[K]): void {
   for (const win of targets) {
-    if (win.isDestroyed()) continue;
+    // A dead page receives nothing: each send to it logged a stack, ~29 a second with music on (the meters), and
+    // within a minute main.log held nothing else (measured on Windows, 2026-11-16).
+    if (win.isDestroyed() || win.webContents.isCrashed()) continue;
     win.webContents.send(channel, payload);
   }
 }

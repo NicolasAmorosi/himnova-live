@@ -365,7 +365,9 @@ roles named for what they are (`text`, `reference`) instead of bent onto
 **Auto-fit is MEASURED, not computed.** Juan 11:35 is two words and Ester 8:9 is eighty: at a
 fixed size, one gets lost in the middle of the frame and the other runs off the bottom — and the
 confidence monitor, which renders the same component with the same aspect ratio, clips it the
-same way, so it isn't visible from the booth either. `useFittedTextSize` runs a seven-step binary
+same way, so it isn't visible from the booth either. The monitors are always 16:9, so a taller projector
+(16:10, 4:3) is measured as if it were 16:9 (`availableHeight`), or the room got a bigger size and other line
+breaks than the monitor (2026-11-15 audit, A14); one wider than 16:9 still measures against its own height. `useFittedTextSize` runs a seven-step binary
 search writing the `font-size` straight onto the element (a measurement needs the browser to have
 already laid out; seven `setState` calls would be seven frames of shrinking text) and only
 commits the ANSWER to state. Two details that aren't optional:
@@ -418,11 +420,11 @@ group of controls sits exactly above the column it acts on, regardless of the wi
   `lib/actions/playback.ts::goLive()` — it sends what's in preview to the projector, replacing
   whatever was there. It's the only way to cross from preview to live; there's no second
   equivalent button anywhere else.
-- **Column 3** (above Monitors): three mutually exclusive buttons — **LOGO**, **BLACK**,
-  **LIVE** — that call `setOverlay('logo'|'black'|'none')` **directly** (not `toggleOverlay`:
-  each one always forces its own state, it never "un-checks" when pressed again). They're the
-  three possible states of what the projector shows on top of the base content. The B/L keyboard
-  shortcuts still use `toggleOverlay` (behavior unchanged).
+- **Column 3** (above Monitors): three buttons — **LOGO**, **BLACK**, **LIVE** — the three
+  possible states of what the projector shows on top of the base content. LOGO and BLACK call
+  `toggleOverlay`, like the L and B keys: pressed again, they uncover what was live (owner,
+  2026-11-16; until then they forced their state and a second press did nothing). LIVE calls
+  `setOverlayDirect('none')` and always uncovers.
 
 The three columns of the `<main>` are **`grid-cols-3`** — equal widths; none of the three tasks
 (browse, assemble, broadcast) weighs visually more than the others. The line between columns is
@@ -440,12 +442,14 @@ the chosen section as a page in a reading column (`max-w-3xl`) CENTRED in the ca
 — left-aligned, all the free space sat on the right and read as broken (owner); one scrollbar at the window's edge
 (`scrollbar-gutter: stable both-edges`) — a `PageHeader` (20 px, no line under it since 2026-11-05), then one
 `sections/<name>-section.tsx` per category. Inside each section, `FieldGroup` + `FieldRow`: each group a titled box
-of rows (see «Forms» above), 32 px from the next; each row follows the standard there. Today's categories: **Projection** (screen,
-open/close the window, logo, clear live content, transition), **Sound** (the audio strips, the starting volume, each
-bus's output and the NDI® note), **Slides** (the slides'
-text fallback face, the cache and PDF rasterizing quality),
-**Bible** (which versions are installed: import, rename, default, delete), **System** (theme,
-language, folders, performance) and **About** (logo, version and logs folder). A new setting goes
+of rows (see «Forms» above), 32 px from the next; each row follows the standard there. Today's categories
+(`SettingsSection`, `stores/ui.store.ts`): **Projection** (screen, open/close the window, logo, clear live content,
+transition), **Screens** (what each connected screen does, «Identify», and what the stage screen shows), **Sound**
+(the audio strips, the starting volume, each bus's output and the NDI® note), **Slides** (the slides' text fallback
+face and the cache; the PDF quality setting was removed on 2026-11-05), **Bible** (which versions are installed:
+import, rename, default, delete), **Songs** (the default theme and the church's CCLI license), **System** (theme,
+language, folders, performance), **Backups** (make a copy, restore one) and **About** (logo, version and logs
+folder). A new setting goes
 into an existing group or creates one inside its section — a category isn't added without need.
 
 How a verse is DRESSED is not in Settings: since 2026-11-04 it is the Bible tab's verse style editor (see
@@ -515,7 +519,8 @@ that changes with it, a field (the last length, minutes or a time of day to coun
 and ▶, which starts it at once, then the count, −1, +1 and Pause; the message is the ready phrases (one press shows
 one, another takes it off) and a field Enter sends; «Parpadear» (blink until taken off) is offered only while a
 message is showing, beside how long it has been there. Every row keeps its height, so the card never changes size.
-Taking either off the stage is its token in the head. Esc or a press anywhere else folds it, unless it is pinned (for the session). Its tooltips are
+Taking either off the stage is its token in the head. A press anywhere else folds it unless it is pinned (for the
+session); Esc inside it folds it pinned or not, on purpose (the 2.10.0 decision). Its tooltips are
 `floating`: in-flow bubbles widened the card's scroll area. Measured 2026-11-14: 629 px tall at 1366×768 and 561 at
 1000×700, no scroll.
 

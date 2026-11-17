@@ -1,5 +1,5 @@
 import fs from "node:fs";
-import { Inflate, inflateSync } from "fflate";
+import { inflateRawSync } from "node:zlib";
 
 /**
  * Reads a handful of named entries out of a zip without ever holding the
@@ -75,7 +75,7 @@ export class ZipFormatError extends Error {}
 
 type CentralEntry = {
   compressedSize: number;
-  /** Load-bearing for speed, not just bookkeeping — see `inflateEntry`. */
+  /** The inflate cap: past it the entry is corrupt (see `inflateEntry`). */
   uncompressedSize: number;
   localHeaderOffset: number;
   /** The central directory's copy — only used to size the read window, never
@@ -291,7 +291,7 @@ function sliceWindow(window: ReadWindow, offset: number, length: number): Buffer
   return window.buffer.subarray(from, from + length);
 }
 
-function readEntryData(fd: number, entry: CentralEntry, window: ReadWindow): Uint8Array {
+function readEntryData(fd: number, entry: CentralEntry, window: ReadWindow, budget: number): Uint8Array {
   const header =
     sliceWindow(window, entry.localHeaderOffset, LOCAL_HEADER_FIXED_SIZE) ??
     readChunk(fd, entry.localHeaderOffset, LOCAL_HEADER_FIXED_SIZE);
@@ -309,58 +309,51 @@ function readEntryData(fd: number, entry: CentralEntry, window: ReadWindow): Uin
   // read window, and returning it would pin those megabytes alive for as long
   // as any caller keeps one small XML part.
   if (entry.method === METHOD_STORE) return new Uint8Array(raw);
-  if (entry.method === METHOD_DEFLATE) return inflateEntry(raw, entry.uncompressedSize);
+  if (entry.method === METHOD_DEFLATE) return inflateEntry(raw, entry.uncompressedSize, budget);
   throw new ZipFormatError(`Unsupported compression method ${entry.method}`);
 }
 
 /**
- * `inflateSync` without an `out` buffer has to guess the output size and grow
- * it as it goes, and that guessing is most of the cost of a *small* entry:
- * measured at ~16 µs of fixed overhead per call, which over the ~800 parts of
- * a 400-slide deck is most of a frame. The central directory already knows
- * the exact size, so it is handed over and the whole growth loop disappears
- * (1.9 ms → 0.4 ms over 120 parts) — this is how fflate's own `unzipSync`
- * manages to be faster per entry than its public single-entry API.
+ * Inflated with node's zlib and capped at the size the central directory
+ * declares: that is the only size this reader ever uses (the local header's
+ * copy is ignored, and a data-descriptor entry still has its real sizes in the
+ * directory), so a declared 0 is an empty part, not an unknown one. A stream
+ * that inflates past what it declared is a corrupt entry: zlib stops at the
+ * cap and throws, so a hostile part declaring 1000 bytes over a 3 GB stream
+ * costs nothing (measured 15 s of main with fflate, which decoded the whole
+ * stream into a short `out` and silently cut an honest part instead of
+ * failing). Faster than fflate with `out` too: 5.0 against 15.4 ms over 800
+ * small parts (2026-11-15 audit, S7).
  *
- * A central directory that lies about the size makes fflate throw; that falls
- * back to letting it work the size out, rather than losing the part.
+ * Copied out, like the stored branch: zlib hands back a view of its own 64 KB
+ * output chunk, and every part of a deck stays alive while it is read.
  */
-function inflateEntry(raw: Buffer, uncompressedSize: number): Uint8Array {
+function inflateEntry(raw: Buffer, uncompressedSize: number, budget: number): Uint8Array {
   // A hostile archive of a few KB inflates to gigabytes (398 KB to 400 MB in main, measured: 2026-11-10 review,
-  // agent6-04). No part of a deck or a Bible module comes near this — a video is stored, not deflated.
+  // agent6-04). No part of a deck or a Bible module comes near this: a video is stored, not deflated.
   if (uncompressedSize > MAX_INFLATED_BYTES) throw new ZipFormatError(`An entry of ${uncompressedSize} bytes`);
-  if (uncompressedSize > 0) {
-    try {
-      return inflateSync(raw, { out: new Uint8Array(uncompressedSize) });
-    } catch {
-      /* fall through */
-    }
-  }
-  // The directory lied about the size: inflated a piece at a time, never past the cap.
-  const pieces: Uint8Array[] = [];
-  let total = 0;
-  const inflater = new Inflate((piece) => {
-    total += piece.length;
-    if (total > MAX_INFLATED_BYTES) throw new ZipFormatError("An entry past the inflate cap");
-    pieces.push(piece);
-  });
-  inflater.push(raw, true);
-  const out = new Uint8Array(total);
-  let at = 0;
-  for (const piece of pieces) {
-    out.set(piece, at);
-    at += piece.length;
-  }
-  return out;
+  // The output never passes the declared size, so this refuses before inflating anything.
+  if (uncompressedSize > budget) throw new ZipFormatError("An entry past what is left of the call's inflate budget");
+  const out = inflateRawSync(raw, { maxOutputLength: Math.max(1, uncompressedSize) });
+  if (out.length > uncompressedSize) throw new ZipFormatError("An entry larger than its declared size");
+  return new Uint8Array(out);
 }
 
 const MAX_INFLATED_BYTES = 256 * 1024 * 1024;
+
+/** What one `readZipEntries` call may inflate in all: the per-entry cap alone let three XML parts of 200 MB of
+ *  zeros (a 614 KB `.pptx`) inflate 600 MB together (2026-11-15 audit, S10). Stored entries do not count here: they
+ *  are the deck's videos, already on disk at their size, and have the file's size as their own budget. */
+const MAX_INFLATED_TOTAL_BYTES = 512 * 1024 * 1024;
 
 /**
  * Inflates every entry of `filePath` whose name satisfies `wanted`, and
  * nothing else — the archive itself is never fully read. Entries that are
  * encrypted or use a compression method other than store/deflate are skipped
- * rather than throwing: one odd part must not cost a deck its timings.
+ * rather than throwing: one odd part must not cost a deck its timings. So is
+ * a deflated entry past what is left of `inflateBudget` (512 MB per call,
+ * stored entries not counted), and a stored one past what is left of the
+ * file's size.
  *
  * Throws `ZipFormatError` when the file is not a readable zip at all, which
  * is the same shape of failure `unzipSync` produced and which every caller
@@ -369,6 +362,7 @@ const MAX_INFLATED_BYTES = 256 * 1024 * 1024;
 export function readZipEntries(
   filePath: string,
   wanted: (name: string) => boolean,
+  inflateBudget = MAX_INFLATED_TOTAL_BYTES,
 ): Record<string, Uint8Array> {
   const fd = fs.openSync(filePath, "r");
   try {
@@ -391,9 +385,17 @@ export function readZipEntries(
     );
 
     const result: Record<string, Uint8Array> = {};
+    let budget = inflateBudget;
+    // Stored entries are copied, not inflated: honest ones hold no more than the file between them, but directory
+    // entries that all point at one stored blob copied it once each, N times a file of a few MB (2026-11-15 audit,
+    // S10, review).
+    let storedLeft = size;
     for (const [name, entry] of readable) {
+      if (entry.method === METHOD_STORE && entry.compressedSize > storedLeft) continue;
       try {
-        result[name] = readEntryData(fd, entry, window);
+        result[name] = readEntryData(fd, entry, window, budget);
+        if (entry.method === METHOD_DEFLATE) budget -= result[name].length;
+        else storedLeft -= result[name].length;
       } catch {
         /* One unreadable part is not a reason to lose the rest. */
       }

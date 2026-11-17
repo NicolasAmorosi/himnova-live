@@ -6,13 +6,15 @@ const en: Messages = {
     modalCrashed: "Something went wrong in that window and it closed",
     unexpectedError: "An unexpected error occurred. The app is still running.",
     reload: "Reload",
+    controlRecovered: "The control window closed because of an error and came back. What is live went on as it was.",
+    controlRecoveryFailed:
+      "The control window closed because of an error and could not come back. What is live goes on as it is: restart the app when you can.",
   },
   header: {
     openDisplay: "Open projector",
     /** The name of a schedule never saved: not «New program», the button's command (2026-11-05). */
     untitled: "Untitled",
     closeDisplay: "Close projector",
-    controlDisplay: "(control screen)",
   },
   schedule: {
     title: "Schedule",
@@ -45,6 +47,7 @@ const en: Messages = {
     closeAnyway: "Close anyway",
     closeOnAirTitle: "Close the app?",
     closeOnAirBody: "Something is on the projector. If you close the app, the projector screen goes dark.",
+    closeSoundBody: "“{name}” is playing. If you close the app, it stops in the room.",
     closeEditorBody:
       "An editor is open with unsaved changes: closing the app loses them.",
   },
@@ -145,6 +148,7 @@ const en: Messages = {
     images: "Images",
     audios: "Audio",
     ppts: "Presentations",
+    pptsShort: "Present.",
     add: "Add",
     addHint: "Add files to the library",
     addUnsupported:
@@ -617,7 +621,6 @@ const en: Messages = {
     invalidHint: "A theme needs a name.",
     name: "Name",
     groups: {
-      theme: "Theme",
       lyrics: "Lyrics",
       spacing: "Spacing",
       footer: "Copyright footer",
@@ -788,6 +791,7 @@ const en: Messages = {
     previewMute: "Mute Preview",
     outputIs: "{output}: {name}",
     systemDefault: "System default",
+    systemDefaultNamed: "System: {name}",
     unplugged: "{name} (unplugged)",
     sharedOutput: "Also heard in the room: it plays through the same output as Live.",
     sharedOutputNdi: "Also heard in the room and on NDI: it plays through the same output as Live.",
@@ -798,11 +802,18 @@ const en: Messages = {
     toastUnusable: "{output}: {name} can't be used. Playing through the system default.",
     toastBack: "{output}: {name} is connected again.",
     toastStripsOff: "Strips off: the Live master volume is back to 100%.",
+    toastStripsOffKept: "Strips off: the Live master volume ({level}%) is now the starting volume.",
+    toastStripsOn: "Strips on: the starting volume ({level}%) is now the Live master volume.",
+    toastStripsOffKeptLive:
+      "Strips off: the Live master volume ({level}%) is now the starting volume, and what is already live is back to 100%.",
+    toastStripsOnLive:
+      "Strips on: the starting volume ({level}%) is now the Live master volume, and what is already live plays quieter.",
   },
   live: {
     takeOffAir: "Take off air",
     title: "Live",
     disconnected: "Projector off",
+    screenLost: "Screen unplugged",
     noSignal: "No signal",
     logoMissing: "No logo set",
     logoMissingHint: "Choose one in Settings › Projection",
@@ -814,6 +825,7 @@ const en: Messages = {
   footerHints: { goLive: "Send the preview to the projector", logo: "Show the logo", black: "Black screen", live: "Show the content again" },
   projector: {
     closedUnexpectedly: "The projector window closed",
+    recovered: "The projector window crashed and reopened on its own",
     screenLost:
       "The projector's screen was disconnected. What's live keeps running, sound included, and shows again as soon as the screen is reconnected.",
     screenBack: "The projector's screen is back",
@@ -829,6 +841,11 @@ const en: Messages = {
     saveHint: "Save the changes to this schedule",
     saveNoChanges: "No changes",
     duplicateName: "{name} (copy)",
+    sameNameTitle: "There is already a program called «{name}»",
+    sameNameReplaceBody: "You can replace it with the program you have open, or keep both with the same name.",
+    sameNameKeepBody: "The list will show two programs with the same name.",
+    sameNameReplace: "Replace",
+    sameNameKeepBoth: "Keep both",
     new: "New schedule",
     newHint: "Start a new, empty schedule",
     createAndOpen: "Create and open",
@@ -1427,7 +1444,7 @@ const en: Messages = {
         title: "Choose",
         body: "One click on a verse, a song or a file puts it in PREVIEW. Only you see it there.",
       },
-      live: { title: "Project", body: "Enter, a double click or GO LIVE sends it to the projector." },
+      live: { title: "Project", body: "Enter, a double click or GO LIVE sends it to the projector, and the preview is free for what comes next." },
       cover: {
         title: "Cover",
         body: "BLACK blacks the screen out and LOGO shows your church. LIVE brings back what was there.",
@@ -1468,9 +1485,10 @@ const en: Messages = {
   whatsNew: {
     title: "What's new",
     caption: "New in {version}",
+    captionSince: "New since {version}",
     skip: "Close what's new",
     finish: "Done",
-    steps: { stage: "Stage", sound: "Sound", done: "Summary" },
+    steps: { stage: "Stage", sound: "Sound", preview: "Preview", done: "Summary" },
     stage: {
       title: "A screen for the stage",
       subtitle: "If you have a screen facing the platform, Himnova Live shows the preacher how much time is left and the musicians what's coming up. You run it from the Stage panel, bottom left.",
@@ -1479,9 +1497,24 @@ const en: Messages = {
       views: { title: "Preacher and Musicians", body: "Preacher: a big countdown, the time and what's projected. Musicians: what's live and what's next, with the song's chords." },
       configure: "Choose the stage screen",
     },
+    preview: {
+      title: "What goes live leaves Preview",
+      subtitle: "When you send something to the projector, Preview empties, ready for what comes next. An extra Enter no longer restarts the hymn that is playing.",
+      demo: "Preview and Live while two verses are sent",
+      free: { title: "Preview is free again", body: "What you sent shows in Live. In the order of service, the row is unselected and keeps its on-air mark." },
+      enter: { title: "An extra Enter does nothing", body: "With Preview empty, Enter and GO LIVE leave what is live alone." },
+      back: { title: "Back to what is live", body: "Pick it again and GO LIVE only uncovers it, never restarts it. To start over, use «Restart»." },
+      beats: {
+        pick: "You pick a verse: it shows in Preview.",
+        send: "You send it: it goes to Live and Preview empties.",
+        pickNext: "You pick the next one.",
+        sendNext: "You send it, and Preview is free again.",
+      },
+    },
     done: {
       title: "That's it",
       subtitle: "What you chose is already saved. You can see this again in Settings ▸ About.",
+      subtitleNoChoices: "You can see this again in Settings ▸ About.",
       noStage: "No stage screen yet",
       screens: "Set up",
       alsoTitle: "Also in this version",
@@ -1490,6 +1523,15 @@ const en: Messages = {
         minimize: "Minimizing the control window leaves the projector and the stage where they are.",
         screens: "In Settings ▸ Screens you choose what each screen does, and “Identify” shows each one's number on it.",
         startVolume: "The starting volume moved to Settings ▸ Sound.",
+        extraEnter: "An extra Enter on the hymn on air no longer starts it over.",
+        coverSounds: "BLACK and LOGO no longer start a presentation's sounds over.",
+        projectorBack: "If the projector window crashes, it opens again by itself with what was live.",
+        damagedDb: "If the database gets damaged, the app offers to restore the latest daily copy.",
+        fader: "Taking Live down to 0 and back up returns to the level it had.",
+        quitSound: "Closing the app also asks when only music is playing.",
+        scannedPdf: "Scanned PDFs are projected with their pictures.",
+        stageFreeze: "On Windows, sending a message or a countdown to the stage no longer freezes the video on the projector.",
+        controlBack: "If the control window crashes, it comes back by itself over what is live.",
       },
     },
   },

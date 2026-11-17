@@ -18,6 +18,7 @@ import { openDatabase } from "../../src/main/db/client";
 import {
   backupBeforeMigrate,
   dailyBackup,
+  dailyBackupDue,
   openForLaunch,
   repairDanglingReferences,
   runMigrations,
@@ -253,7 +254,92 @@ test("a profile one migration behind is backed up, then migrated without losing 
   expect(backupBeforeMigrate(dbFile, backups, drizzleDir).status).toBe("skipped");
 });
 
-test("a daily copy at launch once a day, the last 7 kept, the pre-migration copies left alone", () => {
+test("a damaged page of songs does not keep an up-to-date profile from opening (audit D3)", () => {
+  // The repair read every table with a foreign key on every launch: one damaged page of `songs` (a power cut) threw,
+  // and the app closed on every launch after, saying there was no copy. With nothing pending it does not run.
+  const dbFile = path.join(tmp, "damaged-songs.db");
+  const backups = path.join(tmp, "backups-damaged-songs");
+  const first = openDatabase(dbFile);
+  runMigrations(first.db, drizzleDir);
+  const now = Date.now();
+  const insert = first.sqlite.prepare(
+    "INSERT INTO songs (title, sections_json, order_json, lyrics_text, created_at, updated_at) VALUES (?, '[]', '[]', ?, ?, ?)",
+  );
+  for (let i = 0; i < 200; i++) insert.run(`Himno ${i}`, "x".repeat(300), now, now);
+  const root = (first.sqlite.prepare("SELECT rootpage FROM sqlite_master WHERE name = 'songs'").get() as { rootpage: number })
+    .rootpage;
+  const pageSize = first.sqlite.pragma("page_size", { simple: true }) as number;
+  first.sqlite.pragma("wal_checkpoint(TRUNCATE)");
+  first.sqlite.close();
+  const bytes = fs.readFileSync(dbFile);
+  bytes.fill(0xa5, (root - 1) * pageSize, root * pageSize);
+  fs.writeFileSync(dbFile, bytes);
+
+  const launched = openForLaunch(dbFile, backups, drizzleDir, () => {});
+  // It opens: what is still sound reads, and «Restaurar…» is within reach.
+  expect((launched.sqlite.prepare("SELECT count(*) AS n FROM programs").get() as { n: number }).n).toBe(0);
+  // And the damage is still there: this is the database «Restaurar…» is for.
+  expect(launched.sqlite.pragma("quick_check", { simple: true })).not.toBe("ok");
+  launched.sqlite.close();
+});
+
+test("a daily copy cut half-way is not today's copy, and what it left is cleared (audit D9)", () => {
+  // The app killed during `VACUUM INTO` (or a quit during «Hacer una copia»): the file had a good copy's name, so the
+  // launch skipped the real one for 24 h and the junk took one of the seven slots, its `-journal` kept for ever.
+  const dbFile = path.join(tmp, "cut.db");
+  const daily = path.join(tmp, "backups-cut", "daily");
+  const first = openDatabase(dbFile);
+  runMigrations(first.db, drizzleDir);
+  first.sqlite.close();
+  fs.mkdirSync(daily, { recursive: true });
+  const cut = path.join(daily, `worship-${new Date().toISOString().replace(/[:.]/g, "-")}.db.partial`);
+  fs.writeFileSync(cut, "SQLite format 3\0 cortada");
+  fs.writeFileSync(`${cut}-journal`, "x");
+
+  const taken = dailyBackup(dbFile, daily);
+
+  expect(taken.status).toBe("ok");
+  expect(fs.readdirSync(daily)).toEqual([path.basename((taken as { path: string }).path)]);
+});
+
+test("the launch opens the database without taking the daily copy (audit R1)", () => {
+  // `VACUUM INTO` + `integrity_check` of the whole profile ran before the first window: 0.7 to 1.0 s with no window
+  // on the first launch of each day. The copy is the backup thread's now, once the window is up (`index.ts`).
+  const dbFile = path.join(tmp, "launch.db");
+  const backups = path.join(tmp, "backups-launch");
+  const first = openDatabase(dbFile);
+  runMigrations(first.db, drizzleDir);
+  first.sqlite.close();
+
+  openForLaunch(dbFile, backups, drizzleDir, () => {}).sqlite.close();
+
+  expect(fs.existsSync(path.join(backups, "daily"))).toBe(false);
+});
+
+test("a daily copy is due with none, or with the newest a day old or dated in the future", () => {
+  const daily = path.join(tmp, "backups-due", "daily");
+  const hour = 60 * 60 * 1000;
+  expect(dailyBackupDue(daily)).toBe(true);
+  fs.mkdirSync(daily, { recursive: true });
+  // What a copy cut half-way leaves is no copy (D9).
+  fs.writeFileSync(path.join(daily, "worship-b.db.partial"), "");
+  expect(dailyBackupDue(daily)).toBe(true);
+  const copy = path.join(daily, "worship-a.db");
+  fs.writeFileSync(copy, "");
+  const at = (offset: number) => {
+    const when = new Date(Date.now() + offset);
+    fs.utimesSync(copy, when, when);
+  };
+  at(-23 * hour);
+  expect(dailyBackupDue(daily)).toBe(false);
+  at(-25 * hour);
+  expect(dailyBackupDue(daily)).toBe(true);
+  // A clock set back: the newest copy is «from the future».
+  at(2 * hour);
+  expect(dailyBackupDue(daily)).toBe(true);
+});
+
+test("a daily copy once a day, the last 7 kept, the pre-migration copies left alone", () => {
   const dbFile = path.join(tmp, "daily.db");
   const backups = path.join(tmp, "backups-daily");
   const daily = path.join(backups, "daily");
@@ -264,9 +350,9 @@ test("a daily copy at launch once a day, the last 7 kept, the pre-migration copi
   const preMigration = path.join(backups, "worship-2026-01-01T00-00-00-000Z.db");
   fs.writeFileSync(preMigration, "");
 
-  // Two launches the same day: one copy, verified and readable.
-  openForLaunch(dbFile, backups, drizzleDir, () => {}).sqlite.close();
-  openForLaunch(dbFile, backups, drizzleDir, () => {}).sqlite.close();
+  // Twice the same day: one copy, verified and readable.
+  expect(dailyBackup(dbFile, daily).status).toBe("ok");
+  expect(dailyBackup(dbFile, daily).status).toBe("skipped");
   expect(fs.readdirSync(daily)).toHaveLength(1);
 
   // A launch a day for nine days: the seven newest stay.

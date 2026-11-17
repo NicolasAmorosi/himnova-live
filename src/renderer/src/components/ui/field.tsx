@@ -1,4 +1,4 @@
-import { Children, isValidElement, useContext, useId, type MouseEvent, type ReactNode } from "react";
+import { Children, cloneElement, isValidElement, useContext, useId, type MouseEvent, type ReactNode } from "react";
 import { cn } from "@renderer/lib/utils";
 import { Box } from "./card";
 import { Switch } from "./checkbox";
@@ -145,6 +145,7 @@ export function FieldRow({
   const labelId = useId();
   const descriptionId = useId();
   const helpId = useId();
+  const controlId = useId();
   const contextLayout = useContext(FieldLayoutContext);
   const effective = layout ?? contextLayout;
 
@@ -229,6 +230,11 @@ export function FieldRow({
     );
   }
 
+  // A row that holds only a switch: its name is the switch's `<label>`, so a click on the words flips it, as in the
+  // compact rows (2026-11-15 audit, U10).
+  const lone = Children.toArray(children);
+  const loneSwitch = lone.length === 1 && isValidElement<{ id?: string }>(lone[0]) && lone[0].type === Switch ? lone[0] : null;
+  const switchId = loneSwitch ? (loneSwitch.props.id ?? controlId) : undefined;
   return (
     <div
       aria-describedby={[description ? descriptionId : null, help ? helpId : null].filter(Boolean).join(" ") || undefined}
@@ -266,7 +272,13 @@ export function FieldRow({
         {/* Regular weight under a semibold group title: the two read as two
             levels, not one (2026-11-05 review — Windows 11's settings). */}
         <span className="text-sm text-foreground">
-          <span id={labelId}>{label}</span>
+          {switchId ? (
+            <label className="cursor-pointer" htmlFor={switchId} id={labelId}>
+              {label}
+            </label>
+          ) : (
+            <span id={labelId}>{label}</span>
+          )}
           {help ? <HelpIcon content={help} /> : null}
         </span>
         {/* The «?» is hover-only; its text is the row's description too. */}
@@ -283,7 +295,9 @@ export function FieldRow({
         ) : null}
       </div>
       <div className={cn("flex shrink-0 flex-nowrap items-center gap-2", SPREAD_FIELD)}>
-        <FieldLabelContext value={labelId}>{children}</FieldLabelContext>
+        <FieldLabelContext value={labelId}>
+          {loneSwitch && switchId ? cloneElement(loneSwitch, { id: switchId }) : children}
+        </FieldLabelContext>
       </div>
     </div>
   );

@@ -109,3 +109,59 @@ test("60 fps into the 30 Hz NDI window: every other frame, evenly", () => {
   expect(held.every((n) => n === 1)).toBe(true);
   expect(frames).toBeGreaterThan(290);
 });
+
+/** `EngineVideo`'s animation-frame loop on a 60 Hz projector: `playSeconds` of a 30 fps video, then paused for
+ *  `pauseSeconds`. Returns the loop's callbacks during the pause and whether the first frame after it went up at the
+ *  first refresh. */
+function pauseAndResume(playSeconds: number, pauseSeconds: number) {
+  const pacer = new FramePacer();
+  const refresh = 1000 / 60;
+  let queued = 0;
+  let running = true;
+  let ticksInPause = 0;
+  const pauseAt = playSeconds * 1000;
+  const resumeAt = pauseAt + pauseSeconds * 1000;
+  let nextFrame = 3;
+  let shownAfterResume = -1;
+  for (let now = 0; now < resumeAt + 200; now += refresh) {
+    while (nextFrame <= now && (nextFrame < pauseAt || nextFrame >= resumeAt)) {
+      if (pacer.arrived(nextFrame)) queued += 1;
+      running = true;
+      nextFrame += 1000 / 30;
+    }
+    if (nextFrame >= pauseAt && nextFrame < resumeAt) nextFrame = resumeAt + 5;
+    if (!running) continue;
+    if (now >= pauseAt && now < resumeAt) ticksInPause += 1;
+    if (pacer.tick(now, queued)) {
+      queued -= 1;
+      if (now >= resumeAt && shownAfterResume < 0) shownAfterResume = now - (resumeAt + 5);
+    }
+    running = !pacer.idle(now, queued);
+  }
+  return { ticksInPause, shownAfterResume };
+}
+
+// The loop was asked again regardless: 60 callbacks a second for a whole sermon under LOGO (2026-11-15 audit, R3).
+test("a paused engine video lets the projector's animation-frame loop rest, and the next frame wakes it", () => {
+  const { ticksInPause, shownAfterResume } = pauseAndResume(3, 10);
+  expect(ticksInPause).toBeLessThanOrEqual(17);
+  expect(shownAfterResume).toBeGreaterThanOrEqual(0);
+  expect(shownAfterResume).toBeLessThan(1000 / 60);
+});
+
+test("a playing video never idles the loop, not even a 12 fps one with jitter", () => {
+  const pacer = new FramePacer();
+  for (let i = 0, now = 0; i < 120; i += 1) {
+    const arrival = i * 83 + (i % 3) * 10;
+    pacer.arrived(arrival);
+    for (; now < arrival + 83; now += 1000 / 60) if (now >= arrival) expect(pacer.idle(now, 0)).toBe(false);
+  }
+});
+
+// The halving alternates show/skip, and the alternation outlived a pause: the one frame a seek while paused sends
+// went up or not by the parity of the frames before it (2026-11-15 audit, R3).
+test.each([30, 31])("a lone frame after a pause of a 60 fps video goes up, whatever the halving left (%s before)", (frames) => {
+  const pacer = new FramePacer();
+  for (let i = 0; i < frames; i += 1) pacer.arrived(i * (1000 / 60));
+  expect(pacer.arrived(frames * (1000 / 60) + 1000)).toBe(true);
+});

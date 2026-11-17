@@ -8,6 +8,7 @@ import { SongScene, type SongSlideContent } from "./song-scene";
 import { useSongFit } from "@renderer/lib/song-fit";
 import { footerAt, slideLines, slideTranslation, songOutputFor } from "@renderer/lib/song-output";
 import { findSong, resolveSong, themeForSong, useSongStore } from "@renderer/stores/song.store";
+import { useSettingsStore } from "@renderer/stores/settings.store";
 
 /**
  * One slide of a song, drawn as the projector draws it (owner, 2026-11-04:
@@ -75,12 +76,17 @@ export function SongSlideMedia({ content }: { content: SongSlideContent }) {
 }
 
 /** The first slide of a song of the library, at its own size — a schedule
- *  row's picture. Nothing while the song is gone or not yet measured. */
+ *  row's picture. Nothing while the song is gone or not yet measured. The
+ *  default theme and the licence are subscribed to, as PREVIEW's are: read
+ *  once, a row kept the old look until something else drew it again
+ *  (2026-11-15 audit, U8). */
 export function SongFirstSlide({ songId }: { songId: number }) {
   const song = useSongStore((s) => findSong(s.songs, songId));
   const themes = useSongStore((s) => s.themes);
-  const theme = song ? themeForSong(song, themes) : null;
-  const resolved = song && theme ? resolveSong(song, theme) : null;
+  const defaultThemeId = useSettingsStore((s) => s.settings["songs.defaultThemeId"]);
+  const license = useSettingsStore((s) => s.settings["songs.ccliLicense"]);
+  const theme = song ? themeForSong(song, themes, defaultThemeId) : null;
+  const resolved = song && theme ? resolveSong(song, theme, license) : null;
   const fit = useSongFit(resolved, theme);
   if (!resolved || !theme || !fit) return null;
   const first = { slideIndex: 1, detour: null };

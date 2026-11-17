@@ -1,6 +1,6 @@
 import { useT } from "@renderer/lib/i18n/i18n-provider";
 import { DECK_GRID_COLUMNS, SLIDE_GRID_GAP_PX, VirtualGrid, thumbTileHeight } from "@renderer/components/ui";
-import { useSongFit } from "@renderer/lib/song-fit";
+import { useSongFit, type SongFit } from "@renderer/lib/song-fit";
 import { footerAt, songBackgroundUrl } from "@renderer/lib/song-output";
 import type { ResolvedSong, SongTheme } from "@shared/types/song";
 import { SongSlideTile } from "./song-slide-tile";
@@ -13,6 +13,7 @@ import { SongSlideTile } from "./song-slide-tile";
  */
 export function SongSlideGrid({
   columns = DECK_GRID_COLUMNS,
+  fit: fitProp,
   liveIndex,
   onActivate,
   onSelect,
@@ -23,6 +24,8 @@ export function SongSlideGrid({
 }: {
   /** The song editor's slide column is one tile wide. */
   columns?: number;
+  /** The size its caller measures itself: the song editor's, settled while typing (`useSettledSongFit`). */
+  fit?: SongFit | null;
   liveIndex: number | null;
   onActivate?: (index: number) => void;
   onSelect: (index: number) => void;
@@ -33,7 +36,8 @@ export function SongSlideGrid({
   theme: SongTheme;
 }) {
   const t = useT();
-  const fit = useSongFit(song, theme);
+  const own = useSongFit(fitProp === undefined ? song : null, theme);
+  const fit = fitProp === undefined ? own : fitProp;
   const backgroundUrl = songBackgroundUrl(theme);
   const slides = song.slides.map((slide, i) => ({ slide, index: i + 1 }));
 

@@ -229,8 +229,8 @@ describe("files", () => {
     return path.join(folder, name);
   };
 
-  test("each file read by its words, whatever its extension; Windows-1252 and UTF-16 decoded", () => {
-    const read = readSongTextFiles(
+  test("each file read by its words, whatever its extension; Windows-1252 and UTF-16 decoded", async () => {
+    const read = await readSongTextFiles(
       [
         write("grace.txt", SONGSELECT_2023),
         write("chordpro.txt", "{title: Señor}\nCanción"),

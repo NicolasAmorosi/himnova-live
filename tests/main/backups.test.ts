@@ -9,10 +9,12 @@ import path from "node:path";
 import Database from "better-sqlite3";
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
 import { openDatabase } from "../../src/main/db/client";
-import { journalNewest, openForLaunch, runMigrations } from "../../src/main/db/migrate";
+import { journalNewest, openForLaunch, runMigrations, takeSnapshot } from "../../src/main/db/migrate";
 import {
   applyPendingRestore,
   backupEntries,
+  isDamagedDatabase,
+  newestDailyCopy,
   stageRestore,
   stagedRestorePath,
   takeLaunchRestore,
@@ -41,6 +43,24 @@ function profileDb(file: string, program: string, folder = drizzleDir): string {
   runMigrations(db, folder);
   new ProgramsRepo(db, sqlite).save({ name: program, items: [] });
   sqlite.close();
+  return file;
+}
+
+/** A database of this build whose programs index no longer matches its rows. Overwritten bytes make `VACUUM INTO`
+ *  throw before any copy exists; this damage is copied as it is, so only `integrity_check` on the copy sees it
+ *  (2026-11-15 audit, P6). */
+function damagedDb(file: string): string {
+  profileDb(file, "Culto dañado");
+  const sqlite = new Database(file);
+  try {
+    sqlite.unsafeMode(true);
+    sqlite.pragma("writable_schema = ON");
+    sqlite.prepare("UPDATE sqlite_master SET sql = ? WHERE name = 'ix_programs_order'").run(
+      "CREATE INDEX `ix_programs_order` ON `programs` (`name`)",
+    );
+  } finally {
+    sqlite.close();
+  }
   return file;
 }
 
@@ -86,6 +106,12 @@ describe("staging a copy", () => {
     expect(fs.existsSync(path.dirname(staged))).toBe(false);
   });
 
+  test("a damaged copy is refused, and nothing is staged (2026-11-15 audit, P6)", () => {
+    const staged = path.join(fresh("backups"), "restore-pending", "worship.db");
+    expect(stageRestore(damagedDb(fresh("dañada.db")), staged, newest)).toBe("damaged");
+    expect(fs.existsSync(path.dirname(staged))).toBe(false);
+  });
+
   test("a copy that stops half-way is never what the next launch swaps in", () => {
     const profile = fresh("profile");
     const dbFile = profileDb(path.join(profile, "worship.db"), "Culto de hoy");
@@ -122,6 +148,32 @@ describe("applying it at launch", () => {
     expect(takeLaunchRestore()).toBeNull();
     // Nothing staged, nothing done.
     expect(applyPendingRestore(dbFile, backups)).toBeNull();
+  });
+
+  test("over a damaged database, the copy goes in all the same, the damaged file kept raw beside it (audit D2)", () => {
+    // The case a restore exists for: the database opens, but a damaged page makes `VACUUM INTO` throw, so there was
+    // no verified copy of it, nothing was replaced and the staged copy was deleted. Every try did the same.
+    const profile = fresh("profile");
+    const dbFile = path.join(profile, "worship.db");
+    const { sqlite, db } = (fs.mkdirSync(profile, { recursive: true }), openDatabase(dbFile));
+    runMigrations(db, drizzleDir);
+    const programs = new ProgramsRepo(db, sqlite);
+    for (let i = 0; i < 400; i++) programs.save({ name: `Culto ${i} ${"x".repeat(200)}`, items: [] });
+    sqlite.pragma("wal_checkpoint(TRUNCATE)");
+    sqlite.close();
+    const bytes = fs.readFileSync(dbFile);
+    bytes.fill(0xa5, bytes.length - 40 * 4096, bytes.length - 30 * 4096);
+    fs.writeFileSync(dbFile, bytes);
+    const backups = path.join(profile, "backups");
+    expect(stageRestore(profileDb(fresh("copia.db"), "Culto de ayer"), stagedRestorePath(backups), newest)).toBeNull();
+
+    expect(applyPendingRestore(dbFile, backups)).toMatchObject({ status: "ok" });
+
+    expect(programNames(dbFile)).toEqual(["Culto de ayer"]);
+    const kept = fs.readdirSync(path.join(backups, "before-restore"));
+    const raw = kept.find((name) => name.endsWith("-damaged.db"));
+    expect(raw).toBeDefined();
+    expect(fs.readFileSync(path.join(backups, "before-restore", raw!)).equals(bytes)).toBe(true);
   });
 
   test("a copy from before an update is migrated by the launch, with the pre-migration copy taken", () => {
@@ -172,4 +224,61 @@ test("the list holds every kind of copy, newest first, with what each holds", ()
     ["update", 1, 0],
     ["daily", null, null],
   ]);
+});
+
+test("a snapshot of a damaged database fails, and leaves no file behind (2026-11-15 audit, P6)", () => {
+  const dir = fresh("daily");
+  const result = takeSnapshot(damagedDb(fresh("worship.db")), dir, 7, new Date("2026-11-15T10:00:00Z"));
+  expect(result.status).toBe("failed");
+  expect(result.status === "failed" && result.reason).toMatch(/integrity_check/);
+  expect(fs.readdirSync(dir)).toEqual([]);
+});
+
+describe("a launch that cannot open its database (audit D3)", () => {
+  test("offers the newest daily copy that reads, or none", () => {
+    const backups = fresh("backups");
+    const daily = path.join(backups, "daily");
+    expect(newestDailyCopy(backups)).toBeNull();
+    const good = profileDb(path.join(daily, "worship-2026-11-13T09-00-00-000Z.db"), "Culto del jueves");
+    fs.utimesSync(good, new Date("2026-11-13T09:00:00Z"), new Date("2026-11-13T09:00:00Z"));
+    // A newer one that does not read (a copy cut half-way) is skipped.
+    fs.writeFileSync(path.join(daily, "worship-2026-11-14T09-00-00-000Z.db"), "SQLite format 3\0 cortada");
+    expect(newestDailyCopy(backups)?.path).toBe(good);
+  });
+
+  test("offers it for a damaged file only, not for a migration that failed on sound data", () => {
+    const dbFile = fresh("worship.db");
+    const { sqlite, db } = openDatabase(dbFile);
+    runMigrations(db, drizzleDir);
+    const programs = new ProgramsRepo(db, sqlite);
+    for (let i = 0; i < 400; i++) programs.save({ name: `Culto ${i} ${"x".repeat(200)}`, items: [] });
+    sqlite.pragma("wal_checkpoint(TRUNCATE)");
+    sqlite.close();
+    const bytes = fs.readFileSync(dbFile);
+    bytes.fill(0xa5, bytes.length - 40 * 4096, bytes.length - 30 * 4096);
+    fs.writeFileSync(dbFile, bytes);
+    const damaged = new Database(dbFile);
+    let thrown: unknown = null;
+    try {
+      // What the launch's copies do first.
+      damaged.exec(`VACUUM INTO '${fresh("copia.db")}'`);
+    } catch (error) {
+      thrown = error;
+    }
+    damaged.close();
+    expect(isDamagedDatabase(thrown)).toBe(true);
+
+    const sound = new Database(":memory:");
+    sound.exec("CREATE TABLE t (id INTEGER PRIMARY KEY)");
+    sound.exec("INSERT INTO t VALUES (1)");
+    let constraint: unknown = null;
+    try {
+      sound.exec("INSERT INTO t VALUES (1)");
+    } catch (error) {
+      constraint = error;
+    }
+    sound.close();
+    expect(isDamagedDatabase(constraint)).toBe(false);
+    expect(isDamagedDatabase(new Error("disk image"))).toBe(false);
+  });
 });

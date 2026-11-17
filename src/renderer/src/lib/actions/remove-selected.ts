@@ -1,5 +1,5 @@
 import { useLibraryStore } from "@renderer/stores/library.store";
-import { useProgramStore } from "@renderer/stores/program.store";
+import { survivingAssetId, useProgramStore } from "@renderer/stores/program.store";
 import { useProjectionStore } from "@renderer/stores/projection.store";
 import { t } from "@renderer/lib/i18n/i18n-provider";
 import { toast } from "@renderer/lib/toast";
@@ -15,9 +15,9 @@ import { newProgram } from "./programs";
 function showsItem(base: BaseContent | null, item: ProgramItemDTO): boolean {
   switch (item.kind) {
     case "ppt":
-      return base?.kind === "deck" && base.assetId === item.mediaAssetId;
+      return base?.kind === "deck" && survivingAssetId(base.assetId) === item.mediaAssetId;
     case "media":
-      return (base?.kind === "video" || base?.kind === "image") && base.assetId === item.mediaAssetId;
+      return (base?.kind === "video" || base?.kind === "image") && survivingAssetId(base.assetId) === item.mediaAssetId;
     case "bible":
       return base?.kind === "bible" && base.text === item.text && base.reference === item.reference;
     case "utility":

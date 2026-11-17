@@ -27,6 +27,8 @@ test("a profile from an older build sees «Novedades» once, and turning the str
   const updated = await relaunch(app);
   const shown = news(updated);
   await expect(shown).toBeVisible();
+  // 2.9 straight to the latest: told what 2.10 brought too, before what came after it.
+  await expect(shown.getByText("Lo nuevo desde la 2.10")).toBeVisible();
   await expect(shown.getByRole("heading", { name: "Una pantalla para el escenario" })).toBeVisible();
 
   // The stage's own view, playing by itself: the count, then a message from the ready phrases.
@@ -57,8 +59,13 @@ test("a profile from an older build sees «Novedades» once, and turning the str
   await expect(sample).toHaveCount(0);
   await expect(shown.getByRole("slider", { name: "Volumen de muestra: En Vivo" })).toBeVisible();
 
+  await shown.getByRole("button", { name: "Siguiente: Vista previa" }).click();
+  await expect(shown.getByRole("heading", { name: "Lo que sale al aire se va de PREVIEW" })).toBeVisible();
   await shown.getByRole("button", { name: "Siguiente: Resumen" }).click();
   await expect(shown.getByText("Sin tiras · Salidas: predeterminada del sistema")).toBeVisible();
+  // Each version's smaller changes, in one list.
+  await expect(shown.getByText("El volumen inicial se mudó a Configuración ▸ Sonido.")).toBeVisible();
+  await expect(shown.getByText("Un Enter de más sobre el himno al aire ya no lo vuelve a empezar.")).toBeVisible();
   await shown.getByRole("button", { name: "Listo", exact: true }).click();
   await expect(shown).toBeHidden();
   // The work screen took it: no strip, and each row's own volume is back.
@@ -71,6 +78,30 @@ test("a profile from an older build sees «Novedades» once, and turning the str
   await settled(again);
   await expect(news(again)).toHaveCount(0);
   await expect(again.control.getByRole("group", { name: LIVE_STRIP })).toHaveCount(0);
+});
+
+test("a profile that saw 2.10 is told only what came after: what goes live leaves PREVIEW", async ({ app }) => {
+  await app.invoke("settings:set", { "ui.whatsNewSeen": "2.10" });
+  await app.quit();
+  const updated = await relaunch(app);
+  const shown = news(updated);
+  await expect(shown).toBeVisible();
+  await expect(shown.getByText("Lo nuevo de la 2.11")).toBeVisible();
+  await expect(shown.getByRole("heading", { name: "Lo que sale al aire se va de PREVIEW" })).toBeVisible();
+  await expect(shown.getByRole("heading", { name: "Una pantalla para el escenario" })).toHaveCount(0);
+
+  // The work screen's two monitors play it by themselves: a verse picked, then sent, and PREVIEW is left empty.
+  const demo = shown.getByRole("img", { name: "PREVIEW y EN VIVO mientras se mandan dos versículos" });
+  await expect(demo.getByText("Lo mandás: pasa a EN VIVO y PREVIEW queda vacía.")).toBeVisible({ timeout: 8_000 });
+  await expect(demo.getByText("Nada en vista previa")).toBeVisible();
+
+  // Its summary: no 2.10 settings to go back to, only what else changed.
+  await shown.getByRole("button", { name: "Siguiente: Resumen" }).click();
+  await expect(shown.getByText("Un Enter de más sobre el himno al aire ya no lo vuelve a empezar.")).toBeVisible();
+  await expect(shown.getByText("El volumen inicial se mudó a Configuración ▸ Sonido.")).toHaveCount(0);
+  await expect(shown.getByRole("button", { name: "Configurar: Escenario" })).toHaveCount(0);
+  await shown.getByRole("button", { name: "Listo", exact: true }).click();
+  await expect(shown).toBeHidden();
 });
 
 test.describe("a new profile", () => {
@@ -86,7 +117,7 @@ test.describe("a new profile", () => {
     await welcome.getByRole("button", { name: "Siguiente: Sonido" }).click();
     await expect(welcome.getByRole("heading", { name: "Sonido", exact: true })).toBeVisible();
     await expect(welcome.getByRole("switch", { name: "Mostrar las tiras" })).toBeChecked();
-    await expect(welcome.getByRole("combobox", { name: "Salida de EN VIVO" })).toHaveText("Predeterminada del sistema");
+    await expect(welcome.getByRole("combobox", { name: "Salida de EN VIVO" })).toHaveText(/^(Predeterminada del|Del) sistema/);
     await expect(welcome.getByRole("group", { name: "Tira de muestra: En Vivo" })).toBeVisible();
 
     await welcome.getByRole("tab", { name: "Listo" }).click();

@@ -1,11 +1,15 @@
 import { api } from "@renderer/lib/api";
 import { forgetMediaAsset } from "@renderer/lib/hooks/use-media-asset";
+import { loadPlates } from "@renderer/lib/actions/overlays";
 import { t } from "@renderer/lib/i18n/i18n-provider";
 import { toast } from "@renderer/lib/toast";
 import { useLibraryStore } from "@renderer/stores/library.store";
+import { usePreviewStore } from "@renderer/stores/preview.store";
+import { useProgramStore } from "@renderer/stores/program.store";
 import { useSettingsStore } from "@renderer/stores/settings.store";
 import { loadSongs, refreshSongFolder, songView } from "@renderer/lib/actions/songs";
 import { ASSET_KINDS } from "@shared/constants";
+import type { MergedAsset } from "@shared/types/media";
 
 /**
  * Points a library row at the file the operator moved, keeping its id, and
@@ -30,6 +34,7 @@ export async function relocateAsset(assetId: number): Promise<void> {
   try {
     const result = await api.library.relocate(assetId);
     if (result === null) return;
+    followMerges(result.merged);
     // The grids reload from main's own `library-changed` broadcast; this cache
     // is module-level and nobody else invalidates it.
     forgetMediaAsset(assetId);
@@ -50,12 +55,30 @@ export async function relocateFolder(folder: string): Promise<void> {
   try {
     const result = await api.library.relocateFolder(folder);
     if (result === null) return;
+    followMerges(result.merged);
     await followMovedFolders();
     toast.success(t("library.folderRelocated", { name: result.name, count: result.more }));
   } catch (error) {
     console.error("[library] relocate folder failed", error);
     toast.danger(t("library.relocateFolderFailed"));
   }
+}
+
+/**
+ * Rows main merged into their twins are gone: what pointed at one points at its twin now, the open order of service
+ * (and with it its draft), PREVIEW, the library's selection and the saved plates (main moved their pictures). Left on
+ * the dead id, «Guardar» failed on its foreign key, the draft dropped those rows at the next launch and they showed
+ * as «…», and saving a plate whose picture was the twin failed too (2026-11-15 audit, D4). What is on the air keeps
+ * the id it went out with: nothing the room sees may move because the operator relocated a file.
+ */
+export function followMerges(merged: readonly MergedAsset[]): void {
+  for (const { from, to } of merged) {
+    useProgramStore.getState().remapMediaAsset(from, to);
+    const { target } = usePreviewStore.getState();
+    if (target?.kind === "asset" && target.assetId === from) usePreviewStore.setState({ target: { ...target, assetId: to } });
+    if (useLibraryStore.getState().selectedId === from) useLibraryStore.getState().select(to);
+  }
+  if (merged.length > 0) void loadPlates();
 }
 
 /** Main moved linked folders, and the views open on them, in settings: read

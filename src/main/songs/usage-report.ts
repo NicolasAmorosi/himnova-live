@@ -17,7 +17,13 @@ export function songUsageCsv(uses: readonly SongUse[]): string {
   // ponytail: the separator follows the app's language — Excel in Spanish, Italian and Portuguese splits on «;»,
   // in English on «,». A sheet opened in another locale's Excel needs Data ▸ Text to columns.
   const separator = mainLocale() === "en" ? "," : ";";
-  const cell = (value: string) => (/[",;\r\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value);
+  // A cell that starts like a formula (=, +, -, @, a tab or a return) gets a «'» first, so Excel and LibreOffice
+  // show it as text: a song imported with the title `=HYPERLINK(…)` was a live link in the report sent to CCLI
+  // (OWASP's rule for CSV; 2026-11-15 audit, S9).
+  const cell = (raw: string) => {
+    const value = /^[=+\-@\t\r]/.test(raw) ? `'${raw}` : raw;
+    return /[",;\r\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value;
+  };
   const sorted = [...uses].sort((a, b) => b.days.length - a.days.length || a.title.localeCompare(b.title, mainLocale()));
   const rows = [
     [mt("songs.usageTitle"), mt("songs.usageAuthors"), mt("songs.usageCcli"), mt("songs.usageCount"), mt("songs.usageDates")],

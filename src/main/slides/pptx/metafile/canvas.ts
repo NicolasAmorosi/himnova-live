@@ -1,3 +1,4 @@
+import { metricTwin } from "@shared/font-twins";
 import { crop, pngHref, type Picture, type Raster } from "./dib";
 
 /**
@@ -252,16 +253,6 @@ const METRICS: Record<string, readonly [number, number]> = {
   georgia: [0.917, 0.219],
   "trebuchet ms": [0.939, 0.222],
   "century gothic": [0.971, 0.22],
-};
-
-/** Metric-compatible twins of the Office faces, which Linux distributions install: an SVG drawn as
- *  an image sees only the system's fonts, never the ones a page registers. */
-const TWINS: Record<string, string> = {
-  calibri: "Carlito",
-  cambria: "Caladea",
-  arial: "Liberation Sans",
-  "times new roman": "Liberation Serif",
-  "courier new": "Liberation Mono",
 };
 
 /** A CSS generic family for when the face is not on this machine, from `lfPitchAndFamily`. */
@@ -1008,7 +999,9 @@ export class Canvas {
         `height="${num((ascent + descent) * em)}" fill="${hex(dc.bkColor)}"/>`;
     }
     const anchor = xs ? "" : horizontal === TA_CENTER ? ` text-anchor="middle"` : horizontal === TA_RIGHT ? ` text-anchor="end"` : "";
-    const families = [font.face, TWINS[font.face.toLowerCase()] ?? ""].filter((f) => f).map((f) => `'${f.replace(/["'<>&]/g, "")}', `);
+    // An SVG drawn as an image sees only the system's fonts, never the ones a page registers: the twin is the one
+    // Linux distributions install.
+    const families = [font.face, metricTwin(font.face) ?? ""].filter((f) => f).map((f) => `'${f.replace(/["'<>&]/g, "")}', `);
     let style = ` font-family="${families.join("")}${genericFamily(font)}" font-size="${num(em)}"`;
     if (font.weight >= 600) style += ` font-weight="${font.weight >= 800 ? 900 : 700}"`;
     if (font.italic) style += ` font-style="italic"`;

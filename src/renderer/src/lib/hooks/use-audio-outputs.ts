@@ -126,7 +126,12 @@ export function useAudioOutputPicker(bus: AudioBus, outputs: AudioOutputs) {
   const choice = useSettingsStore((s) => s.settings[bus === "live" ? "audio.output.live" : "audio.output.preview"]);
   const update = useSettingsStore((s) => s.update);
   const chosen = choice ? findAudioOutput(choice, outputs.devices) : null;
-  const systemLabel = t("audio.systemDefault");
+  // The system's default named by the device behind it when Chromium says which: the room went silent when the system
+  // took a Bluetooth headset, and the strip only said «Predeterminada del sistema» (2026-11-15 audit, U15).
+  const systemDevice = outputs.devices.find((device) => device.deviceId === outputs.defaultDeviceId);
+  const systemLabel = systemDevice
+    ? t("audio.systemDefaultNamed", { name: systemDevice.label })
+    : t("audio.systemDefault");
 
   const options = [
     { label: systemLabel, value: SYSTEM_DEFAULT },

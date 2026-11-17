@@ -7,8 +7,9 @@ WorshipApp is an Electron 44 app with **TypeScript + React 19 + Vite**, bundled 
 
 - **Main** (`src/main/`) — windows, SQLite DB, IPC, reading decks (and drawing PDF pages on request), the
   media engine, in-app updates.
-- **Preload** (`src/preload/index.ts`) — generic `contextBridge` bridge (`invoke`/`on` by
-  channel string), ~35 lines that never change when features are added.
+- **Preload** (`src/preload/index.ts`): generic `contextBridge` bridge (`invoke`/`on` by
+  channel string) that never changes when features are added, plus its two exceptions,
+  `getPathForFile` and `onVideoFrame` (the media engine's frames, `preload/frame-delivery.ts`).
 - **Control renderer** (`src/renderer/index.html` + `src/renderer/src/`) — the whole UI of the
   operator window: React + Zustand + Tailwind.
 - **Projection renderer** (`src/renderer/projection.html` + `src/renderer/src/projection/`) —
@@ -32,6 +33,21 @@ in watch mode. Full config in `electron.vite.config.ts` (repo root).
 and the user DB live) are resolved in a single file, `src/main/paths.ts` — don't repeat
 `app.isPackaged ? ... : ...` anywhere else.
 
+A package has its Electron fuses flipped (`build.electronFuses`, 2026-11-15 audit S13): it ignores
+`ELECTRON_RUN_AS_NODE` and `NODE_OPTIONS`, loads only `app.asar` and checks it against the hash electron-builder
+seals in `Info.plist` (macOS) or in the `.exe`'s `INTEGRITY` resource (Windows; Linux has no such check). A package
+is never patched in place: a changed `app.asar` dies at launch (measured on macOS: `Integrity check failed for asar
+archive`, exit 133), so rebuild it. The inspector fuse stays on, because Playwright drives a package through `--inspect=0`;
+`startup.spec.ts` reads the fuses of the package it runs against.
+
+**`dependencies` is only what main and the preload load at run time** (today `better-sqlite3`, `electron-updater` and
+`fast-xml-parser`): electron-builder copies every production dependency, with its own, into `app.asar`, and
+electron-vite leaves them unbundled in main. Everything else is a `devDependency`: what the renderer uses (Vite
+bundles it), what main bundles (`drizzle-orm`, R6), what only tests and scripts use, and a file the package needs
+from a dev package travels by `extraResources` (pdf.js's `.wasm`). Ten packages listed as dependencies made 67.6 MB
+and 6499 of the asar's 7099 files, read by nothing (2026-11-15 audit, R13). To check: the external `from "…"` left in
+`out/main` and `out/preload` after a build.
+
 ## The windows
 
 As in the legacy version (removed from the repo on 2026-10-22; still in git history at
@@ -42,7 +58,9 @@ As in the legacy version (removed from the repo on 2026-10-22; still in git hist
 is neither the operator's nor the stage's (`shared/display-roles.ts`, `projectorDisplayFor`, shared with the
 control window's `display.store`). Minimizing the control window leaves the projector and the stage on their
 screens (owner, 2026-11-13); its restore only reasserts the fullscreen projector's `alwaysOnTop`, and closing it
-closes them (`wireMinimizeRestoreSync` in `main/index.ts`).
+closes them (`wireMinimizeRestoreSync` in `main/index.ts`). On macOS, where the app outlives that window, closing it
+also stops PREVIEW's engine and empties `projectionState` (output, tracks, media status) before a live-engine sync:
+nothing plays on with no window, and a projector opened from the next window starts from nothing (audit A20).
 
 Because the projection window is destroyed and recreated, main keeps the last `ProjectionOutput`
 sent (`src/main/services/projection-state.ts`) and replays it on `did-finish-load` — otherwise,
@@ -74,7 +92,8 @@ live frame follows those reports like the LIVE monitor's copy, and as «Proyecto
 it out again and `showOnly` stops the frames. Its window is always muted: no audio and no media commands of its own.
 It is an **unwatched** mirror (`addMirror(win, false)`): a video taken live from PREVIEW waits for the projector and
 the NDI output to draw it before it sounds (`holdUntilShown`, `projectionState.getWatched()`), never for the stage,
-which the room does not see. A copy mounted mid-video (a view switched, the window reopened) starts where the
+which the room does not see. A video the closed projector paused waits the same way for the new projector alone when
+it opens («Reabrir», or by itself after a crash): `syncLiveEngineIntoNewProjector` (2026-11-15, audit A19). A copy mounted mid-video (a view switched, the window reopened) starts where the
 projector's last report says, not at the GO LIVE point (`startFrom` in `output-view.tsx`): a paused projector sends
 no report to correct it. Whether it is the movable kind is decided with its screen: the control window dragged onto
 the stage's screen (or off it) rebuilds it (`current.own`), or the fullscreen stage covered the operator's. The control window builds its picture (`lib/stage-output.ts`, pushed by
@@ -126,7 +145,9 @@ and a link to ndi.video wherever NDI is used or chosen — the app, the landing 
   fresh frame through `stopPainting(); startPainting()` (`invalidate()` paints no texture; painting left stopped
   freezes the page's clock).
 - **Supervised like the media engine:** a crash restarts it after 2 s (`ndi-exit`); exit codes 2–4 (bad arguments,
-  no runtime, NDI refused) wait for the user. Settings reads `ndi:getStatus` and listens to `ndi-status`:
+  no runtime, NDI refused) wait for the user. A settings change rebuilds the page only for its size or frame rate;
+  a new name, the sound or its delay restart the sender alone (receivers lose the source a moment), and the delay
+  slider saves on release, not on each step (audit A22). Settings reads `ndi:getStatus` and listens to `ndi-status`:
   «Enviando · N», «Falta el runtime» with the download link, or the error code.
 - **The OS gates the first network use, and only a packaged app shows how.** macOS asks for Local Network in the
   app's name (the engine is a child), with the `NSLocalNetworkUsageDescription` of `mac.extendInfo`; until it is
@@ -155,7 +176,7 @@ and a link to ndi.video wherever NDI is used or chosen — the app, the landing 
   projector's `media-status` to the NDI window and its copy follows it (`lib/follow-projector.ts`: within 12 ms as
   is, past it ±10 % speed at most — a copy ahead repeats frames, never skips one —, past a second a seek). Measured
   after: −11…+18 ms in every start. An engine video needs none of it: one decoder sends both windows its frames.
-- **Engine frames go up on the page's clock** in the projector and the NDI window (`FramePacer`,
+- **Engine frames go up on the page's clock** in the projector, the NDI window and the stage window (`FramePacer`,
   `04-renderer-state.md`): drawn as they landed, the NDI window lost 8–37 % of an engine video by phase.
 - **Testing:** `LUMINA_NDI_LIB=<path to libndi>` points at a runtime that isn't installed;
   `tests/e2e/ndi-output.spec.ts` runs with and without one, and `tests/e2e/ndi-receiver.spec.ts` asks a real

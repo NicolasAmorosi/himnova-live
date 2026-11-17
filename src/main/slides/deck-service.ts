@@ -25,11 +25,11 @@ import {
 } from "./pptx-metadata";
 import { readBinaryDeck, sniffUnreadableDeck, type BinaryDeck, type UnreadableDeckReason } from "./ppt-binary";
 import { encodeSlideLayers } from "./native-deck";
-import { extractClips, readPptx, type PptxRead } from "./pptx-deck";
+import { extractClips, hurryDeck, readPptx, type PptxRead } from "./pptx-deck";
 import { readPdfPages, shutdownRasterizer, type RasterLane } from "./rasterizer";
 import { hashFile } from "../media/content-hash";
 import { healDeckClips, isEngineClip, revertPlayableCopies } from "../media/deck-clips";
-import { removeQuietly } from "../fs-retry";
+import { removeQuietly, replaceFolder } from "../fs-retry";
 import { mt } from "../i18n";
 
 // ---------------------------------------------------------------------------
@@ -100,10 +100,10 @@ function emitProgress(next: DeckProgress): void {
 // ---------------------------------------------------------------------------
 
 /** `interactive`: the operator is waiting on it (a preview, GO LIVE).
- *  `background`: read ahead — a file just added, a tile on screen, a deck in
- *  the order of service, a «Prepare folder» batch. Only a PDF tells them
- *  apart: it is opened by the rasterizer, where what the operator is looking
- *  at goes first (`RasterLane`). */
+ *  `background`: read ahead (a file just added, a tile on screen, a deck in
+ *  the order of service, a «Prepare folder» batch). A PDF and a model deck
+ *  tell them apart: the rasterizer and the deck worker serve what the
+ *  operator is looking at first (`RasterLane`). */
 export type JobPriority = "interactive" | "background";
 
 export type PrepareOptions = { force?: boolean; priority?: JobPriority };
@@ -313,8 +313,10 @@ async function recordNativeDeck(assetId: number, sourcePath: string, stat: fs.St
  *  tried at and why: not re-read on every open, and read again once edited. */
 const unreadableStamp = new Map<string, { stamp: string; reason: UnreadableDeckReason }>();
 
-/** One read per asset at a time — see `nativeInFlight`. */
-const modelInFlight = new Map<number, Promise<DeckDTO>>();
+/** One read per asset at a time (see `nativeInFlight`), and the lane its
+ *  requests to the deck worker go in: the operator opening a deck that is
+ *  being read ahead moves it to `now` (2026-11-15 audit, R10). */
+const modelInFlight = new Map<number, { promise: Promise<DeckDTO>; lane: RasterLane }>();
 
 const UNREADABLE_MESSAGE = {
   DECK_PASSWORD: "slides.deckPassword",
@@ -346,7 +348,7 @@ function isUsableModel(row: DeckRow, stat: fs.Stats): boolean {
  *  PDF — which is every deck: `null` only for a source that is gone. A deck no
  *  reader can open rejects with why. */
 function sourceDeck(assetId: number, sourcePath: string, force: boolean, lane: RasterLane): Promise<DeckDTO> | null {
-  return nativeDeck(assetId, sourcePath, force) ?? modelDeck(assetId, sourcePath, force) ?? pdfDeck(assetId, sourcePath, force, lane);
+  return nativeDeck(assetId, sourcePath, force) ?? modelDeck(assetId, sourcePath, force, lane) ?? pdfDeck(assetId, sourcePath, force, lane);
 }
 
 /**
@@ -357,11 +359,17 @@ function sourceDeck(assetId: number, sourcePath: string, force: boolean, lane: R
  * approximated, never refused; and on 2026-11-03: nothing is ever converted
  * by another program — a file no reader can open fails, saying why.
  */
-function modelDeck(assetId: number, sourcePath: string, force: boolean): Promise<DeckDTO> | null {
+function modelDeck(assetId: number, sourcePath: string, force: boolean, lane: RasterLane): Promise<DeckDTO> | null {
   const stat = fs.statSync(sourcePath, { throwIfNoEntry: false });
   if (!stat) return null;
   const inFlightRead = modelInFlight.get(assetId);
-  if (inFlightRead) return inFlightRead;
+  if (inFlightRead) {
+    if (lane === "now" && inFlightRead.lane === "later") {
+      inFlightRead.lane = "now";
+      hurryDeck(sourcePath);
+    }
+    return inFlightRead.promise;
+  }
 
   const slidesRepo = getSlidesRepo();
   const mtimeMs = Math.trunc(stat.mtimeMs);
@@ -385,17 +393,18 @@ function modelDeck(assetId: number, sourcePath: string, force: boolean): Promise
     }
   }
 
-  const promise = readPptx(sourcePath)
+  const job: { lane: RasterLane } = { lane };
+  const promise = readPptx(sourcePath, lane)
     .then((read) => {
       if (!read || read.slides.every((slide) => slide.hidden)) {
         const reason = sniffUnreadableDeck(sourcePath);
         unreadableStamp.set(sourcePath, { stamp: stampOf(stat), reason });
         return failUnreadable(assetId, reason);
       }
-      return recordModelDeck(assetId, sourcePath, stat, read, kind);
+      return recordModelDeck(assetId, sourcePath, stat, read, kind, job, force);
     })
     .finally(() => modelInFlight.delete(assetId));
-  modelInFlight.set(assetId, promise);
+  modelInFlight.set(assetId, Object.assign(job, { promise }));
   return promise;
 }
 
@@ -405,11 +414,32 @@ async function recordModelDeck(
   stat: fs.Stats,
   deck: PptxRead,
   kind: ContainerKind,
+  job: { lane: RasterLane },
+  force: boolean,
 ): Promise<DeckDTO> {
   const slidesRepo = getSlidesRepo();
   const mtimeMs = Math.trunc(stat.mtimeMs);
   const contentHash = await hashFile(sourcePath);
   getMediaRepo().setContentHash(assetId, contentHash, stat.size, mtimeMs);
+
+  // The same bytes, already read through another library entry (a copy in
+  // another folder, added this session and not hashed yet): that deck, as it
+  // is. Recording it again emptied the folder the music on air played from
+  // and gave its clips new ids (2026-11-15 audit, A12). Forced too while
+  // another entry holds it: «Reintentar» on a copy with no deck yet (failed,
+  // or stale after a cancel) passes the renderer's guard, which only knows a
+  // deck by its id (review follow-up). Forced on the entry that holds it, it
+  // is read again.
+  const shared = slidesRepo.findDeckByIdentity(contentHash, 0, "model");
+  if (
+    (!force || shared?.mediaAssetId !== assetId) &&
+    shared?.status === "ready" &&
+    shared.converterVersion === SLIDES_MODEL_VERSION &&
+    (shared.cacheDir === "" || fs.existsSync(shared.cacheDir))
+  ) {
+    slidesRepo.relinkDeck(shared.id, assetId, sourcePath, stat.size, mtimeMs);
+    return readyNative({ ...shared, mediaAssetId: assetId, sourcePath, sourceSizeBytes: stat.size, sourceMtimeMs: mtimeMs }, assetId);
+  }
 
   // Timings, transitions, sound and video come from the reader's
   // `PresentationMeta`; the model is only how the slides look. Both number
@@ -449,17 +479,30 @@ async function recordModelDeck(
   // cache folder — served from the .pptx by range once the media engine
   // replaces `deck-clips.ts` (plan, phase 3).
   const cacheDir = deckCacheDir(contentHash, 0, "model");
-  removeQuietly(cacheDir);
+  // Copied beside it, and moved in only once the copy is whole: emptied first,
+  // a copy the worker died in left the deck's ready row over a half-filled
+  // folder (2026-11-15 audit, D6, review).
+  const staging = `${cacheDir}.tmp-${assetId}`;
+  removeQuietly(staging);
   // Each sound on the slides it plays on (`placeAudio`), counted among the
   // slides drawn — which only the timings that lined up can say.
   const visibleOoxml = timingsUsable ? visibleMeta.map((slide) => slide.slideIndex) : null;
-  const clips = (await extractClips({
+  const extract = {
     file: sourcePath,
     audio: meta.audio,
-    audioDir: path.join(cacheDir, "audio"),
+    audioDir: path.join(staging, "audio"),
     video: meta.video.length > 0 && timingsUsable ? meta.video : [],
-    videoDir: path.join(cacheDir, "video"),
-  })) ?? { audio: [], video: [] };
+    videoDir: path.join(staging, "video"),
+  };
+  const extracted = await extractClips(extract, job.lane);
+  // The worker stopped before copying them: saved now, the deck would stay
+  // mute after a restart too (2026-11-15 audit, D6). Nothing is kept, so the
+  // next open reads it again.
+  if (!extracted && extract.audio.length + extract.video.length > 0) {
+    removeQuietly(staging);
+    throw new SlideError("RASTER_FAILED", mt("slides.deckUnreadable"));
+  }
+  const clips = extracted ?? { audio: [], video: [] };
   const audio: NewAudio[] = clips.audio.flatMap(
     (extracted) => {
       const placed = placeAudio(extracted, visibleOoxml);
@@ -499,27 +542,39 @@ async function recordModelDeck(
   }
   const bytesOnDisk = audio.reduce((total, track) => total + track.bytes, 0) + videos.reduce((total, video) => total + video.bytes, 0);
   const ownsFolder = audio.length > 0 || videos.length > 0;
-  if (!ownsFolder) removeQuietly(cacheDir);
+  if (!ownsFolder) removeQuietly(staging);
 
-  const deckId = slidesRepo.insertDeck(
-    {
-      contentHash,
-      renderWidth: 0,
-      imageFormat: "model",
-      converterVersion: SLIDES_MODEL_VERSION,
-      mediaAssetId: assetId,
-      sourcePath,
-      sourceSizeBytes: stat.size,
-      sourceMtimeMs: mtimeMs,
-      cacheDir: ownsFolder ? cacheDir : "",
-      aspectRatio: `${deck.width}:${deck.height}`,
-      timingsSource: timingsUsable && meta.slides.length > 0 ? (kind === "binary" || kind === "odf" ? kind : "ooxml") : "none",
-      bytesOnDisk,
-    },
-    slides,
-    audio,
-    videos,
-  );
+  // The deck's previous folder (a «Reconvertir», a model version bump) is deleted only once the new one is in place
+  // and its row written, and put back if either fails (`replaceFolder`, review of the 2026-11-15 audit, D6).
+  let deckId: number;
+  try {
+    deckId = await replaceFolder(cacheDir, ownsFolder ? staging : null, () =>
+      slidesRepo.insertDeck(
+        {
+          contentHash,
+          renderWidth: 0,
+          imageFormat: "model",
+          converterVersion: SLIDES_MODEL_VERSION,
+          mediaAssetId: assetId,
+          sourcePath,
+          sourceSizeBytes: stat.size,
+          sourceMtimeMs: mtimeMs,
+          cacheDir: ownsFolder ? cacheDir : "",
+          aspectRatio: `${deck.width}:${deck.height}`,
+          timingsSource: timingsUsable && meta.slides.length > 0 ? (kind === "binary" || kind === "odf" ? kind : "ooxml") : "none",
+          bytesOnDisk,
+        },
+        slides,
+        audio,
+        videos,
+      ),
+    );
+  } catch (error) {
+    // A file system error moving the folders (a SQLite error writing the row goes on as it is).
+    if (typeof (error as NodeJS.ErrnoException).errno !== "number") throw error;
+    console.warn(`[slides] could not move the clips of ${sourcePath} into place`, error);
+    throw new SlideError("RASTER_FAILED", mt("slides.deckUnreadable"));
+  }
 
   const row = slidesRepo.getDeckById(deckId);
   if (!row) throw new SlideError("RASTER_FAILED", mt("slides.deckUnreadable"));

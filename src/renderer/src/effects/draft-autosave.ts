@@ -2,10 +2,12 @@ import { api } from "@renderer/lib/api";
 import { t } from "@renderer/lib/i18n/i18n-provider";
 import { onIpc } from "@renderer/lib/ipc";
 import { hasUnsavedChanges, toUpsertItems } from "@renderer/lib/actions/programs";
+import { useAudioStore } from "@renderer/stores/audio.store";
 import { useProgramStore } from "@renderer/stores/program.store";
 import { useProjectionStore } from "@renderer/stores/projection.store";
 import { useUiStore, type CloseGuardReasons } from "@renderer/stores/ui.store";
 import type { ProgramDraft } from "@shared/types/program";
+import { commitPendingRemovals } from "@renderer/lib/actions/remove-asset";
 
 /** Short enough that the work at risk is a keystroke or two, long enough that
  *  dragging a row across a 40-item schedule is one write and not forty. */
@@ -62,6 +64,14 @@ function isOnAir(): boolean {
   return presentationOpen && (base !== null || overlay !== "none" || livePlates.length > 0);
 }
 
+/** A sound playing in the room, by its name: the prelude or the offertory over the resting LOGO, with the program
+ *  saved, closed without a question and left the room in silence (2026-11-15 audit, A29). A deck's own sounds need
+ *  no name here: their deck is on the projector. */
+function soundOnAir(): string | null {
+  if (!useProjectionStore.getState().presentationOpen) return null;
+  return useAudioStore.getState().tracks.find((track) => track.source === "asset" && !track.paused)?.label ?? null;
+}
+
 /** Why quitting right now needs the operator's OK, or `null` when nothing is
  *  at risk. Whatever is still debounced goes to disk first, so "close anyway"
  *  really does mean "it will be there next time" — for the schedule; an open
@@ -73,7 +83,8 @@ export function quitRisks(): CloseGuardReasons | null {
   const unsaved = hasUnsavedChanges();
   const editor = useUiStore.getState().unsavedEditors > 0;
   const onAir = isOnAir();
-  return unsaved || editor || onAir ? { unsaved, editor, onAir } : null;
+  const sound = onAir ? null : soundOnAir();
+  return unsaved || editor || onAir || sound !== null ? { unsaved, editor, onAir, sound } : null;
 }
 
 /** What a quit puts at risk, in words: the question every quit asks (closing, «Restart and update»,
@@ -83,6 +94,7 @@ export function quitRiskText(risks: CloseGuardReasons | null): string {
     risks?.unsaved ? t("schedule.closeConfirmBody") : null,
     risks?.editor ? t("schedule.closeEditorBody") : null,
     risks?.onAir ? t("schedule.closeOnAirBody") : null,
+    risks?.sound ? t("schedule.closeSoundBody", { name: risks.sound }) : null,
   ]
     .filter(Boolean)
     .join(" ");
@@ -107,7 +119,9 @@ export function startDraftAutosave(): () => void {
     timer = window.setTimeout(flushDraft, DEBOUNCE_MS);
   });
 
-  const stopCloseListener = onIpc("close-requested", () => {
+  const answerClose = async () => {
+    // Before any answer: a file removed seconds ago is gone for good, not back at the next launch (audit D14).
+    await commitPendingRemovals();
     const risks = quitRisks();
     if (!risks) {
       void api.window.closeDecision("close");
@@ -118,7 +132,8 @@ export function startDraftAutosave(): () => void {
     // reading — and the answer still knows whether this started as a quit.
     void api.window.closeDecision("hold");
     useUiStore.getState().setCloseGuard(risks);
-  });
+  };
+  const stopCloseListener = onIpc("close-requested", () => void answerClose());
 
   return () => {
     unsubscribe();

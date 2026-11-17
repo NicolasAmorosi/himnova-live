@@ -39,7 +39,8 @@ beforeEach(() => {
   (window as unknown as { worship: unknown }).worship = {
     invoke: vi.fn((channel: string) => {
       calls.push(channel);
-      return Promise.resolve({ ok: true, data: channel === "displays:list" ? screens : undefined });
+      const data = channel === "displays:list" ? screens : channel === "projection:open" ? true : undefined;
+      return Promise.resolve({ ok: true, data });
     }),
     on: () => () => {},
   };
@@ -70,4 +71,21 @@ test("losing the projector's screen while it is on air never moves or reopens th
 
   expect(calls.filter((channel) => channel.startsWith("projection:"))).toEqual([]);
   expect(useProjectionStore.getState().presentationOpen).toBe(true);
+});
+
+test("moving the projector to another screen clears «Pantalla desconectada»: the new window is on a screen", async () => {
+  screens = [LAPTOP, PROJECTOR];
+  await useDisplayStore.getState().load();
+  useProjectionStore.getState().setPresentationOpen(true);
+  // Its screen went away (main hid the window), and the operator moves the projector role elsewhere: main recreates
+  // the window there and never says `connected: true`, so the LIVE header kept the warning (2026-11-15 audit, U4).
+  useDisplayStore.setState({ projectorHidden: true });
+  await useDisplayStore.getState().setDisplayId(LAPTOP.id);
+  expect(calls).toContain("projection:open");
+  expect(useDisplayStore.getState().projectorHidden).toBe(false);
+
+  useProjectionStore.getState().setPresentationOpen(false);
+  useDisplayStore.setState({ projectorHidden: true });
+  await useDisplayStore.getState().open();
+  expect(useDisplayStore.getState().projectorHidden).toBe(false);
 });

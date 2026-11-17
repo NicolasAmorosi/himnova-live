@@ -66,8 +66,11 @@ export const SLIDES_NATIVE_VERSION = 1;
  *  is read again. 2: speaker icons «hidden during show» left out, and each
  *  sound placed on its own slides. 3: tab stops, sized line breaks, fill
  *  overlays, SmartArt (cached drawings found, the rest laid out) and the
- *  charts that were refused. */
-export const SLIDES_MODEL_VERSION = 3;
+ *  charts that were refused. 4: a slide with two `mc:AlternateContent` keeps
+ *  its transition and timing, a slide marked `show="false"` is hidden in the
+ *  model too, and the bounds on SmartArt sizes, chart points and `.odp` list
+ *  numbers (2026-11-15 audit A31, A45, S4, S5, S6). */
+export const SLIDES_MODEL_VERSION = 4;
 
 /** Bump to force every non-manual `media_assets` row to re-run
  *  `resolveLinkedAudio` once, next time its deck is opened, even though a
@@ -140,11 +143,33 @@ export const PREWARM_VISIBLE_MAX = 32;
  *  the moment it is previewed. */
 export const PREWARM_EXPLICIT_MAX = 20;
 export const SLIDES_RASTER_PAGE_TIMEOUT_MS = 30_000;
-
-export const DEFAULT_MEDIA_VOLUME = 0.5;
+/** How long the deck worker may go without a sign of progress (one per slide) on the deck it was handed
+ *  before it is stopped and that deck fails. The slowest real deck measured is a 22 MB template whose map
+ *  slide is most of its 11.4 s on an M3; this leaves a slow church PC five times that per slide. */
+export const SLIDES_DECK_READ_TIMEOUT_MS = 60_000;
+/** The same for copying a deck's clips out of it, with a beat per clip: a single clip of a gigabyte off a slow pen
+ *  drive takes minutes, and untimed, a network share that went away mid-copy held the only deck worker for good
+ *  (review of the 2026-11-15 audit, S4). */
+export const SLIDES_CLIP_COPY_TIMEOUT_MS = 15 * 60_000;
 
 /** The bundled bible's identity, NOT its edition: the text has always been the Reina-Valera
  *  1909 (public domain), shipped as «Reina-Valera 1960» through 2.2.0-beta.3. `bible_favorites`
  *  rows point at this code and the seed re-imports against it, so it never changes — same rule as
  *  the `worship-app` package name. The file and the name are what say 1909. */
 export const BUILTIN_BIBLE_CODE = "rv1960";
+
+/** The short name of each version the installer carries (`main/db/seed/bundled-bibles.ts`), by its row's `code`: what
+ *  the version picker shows when the whole name does not fit (owner, 2026-11-16: «Rive…» said nothing among nine
+ *  versions; 2026-11-15 audit, U14). Not derived from the code, which says «rv1960» for the 1909. An imported version
+ *  has none and is cut, as before. */
+export const BUNDLED_BIBLE_SHORT: Readonly<Record<string, string>> = {
+  [BUILTIN_BIBLE_CODE]: "RV1909",
+  vbl: "VBL",
+  kjv: "KJV",
+  asv: "ASV",
+  web: "WEB",
+  riveduta1927: "R1927",
+  diodati1885: "D1885",
+  almeida1911: "A1911",
+  biblialivre: "BLivre",
+};

@@ -45,6 +45,8 @@ export function MediaTabs({ active }: { active: boolean }) {
   const tabs: TabItem<AssetKind>[] = ASSET_KINDS.map((value) => ({
     icon: value,
     label: t(LABEL_KEY[value]),
+    // The one too long for the narrowest window (2026-11-15 audit, U14).
+    ...(value === "ppt" ? { short: t("library.pptsShort") } : {}),
     value,
   }));
 

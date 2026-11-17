@@ -29,7 +29,7 @@ export async function retireFormerMacApp(): Promise<void> {
     console.warn(`[updates] could not move ${former} to the Trash`, error);
     return;
   }
-  console.log(`[updates] moved ${former} to the Trash`);
+  console.info(`[updates] moved ${former} to the Trash`);
   void dialog.showMessageBox({
     type: "info",
     message: mt("dialogs.formerAppTitle"),

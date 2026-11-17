@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import type { MediaRepo } from "../db/repositories/media.repo";
 import { getSettingsRepo, getSlidesRepo, isDatabaseOpen } from "../services/repos";
-import { liveDeckDir, slidesCacheDir } from "../paths";
+import { liveDeckDir, pdfjsWasmDir, slidesCacheDir } from "../paths";
 import { pdfPageImage, resolveRasterPdf } from "../slides/rasterizer";
 import { renderNativeSlide } from "../slides/native-deck";
 import { decodeEmbeddedFont } from "../slides/pptx/embedded-font";
@@ -12,7 +12,12 @@ import { readBinaryPart } from "../slides/ppt/parts";
 import { containerKind } from "../slides/pptx-metadata";
 import { readZipEntries } from "../slides/zip-reader";
 import { ensureThumbnail } from "../media/thumbnail-service";
+import { byteLru } from "./byte-lru";
 import { serveFile } from "./serve-file";
+import { renameWithRetry } from "../fs-retry";
+
+/** What `worship://wasm/` serves: the decoders `pdfjs.getDocument` fetches from its `wasmUrl`. */
+const PDFJS_WASM = new Set(["openjpeg.wasm", "jbig2.wasm", "qcms_bg.wasm"]);
 
 /** Must run before app.whenReady(). `standard: true` gives worship:// URLs a
  *  hostname + pathname like http, which is what the parsing below relies on. */
@@ -80,7 +85,7 @@ export function registerWorshipProtocolHandler(mediaRepo: MediaRepo): void {
           // virtualized grid, an <img> asking for the bytes IS the signal
           // that this tile is on screen right now.
           if (segments[1] === "thumb") {
-            const asset = mediaRepo.getById(id);
+            const asset = mediaRepo.getById(mediaRepo.survivingId(id));
             // The signal is what retires a queued generation whose tile has
             // scrolled away: Chromium aborts the <img> request when the
             // virtualized grid unmounts it, and there is no point stalling the
@@ -101,7 +106,7 @@ export function registerWorshipProtocolHandler(mediaRepo: MediaRepo): void {
             });
           }
 
-          return serveFile(request, mediaRepo.getPathById(id));
+          return serveFile(request, mediaRepo.getPathById(mediaRepo.survivingId(id)));
         }
         case "logo": {
           return serveFile(request, getSettingsRepo().get("logo.path"));
@@ -187,7 +192,7 @@ export function registerWorshipProtocolHandler(mediaRepo: MediaRepo): void {
           // arbitrary library location.
           const assetId = Number(segments[0]);
           if (!Number.isFinite(assetId)) return new Response("Not found", { status: 404 });
-          return serveFile(request, mediaRepo.linkedAudioPathById(assetId));
+          return serveFile(request, mediaRepo.linkedAudioPathById(mediaRepo.survivingId(assetId)));
         }
         case "raster": {
           // Short-lived capability handed to the offscreen rasterizer window so
@@ -200,12 +205,21 @@ export function registerWorshipProtocolHandler(mediaRepo: MediaRepo): void {
           // no deck yet) or a deck row (every deck was read from a library
           // file) is the positive assertion. Both, because two copies of one
           // PDF share one deck whose source is the copy opened last: taking
-          // THAT copy out of the library left the other — on air — blank.
+          // THAT copy out of the library left the other — on air — blank. And the copy of the deck on air
+          // (`liveCopy`), which is what a page is drawn from once its pendrive is pulled: refused here, the projector
+          // froze on the last page drawn ahead (2026-11-15 audit, A6).
           const resolved = path.resolve(pdfPath);
-          if (!mediaRepo.hasPath(resolved) && !getSlidesRepo().isDeckSource(pdfPath)) {
+          const isLiveCopy = liveCopy !== null && path.resolve(liveCopy.path) === resolved;
+          if (!isLiveCopy && !mediaRepo.hasPath(resolved) && !getSlidesRepo().isDeckSource(pdfPath)) {
             return new Response("Forbidden", { status: 403 });
           }
           return serveFile(request, resolved);
+        }
+        case "wasm": {
+          // pdf.js's decoders, for the rasterizer (its CSP connects to `worship:` only): by name, from a fixed list.
+          const name = segments[0] ?? "";
+          if (!PDFJS_WASM.has(name)) return new Response("Not found", { status: 404 });
+          return serveFile(request, path.join(pdfjsWasmDir, name));
         }
         default:
           return new Response("Not found", { status: 404 });
@@ -243,6 +257,9 @@ async function sourceUnchanged(source: DeckSource): Promise<boolean> {
  */
 let liveCopy: { deckId: number; path: string; source: DeckSource } | null = null;
 let copyingDeckId: number | null = null;
+/** The deck asked for last: the one on air. A copy that lands for another one is dropped. */
+let wantedDeckId: number | null = null;
+let liveCopySeq = 0;
 
 /** Where to read the deck's bytes from: its own file while it is still the one read, else the copy
  *  of it taken when it went live, else nowhere (410). */
@@ -259,20 +276,32 @@ async function readableSource(source: DeckSource): Promise<string | null> {
 
 /** The deck `deckId` is on air: copies its source aside unless it already is. Never blocks main. */
 export function keepLiveDeckSource(deckId: number): void {
+  // Asked even when it returns here: back to the deck already kept, a copy of another one still under way is no
+  // longer the deck on air, and landing it replaced this one's copy and deleted it (2026-11-15 audit, A47).
+  wantedDeckId = deckId;
   if (liveCopy?.deckId === deckId || copyingDeckId === deckId) return;
   const row = getSlidesRepo().getDeckById(deckId);
   if (!row) return;
   const source: DeckSource = { sourcePath: row.sourcePath, sourceSizeBytes: row.sourceSizeBytes, sourceMtimeMs: row.sourceMtimeMs };
   copyingDeckId = deckId;
   const dest = path.join(liveDeckDir, `${deckId}${path.extname(source.sourcePath)}`);
+  // Each copy writes its own file and lands by a rename: two copies of one deck can be under way (D, E, D again inside
+  // D's copy), and one that failed mid-write spoiled the file the other had landed (final pass of the audit, A47).
+  const partial = `${dest}.${++liveCopySeq}.partial`;
   void (async () => {
     try {
       await fs.promises.mkdir(liveDeckDir, { recursive: true });
       if (!(await sourceUnchanged(source))) return;
-      await fs.promises.copyFile(source.sourcePath, dest);
-      if ((await fs.promises.stat(dest)).size !== source.sourceSizeBytes || copyingDeckId !== deckId) {
-        await fs.promises.rm(dest, { force: true });
-        return;
+      try {
+        await fs.promises.copyFile(source.sourcePath, partial);
+        if ((await fs.promises.stat(partial)).size !== source.sourceSizeBytes || wantedDeckId !== deckId) {
+          await fs.promises.rm(partial, { force: true });
+          return;
+        }
+        await renameWithRetry(partial, dest);
+      } catch (error) {
+        await fs.promises.rm(partial, { force: true }).catch(() => undefined);
+        throw error;
       }
       const previous = liveCopy;
       liveCopy = { deckId, path: dest, source };
@@ -290,23 +319,18 @@ const PART_TYPES: Record<string, string> = {
   svg: "image/svg+xml", webp: "image/webp", tif: "image/tiff", tiff: "image/tiff", ico: "image/x-icon",
 };
 
-/**
- * A part of a model deck's package: a picture as is, a metafile (EMF/WMF,
- * which Chromium can't decode) as the SVG `metafileToSvg` makes of it, a font
- * as the TrueType `decodeEmbeddedFont` rebuilds. Immutable like everything
- * under a deck id.
- */
-async function serveDeckPart(request: Request, deckId: number, kind: "part" | "font", part: string): Promise<Response> {
-  const source = Number.isFinite(deckId) ? getSlidesRepo().getDeckSource(deckId) : null;
-  const sourcePath = source && (await readableSource(source));
-  if (!sourcePath) return new Response("Gone", { status: 410 });
+/** A part as served: its bytes and type, or why not (404 not in the file, 415 won't convert). */
+type DeckPart = { body: Uint8Array; type: string } | 404 | 415;
+
+/** A part of a model deck's package as `serveDeckPart` serves it, read and converted from `sourcePath`. */
+function readDeckPart(sourcePath: string, kind: "part" | "font", part: string): DeckPart {
   // A legacy binary's parts are ranges of its OLE streams (`ppt/parts.ts`);
   // a `.pptx`'s and an `.odp`'s, zip entries.
   const raw =
     containerKind(sourcePath) === "binary"
       ? (readBinaryPart(sourcePath, part) ?? undefined)
       : readZipEntries(sourcePath, (name) => name === part)[part];
-  if (!raw) return new Response("Not found", { status: 404 });
+  if (!raw) return 404;
   const ext = part.slice(part.lastIndexOf(".") + 1).toLowerCase();
   let body: Uint8Array | string | null = raw;
   let type = PART_TYPES[ext] ?? "application/octet-stream";
@@ -317,10 +341,40 @@ async function serveDeckPart(request: Request, deckId: number, kind: "part" | "f
     body = metafileToSvg(raw, ext.startsWith("w") ? "wmf" : "emf");
     type = "image/svg+xml";
   }
-  if (body === null) return new Response("Unreadable", { status: 415 });
-  const bytes = typeof body === "string" ? Buffer.from(body) : body;
-  return new Response(request.method === "HEAD" ? null : new Uint8Array(bytes), {
+  if (body === null) return 415;
+  return { body: typeof body === "string" ? Buffer.from(body) : body, type };
+}
+
+/** Parts already read, by the file's stamp: every window drawing a deck (control, projector, stage, NDI) asks for
+ *  the same fonts and pictures, and each was read and converted on main again, 70 to 104 ms a font and up to 460 ms
+ *  a metafile, over a video of the engine on air (2026-11-15 audit, A11). A 415 is kept (the same bytes never
+ *  convert); a 404 never is, sized past the budget: the readers answer a read error (a pen drive that hiccups) as a
+ *  missing part, and kept it was a missing picture for the session (review follow-up). */
+const deckParts = byteLru<DeckPart>(64 * 1024 * 1024, (found) =>
+  found === 404 ? Number.POSITIVE_INFINITY : found === 415 ? 0 : found.body.byteLength,
+);
+
+/**
+ * A part of a model deck's package: a picture as is, a metafile (EMF/WMF,
+ * which Chromium can't decode) as the SVG `metafileToSvg` makes of it, a font
+ * as the TrueType `decodeEmbeddedFont` rebuilds. Immutable like everything
+ * under a deck id.
+ */
+async function serveDeckPart(request: Request, deckId: number, kind: "part" | "font", part: string): Promise<Response> {
+  const source = Number.isFinite(deckId) ? getSlidesRepo().getDeckSource(deckId) : null;
+  const sourcePath = source && (await readableSource(source));
+  if (!source || !sourcePath) return new Response("Gone", { status: 410 });
+  // Synchronous from here: the four windows' asks, awaiting above together, meet in the cache.
+  const key = [source.sourcePath, source.sourceSizeBytes, source.sourceMtimeMs, kind, part].join("\n");
+  const found = deckParts(key, () => readDeckPart(sourcePath, kind, part));
+  if (found === 404) return new Response("Not found", { status: 404 });
+  if (found === 415) return new Response("Unreadable", { status: 415 });
+  return new Response(request.method === "HEAD" ? null : new Uint8Array(found.body), {
     status: 200,
-    headers: { "Cache-Control": "public, max-age=31536000, immutable", "Content-Type": type, "Content-Length": String(bytes.length) },
+    headers: {
+      "Cache-Control": "public, max-age=31536000, immutable",
+      "Content-Type": found.type,
+      "Content-Length": String(found.body.length),
+    },
   });
 }

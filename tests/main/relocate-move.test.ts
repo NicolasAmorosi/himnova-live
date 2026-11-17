@@ -178,6 +178,32 @@ describe("following a move", () => {
     expect((await followMove(move, { media, songs, settings })).fixed.size).toBe(0);
   });
 
+  test("a file the re-linked folder already has at the new place is merged, and the merge is named (audit D4)", async () => {
+    // The stick back as F:, its folder linked again (every file a row of its own, the order of service built from
+    // them), then «Locate…» on last week's missing E: rows: each merges into its F: twin, which is deleted. The
+    // renderer can only move its order of service off the deleted ids if it is told which ones.
+    const media = new MediaRepo(handle.db, handle.sqlite);
+    const songs = new SongsRepo(handle.db, handle.sqlite);
+    const settings = new SettingsRepo(handle.db);
+    const before = path.join(dir, "USB-E", "Videos");
+    const after = path.join(dir, "USB-F", "Videos");
+    write(path.join(before, "uno.mp4"));
+    write(path.join(before, "dos.mp4"));
+    const uno = media.upsertFromPath(path.join(before, "uno.mp4"), "video", true);
+    const dos = media.upsertFromPath(path.join(before, "dos.mp4"), "video", true);
+    fs.mkdirSync(path.dirname(after), { recursive: true });
+    fs.renameSync(before, after);
+    const unoTwin = media.upsertFromPath(path.join(after, "uno.mp4"), "video", false);
+    const dosTwin = media.upsertFromPath(path.join(after, "dos.mp4"), "video", false);
+
+    const located = media.relocate(uno.id, path.join(after, "uno.mp4"));
+    const { merged } = await followMove(moveBetween(namesOf(before), namesOf(after))!, { media, songs, settings });
+
+    expect(located?.merged).toEqual({ from: unoTwin.id, to: uno.id });
+    expect(merged).toEqual([{ from: dosTwin.id, to: dos.id }]);
+    expect(media.getById(dosTwin.id)).toBeNull();
+  });
+
   test("a folder linked by hand at the new place keeps its own songs and is not linked twice", async () => {
     const songs = new SongsRepo(handle.db, handle.sqlite);
     const settings = new SettingsRepo(handle.db);
@@ -195,5 +221,21 @@ describe("following a move", () => {
     expect(settings.get("songs.linkedFolders")).toEqual([after]);
     expect(songs.get(old!.id)?.sourceFolder).toBe(before);
     expect(songs.get(mine!.id)?.sourceFolder).toBe(after);
+  });
+
+  test("the LOGO's picture follows the move too (audit D5)", async () => {
+    // Juan's profile carried to María's computer: everything followed but the LOGO's picture, and LOGO went black.
+    const songs = new SongsRepo(handle.db, handle.sqlite);
+    const settings = new SettingsRepo(handle.db);
+    const media = new MediaRepo(handle.db, handle.sqlite);
+    const juan = path.join(dir, "Users", "juan");
+    const maria = path.join(dir, "Users", "maria");
+    write(path.join(maria, "Pictures", "logo.png"));
+    settings.setMany({ "logo.path": path.join(juan, "Pictures", "logo.png") });
+
+    const { fixed } = await followMove(moveBetween(namesOf(juan), namesOf(maria))!, { media, songs, settings });
+
+    expect(settings.get("logo.path")).toBe(path.join(maria, "Pictures", "logo.png"));
+    expect(fixed.has(path.join(juan, "Pictures", "logo.png"))).toBe(true);
   });
 });

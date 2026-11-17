@@ -14,12 +14,10 @@ import {
   ArrowRight,
   ArrowUp,
   ArrowUpDown,
-  Ban,
   BookOpen,
   BookmarkCheck,
   Check,
   ChevronDown,
-  ChevronLeft,
   ChevronRight,
   ChevronUp,
   Circle,
@@ -80,7 +78,6 @@ import {
   Timer,
   Trash2,
   Type,
-  Upload,
   Volume2,
   VolumeX,
   Webcam,
@@ -101,12 +98,10 @@ const icons = {
   arrowRight: ArrowRight,
   arrowUp: ArrowUp,
   sort: ArrowUpDown,
-  ban: Ban,
   bible: BookOpen,
   bookmarks: BookmarkCheck,
   check: Check,
   chevronDown: ChevronDown,
-  chevronLeft: ChevronLeft,
   chevronRight: ChevronRight,
   chevronUp: ChevronUp,
   circle: Circle,
@@ -174,7 +169,6 @@ const icons = {
   sun: Sun,
   remove: Trash2,
   text: Type,
-  upload: Upload,
   volume: Volume2,
   volumeOff: VolumeX,
   /** The audio strips' output menus: LIVE sounds in the room, PREVIEW in the operator's ears. */
@@ -185,7 +179,6 @@ const icons = {
 } satisfies Record<string, LucideIcon>;
 
 export type IconName = keyof typeof icons;
-export const iconNames = Object.keys(icons) as IconName[];
 
 type IconProps = {
   className?: string;

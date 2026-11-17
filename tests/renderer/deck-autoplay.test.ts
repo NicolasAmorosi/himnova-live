@@ -7,7 +7,7 @@
  * next deck sent live inherited what was left of the previous one's slide.
  */
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
-import { startDeckAutoplay } from "@renderer/effects/deck-autoplay";
+import { restartDeck, startDeckAutoplay } from "@renderer/effects/deck-autoplay";
 import { buildCumulativeMs, useProjectionStore, type LiveDeck } from "@renderer/stores/projection.store";
 
 function deck(assetId: number, advanceAfterMs: number): LiveDeck {
@@ -89,4 +89,35 @@ test("a soundtrack reported paused holds the slide where its music stopped", () 
   status(1.95, false);
   vi.advanceTimersByTime(100);
   expect(useProjectionStore.getState().base).toMatchObject({ slideIndex: 2 });
+});
+
+test("«Reiniciar» on a synced deck never jumps back to the music's slide for an instant", () => {
+  (window as unknown as { worship: unknown }).worship = {
+    invoke: () => Promise.resolve({ ok: true, data: undefined }),
+    on: () => () => {},
+  };
+  const live = { ...deck(4, 10_000), soundtrack: { url: "worship://deck-audio/4", durationMs: null, origin: "embedded" as const, name: "a.mp3" } };
+  sendLive(live);
+  const seen: number[] = [];
+  const unsubscribe = useProjectionStore.subscribe(
+    (st) => (st.base?.kind === "deck" ? st.base.slideIndex : 0),
+    (index) => seen.push(index),
+  );
+  const status = (currentTimeSeconds: number) =>
+    useProjectionStore.getState().setMediaStatus({
+      target: { kind: "audio", trackId: "deck-soundtrack" },
+      epoch: useProjectionStore.getState().soundtrackEpoch,
+      currentTimeSeconds,
+      durationSeconds: 40,
+      paused: false,
+      ended: false,
+    });
+  status(0.1);
+  status(25);
+  restartDeck();
+  status(25.25); // emitted before the projector applied «restart», still in flight
+  status(0.05); // the first report after it
+  status(12); // the music really moved on: synced again
+  unsubscribe();
+  expect(seen).toEqual([3, 1, 2]);
 });

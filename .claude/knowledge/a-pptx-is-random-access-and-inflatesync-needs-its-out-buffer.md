@@ -1,4 +1,4 @@
-## A `.pptx` never has to be read whole to get its XML — and `inflateSync` without `out` costs more than the read does
+## A `.pptx` never has to be read whole to get its XML, and each entry is inflated capped at the size it declares
 **Area:** slides
 **Trigger:** touching `readEntries`/`readPresentationMeta`/`extractAudioParts` in `src/main/slides/pptx-metadata.ts`, `extractHintFromOoxml` in `src/main/slides/linked-audio.ts`, `src/main/slides/zip-reader.ts`, or any new use of `fflate` on a deck.
 
@@ -24,11 +24,20 @@
   it explicitly — `inflateSync(raw, { out: new Uint8Array(uncompressedSize) })` — removed the whole
   gap (final: 0.3 ms, i.e. 2.7× *faster* than reading the file whole). `Buffer.alloc` for the read
   window was the other avoidable cost; it zero-fills megabytes, so `allocUnsafe` is correct there.
-- **Consequence.** Never reach for `unzipSync`/`readFileSync` on a deck again — go through
-  `readZipEntries`. If a future entry-reading path is added, give `inflateSync` its `out` buffer from
-  the central directory's uncompressed size, and remember the measurement discipline that found this:
-  the first two "obvious" optimizations (offsets, then coalescing reads) both looked like regressions
-  until the profile said the cost was in the decompressor's allocation strategy, not in I/O at all.
+- **Consequence.** Never reach for `unzipSync`/`readFileSync` on a deck again: go through
+  `readZipEntries`. And remember the measurement discipline that found this: the first two "obvious"
+  optimizations (offsets, then coalescing reads) both looked like regressions until the profile said
+  the cost was in the decompressor's allocation strategy, not in I/O at all.
+- **2026-11-15 (audit, S7): fflate's `out` is not a cap, so the inflate moved to zlib.** Given an
+  `out` shorter than the stream, `inflateSync` neither throws nor stops: it decodes the WHOLE stream
+  and keeps what fits. A fabricated part declaring 1000 bytes over a 3 GB stream cost 15 s of main,
+  and an honest part whose directory understated it came back cut, in silence. `inflateEntry` is now
+  `zlib.inflateRawSync(raw, { maxOutputLength })` with the declared size as the cap: past it zlib
+  stops and throws, and the entry is skipped as corrupt. The declared size only ever comes from the
+  central directory (a data-descriptor entry has its real sizes there too), so a declared 0 is an
+  empty part, never an unknown one. It is also faster than fflate with `out` (5.0 against 15.4 ms
+  over 800 small parts), and the result is copied out because zlib returns a view of its own 64 KB
+  chunk. A future entry-reading path does the same: cap the inflate, never trust a short `out`.
 - Verified with a differential harness against `unzipSync`, byte for byte, over 622 checks: deflate /
   stored / zip64 / trailing-comment archives, four real `.pptx`, and ~150 legacy binary `.pps` (which
   both implementations must reject). Plus `npm run slides:smoke` on a 22.9 MB `.pptx` and on a
@@ -37,4 +46,4 @@
   does need bounded chunked scanning — is a separate finding: see
   [prewarm-lru-grace-and-linked-audio-full-file-read.md](prewarm-lru-grace-and-linked-audio-full-file-read.md).
 
-**Last updated:** 2026-09-11
+**Last updated:** 2026-11-15

@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { subscribeWithSelector } from "zustand/middleware";
+import { counters } from "@renderer/lib/counters";
 
 /** One audio track playing right now in the projection window — either a
  *  standalone asset sent live or a deck's own soundtrack. Kept separate from
@@ -35,15 +36,13 @@ export type LiveAudioTrack = {
  *  replaced wholesale by `setDeckTrack` on every `goLiveWithDeck`. */
 export const DECK_SOUNDTRACK_TRACK_ID = "deck-soundtrack";
 
-let assetTrackEpoch = 0;
-
-/** Bumps the shared epoch counter — mirrors `videoEpoch` in `playback.ts`.
+/** Bumps the shared epoch counter, like `counters.video` in `playback.ts`.
  *  A track's `epoch` is used as (part of) its React key on the projection
  *  side, so handing out a new one is what makes an `<audio>` element remount
  *  and re-apply `startAtSeconds`, i.e. "restart from the top". */
 function nextEpoch(): number {
-  assetTrackEpoch += 1;
-  return assetTrackEpoch;
+  counters.audioTrack += 1;
+  return counters.audioTrack;
 }
 
 /** `assetId` is folded into the id so two different assets never collide;

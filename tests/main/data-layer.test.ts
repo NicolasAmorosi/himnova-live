@@ -44,7 +44,7 @@ import { DEFAULT_PLATE_STYLE, type Plate } from "../../src/shared/types/overlay"
 import { IpcError } from "../../src/shared/ipc/result";
 import type { UtilityScene } from "../../src/shared/types/utility";
 import { buildLegacyPpt } from "../fixtures/legacy-ppt";
-import type { ProgramSummary } from "../../src/shared/types/program";
+import type { ProgramItemUpsert, ProgramSummary } from "../../src/shared/types/program";
 import type { MediaAsset } from "../../src/shared/types/media";
 
 const DEFAULT_UTILITY_SCENES = defaultUtilityScenes(mainEs.seed);
@@ -132,6 +132,21 @@ describe("Bible seed", () => {
     assert(genesis1.length === 31, `expected 31 verses in Génesis 1, got ${genesis1.length}`);
   });
 
+  // `"p"*` expanded every term with a p in all the versions and blocked main 60 to 95 ms per pause while typing
+  // «en el p» (2026-11-15 audit, R2): a last word under 3 letters is left out, the list shows what «en el» matches.
+  test("a Bible search leaves a short last word out instead of expanding it", () => {
+    const holds = (prefix: string) => (hit: { text: string }) =>
+      new RegExp(`(^|[^\\p{L}])${prefix}`, "iu").test(hit.text.normalize("NFD").replace(/\p{M}/gu, ""));
+    const hits = bibleRepo.search(versionId, "en el p");
+    assert(hits.length === 100, `expected the finished words to fill the list, got ${hits.length}`);
+    assert(!hits.every(holds("p")), "expected hits with no word starting with p: the «p» is not in the query yet");
+    assert(bibleRepo.search(versionId, "en el pri").every(holds("pri")), "from 3 letters the last word filters again");
+    // A space after it finishes the short word: «la fe » searches the whole word «fe», not just «la».
+    const faith = bibleRepo.search(versionId, "la fe ");
+    assert(faith.length > 0, "expected «la fe » to find verses");
+    assert(faith.every(holds("fe(?![\\p{L}])")), "expected every hit of «la fe » to hold the whole word «fe»");
+  });
+
   test("FTS5 search is accent-insensitive and its snippets are never markup", () => {
     const hits = bibleRepo.search(versionId, "espiritu");
     assert(hits.length > 0, "expected FTS search for 'espiritu' to match 'Espíritu'");
@@ -178,6 +193,12 @@ describe("Settings and programs", () => {
     const loaded = programsRepo.load(saved.id);
     assert(loaded.items.length === 1, "program round-trip failed");
     assert(loaded.favorite === false, "program should default to not favorite");
+  });
+
+  test("an item of a kind the repo does not know is refused by name, never saved as an empty verse (2026-11-15 audit, P10)", () => {
+    const item = { kind: "input", inputId: 1, title: null } as unknown as ProgramItemUpsert;
+    expect(() => programsRepo.save({ name: "Con una entrada", items: [item] })).toThrow(/program item kind "input"/);
+    expect(programsRepo.list().map((p) => p.name)).not.toContain("Con una entrada");
   });
 
   test("a row an older build wrote for a key that no longer exists is ignored, not an error", () => {
@@ -1048,7 +1069,9 @@ describe("A time scene as an order-of-service item", () => {
   let scene: UtilityScene;
   let program: ProgramSummary;
 
-  test("a program saves and reloads an item that points at a scene", () => {
+  // Set up here, not in the first test: a test run alone (`-t`) found `program` undefined, and a bare `toThrow()`
+  // took that TypeError for the CHECK (2026-11-15 audit, P7).
+  beforeAll(() => {
     initRepos(db, sqlite);
     scene = utilityRepo.create({ ...DEFAULT_UTILITY_SCENES[0]!, name: "Cuenta del culto" });
     program = programsRepo.save({
@@ -1058,7 +1081,9 @@ describe("A time scene as an order-of-service item", () => {
         { kind: "utility", utilitySceneId: scene.id, title: "Antes de empezar" },
       ],
     });
+  });
 
+  test("a program saves and reloads an item that points at a scene", () => {
     const [first, second] = programsRepo.load(program.id).items;
     assert(
       first?.kind === "utility" && first.utilitySceneId === scene.id,
@@ -1078,7 +1103,7 @@ describe("A time scene as an order-of-service item", () => {
           `INSERT INTO program_items (program_id, position, kind, created_at) VALUES (?, 99, 'utility', ?)`,
         )
         .run(program.id, Date.now()),
-    ).toThrow();
+    ).toThrow(/CHECK constraint failed/);
   });
 
   test("deleting a scene a saved program uses is refused, and names the program", () => {
@@ -1134,7 +1159,7 @@ describe("An overlay plate as an order-of-service item", () => {
   let plate: Plate;
   let program: ProgramSummary;
 
-  test("a program saves and reloads an item that points at a plate", () => {
+  beforeAll(() => {
     initRepos(db, sqlite);
     plate = getOverlaysRepo().create({
       name: "Pastor Juan Pérez",
@@ -1149,6 +1174,9 @@ describe("An overlay plate as an order-of-service item", () => {
       name: "Culto con zócalo",
       items: [{ kind: "plate", overlayPlateId: plate.id, title: null }],
     });
+  });
+
+  test("a program saves and reloads an item that points at a plate", () => {
     const [first] = programsRepo.load(program.id).items;
     assert(
       first?.kind === "plate" && first.overlayPlateId === plate.id,
@@ -1160,14 +1188,14 @@ describe("An overlay plate as an order-of-service item", () => {
     const insert = (sql: string) => () => sqlite.prepare(sql).run(program.id, Date.now());
     expect(
       insert(`INSERT INTO program_items (program_id, position, kind, created_at) VALUES (?, 99, 'plate', ?)`),
-    ).toThrow();
+    ).toThrow(/CHECK constraint failed/);
     const scene = utilityRepo.list()[0]!;
     expect(
       insert(
         `INSERT INTO program_items (program_id, position, kind, overlay_plate_id, utility_scene_id, created_at)
          VALUES (?, 99, 'plate', ${plate.id}, ${scene.id}, ?)`,
       ),
-    ).toThrow();
+    ).toThrow(/CHECK constraint failed/);
   });
 
   test("deleting a plate a saved program uses is refused, and names the program", () => {

@@ -8,7 +8,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { afterAll, beforeAll, expect, test } from "vitest";
+import { afterAll, beforeAll, describe, expect, test, vi } from "vitest";
 import { strToU8, zipSync } from "fflate";
 import type { GroupElement, PictureElement, ShapeElement, SlideElement } from "../../src/shared/types/slide-model";
 import { readOdpMeta } from "../../src/main/slides/odp/meta";
@@ -226,4 +226,36 @@ test("styles.xml that won't parse costs the styles, counted on every page", () =
   const deck = readOdpDeck(file, resources);
   expect(deck.slides).toHaveLength(1);
   expect(deck.slides[0]!.unsupported["styles:unreadable"]).toBe(1);
+});
+
+// 2026-11-15 audit, S6: `text:start-value` had no bound. A roman 1e10 was ten million `m`s (288 ms, 9.5 MB of model
+// for one slide), and `1e999` is Infinity, which ran the worker out of memory.
+describe("list numbering is bounded", () => {
+  const numbered = (format: string, start: string): string =>
+    writeOdp(`list-${format}-${start}.odp`, {
+      mimetype: "application/vnd.oasis.opendocument.presentation",
+      "content.xml": `<office:document-content ${NS}><office:automatic-styles><text:list-style style:name="N1"><text:list-level-style-number text:level="1" style:num-format="${format}" style:num-suffix="."/></text:list-style></office:automatic-styles><office:body><office:presentation><draw:page draw:name="p" draw:master-page-name="Default"><draw:frame svg:x="1cm" svg:y="1cm" svg:width="20cm" svg:height="5cm"><draw:text-box><text:list text:style-name="N1"><text:list-item text:start-value="${start}"><text:p>x</text:p></text:list-item><text:list-item><text:p>y</text:p></text:list-item></text:list></draw:text-box></draw:frame></draw:page></office:presentation></office:body></office:document-content>`,
+      "styles.xml": STYLES,
+    });
+  const labels = (file: string): unknown[] =>
+    shapes(readOdpDeck(file, resources).slides[0]!.model.elements).find((s) => s.text)!.text!.paragraphs.map((p) => (p.bullet?.kind === "char" ? p.bullet.char : null));
+
+  test("past 3999 a roman or lettered list counts in Arabic numerals, as LibreOffice does", () => {
+    expect(labels(numbered("i", "3999"))).toEqual(["mmmcmxcix.", "4000."]);
+    expect(labels(numbered("I", "1e10"))).toEqual(["10000000000.", "10000000001."]);
+    expect(labels(numbered("a", "27"))).toEqual(["aa.", "ab."]);
+    expect(labels(numbered("A", "5000"))).toEqual(["5000.", "5001."]);
+  });
+
+  test("a start value that is not a finite number starts at 1", () => {
+    expect(labels(numbered("i", "1e999"))).toEqual(["i.", "ii."]);
+    expect(labels(numbered("a", "-1e999"))).toEqual(["a.", "b."]);
+  });
+});
+
+// 2026-11-15 audit, S4, review: the deck worker's timer restarts at each slide.
+test("the .odp reader beats once per page", () => {
+  const onSlide = vi.fn();
+  expect(readOdpDeck(deckFile(), { ...resources, onSlide }).slides).toHaveLength(2);
+  expect(onSlide).toHaveBeenCalledTimes(2);
 });

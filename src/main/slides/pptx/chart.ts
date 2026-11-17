@@ -530,7 +530,10 @@ function readValues(el: XmlElement | null): ChartValues | null {
     child(path(el, "c:multiLvlStrRef", "c:multiLvlStrCache"), "c:lvl");
   if (!cache) return null;
   const numeric = cache.name === "c:numCache" || cache.name === "c:numLit";
-  const values: (number | string | null)[] = Array.from({ length: numAttr(child(cache, "c:ptCount"), "val", 0) }, () => null);
+  // Capped like `idx` below: a declared count of two million around one point was 365 MB of model (2026-11-15
+  // audit, S5).
+  const count = Math.min(MAX_POINTS, numAttr(child(cache, "c:ptCount"), "val", 0));
+  const values: (number | string | null)[] = Array.from({ length: count }, () => null);
   for (const pt of children(cache, "c:pt")) {
     const idx = numAttr(pt, "idx", -1);
     if (idx < 0 || idx >= MAX_POINTS) continue;

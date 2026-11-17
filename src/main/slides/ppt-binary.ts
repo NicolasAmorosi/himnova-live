@@ -206,8 +206,6 @@ const DIR_ENTRY_NONE = 0xffffffff;
  */
 const DUAL_STORAGE_NAME = "PP97_DUALSTORAGE";
 
-/** A chain longer than this is a loop in a corrupt file, not a real stream. */
-const MAX_CHAIN_SECTORS = 1 << 20;
 
 export type OleFile = {
   /** Whether the root (or the 97-format storage) holds an entry of that name. */
@@ -223,15 +221,21 @@ export function openOle(fd: number, fileSize: number): OleFile | null {
   if (fs.readSync(fd, header, 0, 512, 0) < 512) return null;
   if (!header.subarray(0, 8).equals(OLE_SIGNATURE)) return null;
 
-  const sectorSize = 1 << header.readUInt16LE(30);
-  const miniSectorSize = 1 << header.readUInt16LE(32);
+  // [MS-CFB] allows exactly these: 512- or 4096-byte sectors, 64-byte mini sectors.
+  const sectorShift = header.readUInt16LE(30);
+  if ((sectorShift !== 9 && sectorShift !== 12) || header.readUInt16LE(32) !== 6) return null;
+  const sectorSize = 1 << sectorShift;
+  const miniSectorSize = 64;
+  // No chain of a real file is longer than the file has sectors. Every walk below stops there, so a fabricated
+  // header or a looping chain costs at most the file's own size: a 1 KB `.ppt` whose DIFAT pointed at itself
+  // with a count of 0xFFFFFFFF held main ~78 minutes, and a 1 MB one made a 128 MB chain (2026-11-15 audit, S2).
+  const maxSectors = Math.ceil(fileSize / sectorSize);
   const fatSectorCount = header.readUInt32LE(44);
   const dirStart = header.readUInt32LE(48);
   const miniCutoff = header.readUInt32LE(56);
   const miniFatStart = header.readUInt32LE(60);
   const difatStart = header.readUInt32LE(68);
   const difatSectorCount = header.readUInt32LE(72);
-  if (sectorSize < 128 || miniSectorSize < 16) return null;
 
   const sectorOffset = (sector: number): number => (sector + 1) * sectorSize;
 
@@ -252,7 +256,10 @@ export function openOle(fd: number, fileSize: number): OleFile | null {
   }
   let difatSector = difatStart;
   const entriesPerDifat = sectorSize / 4 - 1;
-  for (let i = 0; i < difatSectorCount && difatSector !== SECTOR_END_OF_CHAIN; i++) {
+  const seenDifat = new Set<number>();
+  for (let i = 0; i < difatSectorCount && i < maxSectors && difatSector !== SECTOR_END_OF_CHAIN; i++) {
+    if (seenDifat.has(difatSector)) break;
+    seenDifat.add(difatSector);
     const buf = readSector(difatSector);
     if (!buf) break;
     for (let j = 0; j < entriesPerDifat; j++) {
@@ -281,11 +288,11 @@ export function openOle(fd: number, fileSize: number): OleFile | null {
     return buf.readUInt32LE((sector % entriesPerFatSector) * 4);
   };
 
-  const chain = (start: number, next: (s: number) => number): number[] => {
+  const chain = (start: number, next: (s: number) => number, limit = maxSectors): number[] => {
     const out: number[] = [];
     const seen = new Set<number>();
     let sector = start;
-    while (sector !== SECTOR_END_OF_CHAIN && sector !== SECTOR_FREE && out.length < MAX_CHAIN_SECTORS) {
+    while (sector !== SECTOR_END_OF_CHAIN && sector !== SECTOR_FREE && out.length < limit) {
       if (seen.has(sector)) break;
       seen.add(sector);
       out.push(sector);
@@ -373,13 +380,13 @@ export function openOle(fd: number, fileSize: number): OleFile | null {
 
   const streamEntry = (name: string): Entry | null => {
     const entry = streamHome.get(name);
-    return entry && entry.type === DIR_ENTRY_TYPE_STREAM ? entry : null;
+    return entry && entry.type === DIR_ENTRY_TYPE_STREAM && entry.size <= fileSize ? entry : null;
   };
 
   const readSmallStream = (entry: Entry): Buffer | null => {
     loadMini();
     if (!miniStream || !miniFatNext) return null;
-    const sectors = chain(entry.start, miniFatNext);
+    const sectors = chain(entry.start, miniFatNext, Math.ceil(miniStream.length / miniSectorSize));
     const out = Buffer.alloc(sectors.length * miniSectorSize);
     sectors.forEach((sector, i) => {
       const from = sector * miniSectorSize;

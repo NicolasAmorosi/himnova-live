@@ -6,6 +6,7 @@ import type {
   ImportProgress,
   MediaAsset,
   MediaAssetUsages,
+  MergedAsset,
 } from "../types/media";
 import type {
   BibleBookDTO,
@@ -255,13 +256,14 @@ export type IpcContract = {
    *  delete never takes away something they were not told about. */
   "library:usages": { req: { id: number }; res: MediaAssetUsages };
   /** Points a missing row at the file the operator picks, keeping its id;
-   *  `more` = what else the same move fixed (`services/relocate-move.ts`).
+   *  `more` = what else the same move fixed (`services/relocate-move.ts`);
+   *  `merged` = the rows it folded into their twins, gone now (the renderer moves its references).
    *  `null` = the dialog was closed. */
-  "library:relocate": { req: { id: number }; res: { asset: MediaAsset; more: number } | null };
+  "library:relocate": { req: { id: number }; res: { asset: MediaAsset; more: number; merged: MergedAsset[] } | null };
   /** A linked folder that is gone, found where the operator picks: it and
    *  everything else the same move left behind. `name` = the chosen folder's;
-   *  `more` = what else it fixed. `null` = the dialog was closed. */
-  "library:relocateFolder": { req: { path: string }; res: { name: string; more: number } | null };
+   *  `more` = what else it fixed; `merged` as above. `null` = the dialog was closed. */
+  "library:relocateFolder": { req: { path: string }; res: { name: string; more: number; merged: MergedAsset[] } | null };
   /** Manual override for a `ppt` asset's linked soundtrack — `path: null`
    *  clears it back to automatic resolution (`linked-audio.ts`). Never
    *  triggers a deck reconversion: the linked audio is served by reference,
@@ -331,6 +333,15 @@ export type IpcContract = {
    *  its own whether unsaved work may be discarded — `CLAUDE.md`: that
    *  decision belongs to the control window. See `CloseDecision`. */
   "window:closeDecision": { req: { decision: CloseDecision }; res: void };
+  /** The control window's own copy of what is live, sent on every change of it (`effects/live-copy.ts`). Main keeps
+   *  the last one in memory, never reads it and never writes it to disk: what is live is the control window's to know
+   *  (`CLAUDE.md`). Dropped when the control window closes (2026-11-15 audit, A30). */
+  "window:keepLiveCopy": { req: unknown; res: void };
+  /** Asked once by a control page as it starts: the copy the page before it kept (`null` at a launch), whether the
+   *  projector is up, and the projector's last report of its videos (an end that came while no page listened). Read,
+   *  never taken: a second crash before any change needs it again. PREVIEW's engine stops: a new page's PREVIEW is
+   *  empty. */
+  "window:liveCopy": { req: void; res: { copy: unknown; projectorOpen: boolean; mediaStatus: MediaStatus[] } };
 
   /** The saved time scenes, in the operator's manual order. Read once at boot
    *  by `utility.store`, and re-read after every write — the list is small and
@@ -387,7 +398,8 @@ export type IpcContract = {
    *  unchanged since the last read keeps its rows. Throws `FOLDER_MISSING`
    *  when the folder is gone. Saving one of them (`song:update`) writes its
    *  file too, in its format; refused as `SONG_FILE_CHANGED` when the file
-   *  changed outside the app, `SONG_FILE_MISSING`, `SONG_FILE_UNWRITABLE`. */
+   *  changed outside the app, `SONG_FILE_MISSING`, `SONG_FILE_UNWRITABLE`, and `SONG_FILE_TOO_LONG` for a song at a
+   *  limit, which came in cut (`fitSongLimits`) and would lose the rest of its file. */
   "song:listFolder": { req: { path: string }; res: Song[] };
   /** Asks for song files of any supported format in one picker and imports
    *  them into the library; `null` when the operator cancels. A database that
@@ -476,13 +488,15 @@ export type IpcEvents = {
   "audio-tracks": AudioTrackPush[];
   /** -> control window */
   /** The projection window is gone and the control window did not ask for it:
-   *  the OS closed it (the default Electron menu binds Cmd+W and nothing calls
-   *  `Menu.setApplicationMenu`), the projection renderer crashed, or it was
-   *  force-closed. Without this the control keeps `presentationOpen: true`
-   *  forever, and that flag is what `openIfNeeded()` short-circuits on — so GO
-   *  LIVE, BLACK and LOGO would all stop reaching any projector in complete
-   *  silence while the LIVE header kept claiming to be on air. */
-  "projection-closed": void;
+   *  the OS closed it, or it was force-closed, or its renderer died — a dead
+   *  renderer leaves its window up, black or frozen, so main takes it down
+   *  itself (`render-process-gone`) and says `reopen`: the control window
+   *  opens it again onto what was live, unless it keeps dying. Without this
+   *  the control keeps `presentationOpen: true` forever, and that flag is
+   *  what `openIfNeeded()` short-circuits on — so GO LIVE, BLACK and LOGO
+   *  would all stop reaching any projector in complete silence while the
+   *  LIVE header kept claiming to be on air. */
+  "projection-closed": { reopen: boolean };
   /** A screen was connected or disconnected (`windows/projector-screen.ts`):
    *  the control window re-reads `displays:list`. Main itself moves the
    *  projection window. */
@@ -502,6 +516,9 @@ export type IpcEvents = {
   /** An engine session could not open the output it was told (`device`, mpv's name) or lost it (`ok: false`), or
    *  has it again: the control window then routes that bus to the default whole (`effects/audio-route.ts`). */
   "audio-out": { device: string; ok: boolean };
+  /** An engine said `ready` after one could not start (`engineFailsToStart`): the control window asks for the outputs
+   *  again, which it had taken as «none» (`effects/audio-route.ts`). */
+  "engine-starts": void;
   /** `audioRoute:sinkFailed`, from whichever window it failed in, for the control window to resolve again. */
   "audio-sink-failed": { sinkId: string };
   /** What each bus sounds at, after its faders (`media/audio-levels.ts`): left and right in dBFS, `-Infinity`

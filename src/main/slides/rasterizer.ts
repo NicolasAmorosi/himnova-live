@@ -4,7 +4,6 @@ import { randomUUID } from "node:crypto";
 import { SLIDES_RASTER_PAGE_TIMEOUT_MS, SLIDES_THUMB_WIDTH } from "@shared/constants";
 import { SlideError } from "./errors";
 import { takeNewestBurst } from "./raster-order";
-import { trustWindow } from "../ipc/trusted-senders";
 import { mt } from "../i18n";
 
 const PRELOAD = path.join(__dirname, "../preload/index.js");
@@ -84,7 +83,8 @@ async function ensureWindow(): Promise<BrowserWindow> {
     },
   });
 
-  trustWindow(win);
+  // Never trusted with the IPC contract (`trustWindow`): it reads PDFs from anywhere and needs nothing but
+  // `raster:task` and `raster:reply`, which checks it is this window (2026-11-15 audit, S11).
   win.on("closed", () => {
     if (window === win) window = null;
   });
@@ -172,7 +172,8 @@ let channelRegistered = false;
 function registerChannel(): void {
   if (channelRegistered) return;
   channelRegistered = true;
-  ipcMain.handle("raster:reply", (_event, reply: Reply) => {
+  ipcMain.handle("raster:reply", (event, reply: Reply) => {
+    if (!window || event.sender !== window.webContents) return;
     const task = running;
     if (!task || task.id !== reply.id) return;
     if (reply.error) {

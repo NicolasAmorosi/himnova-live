@@ -25,7 +25,8 @@ async function verseLive(app: WorshipApp) {
   return projector;
 }
 
-test("a projector whose renderer dies leaves its reason in crash.log", async ({ app }) => {
+test("a projector whose renderer dies comes back by itself onto what was live, its reason in crash.log", async ({ app }) => {
+  app.crashLogExpected = true;
   await verseLive(app);
   await app.electron.evaluate(({ BrowserWindow }) =>
     BrowserWindow.getAllWindows()
@@ -36,6 +37,79 @@ test("a projector whose renderer dies leaves its reason in crash.log", async ({ 
   await expect
     .poll(() => (fs.existsSync(crashLog) ? fs.readFileSync(crashLog, "utf8") : ""))
     .toMatch(/\[render-process-gone\] \S+\/projection\.html \{"reason":"(crashed|killed)"/);
+  // Before, the dead window stayed up, black or frozen, and nobody was told (2026-11-15 audit, A1).
+  await expect(app.control.getByText("La ventana de proyección se cayó y se volvió a abrir sola")).toBeVisible();
+  await expect.poll(() => app.electron.windows().filter((page) => page.url().endsWith("/projection.html")).length).toBe(1);
+  const projector = await app.projector();
+  await expect(projector.getByText(JUAN_3_16, { exact: false })).toBeVisible();
+});
+
+test("an uncaught error in main is said in a box that leaves main serving the control window", async ({ app }) => {
+  test.skip(process.platform !== "darwin", "measured on macOS: a sheet on the control window keeps main running");
+  app.crashLogExpected = true;
+  await app.electron.evaluate(() => {
+    setTimeout(() => {
+      throw new Error("zz-a23 uncaught in main");
+    }, 0);
+  });
+  const crashLog = path.join(app.profile, "crash.log");
+  await expect.poll(() => (fs.existsSync(crashLog) ? fs.readFileSync(crashLog, "utf8") : "")).toContain("zz-a23");
+  // With the box open, GO LIVE, NEGRO and the engine's frames are IPC and main's own work: `showErrorBox` held main
+  // until somebody clicked (2026-11-15 audit, A23).
+  const within = <T>(promise: Promise<T>) =>
+    Promise.race([promise.then(() => "answered"), new Promise((resolve) => setTimeout(() => resolve("main is held"), 3000))]);
+  for (let i = 0; i < 3; i++) {
+    expect(await within(app.invoke("engine:assets"))).toBe("answered");
+    expect(await within(app.electron.evaluate(() => Date.now()))).toBe("answered");
+  }
+});
+
+test("with the control window minimized, an uncaught error in main brings it back and still leaves main serving", async ({ app }) => {
+  test.skip(process.platform !== "darwin", "measured on macOS: a minimized parent gets the blocking box");
+  app.crashLogExpected = true;
+  const control = () =>
+    app.electron.evaluate(({ BrowserWindow }) => {
+      const w = BrowserWindow.getAllWindows().find((win) => win.webContents.getURL().endsWith("/index.html"))!;
+      return { minimized: w.isMinimized(), visible: w.isVisible() };
+    });
+  // The operator may minimize it mid-service with the projector up (owner, 2026-11-13).
+  await app.electron.evaluate(({ BrowserWindow }) =>
+    BrowserWindow.getAllWindows().find((w) => w.webContents.getURL().endsWith("/index.html"))!.minimize(),
+  );
+  await expect.poll(async () => (await control()).minimized).toBe(true);
+  await app.electron.evaluate(() => {
+    setTimeout(() => {
+      throw new Error("zz-a23 uncaught with the window minimized");
+    }, 0);
+  });
+  const crashLog = path.join(app.profile, "crash.log");
+  await expect.poll(() => (fs.existsSync(crashLog) ? fs.readFileSync(crashLog, "utf8") : "")).toContain("zz-a23");
+  // A minimized window is not visible: the box fell back to `showErrorBox` and held main (review of A23).
+  const within = <T>(promise: Promise<T>) =>
+    Promise.race([promise.then(() => "answered"), new Promise((resolve) => setTimeout(() => resolve("main is held"), 3000))]);
+  for (let i = 0; i < 3; i++) {
+    expect(await within(app.invoke("engine:assets"))).toBe("answered");
+    expect(await within(app.electron.evaluate(() => Date.now()))).toBe("answered");
+  }
+  // Back on screen, with the sheet on it (the restore is animated, and the sheet waits for it): main still serves.
+  await expect.poll(control).toEqual({ minimized: false, visible: true });
+  await new Promise((resolve) => setTimeout(resolve, 500));
+  for (let i = 0; i < 3; i++) {
+    expect(await within(app.invoke("engine:assets"))).toBe("answered");
+    expect(await within(app.electron.evaluate(() => Date.now()))).toBe("answered");
+  }
+});
+
+test("no key of the Mac's app menu hides the app: ⌘H took the projector away with it", async ({ app }) => {
+  test.skip(process.platform !== "darwin", "the app menu is the Mac's; Windows has none");
+  const hide = await app.electron.evaluate(({ Menu }) => {
+    const item = Menu.getApplicationMenu()
+      ?.items[0]
+      ?.submenu?.items.find((entry) => entry.label === "Ocultar Himnova Live");
+    return item ? { role: item.role ?? null, accelerator: item.accelerator ?? null } : null;
+  });
+  // The item is still there, without `role: "hide"` and its ⌘H (2026-11-15 audit, A21).
+  expect(hide).toEqual({ role: null, accelerator: null });
 });
 
 test("a projector closed from outside is announced, and «Reabrir» brings back what was live where it was", async ({ app }) => {
@@ -126,12 +200,14 @@ test("empty files of every kind are added, previewed and sent live without an er
   await app.previewFile("Audios", "vacio");
   await app.goLive();
   await app.control.waitForTimeout(1500);
-  // The two empty decks say they cannot be opened.
+  // The two empty decks say they cannot be opened, in the words main gives. Not «vac»: PREVIEW's header shows the
+  // deck's name, «vacio», which matched with nothing said at all (2026-11-15 audit, P5).
+  const cannotOpen = "No se pudo abrir el archivo como presentación";
   const decks = app.control.getByRole("tabpanel", { name: "Presentaciones" }).getByRole("button", { name: "vacio" });
   await app.previewFile("Presentaciones", "vacio");
-  await expect(app.previewColumn()).toContainText(/no se puede|No se pudo|no es una presentación|vac/i);
+  await expect(app.previewColumn()).toContainText(cannotOpen);
   await decks.nth(1).click();
-  await expect(app.previewColumn()).toContainText(/no se puede|No se pudo|no es una presentación|vac/i);
+  await expect(app.previewColumn()).toContainText(cannotOpen);
   await expect(app.control.getByRole("status").filter({ hasText: "error inesperado" })).toHaveCount(0);
 });
 
@@ -155,7 +231,9 @@ test("with a full-screen editor open, no key drives the projector — typed in i
     await expect(control.getByRole("button", { name: "NEGRO", exact: true }).first()).not.toHaveAttribute("aria-pressed", "true");
   };
 
-  // The song editor: a song's jump keys, digits, the arrows and a remote's PageDown, typed into a note.
+  // The song editor: a song's jump keys, digits, the arrows and a remote's PageDown, typed into a note. The song left
+  // PREVIEW when it went out (owner, 2026-11-15): picked again to edit it.
+  await songs.getByRole("list", { name: "Canciones" }).getByRole("listitem").first().click();
   await songs.getByRole("button", { name: "Editar canción" }).click();
   const notes = editor.getByRole("textbox", { name: "Notas", exact: true });
   await notes.click();

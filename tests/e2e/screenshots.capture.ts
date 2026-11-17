@@ -114,6 +114,8 @@ for (const locale of LOCALES) {
       await expect(slides.getByRole("button", { name: "5", exact: true })).toBeVisible({ timeout: 120_000 });
       await slides.getByRole("button", { name: "2", exact: true }).click();
       await app.goLive();
+      // What went out left PREVIEW (owner, 2026-11-15): picked again, to show its next slide waiting there.
+      await rows.filter({ hasText: holy.title }).click();
       await slides.getByRole("button", { name: "3", exact: true }).click();
       await app.openResources("Medios", "Videos");
       await shoot("control");
@@ -139,6 +141,7 @@ for (const locale of LOCALES) {
       await slides.getByRole("button", { name: "2", exact: true }).click();
       await app.goLive();
       await expect(app.liveColumn().getByText(tr("{title} (música)", { title: fortress.title }))).toBeVisible();
+      await deckTab.getByRole("button", { name: fortress.title }).click();
       await slides.getByRole("button", { name: "3", exact: true }).click();
       await shoot("decks", { x: 533, y: 0, width: 1067, height: 688 });
 
@@ -162,6 +165,7 @@ for (const locale of LOCALES) {
       await control.keyboard.press("ArrowRight");
       await expect(projector.getByText(fortress.stanzas[0]![4]!)).toBeVisible();
       const songSlides = app.previewColumn().getByRole("list", { name: tr("Diapositivas de «{title}»", { title: fortress.title }) });
+      await control.getByRole("tabpanel", { name: tr("Canciones") }).getByRole("listitem").filter({ hasText: fortress.title }).click();
       await songSlides.getByRole("listitem").nth(2).getByRole("button").click();
       await shoot("songs", { x: 533, y: 0, width: 1067, height: 688 });
 

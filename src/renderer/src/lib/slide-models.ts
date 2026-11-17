@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { SlideModel } from "@shared/types/slide-model";
 import { deckFontUrl, deckIdOfUrl, deckPartUrl } from "@shared/urls";
+import { fontsChanged } from "@renderer/components/shared/slide-view/slide-metrics";
 
 /**
  * The slide models this window has asked for, by url (`slideModelUrl`): each
@@ -12,12 +13,22 @@ import { deckFontUrl, deckIdOfUrl, deckPartUrl } from "@shared/urls";
  */
 const ready = new Map<string, SlideModel>();
 const pending = new Map<string, Promise<SlideModel | null>>();
-const fontsLoaded = new Set<string>();
+/** Each embedded font's load, by url: a second slide of the deck waits for the one the first started. */
+const fontLoads = new Map<string, Promise<void>>();
+/** The longest a model waits for its fonts and pictures. Every slide of a deck waits on its font's one load (A42), so a
+ *  font or a picture whose request never ended held the whole deck on air for good (final pass of the 2026-11-15
+ *  audit). What arrives later still lands; the slide is only not held for it. */
+const MODEL_WARM_CAP_MS = 3000;
 
-/** A part of the deck a model url belongs to. */
+const resolvers = new Map<number, (part: string) => string>();
+
+/** A part of the deck a model url belongs to: one function per deck, the same at every render, which `SlideView`'s
+ *  memo compares. */
 export function partResolver(modelUrl: string): (part: string) => string {
   const deckId = deckIdOfUrl(modelUrl) ?? 0;
-  return (part) => deckPartUrl(deckId, part);
+  let resolve = resolvers.get(deckId);
+  if (!resolve) resolvers.set(deckId, (resolve = (part) => deckPartUrl(deckId, part)));
+  return resolve;
 }
 
 export function peekSlideModel(url: string): SlideModel | null {
@@ -35,7 +46,10 @@ export function loadSlideModel(url: string): Promise<SlideModel | null> {
       if (!response.ok) return null;
       const model = (await response.json()) as SlideModel;
       const deckId = deckIdOfUrl(url) ?? 0;
-      await Promise.all([registerFonts(deckId, model), warmPictures(model, partResolver(url))]);
+      await Promise.race([
+        Promise.all([registerFonts(deckId, model), loadFaces(model), warmPictures(model, partResolver(url))]),
+        new Promise((resolve) => setTimeout(resolve, MODEL_WARM_CAP_MS)),
+      ]);
       ready.set(url, model);
       return model;
     } catch {
@@ -89,21 +103,62 @@ export function useSlideModel(
 }
 
 /** A deck's embedded fonts, registered once per window. They beat an installed
- *  face of the same name, as they do in PowerPoint. */
+ *  face of the same name, as they do in PowerPoint. A font another slide is
+ *  still loading is waited for: taking «asked for» as «loaded» let a neighbour
+ *  preloaded right after GO LIVE paint in the fallback face (2026-11-15 audit, A42). */
 async function registerFonts(deckId: number, model: SlideModel): Promise<void> {
   await Promise.all(
-    model.fonts.map(async (font) => {
+    model.fonts.map((font) => {
       const url = deckFontUrl(deckId, font.part);
-      if (fontsLoaded.has(url)) return;
-      fontsLoaded.add(url);
-      const face = new FontFace(font.family, `url("${url}")`, {
-        weight: font.style.startsWith("bold") ? "700" : "400",
-        style: font.style.toLowerCase().includes("italic") ? "italic" : "normal",
-      });
+      let load = fontLoads.get(url);
+      if (!load) {
+        const face = new FontFace(font.family, `url("${url}")`, {
+          weight: font.style.startsWith("bold") ? "700" : "400",
+          style: font.style.toLowerCase().includes("italic") ? "italic" : "normal",
+        });
+        const loading = face.load().then(
+          (loaded) => {
+            document.fonts.add(loaded);
+            // Added already loaded, it fires no `loadingdone`: a slide drawn meanwhile in the fallback is told here.
+            fontsChanged();
+          },
+          // A font Chromium rejects leaves its metric twin or fallback in place.
+          () => undefined,
+        );
+        // Capped once for the whole deck: a load that never ends held every later slide 3 s more each (review of
+        // 2026-11-16). What arrives after the cap still lands, through `fontsChanged`.
+        load = Promise.race([loading, new Promise<void>((resolve) => setTimeout(resolve, MODEL_WARM_CAP_MS))]);
+        fontLoads.set(url, load);
+      }
+      return load;
+    }),
+  );
+}
+
+/** Every face the model's text and charts name (a bundled twin like Carlito, Open Sans, Montserrat), loaded before
+ *  the model is handed out. Measured before it arrived, a baseline (`metricsOf`) or a chart's widths were the
+ *  fallback's, and a slide memoized since (`SlideView`) never measures again (2026-11-15 audit, A41). */
+async function loadFaces(model: SlideModel): Promise<void> {
+  if (typeof document === "undefined" || !document.fonts) return;
+  const fonts = new Set<string>();
+  const visit = (value: unknown): void => {
+    if (Array.isArray(value)) value.forEach(visit);
+    else if (value && typeof value === "object") {
+      const record = value as Record<string, unknown>;
+      const style = `${record["italic"] === true ? "italic " : ""}${record["bold"] === true ? 700 : 400} 16px `;
+      // A text run's or a bullet's CSS family list; a chart's single face.
+      if (typeof record["font"] === "string") fonts.add(style + record["font"]);
+      if (typeof record["face"] === "string") fonts.add(`${style}"${record["face"].replace(/"/g, "")}"`);
+      Object.values(record).forEach(visit);
+    }
+  };
+  visit(model.elements);
+  await Promise.all(
+    [...fonts].map(async (font) => {
       try {
-        document.fonts.add(await face.load());
+        await document.fonts.load(font);
       } catch {
-        // A font Chromium rejects leaves its metric twin or fallback in place.
+        // A list the browser can't parse draws in its fallback, as before.
       }
     }),
   );

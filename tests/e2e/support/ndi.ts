@@ -55,9 +55,10 @@ export function receiveFrames(ndi: NdiSource, seconds: number): Promise<Received
   });
 }
 
-/** The output on, with its sound; `null` when this computer has no NDI runtime. */
-export async function source(app: WorshipApp): Promise<NdiSource | null> {
-  await app.invoke("settings:set", { "ndi.output.name": NAME, "ndi.output.audio": true, "ndi.output.audioDelayMs": 0 });
+/** The output on, with its sound (`audioDelayMs`: Settings' «Sincronía del sonido»); `null` when this computer has no
+ *  NDI runtime. */
+export async function source(app: WorshipApp, audioDelayMs = 0): Promise<NdiSource | null> {
+  await app.invoke("settings:set", { "ndi.output.name": NAME, "ndi.output.audio": true, "ndi.output.audioDelayMs": audioDelayMs });
   await app.invoke("settings:set", { "ndi.output.enabled": true });
   const state = async () => (await app.invoke<{ state: string }>("ndi:getStatus")).state;
   await expect.poll(state, { timeout: 30_000 }).toMatch(/sending|runtime-missing/);

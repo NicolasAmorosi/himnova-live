@@ -101,9 +101,14 @@ Two rules keep it honest without any timer or explicit cleanup:
 
 - **An entry is only shown while its `url` is still what is live.** Moving to the next slide
   or sending something else to air makes it invisible on its own.
-- **`beginScene()` clears the `scene` and `video` entries.** That is what makes re-sending the
-  *same* file a real retry, instead of dragging along the warning about a file the operator
-  already replaced. Audio entries are not cleared: they belong to the lifecycle of the track
+- **An entry goes with its element, never with a scene** (2026-11-15, audit A18). `beginScene()`
+  clears only `scene`; `video`, `slideVideo` and `songVideo` go when their element is replaced (the
+  video's `epoch`, `slideVideoEpoch`, the song background's `epoch`: `errorsAfter` in `setBase`,
+  `setLiveSong`, `setLiveDeck` and `setSlideIndex`), and `plate` when a plate goes up or gets another
+  image. That is what makes re-sending the *same* file a real retry, instead of dragging along the
+  warning about a file the operator already replaced, while BLACK/LOGO over a broken video keeps its
+  warning (the same element, still broken, never reports again) and GO LIVE on it still re-sends it.
+  `OutputView`'s own slots follow the same rule. Audio entries belong to the lifecycle of the track
   list and are removed by `pruneMediaStatus`, in the same pass as the dead `mediaStatus` entries.
 
 `src/renderer/src/effects/deck-autoplay.ts` is the only thing with time-based logic. Two modes:
@@ -184,7 +189,13 @@ A deck's own soundtrack and sounds are never touched by it.
 mirrored into `projection.store` (`liveMasterVolume`) by `App.tsx` like the transition. `selectOutput` multiplies it into
 the video's and the slide clip's `volume` (`busVolume`, `shared/types/audio.ts`) and `toAudioTrackPush` into every audio
 track's, re-pushed when it moves: the projector and the media engine get the level they play at as state, and the
-stores keep each item's own level.
+stores keep each item's own level. Turning the strips on folds a «Volumen inicial» under 100 % into the master
+(`setAudioStrips`, owner 2026-11-15, audit U5): the master takes it and the start goes back to 1, so the room keeps
+its level and the strip shows it instead of a ceiling it hides. Turning them off with the start at 1 moves a master
+under 1 back to the start (and the master to 1): off, LIVE ignores its master, so the room's level would be lost
+(review of U5, 2026-11-16). The switch moves the starting volume only: what is already live keeps its own level, so
+the room hears it change (off, back to 100 %; on, under the new master), and the notice says so when something
+sounds (owner, 2026-11-16: keep the round trip, say it).
 
 A video's end is the operator's choice since 2026-11-05 (`projection.videoEnd`, Settings ▸ Projection,
 mirrored into `projection.store` by `App.tsx` like the transition): «logo» clears as above, «black» clears
@@ -210,12 +221,36 @@ The control is the single source of truth; the projection window has no state of
 `01-architecture.md` on the replay on `did-finish-load`). There is no Context or React state
 shared between windows — they are two separate renderer processes, and the only channel is IPC.
 
-**A media-engine frame goes up on the page's clock where the room looks** (`EngineVideo`, `paced` in the projector
-and the NDI window): copied into a three-canvas queue as it lands — the engine's texture goes back at once — and put
-up at an animation frame by `lib/frame-pacer.ts` (one video frame per its measured share of refreshes). Drawn as it
-landed, the canvas beat against the compositor and the NDI window's 30 Hz by each play's phase. The monitors still
-draw on arrival. `.claude/knowledge/engine-frames-drawn-as-they-land-beat-against-every-compositor.md` has what is
+**A media-engine frame goes up on the page's clock where the room looks** (`EngineVideo`, `paced` in the projector,
+the NDI window and the stage window, whose monitors pass `OutputView`'s `pacedVideo`; 2026-11-15 audit, A32): copied
+into a three-canvas queue as it lands (the engine's texture goes back at once) and put up at an animation frame by
+`lib/frame-pacer.ts` (one video frame per its measured share of refreshes). Drawn as it landed, the canvas beat
+against the compositor and the NDI window's 30 Hz by each play's phase. The control window's monitors (the stage
+panel's included) still draw on arrival.
+`.claude/knowledge/engine-frames-drawn-as-they-land-beat-against-every-compositor.md` has what is
 left (60 fps on a late main frame) and the alternatives measured worse.
+
+**A control page that starts again starts over what is live** (2026-11-15 audit, A30). Main reloads a control window
+whose renderer died (`windows/control-window.ts`, capped like the projector's), and the error screen offers «Recargar».
+A page that started blind reached the room: its first output blanked the projector and its first sound push silenced
+it, and its first actions did worse (CLEAR left the music on, NEGRO taken off put out LOGO over the video). So
+`effects/live-copy.ts` sends main a copy of the stores that hold what is live (the projection store, the sounds, the
+verse's chapter and cursor, the schedule with its live row, the stage's countdown and message, LIVE's mute, whether
+the operator closed the projector, and `lib/counters.ts`, whose epochs must never repeat one on the air) on every
+change; main keeps the last one in memory
+and never reads it (`window:keepLiveCopy`), which keeps the rule above. `main.tsx` asks for it (`window:liveCopy`)
+before the page is drawn, loads the settings, puts the copy back, and only then renders `App`, whose effects find
+nothing changed to push: what reaches the projector is the same output as before, field for field (the E2E
+`control-recovery.spec.ts` compares them). PREVIEW starts empty and its engine stops. A copy that cannot be put back
+leaves the page inert with a message: no effect starts, so nothing reaches the room. The copy is dropped when the
+control window closes.
+
+Two obligations follow for anything new. **State that is live goes in the copy**: a new store, or module-level state
+(a `let` counter or flag) that says what is on the air, is added to `effects/live-copy.ts` or to `lib/counters.ts`.
+And **every effect starts right from restored stores**: one that only reacts to changes leaves a restored deck
+un-armed (its auto-advance had to be armed at start), and one that starts from `null` takes what is playing for
+something else (a deck's sounds went out again from 0:00). `control-recovery.spec.ts` compares what the projector got
+before and after a reload, and measures NDI through one.
 
 The NDI® output (`01-architecture.md`) is a copy of the projector, offscreen: `projection.html?role=ndi` mounts
 `ProjectorCopy` (`components/shared/projector-copy.tsx`) instead of `ProjectionApp`, which draws the same output,
@@ -232,7 +267,14 @@ EasyWorship's two-stage flow:
   in the program, on a verse or on an asset always ends up here.
 - `playback.ts` — `goLive()` is the **only** path from preview to projector, shared by the
   GO LIVE button, Enter, and double-clicking a row, a tile or a verse, so the four cannot
-  diverge. Also `clearLive()` (CLEAR), `advanceSlide`/`gotoSlide` and `toggleOverlay`. It orders
+  diverge. **What went live leaves PREVIEW** (owner, 2026-11-15): `dropSentPreview` empties it and drops
+  the row's or the tile's selection, only after a commit that reached the projector or the speakers (a
+  deck that won't open, a missing file or a superseded press keep it) and only if PREVIEW still holds
+  what was pressed. Not `clearPreview()`, which also drops the live verse's cursor. Everything PREVIEW
+  names (the row by identity, the chapter a verse indexes into) is pinned before the first `await`,
+  so a click during the projector's opening is never what goes out. A deck or a song already on air,
+  picked again, is only uncovered (`isAlreadyLive`), as a video or a countdown already was. The «next»
+  of «Al terminar» (`goLiveWithNextScheduleItem`) never touches PREVIEW. Also `clearLive()` (CLEAR), `advanceSlide`/`gotoSlide` and `toggleOverlay`. It orders
   things so that a deck is **ready before** `base` changes: hitting GO LIVE on a deck not read yet
   leaves the projector as it is instead of cutting to black while it is read; one that won't open
   changes nothing there and says why in a toast (`explainDeckFailure`).
@@ -358,8 +400,8 @@ skipping keeps what was chosen and Escape does nothing.
 | ←/→, PageUp/PageDown | **what is live** — the slide, verse or song slide on screen, derived from `base` and not from the focused panel. PageUp/PageDown are what a presentation remote sends for back/next |
 | 1–9, C, P, F (Shift) | **only with a song live:** verse N, chorus, bridge, ending — the next time it is sung, Shift the previous one. Digits are read by `code`, so Shift+2 is still a 2; the projector forwards `shift` and `code` too |
 | T | **only with a song live:** hide or show its lyrics, the theme's background stays |
-| ↑/↓ | **the preview cursor** — nothing reaches the projector |
-| Enter | sends the preview to the projector (`goLive()`) |
+| ↑/↓ | **the preview cursor** — nothing reaches the projector; nothing at all with PREVIEW empty |
+| Enter | sends the preview to the projector (`goLive()`), which empties PREVIEW; with PREVIEW empty it does nothing, BLACK/LOGO up or not (VIVO, B and L uncover) |
 | Space | pauses/resumes an auto-advancing deck — the shortcut you need to stop dead a PPT that advances by itself |
 | B (or «.») / L | BLACK / LOGO. «.» is a remote's blank-screen button |
 | Delete/Backspace | removes the selected item (library before program) |

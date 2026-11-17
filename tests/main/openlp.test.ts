@@ -272,7 +272,7 @@ describe("OpenLyrics", () => {
     expect(song?.sections[0]?.slides[0]?.chords?.[0]?.map((chord) => chord.name)).toEqual(["Am7", "D7/F#", "Em", "Gsus4", "C"]);
   });
 
-  test("files read in the encoding they declare or carry, never as � (the HASD hymnal, 2026-11-05)", () => {
+  test("files read in the encoding they declare or carry, never as � (the HASD hymnal, 2026-11-05)", async () => {
     const song = (title: string, line: string, encoding: string) =>
       `<?xml version='1.0' encoding='${encoding}'?><song xmlns="http://openlyrics.info/namespace/2009/song" version="0.8">` +
       `<properties><titles><title>${title}</title></titles></properties>` +
@@ -293,7 +293,7 @@ describe("OpenLyrics", () => {
       fs.writeFileSync(file, bytes);
       return file;
     });
-    const read = readOpenLyricsFiles(files);
+    const read = await readOpenLyricsFiles(files);
     expect(read.problems).toBe(0);
     expect(read.songs.map((s) => [s.title, s.sections[0]?.slides[0]?.lines[0]])).toEqual([
       ["1 - Ó Deus de Amor", "vimos nós"],

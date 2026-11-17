@@ -1,10 +1,12 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode, type Ref } from "react";
 import { flushSync } from "react-dom";
-import { Icon } from "@renderer/components/ui";
+// The icon on its own, not the `components/ui` barrel: the barrel brought the four UI dictionaries into the projector,
+// the stage and the NDI copy (298 KB, 2.6 ms and 0.62 MB of heap per output window; 2026-11-15 audit, R23).
+import { Icon } from "@renderer/components/ui/icon";
 import { cn } from "@renderer/lib/utils";
 import { frameCaptureSize } from "@renderer/lib/frame-capture";
+import { entryOf, nextLayers, withoutOutgoing, type Layer, type LayerHold } from "@renderer/lib/output-layers";
 import {
-  isAnimatable,
   isRandomBars,
   randomBarDelays,
   transitionStyle,
@@ -30,7 +32,6 @@ import type {
   MediaStatus,
   ProjectionMediaError,
   ProjectionOutput,
-  SlideEnter,
   SlideVideo,
   SongVideo,
 } from "@shared/types/projection";
@@ -68,31 +69,6 @@ function startFrom(status: MediaStatus | null | undefined, epoch: number, startA
  */
 function canResync(element: HTMLVideoElement): boolean {
   return element.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA && !element.seeking;
-}
-
-/**
- * Serializes everything in an output EXCEPT `transition` — used to tell a
- * genuinely new scene from a push that only bumped `sceneEpoch` while
- * showing the exact same thing (an action re-asserting an overlay that was
- * already up, say). `beginScene()` is called from the action layer based on
- * "did the operator do something", not "did the picture actually change" —
- * that distinction is occasionally wrong at the source (an action forcing an
- * overlay it didn't need to), and re-checking it here, once, means a push
- * like that can never animate a scene fading into an identical copy of
- * itself, no matter which action produced it.
- */
-/** How a slide of the same scene arrives — a deck's slide by its file's own
- *  transition, a song's by its theme's fade. */
-function entryOf(output: ProjectionOutput): SlideEnter | null {
-  return output.kind === "slide" || output.kind === "song" ? output.enter : null;
-}
-
-function sceneContentKey(output: ProjectionOutput): string {
-  // `plates` is not the scene: putting a name on screen must not cross-fade
-  // the stage under it (`PlateLayer` animates each plate on its own).
-  return JSON.stringify(output, (key: string, value: unknown) =>
-    key === "transition" || key === "plates" ? undefined : value,
-  );
 }
 
 type LiveVideoProps = {
@@ -368,7 +344,7 @@ function LiveVideo({
 
 type EngineVideoProps = {
   className: string;
-  /** The projector and the NDI window: frames go up on the page's clock (`FramePacer`). A monitor
+  /** The projector, the NDI window and the stage window: frames go up on the page's clock (`FramePacer`). A monitor
    *  draws them as they land — its cadence nobody watches, and it costs the control window less. */
   paced: boolean;
   /** What main sends this video's frames under (`liveEngineFrameKey`, `previewEngineFrameKey`). */
@@ -425,6 +401,7 @@ function EngineVideo({ className, frameKey, onFirstFrame, onFreezeFrame, paced, 
       const queue: OffscreenCanvas[] = [];
       const pacer = new FramePacer();
       off = window.worship.onVideoFrame(frameKey, (frame) => {
+        if (!raf) raf = requestAnimationFrame(loop);
         if (!pacer.arrived(performance.now())) return;
         const stage = free.pop() ?? queue.shift();
         const stageContext = stage?.getContext("2d");
@@ -442,7 +419,8 @@ function EngineVideo({ className, frameKey, onFirstFrame, onFreezeFrame, paced, 
           present(stage, stage.width, stage.height);
           free.push(stage);
         }
-        raf = requestAnimationFrame(loop);
+        // Paused: no frames, no loop (the next frame starts it again).
+        raf = pacer.idle(now, queue.length) ? 0 : requestAnimationFrame(loop);
       };
       raf = requestAnimationFrame(loop);
     }
@@ -480,6 +458,8 @@ type SlideVideoLayerProps = {
   incomingCovers: boolean;
   mode: OutputViewMode;
   onError: (code: number | null) => void;
+  /** An engine clip's frames go up on the page's clock (`EngineVideo`). */
+  paced: boolean;
   role: LayerRole;
   slideVideo: NonNullable<SlideVideo>;
   /** The projector's own report for this element — only passed in
@@ -524,6 +504,7 @@ function SlideVideoLayer({
   incomingCovers,
   mode,
   onError,
+  paced,
   role,
   slideVideo,
   status,
@@ -638,7 +619,7 @@ function SlideVideoLayer({
           <EngineVideo
             className="absolute object-contain"
             frameKey={liveEngineFrameKey("slideVideo", slideVideo.epoch)}
-            paced={mode === "live"}
+            paced={paced}
             style={rectStyle}
           />
         ) : (
@@ -687,8 +668,8 @@ function SongVideoLayer({
     else element.play().catch(() => undefined);
   }, [covered]);
   // Captured on mount (the ref is detached before an unmount's cleanup runs).
-  // An engine background has no element, and a theme changed to another file
-  // reuses this one with a new `src`, which drops the old player by itself.
+  // An engine background has no element, and another file always comes with
+  // another epoch, so another element: this one only ever plays one `src`.
   useEffect(() => {
     const element = videoRef.current;
     return () => {
@@ -1060,6 +1041,10 @@ type OutputViewProps = {
    *  a local failure already shows up in this view's own notice. */
   onMediaError?: (error: ProjectionMediaError) => void;
   output: ProjectionOutput;
+  /** A monitor that is a screen people watch (the stage window): the engine's frames go up on the page's clock, as on
+   *  the projector (`EngineVideo`), not as they land. Drawn on arrival, a 30 fps video alternated 17 and 50 ms there
+   *  (2026-11-15 audit, A32). Always so in `mode === "live"`. */
+  pacedVideo?: boolean | undefined;
   /** Urls the *projector* reported as failed. What makes the LIVE monitor's
    *  notice describe the projector rather than its own second, independently
    *  decoding copy of the same file — the monitor may well be able to play
@@ -1086,17 +1071,6 @@ type OutputViewProps = {
    * Honored only in `mode === "monitor"`: the projector never reads it.
    */
   videoStill?: { posterUrl: string | null; videoUrl: string | null } | undefined;
-};
-
-/** One stacked scene, keyed by a local sequence number — NOT by
- *  `output.transition.epoch` directly, so a rapid run of scene changes never
- *  produces key gaps or reuses a stale one. */
-type Layer = {
-  seq: number;
-  output: ProjectionOutput;
-  /** Set only on the outgoing half of a transition away from a video — see
-   *  `freezeFrame`. */
-  frozenFrame?: HTMLCanvasElement | null;
 };
 
 /**
@@ -1154,15 +1128,6 @@ function captureFrame(video: HTMLVideoElement | HTMLCanvasElement): HTMLCanvasEl
   return canvas;
 }
 
-/** Drops the outgoing half of a finished transition, leaving one "steady"
- *  layer (`role` is derived from `layers.length`, so this is also what takes
- *  the survivor off its keyframe and back to a plain opacity). Module-level so
- *  both callers — `animationend` and its fallback timer — share one definition
- *  without either becoming an effect dependency. */
-function withoutOutgoing(layers: Layer[], seq: number): Layer[] {
-  return layers.length > 1 && layers[0]?.seq === seq ? layers.slice(1) : layers;
-}
-
 /**
  * Renders a `ProjectionOutput`. The projection window and both confidence
  * monitors (live + preview) all go through this one component, so what the
@@ -1187,8 +1152,10 @@ function withoutOutgoing(layers: Layer[], seq: number): Layer[] {
  * above), while a changed epoch retains the previous scene as an "outgoing"
  * layer under a fresh "incoming" one and fades between them per
  * `output.transition.style`/`durationMs`. At most two layers ever exist —
- * a transition that arrives mid-flight drops the older one immediately
- * rather than growing a queue.
+ * a new scene that arrives mid-flight drops the older one immediately
+ * rather than growing a queue, while a push of the same scene mid-flight
+ * leaves the fade running. Which is which is `nextLayers`
+ * (`lib/output-layers.ts`), pure and tested.
  *
  * The persistent `<video>` (kept mounted independent of any layer — see
  * `LiveVideo`) participates in the same fade: covering/uncovering it with
@@ -1221,12 +1188,14 @@ export function OutputView({
   noticeLabel,
   onMediaError,
   output,
+  pacedVideo = false,
   reportedErrorUrls,
   slideVideoRef,
   slideVideoStatus,
   videoRef,
   videoStill,
 }: OutputViewProps) {
+  const paced = mode === "live" || pacedVideo;
   // Warm the neighbouring slides so a change never waits on a decode. Plain
   // Image objects rather than hidden DOM nodes: no layout, no paint, and
   // nothing stray in the render tree. Only the real projector needs this.
@@ -1291,10 +1260,12 @@ export function OutputView({
    *  (and cleared) on the very next pass, so it can never surface in a later,
    *  unrelated transition. */
   const pendingFrozenFrameRef = useRef<HTMLCanvasElement | null>(null);
-  const topRef = useRef<Layer>({ seq: 0, output });
+  /** What `layers` holds, readable from a timer or the effect below without waiting for a render. Written only by
+   *  `commitLayers`. */
+  const layersRef = useRef<Layer[]>([{ seq: 0, output }]);
   const lastEpochRef = useRef(output.transition.epoch);
   const leaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [layers, setLayers] = useState<Layer[]>(() => [topRef.current]);
+  const [layers, setLayers] = useState<Layer[]>(() => layersRef.current);
   const [transition, setTransition] = useState<LayerTransition>(output.transition);
   /** The last slide entry seen (`output.enter.seq`), so a push re-sending the
    *  same slide — a plate, a volume — does not play its way in again. */
@@ -1311,18 +1282,33 @@ export function OutputView({
    *
    * `held` is only the paint side; `holdRef` is what the release needs (whose
    * fallback to arm, for how long) and `readyVideoEpochRef` covers a first
-   * frame that arrived before the push that would have held for it.
+   * frame that arrived before the push that would have held for it. While it
+   * waits, nothing but that frame or the cap takes the picture on screen down:
+   * not a push of the same scene (the LIVE fader, a plate), not a new scene
+   * (audit A2: both used to leave the video's empty box on the projector).
    */
   const [held, setHeld] = useState(false);
-  const holdRef = useRef<{ epoch: number; seq: number; durationMs: number } | null>(null);
+  const holdRef = useRef<LayerHold | null>(null);
   const holdTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const readyVideoEpochRef = useRef<number | null>(null);
 
+  function commitLayers(next: Layer[]) {
+    layersRef.current = next;
+    setLayers(next);
+  }
+
+  function clearLeaveFallback() {
+    if (leaveTimerRef.current !== null) {
+      clearTimeout(leaveTimerRef.current);
+      leaveTimerRef.current = null;
+    }
+  }
+
   function armLeaveFallback(seq: number, durationMs: number) {
-    if (leaveTimerRef.current !== null) clearTimeout(leaveTimerRef.current);
+    clearLeaveFallback();
     leaveTimerRef.current = setTimeout(() => {
       leaveTimerRef.current = null;
-      setLayers((prev) => withoutOutgoing(prev, seq));
+      commitLayers(withoutOutgoing(layersRef.current, seq));
     }, durationMs + LEAVE_FALLBACK_MARGIN_MS);
   }
 
@@ -1360,83 +1346,37 @@ export function OutputView({
   // screen whenever the browser painted before it ran — a black frame leaving
   // a video in 10 of 12 measured transitions.
   useLayoutEffect(() => {
-    const sameEpoch = lastEpochRef.current === output.transition.epoch;
-    lastEpochRef.current = output.transition.epoch;
-    const sameContent = sceneContentKey(topRef.current.output) === sceneContentKey(output);
-    // Within a scene, a slide the deck moved forward onto plays its own way
-    // in (`enter`); a new scene plays the scene fade, whatever slide it opens.
-    const enter = entryOf(output);
-    const slideEntered =
-      sameEpoch &&
-      enter !== null &&
-      enter.seq !== lastEnterSeqRef.current &&
-      topRef.current.output.kind === output.kind;
-    lastEnterSeqRef.current = enter?.seq ?? null;
-    const layerTransition: LayerTransition | null = !sameEpoch
-      ? output.transition
-      : slideEntered
-        ? enter
-        : null;
-
-    // Taken unconditionally: whichever branch runs, a frame left over from a
-    // push that is not going to animate must not be waiting around for one
-    // that will.
+    // Taken unconditionally: whichever way this push goes, a frame left over
+    // from one that did not animate must not be waiting around for one that will.
     const frozenFrame = pendingFrozenFrameRef.current;
     pendingFrozenFrameRef.current = null;
 
-    // Whatever this push is, it replaces the scene an earlier hold was for.
+    const step = nextLayers({
+      layers: layersRef.current,
+      hold: holdRef.current,
+      output,
+      lastEpoch: lastEpochRef.current,
+      lastEnterSeq: lastEnterSeqRef.current,
+      nextSeq: seqRef.current + 1,
+      frozenFrame,
+      animate: shouldAnimate,
+      videoMounted,
+      readyVideoEpoch: readyVideoEpochRef.current,
+    });
+    lastEpochRef.current = output.transition.epoch;
+    lastEnterSeqRef.current = entryOf(output)?.seq ?? null;
+    commitLayers(step.layers);
+
+    if (step.kind === "patch") return; // a fade or a hold in flight goes on as it was
+    // Anything else replaces the scene an earlier hold was for.
     cancelHold();
-
-    // A new video waits for its first frame with the previous picture on, cut or fade (owner, 2026-11-12: never
-    // black in between) — see the video hold above.
-    const incomingVideoEpoch = output.kind === "video" ? output.videoUnderlay?.epoch : undefined;
-    const holdsForVideo =
-      videoMounted &&
-      incomingVideoEpoch !== undefined &&
-      incomingVideoEpoch !== topRef.current.output.videoUnderlay?.epoch &&
-      readyVideoEpochRef.current !== incomingVideoEpoch;
-
-    if (
-      !shouldAnimate ||
-      sameContent ||
-      !layerTransition ||
-      (!isAnimatable(layerTransition) && !holdsForVideo)
-    ) {
-      // Content-only refresh: same layer, same key, no animation. This is
-      // what keeps navigating within a live deck/verse, a pause toggle, or
-      // an overlay's own `covered` prop an instant, un-keyed swap — exactly
-      // like before transitions existed. `sameContent` catches the case a
-      // changed epoch alone can't: an action that begins a new scene without
-      // the picture actually changing (see `sceneContentKey`).
-      const nextTop = { seq: topRef.current.seq, output };
-      topRef.current = nextTop;
-      // Any in-flight transition is over by definition — this collapses to a
-      // single layer, so its fallback has nothing left to drop.
-      if (leaveTimerRef.current !== null) {
-        clearTimeout(leaveTimerRef.current);
-        leaveTimerRef.current = null;
-      }
-      setLayers([nextTop]);
+    if (step.kind === "steady") {
+      // Nothing left in flight, so the fallback has nothing to drop.
+      clearLeaveFallback();
       return;
     }
-
-    // A genuinely new scene: the current top becomes the outgoing layer, a
-    // fresh one enters on top of it. Only two layers are ever kept — a
-    // transition that arrives mid-flight replaces the pair outright (the
-    // older of the two is dropped without waiting for its own animation),
-    // rather than growing a queue.
-    // The frame only belongs to a layer that WAS the video: the element also
-    // unmounts when an overlay's own scene is replaced, and that layer paints
-    // its own content.
-    const outgoing: Layer = {
-      ...topRef.current,
-      frozenFrame: topRef.current.output.kind === "video" ? frozenFrame : null,
-    };
-    seqRef.current += 1;
-    const incoming: Layer = { seq: seqRef.current, output };
-    topRef.current = incoming;
-    setTransition(layerTransition);
-    setLayers([outgoing, incoming]);
+    seqRef.current = step.layers[1].seq;
+    setTransition(step.transition);
 
     // The fallback that makes `animationend` optional. It never arrives if the
     // animation never ran — and an Electron window that is occluded (fully
@@ -1451,16 +1391,13 @@ export function OutputView({
     // A hold defers it: the fallback is armed by `releaseHold`, and the hold's
     // own cap is a `setTimeout` for the same occluded-window reason. A cut
     // held this way is two layers too, and its release is the cut itself.
-    if (holdsForVideo) {
-      if (leaveTimerRef.current !== null) {
-        clearTimeout(leaveTimerRef.current);
-        leaveTimerRef.current = null;
-      }
-      holdRef.current = { epoch: incomingVideoEpoch, seq: outgoing.seq, durationMs: layerTransition.durationMs };
+    if (step.hold) {
+      clearLeaveFallback();
+      holdRef.current = step.hold;
       holdTimerRef.current = setTimeout(releaseHold, VIDEO_READY_TIMEOUT_MS);
       setHeld(true);
     } else {
-      armLeaveFallback(outgoing.seq, layerTransition.durationMs);
+      armLeaveFallback(step.layers[0].seq, step.transition.durationMs);
     }
     // The helpers above only touch refs and state setters.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1478,11 +1415,8 @@ export function OutputView({
   );
 
   function handleLeaveComplete(seq: number) {
-    if (leaveTimerRef.current !== null) {
-      clearTimeout(leaveTimerRef.current);
-      leaveTimerRef.current = null;
-    }
-    setLayers((prev) => withoutOutgoing(prev, seq));
+    clearLeaveFallback();
+    commitLayers(withoutOutgoing(layersRef.current, seq));
   }
 
   // One slot each, holding the url that last failed — never a growing set.
@@ -1497,16 +1431,25 @@ export function OutputView({
   // ...except when the SAME url comes back working. A USB drive unplugged and
   // plugged in again, or a file relocated, keeps its `worship://asset/<id>`:
   // the projector played it the second time and the LIVE monitor kept the red
-  // band of the first, lying to the operator about the room. A new scene is a
-  // new attempt, so it starts clean; a failure in it fills the slot again.
+  // band of the first, lying to the operator about the room. A new attempt
+  // starts clean, and each slot knows its own: a new scene for its picture, a
+  // new element for each video (its epoch), a plate put up again. Not a new
+  // scene for a video: under BLACK/LOGO it is the same element, still broken,
+  // and it never says so again (audit A18).
   const sceneEpoch = output.transition.epoch;
-  useEffect(() => {
-    setFailedSceneUrl(null);
-    setFailedVideoUrl(null);
-    setFailedSlideVideoUrl(null);
-    setFailedSongVideoUrl(null);
-    setFailedPlateUrl(null);
-  }, [sceneEpoch]);
+  useEffect(() => setFailedSceneUrl(null), [sceneEpoch]);
+  const videoEpoch = output.videoUnderlay?.epoch;
+  useEffect(() => setFailedVideoUrl(null), [videoEpoch]);
+  const slideVideoEpoch = output.slideVideo?.epoch;
+  useEffect(() => setFailedSlideVideoUrl(null), [slideVideoEpoch]);
+  const songVideoEpoch = output.songVideo?.epoch;
+  useEffect(() => setFailedSongVideoUrl(null), [songVideoEpoch]);
+  // A plate that leaves the stage (taken down, or under BLACK/LOGO) mounts its image again when it comes back.
+  const plateImages = output.plates.map((plate) => plate.imageUrl ?? "").join("\n");
+  useEffect(
+    () => setFailedPlateUrl((failed) => (failed !== null && plateImages.split("\n").includes(failed) ? failed : null)),
+    [plateImages],
+  );
 
   function handleImageError(url: string) {
     setFailedSceneUrl(url);
@@ -1666,11 +1609,18 @@ export function OutputView({
 
   /** The song's video background plays here — not in PREVIEW, which never
    *  starts a video on its own, nor where the still stands in, nor once it
-   *  failed: then each song layer paints its still instead. */
-  const songVideo = output.songVideo ?? null;
+   *  failed: then each song layer paints its still instead. A song leaving
+   *  for anything else keeps it, paused, under its fade until its layer goes:
+   *  the push's output has none, and dropping it there turned the leaving song
+   *  black with its still before it faded (2026-11-15 audit, A13). Borrowed,
+   *  only that layer is see-through over it: a song without one entering
+   *  paints its own background. */
+  const borrowed = !output.songVideo;
+  const songVideo = output.songVideo ?? layers[0]?.output.songVideo ?? null;
   const songVideoMounted =
     songVideo !== null && videoMounted && mode !== "preview" && !hasFailed(songVideo.url);
-  const videoBehind = (layer: Layer) => songVideoMounted && layer.output.kind === "song";
+  const videoBehind = (layer: Layer) =>
+    songVideoMounted && layer.output.kind === "song" && (!borrowed || layer === layers[0]);
 
   const incoming = layers[1];
   // A song over its video is see-through: what it replaces fades out instead
@@ -1691,10 +1641,10 @@ export function OutputView({
           song's video is a new element and the same song's slides are not. */}
       {songVideo && songVideoMounted ? (
         <SongVideoLayer
-          covered={output.kind !== "song"}
+          covered={output.kind !== "song" || borrowed}
           key={songVideo.epoch}
           onError={handleSongVideoError}
-          paced={mode === "live"}
+          paced={paced}
           songVideo={songVideo}
         />
       ) : null}
@@ -1729,7 +1679,7 @@ export function OutputView({
           key={engineFrameKey}
           onFirstFrame={() => handleVideoFirstFrame(output.videoUnderlay?.epoch ?? 0)}
           onFreezeFrame={shouldAnimate ? freezeFrame : undefined}
-          paced={mode === "live"}
+          paced={paced}
           style={transitionStyle(videoRole, transition, output.kind !== "video" ? 0 : 1, held, incomingCovers)}
         />
       ) : output.videoUnderlay && videoMounted ? (
@@ -1767,6 +1717,7 @@ export function OutputView({
           key={output.slideVideo.epoch}
           mode={mode}
           onError={handleSlideVideoError}
+          paced={paced}
           role={slideVideoRole}
           slideVideo={output.slideVideo}
           status={slideVideoStatus}

@@ -83,6 +83,18 @@ describe("the CSV", () => {
     );
   });
 
+  test("a title or an author Excel would run as a formula is written as text", () => {
+    const formulas = [
+      { title: '=HYPERLINK("http://example.invalid/x","Gracia")', authors: "-2+3", ccliNumber: null, days: [at("2026-11-08")] },
+      { title: "+1", authors: "@SUM(A1)", ccliNumber: null, days: [at("2026-11-08")] },
+      { title: "\tTab", authors: "\rCR", ccliNumber: null, days: [at("2026-11-08")] },
+    ];
+    const rows = songUsageCsv(formulas).split("\r\n");
+    expect(rows).toContain(`"'=HYPERLINK(""http://example.invalid/x"",""Gracia"")";'-2+3;;1;2026-11-08`);
+    expect(rows).toContain("'+1;'@SUM(A1);;1;2026-11-08");
+    expect(rows).toContain(`'\tTab;"'\rCR";;1;2026-11-08`);
+  });
+
   test("English: «,»", () => {
     setMainLocale("en");
     expect(songUsageCsv(uses).split("\r\n")[0]).toBe("\uFEFFTitle,Authors,CCLI number,Uses,Dates");

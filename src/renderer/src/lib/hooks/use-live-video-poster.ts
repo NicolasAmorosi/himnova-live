@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "@renderer/lib/api";
+import { survivingAssetId } from "@renderer/stores/program.store";
 import { assetThumbUrl, assetThumbVersion } from "@shared/urls";
 
 /**
@@ -13,8 +14,10 @@ export function useLiveVideoPoster(assetId: number | null): string | null {
   useEffect(() => {
     if (assetId === null) return;
     let alive = true;
+    // A video on air keeps the id it went out with; a relocate may have merged its row into a twin since
+    // (2026-11-15 audit, D4).
     void api.library
-      .get(assetId)
+      .get(survivingAssetId(assetId))
       .then((asset) => {
         if (alive && asset) setPoster({ assetId, url: assetThumbUrl(asset.id, assetThumbVersion(asset)) });
       })

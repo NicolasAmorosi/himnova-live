@@ -27,11 +27,12 @@ import { api } from "@renderer/lib/api";
 import { toast } from "@renderer/lib/toast";
 import { transitionDurationOptions } from "@renderer/lib/transition";
 import { copyName } from "@renderer/lib/named-list";
-import { useSongFit } from "@renderer/lib/song-fit";
+import { useSettledSongFit } from "@renderer/lib/song-fit";
 import { footerAt, slideLines, slideTranslation, songOutputFor } from "@renderer/lib/song-output";
 import { deleteSongTheme, saveSongTheme } from "@renderer/lib/actions/songs";
 import { findSong, resolveSong, useSongStore } from "@renderer/stores/song.store";
 import { usePreviewStore } from "@renderer/stores/preview.store";
+import { useProjectionStore } from "@renderer/stores/projection.store";
 import { useSettingsStore } from "@renderer/stores/settings.store";
 import { isSongThemeUpsert } from "@shared/song-validators";
 import { parseLyrics, withTranslation } from "@shared/song-text";
@@ -140,6 +141,7 @@ export function SongThemesModal({ onOpenChange, open }: { onOpenChange: (open: b
   const themes = useSongStore((s) => s.themes);
   const songs = useSongStore((s) => s.songs);
   const target = usePreviewStore((s) => s.target);
+  const liveSongId = useProjectionStore((s) => (s.base?.kind === "song" ? s.base.songId : null));
   const license = useSettingsStore((s) => s.settings["songs.ccliLicense"]);
   const [editing, setEditing] = useState<Editing | null>(null);
   const [pending, setPending] = useState<Pending | null>(null);
@@ -180,7 +182,11 @@ export function SongThemesModal({ onOpenChange, open }: { onOpenChange: (open: b
   const savable = editing !== null && isSongThemeUpsert(editing.draft);
   const canSave = savable && (editing.themeId === null || dirty);
 
-  const previewed = (target?.kind === "song" ? findSong(songs, target.songId) : null) ?? SAMPLE;
+  // The song in PREVIEW, else the one live (it left PREVIEW when it went out), else a sample.
+  const previewed =
+    (target?.kind === "song" ? findSong(songs, target.songId) : null) ??
+    (liveSongId !== null ? findSong(songs, liveSongId) : null) ??
+    SAMPLE;
   const style = editing?.draft.style ?? DEFAULT_SONG_THEME;
   const preview = useMemo(() => {
     const resolved = resolveSong(previewed, style, license);
@@ -189,7 +195,7 @@ export function SongThemesModal({ onOpenChange, open }: { onOpenChange: (open: b
       ? resolveSong(SAMPLE, style, license)
       : resolved;
   }, [previewed, style, license, sample]);
-  const fit = useSongFit(preview, style);
+  const fit = useSettledSongFit(preview, style);
   // «Con traducción» on the first slide that HAS one: a song's translation may start later.
   const position =
     sample === "last"
@@ -315,8 +321,8 @@ export function SongThemesModal({ onOpenChange, open }: { onOpenChange: (open: b
       <EditorScreen
         inspector={
           editing ? (
-            <Inspector key={editing.themeId ?? "new"} label={t("songThemes.title")}>
-          <InspectorSection title={t("style.groups.background")}>
+            <Inspector id="songThemes" key={editing.themeId ?? "new"} label={t("songThemes.title")}>
+          <InspectorSection id="background" title={t("style.groups.background")}>
             <BackgroundFields<SongBackground>
               addingImages={addingImages}
               addingVideos={addingVideos}
@@ -334,7 +340,7 @@ export function SongThemesModal({ onOpenChange, open }: { onOpenChange: (open: b
             />
           </InspectorSection>
 
-          <InspectorSection title={t("songThemes.groups.lyrics")}>
+          <InspectorSection id="lyrics" title={t("songThemes.groups.lyrics")}>
             <FontFamilyFields onChange={(fontFamily) => patchStyle({ fontFamily })} value={style.fontFamily} />
             <TextStyleFields
               onChange={(text) => patchStyle({ text })}
@@ -395,7 +401,7 @@ export function SongThemesModal({ onOpenChange, open }: { onOpenChange: (open: b
             </DependentFields>
           </InspectorSection>
 
-          <InspectorSection title={t("songThemes.groups.spacing")}>
+          <InspectorSection id="spacing" title={t("songThemes.groups.spacing")}>
             <VerticalAlignField onChange={(verticalAlign) => patchStyle({ verticalAlign })} value={style.verticalAlign} />
             <FieldRow label={t("settings.verse.textAlign")}>
               <Select
@@ -443,7 +449,7 @@ export function SongThemesModal({ onOpenChange, open }: { onOpenChange: (open: b
             </FieldRow>
           </InspectorSection>
 
-          <InspectorSection
+          <InspectorSection id="footer"
             // The canvas to a slide that carries the footer by this theme's own rule.
             onFocus={() => setSample(style.footer.show === "first" ? "first" : "last")}
             title={t("songThemes.groups.footer")}
@@ -484,7 +490,7 @@ export function SongThemesModal({ onOpenChange, open }: { onOpenChange: (open: b
             )}
           </InspectorSection>
 
-          <InspectorSection defaultOpen={false} onFocus={() => setSample("translation")} title={t("songThemes.groups.translation")}>
+          <InspectorSection id="translation" defaultOpen={false} onFocus={() => setSample("translation")} title={t("songThemes.groups.translation")}>
             <FieldRow description={t("songThemes.translationScaleHint")} label={t("songThemes.translationScale")}>
               <Slider
                 format={(value) => `${Math.round(value * 100)}%`}
@@ -511,7 +517,7 @@ export function SongThemesModal({ onOpenChange, open }: { onOpenChange: (open: b
             </FieldRow>
           </InspectorSection>
 
-          <InspectorSection defaultOpen={false} title={t("songThemes.groups.transition")}>
+          <InspectorSection id="transition" defaultOpen={false} title={t("songThemes.groups.transition")}>
             <FieldRow description={t("songThemes.transitionHint")} label={t("songThemes.transition")}>
               <Select
                 onChange={(value) =>

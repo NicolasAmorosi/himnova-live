@@ -22,6 +22,7 @@ import { DamagedSlideMark } from "@renderer/components/shared/damaged-slide";
 import { useDeck } from "@renderer/lib/hooks/use-deck";
 import { useDeckStore } from "@renderer/stores/deck.store";
 import { useProjectionStore } from "@renderer/stores/projection.store";
+import { survivingAssetId } from "@renderer/stores/program.store";
 import { usePreviewStore } from "@renderer/stores/preview.store";
 import { clearPreview, setPreviewSlide } from "@renderer/lib/actions/preview";
 import { seekPreview, togglePreviewPlayback } from "@renderer/lib/actions/preview-playback";
@@ -192,7 +193,7 @@ export function DeckSlides({ assetId, missingSince }: { assetId: number; missing
   const base = useProjectionStore((s) => s.base);
   const previewIndex = usePreviewStore((s) => s.slideIndex);
 
-  const isLive = base?.kind === "deck" && base.assetId === assetId;
+  const isLive = base?.kind === "deck" && survivingAssetId(base.assetId) === assetId;
   const liveIndex = isLive ? base.slideIndex : null;
 
   if (missingSince !== null) {

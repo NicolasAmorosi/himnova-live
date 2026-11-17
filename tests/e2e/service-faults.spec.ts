@@ -115,19 +115,41 @@ test("a .pptx whose file goes away while it is live keeps showing its next slide
   await expect(projector.locator("body")).toContainText("Diapo 4");
 });
 
-test("Enter on the video that is already live and playing does not restart it; it only uncovers it", async ({ app }) => {
+test("a PDF whose file goes away while it is live keeps showing its next pages", async ({ app }) => {
+  const pdf = copyIn(app, "long.pdf", "avisos.pdf");
+  await app.invoke<MediaAsset[]>("library:add", { kind: "ppt", paths: [pdf] });
+  await app.previewFile("Presentaciones", "avisos");
+  await expect(app.previewColumn().getByText("1/160", { exact: true })).toBeVisible({ timeout: 60_000 });
+  await app.goLive();
+  const projector = await app.projector();
+  await expect.poll(() => projectedImage(projector)).toEqual({ n: 1, loaded: true });
+  await app.control.waitForTimeout(1500); // its copy is taken in the background as it goes live
+  fs.renameSync(pdf, `${pdf}.gone`);
+  for (let i = 0; i < 3; i++) await app.control.keyboard.press("PageDown");
+  // Pages nobody drew yet. Before, the projector froze on page 2, the last one drawn ahead (2026-11-15 audit, A6).
+  await expect.poll(() => projectedImage(projector), { timeout: 10_000 }).toEqual({ n: 4, loaded: true });
+});
+
+test("an extra Enter on the video live does not restart it; under NEGRO, its row picked again, Enter only uncovers it", async ({
+  app,
+}) => {
   await addToSchedule(app, copyIn(app, "clip.mp4"));
   await scheduleRows(app).first().click();
   await app.control.keyboard.press("Enter");
   const projector = await app.projector();
   await expect.poll(async () => (await videoStates(projector))[0]?.currentTime ?? 0).toBeGreaterThan(2);
-  // PREVIEW still holds the same row: an extra Enter (or a double-click on the row) is easy.
+  // It left PREVIEW when it went out (owner, 2026-11-15): an extra Enter has nothing to send.
   await app.control.keyboard.press("Enter");
   await app.control.waitForTimeout(500);
   expect((await videoStates(projector))[0]?.currentTime ?? 0).toBeGreaterThan(2);
-  // Under BLACK the same Enter uncovers it, still where it was.
+  // Under BLACK, Enter with PREVIEW empty does nothing either (owner, 2026-11-15)…
   await app.control.locator("body").press("b");
   await expect(app.liveColumn().getByText("NEGRO").first()).toBeVisible();
+  await app.control.keyboard.press("Enter");
+  await app.control.waitForTimeout(500);
+  expect((await videoStates(projector))[0]?.paused).toBe(true);
+  // …and its row picked again — an easy slip mid-service — only uncovers it, still where it was.
+  await scheduleRows(app).first().click();
   await app.control.keyboard.press("Enter");
   await expect.poll(async () => (await videoStates(projector))[0]?.paused).toBe(false);
   expect((await videoStates(projector))[0]?.currentTime ?? 0).toBeGreaterThan(2);
@@ -147,6 +169,28 @@ async function hymnWithMusicLive(app: WorshipApp) {
   await expect.poll(async () => (await audioStates(projector))[0]?.currentTime ?? 0).toBeGreaterThan(0.5);
   return projector;
 }
+
+test("a projector whose renderer dies mid-hymn comes back on its slide, the music where it was, not from 0:00", async ({
+  app,
+}) => {
+  app.crashLogExpected = true;
+  const first = await hymnWithMusicLive(app);
+  await expect.poll(async () => (await audioStates(first))[0]?.currentTime ?? 0).toBeGreaterThan(2.5);
+  await app.electron.evaluate(({ BrowserWindow }) =>
+    BrowserWindow.getAllWindows()
+      .find((win) => win.webContents.getURL().endsWith("/projection.html"))
+      ?.webContents.forcefullyCrashRenderer(),
+  );
+  await expect(app.control.getByText("La ventana de proyección se cayó y se volvió a abrir sola")).toBeVisible();
+  const projector = await app.projector();
+  // The first reading of the new window, not a later one: a hymn restarted from 0:00 is past 2 s again soon enough.
+  // Its slides follow its music («synced»), so a restart would also show slide 1 (2026-11-15 audit, A1).
+  await expect.poll(async () => (await audioStates(projector))[0]?.readyState ?? 0).toBeGreaterThan(0);
+  expect((await audioStates(projector))[0]?.currentTime ?? 0).toBeGreaterThan(2);
+  expect(await projectedSlide(projector)).toBeGreaterThanOrEqual(2);
+  // How long the room was without a projector, for the record.
+  console.log(app.log.find((line) => line.includes("[projector] mounted again")) ?? "[projector] no timing line");
+});
 
 test("«Reiniciar» under BLACK rewinds the hymn but its music stays paused behind the cover", async ({ app }) => {
   const projector = await hymnWithMusicLive(app);

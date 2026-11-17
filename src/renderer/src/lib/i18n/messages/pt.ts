@@ -6,13 +6,15 @@ const pt: Messages = {
     modalCrashed: "Algo deu errado nessa janela e ela foi fechada",
     unexpectedError: "Ocorreu um erro inesperado. O app continua funcionando.",
     reload: "Recarregar",
+    controlRecovered: "A janela de controle fechou por um erro e voltou. O que está no ar continuou como estava.",
+    controlRecoveryFailed:
+      "A janela de controle fechou por um erro e não conseguiu voltar. O que está no ar continua como está: reinicie o app quando puder.",
   },
   header: {
     openDisplay: "Abrir tela",
     /** The name of a schedule never saved: not «New program», the button's command (2026-11-05). */
     untitled: "Sem título",
     closeDisplay: "Fechar tela",
-    controlDisplay: "(tela de controle)",
   },
   schedule: {
     title: "Roteiro",
@@ -45,6 +47,7 @@ const pt: Messages = {
     closeAnyway: "Fechar mesmo assim",
     closeOnAirTitle: "Fechar o app?",
     closeOnAirBody: "Há conteúdo no projetor. Ao fechar, a tela de projeção desliga.",
+    closeSoundBody: "“{name}” está tocando. Ao fechar, ele para de tocar no salão.",
     closeEditorBody:
       "Há um editor aberto com alterações não salvas: ao fechar o app, elas se perdem.",
   },
@@ -145,6 +148,7 @@ const pt: Messages = {
     images: "Imagens",
     audios: "Áudios",
     ppts: "Apresentações",
+    pptsShort: "Apresent.",
     add: "Adicionar",
     addHint: "Adicionar arquivos à biblioteca",
     addUnsupported:
@@ -618,7 +622,6 @@ const pt: Messages = {
     invalidHint: "Um tema precisa de um nome.",
     name: "Nome",
     groups: {
-      theme: "Tema",
       lyrics: "Letra",
       spacing: "Espaços",
       footer: "Rodapé de copyright",
@@ -789,6 +792,7 @@ const pt: Messages = {
     previewMute: "Silenciar o preview",
     outputIs: "{output}: {name}",
     systemDefault: "Padrão do sistema",
+    systemDefaultNamed: "Do sistema: {name}",
     unplugged: "{name} (desconectada)",
     sharedOutput: "Também se ouve na igreja: sai pela mesma saída que o Ao vivo.",
     sharedOutputNdi: "Também se ouve na igreja e no NDI: sai pela mesma saída que o Ao vivo.",
@@ -799,11 +803,18 @@ const pt: Messages = {
     toastUnusable: "{output}: {name} não pode ser usada. Toca pela padrão do sistema.",
     toastBack: "{output}: {name} está conectada de novo.",
     toastStripsOff: "Faixas desligadas: o volume geral ao vivo volta a 100%.",
+    toastStripsOffKept: "Faixas desligadas: o volume geral ao vivo ({level}%) passa a ser o volume inicial.",
+    toastStripsOn: "Faixas ligadas: o volume inicial ({level}%) passa a ser o volume geral ao vivo.",
+    toastStripsOffKeptLive:
+      "Faixas desligadas: o volume geral ao vivo ({level}%) passa a ser o volume inicial, e o que já está ao vivo volta a 100%.",
+    toastStripsOnLive:
+      "Faixas ligadas: o volume inicial ({level}%) passa a ser o volume geral ao vivo, e o que já está ao vivo toca mais baixo.",
   },
   live: {
     takeOffAir: "Tirar do ar",
     title: "Ao vivo",
     disconnected: "Sem tela",
+    screenLost: "Tela desconectada",
     noSignal: "Sem sinal",
     logoMissing: "Nenhum logo carregado",
     logoMissingHint: "Escolha um em Configurações › Projeção",
@@ -815,6 +826,7 @@ const pt: Messages = {
   footerHints: { goLive: "Mandar a prévia para o projetor", logo: "Mostrar o logo", black: "Tela preta", live: "Voltar a mostrar o conteúdo" },
   projector: {
     closedUnexpectedly: "A janela de projeção foi fechada",
+    recovered: "A janela de projeção travou e reabriu sozinha",
     screenLost:
       "A tela do projetor foi desconectada. O que está ao vivo continua rodando, com som, e volta a aparecer assim que a tela se reconectar.",
     screenBack: "A tela do projetor voltou",
@@ -830,6 +842,11 @@ const pt: Messages = {
     saveHint: "Salvar as alterações neste roteiro",
     saveNoChanges: "Sem alterações",
     duplicateName: "{name} (cópia)",
+    sameNameTitle: "Já existe um programa «{name}»",
+    sameNameReplaceBody: "Você pode substituí-lo pelo programa que está aberto, ou manter os dois com o mesmo nome.",
+    sameNameKeepBody: "A lista vai mostrar dois programas com o mesmo nome.",
+    sameNameReplace: "Substituir",
+    sameNameKeepBoth: "Manter os dois",
     new: "Novo roteiro",
     newHint: "Começar um roteiro novo e vazio",
     createAndOpen: "Criar e abrir",
@@ -1428,7 +1445,7 @@ const pt: Messages = {
         title: "Escolha",
         body: "Um clique num versículo, numa música ou num arquivo coloca no Preview. Ali só você vê.",
       },
-      live: { title: "Projete", body: "Enter, um clique duplo ou AO VIVO manda para o projetor." },
+      live: { title: "Projete", body: "Enter, um clique duplo ou AO VIVO manda para o projetor, e o preview fica livre para o que vem depois." },
       cover: {
         title: "Cubra",
         body: "PRETO deixa a tela preta e LOGO mostra sua igreja. Com NO AR volta o que estava.",
@@ -1469,9 +1486,10 @@ const pt: Messages = {
   whatsNew: {
     title: "Novidades",
     caption: "O que há de novo na {version}",
+    captionSince: "O que há de novo desde a {version}",
     skip: "Fechar as novidades",
     finish: "Pronto",
-    steps: { stage: "Palco", sound: "Som", done: "Resumo" },
+    steps: { stage: "Palco", sound: "Som", preview: "Preview", done: "Resumo" },
     stage: {
       title: "Uma tela para o palco",
       subtitle: "Se vocês têm uma tela de retorno no palco, o Himnova Live mostra ao pregador quanto tempo falta e aos músicos o que vem a seguir. Você controla pelo painel Palco, embaixo à esquerda.",
@@ -1480,9 +1498,24 @@ const pt: Messages = {
       views: { title: "Pregador e Músicos", body: "Pregador: a contagem grande, a hora e o que está sendo projetado. Músicos: o que está no ar e o que vem depois, com os acordes da música." },
       configure: "Escolher a tela do palco",
     },
+    preview: {
+      title: "O que vai ao ar sai do Preview",
+      subtitle: "Quando você manda algo para o projetor, o Preview fica vazio, pronto para o que vem depois. Assim um Enter a mais não recomeça o hino que está tocando.",
+      demo: "Preview e Ao vivo enquanto dois versículos são mandados",
+      free: { title: "O Preview fica livre", body: "O que você mandou aparece em Ao vivo. No programa, a linha é desmarcada e mantém sua marca de no ar." },
+      enter: { title: "Um Enter a mais não faz nada", body: "Com o Preview vazio, Enter e AO VIVO não mexem no que está no ar." },
+      back: { title: "Voltar ao que está no ar", body: "Se você escolher de novo, AO VIVO só descobre e nunca recomeça. Para começar do zero, use «Reiniciar»." },
+      beats: {
+        pick: "Você escolhe um versículo: ele aparece no Preview.",
+        send: "Você manda: vai para Ao vivo e o Preview fica vazio.",
+        pickNext: "Você escolhe o seguinte.",
+        sendNext: "Você manda, e o Preview fica livre de novo.",
+      },
+    },
     done: {
       title: "É isso",
       subtitle: "O que você escolheu já está salvo. Dá para ver estas novidades de novo em Configurações ▸ Sobre.",
+      subtitleNoChoices: "Dá para ver estas novidades de novo em Configurações ▸ Sobre.",
       noStage: "Ainda sem tela de palco",
       screens: "Configurar",
       alsoTitle: "Também nesta versão",
@@ -1491,6 +1524,15 @@ const pt: Messages = {
         minimize: "Se você minimizar a janela de controle, o projetor e o palco continuam onde estão.",
         screens: "Em Configurações ▸ Telas você escolhe o que cada tela faz, e “Identificar” mostra o número em cada uma.",
         startVolume: "O volume inicial foi para Configurações ▸ Som.",
+        extraEnter: "Um Enter a mais no hino no ar não o recomeça mais.",
+        coverSounds: "PRETO e LOGO não recomeçam mais os sons de uma apresentação.",
+        projectorBack: "Se a janela do projetor travar, ela abre de novo sozinha com o que estava no ar.",
+        damagedDb: "Se o banco de dados for danificado, o app oferece restaurar a última cópia diária.",
+        fader: "Baixar Ao vivo até 0 e subir de novo volta ao nível que tinha.",
+        quitSound: "Fechar o app também pergunta quando só há música tocando.",
+        scannedPdf: "PDFs escaneados são projetados com suas imagens.",
+        stageFreeze: "No Windows, mandar uma mensagem ou uma contagem regressiva para o palco não congela mais o vídeo no projetor.",
+        controlBack: "Se a janela de controle travar, ela volta sozinha sobre o que está no ar.",
       },
     },
   },

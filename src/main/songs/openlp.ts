@@ -2,7 +2,13 @@ import fs from "node:fs";
 import Database from "better-sqlite3";
 import { XMLParser } from "fast-xml-parser";
 import { isWrittenChord, sectionKey, slideFromWritten, withTranslation } from "@shared/song-text";
-import { isSongUpsert, SONG_FIELD_MAX_LENGTH, SONG_NOTES_MAX_LENGTH, SONG_TITLE_MAX_LENGTH } from "@shared/song-validators";
+import {
+  fitSongLimits,
+  isSongUpsert,
+  SONG_FIELD_MAX_LENGTH,
+  SONG_NOTES_MAX_LENGTH,
+  SONG_TITLE_MAX_LENGTH,
+} from "@shared/song-validators";
 import { SONG_SECTION_NUMBER_MAX, type SongSection, type SongSectionType, type SongUpsert } from "@shared/types/song";
 import { walkXml } from "../db/seed/bible-formats/xml-ordered";
 import { ccliNumber, clip, type SongsRead } from "./easyworship";
@@ -229,7 +235,9 @@ export function readOpenLpDatabase(file: string): SongsRead {
         order: readOrder(row.verse_order, sections),
         themeId: null,
       };
-      if (isSongUpsert(song)) songs.push(song);
+      // Past a limit the song is fitted, never dropped (2026-11-15 audit, D8).
+      const fitted = fitSongLimits(song);
+      if (isSongUpsert(fitted)) songs.push(fitted);
       else problems += 1;
     }
     return { songs, problems };
@@ -388,12 +396,15 @@ export function readOpenLyrics(xml: string): Omit<SongUpsert, "id"> | null {
     order: readOrder(verseOrder, sections),
     themeId: null,
   };
-  return isSongUpsert(song) ? song : null;
+  const fitted = fitSongLimits(song);
+  return isSongUpsert(fitted) ? fitted : null;
 }
 
 /** OpenLyrics files, each read on its own: one that cannot be read, or reads
- *  as no song, is a problem and the rest still come in. */
-export function readOpenLyricsFiles(files: readonly string[]): SongsRead {
+ *  as no song, is a problem and the rest still come in. Read asynchronously, so
+ *  main is let go between files: a whole songbook read in one go held it for
+ *  ~0.1 s, and with it a video of the engine on air (2026-11-15 audit, A24). */
+export async function readOpenLyricsFiles(files: readonly string[]): Promise<SongsRead> {
   const songs: SongsRead["songs"] = [];
   let problems = 0;
   let unsupported = 0;
@@ -401,14 +412,14 @@ export function readOpenLyricsFiles(files: readonly string[]): SongsRead {
     let song: Omit<SongUpsert, "id"> | null = null;
     let mtime = 0;
     try {
-      const text = decodeText(fs.readFileSync(file));
+      const text = decodeText(await fs.promises.readFile(file));
       // Another program's XML (EasySlides, ProPresenter…) is no song of this format.
       if (!isOpenLyrics(text)) {
         unsupported += 1;
         continue;
       }
       song = readOpenLyrics(text);
-      mtime = Math.floor(fs.statSync(file).mtimeMs);
+      mtime = Math.floor((await fs.promises.stat(file)).mtimeMs);
     } catch (error) {
       console.warn("[songs] OpenLyrics file unreadable", file, error);
       unsupported += 1;

@@ -140,3 +140,13 @@ test("a combo's plot on other axes goes on the second value scale", () => {
   expect(chart.secondary?.axis.crosses).toBe("max");
   expect(chart.valueAxis?.crosses).toBe("autoZero");
 });
+
+// 2026-11-15 audit, S5 (parser half): `ptCount` sized the values with no cap, while `idx` had one; two million
+// declared around one point were 365 MB of model. Two hundred thousand tell the same, lighter.
+test("a series declaring more points than Excel allows is cut at Excel's 32 000", () => {
+  const huge = `<c:numRef><c:numCache><c:formatCode>General</c:formatCode><c:ptCount val="200000"/><c:pt idx="0"><c:v>1</c:v></c:pt></c:numCache></c:numRef>`;
+  const [c] = readCharts("ptcount.pptx", [
+    space(`<c:plotArea><c:barChart><c:barDir val="col"/>${ser(0, `<c:val>${huge}</c:val>`)}<c:axId val="1"/><c:axId val="2"/></c:barChart>${axes(1, 2)}</c:plotArea>`),
+  ]);
+  expect(drawn(c).plots[0]?.series[0]?.values.values.length).toBe(32000);
+});

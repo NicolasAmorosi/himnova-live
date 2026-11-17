@@ -20,21 +20,24 @@ export function markFirstStep(id: FirstStepId): void {
  * finds the step already done.
  */
 export function startFirstSteps(): () => void {
+  // Each on the change that IS the step, never on a state that was already so: any later change of the store (a
+  // media report, opening the checklist itself) ticked what was done before it opened (2026-11-15 audit, U9).
   const stops = [
-    usePreviewStore.subscribe((state) => {
-      if (state.target !== null) markFirstStep("preview");
+    usePreviewStore.subscribe((state, previous) => {
+      if (state.target !== null && state.target !== previous.target) markFirstStep("preview");
     }),
-    useProjectionStore.subscribe((state) => {
-      if (state.base !== null) markFirstStep("live");
-      if (state.base?.kind === "song") markFirstStep("song");
-      if (state.overlay === "black" || state.overlay === "logo") markFirstStep("cover");
+    useProjectionStore.subscribe((state, previous) => {
+      if (state.base !== null && state.base !== previous.base) markFirstStep("live");
+      if (state.base?.kind === "song" && state.base !== previous.base) markFirstStep("song");
+      if ((state.overlay === "black" || state.overlay === "logo") && state.overlay !== previous.overlay) markFirstStep("cover");
     }),
-    useProgramStore.subscribe((state) => {
-      if (state.items.length > 0) markFirstStep("schedule");
+    useProgramStore.subscribe((state, previous) => {
+      if (state.items.length > previous.items.length) markFirstStep("schedule");
     }),
-    useSettingsStore.subscribe((state) => {
+    useSettingsStore.subscribe((state, previous) => {
       // Written whenever a saved program is the one open (`App`): saving one, or opening one.
-      if (state.settings["programs.openId"] !== null) markFirstStep("save");
+      const open = state.settings["programs.openId"];
+      if (open !== null && open !== previous.settings["programs.openId"]) markFirstStep("save");
     }),
   ];
   return () => stops.forEach((stop) => stop());

@@ -8,13 +8,14 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { afterAll, beforeAll, describe, expect, test } from "vitest";
+import { deflateSync } from "node:zlib";
+import { afterAll, beforeAll, describe, expect, test, vi } from "vitest";
 import type { ShapeElement, SlideElement, SlideModel } from "../../src/shared/types/slide-model";
 import { color, parseMsoShapes, shapeGeometry, emptyProps, P } from "../../src/main/slides/ppt/escher";
 import { readPptModelDeck } from "../../src/main/slides/ppt/model-reader";
 import { decodePart, encodePart, readBinaryPart } from "../../src/main/slides/ppt/parts";
 import { textBody, type TextData } from "../../src/main/slides/ppt/text";
-import { buildLegacyPpt, jpegHeader, rec, u32s, type LegacyDeck } from "../fixtures/legacy-ppt";
+import { buildLegacyPpt, compoundFile, jpegHeader, rec, u32s, type LegacyDeck } from "../fixtures/legacy-ppt";
 
 const msoShapes = parseMsoShapes(fs.readFileSync(path.join(__dirname, "../../resources/ooxml/mso-shapes.json"), "utf8"));
 let dir = "";
@@ -150,6 +151,24 @@ describe("text", () => {
     expect(number(true)).toEqual(["1", "2"]);
     expect(number(false)).toEqual([]);
   });
+
+  test("an automatic date says the date the file stored, never the day the deck was first read", () => {
+    // `new Date()` at read time: the model is kept, so the footer showed the day of the first read for weeks, in the
+    // system's format (2026-11-15 audit, A43; the stored text, as .pptx and .odp do).
+    const date = (stored: string | null): string[] => {
+      const flags = Buffer.alloc(4);
+      flags.writeUInt16LE(0x1 | 0x2, 2); // shown, «today's date»
+      const records = [rec(0x0, 0, 0x0fda, flags), ...(stored === null ? [] : [rec(0x0, 0, 0x0fba, Buffer.from(stored, "utf16le"))])];
+      const { deck } = read({
+        documentRecords: [rec(0xf, 3, 0x0fd9, records)],
+        masterDrawing: [{ type: 1, rect: [100, 4800, 1700, 4300], clientData: [placeholderAtom(7)], textRecords: [header(4), chars("*"), rec(0x0, 0, 0x0ff8, u32s(0))] }],
+        slides: [{ slideFlags: 0x7 }],
+      });
+      return deck.slides.flatMap((s) => textShapes(s.model).map(runText));
+    };
+    expect(date("12/10/2025")).toEqual(["12/10/2025"]);
+    expect(date(null).filter((text) => text !== "")).toEqual([]);
+  });
 });
 
 describe("drawing", () => {
@@ -185,6 +204,20 @@ describe("drawing", () => {
     const part = picture.kind === "picture" ? picture.image.part : "";
     expect(decodePart(part)).toMatchObject({ stream: "p", codec: "raw", ext: "jpg" });
     expect(Buffer.from(readBinaryPart(file, part)!)).toEqual(jpeg);
+  });
+
+  // 2026-11-15 audit, S3: a compressed metafile was inflated with no cap, in main, per request and per window.
+  test("a compressed metafile part that inflates past 64 MB is refused, not inflated", () => {
+    const small = deflateSync(Buffer.alloc(1024 * 1024, 7));
+    const bomb = deflateSync(Buffer.alloc(80 * 1024 * 1024), { level: 9 });
+    const file = path.join(dir, "metafile-bomb.ppt");
+    fs.writeFileSync(file, compoundFile([{ name: "Pictures", data: Buffer.concat([small, bomb]) }]));
+    const part = (offset: number, length: number): string => encodePart({ stream: "p", offset, length, codec: "z", ext: "emf" });
+    expect(readBinaryPart(file, part(0, small.length))!.length).toBe(1024 * 1024);
+    const t0 = performance.now();
+    // The length, not the bytes: a failure printing 80 MB would take the worker down with it.
+    expect(readBinaryPart(file, part(small.length, bomb.length))?.length ?? null).toBeNull();
+    expect(performance.now() - t0).toBeLessThan(500);
   });
 
   test("a hidden slide and the slide's timing reach the metadata", () => {
@@ -271,4 +304,13 @@ describe("autonumbered bullets", () => {
     const body = textBody(data, emptyProps(), { sheets: new Map(), fonts: [], scheme, slideNumber: 1, footer: null, date: null, miss: () => {} });
     expect(body.paragraphs.map((p) => (p.bullet?.kind === "char" ? p.bullet.char : null))).toEqual(["ii.", "iii.", "iv."]);
   });
+});
+
+// 2026-11-15 audit, S4, review: the deck worker's timer restarts at each slide.
+test("the legacy reader beats once per slide", () => {
+  const file = path.join(dir, "beat.ppt");
+  fs.writeFileSync(file, buildLegacyPpt({ slides: [{ slideFlags: 0x7 }, { slideFlags: 0x7 }] }));
+  const onSlide = vi.fn();
+  expect(readPptModelDeck(file, { msoShapes, onSlide }).deck.slides).toHaveLength(2);
+  expect(onSlide).toHaveBeenCalledTimes(2);
 });

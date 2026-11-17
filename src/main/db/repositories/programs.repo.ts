@@ -34,7 +34,6 @@ function toItemDTO(row: typeof programItems.$inferSelect): ProgramItemDTO {
     case "song":
       return { ...base, kind: "song", songId: row.songId! };
     case "bible":
-    default:
       return {
         id: row.id,
         position: row.position,
@@ -47,6 +46,10 @@ function toItemDTO(row: typeof programItems.$inferSelect): ProgramItemDTO {
         reference: row.bibleReference ?? "",
         text: row.bibleText ?? "",
       };
+    // A kind added to the table and forgotten here fails to compile; read as an empty verse, it went unnoticed
+    // (2026-11-15 audit, P10).
+    default:
+      throw new Error(`Unknown program item kind "${String(row.kind satisfies never)}"`);
   }
 }
 
@@ -385,7 +388,7 @@ export class ProgramsRepo {
    * this FK is `set null`, so the delete it precedes cannot fail and cannot
    * remove a row. It exists so the confirmation can NAME what changes —
    * "these schedules lose the version" — instead of the operator finding out
-   * next Sunday that a verse stopped printing «RV1909» underneath itself.
+   * at the next service that a verse stopped printing «RV1909» underneath itself.
    */
   findBibleVersionUsages(versionId: number): BibleVersionUsage[] {
     return this.db
@@ -443,7 +446,6 @@ function toRow(programId: number, position: number, item: ProgramItemUpsert, now
     case "song":
       return { ...common, kind: "song" as const, songId: item.songId, title: item.title };
     case "bible":
-    default:
       return {
         ...common,
         kind: "bible" as const,
@@ -455,5 +457,7 @@ function toRow(programId: number, position: number, item: ProgramItemUpsert, now
         bibleReference: item.reference,
         bibleText: item.text,
       };
+    default:
+      throw new Error(`Unknown program item kind "${String((item satisfies never as { kind: unknown }).kind)}"`);
   }
 }

@@ -37,13 +37,24 @@ function writeOpen(key: string, open: boolean): void {
  * `FieldRow` inside it is `compact` (label column + control beside it), set
  * here once through `FieldLayoutContext`.
  */
-export function Inspector({ children, className, label }: { children: ReactNode; className?: string; label: string }) {
+export function Inspector({
+  children,
+  className,
+  id,
+  label,
+}: {
+  children: ReactNode;
+  className?: string;
+  /** Stable, never shown: what its sections' folding is remembered under (`label` is translated). */
+  id: string;
+  label: string;
+}) {
   return (
     <aside
       aria-label={label}
       className={cn("flex w-88 shrink-0 flex-col overflow-y-auto border-l border-border bg-surface", className)}
     >
-      <InspectorScope value={label}>
+      <InspectorScope value={id}>
         <FieldLayoutContext.Provider value="compact">{children}</FieldLayoutContext.Provider>
       </InspectorScope>
     </aside>
@@ -62,11 +73,15 @@ export function Inspector({ children, className, label }: { children: ReactNode;
 export function InspectorSection({
   children,
   defaultOpen = true,
+  id,
   onFocus,
   title,
 }: {
   children: ReactNode;
   defaultOpen?: boolean;
+  /** Stable within its inspector, never shown. The folding was remembered under the translated title: changing the
+   *  language lost it and left keys behind (2026-11-15 audit, U11). */
+  id: string;
   /** A control inside took focus: the editor can turn its canvas to what this
    *  section dresses — the last slide for the footer, the end of a countdown
    *  (2026-11-05 review: a knob whose effect the canvas does not show). */
@@ -74,7 +89,7 @@ export function InspectorSection({
   title: string;
 }) {
   const scope = useContext(InspectorScope);
-  const key = scope ? `inspector.open:${scope}:${title}` : null;
+  const key = scope ? `inspector.open:${scope}:${id}` : null;
   // Read once: `open` must stay the same prop afterwards, or a re-render would
   // fold back what the operator just opened.
   const [initiallyOpen] = useState(() => (key ? readOpen(key) : null) ?? defaultOpen);

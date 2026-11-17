@@ -52,3 +52,18 @@ for (const [label, file, name] of [
     expect(sync.median).toBeLessThanOrEqual(65);
   });
 }
+
+// «Sincronía del sonido» below −50 ms sent silence while a receiver watched: the engine invented it ahead of the
+// capture and dropped every real sample after it (2026-11-15 audit, A7). Sent early, the sound must still be there.
+test("a negative sound delay sends the sound that much earlier, never silence", async ({ app }) => {
+  test.setTimeout(120_000);
+  const ndi = await source(app, -100);
+  test.skip(!ndi, "no NDI runtime on this computer");
+  await live(app, "ndi-av.mp4", "ndi-av");
+  const sync = await probe<{ pairs: number; median: number; audioFrames: number }>("avsync", ndi!.name, ndi!.url, "12");
+  console.log(`[ndi-receiver] ndi-av.mp4 at -100 ms: ${JSON.stringify(sync)}`);
+  expect(sync.pairs, "flashes and beeps paired: the sound reached the receiver").toBeGreaterThanOrEqual(8);
+  // The window of the case at 0 ms (−45…+65), 100 ms earlier.
+  expect(sync.median).toBeGreaterThanOrEqual(-145);
+  expect(sync.median).toBeLessThanOrEqual(-35);
+});

@@ -11,9 +11,10 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { afterAll, beforeAll, describe, expect, test } from "vitest";
+import { afterAll, beforeAll, describe, expect, test, vi } from "vitest";
 import {
   binaryTransition,
+  openOle,
   readBinaryDeck,
   readBinaryExternalPaths,
   readBinaryPictures,
@@ -21,7 +22,7 @@ import {
   type BinaryDeck,
 } from "../../src/main/slides/ppt-binary";
 import { encodeSlideLayers, imagePixelSize, renderNativeSlide } from "../../src/main/slides/native-deck";
-import { buildLegacyPpt, jpegHeader, pngHeader, type LegacyDeck, type LegacyShape } from "../fixtures/legacy-ppt";
+import { buildLegacyPpt, jpegHeader, oleHeader, pngHeader, type LegacyDeck, type LegacyShape } from "../fixtures/legacy-ppt";
 
 const W = 5760;
 const H = 4320;
@@ -76,7 +77,7 @@ function hymn(overrides: { first?: LegacyShape[]; second?: LegacyShape[] } = {})
         shapes: overrides.second ?? [{ rect: FULL, pib: 2 }],
       },
     ],
-    externalPaths: ["C:\\Documents and Settings\\Joel Rivas\\Escritorio\\himnos\\522 Suenen las palabras.mp3"],
+    externalPaths: ["C:\\Documents and Settings\\Ana Gomez\\Escritorio\\himnos\\522 Suenen las palabras.mp3"],
   };
 }
 
@@ -260,7 +261,7 @@ describe("served straight from the source", () => {
 describe("the rest of what the source says", () => {
   test("the linked song's path is read from its record", () => {
     expect(readBinaryExternalPaths(write(hymn()))).toEqual([
-      "C:\\Documents and Settings\\Joel Rivas\\Escritorio\\himnos\\522 Suenen las palabras.mp3",
+      "C:\\Documents and Settings\\Ana Gomez\\Escritorio\\himnos\\522 Suenen las palabras.mp3",
     ]);
   });
 
@@ -279,5 +280,83 @@ describe("the rest of what the source says", () => {
     expect(binaryTransition(8, 1, 2)).toEqual({ style: "random-bars-vertical", durationMs: 500 });
     // Anything we do not draw is a crossfade of its own length.
     expect(binaryTransition(20, 0, 2)).toEqual({ style: "crossfade", durationMs: 500 });
+  });
+});
+
+// 2026-11-15 audit, S2: the compound-file layer trusted the header's counts. These files are fabricated, a few KB
+// at most, and every walk must stop at what the file can hold.
+describe("a fabricated compound file costs at most its own size", () => {
+  let dir = "";
+  beforeAll(() => {
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), "ole-attack-"));
+  });
+  afterAll(() => fs.rmSync(dir, { recursive: true, force: true }));
+
+  /** Opens `bytes` with `fs.readSync` and `Buffer.alloc` counted. */
+  function open(name: string, bytes: Buffer): { ole: unknown; ms: number; reads: number; biggestAlloc: number; size: number } {
+    const file = path.join(dir, name);
+    fs.writeFileSync(file, bytes);
+    const fd = fs.openSync(file, "r");
+    let reads = 0;
+    let biggestAlloc = 0;
+    const realRead = fs.readSync.bind(fs) as (...args: unknown[]) => number;
+    const realAlloc = Buffer.alloc.bind(Buffer);
+    vi.spyOn(fs, "readSync").mockImplementation((...args: unknown[]) => {
+      reads += 1;
+      return realRead(...args);
+    });
+    vi.spyOn(Buffer, "alloc").mockImplementation((size: number, ...rest: unknown[]) => {
+      biggestAlloc = Math.max(biggestAlloc, size);
+      return realAlloc(size, ...(rest as []));
+    });
+    try {
+      const t0 = performance.now();
+      const ole = openOle(fd, bytes.length);
+      return { ole, ms: performance.now() - t0, reads, biggestAlloc, size: bytes.length };
+    } finally {
+      vi.restoreAllMocks();
+      fs.closeSync(fd);
+    }
+  }
+
+  test("a DIFAT sector that points at itself is read once, not once per count", () => {
+    // Today's count is 0xFFFFFFFF (~78 minutes); a million turns is ~1 s without the guard and finishes either way.
+    for (const fill of [0xff, 0x01]) {
+      const sector = Buffer.alloc(512, fill);
+      sector.writeUInt32LE(0, 508); // the next DIFAT sector: itself
+      const header = oleHeader({ 44: fill === 0xff ? 0 : 0xffffffff, 48: 0xfffffffe, 60: 0xfffffffe, 68: 0, 72: fill === 0xff ? 1_000_000 : 100_000 });
+      const result = open(`difat-${fill}.ppt`, Buffer.concat([header, sector]));
+      expect(result.ole).toBeNull();
+      expect(result.reads).toBeLessThan(10);
+      expect(result.ms).toBeLessThan(1000);
+    }
+  });
+
+  test("a chain longer than the file has sectors is cut at the file's size", () => {
+    // A 1 MB file whose directory chain runs 262 144 sectors: 128 MB allocated for it before the guard.
+    const N = 262_144;
+    const fatSectors = N / 128;
+    const difatNeeded = Math.ceil((fatSectors - 109) / 127);
+    const fat = Buffer.alloc(fatSectors * 512);
+    for (let i = 0; i < N; i++) fat.writeUInt32LE(i === N - 1 ? 0xfffffffe : i + 1, i * 4);
+    const difat = Buffer.alloc(difatNeeded * 512, 0xff);
+    for (let k = 0; k < difatNeeded; k++) {
+      for (let j = 0; j < 127; j++) {
+        const index = 109 + k * 127 + j;
+        if (index < fatSectors) difat.writeUInt32LE(index, k * 512 + j * 4);
+      }
+      difat.writeUInt32LE(k + 1 < difatNeeded ? fatSectors + k + 1 : 0xfffffffe, k * 512 + 508);
+    }
+    const header = oleHeader({ 44: fatSectors, 48: 0, 60: 0xfffffffe, 68: fatSectors, 72: difatNeeded }, Array.from({ length: 109 }, (_, i) => i));
+    const result = open("chain.ppt", Buffer.concat([header, fat, difat]));
+    expect(result.biggestAlloc).toBeLessThanOrEqual(result.size);
+  });
+
+  test("a valid deck still opens, and a sector size the format does not allow is refused", () => {
+    const deck = buildLegacyPpt();
+    expect(open("valid.ppt", deck).ole).not.toBeNull();
+    const odd = Buffer.from(deck);
+    odd.writeUInt16LE(16, 30); // 64 KB sectors
+    expect(open("odd-sectors.ppt", odd).ole).toBeNull();
   });
 });

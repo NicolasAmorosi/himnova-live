@@ -116,14 +116,112 @@ describe("readZipEntries", () => {
   });
 });
 
-test("a zip bomb is refused, not inflated: a few hundred KB declaring 300 MB comes back without that entry", () => {
-  // 2026-11-10 review, agent6-04: 398 KB on disk became 400 MB in main.
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "worship-zip-bomb-"));
-  const file = path.join(dir, "bomb.zip");
-  fs.writeFileSync(file, zipSync({ "biblia.xml": [new Uint8Array(300 * 1024 * 1024).fill(0x61), { level: 9 }], "ok.xml": strToU8("<ok/>") }));
-  expect(fs.statSync(file).size).toBeLessThan(1024 * 1024);
-  const out = readZipEntries(file, (name) => name.endsWith(".xml"));
-  expect(out["biblia.xml"]).toBeUndefined();
-  expect(strFromU8(out["ok.xml"]!)).toBe("<ok/>");
+describe("an entry is never inflated past the size the central directory declares", () => {
+  let dir: string;
+  /** 32 MB of one letter, a few KB on disk. The sizes the tests need are written into its headers: building a real
+   *  300 MB one in a hook took long enough under the full suite's load to fail it. */
+  let bomb: Uint8Array;
+  beforeAll(() => {
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), "worship-zip-bomb-"));
+    bomb = zipSync({ "biblia.xml": [new Uint8Array(32 * 1024 * 1024).fill(0x61), { level: 9 }], "ok.xml": strToU8("<ok/>") });
+  });
+  afterAll(() => fs.rmSync(dir, { recursive: true, force: true }));
+
+  /** Writes `declared` as `name`'s uncompressed size in its local header and in the central directory. */
+  function patchDeclaredSize(zip: Uint8Array, name: string, declared: number): Buffer {
+    const buf = Buffer.from(zip);
+    const target = Buffer.from(name, "utf8");
+    for (let at = 0; at < buf.length - 46; at++) {
+      const sig = buf.readUInt32LE(at);
+      if (sig === 0x04034b50 && buf.subarray(at + 30, at + 30 + target.length).equals(target)) buf.writeUInt32LE(declared, at + 22);
+      if (sig === 0x02014b50 && buf.subarray(at + 46, at + 46 + target.length).equals(target)) buf.writeUInt32LE(declared, at + 24);
+    }
+    return buf;
+  }
+
+  function read(name: string, zip: Uint8Array): { out: Record<string, Uint8Array>; ms: number } {
+    const file = path.join(dir, name);
+    fs.writeFileSync(file, zip);
+    const t0 = performance.now();
+    const out = readZipEntries(file, (entry) => entry.endsWith(".xml"));
+    return { out, ms: performance.now() - t0 };
+  }
+
+  test("a few hundred KB declaring 300 MB comes back without that entry", () => {
+    // 2026-11-10 review, agent6-04: 398 KB on disk became 400 MB in main.
+    expect(bomb.length).toBeLessThan(1024 * 1024);
+    const { out } = read("bomb.zip", patchDeclaredSize(bomb, "biblia.xml", 300 * 1024 * 1024));
+    expect(out["biblia.xml"]?.length).toBeUndefined();
+    expect(strFromU8(out["ok.xml"]!)).toBe("<ok/>");
+  });
+
+  // 2026-11-15 audit, S7: fflate given a 1000-byte `out` decoded the whole stream (15 s for a 3 GB one) and handed
+  // back the first 1000 bytes as if they were the part.
+  test("the same bomb declaring 1000 bytes is refused in milliseconds, and its neighbour still reads", () => {
+    const { out, ms } = read("small.zip", patchDeclaredSize(bomb, "biblia.xml", 1000));
+    expect(out["biblia.xml"]?.length).toBeUndefined();
+    expect(strFromU8(out["ok.xml"]!)).toBe("<ok/>");
+    expect(ms).toBeLessThan(1000);
+  });
+
+  test("declaring 0 bytes means an empty part, so the bomb is refused in milliseconds too", () => {
+    const { out, ms } = read("zero.zip", patchDeclaredSize(bomb, "biblia.xml", 0));
+    expect(out["biblia.xml"]?.length).toBeUndefined();
+    expect(strFromU8(out["ok.xml"]!)).toBe("<ok/>");
+    expect(ms).toBeLessThan(1000);
+  });
+
+  test("an honest part that declares ten bytes too few is corrupt, not silently cut", () => {
+    const xml = "<p:sld><p:cSld><p:spTree/></p:cSld></p:sld>";
+    const { out } = read("short.zip", patchDeclaredSize(zipSync({ "slide1.xml": strToU8(xml) }), "slide1.xml", xml.length - 10));
+    expect(out["slide1.xml"]).toBeUndefined();
+  });
+
+  test("an honest part reads whole, as an exact buffer of its own, and an empty one reads empty", () => {
+    const xml = "<p:sld>" + "<a:t>Santo, santo, santo</a:t>".repeat(4000) + "</p:sld>";
+    const { out } = read("honest.zip", zipSync({ "slide1.xml": strToU8(xml), "empty.xml": new Uint8Array(0) }));
+    expect(strFromU8(out["slide1.xml"]!)).toBe(xml);
+    expect(out["slide1.xml"]!.byteOffset).toBe(0);
+    expect(out["slide1.xml"]!.buffer.byteLength).toBe(xml.length);
+    expect(out["empty.xml"]!.length).toBe(0);
+  });
+});
+
+// 2026-11-15 audit, S10: the cap was per entry, so three XML parts of 200 MB of zeros (a 614 KB `.pptx`) inflated
+// 600 MB together. The budget is the third parameter so this needs megabytes, not the real 512 MB.
+test("one call inflates no more than its budget in all, and stored entries do not count against it", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "worship-zip-budget-"));
+  const file = path.join(dir, "deck.pptx");
+  const mb = new Uint8Array(1024 * 1024);
+  fs.writeFileSync(file, zipSync({ "a.xml": mb, "b.xml": mb, "video.mp4": [new Uint8Array(3 * 1024 * 1024), { level: 0 }], "c.xml": mb }));
+  const out = readZipEntries(file, () => true, 2.5 * 1024 * 1024);
+  expect(out["a.xml"]!.length).toBe(mb.length);
+  expect(out["b.xml"]!.length).toBe(mb.length);
+  expect(out["video.mp4"]!.length).toBe(3 * 1024 * 1024);
+  expect(out["c.xml"]).toBeUndefined();
+  expect(Object.keys(readZipEntries(file, () => true)).sort()).toEqual(["a.xml", "b.xml", "c.xml", "video.mp4"]);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+// 2026-11-15 audit, S10, review: stored entries were not counted at all, so a central directory whose entries all
+// point at one stored blob copied it once per entry, N times a file of about one blob.
+test("stored entries copy no more than the file holds in all, however many entries point at one blob", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "worship-zip-stored-"));
+  const file = path.join(dir, "deck.pptx");
+  const blob = new Uint8Array(1024 * 1024).fill(7);
+  const zip = Buffer.from(
+    zipSync({ "a.mp4": [blob, { level: 0 }], "b.mp4": [new Uint8Array(1), { level: 0 }], "c.mp4": [new Uint8Array(1), { level: 0 }] }),
+  );
+  // The directory says `b` and `c` are `a`'s bytes, at `a`'s offset.
+  for (let at = 0; at < zip.length - 46; at++) {
+    if (zip.readUInt32LE(at) !== 0x02014b50 || zip.subarray(at + 46, at + 51).toString() === "a.mp4") continue;
+    zip.writeUInt32LE(blob.length, at + 20);
+    zip.writeUInt32LE(blob.length, at + 24);
+    zip.writeUInt32LE(0, at + 42);
+  }
+  fs.writeFileSync(file, zip);
+  const out = readZipEntries(file, () => true);
+  expect(out["a.mp4"]!.length).toBe(blob.length);
+  expect(Object.keys(out)).toEqual(["a.mp4"]);
   fs.rmSync(dir, { recursive: true, force: true });
 });

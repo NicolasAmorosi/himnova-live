@@ -46,6 +46,17 @@ test("the transition chosen in Ajustes is kept after a restart", async ({ app })
   await expect(settings.getByRole("combobox", { name: "Estilo", exact: true })).toHaveText(/Instantáneo/);
 });
 
+test("a switch alone in a Settings row is named by the row and flips with a click on its name", async ({ app }) => {
+  // Four of them had no accessible name, and a click on the row's words did nothing (2026-11-15 audit, U10).
+  const settings = await openSettings(app, "Sistema");
+  const motion = settings.getByRole("switch", { name: "Video en movimiento en el monitor En Vivo" });
+  await expect(motion).toBeChecked();
+  await settings.getByText("Video en movimiento en el monitor En Vivo", { exact: true }).click();
+  await expect(motion).not.toBeChecked();
+  await motion.click();
+  await expect(motion).toBeChecked();
+});
+
 test("with the LIVE monitor's video turned off, the projector still plays it", async ({ app }) => {
   await app.addMedia("video", "clip.mp4");
   const settings = await openSettings(app, "Sistema");
@@ -308,4 +319,28 @@ test("«Quedarse en el último cuadro» holds the video on air, paused, and NEGR
   await app.control.waitForTimeout(1_500);
   // Uncovering must not restart an ended clip from 0 — its sound included.
   expect((await videoStates(projector))[0]?.currentTime).toBeGreaterThan(7);
+});
+
+test("a colour palette takes the focus when it opens: Esc closes only the palette, and the keyboard reaches it", async ({ app }) => {
+  const settings = await openSettings(app, "Proyección");
+  const trigger = settings.getByRole("button", { name: "Color", exact: true }).first();
+  const palette = app.control.locator('[role="dialog"][aria-label="Color"]');
+  const focusInPalette = () =>
+    app.control.evaluate(() => document.querySelector('[role="dialog"][aria-label="Color"]')?.contains(document.activeElement) ?? false);
+
+  // Opened with the mouse: Esc used to reach Settings behind it and close the whole dialog (2026-11-15 audit, U2).
+  await trigger.click();
+  await expect(palette).toBeVisible();
+  await expect.poll(focusInPalette).toBe(true);
+  await app.control.keyboard.press("Escape");
+  await expect(palette).toHaveCount(0);
+  await expect(settings).toBeVisible();
+  await expect(trigger).toBeFocused();
+
+  // Opened with the keyboard: Enter puts the focus inside, and Tab walks on from there.
+  await app.control.keyboard.press("Enter");
+  await expect(palette).toBeVisible();
+  await expect.poll(focusInPalette).toBe(true);
+  await app.control.keyboard.press("Tab");
+  expect(await focusInPalette()).toBe(true);
 });

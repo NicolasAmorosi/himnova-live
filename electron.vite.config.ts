@@ -31,18 +31,18 @@ function stripDevCsp(): Plugin {
 
 export default defineConfig({
   main: {
-    plugins: [externalizeDepsPlugin()],
+    // `drizzle-orm` bundled: external, Node resolved each of its internal files as ESM against a 177 KB
+    // `package.json` with 443 `exports`, ~100 to 180 ms of main before the first window (2026-11-15 audit, R6).
+    plugins: [externalizeDepsPlugin({ exclude: ["drizzle-orm"] })],
     resolve: {
       alias: {
         "@shared": resolve("src/shared"),
       },
     },
     build: {
-      // `reportCrash` (src/main/index.ts) appends `error.stack` to
-      // `crash.log`, and that is the only trace a machine in a booth leaves
-      // behind. Without a map the stack points at a minified bundle, so the
-      // one artifact the operator can send back says nothing.
-      sourcemap: true,
+      // No source map: main is not minified, so the line `crash.log` names in `out/main/index.js` reads as the code,
+      // and Node applies no map without `setSourceMapsEnabled`, whose first stack after a load reads all 2.6 MB of
+      // it on main. Shipped, the map was never read (2026-11-15 audit, Doc11).
       rollupOptions: {
         input: {
           index: resolve("src/main/index.ts"),
@@ -58,9 +58,6 @@ export default defineConfig({
       },
     },
     build: {
-      // Same reason as main: a preload failure is reported through the same
-      // process-level handlers.
-      sourcemap: true,
       rollupOptions: {
         input: {
           index: resolve("src/preload/index.ts"),

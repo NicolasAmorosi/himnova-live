@@ -7,6 +7,7 @@ import { cn } from "@renderer/lib/utils";
 import { FieldLabelContext } from "./field-layout";
 import { computeMenuPosition, useFollowTrigger, type MenuPosition } from "./floating-menu";
 import { Icon } from "./icon";
+import { labelOverflows, watchLabelFit } from "./label-fit";
 import { filterOptions, groupHeaderAt, orderByGroup } from "./select.groups";
 
 export type SelectOption = {
@@ -16,6 +17,10 @@ export type SelectOption = {
    *  it out when every option would share it. */
   group?: string;
   label: string;
+  /** What the trigger shows instead of `label` when the whole label does not fit in it: a Bible version's short name
+   *  in the Bible tab at the window's narrowest («Rive…» said nothing among nine versions; 2026-11-15 audit, U14).
+   *  The menu always lists the whole label. */
+  short?: string;
   value: string;
 };
 
@@ -98,6 +103,20 @@ export function Select({
   const typeaheadRef = useRef({ buffer: "", timer: 0 });
 
   const selectedOption = options.find((o) => o.value === value);
+
+  /** The selected option's whole label is wider than the trigger's room: its `short` is shown instead (`label-fit.ts`). */
+  const fullLabelRef = useRef<HTMLSpanElement>(null);
+  const [cramped, setCramped] = useState(false);
+  const short = selectedOption?.short;
+  useEffect(() => {
+    const trigger = triggerRef.current;
+    const full = fullLabelRef.current;
+    if (!short || !trigger || !full) {
+      setCramped(false);
+      return;
+    }
+    return watchLabelFit(trigger, () => setCramped(labelOverflows(trigger, full)));
+  }, [short, selectedOption?.label]);
 
   /** What the menu actually lists. Everything below indexes into THIS: with a
    *  filter applied, an index into `options` points at a row that is not on
@@ -331,6 +350,8 @@ export function Select({
       className={cn(
         "focus-ring relative inline-flex items-center rounded-md border border-border bg-surface text-left text-foreground transition-colors hover:border-border-light disabled:cursor-not-allowed disabled:opacity-60",
         sizes[size],
+        // The hidden copy of the label it measures stays inside it.
+        short && "overflow-hidden",
         className,
       )}
       disabled={disabled}
@@ -346,8 +367,13 @@ export function Select({
       {...props}
     >
       <span className={cn("min-w-0 truncate", !selectedOption && "text-subtle")}>
-        {selectedOption ? selectedOption.label : (placeholder ?? "")}
+        {selectedOption ? (cramped && short ? short : selectedOption.label) : (placeholder ?? "")}
       </span>
+      {short ? (
+        <span aria-hidden="true" className="invisible absolute whitespace-nowrap" ref={fullLabelRef}>
+          {selectedOption?.label}
+        </span>
+      ) : null}
       <Icon
         className={cn(
           "pointer-events-none absolute top-1/2 right-2 -translate-y-1/2 text-subtle transition-transform",

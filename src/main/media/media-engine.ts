@@ -1,10 +1,21 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import fs from "node:fs";
+import fsp from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { app, sharedTexture, type SharedTextureHandle, type WebContents } from "electron";
 import { engineCacheDir, engineDir, enginePath } from "../paths";
-import { AUDIO_DEVICE_PROTO, EngineGate, jsonLineReader, mpvVolume, type EngineDevice } from "./engine-protocol";
+import { broadcast } from "../services/broadcast";
+import { getSettingsRepo } from "../services/repos";
+import {
+  AUDIO_DEVICE_PROTO,
+  EngineGate,
+  jsonLineReader,
+  mpvVolume,
+  SNIFF_BYTES,
+  textInsteadOfMedia,
+  type EngineDevice,
+} from "./engine-protocol";
 
 /**
  * The media engine (`native/engine/engine.cpp`): ONE file per process, played by libmpv, which also
@@ -28,7 +39,7 @@ export type EngineLoad = {
   /** 0..1 */
   volume: number;
   loop: boolean;
-  /** false: the audio is not even decoded (the PREVIEW monitor). */
+  /** false: the audio is not even decoded (a song theme's video background; PREVIEW sounds since 2026-11-05). */
   audio: boolean;
   /** mpv's name for the output it plays through (`EngineDevice.name`); absent, the system's default. An engine
    *  older than `AUDIO_DEVICE_PROTO` plays it on the default. */
@@ -130,12 +141,36 @@ export function engineProtocol(): number | null {
   return engineProto;
 }
 
+/** An engine ended by itself before it was ready, or could not even be started (the AppImage on a Linux without
+ *  libmpv: `hello`, then out at `mpv_create`). Until one says `ready`, asking the outputs launches nothing and the
+ *  control window is told the engine cannot choose («none»): it waited on «pending» for good, the strip amber, and
+ *  launched two engines every 2 s (2026-11-15 audit, A28). An engine main kills (a spare for another card,
+ *  `killAllEngines`) is no sign. */
+let failsToStart = false;
+export function engineFailsToStart(): boolean {
+  return failsToStart;
+}
+
 /** mpv's outputs, «auto» first, asked of the spare engine; null when this build's engine cannot say (none, or
  *  older than `AUDIO_DEVICE_PROTO`) or does not answer. */
 export function listAudioDevices(): Promise<EngineDevice[] | null> {
-  if (!engineAvailable()) return Promise.resolve(null);
+  if (!engineAvailable() || failsToStart) return Promise.resolve(null);
   prewarmEngine();
   return spare ? spare.devices() : Promise.resolve(null);
+}
+
+/** Whether the NDI output takes the app's sound, read as each engine starts (the first spare starts before the NDI
+ *  output does). On macOS such an engine opens the default output for 100 ms on start, which the NDI sound tap needs
+ *  to hear it from its first file and nothing else does (`becomeKnownToCoreAudio`; 2026-11-15 audit, X21).
+ *  ponytail: a spare started before the sound was turned on misses the tap's first 300–400 ms of its first file;
+ *  replace the spare on that setting if it is ever heard. */
+function ndiTakesSound(): boolean {
+  try {
+    const settings = getSettingsRepo();
+    return settings.get("ndi.output.enabled") && settings.get("ndi.output.audio");
+  } catch {
+    return false;
+  }
 }
 
 /** Starts the spare before the first file needs it. */
@@ -228,13 +263,20 @@ export class MediaEngine {
   private loadedInfo: EngineLoaded | null = null;
   private lastStatus: EngineStatus | null = null;
   private failed = false;
+  private ready = false;
+  private killed = false;
   /** Every line to the engine, held until it says which protocol it speaks (`hello`, or 7 when `ready` came first). */
   private readonly gate = new EngineGate((line) => this.writeNow(line));
   private deviceReplies: ((list: EngineDevice[] | null) => void)[] = [];
+  /** Every line, in order, behind main's read of the head of the file `load` was given. */
+  private sent: Promise<void> = Promise.resolve();
+  /** The file was text, not audio or video: no line but `quit` reaches the engine. */
+  private refused = false;
 
   constructor() {
     const args = ["--max-width", "1920", "--max-height", "1080", "--cache-dir", engineCacheDir];
     if (engineAdapter) args.push("--adapter", engineAdapter);
+    if (process.platform === "darwin" && ndiTakesSound()) args.push("--ndi-tap", "1");
     if (process.platform === "win32") {
       args.push("--parent", String(process.pid));
       if (orphanedWindowsHandles.length) args.push("--close-in-parent", orphanedWindowsHandles.join(","));
@@ -255,7 +297,12 @@ export class MediaEngine {
     this.child.stdin?.on("error", () => {
       // The engine is gone; `exit` says so.
     });
-    this.child.once("error", (error) => this.fail({ code: "engine-exit", detail: error.message }));
+    this.child.once("error", (error) => {
+      // Not started at all (not executable, say): `exit` may never come.
+      if (!this.ready) failsToStart = true;
+      for (const reply of this.deviceReplies.splice(0)) reply(null);
+      this.fail({ code: "engine-exit", detail: error.message });
+    });
     this.child.once("exit", (code, signal) => this.onExit(code, signal));
   }
 
@@ -271,7 +318,18 @@ export class MediaEngine {
     const line = `load ${Math.max(0, opts.startAtSeconds)} ${flag(opts.paused)} ${volume} ${flag(opts.loop)} ${flag(opts.audio)} ${longPathSafe(opts.file)}`;
     // The output opens where it is told before the file: the device goes first, to an engine that knows it.
     if (opts.device !== undefined) this.setDevice(opts.device);
-    this.write(line);
+    // Every file the engine plays comes through here (library, PREVIEW, a deck's clips and music, a song's video), and
+    // a playlist with a video's extension made it project another file and fetch URLs (2026-11-15 audit, S1). A file
+    // main cannot read goes on to the engine, which says so itself.
+    this.sent = readHead(opts.file)
+      .then((head) => {
+        if (head && textInsteadOfMedia(head)) {
+          this.refused = true;
+          console.warn(`[engine] refused, text and not audio or video: ${opts.file}`);
+          this.fail({ code: "engine-open", detail: "a text file (a playlist?), not audio or video" });
+        } else this.gate.send(line);
+      })
+      .catch((error: unknown) => console.warn("[engine] load", error));
   }
 
   /** Where its sound goes from now on (mpv reopens its output there, a gap of a moment); «auto» the system's. The same
@@ -283,15 +341,17 @@ export class MediaEngine {
 
   /** mpv's outputs as this engine sees them; null from an older engine, or with no answer in `timeoutMs`. */
   devices(timeoutMs = 3000): Promise<EngineDevice[] | null> {
+    if (this.exited) return Promise.resolve(null);
     return new Promise((resolve) => {
       const timer = setTimeout(() => resolve(null), timeoutMs);
       const reply = (list: EngineDevice[] | null) => {
         clearTimeout(timer);
         resolve(list);
       };
+      // Waiting from now: an engine that dies before it says its protocol answers null at once, not at the timeout.
+      this.deviceReplies.push(reply);
       this.gate.after((proto) => {
-        if (this.exited || proto < AUDIO_DEVICE_PROTO) return reply(null);
-        this.deviceReplies.push(reply);
+        if (proto < AUDIO_DEVICE_PROTO) return reply(null);
         this.writeNow("devices");
       });
     });
@@ -358,12 +418,18 @@ export class MediaEngine {
   }
 
   kill(): void {
+    this.killed = true;
     if (!this.exited) this.child.kill("SIGKILL");
   }
 
-  /** In order with everything else, once the engine has said its protocol. */
+  /** In order with everything else, once the engine has said its protocol and main has read the file's head. */
   private write(line: string): void {
-    this.gate.send(line);
+    // A step that threw would leave the chain rejected, and every later line (a frame's `release`) dropped.
+    this.sent = this.sent
+      .then(() => {
+        if (!this.refused || line === "quit") this.gate.send(line);
+      })
+      .catch((error: unknown) => console.warn("[engine] write", error));
   }
 
   private writeNow(line: string): void {
@@ -376,6 +442,10 @@ export class MediaEngine {
       case "hello":
         return;
       case "ready":
+        this.ready = true;
+        // The control window took «none» for the session: told, it asks for the outputs again (review of A28).
+        if (failsToStart) broadcast("engine-starts", undefined);
+        failsToStart = false;
         return logEngineGpu(event.gpu, event.adapter);
       case "loaded":
         this.loadedInfo = event;
@@ -466,6 +536,7 @@ export class MediaEngine {
 
   private onExit(code: number | null, signal: NodeJS.Signals | null): void {
     this.exited = true;
+    if (!this.killed && !this.ready && code !== 0) failsToStart = true;
     running.delete(this);
     for (const reply of this.deviceReplies.splice(0)) reply(null);
     if (spare === this) spare = null;
@@ -482,6 +553,21 @@ export class MediaEngine {
     if (code !== 0 && this.loadedOnce)
       this.fail({ code: "engine-exit", detail: `exit ${signal ?? code}: ${this.stderrTail.trim().slice(-300)}` });
     this.events.exit?.();
+  }
+}
+
+/** The first `SNIFF_BYTES` of `file`, or null when main cannot read it. */
+async function readHead(file: string): Promise<Uint8Array | null> {
+  try {
+    const handle = await fsp.open(file, "r");
+    try {
+      const { buffer, bytesRead } = await handle.read(Buffer.alloc(SNIFF_BYTES), 0, SNIFF_BYTES, 0);
+      return buffer.subarray(0, bytesRead);
+    } finally {
+      await handle.close();
+    }
+  } catch {
+    return null;
   }
 }
 

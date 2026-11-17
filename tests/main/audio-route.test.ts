@@ -67,10 +67,13 @@ vi.mock("../../src/main/media/media-engine", () => ({
   },
   listAudioDevices: h.list,
   engineAvailable: () => true,
+  engineFailsToStart: () => false,
   engineProtocol: h.proto,
 }));
 vi.mock("../../src/main/ndi/ndi-output", () => ({ setNdiAudioRoute: h.ndi }));
-vi.mock("../../src/main/services/repos", () => ({ getMediaRepo: () => ({ getPathById: (id: number) => `/media/${id}.avi` }) }));
+vi.mock("../../src/main/services/repos", () => ({
+  getMediaRepo: () => ({ getPathById: (id: number) => `/media/${id}.avi`, survivingId: (id: number) => id }),
+}));
 vi.mock("../../src/main/services/broadcast", () => ({ broadcast: h.broadcast, controlWindows: () => [] }));
 
 const { matchAudioOutputs, setAudioRoute } = await import("../../src/main/media/audio-route");
@@ -223,4 +226,20 @@ test("outputs are matched against the engine's own list; one that cannot choose 
     h.proto.mockReturnValue(proto);
     expect(await matchAudioOutputs([zoom])).toBe("pending");
   }
+});
+
+test("PREVIEW's status comes only from the engine PREVIEW has now, not from one A, B, A left behind", () => {
+  const status = { time: 42, duration: 60, paused: false, ended: false };
+  const preview = (assetId: number) =>
+    setPreviewVideo({ url: engineAssetUrl(assetId), paused: true, startAtSeconds: 0, volume: 0, picture: true }, control);
+  preview(7);
+  const first = h.engines.at(-1)! as unknown as { events: { status?: (s: typeof status) => void } };
+  preview(8);
+  preview(7);
+  h.broadcast.mockClear();
+  // The first engine for 7 was told to quit; a report it had already written lands now. Same url as the current
+  // PREVIEW, so the control window would take its time and pause as its own: the bar jumps, or PREVIEW pauses.
+  first.events.status?.(status);
+  expect(h.broadcast.mock.calls.filter(([channel]) => channel === "preview-video-status")).toEqual([]);
+  setPreviewVideo(null, control);
 });

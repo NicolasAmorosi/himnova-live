@@ -8,7 +8,7 @@ import type { UtilityRepo } from "../repositories/utility.repo";
  *
  * "Once" is a flag (`utility.seeded`) rather than "the table is empty", and
  * the difference is the whole behaviour: seeding an empty table would mean an
- * operator who deletes a scene they never use finds it back on Monday, and
+ * operator who deletes a scene they never use finds it back next launch, and
  * deleting all four would be impossible. With the flag, deleting is deleting —
  * the panel shows an empty state and offers to create one.
  *

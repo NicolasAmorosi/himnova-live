@@ -186,6 +186,20 @@ describe("EMF", () => {
     expect(svg).toMatch(/<text x="0 12" y="0" font-family="'Arial', 'Liberation Sans', sans-serif" font-size="20" font-weight="700"[^>]* fill="#336699"[^>]*>Hi<\/text>/);
   });
 
+  test("a run in Calibri Light names Carlito, the twin whose metrics already place it", () => {
+    // Placed with Calibri's ascent but drawn in the generic sans on a Linux box with Carlito: the metafile's own twin
+    // table had lost «calibri light» (2026-11-15 audit, X7).
+    const svg = metafileToSvg(
+      emf(
+        emr(82, 1, logFontW("Calibri Light", -20)),
+        emr(37, 1),
+        emr(84, 0, 0, 0, 0, 1, 0, 0, 30, 60, 2, 76, 0, 0, 0, 0, 0, 80, Buffer.from("Hi", "utf16le"), 12, 15),
+      ),
+      "emf",
+    );
+    expect(svg).toContain(`font-family="'Calibri Light', 'Carlito', sans-serif"`);
+  });
+
   test("a 24-bit DIB stretched over the destination as a PNG data URI, top row first", () => {
     const { info, bits } = dib24();
     // STRETCHDIBITS: bounds, dest x y, src x y w h, bmi/bits offsets and sizes, usage, rop, dest w h.
@@ -333,6 +347,19 @@ describe("WMF", () => {
     expect(svg).toContain('<text x="0 11 22" y="18.1"');
     expect(svg.match(/>При<\/text>/g)).toHaveLength(2);
   });
+});
+
+// 2026-11-15 audit, S3: this runs in main, per request and per window, and gunzipped with no cap (255 KB of
+// `.emz` gave 256 MB). A raster in a metafile's clothes is what turns those bytes into an SVG, so it is the probe.
+test("a gzipped metafile that inflates past 64 MB is refused, not inflated", () => {
+  const png = Buffer.from("\x89PNG", "latin1");
+  const bomb = gzipSync(Buffer.concat([png, Buffer.alloc(80 * 1024 * 1024)]), { level: 9 });
+  expect(bomb.length).toBeLessThan(1024 * 1024);
+  const t0 = performance.now();
+  expect(metafileToSvg(bomb, "emf")).toBeNull();
+  expect(performance.now() - t0).toBeLessThan(500);
+  // The cap is far above a real one: the same raster at 1 MB still comes back.
+  expect(metafileToSvg(gzipSync(Buffer.concat([png, Buffer.alloc(1024 * 1024)])), "emf")).toContain("data:image/png;base64,");
 });
 
 describe("what is not a metafile", () => {

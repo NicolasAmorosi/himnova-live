@@ -33,7 +33,7 @@ function projectorWindow(app: WorshipApp): Promise<WinState | null> {
 /** The work area of the screen hosting the control window. */
 function controlScreen(app: WorshipApp) {
   return app.electron.evaluate(({ BrowserWindow, screen }) => {
-    const control = BrowserWindow.getAllWindows().find((win) => win.webContents.getURL().endsWith("/index.html"))!;
+    const control = BrowserWindow.getAllWindows().find((win) => !win.isDestroyed() && win.webContents.getURL().endsWith("/index.html"))!;
     return screen.getDisplayMatching(control.getBounds()).workArea;
   });
 }
@@ -222,7 +222,7 @@ test("a stage role chosen again, «Escenario» or «Copia del proyector», opens
   await expect.poll(() => stageOpen(app)).toBe(true);
   const closeStage = () =>
     app.electron.evaluate(({ BrowserWindow }) =>
-      BrowserWindow.getAllWindows().find((w) => w.webContents.getURL().endsWith("/stage.html"))?.close(),
+      BrowserWindow.getAllWindows().find((w) => !w.isDestroyed() && w.webContents.getURL().endsWith("/stage.html"))?.close(),
     );
 
   // The same role for the same screen.
@@ -281,7 +281,9 @@ test("the control window dragged onto the stage's screen makes the stage a movab
   const moveControlTo = (displayId: number) =>
     app.electron.evaluate(({ BrowserWindow, screen }, id) => {
       const area = screen.getAllDisplays().find((d) => d.id === id)!.workArea;
-      const control = BrowserWindow.getAllWindows().find((w) => w.webContents.getURL().endsWith("/index.html"))!;
+      // A stage window being replaced (fullscreen → framed) is destroyed mid-search: «Object has been destroyed» on
+      // Windows (2026-11-16 run) and in the Mac's long runs.
+      const control = BrowserWindow.getAllWindows().find((w) => !w.isDestroyed() && w.webContents.getURL().endsWith("/index.html"))!;
       control.setBounds({ x: area.x + 40, y: area.y + 40, width: 1000, height: 700 });
       // What the OS sends when a drag ends: a programmatic move sends nothing on macOS.
       control.emit("moved");
@@ -313,10 +315,10 @@ test("minimizing the control window leaves the projector on its screen (owner, 2
   test.skip((await app.invoke<unknown[]>("displays:list")).length < 2, "needs two screens: on one, the projector is the operator's window");
   await verseLive(app);
   await app.electron.evaluate(({ BrowserWindow }) =>
-    BrowserWindow.getAllWindows().find((w) => w.webContents.getURL().endsWith("/index.html"))!.minimize(),
+    BrowserWindow.getAllWindows().find((w) => !w.isDestroyed() && w.webContents.getURL().endsWith("/index.html"))!.minimize(),
   );
   await expect
-    .poll(() => app.electron.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().find((w) => w.webContents.getURL().endsWith("/index.html"))!.isMinimized()))
+    .poll(() => app.electron.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().find((w) => !w.isDestroyed() && w.webContents.getURL().endsWith("/index.html"))!.isMinimized()))
     .toBe(true);
   await app.control.waitForTimeout(500);
   const projector = await app.electron.evaluate(({ BrowserWindow }) => {
@@ -325,7 +327,7 @@ test("minimizing the control window leaves the projector on its screen (owner, 2
   });
   expect(projector).toEqual({ minimized: false, visible: true });
   await app.electron.evaluate(({ BrowserWindow }) =>
-    BrowserWindow.getAllWindows().find((w) => w.webContents.getURL().endsWith("/index.html"))!.restore(),
+    BrowserWindow.getAllWindows().find((w) => !w.isDestroyed() && w.webContents.getURL().endsWith("/index.html"))!.restore(),
   );
 });
 
@@ -362,10 +364,24 @@ test.describe("the projector opens by itself (owner, 2026-11-13)", () => {
     await expect.poll(() => app.hasProjector()).toBe(false);
     // A screen change: the control window lists the screens again (`displays-changed`).
     await app.electron.evaluate(({ BrowserWindow }) => {
-      const control = BrowserWindow.getAllWindows().find((w) => w.webContents.getURL().endsWith("/index.html"))!;
+      const control = BrowserWindow.getAllWindows().find((w) => !w.isDestroyed() && w.webContents.getURL().endsWith("/index.html"))!;
       control.webContents.send("displays-changed");
     });
     await app.control.waitForTimeout(1500);
     expect(app.hasProjector()).toBe(false);
   });
+});
+
+// Settings left with Esc unmounts the phrases' field with no blur: they were lost, and two equal lines were two buttons
+// that went on air together (2026-11-15 audit, D7).
+test("the stage's ready phrases are kept when Settings is left with Esc, without repeats", async ({ app }) => {
+  await app.control.getByRole("button", { name: "Configuración" }).click();
+  const settings = app.control.getByRole("dialog", { name: "Configuración" });
+  await settings.getByRole("tab", { name: "Pantallas" }).click();
+  await settings.getByRole("textbox", { name: "Frases listas" }).fill("Uno\nDos\nUno");
+  await app.control.keyboard.press("Escape");
+  await expect(settings).toBeHidden();
+  await expect
+    .poll(async () => (await app.invoke<Record<string, unknown>>("settings:get"))["stage.phrases"])
+    .toEqual(["Uno", "Dos"]);
 });

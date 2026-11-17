@@ -3,6 +3,44 @@
  * imports `electron`, so it is tested in `tests/main/engine-protocol.test.ts`.
  */
 
+/** How much of a file main reads before the engine may open it (`textInsteadOfMedia`). */
+export const SNIFF_BYTES = 4096;
+
+/** A byte no text file carries: below a space, but for tab, line feed, form feed and carriage return. UTF-8 or not:
+ *  a Latin-1 list is a list all the same. */
+const controlByte = (b: number): boolean => b < 0x20 && b !== 0x09 && b !== 0x0a && b !== 0x0c && b !== 0x0d;
+
+/** A first line that makes mpv (or FFmpeg under it) read the file as a list of other things to play. */
+const REFERENCE_LINE =
+  /^(#EXTM3U|# mpv EDL|\[playlist\]|\[Reference\]|edl:\/\/|ffconcat |v=0|[a-z][a-z0-9+.-]*:\/\/|\/|[a-z]:[\\/]|\\\\)/i;
+
+/**
+ * Whether the first bytes of a file the engine is about to open (`SNIFF_BYTES` of them) are text, not audio or video:
+ * a playlist (M3U, HLS, PLS), an mpv EDL or a reference dressed up with a video's extension. ffprobe cannot read one,
+ * so it goes to the engine by its extension, and mpv recognises the list by its content: it projected ANOTHER local
+ * file and fetched a URL from someone else's server (2026-11-15 audit, S1). No audio or video container is plain text,
+ * so a head with no control byte is refused whole; a text first line that names a list, a URL or an absolute path is
+ * refused even with binary after it. A UTF-16 list with its BOM also played (measured): only its first line is read,
+ * as an MPEG audio frame may start with the same two bytes. The native half (`access-references=no`) is engine-9's.
+ */
+export function textInsteadOfMedia(head: Uint8Array): boolean {
+  const bytes = Buffer.from(head.buffer, head.byteOffset, head.byteLength);
+  if (bytes[0] === 0xff && bytes[1] === 0xfe) return listLine(bytes.toString("utf16le", 2));
+  if (bytes[0] === 0xfe && bytes[1] === 0xff)
+    return listLine(Buffer.from(bytes.subarray(2, 2 + ((bytes.length - 2) & ~1))).swap16().toString("utf16le"));
+  if (!bytes.some(controlByte)) return true;
+  const bom = bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf ? 3 : 0;
+  return listLine(bytes.toString("latin1", bom));
+}
+
+/** Whether `text` starts with a whole line of text that names a list, a URL or an absolute path: only a whole line,
+ *  as a binary stream may well start with the byte of a `/`. */
+function listLine(text: string): boolean {
+  const line = text.slice(0, Math.max(0, text.indexOf("\n")));
+  for (let i = 0; i < line.length; i++) if (controlByte(line.charCodeAt(i))) return false;
+  return REFERENCE_LINE.test(line.trim());
+}
+
 /** 0..1, as `HTMLMediaElement.volume` takes it (linear amplitude) → mpv's `volume`, which it cubes
  *  (`player/audio.c`): sent as it was, the panel's 30% played at 2.7% of full scale. */
 export function mpvVolume(volume: number): number {

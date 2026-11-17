@@ -1,14 +1,16 @@
+import { BrowserWindow } from "electron";
 import type { Handlers } from "../register";
 import { projectionState } from "../../services/projection-state";
 import { createProjectionWindow } from "../../windows/projection-window";
-import { getHistoryRepo, getSlidesRepo, getSongsRepo } from "../../services/repos";
+import { getHistoryRepo, getMediaRepo, getSlidesRepo, getSongsRepo } from "../../services/repos";
 import { broadcast } from "../../services/broadcast";
 import { pinDecks } from "../../slides/deck-service";
-import { commandLiveEngine, redrawEngineFrame, syncLiveEngine } from "../../media/engine-sessions";
+import { commandLiveEngine, redrawEngineFrame, syncLiveEngine, syncLiveEngineIntoNewProjector } from "../../media/engine-sessions";
 import { IpcError } from "@shared/ipc/result";
 import { deckIdOfUrl } from "@shared/urls";
 import { keepLiveDeckSource } from "../../protocol/worship-protocol";
 import { reopenStageWindow, showOnStage, stageShown, stageSnapshot } from "../../windows/stage-window";
+import { crashLimit } from "../../windows/crash-limit";
 import { reportLevel } from "../../media/audio-levels";
 
 let currentProgramId: number | null = null;
@@ -18,6 +20,11 @@ let currentProgramId: number | null = null;
 const PROJECTOR_MOUNT_TIMEOUT_MS = 5_000;
 /** `webContents.id` → settles that window's `projection:open`. */
 const mountWaiters = new Map<number, () => void>();
+
+/** Whether a projector that just died may be reopened on its own (`crash-limit.ts`). */
+const projectorCrashed = crashLimit();
+/** When the last projector died, until its replacement mounts: how long the room was without one goes to main.log. */
+let diedAt: number | null = null;
 
 export function setCurrentProgramId(id: number | null): void {
   currentProgramId = id;
@@ -50,8 +57,8 @@ export const projectionHandlers: Pick<
     if (existing) existing.close();
     const win = createProjectionWindow(displayId);
     projectionState.setWindow(win);
-    // An engine video paused by the closed projector plays again, now into this window.
-    syncLiveEngine();
+    // An engine video paused by the closed projector plays again, now into this window, once it shows it.
+    syncLiveEngineIntoNewProjector(win);
     // Identity-checked (see `clearWindowIf`), and this is load-bearing:
     // `close()` above is asynchronous, so the OLD window's `closed` fires
     // AFTER this line has already registered the new one. Clearing
@@ -59,6 +66,17 @@ export const projectionHandlers: Pick<
     // window sat on screen, very much alive — after which no
     // `projection:show` ever reached the projector again (it froze on
     // whatever was last on it) and `projection:close` closed nothing.
+    // A renderer that dies leaves its window up, black or frozen, and nothing said so: the room watched a dead
+    // projector while the LIVE monitor went on showing what it «projected» (2026-11-15 audit, A1). Taken down, it
+    // goes through the path a window closed from outside takes, and the control window reopens it onto what was
+    // live — the positions folded in first, as for «Reabrir».
+    let reopen = false;
+    win.webContents.on("render-process-gone", () => {
+      if (win.isDestroyed()) return;
+      diedAt = Date.now();
+      reopen = projectorCrashed();
+      win.destroy();
+    });
     win.on("closed", () => {
       // The broadcast is gated on `clearWindowIf` having actually fired, for
       // the identity reason spelled out above: during a reopen the OLD
@@ -69,7 +87,7 @@ export const projectionHandlers: Pick<
       // already nulled the reference too, so it stays silent as well — the
       // control window does not need to be told what it just did.
       if (projectionState.clearWindowIf(win)) {
-        broadcast("projection-closed", undefined);
+        broadcast("projection-closed", { reopen });
         syncLiveEngine();
       }
     });
@@ -108,7 +126,19 @@ export const projectionHandlers: Pick<
     const deckId = output.kind === "slide" ? deckIdOfUrl(output.url) : null;
     if (deckId !== null) keepLiveDeckSource(deckId);
     syncLiveEngine();
-    getHistoryRepo().record(output, currentProgramId);
+    // A deck on air under a row a relocate merged away is history and pinned as the row it lives on as: under the dead
+    // id its history row failed the foreign key (the first slide after a LOGO lifted) and the next slide unpinned it
+    // (2026-11-15 audit, D4). The projector got the output as it is.
+    const shown =
+      output.kind === "slide" ? { ...output, deckAssetId: getMediaRepo().survivingId(output.deckAssetId) } : output;
+    // Never in the way of the projector either: a throw here (a full disk, a read-only database) left the CCLI use
+    // uncounted, the deck on air unpinned and the channel answering an error, the projector already changed
+    // (2026-11-15 audit, D11).
+    try {
+      getHistoryRepo().record(shown, currentProgramId);
+    } catch (error) {
+      console.warn("[history] could not record what went on air", error);
+    }
     if (output.kind === "song") {
       // The CCLI report's count: never in the way of the projector.
       try {
@@ -128,8 +158,8 @@ export const projectionHandlers: Pick<
     // three minutes of BLACK over a deck, an eviction pass in between, and the
     // slides are gone when it comes back up. The pin is released by the next
     // output that genuinely replaces the content (a video, an image, a verse).
-    if (output.kind === "slide") {
-      const deck = getSlidesRepo().findDeckByAsset(output.deckAssetId);
+    if (shown.kind === "slide") {
+      const deck = getSlidesRepo().findDeckByAsset(shown.deckAssetId);
       pinDecks("projected", deck ? [deck.id] : []);
     } else if (output.kind !== "black" && output.kind !== "logo") {
       pinDecks("projected", []);
@@ -144,6 +174,11 @@ export const projectionHandlers: Pick<
 
   "projection:getSnapshot": (_req, ev) => {
     mountWaiters.get(ev.sender.id)?.();
+    if (diedAt !== null) {
+      const fullScreen = BrowserWindow.fromWebContents(ev.sender)?.isFullScreen() ?? false;
+      console.info(`[projector] mounted again ${Date.now() - diedAt} ms after its renderer died (${fullScreen ? "full screen" : "a window"})`);
+      diedAt = null;
+    }
     return projectionState.getSnapshot();
   },
 

@@ -19,7 +19,7 @@ import type { BibleStyle } from "@shared/types/bible-style";
  * of the very same proportions.
  *
  * `long` swaps a two-word verse for a long one. Not a decoration: it is the
- * only way to see what «Shrink to fit» actually does before Sunday, in
+ * only way to see what «Shrink to fit» actually does before the service, in
  * the same spirit as the time-scene editor's «Preview the end».
  *
  * The version label is the DEFAULT version's real name rather than a

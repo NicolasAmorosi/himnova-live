@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { strToU8, zipSync } from "fflate";
 import { FIXTURES_DIR, FIXTURE_VERSION, ffmpegBinary } from "./paths";
-import { buildPdf } from "./pdf";
+import { buildImagePdf, buildPdf, ccittHalfBlack } from "./pdf";
 import { CM, REL, buildPptx } from "./pptx";
 import { buildLegacyPpt } from "../../fixtures/legacy-ppt";
 
@@ -16,10 +16,15 @@ import { buildLegacyPpt } from "../../fixtures/legacy-ppt";
  */
 export default function globalSetup(): void {
   const stamp = path.join(FIXTURES_DIR, ".version");
+  const listing = path.join(FIXTURES_DIR, ".files");
   // The stamp alone is not proof: the OS purges files in its temp folder it
   // thinks are stale (macOS does after a few days) and can leave the stamp
   // behind, and then every test fails on a missing fixture as if the app broke.
-  const intact = fs.existsSync(path.join(FIXTURES_DIR, "clip.mp4"));
+  // Every file is checked, not one: the fixture few tests use is the one purged
+  // first (2026-11-15 audit, P8).
+  const intact =
+    fs.existsSync(listing) &&
+    fs.readFileSync(listing, "utf8").split("\n").every((name) => fs.existsSync(path.join(FIXTURES_DIR, name)));
   if (intact && fs.existsSync(stamp) && fs.readFileSync(stamp, "utf8") === String(FIXTURE_VERSION)) return;
 
   fs.rmSync(FIXTURES_DIR, { recursive: true, force: true });
@@ -52,6 +57,12 @@ export default function globalSetup(): void {
   run("-f", "lavfi", "-i", "testsrc2=size=1280x720", "-frames:v", "1", out("photo.png"));
 
   fs.writeFileSync(out("deck.pdf"), buildPdf(["#1f4e9c", "#c0392b", "#27ae60"]));
+  // A photo in JPEG 2000 and a scanned page in CCITT: pdf.js decodes both with its own WebAssembly, and without it drew
+  // them blank (2026-11-15 audit, A9).
+  run("-f", "lavfi", "-i", "color=c=red:size=64x64", "-frames:v", "1", "-c:v", "jpeg2000", out("red.jp2"));
+  fs.writeFileSync(out("jpx.pdf"), buildImagePdf("/Width 64 /Height 64 /Filter /JPXDecode", fs.readFileSync(out("red.jp2"))));
+  const scan = ccittHalfBlack();
+  fs.writeFileSync(out("scan.pdf"), buildImagePdf(scan.dict, scan.data));
 
   // A legacy hymn as the real ones are: a JPEG per slide, a logo over the
   // first and a speaker icon PowerPoint hides — read straight from the file
@@ -174,6 +185,7 @@ export default function globalSetup(): void {
   run("-f", "lavfi", "-i", flash, ...beep, ...h264, "-b:v", "2M", "-c:a", "aac", "-shortest", out("ndi-av.mp4"));
   run("-i", out("ndi-av.mp4"), ...beep, "-map", "0:v", "-map", "1:a", "-c:v", "copy", "-bsf:v", "h264_mp4toannexb", "-c:a", "pcm_s16le", "-shortest", out("ndi-av.avi"));
 
+  fs.writeFileSync(listing, fs.readdirSync(FIXTURES_DIR).join("\n"));
   fs.writeFileSync(stamp, String(FIXTURE_VERSION));
 }
 

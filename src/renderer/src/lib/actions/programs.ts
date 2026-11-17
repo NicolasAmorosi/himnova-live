@@ -137,12 +137,13 @@ export async function saveCurrentProgram(): Promise<boolean> {
 
 /** Creates a new saved program from the schedule currently open — the
  *  programs screen's unsaved-schedule row, which is also where the top bar's
- *  «Save» of a program that was never saved lands. */
-export async function createProgramFromCurrent(meta: ProgramMetaInput): Promise<ProgramSummary | null> {
+ *  «Save» of a program that was never saved lands. With `into`, the schedule
+ *  replaces that saved program instead (one of the same name, U13). */
+export async function createProgramFromCurrent(meta: ProgramMetaInput, into?: number): Promise<ProgramSummary | null> {
   try {
     const savedFrom = useProgramStore.getState().currentProgramId;
     const { sent, items } = draftItems();
-    const summary = await api.programs.save({ ...meta, items });
+    const summary = await api.programs.save({ ...meta, ...(into === undefined ? {} : { id: into }), items });
     adoptSaved(await api.programs.load(summary.id), sent, savedFrom);
     toast.success(t("programs.saved", { name: summary.name }));
     return summary;

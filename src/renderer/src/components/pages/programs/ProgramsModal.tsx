@@ -113,6 +113,8 @@ export function ProgramsModal({ initialMode, onOpenChange, open }: ProgramsModal
     initialMode?.kind === "create" ? { kind: "create", draft: EMPTY, baseline: EMPTY } : null,
   );
   const [pending, setPending] = useState<Pending | null>(null);
+  /** A save whose name another program already has, waiting for the operator (2026-11-15 audit, U13). */
+  const [sameName, setSameName] = useState<{ meta: ProgramMetaInput; twin: ProgramSummary } | null>(null);
   const [saving, setSaving] = useState(false);
   const [peeked, setPeeked] = useState<{ id: number; items: ProgramItemDTO[] } | "loading" | "error">("loading");
   const nameRef = useRef<HTMLInputElement>(null);
@@ -277,6 +279,23 @@ export function ProgramsModal({ initialMode, onOpenChange, open }: ProgramsModal
       name: editing.draft.name.trim(),
       notes: editing.draft.notes.trim() || null,
     };
+    // Another program by that name: asked first. It was saved as a second one, identical in the list, without a word
+    // (2026-11-15 audit, U13; owner, 2026-11-16: warn and offer to replace).
+    const name = meta.name.toLocaleLowerCase();
+    const twin = programs.find(
+      (program) =>
+        program.name.trim().toLocaleLowerCase() === name && !(editing.kind === "saved" && program.id === editing.program.id),
+    );
+    if (twin) {
+      setSameName({ meta, twin });
+      return;
+    }
+    await commitSave(meta);
+  }
+
+  /** `into`: the program of the same name the schedule being worked on replaces (its star kept). */
+  async function commitSave(meta: ProgramMetaInput, into?: ProgramSummary) {
+    if (!editing) return;
     if (editing.kind === "new" && editing.openAfter) {
       guardSchedule(async () => {
         setSaving(true);
@@ -294,7 +313,7 @@ export function ProgramsModal({ initialMode, onOpenChange, open }: ProgramsModal
         editing.kind === "saved"
           ? await updateProgramMeta(editing.program.id, meta)
           : editing.kind === "create"
-            ? await createProgramFromCurrent(meta)
+            ? await createProgramFromCurrent(into ? { ...meta, favorite: into.favorite } : meta, into?.id)
             : await createProgram(meta, false);
       if (!saved) return;
       const list = await refreshList();
@@ -423,8 +442,8 @@ export function ProgramsModal({ initialMode, onOpenChange, open }: ProgramsModal
           editing ? (
             // One section like every inspector; the favourite is the row's star
             // only (it was a second control here too — 2026-11-04 review).
-            <Inspector label={t("programs.title")}>
-              <InspectorSection title={t("schedule.title")}>
+            <Inspector id="programs" label={t("programs.title")}>
+              <InspectorSection id="schedule" title={t("schedule.title")}>
                 {editing.kind === "new" ? (
                   <FieldRow label={t("programs.createAndOpen")}>
                     <Switch
@@ -703,6 +722,29 @@ export function ProgramsModal({ initialMode, onOpenChange, open }: ProgramsModal
             ? t("programs.deleteTitle")
             : t("programs.discardTitle")
         }
+      />
+
+      <ConfirmModal
+        confirmLabel={sameName && editing?.kind === "create" ? t("programs.sameNameReplace") : t("programs.sameNameKeepBoth")}
+        description={
+          sameName && editing?.kind === "create" ? t("programs.sameNameReplaceBody") : t("programs.sameNameKeepBody")
+        }
+        onConfirm={async () => {
+          if (!sameName) return;
+          // Replacing is only for the schedule being worked on: a new empty program or a rename would wipe the other's
+          // rows, so those only go ahead as a second program of the same name.
+          await commitSave(sameName.meta, editing?.kind === "create" ? sameName.twin : undefined);
+        }}
+        onOpenChange={(next) => {
+          if (!next) setSameName(null);
+        }}
+        open={sameName !== null}
+        secondary={
+          sameName && editing?.kind === "create"
+            ? { label: t("programs.sameNameKeepBoth"), onClick: () => commitSave(sameName.meta) }
+            : undefined
+        }
+        title={t("programs.sameNameTitle", { name: sameName?.meta.name ?? "" })}
       />
 
       {dragPreview

@@ -1,9 +1,17 @@
-import { app, BrowserWindow, dialog } from "electron";
+import { app, BrowserWindow, dialog, session } from "electron";
 import fs from "node:fs";
 import path from "node:path";
 import { registerWorshipScheme, registerWorshipProtocolHandler } from "./protocol/worship-protocol";
-import { openForLaunch } from "./db/migrate";
-import { applyPendingRestore } from "./db/backups";
+import { dailyBackupDue, journalNewest, openForLaunch } from "./db/migrate";
+import {
+  applyPendingRestore,
+  dailyBackupDir,
+  isDamagedDatabase,
+  newestDailyCopy,
+  stageRestore,
+  stagedRestorePath,
+} from "./db/backups";
+import { runBackupJob } from "./db/backup-thread";
 import { seedBuiltinBibles } from "./db/seed/seed-bible";
 import { seedUtilityScenes } from "./db/seed/seed-utility-scenes";
 import { seedSongThemes } from "./db/seed/seed-song-themes";
@@ -23,14 +31,19 @@ import {
   migrateLegacyMediaIfPresent,
 } from "./services/migrate-legacy-data";
 import { importPaths } from "./services/library-import";
+import { quitWaitForSongSaves } from "./services/song-files";
 import { setBibleDb } from "./ipc/handlers/bible";
 import { registerAllIpcHandlers } from "./ipc";
+import { isTrustedSender } from "./ipc/trusted-senders";
+import { relaunchOnQuit } from "./ipc/handlers/backups";
+import { forgetLiveCopy } from "./ipc/handlers/program-draft";
 import { createControlWindow, operatorDisplay } from "./windows/control-window";
 import { installNavigationGuards } from "./windows/navigation-guards";
 import { installApplicationMenu } from "./windows/app-menu";
 import { holdQuitUntilAnswered, installCloseGuard } from "./windows/close-guard";
 import { watchDisplays } from "./windows/projector-screen";
 import { closeStageWindow, syncStageWindow } from "./windows/stage-window";
+import { showSheet } from "./windows/sheet";
 import { isNdiWindow, stopNdiOutput, syncNdiOutput } from "./ndi/ndi-output";
 import { projectionState } from "./services/projection-state";
 import {
@@ -45,7 +58,7 @@ import {
   profileBackgroundsDir,
   systemLinkedFolders,
 } from "./paths";
-import { mainMessages, mt, setMainLocale } from "./i18n";
+import { mainLocale, mainMessages, mt, setMainLocale } from "./i18n";
 import { systemLocale } from "./i18n/system-locale";
 import { initSlidesSubsystem, shutdownSlides } from "./slides/deck-service";
 import { cancelAllPrewarmBatches } from "./services/prewarm-service";
@@ -56,6 +69,7 @@ import { backfillContentHashes } from "./media/content-hash";
 import { initEngineAssets, shutdownEngineAssets } from "./media/engine-assets";
 import { engineAvailable, killAllEngines, startEngines } from "./media/media-engine";
 import { stopDeckClips } from "./media/deck-clips";
+import { stopPreviewEngine, syncLiveEngine } from "./media/engine-sessions";
 import { appendLogLine, installMainLog } from "./logging";
 import { initUpdates } from "./updates/updater";
 import { retireFormerMacApp } from "./updates/former-mac-app";
@@ -72,6 +86,12 @@ const THUMB_PRUNE_DELAY_MS = 10_000;
  *  should not have to wait ten seconds to see the truth — but still long
  *  enough to be past the control window's first paint. */
 const CONTENT_HASH_BACKFILL_DELAY_MS = 2_000;
+/** The only permissions a page gets, and only the app's own windows (see `whenReady`). */
+const GRANTED_PERMISSIONS = new Set(["media", "speaker-selection", "local-fonts"]);
+
+/** The daily copy of the database (`dailyBackup`), past the control window's first paint. It used to run before the
+ *  window: 0.7 to 1.0 s with no window on the first launch of each day (2026-11-15 audit, R1). */
+const DAILY_BACKUP_DELAY_MS = 5_000;
 
 // First of all, so nothing main says is lost on a machine with no console.
 installMainLog(path.join(userDataDir, "main.log"));
@@ -95,7 +115,8 @@ if (!gotSingleInstanceLock) {
   app.quit();
 }
 
-function initDatabase(): void {
+/** Says whether the database existed before this launch: one the launch creates has nothing to copy yet. */
+function initDatabase(): boolean {
   // Asked before `openDatabase` creates the file. A profile holding the legacy
   // app's data is not new either: that church has always run in Spanish.
   const isNewProfile = ![dbPath, legacySettingsPath, legacyMediaLibraryPath].some((file) => fs.existsSync(file));
@@ -106,17 +127,19 @@ function initDatabase(): void {
   // A copy the operator chose to restore (Settings) takes the database's place before anything opens it;
   // the migrations below then bring an older one up to date.
   applyPendingRestore(dbPath, dbBackupDir);
+  const hadDatabase = fs.existsSync(dbPath);
   const { sqlite, db } = openForLaunch(dbPath, dbBackupDir, migrationsDir, (error, backup) => {
-    dialog.showErrorBox(
-      mt("dialogs.dbErrorTitle"),
-      [
-        mt("dialogs.dbErrorMigrations"),
-        backup.status === "ok"
-          ? mt("dialogs.dbErrorBackup", { path: backup.path })
-          : mt("dialogs.dbErrorNoBackup"),
-        String(error),
-      ].join("\n\n"),
-    );
+    // A migration is spoken of only when one was pending (a skipped backup is nothing pending).
+    const message =
+      backup.status === "skipped"
+        ? mt("dialogs.dbErrorOpen")
+        : [
+            mt("dialogs.dbErrorMigrations"),
+            backup.status === "ok" ? mt("dialogs.dbErrorBackup", { path: backup.path }) : mt("dialogs.dbErrorNoBackup"),
+          ].join("\n\n");
+    if (!offerDailyRestore(message, error)) {
+      dialog.showErrorBox(mt("dialogs.dbErrorTitle"), [message, String(error)].join("\n\n"));
+    }
     // Explained already: `reportCrash` still logs it, without a second dialog.
     crashDialogShown = true;
   });
@@ -171,6 +194,7 @@ function initDatabase(): void {
       isNewProfile,
     );
   }
+  return hadDatabase;
 }
 
 function wireMinimizeRestoreSync(controlWindow: BrowserWindow): void {
@@ -188,6 +212,12 @@ function wireMinimizeRestoreSync(controlWindow: BrowserWindow): void {
     projectionState.getWindow()?.close();
     closeStageWindow();
     stopNdiOutput();
+    // macOS keeps the app with no window: PREVIEW's engine sounded on to the file's end, and the live tracks kept
+    // were what a projector opened from the next window played again (2026-11-15 audit, A20).
+    stopPreviewEngine();
+    projectionState.forget();
+    forgetLiveCopy();
+    syncLiveEngine();
   });
 }
 
@@ -250,14 +280,17 @@ app.on("second-instance", () => {
 
 if (gotSingleInstanceLock) {
   void app.whenReady().then(() => {
+    let hadDatabase: boolean;
     try {
-      initDatabase();
+      hadDatabase = initDatabase();
     } catch (error) {
       // A migration failure has already explained itself (`initDatabase`).
       // Anything else — a locked or corrupt `worship.db`, a backup that
       // cannot be pruned — used to quit with no dialog and nothing in
       // `crash.log`: the app simply never opened, on the one launch (the first
       // after an update) when a pending migration makes that most likely.
+      // A damaged database that would not even open: the same offer as a failed migration's.
+      if (!crashDialogShown && offerDailyRestore(mt("dialogs.dbErrorOpen"), error)) crashDialogShown = true;
       reportCrash("startup", error);
       app.quit();
       return;
@@ -265,6 +298,16 @@ if (gotSingleInstanceLock) {
 
     registerWorshipProtocolHandler(getMediaRepo());
     registerAllIpcHandlers();
+    // Electron grants every permission to every page unless told otherwise, the PDF window included. The app's own
+    // windows (`isTrustedSender`) get the three they use, measured with every check logged: `media`, which is what
+    // gives `enumerateDevices` its labels, `speaker-selection` (`setSinkId`) and `local-fonts` (`queryLocalFonts`, the
+    // editors' font list). The audio route matches the chosen output BY LABEL (`use-audio-outputs.ts`,
+    // `effects/audio-route.ts`): denying `media` to them would lose it with no error, and denying `local-fonts`
+    // empties the font list as quietly. Everything else is denied (2026-11-15 audit, S12).
+    const granted = (contents: Electron.WebContents | null, permission: string): boolean =>
+      GRANTED_PERMISSIONS.has(permission) && contents !== null && isTrustedSender(contents.id);
+    session.defaultSession.setPermissionRequestHandler((contents, permission, callback) => callback(granted(contents, permission)));
+    session.defaultSession.setPermissionCheckHandler((contents, permission) => granted(contents, permission));
     watchDisplays();
     // Before the first window: the default menu's Cmd+W (which closes the
     // PROJECTOR) and Cmd+R must never be reachable, not even for one frame.
@@ -323,6 +366,28 @@ if (gotSingleInstanceLock) {
     }, THUMB_PRUNE_DELAY_MS);
 
     mainControlWindow = openControlWindow();
+    // On the backup thread: main stays free for the window and whatever goes on air. Asked again there, so a copy
+    // made from Settings in the meantime counts as today's.
+    if (hadDatabase) {
+      setTimeout(() => {
+        const dir = dailyBackupDir(dbBackupDir);
+        try {
+          if (!dailyBackupDue(dir)) return;
+        } catch (error) {
+          // A copy rotated out between the listing and its `stat` («Hacer una copia» in these five seconds): a chore,
+          // not a crash dialog.
+          console.warn("[db] daily backup failed:", error);
+          return;
+        }
+        runBackupJob({ op: "daily", dbPath, dir })
+          .then((reply) => {
+            if ("snapshot" in reply && reply.snapshot.status === "failed") {
+              console.warn("[db] daily backup failed:", reply.snapshot.reason);
+            }
+          })
+          .catch((error: unknown) => console.warn("[db] daily backup failed:", error));
+      }, DAILY_BACKUP_DELAY_MS);
+    }
     // After the window, like every launch chore: the check itself waits ten
     // more seconds, and a failed one only reaches `main.log`.
     initUpdates();
@@ -342,6 +407,10 @@ app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();
 });
 
+/** How long a quit waits for a song file save still running (a share that does not answer must not keep the app). */
+const QUIT_SONG_SAVE_WAIT_MS = 5000;
+const holdQuitForSongSaves = quitWaitForSongSaves(() => app.quit(), QUIT_SONG_SAVE_WAIT_MS);
+
 // Cancels in-flight jobs and closes the rasterizer. The deck cache is
 // deliberately NOT deleted — persisting it is the point of the pipeline.
 app.on("before-quit", (event) => {
@@ -349,6 +418,9 @@ app.on("before-quit", (event) => {
   // down before that: an operator who cancels must keep the projector and a
   // working slides pipeline. See `holdQuitUntilAnswered`.
   if (holdQuitUntilAnswered(event)) return;
+  // A song file save still running is waited for, once and at most a few seconds, before anything shuts down:
+  // `will-quit` closes the database under it (review of 2026-11-15 audit A25). Nothing pending, no wait.
+  if (holdQuitForSongSaves(() => event.preventDefault())) return;
   cancelAllPrewarmBatches();
   shutdownSlides();
   stopDeckClips();
@@ -373,11 +445,42 @@ app.on("will-quit", () => {
   closeDatabase();
 });
 
-/** At most one crash dialog per run. `showErrorBox` is modal and blocking, so
+/** At most one crash dialog per run. The dialog is modal, so
  *  a repeating fault (a listener that throws on every event, say) turned the
  *  "health check" into a wall of dialogs the operator could not get past —
  *  during a service. Everything after the first still reaches `crash.log`. */
 let crashDialogShown = false;
+
+/**
+ * The database is damaged and the app cannot start on it. With a daily copy that reads, the box offers to restore it:
+ * staged as «Restaurar…» stages one, and the app starts again on it once it quits (2026-11-15 audit, D3: a damaged
+ * page closed the app for good, saying there was no copy while `backups/daily/` held up to seven). Says whether it
+ * showed the box; anything else is the caller's to say.
+ */
+function offerDailyRestore(message: string, error: unknown): boolean {
+  const copy = isDamagedDatabase(error) ? newestDailyCopy(dbBackupDir) : null;
+  if (!copy) return false;
+  const date = new Date(copy.takenAt).toLocaleString(mainLocale(), { dateStyle: "long", timeStyle: "short" });
+  const choice = dialog.showMessageBoxSync({
+    type: "error",
+    title: mt("dialogs.dbErrorTitle"),
+    message,
+    detail: [mt("dialogs.dbRestoreOffer", { date }), String(error)].join("\n\n"),
+    buttons: [mt("dialogs.dbRestoreButton", { date }), mt("menu.quit")],
+    defaultId: 0,
+    cancelId: 1,
+    noLink: true,
+  });
+  if (choice !== 0) return true;
+  const refused = stageRestore(copy.path, stagedRestorePath(dbBackupDir), journalNewest(migrationsDir));
+  if (refused) {
+    dialog.showErrorBox(mt("dialogs.dbErrorTitle"), mt(`backups.${refused}`));
+    return true;
+  }
+  console.warn(`[db] restoring the daily copy of ${new Date(copy.takenAt).toISOString()} at the next launch`);
+  relaunchOnQuit();
+  return true;
+}
 
 function reportCrash(label: string, error: unknown): void {
   const detail = error instanceof Error ? (error.stack ?? error.message) : String(error);
@@ -387,7 +490,14 @@ function reportCrash(label: string, error: unknown): void {
     return;
   }
   crashDialogShown = true;
-  dialog.showErrorBox(mt("dialogs.crashTitle"), detail);
+  // A sheet on the visible control window keeps main serving until the click (`showSheet`). Before there is a window,
+  // the blocking box is all there is.
+  const parent = mainControlWindow && !mainControlWindow.isDestroyed() ? mainControlWindow : null;
+  if (!parent) {
+    dialog.showErrorBox(mt("dialogs.crashTitle"), detail);
+    return;
+  }
+  void showSheet(parent, { type: "error", title: mt("dialogs.crashTitle"), message: mt("dialogs.crashTitle"), detail });
 }
 
 // Surface crashes as a dialog instead of a silent blank window — the health

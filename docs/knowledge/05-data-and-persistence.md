@@ -102,7 +102,7 @@ That gives the two rules that hold the table up:
 
 Seeding the four factory scenes is guarded by the `utility.seeded` flag in `settings`, **not by a
 row count**. Seeding "when the table is empty" would mean the operator who deletes a scene finds it
-back on Monday, and that deleting them all is impossible. With the flag, deleting is deleting: the
+back on the next launch, and that deleting them all is impossible. With the flag, deleting is deleting: the
 panel shows its empty state and offers to create one.
 
 ## "Is it converted?" is asked by CONTENT, not by row ownership
@@ -318,7 +318,8 @@ a bible module too — goes through `decodeText` (`main/decode-text.ts`): its by
 (`importSongFiles`): each file read by what it is — `.xml` OpenLyrics, EasyWorship's `Songs.db`/`SongWords.db`
 (their folder; EasyWorship 2009's Paradox `Songs.DB` is refused as too old, `EW_OLD`), any other
 `.db`/`.sqlite` as OpenLP's, SongSelect or ChordPro text for the rest. All of it goes through `writeSongs`
-(`services/song-import.ts`): one transaction, the same title with the same words skipped as repeated — and when
+(`services/song-import.ts`): a hundred songs per transaction (an import that fails halfway keeps the batches
+already written, and importing again skips them as repeated), the same title with the same words skipped as repeated; when
 that library copy had no file yet it is tied to this one, first taking what the file holds (chords, authors,
 CCLI…), or its next save would write them out of the file (owner, 2026-11-06); `refreshedFrom` keeps its theme
 and what the file does not hold — its format has no place for it, or this file simply has none (a number, notes,
@@ -352,8 +353,9 @@ One row per video or audio already checked with ffprobe (migration `0016_media_c
 `MEDIA_PROBE_VERSION`), valid while `source_size` and `source_mtime_ms` are still the asset's.
 
 **Whether the media engine plays a file is not stored.** It's recomputed on every startup
-(`media/engine-assets.ts`, `playsNatively`), because one of its inputs belongs to the MACHINE:
-whether the GPU decodes HEVC. A library taken to another PC doesn't keep the previous one's answer.
+(`media/engine-assets.ts`, `playsOnEngine`), because its inputs belong to the MACHINE: whether
+the GPU decodes HEVC, and the platform (on Windows every video goes to the engine, 2026-11-16). A library
+taken to another PC doesn't keep the previous one's answer.
 Clips embedded in a `.pptx` don't use this table: `media/deck-clips.ts` probes them when the deck
 is opened, and keeps its answer in memory too.
 
@@ -389,11 +391,21 @@ their common trailing folder names dropped (`moveBetween`: `D:\Iglesia\Videos` �
 part is then tried under the new one: library rows (any `in_library`, merged by `relocate` when the new path is a row
 already), a deck's operator-chosen soundtrack (the automatic one re-resolves itself), Media's and Songs' linked folders
 and the views open on them, folder songs (`source_folder`, so their ids and the programs singing them stay) and library
-songs tied to a file. A path changes **only when its old place is gone and its twin is there**, so nothing that still
+songs tied to a file, and the LOGO's picture (`logo.path`, since 2026-11-15, audit D5; a deck's own source moves with
+its library row, `relocate`, since the same day, audit D1). A path changes **only when its old place is gone and its twin is there**, so nothing that still
 works is touched and nothing points at a file that does not exist. Paths are split on either separator, so a Windows
 profile opened on a Mac or Linux follows too. The stats are asynchronous and in chunks (a gone drive answers slowly);
 the rows move in one transaction (`relocateMany`). Song rows move before the settings: `song:list` lets go of the songs
 of a folder no longer linked. A folder linked by hand at the new place keeps its own songs and is not linked twice.
+A merge deletes the twin, and the open order of service is not SQL: `relocate` names each pair, both channels return
+them (`merged`), and the renderer moves the schedule rows, PREVIEW and the library's selection to the row that stays
+and reads the saved plates again, whose pictures main moved (`followMerges`; left on the dead id, «Guardar» failed its foreign key and the draft dropped the rows, audit D4,
+2026-11-15). What is on the air keeps the id it went out with, so nothing the room sees remounts: the renderer compares
+a live id with a row's through `survivingAssetId`, and main serves a merged-away id's file through
+`MediaRepo.survivingId` (the protocol and the engine only, never the getters a write follows). The engine's list keeps
+a merged-away id (an engine pass drops only an id that merged into nothing), since the renderer hears of a merge only
+once the whole move is followed; the history and pin of a deck on air go to the row it lives on as; and a merge is
+noted only once its transaction commits (one rolled back with a later move of `relocateMany` never happened).
 
 And no import accepts a `._x.pps` (the AppleDouble that
 macOS leaves on a FAT/exFAT USB stick), a `~$x.pptx` (PowerPoint's lock file) or a file whose
@@ -505,7 +517,7 @@ it got:
 | MyBible.zone / MySword | `better-sqlite3` in `readonly` | `book_number` (10..730) / `Book` (1..66) |
 
 `detectBibleFormat` sniffs magic numbers (`SQLite format 3\0`, `PK\x03\x04`) and then the root
-element — **never the extension**, same as `container-kind.ts` does with a presentation. A `.zip`
+element (**never the extension**), the same as `containerKind` (`slides/pptx-metadata.ts`) does with a presentation. A `.zip`
 is opened with `readZipEntries` (not `unzipSync`) and the largest entry wins; a compressed SQLite
 module is **not** supported, because it would have to be written to a temp file.
 
@@ -587,11 +599,23 @@ the three slots with post-migration copies and **rotated out the only copy this 
 keep**. It showed in the user's real folder: the 3 copies were from the same day and the same size,
 all after the last migration.
 
-**And once a day** (2.8.1): a month without migrations left a month-old copy as the newest. At launch,
-before the database opens, `dailyBackup` takes the same verified snapshot into `userData/backups/daily/`
-when the newest copy there is 24 h old (or dated in the future: a clock set back), keeping the last 7.
-Their own folder, so they never rotate out the pre-migration copies. It costs a launch about 0.45 s once a
-day on a 90 MB profile with nine Bibles (measured 2026-11-13); a typical one is a fraction of that.
+**And once a day** (2.8.1): a month without migrations left a month-old copy as the newest. `dailyBackup`
+takes the same verified snapshot into `userData/backups/daily/` when the newest copy there is 24 h old (or
+dated in the future: a clock set back; `dailyBackupDue`), keeping the last 7. Their own folder, so they never
+rotate out the pre-migration copies. **Not at launch** (2026-11-15, audit R1): it ran before the database opened,
+on main, and the first launch of each day waited for it with no window, 0.7 to 1.0 s on a 90 MB profile with nine
+Bibles (`VACUUM INTO` about 200 to 450 ms plus `integrity_check` about 420 to 500 ms; the 0.45 s written here
+before was one half of it). Now `index.ts` asks the rule 5 s after the control window opens and, if a copy is due,
+runs `dailyBackup` on the backup thread (`backup-worker.ts`, op `daily`), which asks the rule again: a copy made
+from Settings in the meantime counts as today's. Measured on a 77 MB profile with nine Bibles: `ready` to the control
+window 651 to 659 ms on the first launch of the day before, 91 to 116 ms after (104 ms on a launch with today's copy
+in place), and the copy is in `daily/` 5.8 to 6.0 s after the window is usable (three runs; a fourth took 13 s,
+cause not found). A database this
+launch created (a new profile) is not copied, as before. Copies run one at a time (`runBackupJob` chains them, a
+failed one does not stop the next): the daily copy and «Hacer una copia» write into the same folder, and
+`takeSnapshot` starts by deleting every `.partial` there, the other job's copy in progress included. A restore
+staged («Restaurar») is not chained: it writes only into `restore-pending/`, and one read from a share that hangs
+held every copy after it for the session.
 
 **Settings › Backups** (2.9.0, owner 2026-11-13: its own section; `db/backups.ts`). «Hacer una copia» takes the same
 snapshot into `daily/` (it counts within the 7) on a worker thread (`backup-worker.ts`): on that 90 MB profile
@@ -609,13 +633,26 @@ update»), so main's quit skips the close guard (`releaseForUpdate`; asked again
 the copy staged for whatever launch came next) and relaunches: `app.relaunch()`, except in an AppImage, where it
 never came back (its relaunch helper runs from the mount that goes with the process), so a detached shell outside
 the mount closes what it inherited, waits for the PID and runs `$APPIMAGE` (`startAfterExit`). At the next launch, before `openForLaunch`, `applyPendingRestore` copies what is there now to
-`before-restore/` (the last 3; without it nothing is replaced), deletes the `-wal` and `-shm` (a `-wal` left next
+`before-restore/` (the last 3), and when the database is too damaged for a verified copy (a damaged page makes
+`VACUUM INTO` throw, the case a restore exists for) it keeps the file itself, `-wal` included, as `…-damaged.db`
+(2026-11-15, audit D2; without either nothing is replaced), deletes the `-wal` and `-shm` (a `-wal` left next
 to the restored file would be replayed onto it; the quit checkpointed it and the copy above holds it anyway) and
 renames the staged file over `worship.db`. The migrations then run as on any launch: a copy from before an update
 takes its pre-migration snapshot and comes up to date. The control window says it once
 (`backups:launchRestore`). The relaunch was verified outside Playwright (its loader waits for a debugger, so a
 relaunched E2E app never starts): the window back with the copy in place in 1.5 s on the Mac, 1.7 s with the Linux
 unpacked binary and 2 s with the AppImage (2026-11-13).
+
+**A launch that cannot open a damaged database offers the newest daily copy** (2026-11-15, audit D3). A damaged
+page of songs or verses used to close the app on every launch, with a box saying there was no copy: the repair of
+dangling references (`repairDanglingReferences`) ran its `foreign_key_check` over every table on every launch. It
+now runs only with a migration pending, which is what it is for, so damage the launch does not read leaves the app
+open and «Restaurar…» within reach. When the launch itself fails on damage (`isDamagedDatabase`: SQLite's
+`SQLITE_CORRUPT*` or `SQLITE_NOTADB`, never a migration that failed on sound data), the box names the newest daily
+copy that reads (`newestDailyCopy`) and offers «Restaurar la copia del <fecha>»: staged like «Restaurar…», then the
+app starts again (`relaunchOnQuit`) and the launch above swaps it in. Seen on the Mac with `settings` overwritten
+(the box, then the app open on the copy, the damaged file in `before-restore/`); a native box at launch is out of
+Playwright's reach.
 
 ## Defensive Bible parsing (the JSON path)
 

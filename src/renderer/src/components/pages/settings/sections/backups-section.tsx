@@ -19,6 +19,7 @@ import { backupWhen, createBackup, restoreBackup } from "@renderer/lib/actions/b
 import { api } from "@renderer/lib/api";
 import { toast } from "@renderer/lib/toast";
 import type { CloseGuardReasons } from "@renderer/stores/ui.store";
+import { commitPendingRemovals } from "@renderer/lib/actions/remove-asset";
 
 const KIND_LABEL_KEYS: Record<BackupKind, MessageKey> = {
   daily: "settings.backupKinds.daily",
@@ -104,6 +105,8 @@ function RestoreDialog({ onOpenChange, open }: { onOpenChange: (open: boolean) =
 
   async function restore() {
     setRestoring(true);
+    // The app restarts past main's close request: a removal still in its undo window is done first (audit D14).
+    await commitPendingRemovals();
     // The app restarts; only a refusal comes back.
     await restoreBackup(chosen);
     setRestoring(false);

@@ -2,7 +2,7 @@ import type { Handlers } from "../register";
 import { getProgramsRepo, getSettingsRepo, getSongsRepo } from "../../services/repos";
 import { removeSong } from "../../services/song-removal";
 import { importSongFiles } from "../../services/song-import";
-import { listSongFolder, writeSongFile } from "../../services/song-files";
+import { listSongFolder, saveSong } from "../../services/song-files";
 import { exportSongUsage } from "../../services/song-usage";
 import { showOpenDialogFor } from "../open-dialog";
 import fs from "node:fs";
@@ -73,10 +73,10 @@ export const songsHandlers: Pick<
   // A song tied to a file writes the file first: refused there, nothing changes.
   "song:update": (input) => {
     const song = assertValid(input);
+    const id = input.id;
     // `isSongUpsert` lets a missing id through (it is `song:create`'s shape).
-    if (typeof input.id !== "number") throw new IpcError({ code: "INVALID_SONG", message: mt("songs.invalid") });
-    writeSongFile(input.id, song);
-    return getSongsRepo().update(input.id, song);
+    if (typeof id !== "number") throw new IpcError({ code: "INVALID_SONG", message: mt("songs.invalid") });
+    return saveSong(id, song);
   },
   "song:duplicate": ({ id, title }) => {
     if (!isSongTitle(title)) throw new IpcError({ code: "INVALID_SONG", message: mt("songs.invalidTitle") });

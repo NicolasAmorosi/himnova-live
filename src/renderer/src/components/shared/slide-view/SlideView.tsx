@@ -9,10 +9,11 @@ import type {
   SlideTextSettings,
   TableElement,
 } from "@shared/types/slide-model";
-import { useId, type CSSProperties, type ReactNode } from "react";
+import { memo, useId, type CSSProperties, type ReactNode } from "react";
 import { cqw, effectFilter, ImageInBox, SlideTextContext, strokeProps, svgPaint, type PaintContext, type ResolvePart } from "./slide-paint";
 import { SlideChart } from "./slide-chart";
 import { SlideText } from "./slide-text";
+import { useFontsLoaded } from "./slide-metrics";
 import "./slide-fonts.css";
 
 /**
@@ -22,19 +23,17 @@ import "./slide-fonts.css";
  * The root is a size container, so every length below is in `cqw` of the
  * slide — it scales with whatever box it is given and needs no measuring.
  * Geometry is SVG in the element's own EMU; text is HTML laid over it.
+ *
+ * Memoized (`sameSlide`): every slide change re-renders both slide grids (the
+ * highlighted tile moves), and each of their ~18 slides was drawn again before
+ * `projection-sync` told the projector, up to 57 ms at the p90 of a heavy
+ * template (2026-11-15 audit, A27). The faces a model names are loaded before
+ * it is handed out (`loadSlideModel`), and one that arrives later anyway (past
+ * that wait) draws every slide again (`useFontsLoaded`, A41).
  */
-export function SlideView({
-  model,
-  resolve,
-  style,
-  text = NO_TEXT_SETTINGS,
-}: {
-  model: SlideModel;
-  resolve: ResolvePart;
-  style?: CSSProperties;
-  /** The face for a font this machine lacks and the language of chart numbers. */
-  text?: SlideTextSettings;
-}): ReactNode {
+export const SlideView = memo(function SlideView({ model, resolve, style, text = NO_TEXT_SETTINGS }: SlideViewProps): ReactNode {
+  // A face that finishes loading after the first draw draws it again, the memo notwithstanding (A41).
+  useFontsLoaded();
   const id = useId().replace(/:/g, "");
   const scope: Scope = { id, resolve, slideWidth: model.width, background: model.background, slide: { w: model.width, h: model.height } };
   // The background is painted like any fill — an SVG rect — so a picture
@@ -63,6 +62,20 @@ export function SlideView({
       </SlideTextContext>
     </div>
   );
+}, sameSlide);
+
+type SlideViewProps = {
+  model: SlideModel;
+  resolve: ResolvePart;
+  style?: CSSProperties | undefined;
+  /** The face for a font this machine lacks and the language of chart numbers. */
+  text?: SlideTextSettings | undefined;
+};
+
+function sameSlide(a: SlideViewProps, b: SlideViewProps): boolean {
+  const ta = a.text ?? NO_TEXT_SETTINGS;
+  const tb = b.text ?? NO_TEXT_SETTINGS;
+  return a.model === b.model && a.resolve === b.resolve && a.style === b.style && ta.fallbackFont === tb.fallbackFont && ta.locale === tb.locale;
 }
 
 const NO_TEXT_SETTINGS: SlideTextSettings = { fallbackFont: null, locale: "" };

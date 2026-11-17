@@ -1,5 +1,6 @@
 import { assetThumbUrl, assetUrl } from "@shared/urls";
 import { playableAssetUrl } from "@renderer/stores/engine-assets.store";
+import { counters } from "@renderer/lib/counters";
 import type { ProjectionOutputKind, SlideEnter } from "@shared/types/projection";
 import type { SongPosition } from "@shared/song-jump";
 import type { ResolvedSong, SongFooterShow, SongTheme } from "@shared/types/song";
@@ -17,8 +18,6 @@ export function songBackgroundUrl(theme: SongTheme): string | null {
   return background.kind === "video" ? assetThumbUrl(background.assetId, "") : assetUrl(background.assetId);
 }
 
-let songVideoEpoch = 0;
-
 /** The theme's video as the projector plays it — through the media engine
  *  when Chromium cannot — keeping `current` (and its epoch, so the video goes
  *  on) while it is the same file. `null` without a video background. */
@@ -30,8 +29,8 @@ export function songBackgroundVideo(
   if (background.kind !== "video" || background.assetId <= 0) return null;
   const url = playableAssetUrl(background.assetId);
   if (current?.url === url) return current;
-  songVideoEpoch += 1;
-  return { url, epoch: songVideoEpoch };
+  counters.songVideo += 1;
+  return { url, epoch: counters.songVideo };
 }
 
 /** The lines of the order's slide `slideIndex` (1-based, clamped: a song

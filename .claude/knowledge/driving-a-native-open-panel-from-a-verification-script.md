@@ -1,7 +1,8 @@
 ## A native Open panel is not reachable from CDP, and `keystroke … tell process "Electron"` mostly misses it
 
 **Area:** build
-**Trigger:** verifying a feature whose path goes through `dialog.showOpenDialog` /
+**Trigger:** verifying a feature whose path goes through `dialog.showMessageBoxSync` at launch (a database that
+will not open), or `dialog.showOpenDialog` /
 `showSaveDialog` (relocate, add files, choose logo, import a Bible) against the running app.
 
 - CDP cannot touch it at all: the panel is a native window, so `Input.dispatchMouseEvent` and
@@ -43,4 +44,17 @@
   the app's own `Enter` shortcut — which is **GO LIVE** — so a stray extra Return in a script
   projects whatever was in preview.
 
-**Last updated:** 2026-09-14
+## A native box at launch, before any window (added 2026-11-15)
+
+`dialog.showMessageBoxSync` in `whenReady`, before the control window (the damaged-database box of audit D3), is
+out of Playwright's reach altogether: `firstWindow()` never comes, so the test just times out. What worked on the
+Mac: build the profile with a script (`npx tsx --tsconfig tsconfig.node.json <script>`: the `@shared` aliases need
+the app's tsconfig), launch `node_modules/.bin/electron . --user-data-dir=<profile> --lang=es` detached, take
+`screencapture -x a.png b.png` (one file per screen) a few seconds later and read it, then answer with
+`tell application "System Events" to set frontmost of (first process whose unix id is <pid>) to true` and
+`key code 36` (the default button). The pid is the Electron binary's: the one `spawn` returns is the
+`node_modules/.bin/electron` wrapper, and System Events answers «Invalid index» for it. A relaunch (`app.relaunch()`)
+then comes back on its own, outside Playwright, which a relaunched E2E app never does
+([a-relaunched-app-under-playwright-never-starts-because-it-waits-for-a-debugger.md](a-relaunched-app-under-playwright-never-starts-because-it-waits-for-a-debugger.md)).
+
+**Last updated:** 2026-11-15

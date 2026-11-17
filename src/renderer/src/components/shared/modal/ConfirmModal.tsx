@@ -19,6 +19,8 @@ type ConfirmModalProps = {
   /** The save button's words when what follows is not leaving: «Guardar y
    *  abrir», «Guardar y empezar». */
   saveLabel?: string | undefined;
+  /** Another way out than the confirm, beside it: «Guardar los dos» next to «Reemplazar». Closes the dialog. */
+  secondary?: { label: string; onClick: () => Promise<void> | void } | undefined;
   open: boolean;
   title: string;
 };
@@ -31,17 +33,18 @@ export function ConfirmModal({
   onOpenChange,
   onSave,
   saveLabel,
+  secondary,
   open,
   title,
 }: ConfirmModalProps) {
   const t = useT();
-  const [loading, setLoading] = useState<"confirm" | "save" | null>(null);
+  const [loading, setLoading] = useState<"confirm" | "save" | "secondary" | null>(null);
 
-  async function run(which: "confirm" | "save") {
+  async function run(which: "confirm" | "save" | "secondary") {
     setLoading(which);
     try {
       if (which === "save" && !(await onSave?.())) return;
-      await onConfirm();
+      await (which === "secondary" ? secondary?.onClick() : onConfirm());
       onOpenChange(false);
     } catch (error) {
       // The modal stays open. A caller with its own error UI handles the
@@ -65,8 +68,18 @@ export function ConfirmModal({
         <Button onClick={() => onOpenChange(false)} variant="ghost">
           {t("common.cancel")}
         </Button>
+        {secondary ? (
+          <Button
+            disabled={loading !== null && loading !== "secondary"}
+            loading={loading === "secondary"}
+            onClick={() => void run("secondary")}
+            variant="outline"
+          >
+            {secondary.label}
+          </Button>
+        ) : null}
         <Button
-          disabled={loading === "save"}
+          disabled={loading === "save" || loading === "secondary"}
           loading={loading === "confirm"}
           onClick={() => void run("confirm")}
           variant={danger ? "danger" : onSave ? "outline" : "primary"}

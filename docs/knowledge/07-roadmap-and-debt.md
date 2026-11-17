@@ -52,16 +52,17 @@ configurable keys, and checking the importer against a real EasyWorship 7 databa
   geometry of a layout placeholder, which the parser doesn't resolve) is discarded instead of
   guessed; the slide still looks right: the poster frame is already rasterized in its place. A
   `.wmv`/`.avi` is extracted marked `playable: false`; since 2026-10-30 `media/deck-clips.ts` hands
-  it to the media engine the first time the deck is opened each launch (a build with no engine still
-  converts it in place with the bundled FFmpeg, as it did since 2026-10-18).
+  it to the media engine the first time the deck is opened each launch. A build with no engine plays
+  it through Chromium, which fails like a damaged file (the conversion was retired on 2026-11-02).
 - ~~**Configurable projection settings** for bible/text~~: **implemented on 2026-09-20**.
   The verse's style lives in the `bible.style` key of `SettingsMap` —a global style, not a row
   per preset— with `BibleStyle` (`shared/types/bible-style.ts`), its validators/normalizers and
-  the first entry of `SETTINGS_NORMALIZERS`. It's edited in Settings ▸ Verses, with the
+  the first entry of `SETTINGS_NORMALIZERS`. It's edited from the Bible tab («Estilo»,
+  `VerseStyleModal`; it left Settings on 2026-11-04), with the
   preview drawn by the same `OutputView` as the projector, and it's saved instantly: `App`
   mirrors it to `projection.store`, which recomputes `selectOutput` **without** touching
   `sceneEpoch`, so editing what's LIVE is an in-place patch and not a transition.
-- **Settings screen**: six categories (Projection, Slides, Verses, Bible, System, About) with theme,
+- **Settings screen**: its categories are `SettingsSection` (`stores/ui.store.ts`), with theme,
   language, `media.volume`, the per-type folders (`files.defaultFolders`) and the `slides.*` keys
   already exposed.
 

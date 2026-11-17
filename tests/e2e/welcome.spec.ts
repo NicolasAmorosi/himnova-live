@@ -49,6 +49,17 @@ test("a new profile is welcomed, every step saves as it goes, and finishing open
   const again = await relaunch(app);
   await expect(again.control.getByRole("dialog", { name: "Bienvenida" })).toBeHidden();
   await expect(again.control.getByRole("complementary", { name: "Primeros pasos" }).getByText("3 de 6")).toBeVisible();
+
+  // Finished again from Settings ▸ About, the checklist starts over: it kept the old ticks (2026-11-15 audit, U9).
+  await again.control.getByRole("button", { name: "Configuración" }).click();
+  const settings = again.control.getByRole("dialog", { name: "Configuración" });
+  await settings.getByRole("tab", { name: "Acerca de" }).click();
+  await settings.getByRole("button", { name: "Abrir la guía" }).click();
+  const guide = again.control.getByRole("dialog", { name: "Bienvenida" });
+  await guide.getByRole("tab", { name: "Listo" }).click();
+  await guide.getByRole("button", { name: "Empezar", exact: true }).click();
+  await expect(guide).toBeHidden();
+  await expect(again.control.getByRole("complementary", { name: "Primeros pasos" }).getByText("0 de 6")).toBeVisible();
 });
 
 test("skipping keeps what was chosen, and the guide reopens from Settings ▸ About", async ({ app }) => {

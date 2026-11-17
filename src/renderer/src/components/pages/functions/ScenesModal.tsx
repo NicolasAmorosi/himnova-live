@@ -237,7 +237,7 @@ export function ScenesModal({ onOpenChange, open }: { onOpenChange: (open: boole
       <EditorScreen
         inspector={
           editing ? (
-            <Inspector key={editing.sceneId ?? "new"} label={t("scenes.title")}>
+            <Inspector id="scenes" key={editing.sceneId ?? "new"} label={t("scenes.title")}>
               <SceneForm
                 onEndFocus={() => setPreviewAtEnd(true)}
                 addingImages={addingImages}

@@ -63,9 +63,17 @@ SlideView (React, components/shared/slide-view/) ◄── worship://deck/<id>/<
   and everything after them is shared (`recordModelDeck`). The OOXML reading parses every slide
   twice, and on a template with a 22 MB map slide the two took 11 s on the thread that answers IPC
   and serves `worship://`; on the worker it costs main only the copy of the result, each slide's
-  `layers` handed back already as JSON. A worker that dies on a file fails that deck; it is never
-  retried on main. The preset geometries and the built-in table styles come from
-  `resources/ooxml/` (`paths.ts` → `ooxmlDir`, shipped as `extraResources`). Pictures, media and
+  `layers` handed back already as JSON. The worker gets one request at a time from a queue on main
+  (`deck-queue.ts`), in two lanes like the rasterizer's: what the operator opens goes before the
+  read-ahead, and a deck being read ahead that the operator opens moves up. A worker that dies on
+  a file fails that deck only, and the decks still waiting go to a fresh worker; a deck whose sound
+  and video were being copied when it died is not saved (it would stay mute), so the next open
+  reads it again. A read is timed by its progress: the readers beat once per slide (`onSlide`),
+  and a worker that goes `SLIDES_DECK_READ_TIMEOUT_MS` (60 s) without a beat on the deck it was
+  handed is stopped, and that deck fails the same way. Copying the clips beats once per clip and gets its
+  own window, `SLIDES_CLIP_COPY_TIMEOUT_MS` (15 min): a single clip off a slow pen drive takes minutes, and a
+  share that went away mid-copy, untimed, held the worker for good. A file is never retried on main. The preset
+  geometries and the built-in table styles come from `resources/ooxml/` (`paths.ts` → `ooxmlDir`, shipped as `extraResources`). Pictures, media and
   fonts are never read here — the model names them by part. Every reader writes colours as
   `rgb()`/`rgba()` (`css()` in `pptx/color.ts`): the painter reads gradient stops' channels back
   out of the string, and a `#rrggbb` stop paints garbage
@@ -202,7 +210,7 @@ narrower than it looks — see
 
 ## A deck that won't open
 
-When every reader declines a file (the worker threw on it or died, or all its slides are hidden),
+When every reader declines a file (the worker threw on it or died reading it, or all its slides are hidden),
 `sniffUnreadableDeck` (`ppt-binary.ts`, pure, tested in `tests/main/container-kind.test.ts`) looks
 at its bytes to say what the operator can do, and the deck fails with that `SlideError` code and a
 localized reason (main's `mt()`):
@@ -294,6 +302,13 @@ and no media parts (⇒ no embedded soundtrack). The sibling *linked* `.mp3` is 
 any other deck. `worship://raster/<task>` serves the window only a file the library holds, and only
 while that task runs.
 
+pdf.js decodes some images with WebAssembly of its own: JPEG 2000 (`openjpeg.wasm`), CCITT and JBIG2
+(`jbig2.wasm`, every scanned hymn or score), and colour profiles (`qcms_bg.wasm`). The window fetches them from
+`getDocument`'s `wasmUrl`, `worship://wasm/<name>` (main serves the three by name from `pdfjsWasmDir`: the package's
+`wasm/` in development, `resources/pdfjs-wasm` in an installer). Without it, until 2026-11-15, those images were left
+out silently and a scanned page came out blank (audit A9); a `file://` url does not work, the window's `connect-src`
+is `worship:` only.
+
 A page is fitted into a `targetWidth` square, not just by width: a PDF page can be portrait.
 `slides.maxRenderWidth` and `slides.imageFormat` (the owner kept the choice, 2026-11-03) are part of
 a PDF deck's identity, so changing either opens the PDF again under new urls on its next open
@@ -370,11 +385,13 @@ takes a buffer, so it avoids the inflate but not the `readFileSync`.
 
 Two non-obvious details, measured in
 [`.claude/knowledge/a-pptx-is-random-access-and-inflatesync-needs-its-out-buffer.md`](../../.claude/knowledge/a-pptx-is-random-access-and-inflatesync-needs-its-out-buffer.md):
-the reader is **synchronous on purpose** (KB-sized reads, so nothing in the caller chain — up to
-`MediaRepo.ensureLinkedAudio` and `toDeckDTO` — had to become `async`), and `inflateSync` must be
-given the `out` buffer with the size the central directory already provides: without it, growing
-its own output buffer costs ~16 µs per entry and makes the "fast" version 3× slower than reading
-the whole file.
+the reader is **synchronous on purpose** (KB-sized reads, so nothing in the caller chain, up to
+`MediaRepo.ensureLinkedAudio` and `toDeckDTO`, had to become `async`), and an entry is inflated
+with `zlib.inflateRawSync` capped (`maxOutputLength`) at the size the central directory declares:
+past it the entry is corrupt, and one read inflates at most 512 MB in all and copies stored
+entries no larger in all than the file. Never fflate with a
+short `out`, which decodes the whole stream anyway and cuts the part in silence (2026-11-15 audit,
+S7 and S10).
 
 - `ppt/presentation.xml` → `<p:sldIdLst>` gives the **real order**. `slide1.xml, slide2.xml…` is
   creation order and diverges as soon as someone reorders.

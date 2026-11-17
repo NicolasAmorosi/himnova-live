@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer, sharedTexture, webUtils, type IpcRendererEvent } from "electron";
+import { deliverFrame } from "./frame-delivery";
 
 /**
  * Deliberately generic (invoke/on/send by string channel), not a 28-method
@@ -28,16 +29,7 @@ import { contextBridge, ipcRenderer, sharedTexture, webUtils, type IpcRendererEv
 const frameListeners = new Map<string, Set<(frame: VideoFrame) => void>>();
 
 sharedTexture.setSharedTextureReceiver(({ importedSharedTexture }, key: unknown) => {
-  const listeners = typeof key === "string" ? frameListeners.get(key) : undefined;
-  if (listeners?.size) {
-    const frame = importedSharedTexture.getVideoFrame();
-    try {
-      for (const listener of listeners) listener(frame);
-    } finally {
-      frame.close();
-    }
-  }
-  importedSharedTexture.release();
+  deliverFrame(typeof key === "string" ? frameListeners.get(key) : undefined, importedSharedTexture);
   return Promise.resolve();
 });
 

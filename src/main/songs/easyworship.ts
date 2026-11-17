@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import Database from "better-sqlite3";
 import { parseLyrics, songLyricsText, textOrder } from "@shared/song-text";
-import { isSongUpsert, SONG_FIELD_MAX_LENGTH, SONG_TITLE_MAX_LENGTH } from "@shared/song-validators";
+import { fitSongLimits, isSongUpsert, SONG_FIELD_MAX_LENGTH, SONG_TITLE_MAX_LENGTH } from "@shared/song-validators";
 import type { Locale } from "@shared/types/settings";
 import type { SongUpsert } from "@shared/types/song";
 import { rtfToText } from "./rtf";
@@ -84,8 +84,10 @@ const ccliOf = (row: SongRow): string | null => ccliNumber(row.reference_number)
 
 export function readEasyWorship(dataFolder: string, locale: Locale): SongsRead {
   const songsDb = new Database(path.join(dataFolder, "Songs.db"), { readonly: true, fileMustExist: true });
-  const wordsDb = new Database(path.join(dataFolder, "SongWords.db"), { readonly: true, fileMustExist: true });
+  // Opened inside the `try`: one that fails no longer leaves `Songs.db` open until the app quits.
+  let wordsDb: Database.Database | undefined;
   try {
+    wordsDb = new Database(path.join(dataFolder, "SongWords.db"), { readonly: true, fileMustExist: true });
     const rows = songsDb
       .prepare("SELECT rowid, title, author, copyright, administrator, reference_number, vendor_id FROM song")
       .all() as SongRow[];
@@ -113,14 +115,15 @@ export function readEasyWorship(dataFolder: string, locale: Locale): SongsRead {
         themeId: null,
       };
       // A song without a title or without one line of lyrics is counted,
-      // never written half.
-      if (isSongUpsert(song)) songs.push(song);
+      // never written half; one past a limit is fitted (2026-11-15 audit, D8).
+      const fitted = fitSongLimits(song);
+      if (isSongUpsert(fitted)) songs.push(fitted);
       else problems += 1;
     }
     return { songs, problems };
   } finally {
     songsDb.close();
-    wordsDb.close();
+    wordsDb?.close();
   }
 }
 

@@ -7,10 +7,11 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { afterAll, beforeAll, expect, test } from "vitest";
+import { afterAll, beforeAll, expect, test, vi } from "vitest";
 import { strToU8, zipSync } from "fflate";
 import { parsePresetDefinitions } from "../../src/main/slides/pptx/geometry";
 import { readPptxDeck, type PptxResources } from "../../src/main/slides/pptx/reader";
+import { readPresentationMeta } from "../../src/main/slides/pptx-metadata";
 import { parseTableStyles } from "../../src/main/slides/pptx/table-style";
 import { SYMBOL_BULLETS } from "../../src/main/slides/pptx/text";
 
@@ -177,4 +178,43 @@ test("a Wingdings bullet maps the same from its byte and from the private-use pa
   expect(SYMBOL_BULLETS["\uf0a7"]).toBe("▪");
   expect(SYMBOL_BULLETS["\uf0d8"]).toBe("➢");
   expect(SYMBOL_BULLETS[""]).toBeUndefined();
+});
+
+// 2026-11-15 audit, S5 (parser half): an `arcTo` swept once per half turn with no bound, so a `swAng` of 1e15 ran
+// the worker out of memory. A few thousand turns are enough to tell: thousands of segments before, a handful after.
+test("an arc that sweeps thousands of turns draws one turn and ends where it would", () => {
+  const arc = (swAng: string): string =>
+    `<p:sld ${NS}><p:cSld><p:spTree><p:sp><p:nvSpPr><p:cNvPr id="2" name="A"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr>
+    <p:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="1000000" cy="1000000"/></a:xfrm><a:custGeom><a:pathLst><a:path w="100" h="100">
+    <a:moveTo><a:pt x="100" y="50"/></a:moveTo><a:arcTo wR="50" hR="50" stAng="0" swAng="${swAng}"/><a:lnTo><a:pt x="0" y="0"/></a:lnTo>
+    </a:path></a:pathLst></a:custGeom></p:spPr></p:sp></p:spTree></p:cSld></p:sld>`;
+  const d = (swAng: string): string => {
+    const el = readPptxDeck(writeDeck(`arc-${swAng}.pptx`, arc(swAng)), resources).slides[0]!.model.elements[0]!;
+    return el.kind === "shape" ? el.paths.map((p) => p.d).join("") : "";
+  };
+  const turns = 3000 * 21600000 + 5400000; // 3000 turns and a quarter
+  const long = d(String(turns));
+  expect(long.split("A").length - 1).toBeLessThanOrEqual(5);
+  // It ends a quarter turn on, like the plain quarter-turn arc does.
+  const end = (path: string): string => /A[^A]* ([-\d.]+ [-\d.]+)L/.exec(path)?.[1] ?? "";
+  expect(end(long)).not.toBe("");
+  expect(end(long)).toBe(end(d("5400000")));
+});
+
+// 2026-11-15 audit, A45: `show` is an xsd:boolean. The metadata took "false" as hidden and the model did not, so the
+// model drew a slide the timings left out.
+test("a slide's show attribute reads the same in the model and in the metadata, \"false\" included", () => {
+  for (const [show, hidden] of [[' show="0"', true], [' show="false"', true], [' show="1"', false], [' show="true"', false], ["", false]] as const) {
+    const file = writeDeck(`show${show.replace(/\W/g, "")}.pptx`, `<p:sld ${NS}${show}><p:cSld><p:spTree/></p:cSld></p:sld>`);
+    expect(readPptxDeck(file, resources).slides[0]!.hidden, show).toBe(hidden);
+    expect(readPresentationMeta(file).slides[0]!.hidden, show).toBe(hidden);
+  }
+});
+
+// 2026-11-15 audit, S4, review: the deck worker's timer restarts at each slide, so a long deck on a slow PC is read
+// to the end; a reader that stopped beating would bring back the whole-deck limit.
+test("the reader beats once per slide", () => {
+  const onSlide = vi.fn();
+  readPptxDeck(writeDeck("beat.pptx", slide("")), { ...resources, onSlide });
+  expect(onSlide).toHaveBeenCalledTimes(1);
 });

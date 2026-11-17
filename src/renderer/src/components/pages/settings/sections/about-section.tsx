@@ -21,6 +21,7 @@ import { useUiStore, type CloseGuardReasons } from "@renderer/stores/ui.store";
 import type { Locale } from "@shared/types/settings";
 import { canCheck, type UpdateStatus } from "@shared/types/updates";
 import { LATEST_WHATS_NEW } from "@shared/whats-new";
+import { commitPendingRemovals } from "@renderer/lib/actions/remove-asset";
 
 /** Main's update status, kept current. Subscribed before asking, and the
  *  answer never overwrites an event that arrived first. */
@@ -104,7 +105,13 @@ export function AboutSection() {
   function installNow() {
     const found = quitRisks();
     if (found) setRisks(found);
-    else void api.updates.install("now").catch(failed);
+    else void quitToInstall().catch(failed);
+  }
+
+  /** This quit skips main's close request, so a removal still in its undo window is done here (audit D14). */
+  async function quitToInstall(): Promise<void> {
+    await commitPendingRemovals();
+    await api.updates.install("now");
   }
 
   return (
@@ -264,7 +271,7 @@ export function AboutSection() {
         confirmLabel={installLabel}
         danger
         description={quitRiskText(risks)}
-        onConfirm={() => api.updates.install("now")}
+        onConfirm={() => quitToInstall()}
         onOpenChange={(open) => {
           if (!open) setRisks(null);
         }}

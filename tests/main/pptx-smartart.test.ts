@@ -114,3 +114,18 @@ test("a diagram whose layout can't be read still draws its text, in boxes", () =
   expect(boxes.map(textOf)).toEqual(["A", "B", "C"]);
   for (const b of boxes) expect(b.paths.length).toBeGreaterThan(0);
 });
+
+// 2026-11-15 audit, S4 (clamp half): the fit loop shrinks a point at a time from the layout's `primFontSz`, which had
+// no ceiling: 1e7 took seconds, 1e20 never ended (`1e20 - 1 === 1e20`).
+test("a font size past 400 pt starts the fit at 400, so laying it out takes milliseconds", () => {
+  const sized = process.replace(
+    "</dgm:constrLst>",
+    '<dgm:constr type="primFontSz" for="ch" forName="node" op="equ" val="1e7"/></dgm:constrLst>',
+  );
+  const t0 = performance.now();
+  const slide = readPptxDeck(writeDeck("huge-font.pptx", { layout: sized }), resources).slides[0]!;
+  expect(performance.now() - t0).toBeLessThan(1000);
+  const sizes = shapes(slide.model.elements[0]).flatMap((s) => s.text?.paragraphs.flatMap((p) => p.runs.map((r) => (r.kind === "text" ? r.size : 0))) ?? []);
+  expect(sizes.length).toBeGreaterThan(0);
+  for (const size of sizes) expect(size).toBeLessThanOrEqual(400);
+});

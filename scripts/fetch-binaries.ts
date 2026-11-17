@@ -18,7 +18,8 @@
  *
  * An engine built here with `native/build.sh` leaves a `.local` marker and is
  * kept as it is: whoever changes `native/` tests their own build. Delete the
- * folder to go back to the published one.
+ * folder to go back to the published one. `--release` (every `package:*` but
+ * `package:dir`) keeps it only when it is byte for byte the pinned one.
  *
  * Publishing a new engine (`engine-<n+1>`, asked of the owner first):
  * `native/build.sh <target>` for each target, `native/build.sh pack`, a
@@ -84,18 +85,19 @@ function riedl(dir: string, sums: { ffmpeg: string; ffprobe: string }): Archive[
   }));
 }
 
-const ENGINE_RELEASE = "https://github.com/NicolasAmorosi/himnova-live/releases/download/engine-8";
+const ENGINE_RELEASE = "https://github.com/NicolasAmorosi/himnova-live/releases/download/engine-9";
 
-/** Release `engine-8`: `native/` as of the commit its tag points at. engine-7 plus protocol 8: a `hello` handshake (an
- *  older engine gets none of the new commands), each session's audio output (`device`, `devices`) with a lost output
- *  reported as `audio-out` instead of a broken file, a pre-volume peak `level` per channel for the audio strips' meters,
- *  every file played out as float stereo (mono at full level on both sides, a 5.1 downmix that never clips), and the NDI
- *  sound captured from LIVE's own output (`--audio-device`, `--preview-apart`), coming back by itself when it stops.
- *  Linux's is built on Ubuntu 22.04 and ships no libmpv: it loads the system's, .so.2 or .so.1. */
+/** Release `engine-9`: `native/` as of the commit its tag points at (protocol 8, like engine-8). engine-8 plus the
+ *  2026-11-15 audit's engine round: a negative NDI sound delay no longer sends silence (A7), Linux's NDI sound no longer
+ *  clicks (a block a few ms early continues the timeline, A38), no burst of old silence after a capture gap or stall
+ *  (A37), the NDI source leaves the network before the sender waits for its audio thread (A40), a file is played as
+ *  itself and never as a list of others (`access-references=no`, S1), a GPU failure exits cleanly (A35), Windows waits
+ *  for its sound capture to start (A36), and on macOS only an engine whose sound NDI takes opens the output at start
+ *  (`--ndi-tap 1`, X21). Linux's is built on Ubuntu 22.04 and ships no libmpv: it loads the system's, .so.2 or .so.1. */
 const ENGINE: Record<string, Archive[]> = {
-  "darwin-arm64": engine("darwin-arm64", "9481ceb361c1d6db24a925acc4b0ae77b80884784272c9e920736eb8990ab321", ["media-engine", "handles.node", "libmpv.2.dylib"]),
-  "win32-x64": engine("win32-x64", "27be9bfe2fe8bf76337888bea6f218490ebc19b391cf17250523d33fb65c37e5", ["media-engine.exe", "libmpv-2.dll"]),
-  "linux-x64": engine("linux-x64", "bcbf8faa68d8baa7c8cc6a6f57012fc85079781e1a508806a77f7fd9b12f62a6", ["media-engine", "handles.node"]),
+  "darwin-arm64": engine("darwin-arm64", "8cecac7f9313514da2d5ef5e3438b14d7d3bc2e8c64fabd495991c622cfe139e", ["media-engine", "handles.node", "libmpv.2.dylib"]),
+  "win32-x64": engine("win32-x64", "40e50cb12e70f77b18cfcb5b2f73b00d87960a988296fad175eab40f239c53a6", ["media-engine.exe", "libmpv-2.dll"]),
+  "linux-x64": engine("linux-x64", "9d5d547d593ca1b5a8efebaf27d6e5ebc364b9c0dd3e3a9e8c2dd06dda3c0e2a", ["media-engine", "handles.node"]),
 };
 
 function engine(target: string, sha256: string, files: string[]): Archive[] {
@@ -130,7 +132,22 @@ async function fetchTarget(kind: string, builds: Record<string, Archive[]>, requ
   }
 
   const outDir = path.resolve("resources", kind, target);
-  if (fs.existsSync(path.join(outDir, ".local"))) {
+  const local = fs.existsSync(path.join(outDir, ".local"));
+  const differs = local && RELEASE ? await differsFromPinned(archives, outDir) : [];
+  if (local && RELEASE && differs.length > 0 && process.env["ALLOW_LOCAL_ENGINE"] !== "1")
+    throw new Error(
+      `[${kind}] ${target}: the local build is not the pinned one (${differs.join(", ")}). Publish it and pin it, ` +
+        `delete the folder to package the pinned one, or ALLOW_LOCAL_ENGINE=1 to package it anyway.`,
+    );
+  if (local && RELEASE && differs.length === 0) {
+    // The same bytes: the published files replace it, so the package has exactly them and their NOTICE.txt, never a
+    // file the local build left beside them (review of X23).
+    console.log(`[${kind}] ${target}: local build is the pinned one, replaced by the published files`);
+    fs.rmSync(outDir, { recursive: true, force: true });
+  } else if (local) {
+    if (differs.length > 0) console.warn(`[${kind}] ${target}: local build NOT the pinned one, packaged anyway`);
+    // What the licenses ask of a binary that ships, which only a download wrote.
+    fs.copyFileSync(path.resolve("resources", `${kind}-NOTICE.txt`), path.join(outDir, "NOTICE.txt"));
     console.log(`[${kind}] ${target}: local build (native/build.sh) kept`);
     return;
   }
@@ -171,7 +188,29 @@ async function fetchTarget(kind: string, builds: Record<string, Archive[]>, requ
   console.log(`[${kind}] ${target}: ready in ${path.relative(process.cwd(), outDir)}`);
 }
 
-const targets = process.argv.slice(2);
+/** The files of a local build that are not byte for byte the pinned archive's (missing ones included). */
+async function differsFromPinned(archives: Archive[], outDir: string): Promise<string[]> {
+  const differs: string[] = [];
+  for (const archive of archives) {
+    const zip = await download(archive.url);
+    const digest = createHash("sha256").update(zip).digest("hex");
+    if (digest !== archive.sha256) throw new Error(`Checksum mismatch for ${archive.url}: expected ${archive.sha256}, got ${digest}`);
+    const wanted = new Set(Object.values(archive.entries));
+    const files = unzipSync(zip, { filter: (file) => wanted.has(file.name) });
+    for (const [name, entry] of Object.entries(archive.entries)) {
+      const local = path.join(outDir, name);
+      const pinned = files[entry];
+      if (!pinned || !fs.existsSync(local) || !fs.readFileSync(local).equals(pinned)) differs.push(name);
+    }
+  }
+  return differs;
+}
+
+// `package:*` pass `--release`: a package ships what is pinned. A local build (`native/build.sh`) is kept only when it is
+// byte for byte the published one: an engine rebuilt after publishing, or `build.sh pack` zipping a folder that was not
+// rebuilt, left an installer with an engine nobody published and no error (2026-11-15 audit, X23).
+const RELEASE = process.argv.includes("--release");
+const targets = process.argv.slice(2).filter((arg) => !arg.startsWith("--"));
 for (const target of targets.length > 0 ? targets : [`${process.platform}-${process.arch}`]) {
   for (const { kind, builds, required } of KINDS) await fetchTarget(kind, builds, required, target);
 }

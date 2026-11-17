@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { memo, useState } from "react";
 import { useT, type MessageKey } from "@renderer/lib/i18n/i18n-provider";
 import { TabPanel, TabPanels, Tabs, type IconName, type TabItem } from "@renderer/components/ui";
 import { markFirstStep } from "@renderer/effects/first-steps";
@@ -25,6 +25,13 @@ const LABEL_KEY: Record<ResourceTab, MessageKey> = {
   media: "resources.mediaTab",
   functions: "functions.title",
 };
+
+// A visited tab stays mounted, hidden: unmemoized, every tab change re-rendered every browser, a hidden Songs with
+// its 1500 rows too (38 to 51 ms on the Mac, 2026-11-15 audit, R5). None takes props but whether Media is shown.
+const BibleTab = memo(BibleBrowser);
+const SongsTab = memo(SongsBrowser);
+const MediaTab = memo(MediaTabs);
+const FunctionsTab = memo(FunctionsTabs);
 
 /** Prefix for the `tab`/`tabpanel` id pairs — the nested strips carry their
  *  own (`resources-media`, `resources-functions`), so the three can never
@@ -84,13 +91,13 @@ export function ResourcePanel() {
         {TAB_ORDER.filter((value) => visited.includes(value)).map((value) => (
           <TabPanel active={value === tab} idBase={TAB_ID_BASE} key={value} value={value}>
             {value === "bible" ? (
-              <BibleBrowser />
+              <BibleTab />
             ) : value === "songs" ? (
-              <SongsBrowser />
+              <SongsTab />
             ) : value === "media" ? (
-              <MediaTabs active={tab === "media"} />
+              <MediaTab active={tab === "media"} />
             ) : (
-              <FunctionsTabs />
+              <FunctionsTab />
             )}
           </TabPanel>
         ))}

@@ -45,7 +45,9 @@ import {
   type SongMargins,
   type SongOutline,
   type SongSlideTransition,
+  type SongChord,
   type SongSection,
+  type SongSlide,
   type SongTheme,
   type SongThemeUpsert,
   type SongUpsert,
@@ -320,6 +322,77 @@ export function songProblem(value: unknown): SongProblem | null {
     return { kind: "shape" };
   }
   return order.length > SONG_MAX_ORDER ? { kind: "order", max: SONG_MAX_ORDER } : null;
+}
+
+/**
+ * A song read from another program's file, brought within the limits `isSongUpsert` checks: a line longer than
+ * `SONG_LINE_MAX_LENGTH` split at a space into lines that fit (each chord with the piece it sits over), and what
+ * passes a count (sections, slides, lines, order) cut. A song past a limit vanished whole from a linked folder, and an
+ * import counted it «sin letra» (owner, 2026-11-15: it gets in, fitted; the file is never touched; audit D8).
+ */
+export function fitSongLimits<T extends { sections: SongSection[]; order: string[] }>(song: T): T {
+  return {
+    ...song,
+    sections: song.sections.slice(0, SONG_MAX_SECTIONS).map((section) => ({
+      ...section,
+      slides: section.slides.slice(0, SONG_MAX_SLIDES_PER_SECTION).map(fitSlide),
+    })),
+    order: song.order.slice(0, SONG_MAX_ORDER),
+  };
+}
+
+/** Whether a song sits at one of the counts `fitSongLimits` cuts to: read from a file past it, the rest is still in
+ *  that file, and writing the app's copy back would lose it. A song exactly at a limit by itself counts too: its file
+ *  is only left alone. A split line loses no words, so length is not a sign. */
+export function mayHaveBeenFitted(song: { sections: SongSection[]; order: string[] }): boolean {
+  return (
+    song.sections.length >= SONG_MAX_SECTIONS ||
+    song.order.length >= SONG_MAX_ORDER ||
+    song.sections.some(
+      (section) =>
+        section.slides.length >= SONG_MAX_SLIDES_PER_SECTION ||
+        section.slides.some(
+          (slide) => slide.lines.length >= SONG_MAX_LINES_PER_SLIDE || (slide.translation?.length ?? 0) >= SONG_MAX_LINES_PER_SLIDE,
+        ),
+    )
+  );
+}
+
+function fitSlide(slide: SongSlide): SongSlide {
+  const pieces = slide.lines.map((line, i) => splitLine(line, slide.chords?.[i] ?? []));
+  const fitted: SongSlide = { lines: pieces.flat().map((piece) => piece.text).slice(0, SONG_MAX_LINES_PER_SLIDE) };
+  if (slide.chords) fitted.chords = pieces.flat().map((piece) => piece.chords).slice(0, SONG_MAX_LINES_PER_SLIDE);
+  if (slide.translation) {
+    fitted.translation = slide.translation
+      .flatMap((line) => splitLine(line, []).map((piece) => piece.text))
+      .slice(0, SONG_MAX_LINES_PER_SLIDE);
+  }
+  return fitted;
+}
+
+/** `line` in pieces of at most `SONG_LINE_MAX_LENGTH`, cut at the last space that fits (anywhere, with none), each
+ *  with the chords from its start to the next piece's. */
+function splitLine(line: string, chords: readonly SongChord[]): { text: string; chords: SongChord[] }[] {
+  const starts = [0];
+  const texts: string[] = [];
+  for (let start = 0; line.length - start > SONG_LINE_MAX_LENGTH; ) {
+    const space = line.lastIndexOf(" ", start + SONG_LINE_MAX_LENGTH);
+    const end = space > start ? space : start + SONG_LINE_MAX_LENGTH;
+    texts.push(line.slice(start, end));
+    start = space > start ? end + 1 : end;
+    starts.push(start);
+  }
+  texts.push(line.slice(starts[starts.length - 1]));
+  return texts.map((text, i) => {
+    const from = starts[i]!;
+    const to = starts[i + 1] ?? Infinity;
+    return {
+      text,
+      chords: chords
+        .filter((chord) => chord.at >= from && chord.at < to)
+        .map((chord) => ({ ...chord, at: Math.min(chord.at - from, text.length) })),
+    };
+  });
 }
 
 /** A stored `sections_json` read back: every section that is not whole is

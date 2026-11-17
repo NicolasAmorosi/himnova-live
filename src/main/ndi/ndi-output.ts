@@ -13,14 +13,18 @@ import { enginePath } from "../paths";
 import { engineAvailable, handles, type LinuxHandles, type MacHandles } from "../media/media-engine";
 import { syncLiveEngine } from "../media/engine-sessions";
 import { jsonLineReader, ndiRouteLines } from "../media/engine-protocol";
+import { crashLimit } from "../windows/crash-limit";
 import { paintVerdict } from "./ndi-pacing";
+
+const ndiCrashed = crashLimit();
 
 /**
  * The NDI® output (plan `2026-11-09-ndi`, phase 1): the projection drawn a second time in an offscreen
  * window of its own (`projection.html?role=ndi`, muted, never reporting), each painted frame handed as a
- * shared GPU texture to the media engine in its NDI mode (`native/engine/ndi.cpp`), which reads it and
- * sends the latest one at a steady rate. Main only passes a handle per frame — the copy and the encoder
- * live in the engine, so a slow church PC keeps its main thread, and an NDI crash takes down only this.
+ * shared GPU texture to the media engine in its NDI mode (`native/engine/ndi.cpp`), which reads them and
+ * sends them from a short queue, oldest first, at a steady rate (2.7.0 sent only the latest one and lost frames).
+ * Main only passes a handle per frame: the copy and the encoder live in the engine, so a slow church PC keeps its
+ * main thread, and an NDI crash takes down only this.
  *
  * Its own window rather than a capture of the projector's: it keeps working with the projector closed
  * or hidden, at its own fixed size. It draws what main last sent the projector (`projectionState`'s
@@ -95,10 +99,21 @@ export function syncNdiOutput(): void {
   };
   const key = JSON.stringify(config);
   if (key === running && window && !window.isDestroyed()) return;
-  stopNdiOutput();
+  // The page is kept unless its size or frame rate changed: a new name, the sound or its delay restart the sender
+  // alone. Rebuilding the window on each step of the delay slider built a whole renderer per step (2026-11-15 audit,
+  // A22).
+  const before = running ? (JSON.parse(running) as Config) : null;
+  const keepWindow =
+    window !== null &&
+    !window.isDestroyed() &&
+    before?.width === config.width &&
+    before.height === config.height &&
+    before.fps === config.fps;
+  if (keepWindow) stopSender();
+  else stopNdiOutput();
   running = key;
   if (!engineAvailable()) return setStatus({ state: "error", code: "ndi-engine-missing" });
-  window = createNdiWindow(config);
+  if (!keepWindow) window = createNdiWindow(config);
   // After the one before has said goodbye: the same name registered while it was still on the network could come
   // back under another one.
   setStatus({ state: "starting" });
@@ -115,13 +130,17 @@ export function setNdiAudioRoute(route: NdiAudioRoute): void {
   sender?.route(route);
 }
 
-/** Synchronous, for `before-quit` and the control window closing. */
-export function stopNdiOutput(): void {
+function stopSender(): void {
   running = "";
   if (restartTimer) clearTimeout(restartTimer);
   restartTimer = null;
   if (sender) leaving = sender.kill();
   sender = null;
+}
+
+/** Synchronous, for `before-quit` and the control window closing. */
+export function stopNdiOutput(): void {
+  stopSender();
   if (window && !window.isDestroyed()) window.destroy();
   window = null;
 }
@@ -201,7 +220,8 @@ function createNdiWindow(config: Config): BrowserWindow {
   });
   win.webContents.on("render-process-gone", (_event, details) => {
     console.warn("[ndi] output page gone", details.reason);
-    if (!win.isDestroyed()) win.webContents.reload();
+    // Not forever: one that dies on every load would reload in a loop (2026-11-15 audit, A1).
+    if (!win.isDestroyed() && ndiCrashed()) win.webContents.reload();
   });
   projectionState.addMirror(win);
   const devServerUrl = process.env["ELECTRON_RENDERER_URL"];
@@ -376,7 +396,7 @@ class NdiSender {
           void this.kill();
           return;
         }
-        console.log(`[ndi] sending (${event.runtime})`);
+        console.info(`[ndi] sending (${event.runtime})`);
         this.ready = true;
         return this.give({ state: "sending", receivers: 0, audio: this.audio });
       case "done":

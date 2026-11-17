@@ -223,6 +223,8 @@ test("saving the song that is live changes the projector in place, on the same s
   await app.control.keyboard.press("ArrowRight");
   await expect(projector.getByText("Aleluya, aleluya")).toBeVisible();
 
+  // It left PREVIEW, and the Songs footer with it, when it went out (owner, 2026-11-15): picked again.
+  await songRows(app).first().click();
   await tab(app).getByRole("button", { name: "Editar canción" }).click();
   const lyrics = dialog(app).getByRole("textbox", { name: "Letra" });
   await lyrics.fill((await lyrics.inputValue()).replace("Aleluya, aleluya", "Gloria a Dios"));
@@ -480,10 +482,12 @@ test("a song that went live is in the CCLI report, once a day, saved as CSV from
   await app.goLive();
   const projector = await app.projector();
   await expect(projector.getByText("Sublime gracia del Señor")).toBeVisible();
-  // Live again the same day: still one use.
-  await app.control.getByRole("button", { name: "NEGRO", exact: true }).click();
-  await app.control.getByRole("button", { name: "VIVO", exact: true }).click();
+  // Live again the same day: still one use. Off the air first — picked again while it is still up, EN VIVO only
+  // uncovers it (owner, 2026-11-15) and nothing is sent.
+  await app.liveColumn().getByRole("button", { name: "Sacar del aire" }).first().click();
+  await songRows(app).first().click();
   await app.goLive();
+  await expect(projector.getByText("Sublime gracia del Señor")).toBeVisible();
 
   const file = path.join(os.tmpdir(), `worship-e2e-ccli-${Date.now()}.csv`);
   try {
@@ -641,6 +645,8 @@ test("the live song edited so the section on air is gone: the projector moves to
   await expect(projector.getByText("el coro")).toBeVisible();
   await expect(app.liveColumn().getByText("3/3")).toBeVisible();
 
+  // It left PREVIEW, and the Songs footer with it, when it went out (owner, 2026-11-15): picked again.
+  await songRows(app).first().click();
   await tab(app).getByRole("button", { name: "Editar canción" }).click();
   await dialog(app).getByRole("textbox", { name: "Letra" }).fill("[Estrofa 1]\nuno a\n\nuno b");
   await dialog(app).getByRole("button", { name: "Guardar", exact: true }).click();
@@ -665,6 +671,8 @@ test("the live song edited so the slide on air is gone and its section leaves th
   await expect(projector.getByText("otra de dos")).toBeVisible();
   await expect(live.getByText("4/5")).toBeVisible();
 
+  // It left PREVIEW, and the Songs footer with it, when it went out (owner, 2026-11-15): picked again.
+  await songRows(app).first().click();
   await tab(app).getByRole("button", { name: "Editar canción" }).click();
   await dialog(app).getByRole("textbox", { name: "Letra" }).fill("[Estrofa 1]\nuno\n\n[Coro]\ncoro\n\n[Estrofa 2]\ndos");
   await dialog(app).getByRole("button", { name: "Más opciones del orden" }).click();
@@ -686,6 +694,8 @@ test("the live song deleted from the library stays up and the keys still walk it
   await expect(projector.getByText("uno", { exact: true })).toBeVisible();
 
   // The Songs footer's ✕.
+  // It left PREVIEW, and the Songs footer with it, when it went out (owner, 2026-11-15): picked again.
+  await songRows(app).first().click();
   await tab(app).getByRole("button", { name: "Eliminar canción" }).click();
   const confirm = app.control.getByRole("dialog", { name: "¿Eliminar esta canción?" });
   await expect(confirm).toContainText("La canción está en vivo");

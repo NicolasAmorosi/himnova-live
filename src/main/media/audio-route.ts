@@ -2,7 +2,7 @@ import type { AudioRoute, EngineOutputNames } from "@shared/types/audio";
 import { setNdiAudioRoute } from "../ndi/ndi-output";
 import { AUDIO_DEVICE_PROTO, matchEngineDevice } from "./engine-protocol";
 import { setEngineAudioDevices } from "./engine-sessions";
-import { engineAvailable, engineProtocol, listAudioDevices } from "./media-engine";
+import { engineAvailable, engineFailsToStart, engineProtocol, listAudioDevices } from "./media-engine";
 
 /**
  * Where the engine's sound goes, as the control window resolved it (`effects/audio-route.ts`): main applies it and
@@ -30,7 +30,8 @@ export function setAudioRoute(route: AudioRoute): void {
 export async function matchAudioOutputs(
   outputs: readonly { deviceId: string; label: string }[],
 ): Promise<EngineOutputNames> {
-  const canChoose = () => engineAvailable() && (engineProtocol() ?? AUDIO_DEVICE_PROTO) >= AUDIO_DEVICE_PROTO;
+  const canChoose = () =>
+    engineAvailable() && !engineFailsToStart() && (engineProtocol() ?? AUDIO_DEVICE_PROTO) >= AUDIO_DEVICE_PROTO;
   let list = await listAudioDevices();
   // A spare replaced before it answered (the app's card found at launch) leaves no answer: asked once more.
   if (list === null && canChoose()) list = await listAudioDevices();

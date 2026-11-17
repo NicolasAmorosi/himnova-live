@@ -34,8 +34,15 @@ async function deckLive(app: WorshipApp) {
 const selectedPreviewSlide = (app: WorshipApp) =>
   app.previewColumn().getByRole("list", { name: "Presentación" }).locator('[aria-current="true"]').textContent();
 
+/** The deck on air left PREVIEW when it went out (owner, 2026-11-15): picked again, as the operator would. */
+async function previewDeckAgain(app: WorshipApp) {
+  await app.previewFile("Presentaciones", "deck");
+  await expect(previewTile(app, 3)).toBeVisible();
+}
+
 test("→ after clicking a slide in PREVIEW advances the projector", async ({ app }) => {
   const projector = await deckLive(app);
+  await previewDeckAgain(app);
   await previewTile(app, 2).click();
   await app.control.keyboard.press("ArrowRight");
   await expect.poll(() => projectedSlide(projector)).toBe(2);
@@ -73,6 +80,7 @@ test("→ after clicking a verse in the LIVE grid steps the projected passage", 
 
 test("reached with the keyboard, the arrows still walk the grid", async ({ app }) => {
   const projector = await deckLive(app);
+  await previewDeckAgain(app);
   // Tab into the PREVIEW grid: the tab stop is the selected tile.
   await previewTile(app, 1).focus();
   await app.control.keyboard.press("ArrowRight");
@@ -82,14 +90,17 @@ test("reached with the keyboard, the arrows still walk the grid", async ({ app }
 });
 
 test("a tile reached with the arrows and then clicked gives Enter back to EN VIVO", async ({ app }) => {
-  const projector = await deckLive(app);
+  // Not on air yet: the deck on air, picked again, would only be uncovered by Enter.
+  await app.addMedia("ppt", "deck.pdf");
+  await app.previewFile("Presentaciones", "deck");
+  await expect(previewTile(app, 3)).toBeVisible({ timeout: 60_000 });
   await previewTile(app, 1).focus();
   await app.control.keyboard.press("ArrowRight");
   await expect(previewTile(app, 2)).toBeFocused();
   // Clicking the tile that already has focus moves no focus at all.
   await previewTile(app, 2).click();
   await app.control.keyboard.press("Enter");
-  await expect.poll(() => projectedSlide(projector)).toBe(2);
+  await expect.poll(async () => projectedSlide(await app.projector())).toBe(2);
 });
 
 /**
@@ -117,6 +128,21 @@ test("a remote's PageDown/PageUp step the projected deck, even while typing in a
   await expect.poll(() => projectedSlide(projector)).toBe(2);
   await expect(bibleSearch(app)).toBeFocused();
   await expect(bibleSearch(app)).toHaveValue("Jua");
+});
+
+test("the LOGO and NEGRO buttons, pressed again, uncover what was live, as L and B do", async ({ app }) => {
+  // The buttons only ever covered, and a second press did nothing; the keys toggled (owner, 2026-11-16: the buttons
+  // toggle like the keys).
+  const projector = await deckLive(app);
+  const logo = app.control.getByRole("button", { name: "LOGO", exact: true }).first();
+  await logo.click();
+  await expect.poll(() => projectedSlide(projector)).toBeNull();
+  await logo.click();
+  await expect.poll(() => projectedSlide(projector)).toBe(1);
+  await blackButton(app).click();
+  await expect.poll(() => projectedSlide(projector)).toBeNull();
+  await blackButton(app).click();
+  await expect.poll(() => projectedSlide(projector)).toBe(1);
 });
 
 test("the remote's «.» is NEGRO; in a text field it types, and Escape gives the keys back", async ({ app }) => {

@@ -1,5 +1,9 @@
 import { app, BrowserWindow, type Event, type WebContents } from "electron";
+import { mt } from "../i18n";
 import { broadcast } from "../services/broadcast";
+import { projectionState } from "../services/projection-state";
+import { showSheet } from "./sheet";
+import { stageShown } from "./stage-window";
 import type { CloseDecision } from "@shared/types/window";
 import { CloseGate } from "./close-gate";
 
@@ -65,7 +69,8 @@ export function installCloseGuard(win: BrowserWindow): void {
       // Captured onto the pending close; the flag itself must not survive to
       // colour an unrelated close later on.
       quitRequested = false;
-      broadcast("close-requested", undefined);
+      if (win.webContents.isCrashed()) askWithoutPage(win, gate);
+      else broadcast("close-requested", undefined);
     },
     close: () => win.close(),
     quit: () => app.quit(),
@@ -75,6 +80,27 @@ export function installCloseGuard(win: BrowserWindow): void {
   win.on("close", (event) => {
     if (!gate.onClose(quitRequested)) event.preventDefault();
   });
+}
+
+/**
+ * A dead control page cannot ask, and the grace then closed everything after 4 s without a word: one click of the X
+ * turned the projector, the stage and the sound off (owner's hand test, 2026-11-16). Main does not know what is live
+ * (`CLAUDE.md`), so it asks whenever the projector or the stage is up, in a box on the dead window that never stops
+ * main (`showSheet`). With neither there is nothing to lose: the draft is already on disk.
+ */
+function askWithoutPage(win: BrowserWindow, gate: CloseGate): void {
+  if (!projectionState.getWindow() && !stageShown().shown) return void setImmediate(() => gate.resolve("close"));
+  gate.resolve("hold");
+  void showSheet(win, {
+    type: "warning",
+    title: mt("dialogs.closeDeadTitle"),
+    message: mt("dialogs.closeDeadTitle"),
+    detail: mt("dialogs.closeDeadDetail"),
+    buttons: [mt("dialogs.closeAnyway"), mt("dialogs.cancel")],
+    defaultId: 1,
+    cancelId: 1,
+    noLink: true,
+  }).then((answer) => gate.resolve(answer?.response === 0 ? "close" : "cancel"));
 }
 
 /** The control window's answer (`CloseGate.resolve`). A window with no guard just closes on "close". */

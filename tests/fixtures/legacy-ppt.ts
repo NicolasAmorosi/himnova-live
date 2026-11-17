@@ -348,3 +348,21 @@ export function pngHeader(width: number, height: number): Buffer {
   ihdr.writeUInt8(6, 17); // colour type: RGBA
   return Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), ihdr]);
 }
+
+/** A bare 512-byte compound-file header, for the fabricated files that attack the OLE layer itself: 512-byte
+ *  sectors, 64-byte mini sectors, `difat` in the header's 109 slots (the rest free), then `fields` written as
+ *  u32 at their byte offsets (44 FAT sectors, 48 directory start, 60 mini-FAT start, 68 DIFAT start, 72 DIFAT
+ *  count). */
+export function oleHeader(fields: Record<number, number>, difat: number[] = []): Buffer {
+  const h = Buffer.alloc(SECTOR, 0);
+  Buffer.from([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]).copy(h, 0);
+  h.writeUInt16LE(0x3e, 24);
+  h.writeUInt16LE(3, 26);
+  h.writeUInt16LE(0xfffe, 28);
+  h.writeUInt16LE(9, 30);
+  h.writeUInt16LE(6, 32);
+  h.writeUInt32LE(MIN_STREAM_BYTES, 56);
+  for (let i = 0; i < 109; i++) h.writeUInt32LE(difat[i] ?? FREESECT, 76 + i * 4);
+  for (const [offset, value] of Object.entries(fields)) h.writeUInt32LE(value >>> 0, Number(offset));
+  return h;
+}

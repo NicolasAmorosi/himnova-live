@@ -15,25 +15,25 @@ Windows, macOS and Linux · English, Spanish, Italian and Portuguese
 ## Features
 
 - **Presentations** in `.ppt`, `.pptx`, `.pps`, `.ppsx`, `.odp` and `.pdf`, read and drawn by Himnova
-  itself — nothing else to install —, including `.pps` hymnals with auto-advance and music: each
-  slide's timing and the embedded audio are kept. When a presentation runs out — by itself or a step past
-  its last slide — and past a song's last slide, the projector shows the logo, goes black, starts over,
+  itself (nothing else to install), including `.pps` hymnals with auto-advance and music: each
+  slide's timing and the embedded audio are kept. When a presentation runs out (by itself or a step past
+  its last slide) and past a song's last slide, the projector shows the logo, goes black, starts over,
   stays on the last slide or moves on to the schedule's next item; a standalone audio stops, loops or plays
   the next one. Each is chosen once in Settings.
 - **Any video or audio.** Whatever the player can't decode (AVI, WMV, ProRes, AC3…) plays at once
   through Himnova's own media engine, built on libmpv. Nothing is converted and the original file is
   never touched. When a video ends, the projector shows the logo, goes black, loops it, holds its
-  last frame or moves on to the schedule's next item — your choice in Settings.
+  last frame or moves on to the schedule's next item: your choice in Settings.
 - **Bible** with full-text search (accent-insensitive), favourite passages and the ones that went live
-  recently. Ships with nine public-domain or freely licensed versions — Reina-Valera 1909, Versión
+  recently. Ships with nine public-domain or freely licensed versions (Reina-Valera 1909, Versión
   Biblia Libre, King James Version, American Standard Version, World English Bible, Riveduta 1927, Diodati
-  1885, Almeida 1911 and Bíblia Livre —: a new install gets those of its language, and any other installs
+  1885, Almeida 1911 and Bíblia Livre): a new install gets those of its language, and any other installs
   with one click, no internet. **Two versions side by side** for a bilingual service: two columns on the
   projector, each with its own reference. Import other versions in JSON, Zefania, USFX, OSIS or MyBible/MySword
   modules. The Reina-Valera 1960 is still under copyright, so it can't ship with the app; a file of it imports
   like any other.
-- **Songs:** type or paste the lyrics — with headers like `[Verse 1]` or `[Chorus]` in English, Spanish,
-  Italian or Portuguese, or none, and the block that repeats becomes the chorus — and the app builds the
+- **Songs:** type or paste the lyrics (with headers like `[Verse 1]` or `[Chorus]` in English, Spanish,
+  Italian or Portuguese, or none, and the block that repeats becomes the chorus) and the app builds the
   slides. One order per song, as chips you drag or a line like `V1 C V2 C B C`. **Every slide of a song is
   drawn at the same size**: the largest at which all of them fit. Search by title, number, author or a
   word of the lyrics (accent-insensitive). Live, the keys jump to a section (1–9 a verse, C the chorus,
@@ -46,13 +46,13 @@ Windows, macOS and Linux · English, Spanish, Italian and Portuguese
   translation), **SongSelect** lyrics (`.txt`) and **ChordPro** files. A CCLI usage report: what went
   live, once a day, as a CSV.
 - **A look to start with:** eight backgrounds and four moving ones in the library, song themes over
-  them, a quiet background behind the verse, dressed timers and three overlays ready to fill in — all
+  them, a quiet background behind the verse, dressed timers and three overlays ready to fill in, all
   editable, and none of it touches what you already changed.
-- **A stage screen** for the musicians on a third screen: what is live, what comes next and the time —
+- **A stage screen** for the musicians on a third screen: what is live, what comes next and the time,
   with the song's chords over its words, which the projector never shows. Chords come in from OpenLP,
   OpenLyrics and ChordPro, or are written in the lyrics as `[G]Amazing [C]grace`.
 - **NDI® output:** the projector's picture as a video source on your local network, for OBS, vMix or any
-  other NDI program — to stream the service with the lyrics and slides, with the app's own sound (videos, music,
+  other NDI program, to stream the service with the lyrics and slides, with the app's own sound (videos, music,
   hymns; it can be turned off if the stream takes the sound from your mixing desk). Turn it on in Settings › Projection; it needs NDI's free runtime, which you install
   from [ndi.video](https://ndi.video/). 1080p needs a gigabit network cable; over Wi-Fi, use 720p.
 - **Timers** (countdown, clock, stopwatch) and **overlays** on top of what is projected (a lower third
@@ -65,7 +65,7 @@ Windows, macOS and Linux · English, Spanish, Italian and Portuguese
   Settings › Backups, and restored from there (also a copy on a USB drive, on another computer). When
   your files moved to another folder, drive or computer, locating one of them finds the rest.
 - **A welcome on the first launch:** language and theme, your church's logo, the screens, what happens at
-  the end of a video or a presentation, your folders, the Bibles and streaming — then a «First steps» list
+  the end of a video or a presentation, your folders, the Bibles and streaming; then a «First steps» list
   that ticks itself as you try each thing in the real app. It reopens from Settings › About, next to the
   [online guide](https://himnova-live.vercel.app/en/guide).
 - Saved programs, a media library that starts with the computer's Videos, Pictures, Music and Documents
@@ -148,7 +148,7 @@ libmpv (see [`resources/engine-NOTICE.txt`](resources/engine-NOTICE.txt); the en
 [`native/`](native/)). The shapes of legacy `.ppt` files are drawn from LibreOffice's
 table of Office's shapes, under the MPL-2.0 (see
 [`resources/ooxml/mso-shapes-NOTICE.txt`](resources/ooxml/mso-shapes-NOTICE.txt)). The NDI® output is built against the NDI SDK's headers, under the MIT license
-([`native/ndi/include/`](native/ndi/include/)); the NDI runtime does not ship with the app — you install it from
+([`native/ndi/include/`](native/ndi/include/)); the NDI runtime does not ship with the app: you install it from
 [ndi.video](https://ndi.video/). NDI® is a registered trademark of Vizrt NDI AB. The bundled Bible versions are in the public domain, except the
 Versión Biblia Libre, © Jonathan Gallagher and Shelly Barrios de Avila under the Creative Commons
 Attribution-ShareAlike 4.0 license, and the Bíblia Livre, © Diego Santos, Mario Sérgio and Marco Teles under the

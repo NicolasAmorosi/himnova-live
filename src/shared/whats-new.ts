@@ -3,7 +3,7 @@
  * key is a version that has one, oldest first; the control window gives each key its steps (`WhatsNewScreen`), and
  * a key without them does not compile. A version with nothing to show adds no key: the last one stays the latest.
  */
-export const WHATS_NEW_KEYS = ["2.10"] as const;
+export const WHATS_NEW_KEYS = ["2.10", "2.11"] as const;
 export type WhatsNewKey = (typeof WHATS_NEW_KEYS)[number];
 
 export const LATEST_WHATS_NEW: WhatsNewKey = WHATS_NEW_KEYS[WHATS_NEW_KEYS.length - 1]!;
@@ -24,3 +24,10 @@ function isLater(a: string, b: string): boolean {
 
 /** Whether a profile that last saw `seen` (`null`: none yet) has a «Novedades» to be shown. */
 export const whatsNewDue = (seen: string | null): boolean => seen === null || isLater(LATEST_WHATS_NEW, seen);
+
+/** The versions a profile that last saw `seen` has not been told about, oldest first: a church that skips a version
+ *  (2.9 straight to 2.11) is told what both brought. None due (opened by hand from Settings ▸ About): the latest. */
+export function whatsNewKeysFor(seen: string | null): readonly WhatsNewKey[] {
+  const due = WHATS_NEW_KEYS.filter((key) => seen === null || isLater(key, seen));
+  return due.length > 0 ? due : [LATEST_WHATS_NEW];
+}

@@ -16,7 +16,7 @@ import { SettingsRepo } from "../../src/main/db/repositories/settings.repo";
 import { installBundledBible, seedBuiltinBibles } from "../../src/main/db/seed/seed-bible";
 import { BUNDLED_BIBLES, bundledBibleDTOs } from "../../src/main/db/seed/bundled-bibles";
 import { parseBibleFile, type ParsedBible } from "../../src/main/db/seed/bible-formats";
-import { BUILTIN_BIBLE_CODE } from "../../src/shared/constants";
+import { BUILTIN_BIBLE_CODE, BUNDLED_BIBLE_SHORT } from "../../src/shared/constants";
 import { isBibleLanguage } from "../../src/shared/types/bible";
 import type { Locale } from "../../src/shared/types/settings";
 
@@ -256,4 +256,13 @@ describe("a version's language", () => {
     expect(profile.repo.setLanguage(9999, "en")).toBeNull();
     profile.sqlite.close();
   });
+});
+
+// The version picker's short names (2026-11-15 audit, U14): one for every included version, none twice, short enough to
+// be the point of having them. A version added to the catalog without one would read «Rive…» again at 1000 px.
+test("every included version has its own short name for a narrow picker", () => {
+  const shorts = BUNDLED_BIBLES.map((bible) => BUNDLED_BIBLE_SHORT[bible.code]);
+  expect(shorts.every((short) => typeof short === "string" && short.length > 0 && short.length <= 6)).toBe(true);
+  expect(new Set(shorts).size).toBe(BUNDLED_BIBLES.length);
+  expect(Object.keys(BUNDLED_BIBLE_SHORT).sort()).toEqual(BUNDLED_BIBLES.map((bible) => bible.code).sort());
 });

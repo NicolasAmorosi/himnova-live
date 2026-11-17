@@ -82,7 +82,7 @@ export function SceneForm({ addingImages, imageAssets, onAddImages, onChange, on
 
   return (
     <>
-      <InspectorSection title={t("scenes.groups.scene")}>
+      <InspectorSection id="scene" title={t("scenes.groups.scene")}>
         <FieldRow description={t("scenes.toolHint")} label={t("scenes.tool")}>
           <Select
             onChange={(next) => patch({ tool: next as TimerTool })}
@@ -92,7 +92,7 @@ export function SceneForm({ addingImages, imageAssets, onAddImages, onChange, on
         </FieldRow>
       </InspectorSection>
 
-      <InspectorSection title={t("scenes.groups.time")}>
+      <InspectorSection id="time" title={t("scenes.groups.time")}>
         {value.tool === "countdown" ? (
           <FieldRow description={t("scenes.durationHint")} label={t("scenes.duration")}>
             <NumericTextField
@@ -157,7 +157,7 @@ export function SceneForm({ addingImages, imageAssets, onAddImages, onChange, on
         ) : null}
       </InspectorSection>
 
-      <InspectorSection title={t("scenes.groups.texts")}>
+      <InspectorSection id="texts" title={t("scenes.groups.texts")}>
         <FieldRow description={t("scenes.titleHint")} label={t("scenes.titleText")}>
           <Input
             maxLength={SCENE_TEXT_MAX_LENGTH}
@@ -174,7 +174,7 @@ export function SceneForm({ addingImages, imageAssets, onAddImages, onChange, on
         </FieldRow>
       </InspectorSection>
 
-      <InspectorSection title={t("style.groups.background")}>
+      <InspectorSection id="background" title={t("style.groups.background")}>
         <BackgroundFields
           addingImages={addingImages}
           imageAssets={imageAssets}
@@ -184,7 +184,7 @@ export function SceneForm({ addingImages, imageAssets, onAddImages, onChange, on
         />
       </InspectorSection>
 
-      <InspectorSection title={t("style.groups.typography")}>
+      <InspectorSection id="typography" title={t("style.groups.typography")}>
         <FontFamilyFields
           onChange={(fontFamily) => patchStyle({ fontFamily })}
           value={value.style.fontFamily}
@@ -197,18 +197,21 @@ export function SceneForm({ addingImages, imageAssets, onAddImages, onChange, on
 
       <TextStyleGroup
         onChange={(next) => patchStyle({ value: next })}
+        id="number"
         t={t}
         title={t("scenes.groups.number")}
         value={value.style.value}
       />
       <TextStyleGroup
         onChange={(next) => patchStyle({ title: next })}
+        id="titleLine"
         t={t}
         title={t("scenes.groups.titleLine")}
         value={value.style.title}
       />
       <TextStyleGroup
         onChange={(next) => patchStyle({ message: next })}
+        id="messageLine"
         t={t}
         title={t("scenes.groups.messageLine")}
         value={value.style.message}
@@ -219,7 +222,7 @@ export function SceneForm({ addingImages, imageAssets, onAddImages, onChange, on
           disappears. Only a countdown has an end, so a clock and a stopwatch
           never see it. */}
       {isCountdownTool(value.tool) ? (
-        <InspectorSection onFocus={onEndFocus} title={t("scenes.groups.end")}>
+        <InspectorSection id="end" onFocus={onEndFocus} title={t("scenes.groups.end")}>
           <FieldRow description={t("scenes.endMessageHint")} label={t("scenes.endMessage")}>
             <Input
               maxLength={SCENE_TEXT_MAX_LENGTH}
@@ -279,7 +282,7 @@ export function SceneForm({ addingImages, imageAssets, onAddImages, onChange, on
       ) : null}
 
       {isCountdownTool(value.tool) ? (
-        <InspectorSection defaultOpen={false} title={t("scenes.groups.triggers")}>
+        <InspectorSection id="triggers" defaultOpen={false} title={t("scenes.groups.triggers")}>
           <FieldRow description={t("scenes.triggersHint")} label={t("scenes.triggersEnabled")}>
             <Switch
               checked={value.style.triggers !== null}
@@ -328,18 +331,20 @@ export function SceneForm({ addingImages, imageAssets, onAddImages, onChange, on
 /** A whole section that is nothing but one text role's four knobs — the number,
  *  the title and the message, so they can never drift apart. */
 function TextStyleGroup({
+  id,
   onChange,
   t,
   title,
   value,
 }: {
+  id: string;
   onChange: (next: SceneTextStyle) => void;
   t: Translate;
   title: string;
   value: SceneTextStyle;
 }) {
   return (
-    <InspectorSection title={title}>
+    <InspectorSection id={id} title={title}>
       <TextStyleFields onChange={onChange} t={t} value={value} />
     </InspectorSection>
   );

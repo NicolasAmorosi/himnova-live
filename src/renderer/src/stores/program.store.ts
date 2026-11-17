@@ -6,6 +6,7 @@ import type {
   ProgramItemUpsert,
 } from "@shared/types/program";
 import { api } from "@renderer/lib/api";
+import { counters } from "@renderer/lib/counters";
 
 type ProgramMeta = {
   name: string;
@@ -40,6 +41,8 @@ type ProgramStoreState = {
   addItem: (item: ProgramItemUpsert, insertAt?: number) => void;
   removeAt: (index: number) => void;
   removeByMediaAsset: (assetId: number) => void;
+  /** A relocate merged row `from` into its twin `to` (`MediaRepo.relocate`). */
+  remapMediaAsset: (from: number, to: number) => void;
   removeByUtilityScene: (sceneId: number) => void;
   removeByPlate: (plateId: number) => void;
   removeBySong: (songId: number) => void;
@@ -70,10 +73,20 @@ function reindex(items: ProgramItemDTO[]): ProgramItemDTO[] {
  * row under the cursor. `ProgramsRepo.save()` renumbers everything from
  * position 0, so this only ever has to be unique within a session.
  */
-let provisionalId = 0;
 function nextProvisionalId(): number {
-  provisionalId += 1;
-  return -provisionalId;
+  counters.provisionalRow += 1;
+  return -counters.provisionalRow;
+}
+
+/** Rows a relocate merged into their twins this session (`remapMediaAsset`). */
+const mergedInto = new Map<number, number>();
+
+/** The id the schedule knows `id` by: itself, or the twin a relocate merged it into. What is on the air keeps the
+ *  id it went out with (2026-11-15 audit, D4), so it is compared with a row's id through here: read as another file,
+ *  an extra Enter restarted the video on air, or played its sound a second time over itself. */
+export function survivingAssetId(id: number): number {
+  for (let next = mergedInto.get(id); next !== undefined; next = mergedInto.get(id)) id = next;
+  return id;
 }
 
 /** `dirty` after an edit that left `items`: a never-saved schedule emptied
@@ -247,6 +260,23 @@ export const useProgramStore = create<ProgramStoreState>((set, get) => ({
         (item) => (item.kind === "media" || item.kind === "ppt") && item.mediaAssetId === assetId,
       ),
     ),
+
+  // Rows stay where they are, so do both cursors: the on-air rail still names its row. `dirty` untouched: main
+  // moved the saved rows in the same merge, and the draft autosave writes the new id.
+  remapMediaAsset: (from, to) => {
+    mergedInto.set(from, to);
+    set((state) =>
+      state.items.some((item) => (item.kind === "media" || item.kind === "ppt") && item.mediaAssetId === from)
+        ? {
+            items: state.items.map((item) =>
+              (item.kind === "media" || item.kind === "ppt") && item.mediaAssetId === from
+                ? { ...item, mediaAssetId: to }
+                : item,
+            ),
+          }
+        : state,
+    );
+  },
 
   /** The same thing for a time scene force-deleted from the «Scenes» editor.
    *  The unsaved schedule is the one place main's `ON DELETE restrict` cannot

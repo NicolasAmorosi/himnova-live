@@ -2,6 +2,7 @@ import { t } from "@renderer/lib/i18n/i18n-provider";
 import { toast } from "@renderer/lib/toast";
 import { useDeckStore } from "@renderer/stores/deck.store";
 import { useProjectionStore } from "@renderer/stores/projection.store";
+import { survivingAssetId } from "@renderer/stores/program.store";
 
 /**
  * "Convert again" from the slide grid.
@@ -19,10 +20,19 @@ import { useProjectionStore } from "@renderer/stores/projection.store";
  * knows what is live *under an overlay* — main sees nothing but the last
  * `ProjectionOutput`, and BLACK or LOGO over a deck is indistinguishable
  * there from no deck at all.
+ *
+ * Compared by deck, not only by library entry: two entries of the same file
+ * (two folders, a copy off a pen drive) share one deck, and reconverting the
+ * copy replaced the folder and the ids the music on air played from
+ * (2026-11-15 audit, A12).
  */
 export function reconvertDeck(assetId: number): void {
-  const base = useProjectionStore.getState().base;
-  if (base?.kind === "deck" && base.assetId === assetId) {
+  const { base, liveDeck } = useProjectionStore.getState();
+  const deckId = useDeckStore.getState().byAssetId[assetId]?.deck?.deckId;
+  if (
+    base?.kind === "deck" &&
+    (survivingAssetId(base.assetId) === assetId || (deckId !== undefined && liveDeck?.deckId === deckId))
+  ) {
     toast.warning(t("deck.reconvertBlockedLive"));
     return;
   }

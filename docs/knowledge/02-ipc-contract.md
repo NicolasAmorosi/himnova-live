@@ -3,10 +3,13 @@
 ## A single source of truth
 
 The whole contract lives in **`src/shared/ipc/contract.ts`**: an `IpcContract` type with one entry
-per channel (`{ req, res }`), grouped by domain prefix (`displays:`, `projection:`,
-`files:`, `deck:`, `bible:`, `library:`, `engine:`, `programs:`, `program:`, `window:`,
-`utility:`, `overlay:`, `settings:`, `system:`). Push events (main → renderer without invoke)
-are kept separately, in `IpcEvents`.
+per channel (`{ req, res }`), grouped by domain prefix (`displays:`, `projection:`, `stage:`,
+`files:`, `deck:`, `bible:`, `library:`, `engine:`, `preview:`, `audioRoute:`, `programs:`,
+`program:`, `song:`, `songTheme:`, `window:`, `utility:`, `overlay:`, `settings:`, `system:`,
+`updates:`, `backups:`, `ndi:`). Push events (main → renderer without invoke)
+are kept separately, in `IpcEvents`. Only the app's own windows may invoke a channel:
+`ipc/register.ts` drops a call from any other `webContents` (`ipc/trusted-senders.ts` says what
+that covers and what it does not).
 
 This replaces the old "3-file lockstep" (`main.js` + `preload.js` + `app.js`, all by
 hand, with no verification). Now:
@@ -44,11 +47,11 @@ transport side, and catches business errors with a normal try/catch.
 
 ## Push events
 
-`display-content`, `media-command` and `audio-tracks` go from main to the projection window;
-`projection-closed`, `displays-changed`, `projector-screen`, `media-status`, `media-error`,
-`deck-progress`, `prewarm-progress`, `deck-statuses-changed`, `library-changed`,
-`engine-asset-changed`, `deck-updated`, `library-import-progress`, `close-requested` and
-`update-status` go to the control window. `window.worship.on(channel, cb)` returns a cleanup function — unlike the legacy
+`display-content`, `media-command` and `audio-tracks` go from main to the projection window (the
+first two, and `media-status`, also to its copies: the NDI window, and the stage while it plays
+videos), and `stage-content` to the stage window; every event in `IpcEvents` that is not sent to a
+window is `broadcast` (`services/broadcast.ts`) to the control window. A frame of the media engine is not an event: it
+arrives through the preload's `onVideoFrame`. `window.worship.on(channel, cb)` returns a cleanup function, unlike the legacy
 preload, which had no way to unsubscribe. `onIpc` (`renderer/src/lib/ipc.ts`) is its typed
 wrapper; the control window subscribes in `renderer/src/effects/` (`*-sync.ts`).
 

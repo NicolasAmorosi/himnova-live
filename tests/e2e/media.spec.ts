@@ -77,7 +77,8 @@ test("closing the projector window from outside does not strand the operator", a
   await first.close();
   await expect.poll(() => app.hasProjector()).toBe(false);
 
-  // EN VIVO again reopens it, showing the same image.
+  // EN VIVO again reopens it, showing the same image — picked again: it left PREVIEW when it went out (owner, 2026-11-15).
+  await app.previewFile("Imágenes", "photo");
   await app.goLive();
   const second = await app.projector();
   await expect(second.locator('img[src^="worship://asset/"]')).toBeVisible();
@@ -99,9 +100,9 @@ test("PREVIEW sounds at its own volume, 0 to start, and goes quiet when it goes 
   await preview.getByRole("slider", { name: "Volumen de clip" }).fill("60");
   await expect.poll(state).toMatchObject({ muted: false, volume: 0.6 });
 
-  // Going live hands the sound to the projector: PREVIEW stops.
+  // Going live hands the sound to the projector: PREVIEW stops — the video left PREVIEW with it (owner, 2026-11-15).
   await app.goLive();
-  await expect.poll(async () => (await state()).paused).toBe(true);
+  await expect(preview.locator("video")).toHaveCount(0);
 });
 
 test("an audio file in PREVIEW plays through PREVIEW's engine, its clock moving", async ({ app }) => {
@@ -169,6 +170,8 @@ test("the row under PREVIEW and the row under LIVE line up, whatever is on them"
   for (const [kind, preview] of kinds) {
     await preview();
     await app.goLive();
+    // What went out left PREVIEW (owner, 2026-11-15): the same kind picked again, so both columns have a row.
+    await preview();
     // Twice it drifted apart: the LIVE panel inside the padded scrolling body
     // (6px lower, narrower), then the deck strip inside PREVIEW's, and the
     // PREVIEW hint between a row and its bar.

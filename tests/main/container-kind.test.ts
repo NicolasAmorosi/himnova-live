@@ -21,6 +21,11 @@ import { buildLegacyPpt, compoundFile } from "../fixtures/legacy-ppt";
 
 let tmpDir: string;
 
+/** An OpenDocument zip as the format requires it: `mimetype` first and stored. */
+function odp(type = "application/vnd.oasis.opendocument.presentation"): Uint8Array {
+  return zipSync({ mimetype: [strToU8(type), { level: 0 }], "content.xml": strToU8("<office/>") });
+}
+
 function write(name: string, bytes: Uint8Array | Buffer): string {
   const file = path.join(tmpDir, name);
   fs.writeFileSync(file, bytes);
@@ -64,8 +69,21 @@ describe("containerKind", () => {
     const ole2 = write("deck.pps", Buffer.from([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]));
     expect(containerKind(ole2)).toBe("binary");
 
-    const odf = write("deck.odp", zipSync({ "content.xml": strToU8("<office/>") }));
+    const odf = write("deck.odp", odp());
     expect(containerKind(odf)).toBe("odf");
+  });
+
+  // 2026-11-15 audit, Doc3: a zip was told apart by its extension, so a renamed file went to the wrong reader and
+  // failed as NOT_A_PRESENTATION.
+  test("tells an .odp by its stored mimetype entry, whatever the name says", () => {
+    expect(containerKind(write("renamed-odp.pptx", odp()))).toBe("odf");
+    expect(containerKind(write("renamed-template.ppsx", odp("application/vnd.oasis.opendocument.presentation-template")))).toBe("odf");
+    // Another OpenDocument (a text document) is no presentation.
+    expect(containerKind(write("text.pptx", odp("application/vnd.oasis.opendocument.text")))).toBe("ooxml");
+    // An .odp whose mimetype is not first (7 of the corpus's 286: LibreOffice's test files, re-zipped ones) still
+    // opens by its name, as before.
+    const late = zipSync({ "content.xml": strToU8("<office/>"), mimetype: [strToU8("application/vnd.oasis.opendocument.presentation"), { level: 0 }] });
+    expect(containerKind(write("late-mimetype.odp", late))).toBe("odf");
   });
 
   test("a file too short to sniff is unknown, not a crash", () => {

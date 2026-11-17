@@ -242,10 +242,15 @@ function paragraphs(n: LayoutNode, env: Env): Para[] {
   return out;
 }
 
+/** A ceiling well above real SmartArt text (65 pt when the layout says nothing). The fit loop below shrinks a
+ *  point at a time from the start size, so a `primFontSz` of 1e20 from the file (where `1e20 - 1 === 1e20`) hung
+ *  the deck worker for good (2026-11-15 audit, S4). */
+const MAX_FONT_PT = 400;
+
 /** Sizes, in points, of a node's first-level text and of the rest. */
 function fontSizes(n: LayoutNode, s: LayoutState): { prim: number; sec: number } {
   const p = props(n, s);
-  const prim = p.get("primFontSz") ?? 65;
+  const prim = Math.min(p.get("primFontSz") ?? 65, MAX_FONT_PT);
   return { prim, sec: p.get("secFontSz") ?? prim * 0.78 };
 }
 

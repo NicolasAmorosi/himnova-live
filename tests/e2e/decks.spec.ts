@@ -7,7 +7,7 @@ import type { MediaAsset } from "../../src/shared/types/media";
 import { SLIDES_CONVERTER_VERSION } from "../../src/shared/constants";
 import { fixture } from "./support/paths";
 import { buildPdf } from "./support/pdf";
-import { CM, buildPptx } from "./support/pptx";
+import { CM, REL, buildPptx } from "./support/pptx";
 import { compoundFile } from "../fixtures/legacy-ppt";
 import { audioStates, engineCanvas, expect, moving, msUntilChange, relaunch, test, videoStates, type WorshipApp } from "./support/app";
 
@@ -52,6 +52,79 @@ test("a PDF is a deck: drawn page by page, projected, stepped", async ({ app }) 
   await expect.poll(() => projectedSlide(projector)).toBe(2);
   await app.control.keyboard.press("ArrowLeft");
   await expect.poll(() => projectedSlide(projector)).toBe(1);
+});
+
+// The hidden window that draws PDFs reads files from anywhere: it gets its task and answers it, and nothing else of
+// the app's IPC (2026-11-15 audit, S11).
+test("the window that draws PDFs cannot call the app's channels", async ({ app }) => {
+  await app.addMedia("ppt", "deck.pdf");
+  await app.previewFile("Presentaciones", "deck");
+  await expect(slideTile(app, 3)).toBeVisible({ timeout: 60_000 });
+  const rasterizer = app.electron.windows().find((page) => page.url().endsWith("/rasterizer.html"));
+  if (!rasterizer) throw new Error("no rasterizer window");
+  const answer = await rasterizer.evaluate(() =>
+    (window as unknown as { worship: { invoke: (channel: string, req: unknown) => Promise<unknown> } }).worship.invoke(
+      "deck:statuses",
+      { assetIds: [] },
+    ),
+  );
+  expect(answer).toMatchObject({ ok: false, error: { code: "UNTRUSTED_SENDER" } });
+});
+
+// Electron grants every permission to every page unless told otherwise. Only the app's own windows get the two it
+// uses (device names and choosing an output); the PDF window gets none (2026-11-15 audit, S12).
+test("the window that draws PDFs sees no device names; the control window does", async ({ app }) => {
+  await app.addMedia("ppt", "deck.pdf");
+  await app.previewFile("Presentaciones", "deck");
+  await expect(slideTile(app, 3)).toBeVisible({ timeout: 60_000 });
+  const rasterizer = app.electron.windows().find((page) => page.url().endsWith("/rasterizer.html"));
+  if (!rasterizer) throw new Error("no rasterizer window");
+  const labels = (page: Page) =>
+    page.evaluate(async () => (await navigator.mediaDevices.enumerateDevices()).map((device) => device.label).filter(Boolean));
+  expect((await labels(app.control)).length).toBeGreaterThan(0);
+  expect(await labels(rasterizer)).toEqual([]);
+  // The editors' font list: the installed fonts, which a check for `local-fonts` gates as quietly.
+  const fonts = await app.control.evaluate(async () =>
+    (await (window as unknown as { queryLocalFonts: () => Promise<unknown[]> }).queryLocalFonts()).length,
+  );
+  expect(fonts).toBeGreaterThan(0);
+});
+
+/** The colour of the projected page at fractions of its width (at half its height), from the page image itself. */
+function pageColors(projector: Page, at: readonly number[]): Promise<string[]> {
+  return projector.evaluate(async (fractions) => {
+    const image = document.querySelector<HTMLImageElement>('img[src^="worship://deck/"]');
+    if (!image) return [];
+    const bitmap = await createImageBitmap(await (await fetch(image.src)).blob());
+    const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
+    const context = canvas.getContext("2d")!;
+    context.drawImage(bitmap, 0, 0);
+    return fractions.map((x) => {
+      const [r, g, b] = context.getImageData(Math.floor(bitmap.width * x), Math.floor(bitmap.height / 2), 1, 1).data;
+      return `${r! > 128 ? 1 : 0}${g! > 128 ? 1 : 0}${b! > 128 ? 1 : 0}`;
+    });
+  }, at);
+}
+
+// A scanned hymn or a score (CCITT, JBIG2) and a photo in JPEG 2000 are images pdf.js decodes with its own WebAssembly,
+// fetched from the rasterizer's `wasmUrl`. Without it the page was drawn blank, with no word to anyone (2026-11-15
+// audit, A9). Colours as bits: «100» is red, «000» black, «111» white.
+test("a scanned PDF page and a JPEG 2000 photo are drawn, not left blank", async ({ app }) => {
+  await app.addMedia("ppt", "scan.pdf", "jpx.pdf");
+  await app.previewFile("Presentaciones", "scan");
+  await expect(slideTile(app, 1)).toBeVisible({ timeout: 60_000 });
+  await app.goLive();
+  const projector = await app.projector();
+  await expect.poll(() => projectedSlide(projector)).toBe(1);
+  // The scan's left half is black, its right half white.
+  await expect.poll(() => pageColors(projector, [0.25, 0.75])).toEqual(["000", "111"]);
+
+  await app.previewFile("Presentaciones", "jpx");
+  await expect(slideTile(app, 1)).toBeVisible({ timeout: 60_000 });
+  await app.goLive();
+  await expect.poll(() => pageColors(projector, [0.5])).toEqual(["100"]);
+  // And the worker said nothing about a decoder it could not start.
+  expect(app.log.filter((line) => /failed to initialize|wasmUrl/.test(line))).toEqual([]);
 });
 
 test("a deck cached by an older converter is reconverted before it goes live, never under it", async ({ app }) => {
@@ -208,6 +281,44 @@ test("a WMV embedded in a .pptx slide plays through the media engine on its slid
   expect(await moving(projector, "slideVideo:")).toBe(false);
 });
 
+test("an MP4 embedded in a .pptx slide plays in Chromium: NEGRO holds it, and «Reabrir» goes on from there (2026-11-15 audit, P3)", async ({ app }) => {
+  // The common case (a modern deck, an MP4 on a slide), which `clipdeck.pptx`'s WMV, played by the engine, is not.
+  const deck = path.join(app.profile, "clipdeck-mp4.pptx");
+  const clip =
+    '<p:pic><p:nvPicPr><p:cNvPr id="3" name="Clip"/><p:cNvPicPr/><p:nvPr><a:videoFile r:link="rIdVideo"/></p:nvPr></p:nvPicPr>' +
+    '<p:blipFill><a:blip r:embed="rIdPoster"/><a:stretch><a:fillRect/></a:stretch></p:blipFill>' +
+    `<p:spPr><a:xfrm><a:off x="${4 * CM}" y="${2 * CM}"/><a:ext cx="${20 * CM}" cy="${11.25 * CM}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></p:spPr></p:pic>`;
+  const rels =
+    `<Relationship Id="rIdVideo" Type="${REL}/video" Target="../media/media1.mp4"/>` +
+    `<Relationship Id="rIdPoster" Type="${REL}/image" Target="../media/poster.png"/>`;
+  const media = { "ppt/media/media1.mp4": fs.readFileSync(fixture("clip.mp4")), "ppt/media/poster.png": fs.readFileSync(fixture("photo.png")) };
+  fs.writeFileSync(deck, buildPptx([{ shapes: clip, rels }], media));
+  await app.invoke("library:add", { kind: "ppt", paths: [deck] });
+  await app.previewFile("Presentaciones", "clipdeck-mp4");
+  await expect(slideTile(app, 1)).toBeVisible({ timeout: 90_000 });
+
+  await app.goLive();
+  const first = await app.projector();
+  await expect.poll(async () => (await videoStates(first))[0]?.currentTime ?? 0).toBeGreaterThan(2);
+
+  // NEGRO pauses it where it is and keeps it.
+  await app.control.locator("body").press("b");
+  await expect.poll(async () => (await videoStates(first))[0]?.paused).toBe(true);
+  const held = (await videoStates(first))[0]!.currentTime;
+  await app.control.waitForTimeout(1000);
+  expect((await videoStates(first))[0]?.currentTime).toBe(held);
+  await app.control.locator("body").press("b");
+  await expect.poll(async () => (await videoStates(first))[0]?.paused).toBe(false);
+
+  // Its projector closed and reopened mid-clip: the same clip, from where it was, not from 0:00.
+  await first.close();
+  const notice = app.control.getByRole("status").filter({ hasText: "Se cerró la ventana de proyección" });
+  await notice.getByRole("button", { name: "Reabrir" }).click();
+  const second = await app.projector();
+  await expect.poll(async () => (await videoStates(second))[0]?.playedFrom ?? null).not.toBeNull();
+  expect((await videoStates(second))[0]?.playedFrom).toBeGreaterThan(held - 0.5);
+});
+
 test("after a restart, a deck prepared before still plays its WMV through the engine", async ({ app }) => {
   await app.addMedia("ppt", "clipdeck.pptx");
   await app.previewFile("Presentaciones", "clipdeck");
@@ -307,6 +418,9 @@ test("a slide clicked in the LIVE grid goes up at once; one clicked in PREVIEW d
   await app.goLive();
   const projector = await app.projector();
   await expect.poll(() => projectedSlide(projector)).toBe(1);
+  // It left PREVIEW when it went out (owner, 2026-11-15): picked again.
+  await expect(slideTile(app, 3)).toBeHidden();
+  await app.previewFile("Presentaciones", "deck");
 
   await slideTile(app, 3).click();
   await app.control.waitForTimeout(500);
@@ -405,7 +519,8 @@ test("a song assigned to a deck plays under it, and NEGRO pauses the song and th
   expect(await projectedSlide(projector)).toBe(expected);
   await expect.poll(() => projectedSlide(projector), { timeout: 6_000 }).toBe(expected + 1);
 
-  // And it stays assigned: «Quitar» on the strip takes it back off.
+  // And it stays assigned: «Quitar» on the strip takes it back off (picked again: it left PREVIEW when it went out).
+  await app.previewFile("Presentaciones", "hymn");
   await preview.getByRole("button", { name: "Opciones del audio" }).click();
   await app.control.getByRole("menuitem", { name: "Quitar" }).click();
   await expect(preview.getByRole("button", { name: "Asignar audio" })).toBeVisible();
@@ -703,6 +818,93 @@ test("taking a copy of a PDF out of the library leaves the one on air drawing it
       }),
     )
     .toBeGreaterThan(0);
+});
+
+/** Three slides, the first with music that plays across the deck. */
+const hymn = (verse: string) =>
+  buildPptx(
+    [1, 2, 3].map((n, i) => ({
+      text: { paragraphs: [{ text: `${verse} ${n}`, size: 44 }], box: [2 * CM, 5 * CM, 24 * CM, 6 * CM] as [number, number, number, number] },
+      ...(i === 0
+        ? {
+            shapes:
+              '<p:pic><p:nvPicPr><p:cNvPr id="99" name="Music"/><p:cNvPicPr/><p:nvPr><a:audioFile r:link="rIdMusic"/></p:nvPr></p:nvPicPr><p:blipFill/><p:spPr/></p:pic>',
+            rels: `<Relationship Id="rIdMusic" Type="${REL}/audio" Target="../media/music1.mp3"/>`,
+            timing:
+              '<p:timing><p:tnLst><p:par><p:cTn id="1"><p:childTnLst><p:audio><p:cMediaNode numSld="999"><p:cTn id="2"/><p:tgtEl><p:spTgt spid="99"/></p:tgtEl></p:cMediaNode></p:audio></p:childTnLst></p:cTn></p:par></p:tnLst></p:timing>',
+          }
+        : {}),
+    })),
+    { "ppt/media/music1.mp3": fs.readFileSync(fixture("song.mp3")) },
+  );
+
+/** The original live with its music, and another deck with music read after it: the music on air is then no
+ *  longer the newest clip row, whose id SQLite would hand out again. */
+async function hymnOnAir(app: WorshipApp) {
+  const [original, other] = ["Himno con musica.pptx", "Otro himno.pptx"].map((name) => path.join(app.profile, name));
+  fs.writeFileSync(original!, hymn("Estrofa"));
+  fs.writeFileSync(other!, hymn("Verso"));
+  await app.invoke<MediaAsset[]>("library:add", { kind: "ppt", paths: [original, other] });
+  await app.previewFile("Presentaciones", "Himno con musica");
+  await expect(slideTile(app, 3)).toBeVisible({ timeout: 60_000 });
+  await app.goLive();
+  const projector = await app.projector();
+  await expect.poll(async () => (await audioStates(projector))[0]?.src ?? "").toMatch(/^worship:\/\/deck-audio\//);
+  const [music] = await audioStates(projector);
+  const status = (src: string) => projector.evaluate(async (url) => (await fetch(url, { headers: { Range: "bytes=0-1" } })).status, src);
+  expect(await status(music!.src)).toBe(206);
+  await app.previewFile("Presentaciones", "Otro himno");
+  await expect(app.previewColumn().getByText("Verso 3").first()).toBeVisible({ timeout: 60_000 });
+  return { projector, music: music!, status };
+}
+
+test("«Reintentar» on a copy of the deck on air that was never read leaves its music playing", async ({ app }) => {
+  // The copy is on a pen drive browsed as a linked folder: an entry the app knows but never read ahead, so it has
+  // no deck and the renderer's guard (by deck id) lets its «Reintentar» through as a forced read.
+  const { projector, music, status } = await hymnOnAir(app);
+  const pendrive = path.join(app.profile, "pendrive");
+  fs.mkdirSync(pendrive);
+  // Copied, not built again: the zip's entries carry the time they were built at, and other bytes are another deck.
+  fs.copyFileSync(path.join(app.profile, "Himno con musica.pptx"), path.join(pendrive, "Copia del himno.pptx"));
+  const [copy] = await app.invoke<MediaAsset[]>("library:listFolder", { kind: "ppt", path: pendrive });
+  await app.invoke("deck:ensure", { assetId: copy!.id, force: true });
+  const [after] = await audioStates(projector);
+  expect(after?.src).toBe(music.src);
+  expect(await status(music.src)).toBe(206);
+});
+
+test("opening a copy of the deck on air, read again, leaves its music playing", async ({ app }) => {
+  // The same deck with music in two library entries (two folders, a copy off a pen drive). The copy is added in
+  // this session, so its content hash is not stamped yet: it is read again (read ahead as it arrives, or opened).
+  const [original, other, copy] = ["Himno con musica.pptx", "Otro himno.pptx", "Copia del himno.pptx"].map((name) => path.join(app.profile, name));
+  fs.writeFileSync(original!, hymn("Estrofa"));
+  fs.writeFileSync(other!, hymn("Verso"));
+  // Copied, not built again: a build a zip timestamp tick later is other bytes, another deck, and a test that passes
+  // without testing anything.
+  fs.copyFileSync(original!, copy!);
+  await app.invoke<MediaAsset[]>("library:add", { kind: "ppt", paths: [original, other] });
+
+  await app.previewFile("Presentaciones", "Himno con musica");
+  await expect(slideTile(app, 3)).toBeVisible({ timeout: 60_000 });
+  await app.goLive();
+  const projector = await app.projector();
+  await expect.poll(async () => (await audioStates(projector))[0]?.src ?? "").toMatch(/^worship:\/\/deck-audio\//);
+  const [music] = await audioStates(projector);
+  const status = (src: string) => projector.evaluate(async (url) => (await fetch(url, { headers: { Range: "bytes=0-1" } })).status, src);
+  expect(await status(music!.src)).toBe(206);
+  // Another deck with music read after it: the music on air is no longer the newest clip row, whose id SQLite
+  // would hand out again.
+  await app.previewFile("Presentaciones", "Otro himno");
+  await expect(app.previewColumn().getByText("Verso 3").first()).toBeVisible({ timeout: 60_000 });
+
+  await app.invoke<MediaAsset[]>("library:add", { kind: "ppt", paths: [copy] });
+  await app.previewFile("Presentaciones", "Copia del himno");
+  await expect(app.previewColumn().getByText("Estrofa 3").first()).toBeVisible({ timeout: 60_000 });
+  // The music on air goes on from where it was, from the same file: never swapped, never back at 0:00.
+  const [after] = await audioStates(projector);
+  expect(after?.src).toBe(music!.src);
+  expect(after!.currentTime).toBeGreaterThan(music!.currentTime);
+  expect(await status(music!.src)).toBe(206);
 });
 
 test("a PDF page whose hidden drawing window crashes is drawn again, not left blank", async ({ app }) => {

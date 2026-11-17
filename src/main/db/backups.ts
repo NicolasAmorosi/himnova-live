@@ -122,7 +122,8 @@ let launchRestore: LaunchRestore | null = null;
 
 /**
  * At launch, BEFORE the database is opened: the staged copy takes the database's place, if there is one. What
- * is there now goes to `before-restore/` first (the last 3 kept), and without that copy nothing is replaced.
+ * is there now goes to `before-restore/` first (the last 3 kept): a verified copy, or, when the database is too
+ * damaged to give one, its file as it is (`-damaged.db`, with its `-wal`); without either, nothing is replaced.
  * The `-wal` goes before the swap, and if it cannot, nothing is replaced either: SQLite would replay those
  * pages onto the restored file. The quit that led here checkpointed it, and the copy above holds it anyway.
  */
@@ -136,8 +137,15 @@ export function applyPendingRestore(dbFilePath: string, backupDir: string, now =
     return (launchRestore = { status: "failed", reason });
   };
   if (fs.existsSync(dbFilePath)) {
-    const before = takeSnapshot(dbFilePath, path.join(backupDir, KIND_FOLDERS.restore), 3, now);
-    if (before.status === "failed") return failed(`no copy of the current database: ${before.reason}`);
+    const beforeDir = path.join(backupDir, KIND_FOLDERS.restore);
+    const before = takeSnapshot(dbFilePath, beforeDir, 3, now);
+    if (before.status === "failed") {
+      // A damaged page makes `VACUUM INTO` throw: the database a restore exists for got no copy, nothing was
+      // replaced and every try did the same (2026-11-15 audit, D2). The file itself is kept instead. It is closed.
+      const raw = keepAsItIs(dbFilePath, beforeDir, now);
+      if (raw !== null) return failed(`no copy of the current database: ${before.reason}; nor as it is: ${raw}`);
+      console.warn("[db] the database could not be copied cleanly, kept as it is:", before.reason);
+    }
   }
   try {
     fs.rmSync(`${dbFilePath}-wal`, { force: true });
@@ -148,6 +156,32 @@ export function applyPendingRestore(dbFilePath: string, backupDir: string, now =
   }
   fs.rmSync(path.dirname(staged), { recursive: true, force: true });
   return (launchRestore = { status: "ok", takenAt });
+}
+
+/** `dbFilePath` and its `-wal`, copied byte for byte into `dir` under a name that says what they are. The reason
+ *  when they could not be. */
+function keepAsItIs(dbFilePath: string, dir: string, now: Date): string | null {
+  const dest = path.join(dir, `worship-${now.toISOString().replace(/[:.]/g, "-")}-damaged.db`);
+  try {
+    fs.mkdirSync(dir, { recursive: true });
+    fs.copyFileSync(dbFilePath, dest);
+    if (fs.existsSync(`${dbFilePath}-wal`)) fs.copyFileSync(`${dbFilePath}-wal`, `${dest}-wal`);
+    return null;
+  } catch (error) {
+    return error instanceof Error ? error.message : String(error);
+  }
+}
+
+/** The copy a launch that cannot open its database offers to restore (audit D3): the newest daily copy that reads. */
+export function newestDailyCopy(backupDir: string): BackupEntry | null {
+  return backupEntries(backupDir).find((entry) => entry.kind === "daily" && entry.programs !== null) ?? null;
+}
+
+/** Whether a launch failed because the database file is damaged, which a copy can mend; not a migration that
+ *  failed on sound data, which a day-old copy would only fail again. */
+export function isDamagedDatabase(error: unknown): boolean {
+  const code = error instanceof Error ? (error as Error & { code?: unknown }).code : undefined;
+  return typeof code === "string" && (code.startsWith("SQLITE_CORRUPT") || code === "SQLITE_NOTADB");
 }
 
 /** What this launch's restore did, once: the control window says it when it opens. */

@@ -5,7 +5,7 @@ import Database from "better-sqlite3";
 import type { Db } from "../client";
 import { mediaAssets } from "../schema";
 import { LINKED_AUDIO_RESOLVER_VERSION, type AssetKind } from "@shared/constants";
-import type { MediaAsset } from "@shared/types/media";
+import type { MediaAsset, MergedAsset } from "@shared/types/media";
 import { resolveLinkedAudio } from "../../slides/linked-audio";
 import { IpcError } from "@shared/ipc/result";
 
@@ -38,6 +38,9 @@ function toDTO(row: typeof mediaAssets.$inferSelect): MediaAsset {
 }
 
 export class MediaRepo {
+  /** Rows `relocate` merged away this session, to the twin they live on as (`survivingId`). */
+  private readonly mergedInto = new Map<number, number>();
+
   constructor(
     private readonly db: Db,
     private readonly sqlite: Database.Database,
@@ -289,6 +292,17 @@ export class MediaRepo {
     return row?.path ?? null;
   }
 
+  /** The row `id` lives on as: itself, or the twin a relocate merged it into this session. What is on the air keeps
+   *  the id it went out with, and its file must keep coming under it: a video is read in ranges as it plays, and a
+   *  projector reopened asks again (2026-11-15 audit, D4). Only for what is on the air: the bytes it is served, the
+   *  engine's list that keeps it playing, the history and pin of the deck it shows. Never inside a getter: anything
+   *  that writes rows under an id must not take a dead one for a live one unasked. Ids are AUTOINCREMENT, so a
+   *  merged-away id never has a row again. */
+  survivingId(id: number): number {
+    for (let next = this.mergedInto.get(id); next !== undefined; next = this.mergedInto.get(id)) id = next;
+    return id;
+  }
+
   /**
    * Whether this exact file is a row in the library.
    *
@@ -322,43 +336,11 @@ export class MediaRepo {
   // asset OWN a deck row?", and ownership is exclusive while the cache is
   // content-addressed.
 
-  /** The stored hash, but only while the `(size, mtime)` it was computed over
-   *  still matches the file the row describes. A stale stamp reads as "no
-   *  hash": the bytes changed, so the old digest answers about a file that no
-   *  longer exists. */
-  private static validHash(row: typeof mediaAssets.$inferSelect): string | null {
-    if (row.contentHash === null) return null;
-    if (row.contentHashSize !== row.sizeBytes) return null;
-    if (row.contentHashMtimeMs !== row.mtimeMs) return null;
-    return row.contentHash;
-  }
-
-  /** `assetId → content hash`, for the assets that have a currently-valid one.
-   *  Chunked for the same reason `sweep` and `statusesByAsset` are: the caller
-   *  is a grid handing over every asset it can see, and one `IN (...)` binds
-   *  one parameter per id. */
-  validContentHashes(ids: readonly number[]): Map<number, string> {
-    const result = new Map<number, string>();
-    if (ids.length === 0) return result;
-    for (let i = 0; i < ids.length; i += ID_CHUNK) {
-      const slice = ids.slice(i, i + ID_CHUNK);
-      for (const row of this.db
-        .select()
-        .from(mediaAssets)
-        .where(inArray(mediaAssets.id, slice))
-        .all()) {
-        const hash = MediaRepo.validHash(row);
-        if (hash !== null) result.set(row.id, hash);
-      }
-    }
-    return result;
-  }
-
   /** Records the digest together with the `(size, mtime)` it describes, so it
-   *  can be invalidated without re-reading the file. Called from the two
-   *  places that ever compute one: a real conversion (which needs the hash
-   *  anyway, so this is free) and the startup backfill. */
-  /** Stamps the digest of the file as it is NOW — so the row's own
+   *  can be invalidated without re-reading the file. Called where one is
+   *  computed: reading a deck (`deck-service.ts`) and the startup backfill
+   *  (`content-hash.ts`).
+   *  Stamps the digest of the file as it is NOW, so the row's own
    *  `(size, mtime)` is written too, or the stamp would read as stale against
    *  a row that still describes the file before an edit. */
   setContentHash(id: number, contentHash: string, sizeBytes: number, mtimeMs: number): void {
@@ -551,6 +533,32 @@ export class MediaRepo {
     return changedKinds;
   }
 
+  /** A linked folder was just listed: its rows (`inLibrary = 0`, this folder only, not a subfolder's) that did not
+   *  come back are marked missing, never deleted. The sweep leaves those rows out, so a file deleted from the folder
+   *  kept a row that every reconcile probed again (2026-11-15 audit, D10). The next listing that finds it clears it.
+   *  A row the listing left out whose file still opens is not gone: a case-only rename on a case-insensitive drive
+   *  lists the new spelling, and the old one opens the same file (final pass of the audit). */
+  async markAbsentFromFolder(kind: AssetKind, folder: string, present: readonly string[]): Promise<void> {
+    const folderKey = toPathKey(path.resolve(folder));
+    const presentKeys = new Set(present.map(toPathKey));
+    const absent = this.db
+      .select({ id: mediaAssets.id, path: mediaAssets.path, pathKey: mediaAssets.pathKey })
+      .from(mediaAssets)
+      .where(and(eq(mediaAssets.kind, kind), eq(mediaAssets.inLibrary, 0), sql`${mediaAssets.missingSince} IS NULL`))
+      .all()
+      .filter((row) => path.dirname(row.pathKey) === folderKey && !presentKeys.has(row.pathKey));
+    const opens = await Promise.all(absent.map((row) => fs.promises.stat(row.path).then(() => true, () => false)));
+    const gone = absent.filter((_, i) => !opens[i]).map((row) => row.id);
+    const now = Date.now();
+    for (let i = 0; i < gone.length; i += ID_CHUNK) {
+      this.db
+        .update(mediaAssets)
+        .set({ missingSince: now })
+        .where(inArray(mediaAssets.id, gone.slice(i, i + ID_CHUNK)))
+        .run();
+    }
+  }
+
   /**
    * Points the row at `newPath`, keeping its id — the one the program items,
    * plates and history already reference.
@@ -568,13 +576,22 @@ export class MediaRepo {
    * image) are not rewritten. They are read through normalizers that already
    * tolerate an asset that is gone, and a linked-folder duplicate is not what
    * an operator picks as a background.
+   *
+   * The open order of service is not SQL either: `merged` names the duplicate, so the renderer moves its rows
+   * to this id too. Left on the deleted id they failed «Guardar» on its foreign key and were dropped from the
+   * draft at the next launch (2026-11-15 audit, D4).
    */
-  relocate(id: number, newPath: string, stat: fs.Stats = fs.statSync(newPath)): MediaAsset | null {
+  relocate(
+    id: number,
+    newPath: string,
+    stat: fs.Stats = fs.statSync(newPath),
+  ): { asset: MediaAsset; merged: MergedAsset | null } | null {
     const row = this.db.select().from(mediaAssets).where(eq(mediaAssets.id, id)).get();
     if (!row) return null;
     const mtimeMs = Math.trunc(stat.mtimeMs);
     const now = Date.now();
     const pathKey = toPathKey(newPath);
+    const merged: MergedAsset[] = [];
 
     const inLibrary = this.sqlite.transaction(() => {
       const duplicate = this.db.select().from(mediaAssets).where(eq(mediaAssets.pathKey, pathKey)).get();
@@ -594,6 +611,7 @@ export class MediaRepo {
         keepInLibrary = Math.max(row.inLibrary, duplicate.inLibrary);
         if (row.inLibrary === 0 && duplicate.inLibrary === 1) createdAt = duplicate.createdAt;
         this.db.delete(mediaAssets).where(eq(mediaAssets.id, duplicate.id)).run();
+        merged.push({ from: duplicate.id, to: id });
       }
       this.db
         .update(mediaAssets)
@@ -610,12 +628,16 @@ export class MediaRepo {
         })
         .where(eq(mediaAssets.id, id))
         .run();
+      // A deck read from the old path names it as its source, and with the same size and date it is served as is: its
+      // pictures were read from a file that is gone, and came back blank (2026-11-15 audit, D1).
+      this.sqlite.prepare("UPDATE slide_decks SET source_path = ? WHERE media_asset_id = ?").run(newPath, id);
       return keepInLibrary;
     })();
+    this.noteMerges(merged);
 
     // Same reason as `upsertFromPath`: the relocated file is a different set
     // of bytes as far as the thumbnail cache is concerned.
-    return toDTO({
+    const asset = toDTO({
       ...row,
       path: newPath,
       pathKey,
@@ -625,6 +647,14 @@ export class MediaRepo {
       missingSince: null,
       updatedAt: now,
     });
+    return { asset, merged: merged[0] ?? null };
+  }
+
+  /** Merges count once committed: those of a transaction rolled back (a later move of `relocateMany` throwing) never
+   *  happened, and their twins are rows again. Nested, the outer caller notes them after its commit. */
+  private noteMerges(merged: readonly MergedAsset[]): void {
+    if (this.sqlite.inTransaction) return;
+    for (const { from, to } of merged) this.mergedInto.set(from, to);
   }
 
   /** Every row's file and its operator-chosen soundtrack: what a move of
@@ -644,15 +674,21 @@ export class MediaRepo {
   /** `relocate` for many rows at once, in ONE transaction (nested ones become
    *  savepoints): a whole moved drive is hundreds of rows, and one commit each
    *  held main, and with it the projector, for seconds. The stats were taken
-   *  already, asynchronously. Returns the kinds that changed. */
-  relocateMany(moves: readonly { id: number; path: string; stat: fs.Stats }[]): Set<AssetKind> {
+   *  already, asynchronously. Returns the kinds that changed and the rows merged away. */
+  relocateMany(moves: readonly { id: number; path: string; stat: fs.Stats }[]): {
+    kinds: Set<AssetKind>;
+    merged: MergedAsset[];
+  } {
     const kinds = new Set<AssetKind>();
+    const merged: MergedAsset[] = [];
     this.sqlite.transaction(() => {
       for (const move of moves) {
-        const asset = this.relocate(move.id, move.path, move.stat);
-        if (asset) kinds.add(asset.kind);
+        const relocated = this.relocate(move.id, move.path, move.stat);
+        if (relocated) kinds.add(relocated.asset.kind);
+        if (relocated?.merged) merged.push(relocated.merged);
       }
     })();
-    return kinds;
+    this.noteMerges(merged);
+    return { kinds, merged };
   }
 }

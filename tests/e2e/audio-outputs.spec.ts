@@ -33,9 +33,12 @@ function outputButton(app: WorshipApp, bus: "live" | "preview") {
 }
 
 /** The strip's output menu, as the operator chooses. */
-async function choose(app: WorshipApp, bus: "live" | "preview", label: string): Promise<void> {
+async function choose(app: WorshipApp, bus: "live" | "preview", label: string | RegExp): Promise<void> {
   await outputButton(app, bus).click();
-  await app.control.getByRole("menu", { name: OUTPUT[bus] }).getByRole("menuitemradio", { name: label, exact: true }).click();
+  await app.control
+    .getByRole("menu", { name: OUTPUT[bus] })
+    .getByRole("menuitemradio", { name: label, exact: typeof label === "string" })
+    .click();
 }
 
 /** `sinkId` of every media element of a window. */
@@ -250,7 +253,8 @@ test("an engine that answers late never splits LIVE: the bus waits whole on the 
   const output = await liveOnAnotherOutput(app);
   test.skip(output === null, "this computer has no second output both sides can open");
   const engineName = engineRoute(app)?.match(/LIVE (\S+),/)?.[1];
-  await choose(app, "live", "Predeterminada del sistema");
+  // Named by the device behind it when Chromium says which (2026-11-15 audit, U15).
+  await choose(app, "live", /^(Predeterminada del|Del) sistema/);
   await expect.poll(() => engineRoute(app)).toMatch(/LIVE default/);
 
   // Something Chromium plays live, long enough to outlast the wait: the projector's element shows where LIVE sounds.

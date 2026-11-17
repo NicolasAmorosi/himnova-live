@@ -287,9 +287,11 @@ export function BibleBrowser() {
       {/* Two strips, like every bar of the main window (owner, 2026-11-06):
           version · «En paralelo» · book · chapter above, the search mode · the search under. The chapter's
           floor (a number, «Cap…») paid for the parallel's icon; the version has one too. */}
-      <div className="grid h-strip shrink-0 grid-cols-[minmax(5rem,3fr)_auto_minmax(0,3fr)_minmax(5.5rem,2fr)] items-center gap-1.5 border-b border-border px-1.5">
+      <div className="grid h-strip shrink-0 grid-cols-[minmax(6rem,3fr)_auto_minmax(0,3fr)_minmax(5.25rem,2fr)] items-center gap-1.5 border-b border-border px-1.5">
           {/* A floor and its whole name on hover: at the window's narrowest it read «Rei…» in every
-              language, and which version is up is the one thing this select is for (agent4-09). */}
+              language, and which version is up is the one thing this select is for (agent4-09). An included
+              version shows its short name there (2026-11-15 audit, U14), and the floor (6rem) is what «RV1909», the
+              longest, needs: taken from the chapter's (a number, or «Cap...»), so «Libro...» still fits. */}
           <Select
             aria-label={t("bible.versionLabel")}
             className="min-w-0"

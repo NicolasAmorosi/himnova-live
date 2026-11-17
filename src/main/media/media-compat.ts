@@ -62,11 +62,8 @@ export const MEDIA_PROBE_VERSION = 2;
 const NATIVE_CONTAINERS = new Set(["mp4", "mov", "matroska", "webm", "ogg", "mp3", "wav", "flac", "aac"]);
 const NATIVE_AUDIO_CODECS = new Set(["aac", "mp3", "opus", "vorbis", "flac"]);
 /** PCM decoded fine in WAV, measured. In MOV only `pcm_s16le` was measured, so
- *  PCM anywhere else is converted — it costs a few seconds of audio encoding
- *  while the picture is copied untouched. */
+ *  PCM anywhere else is left to the media engine. */
 const WAV_PCM_CODECS = new Set(["pcm_u8", "pcm_s16le", "pcm_s24le", "pcm_s32le", "pcm_f32le", "pcm_mulaw"]);
-/** What the MP4 muxer takes without `-strict` and Chromium then plays. VP8 is
- *  missing on purpose: MP4 has no mapping for it. */
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -214,4 +211,24 @@ export function playsNatively(probe: MediaProbe, kind: AssetKind, decoders: Deco
     (video === null || videoPlaysNatively(video, decoders)) &&
     (audio === null || audioPlaysNatively(audio, probe.container))
   );
+}
+
+/**
+ * Windows: the media engine plays every picture, not only what Chromium cannot decode (owner, 2026-11-16). Chromium
+ * paces all its windows on the primary screen's refresh, and a full-screen window on a slower screen (the stage at
+ * 60 Hz beside a 200 Hz primary) that animates anything blocks Chromium's GPU thread on each present. Its video decoder
+ * runs on that thread: a red stage message froze the room's video. The engine decodes in its own process.
+ * `--chromium-video` keeps Chromium's path: the E2E suite's specs read a `<video>`.
+ */
+export const ENGINE_PLAYS_EVERY_PICTURE = process.platform === "win32" && !process.argv.includes("--chromium-video");
+
+/** Whether the media engine plays this file: one with a picture always where `everyPicture`, else what Chromium does not. */
+export function playsOnEngine(
+  probe: MediaProbe,
+  kind: AssetKind,
+  decoders: DecoderSupport,
+  everyPicture = ENGINE_PLAYS_EVERY_PICTURE,
+): boolean {
+  if (everyPicture && kind !== "audio" && probe.video !== null) return true;
+  return !playsNatively(probe, kind, decoders);
 }

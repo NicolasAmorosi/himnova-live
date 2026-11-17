@@ -193,12 +193,38 @@ test("LIVE's fader is a master: at 50 % the projector plays each item at half it
   await expect.poll(levels).toEqual([0, 0]);
   await setStrips(app, false);
   await expect.poll(levels).toEqual([1, 1]);
-  // The room just heard it jump to 100 %: said once.
-  await expect(app.control.getByText("Tiras apagadas: el volumen general de EN VIVO vuelve al 100 %.")).toBeVisible();
+  // The room just heard what is live jump to 100 %: said once, with the master's 50 % kept as the starting volume
+  // (review of U5; the notice names the jump, owner 2026-11-16).
+  await expect(
+    app.control.getByText(
+      "Tiras apagadas: el volumen general de EN VIVO (50 %) pasa a ser el volumen inicial, y lo que ya está al aire vuelve al 100 %.",
+    ),
+  ).toBeVisible();
+  expect((await app.invoke<Record<string, unknown>>("settings:get"))["media.volume"]).toBe(0.5);
   // And turning them on again does not silence LIVE: the mute went with them. Fails if it survives the switch.
   await setStrips(app, true);
   await expect(mute).toHaveAttribute("aria-pressed", "false");
   await expect.poll(levels).toEqual([0.5, 0.5]);
+});
+
+test("a fade-out down to 0 on LIVE's fader is a mute: unmuting, and the next launch, come back to where it started", async ({
+  app,
+}) => {
+  const master = app.liveColumn().getByRole("slider", { name: MASTER });
+  await master.fill("80");
+  await expect.poll(async () => (await app.invoke<Record<string, unknown>>("settings:get"))["audio.live.volume"]).toBe(0.8);
+
+  // The operator holds ↓ on the fader to the bottom: one gesture, every step reported (a slow drag does the same).
+  await master.focus();
+  for (let step = 0; step < 85; step += 1) await app.control.keyboard.down("ArrowDown");
+  await app.control.keyboard.up("ArrowDown");
+  const mute = app.liveColumn().getByRole("group", { name: LIVE_STRIP }).getByRole("button", { name: "Silenciar EN VIVO" });
+  await expect(mute).toHaveAttribute("aria-pressed", "true");
+  // Fails with the last step before 0 remembered (0.01, −40 dB): the room barely hears the next song, and the app
+  // opens like that tomorrow (2026-11-15 audit, A8).
+  expect((await app.invoke<Record<string, unknown>>("settings:get"))["audio.live.volume"]).toBe(0.8);
+  await mute.click();
+  await expect(master).toHaveValue("80");
 });
 
 test("the NDI output hears LIVE's fader: at 50 % its sound is 6 dB under 100 %", async ({ app }) => {
@@ -246,7 +272,8 @@ test("each strip's output menu lists this computer's outputs and keeps the one c
   await trigger.click();
   const menu = app.control.getByRole("menu", { name: "Salida de PREVIEW" });
   const options = menu.getByRole("menuitemradio");
-  await expect(options.first()).toHaveText("Predeterminada del sistema");
+  // Named by the device behind it when Chromium says which (2026-11-15 audit, U15).
+  await expect(options.first()).toHaveText(/^(Predeterminada del sistema|Del sistema: .+)$/);
   await expect(options.first()).toHaveAttribute("aria-checked", "true");
   // Chromium lists the outputs a moment after launch (the first time, Core Audio takes a second).
   const listed = await expect
@@ -268,5 +295,5 @@ test("each strip's output menu lists this computer's outputs and keeps the one c
   const settings = app.control.getByRole("dialog", { name: "Configuración" });
   await settings.getByRole("tab", { name: "Sonido" }).click();
   await expect(settings.getByRole("combobox", { name: "Salida de PREVIEW" })).toHaveText(names[1]!);
-  await expect(settings.getByRole("combobox", { name: "Salida de EN VIVO" })).toHaveText("Predeterminada del sistema");
+  await expect(settings.getByRole("combobox", { name: "Salida de EN VIVO" })).toHaveText(/^(Predeterminada del|Del) sistema/);
 });

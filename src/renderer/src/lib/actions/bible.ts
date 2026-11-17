@@ -137,8 +137,9 @@ async function openItemChapter(item: BibleScheduleItem, stillWanted: () => boole
   const tab = useBibleStore.getState();
   if (tab.bookId !== bibleBookId || tab.chapter !== chapter) await tab.setBookAndChapter(bibleBookId, chapter);
   if (!stillWanted()) return false;
+  // By id: an edit of the schedule meanwhile copied every row (2026-11-15 audit, A16).
   const { activeIndex, items } = useProgramStore.getState();
-  if (activeIndex !== null && items[activeIndex] === item && useProjectionStore.getState().base?.kind === "bible") {
+  if (activeIndex !== null && items[activeIndex]?.id === item.id && useProjectionStore.getState().base?.kind === "bible") {
     const last = item.verseTo ?? item.verseFrom;
     const live = useBibleStore.getState().verses.findIndex((v) => v.verse === last);
     if (live >= 0) useBibleStore.getState().setCurrentVerseIndex(live);

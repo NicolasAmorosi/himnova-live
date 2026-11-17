@@ -52,8 +52,17 @@ export function NdiOutputGroup({ essentials = false }: { essentials?: boolean })
   const audioDelay = useSettingsStore((s) => s.settings["ndi.output.audioDelayMs"]);
   const update = useSettingsStore((s) => s.update);
   const [draft, setDraft] = useState(name);
+  const [delayDraft, setDelayDraft] = useState(audioDelay);
 
   useEffect(() => setDraft(name), [name]);
+  useEffect(() => setDelayDraft(audioDelay), [audioDelay]);
+
+  /** On release, not on each step: a new delay restarts the sender, and the source left OBS and came back on every
+   *  step of a drag (2026-11-15 audit, A22). */
+  function commitDelay() {
+    if (delayDraft !== audioDelay) void update({ "ndi.output.audioDelayMs": delayDraft });
+  }
+  useCommitOnUnmount(commitDelay);
 
   function commitName() {
     const next = draft.trim();
@@ -182,10 +191,13 @@ export function NdiOutputGroup({ essentials = false }: { essentials?: boolean })
                   label={t("settings.ndi.audioDelay")}
                   max={NDI_AUDIO_DELAY_MAX_MS}
                   min={NDI_AUDIO_DELAY_MIN_MS}
-                  onChange={(value) => void update({ "ndi.output.audioDelayMs": Math.round(value) })}
+                  onBlur={commitDelay}
+                  onChange={(value) => setDelayDraft(Math.round(value))}
+                  onKeyUp={commitDelay}
+                  onPointerUp={commitDelay}
                   step={10}
                   unit=" ms"
-                  value={audioDelay}
+                  value={delayDraft}
                 />
               </FieldRow>
             </DependentFields>

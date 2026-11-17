@@ -74,12 +74,28 @@ test("a file is found by name, and the chosen order survives a restart", async (
   await expect(panel(again, "Imágenes").getByRole("textbox", { name: "Buscar por nombre…" })).toHaveValue("");
 });
 
+// The removal is done when its undo window ends, by a timer of the control window's: closing the app within those
+// seconds dropped it, and the file was back at the next launch (2026-11-15 audit, D14).
+test("a file removed seconds before closing the app stays removed", async ({ app }) => {
+  await app.addMedia("image", "photo.png");
+  await app.openResources("Medios", "Imágenes");
+  await panel(app, "Imágenes").getByRole("button", { name: "photo" }).click();
+  await panel(app, "Imágenes").getByRole("button", { name: "Quitar", exact: true }).click();
+  await expect(panel(app, "Imágenes").getByRole("button", { name: "photo" })).toHaveCount(0);
+  await app.quit("close");
+
+  const again = await relaunch(app);
+  expect(await again.invoke<MediaAsset[]>("library:list", { kind: "image" })).toEqual([]);
+});
+
 test("removing a file can be undone, and otherwise it is gone for good — off the projector too", async ({ app }) => {
   await app.addMedia("image", "photo.png");
   await app.previewFile("Imágenes", "photo");
   await app.goLive();
   const projector = await app.projector();
   await expect(projector.locator('img[src^="worship://asset/"]')).toBeVisible();
+  // It left PREVIEW, and its tile's selection with it, when it went out (owner, 2026-11-15): picked again.
+  await panel(app, "Imágenes").getByRole("button", { name: "photo" }).click();
   await panel(app, "Imágenes").getByRole("button", { name: "Quitar", exact: true }).click();
   await expect(panel(app, "Imágenes").getByRole("button", { name: "photo" })).toHaveCount(0);
 
@@ -379,9 +395,13 @@ test("a file copied into a linked folder shows up when the operator comes back, 
   await app.control.evaluate(() => window.dispatchEvent(new Event("focus")));
   await expect.poll(() => tileNames(app, "Imágenes"), { timeout: 8_000 }).toEqual(["primera", "segunda"]);
 
+  const listed = await app.invoke<MediaAsset[]>("library:listFolder", { kind: "image", path: folder });
+  const gone = listed.find((asset) => asset.name === "primera")!;
   fs.rmSync(path.join(folder, "primera.png"));
   await panel(app, "Imágenes").getByRole("button", { name: "Actualizar carpeta" }).click();
   await expect.poll(() => tileNames(app, "Imágenes")).toEqual(["segunda"]);
+  // Its row is marked missing, not left for every reconcile to probe again (2026-11-15 audit, D10).
+  await expect.poll(async () => (await app.invoke<MediaAsset | null>("library:get", { id: gone.id }))?.missingSince ?? null).not.toBeNull();
 });
 
 test("a linked folder gone from disk says so instead of looking empty", async ({ app }) => {

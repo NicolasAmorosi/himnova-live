@@ -53,7 +53,7 @@ test("a copied profile's decks point at this cache, and nothing outside it is to
 
   const copied = deckAt(path.join(original, "aaa-1920-webp"), "aaa");
   const lost = deckAt(path.join(original, "bbb-1920-webp"), "bbb");
-  const windows = deckAt("C:\\Users\\emili\\AppData\\Roaming\\worship-app\\slides-cache\\aaa-1920-webp", "ccc");
+  const windows = deckAt("C:\\Users\\ana\\AppData\\Roaming\\worship-app\\slides-cache\\aaa-1920-webp", "ccc");
   const local = deckAt(path.join(here, "aaa-1920-webp"), "ddd");
 
   expect(slidesRepo.adoptCacheRoot(here)).toEqual({ rebased: 2, forgotten: 1 });
@@ -65,4 +65,19 @@ test("a copied profile's decks point at this cache, and nothing outside it is to
   expect(fs.existsSync(path.join(original, "bbb-1920-webp"))).toBe(true);
   // Idempotent: a second launch has nothing left to adopt.
   expect(slidesRepo.adoptCacheRoot(here)).toEqual({ rebased: 0, forgotten: 0 });
+});
+
+test("«Limpiar caché» deletes every deck in one transaction: a delete that fails takes none of them", () => {
+  // Row by row, 680 decks were 680 commits on main, 142 ms with the engine's video on the air (2026-11-15 audit, R17);
+  // one transaction is all or nothing.
+  const ids = ["ccc", "ddd", "eee"].map((name) => deckAt("", name));
+  sqlite.exec(`CREATE TEMP TRIGGER refuse BEFORE DELETE ON slide_decks WHEN old.id = ${ids[2]} BEGIN SELECT RAISE(ABORT, 'refused'); END`);
+  try {
+    expect(() => slidesRepo.deleteAllDecks()).toThrow("refused");
+    for (const id of ids) expect(slidesRepo.getDeckById(id)).not.toBeNull();
+  } finally {
+    sqlite.exec("DROP TRIGGER refuse");
+  }
+  expect(slidesRepo.deleteAllDecks()).toBeGreaterThanOrEqual(3);
+  for (const id of ids) expect(slidesRepo.getDeckById(id)).toBeNull();
 });

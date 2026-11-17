@@ -222,6 +222,29 @@ test("the longest verse, at a size that needs the auto-fit, is drawn whole insid
   await expect(projector.getByText("Ester 8:9")).toBeInViewport({ ratio: 1 });
 });
 
+test("the verse's fitted size on the projector is the LIVE monitor's, whatever the projector's proportion", async ({ app: first }) => {
+  // The monitors are 16:9; this Mac's projector screen is 16:10. Measured against its own height, the room got a
+  // bigger size with other line breaks than the monitor (2026-11-15 audit, A14). On a 16:9 projector this checks
+  // nothing new.
+  await first.invoke("settings:set", { "bible.style": { ...DEFAULT_BIBLE_STYLE, text: { ...DEFAULT_BIBLE_STYLE.text, sizeCqw: 7 } } });
+  test.setTimeout(60_000);
+  await first.quit();
+  const app = await relaunch(first);
+  await app.openChapter("Ester 8");
+  await app.control.getByRole("listitem").filter({ hasText: ESTER_8_9 }).click();
+  await app.goLive();
+  const projector = await app.projector();
+  await expect(projector.getByText(ESTER_8_9, { exact: false })).toBeVisible();
+  const size = (page: Page | ReturnType<WorshipApp["liveColumn"]>) =>
+    page.locator('p[dir="auto"]').first().evaluate((p) => parseFloat((p as HTMLElement).style.fontSize));
+  await expect.poll(() => size(projector)).toBeLessThan(7); // the auto-fit shrank it
+  const aspect = await projector.evaluate(() => innerWidth / innerHeight);
+  console.log(`[audience] projector ${aspect.toFixed(3)}: verse ${await size(projector)} cqw, LIVE monitor ${await size(app.liveColumn())} cqw`);
+  // Within one step of the search: sub-pixel rounding moves the last one (the gap without the fix was 0.21).
+  const room = await size(projector);
+  await expect.poll(async () => Math.abs((await size(app.liveColumn())) - room)).toBeLessThan(0.1);
+});
+
 
 const holdsDisplay = (pid: number) =>
   execFileSync("pmset", ["-g", "assertions"], { encoding: "utf8" })

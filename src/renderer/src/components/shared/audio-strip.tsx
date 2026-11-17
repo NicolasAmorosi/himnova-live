@@ -62,10 +62,13 @@ export function AudioStrip({ bus }: { bus: AudioBus }) {
   const notice = fallback ?? (shared ? t(ndi ? "audio.sharedOutputNdi" : "audio.sharedOutput") : null);
   const warn = fallback !== null || (shared && previewVolume > 0);
   const outputName = t("audio.outputIs", { output: outputLabel, name: picker.name });
-  const setMaster = (volume: number) => {
-    // 0 is the mute, not a level to remember.
+  const setMaster = (volume: number, from: number) => {
+    // 0 is the mute, not a level to remember: a fade-out down to it leaves the level its gesture started from, which
+    // is what unmuting — and the next launch — come back to. Keeping the last step before 0 left the room at −40 dB
+    // (2026-11-15 audit, A8).
     setLiveMuted(volume === 0);
-    if (volume > 0) void update({ "audio.live.volume": Number(volume.toFixed(2)) });
+    const level = volume > 0 ? volume : from;
+    if (level > 0) void update({ "audio.live.volume": Number(level.toFixed(2)) });
   };
 
   return (

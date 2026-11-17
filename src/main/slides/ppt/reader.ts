@@ -71,7 +71,7 @@ const PH_DATE = 7, PH_SLIDE_NUMBER = 8, PH_FOOTER = 9, PH_HEADER = 10;
 
 const MAX_DEPTH = 12;
 
-export type PptResources = { msoShapes: MsoShapeTable };
+export type PptResources = { msoShapes: MsoShapeTable; onSlide?: () => void };
 
 /** One sound of the deck's collection: where its bytes are, and what it is. */
 export type BinarySound = { id: string; part: string; ext: string };
@@ -235,6 +235,7 @@ function readDeck(doc: Doc, resources: PptResources): PptModelRead {
   const slides: PptxSlide[] = [];
   const metas: BinarySlideMeta[] = [];
   slideIds.forEach((persistId, index) => {
+    resources.onSlide?.();
     const unsupported = new Map<string, number>();
     const miss = (what: string): void => void unsupported.set(what, (unsupported.get(what) ?? 0) + 1);
     const slide = persisted(doc, persistId);
@@ -465,7 +466,9 @@ function headersFooters(buf: Buffer, parent: Rec[], base?: HeadersFooters): Head
       out.showDate = (flags & 0x1) !== 0;
       out.slideNumber = (flags & 0x8) !== 0;
       out.showFooter = (flags & 0x20) !== 0;
-      if (flags & 0x2) out.date = new Date().toLocaleDateString();
+      // «Today's date» (0x2) is not computed here: the model is kept, so `new Date()` showed the day of the first
+      // read for weeks, in the system's format. The date the file stored stands, as a .pptx's and an .odp's
+      // (2026-11-15 audit, A43).
     } else if (c.recType === RT_CSTRING) {
       const s = buf.toString("utf16le", c.body, c.body + c.len);
       if (c.recInstance === 0) out.date = s;

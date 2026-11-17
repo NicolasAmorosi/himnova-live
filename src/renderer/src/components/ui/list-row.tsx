@@ -46,6 +46,7 @@ export function ListRow({
   gripDisabled = false,
   index,
   leading,
+  onDoubleClick,
   onGripMouseDown,
   onGripMouseUp,
   rail = true,
@@ -66,6 +67,16 @@ export function ListRow({
       )}
       ref={ref}
       {...props}
+      onDoubleClick={
+        onDoubleClick &&
+        ((e) => {
+          // A double click on a control in the row (a star, a ✕) is that control's: bubbling up, it opened the
+          // program or sent the row live (2026-11-15 audit, U1).
+          const control = e.target instanceof Element ? e.target.closest("button, input") : null;
+          if (control && e.currentTarget.contains(control)) return;
+          onDoubleClick(e);
+        })
+      }
     >
       {active && rail ? <span className="absolute inset-y-1 left-0 w-0.5 rounded-full bg-on-air" /> : null}
       {grip ? (

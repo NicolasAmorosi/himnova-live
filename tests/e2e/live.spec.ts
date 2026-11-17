@@ -241,3 +241,41 @@ test("NEGRO and LOGO cover an image, a verse and a countdown, and uncover them a
   await control.locator("body").press("b");
   await expect(clock).toBeVisible();
 });
+
+test("the projector's screen unplugged: the LIVE header goes on saying so after the toast, without the on-air dot", async ({
+  app,
+}) => {
+  await videoLive(app);
+  const live = app.liveColumn();
+  // What main sends when it hides the projector because its screen went away (`windows/projector-screen.ts`).
+  const projectorScreen = (connected: boolean) =>
+    app.electron.evaluate(({ BrowserWindow }, connected) => {
+      for (const win of BrowserWindow.getAllWindows()) {
+        if (win.webContents.getURL().endsWith("/index.html")) win.webContents.send("projector-screen", { connected });
+      }
+    }, connected);
+  await expect(live.locator(".bg-on-air")).toHaveCount(1);
+
+  await projectorScreen(false);
+  await expect(app.control.getByText("Se desconectó la pantalla del proyector", { exact: false })).toBeVisible();
+  // The toast goes after 5 s; the header is what is left (2026-11-15 audit, U4).
+  await expect(app.control.getByText("Se desconectó la pantalla del proyector", { exact: false })).toHaveCount(0, { timeout: 10_000 });
+  await expect(live.getByText("Pantalla desconectada")).toBeVisible();
+  await expect(live.locator(".bg-on-air")).toHaveCount(0);
+  // Main brings the window back on its own: nothing to open.
+  await expect(live.getByRole("button", { name: "Abrir pantalla" })).toHaveCount(0);
+
+  await projectorScreen(true);
+  await expect(live.getByText("Pantalla desconectada")).toHaveCount(0);
+  await expect(live.locator(".bg-on-air")).toHaveCount(1);
+
+  // Closed while hidden and opened again, it is not hidden any more.
+  await projectorScreen(false);
+  const settings = await openSettings(app, "Pantallas");
+  await settings.getByRole("button", { name: "Cerrar pantalla" }).click();
+  await expect.poll(() => app.hasProjector()).toBe(false);
+  await settings.getByRole("button", { name: "Abrir pantalla" }).click();
+  await app.projector();
+  await settings.getByRole("button", { name: "Volver" }).click();
+  await expect(live.getByText("Pantalla desconectada")).toHaveCount(0);
+});

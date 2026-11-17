@@ -21,18 +21,35 @@ export async function renameWithRetry(from: string, to: string): Promise<void> {
   }
 }
 
-/** `renameWithRetry` for a caller that cannot wait asynchronously: retried for at most half a second (it holds
- *  main), which covers Defender's and the indexer's glance but not a program that keeps the file open. */
-export function renameSyncWithRetry(from: string, to: string): void {
-  for (let attempt = 0; ; attempt += 1) {
-    try {
-      fs.renameSync(from, to);
-      return;
-    } catch (error) {
-      const code = (error as NodeJS.ErrnoException).code;
-      if (attempt >= 4 || !code || !TRANSIENT_CODES.has(code)) throw error;
-      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 100);
+/** Puts `staging` (or nothing, when null) where `target` is and runs `commit` (the row that names it). The folder that
+ *  was there goes aside first and is deleted only once both worked; when either fails it is put back, and the new
+ *  one dropped. Deleted first, a new folder that could not be moved in (a file held by Defender) or a row that could
+ *  not be written left the old row over a folder that was gone (review of the 2026-11-15 audit, D6). */
+export async function replaceFolder<T>(target: string, staging: string | null, commit: () => T): Promise<T> {
+  const previous = `${target}.previous`;
+  removeQuietly(previous);
+  let aside = false;
+  let movedIn = false;
+  try {
+    if (fs.existsSync(target)) {
+      await renameWithRetry(target, previous);
+      aside = true;
     }
+    if (staging) {
+      await renameWithRetry(staging, target);
+      movedIn = true;
+    }
+    const result = commit();
+    if (aside) removeQuietly(previous);
+    return result;
+  } catch (error) {
+    if (staging) removeQuietly(staging);
+    // The new folder already in place goes too, with or without one to put back.
+    if (movedIn) removeQuietly(target);
+    if (aside) {
+      await renameWithRetry(previous, target).catch((back: unknown) => console.warn(`[fs] could not put ${target} back`, back));
+    }
+    throw error;
   }
 }
 

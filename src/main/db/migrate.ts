@@ -68,8 +68,8 @@ export type BackupResult =
 
 /**
  * Snapshots the database before applying pending migrations, keeping the last 3.
- * A migration failing on a user's machine on a Sunday morning must be
- * recoverable — SQLite's DDL is transactional so a failed migration itself
+ * A migration failing on a user's machine the morning of the service must be
+ * recoverable. SQLite's DDL is transactional so a failed migration itself
  * rolls back, but this covers the case where the *result* is wrong in a way
  * that only shows up after commit.
  *
@@ -92,21 +92,27 @@ export function backupBeforeMigrate(
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 /**
- * A verified copy at launch when the newest one in `dailyDir` is a day old, keeping the last 7.
+ * A verified copy when the newest one in `dailyDir` is a day old, keeping the last 7.
  *
  * `backupBeforeMigrate` only copies when an update brings migrations: a month without one left a month-old
  * copy as the newest (2026-11-13 plan, 2.8.1). Its own folder, so these never rotate out the pre-migration
- * copies. A newest copy dated in the future (a clock set back) counts as stale, or none would ever be taken.
+ * copies. Run on the backup thread a few seconds after the window opens (`index.ts`), never on main: before the
+ * window it held main 0.7 to 1.0 s on a 90 MB profile (2026-11-15 audit, R1).
  */
 export function dailyBackup(dbFilePath: string, dailyDir: string, now = new Date()): BackupResult {
-  if (!fs.existsSync(dbFilePath)) return { status: "skipped" };
+  if (!fs.existsSync(dbFilePath) || !dailyBackupDue(dailyDir, now)) return { status: "skipped" };
+  return takeSnapshot(dbFilePath, dailyDir, 7, now);
+}
+
+/** Whether the newest copy in `dailyDir` is a day old, or there is none. A newest copy dated in the future (a clock
+ *  set back) counts as stale, or none would ever be taken. A few `stat`s: main asks before starting the thread. */
+export function dailyBackupDue(dailyDir: string, now = new Date()): boolean {
   const newest = Math.max(
     ...listBackups(dailyDir).map((name) => fs.statSync(path.join(dailyDir, name)).mtimeMs),
     Number.NEGATIVE_INFINITY,
   );
   const age = now.getTime() - newest;
-  if (age >= 0 && age < DAY_MS) return { status: "skipped" };
-  return takeSnapshot(dbFilePath, dailyDir, 7, now);
+  return !(age >= 0 && age < DAY_MS);
 }
 
 export function listBackups(dir: string): string[] {
@@ -120,16 +126,25 @@ export function listBackups(dir: string): string[] {
 export function takeSnapshot(dbFilePath: string, dir: string, keep: number, now: Date): BackupResult {
   const stamp = now.toISOString().replace(/[:.]/g, "-");
   const dest = path.join(dir, `worship-${stamp}.db`);
+  // Built under another name, renamed once verified. A copy cut half-way (the app closed during «Hacer una copia», a
+  // power cut during the daily one) kept a good copy's name: it counted as today's, so the real one was skipped, and
+  // it took one of the slots (2026-11-15 audit, D9). What such a cut left behind goes first.
+  const partial = `${dest}.partial`;
 
   try {
     fs.mkdirSync(dir, { recursive: true });
-    writeSnapshot(dbFilePath, dest);
-    verifySnapshot(dest);
+    for (const name of fs.readdirSync(dir)) {
+      if (name.includes(".partial")) fs.rmSync(path.join(dir, name), { force: true });
+    }
+    writeSnapshot(dbFilePath, partial);
+    verifySnapshot(partial);
+    fs.renameSync(partial, dest);
   } catch (error) {
     // A half-written or corrupt copy is worse than no copy: it survives the
     // rotation below and gets restored with confidence on the worst day.
     try {
-      fs.rmSync(dest, { force: true });
+      fs.rmSync(partial, { force: true });
+      fs.rmSync(`${partial}-journal`, { force: true });
     } catch {
       // Nothing more to do — the reason below is what gets reported.
     }
@@ -169,9 +184,9 @@ export function writeSnapshot(dbFilePath: string, dest: string): void {
   }
 }
 
-/** A backup nobody has read is an assumption. `integrity_check` against the
- *  copy — not the original — is what turns it into a fact, and on a file this
- *  size it costs milliseconds. */
+/** A backup nobody has read is an assumption. `integrity_check` against the copy (not the original) is what turns it
+ *  into a fact. It is not cheap: 418 to 496 ms on a 90 MB profile with nine Bibles, more than the `VACUUM INTO`
+ *  itself (2026-11-15 audit, R1), so a copy taken while the app runs goes to the backup thread. */
 export function verifySnapshot(dest: string): void {
   const sqlite = new Database(dest, { readonly: true });
   try {
@@ -192,6 +207,8 @@ function pruneOldBackups(backupDir: string, keep: number, fresh: string): void {
   for (const stale of older.slice(0, Math.max(0, older.length - (keep - 1)))) {
     try {
       fs.unlinkSync(path.join(backupDir, stale));
+      // A copy kept as it was (`keepAsItIs` in `backups.ts`) may have its `-wal` beside it.
+      fs.rmSync(path.join(backupDir, `${stale}-wal`), { force: true });
     } catch (error) {
       console.warn(`[db] could not prune old backup ${stale}`, error);
     }
@@ -242,7 +259,8 @@ export function runMigrations(db: Db, migrationsFolder: string): void {
  * opened and migrated — afterwards nothing is pending, so `backupBeforeMigrate` rightly skips and the
  * upgrade runs with no copy to go back to (2026-11-10 review, mutation M11). Rows pointing at nothing are
  * repaired before migrating (`repairDanglingReferences`). A migration that fails is reported to
- * `onFailure` with what the backup managed, then thrown on.
+ * `onFailure` with what the backup managed, then thrown on. The daily copy is not taken here: it waits for the
+ * window, on the backup thread (`dailyBackup`).
  */
 export function openForLaunch(
   dbFilePath: string,
@@ -254,13 +272,16 @@ export function openForLaunch(
   // on the one morning it matters sends the operator looking for a file that may not be there.
   const backup = backupBeforeMigrate(dbFilePath, backupDir, migrationsFolder);
   if (backup.status === "failed") console.warn("[db] pre-migration backup failed:", backup.reason);
-  const daily = dailyBackup(dbFilePath, path.join(backupDir, "daily"));
-  if (daily.status === "failed") console.warn("[db] daily backup failed:", daily.reason);
 
   const { sqlite, db } = openDatabase(dbFilePath);
   try {
-    const repaired = repairDanglingReferences(sqlite);
-    if (repaired > 0) console.warn(`[db] repaired ${repaired} row(s) pointing at a deleted parent`);
+    // Only before a migration, which is what it is for. On every launch, its `foreign_key_check` read every table
+    // with a foreign key: one damaged page of songs or verses threw, and the app never opened again, not even to
+    // «Restaurar…» (2026-11-15 audit, D3). A skipped backup is nothing pending.
+    if (backup.status !== "skipped") {
+      const repaired = repairDanglingReferences(sqlite);
+      if (repaired > 0) console.warn(`[db] repaired ${repaired} row(s) pointing at a deleted parent`);
+    }
     runMigrations(db, migrationsFolder);
   } catch (error) {
     onFailure(error, backup);

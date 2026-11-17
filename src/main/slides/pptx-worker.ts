@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { parentPort, workerData } from "node:worker_threads";
+import type { SlideModel } from "@shared/types/slide-model";
 import { parsePresetDefinitions } from "./pptx/geometry";
 import { readPptxDeck, type PptxDeck, type PptxResources } from "./pptx/reader";
 import { parseTableStyles } from "./pptx/table-style";
@@ -47,17 +48,25 @@ export type PptxRequest = { id: number; file: string; extract?: undefined } | { 
 export type PptxReply =
   | { id: number; read: PptxRead }
   | { id: number; clips: PptxClips }
-  | { id: number; error: string };
+  | { id: number; error: string }
+  /** Still reading `id`: one per slide, which restarts the queue's timer (`deck-queue.ts`). */
+  | { id: number; alive: true };
 
-const ooxmlDir = (workerData as { ooxmlDir: string }).ooxmlDir;
 type Resources = PptxResources & PptResources;
 let resources: Resources | null = null;
+
+/** The request in hand, and the beat the readers send once per slide: a deck is stopped only after the queue's
+ *  limit without one, so a long deck on a slow PC is read to the end (2026-11-15 audit, S4, review). */
+let reading = 0;
+const beat = (): void => parentPort?.postMessage({ id: reading, alive: true } satisfies PptxReply);
 
 /** By what the bytes are, never by the extension. */
 function readModel(file: string, loaded: Resources): { deck: PptxDeck; meta: PresentationMeta | null } {
   switch (containerKind(file)) {
     case "ooxml": {
       const deck = readPptxDeck(file, loaded);
+      // The timings parse every slide again.
+      beat();
       let meta: PresentationMeta | null = null;
       try {
         meta = readPresentationMeta(file);
@@ -75,30 +84,73 @@ function readModel(file: string, loaded: Resources): { deck: PptxDeck; meta: Pre
   }
 }
 
+/** A slide's model past this, as JSON, is kept as an empty, damaged slide. A real chart at Excel 2007's limit
+ *  (32 000 points) is ~5.8 MB. */
+export const MAX_SLIDE_LAYERS = 16 * 1024 * 1024;
+
+/**
+ * The JSON `deck_slides.layers` stores. A few KB of file can ask for hundreds of MB of model (a chart's `ptCount`,
+ * an arc's sweep): that string crossed to main, was written to SQLite at once and parsed by every window
+ * (2026-11-15 audit, S5). Past the cap, or past what a string can hold, the slide keeps its size and background,
+ * and the control window says it is damaged.
+ */
+export function slideLayers(model: SlideModel, room = MAX_SLIDE_LAYERS): string {
+  try {
+    const json = JSON.stringify(model);
+    if (json.length <= Math.min(room, MAX_SLIDE_LAYERS)) return json;
+  } catch {
+    // RangeError: longer than a string can be.
+  }
+  return JSON.stringify({ ...model, elements: [], damaged: true } satisfies SlideModel);
+}
+
+/** A whole deck's models, as JSON, past which the slides left are kept empty and damaged too. */
+export const MAX_DECK_LAYERS = 128 * 1024 * 1024;
+
+/** Every slide's `slideLayers`, against one running total: the cap per slide still let a deck of a hundred slides
+ *  of 15 MB each hand main 1.5 GB (2026-11-15 audit, S5, review). The budget is a parameter for the test. */
+export function deckLayers(models: SlideModel[], budget = MAX_DECK_LAYERS): string[] {
+  let room = budget;
+  return models.map((model) => {
+    const layers = slideLayers(model, room);
+    room -= layers.length;
+    return layers;
+  });
+}
+
 function read(file: string): PptxRead {
-  // Loaded on the first deck, not at startup: most sessions never open one.
+  // Loaded on the first deck, not at startup: most sessions never open one. `workerData` read here, not when the
+  // module loads, so a test can import `slideLayers`.
+  const { ooxmlDir } = workerData as { ooxmlDir: string };
   resources ??= {
     presets: parsePresetDefinitions(fs.readFileSync(path.join(ooxmlDir, "presetShapeDefinitions.xml"), "utf8")),
     tableStyles: parseTableStyles(fs.readFileSync(path.join(ooxmlDir, "tableStyles.xml"), "utf8")),
     // Office's built-in shapes, for a legacy deck (`ppt/escher.ts`).
     msoShapes: parseMsoShapes(fs.readFileSync(path.join(ooxmlDir, "mso-shapes.json"), "utf8")),
+    onSlide: beat,
   };
   const { deck, meta } = readModel(file, resources);
+  beat();
+  const layers = deckLayers(deck.slides.map((slide) => slide.model));
   return {
     width: deck.width,
     height: deck.height,
-    slides: deck.slides.map((slide) => ({ hidden: slide.hidden, layers: JSON.stringify(slide.model) })),
+    slides: deck.slides.map((slide, at) => ({ hidden: slide.hidden, layers: layers[at]! })),
     meta,
   };
 }
 
 parentPort?.on("message", (request: PptxRequest) => {
   const { id } = request;
+  reading = id;
   let reply: PptxReply;
   try {
     if (request.extract) {
       const { audio, audioDir, file, video, videoDir } = request.extract;
-      reply = { id, clips: { audio: extractAudioParts(file, audio, audioDir), video: extractVideoParts(file, video, videoDir) } };
+      reply = {
+        id,
+        clips: { audio: extractAudioParts(file, audio, audioDir, beat), video: extractVideoParts(file, video, videoDir, beat) },
+      };
     } else {
       reply = { id, read: read(request.file) };
     }

@@ -55,10 +55,14 @@ export function WelcomeScreen() {
    *  «new» to be told (D4): a profile from an older build whose welcome was still pending included. */
   function close(finished: boolean) {
     const firstLaunch = useSettingsStore.getState().settings["welcome.pending"];
+    const openList = finished ? firstSteps : firstLaunch;
     void update({
       "welcome.pending": false,
       "ui.whatsNewSeen": LATEST_WHATS_NEW,
-      ...(finished || firstLaunch ? { "welcome.firstStepsOpen": finished ? firstSteps : true } : {}),
+      ...(finished || firstLaunch ? { "welcome.firstStepsOpen": openList } : {}),
+      // A checklist opened again starts with nothing ticked: finished a second time, it kept the old ticks
+      // (2026-11-15 audit, U9).
+      ...(openList ? { "welcome.firstStepsDone": [] } : {}),
     });
     closeWelcome();
     setStep("hello");

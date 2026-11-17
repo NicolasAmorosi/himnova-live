@@ -178,8 +178,8 @@ export function VerseStyleModal({ onOpenChange, open }: { onOpenChange: (open: b
     <>
       <EditorScreen
         inspector={
-          <Inspector label={t("bible.styleTitle")}>
-            <InspectorSection title={t("style.groups.background")}>
+          <Inspector id="verseStyle" label={t("bible.styleTitle")}>
+            <InspectorSection id="background" title={t("style.groups.background")}>
               <BackgroundFields
                 addingImages={addingImages}
                 imageAssets={imageAssets}
@@ -193,7 +193,7 @@ export function VerseStyleModal({ onOpenChange, open }: { onOpenChange: (open: b
               />
             </InspectorSection>
 
-            <InspectorSection title={t("settings.verse.groups.layout")}>
+            <InspectorSection id="layout" title={t("settings.verse.groups.layout")}>
               <VerticalAlignField onChange={(verticalAlign) => patch({ verticalAlign })} value={style.verticalAlign} />
               <FieldRow label={t("settings.verse.textAlign")}>
                 <Select
@@ -231,7 +231,7 @@ export function VerseStyleModal({ onOpenChange, open }: { onOpenChange: (open: b
 
             {/* The font with the text it dresses: a section of its own held
                 that one row (2026-11-05 review). */}
-            <InspectorSection title={t("settings.verse.groups.verse")}>
+            <InspectorSection id="verse" title={t("settings.verse.groups.verse")}>
               <FontFamilyFields onChange={(fontFamily) => patch({ fontFamily })} value={style.fontFamily} />
               <TextStyleFields
                 onChange={(text) => patch({ text })}
@@ -241,7 +241,7 @@ export function VerseStyleModal({ onOpenChange, open }: { onOpenChange: (open: b
               />
             </InspectorSection>
 
-            <InspectorSection title={t("settings.verse.groups.autoFit")}>
+            <InspectorSection id="autoFit" title={t("settings.verse.groups.autoFit")}>
               <FieldRow description={t("settings.verse.autoFitHint")} label={t("settings.verse.autoFit")}>
                 <Switch
                   checked={style.autoFit.enabled}
@@ -273,7 +273,7 @@ export function VerseStyleModal({ onOpenChange, open }: { onOpenChange: (open: b
               </FieldRow>
             </InspectorSection>
 
-            <InspectorSection title={t("settings.verse.groups.reference")}>
+            <InspectorSection id="reference" title={t("settings.verse.groups.reference")}>
               <FieldRow description={t("settings.verse.showReferenceHint")} label={t("settings.verse.showReference")}>
                 <Switch checked={style.showReference} onChange={(e) => patch({ showReference: e.target.checked })} />
               </FieldRow>

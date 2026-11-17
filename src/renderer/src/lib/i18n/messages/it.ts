@@ -6,13 +6,15 @@ const it: Messages = {
     modalCrashed: "Si è verificato un problema in quella finestra, che è stata chiusa",
     unexpectedError: "Si è verificato un errore imprevisto. L'applicazione continua a funzionare.",
     reload: "Ricarica",
+    controlRecovered: "La finestra di controllo si è chiusa per un errore e si è ripresa. Ciò che è in onda è rimasto com’era.",
+    controlRecoveryFailed:
+      "La finestra di controllo si è chiusa per un errore e non si è potuta riprendere. Ciò che è in onda resta com’è: riavvia l’app quando puoi.",
   },
   header: {
     openDisplay: "Apri proiezione",
     /** The name of a schedule never saved: not «New program», the button's command (2026-11-05). */
     untitled: "Senza titolo",
     closeDisplay: "Chiudi proiezione",
-    controlDisplay: "(schermo di controllo)",
   },
   schedule: {
     title: "Scaletta",
@@ -45,6 +47,7 @@ const it: Messages = {
     closeAnyway: "Chiudi comunque",
     closeOnAirTitle: "Chiudere l'app?",
     closeOnAirBody: "C'è qualcosa sul proiettore. Chiudendo l'app, lo schermo di proiezione si spegne.",
+    closeSoundBody: "Sta suonando «{name}». Chiudendo l'app, smette di suonare in sala.",
     closeEditorBody:
       "C'è un editor aperto con modifiche non salvate: chiudendo l'app, si perdono.",
   },
@@ -145,6 +148,7 @@ const it: Messages = {
     images: "Immagini",
     audios: "Audio",
     ppts: "Presentazioni",
+    pptsShort: "Presentaz.",
     add: "Aggiungi",
     addHint: "Aggiungi file alla libreria",
     addUnsupported:
@@ -619,7 +623,6 @@ const it: Messages = {
     invalidHint: "Un tema ha bisogno di un nome.",
     name: "Nome",
     groups: {
-      theme: "Tema",
       lyrics: "Testo",
       spacing: "Spazi",
       footer: "Piè di pagina del copyright",
@@ -792,6 +795,7 @@ const it: Messages = {
     previewMute: "Disattiva audio dell'anteprima",
     outputIs: "{output}: {name}",
     systemDefault: "Predefinita di sistema",
+    systemDefaultNamed: "Di sistema: {name}",
     unplugged: "{name} (scollegata)",
     sharedOutput: "Si sente anche in sala: esce dalla stessa uscita di In onda.",
     sharedOutputNdi: "Si sente anche in sala e nell'NDI: esce dalla stessa uscita di In onda.",
@@ -802,11 +806,18 @@ const it: Messages = {
     toastUnusable: "{output}: {name} non si può usare. Suona dalla predefinita di sistema.",
     toastBack: "{output}: {name} è di nuovo collegata.",
     toastStripsOff: "Strisce spente: il volume generale in onda torna al 100%.",
+    toastStripsOffKept: "Strisce spente: il volume generale in onda ({level}%) diventa il volume iniziale.",
+    toastStripsOn: "Strisce accese: il volume iniziale ({level}%) diventa il volume generale in onda.",
+    toastStripsOffKeptLive:
+      "Strisce spente: il volume generale in onda ({level}%) diventa il volume iniziale, e ciò che è già in onda torna al 100%.",
+    toastStripsOnLive:
+      "Strisce accese: il volume iniziale ({level}%) diventa il volume generale in onda, e ciò che è già in onda suona più basso.",
   },
   live: {
     takeOffAir: "Togli dalla diretta",
     title: "In onda",
     disconnected: "Nessuno schermo",
+    screenLost: "Schermo scollegato",
     noSignal: "Nessun segnale",
     logoMissing: "Nessun logo caricato",
     logoMissingHint: "Scegline uno in Impostazioni › Proiezione",
@@ -818,6 +829,7 @@ const it: Messages = {
   footerHints: { goLive: "Manda l'anteprima al proiettore", logo: "Mostra il logo", black: "Schermo nero", live: "Mostra di nuovo il contenuto" },
   projector: {
     closedUnexpectedly: "La finestra di proiezione si è chiusa",
+    recovered: "La finestra di proiezione si è bloccata e si è riaperta da sola",
     screenLost:
       "Lo schermo del proiettore si è scollegato. Ciò che è in onda continua, con il suo audio, e torna visibile appena lo schermo si ricollega.",
     screenBack: "Lo schermo del proiettore è tornato",
@@ -833,6 +845,11 @@ const it: Messages = {
     saveHint: "Salva le modifiche a questa scaletta",
     saveNoChanges: "Nessuna modifica",
     duplicateName: "{name} (copia)",
+    sameNameTitle: "C'è già un programma «{name}»",
+    sameNameReplaceBody: "Puoi sostituirlo con il programma che hai aperto, o tenerli entrambi con lo stesso nome.",
+    sameNameKeepBody: "Nell'elenco ci saranno due programmi con lo stesso nome.",
+    sameNameReplace: "Sostituisci",
+    sameNameKeepBoth: "Tienili entrambi",
     new: "Nuova scaletta",
     newHint: "Inizia una nuova scaletta vuota",
     createAndOpen: "Crea e apri",
@@ -1379,7 +1396,7 @@ const it: Messages = {
       songHint: "Quando vai oltre l'ultima diapositiva.",
       audioHint: "L'audio non si vede: scegli cosa si sente dopo.",
       logoPlaceholder: "Il tuo logo",
-      short: { logo: "Logo", black: "Nero", loop: "Ripeti", hold: "Ultima immagine", next: "Il prossimo", stop: "Ferma" },
+      short: { logo: "Logo", black: "Nero", loop: "Ripeti", hold: "Fermo immagine", next: "Il prossimo", stop: "Ferma" },
     },
     sound: {
       title: "Audio",
@@ -1431,7 +1448,7 @@ const it: Messages = {
         title: "Scegli",
         body: "Un clic su un versetto, un canto o un file lo mette in ANTEPRIMA. Lì lo vedi solo tu.",
       },
-      live: { title: "Proietta", body: "Invio, un doppio clic o IN ONDA lo manda al proiettore." },
+      live: { title: "Proietta", body: "Invio, un doppio clic o IN ONDA lo manda al proiettore, e l'anteprima resta libera per ciò che segue." },
       cover: {
         title: "Copri",
         body: "NERO oscura lo schermo e LOGO mostra la tua chiesa. Con LIVE torna quello che c'era.",
@@ -1472,9 +1489,10 @@ const it: Messages = {
   whatsNew: {
     title: "Novità",
     caption: "Le novità della {version}",
+    captionSince: "Le novità dalla {version}",
     skip: "Chiudi le novità",
     finish: "Fatto",
-    steps: { stage: "Palco", sound: "Audio", done: "Riepilogo" },
+    steps: { stage: "Palco", sound: "Audio", preview: "Anteprima", done: "Riepilogo" },
     stage: {
       title: "Uno schermo per il palco",
       subtitle: "Se avete uno schermo rivolto verso il pulpito, Himnova Live mostra al pastore quanto tempo gli resta e ai musicisti cosa viene dopo. Lo gestisci dal pannello Palco, in basso a sinistra.",
@@ -1483,9 +1501,24 @@ const it: Messages = {
       views: { title: "Pastore e Musicisti", body: "Pastore: il conto alla rovescia grande, l'ora e ciò che si proietta. Musicisti: ciò che è in onda e ciò che segue, con gli accordi del canto." },
       configure: "Scegli lo schermo del palco",
     },
+    preview: {
+      title: "Ciò che va in onda lascia l'Anteprima",
+      subtitle: "Quando mandi qualcosa al proiettore, l'Anteprima si svuota, pronta per ciò che segue. Così un Invio di troppo non fa più ricominciare l'inno che sta suonando.",
+      demo: "Anteprima e In onda mentre si mandano due versetti",
+      free: { title: "L'Anteprima resta libera", body: "Ciò che hai mandato si vede in In onda. Nel programma, la riga si deseleziona e conserva il suo segno di in onda." },
+      enter: { title: "Un Invio di troppo non fa nulla", body: "Con l'Anteprima vuota, Invio e IN ONDA non toccano ciò che è in onda." },
+      back: { title: "Tornare a ciò che è in onda", body: "Se lo scegli di nuovo, IN ONDA lo scopre soltanto e non lo fa mai ricominciare. Per ripartire da capo c'è «Ricomincia»." },
+      beats: {
+        pick: "Scegli un versetto: lo vedi in Anteprima.",
+        send: "Lo mandi: passa in onda e l'Anteprima si svuota.",
+        pickNext: "Scegli il successivo.",
+        sendNext: "Lo mandi, e l'Anteprima torna libera.",
+      },
+    },
     done: {
       title: "È tutto",
       subtitle: "Quello che hai scelto è già salvato. Puoi rivedere queste novità in Impostazioni ▸ Informazioni.",
+      subtitleNoChoices: "Puoi rivedere queste novità in Impostazioni ▸ Informazioni.",
       noStage: "Ancora nessuno schermo per il palco",
       screens: "Configura",
       alsoTitle: "Anche in questa versione",
@@ -1494,6 +1527,15 @@ const it: Messages = {
         minimize: "Se riduci a icona la finestra di controllo, il proiettore e il palco restano dove sono.",
         screens: "In Impostazioni ▸ Schermi scegli cosa fa ogni schermo, e «Identifica» mostra su ognuno il suo numero.",
         startVolume: "Il volume iniziale si è spostato in Impostazioni ▸ Audio.",
+        extraEnter: "Un Invio di troppo sull'inno in onda non lo fa più ricominciare.",
+        coverSounds: "NERO e LOGO non fanno più ricominciare i suoni di una presentazione.",
+        projectorBack: "Se la finestra del proiettore si blocca, si riapre da sola con ciò che era in onda.",
+        damagedDb: "Se il database si danneggia, l'app propone di ripristinare l'ultima copia giornaliera.",
+        fader: "Abbassare In onda fino a 0 e rialzarlo torna al livello che aveva.",
+        quitSound: "Chiudere l'app chiede conferma anche quando suona solo musica.",
+        scannedPdf: "I PDF scansionati si proiettano con le loro immagini.",
+        stageFreeze: "Su Windows, mandare un messaggio o un conto alla rovescia al palco non blocca più il video sul proiettore.",
+        controlBack: "Se la finestra di controllo si blocca, torna da sola su ciò che è in onda.",
       },
     },
   },

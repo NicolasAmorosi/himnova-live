@@ -61,9 +61,7 @@ export const backupsHandlers: Pick<
     // The control window already asked what a quit puts at risk (`quitRisks`): asked again here, a
     // «Cancel» would leave the copy staged for whatever launch came next.
     releaseForUpdate();
-    const appImage = process.env["APPIMAGE"];
-    if (appImage) startAfterExit(appImage, process.argv.slice(1));
-    else app.relaunch();
+    relaunchOnQuit();
     app.quit();
   },
 
@@ -76,6 +74,14 @@ export const backupsHandlers: Pick<
 
   "backups:launchRestore": () => takeLaunchRestore(),
 };
+
+/** Has the app start again once this process quits: a restore staged here, or by a launch that could not open its
+ *  database (`index.ts`). */
+export function relaunchOnQuit(): void {
+  const appImage = process.env["APPIMAGE"];
+  if (appImage) startAfterExit(appImage, process.argv.slice(1));
+  else app.relaunch();
+}
 
 /**
  * Starts `file` again once this process is gone. For an AppImage, whose binary runs from a mount that goes away

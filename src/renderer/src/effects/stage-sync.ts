@@ -5,6 +5,7 @@ import { useBibleStore } from "@renderer/stores/bible.store";
 import { selectOutputMemo, useProjectionStore } from "@renderer/stores/projection.store";
 import { useSettingsStore } from "@renderer/stores/settings.store";
 import { useStageStore } from "@renderer/stores/stage.store";
+import { survivingAssetId } from "@renderer/stores/program.store";
 import { assetThumbUrl, assetThumbVersion } from "@shared/urls";
 import { onIpc } from "@renderer/lib/ipc";
 import { toast } from "@renderer/lib/toast";
@@ -20,15 +21,22 @@ import { toast } from "@renderer/lib/toast";
 export function startStageSync(): () => void {
   let lastInputs: readonly unknown[] = [];
   let queued = false;
-  /** The live video's thumbnail, fetched once per video. */
+  /** The live video's thumbnail, fetched once per video. A control page that starts again over a video
+   *  (`effects/live-copy.ts`) takes it from what the stage was last sent: fetched anew, the stage went black for a
+   *  moment (2026-11-15 audit, A30 review). */
   let poster: { assetId: number; url: string | null } | null = null;
+  const { base } = useProjectionStore.getState();
+  const still = useStageStore.getState().output?.videoStill;
+  if (base?.kind === "video" && still?.posterUrl && still.videoUrl === base.url) poster = { assetId: base.assetId, url: still.posterUrl };
 
   const posterFor = (assetId: number | null): string | null => {
     if (assetId === null) return null;
     if (poster?.assetId === assetId) return poster.url;
     poster = { assetId, url: null };
+    // A video on air keeps the id it went out with; a relocate may have merged its row into a twin since
+    // (2026-11-15 audit, D4).
     void api.library
-      .get(assetId)
+      .get(survivingAssetId(assetId))
       .then((asset) => {
         if (poster?.assetId !== assetId || !asset) return;
         poster = { assetId, url: assetThumbUrl(asset.id, assetThumbVersion(asset)) };
@@ -90,8 +98,8 @@ export function startStageSync(): () => void {
     queueMicrotask(push);
   };
 
-  // Whether the stage window is on its screen: the panel's dot, and a toast when a screen coming or going is the
-  // reason (a cable, a monitor turned off). The warning stays until it is back, like the projector's.
+  // Whether the stage window is on its screen: the panel's dot, which says it until it is back, and a toast when a
+  // screen coming or going is the reason (a cable, a monitor turned off).
   let lostToastId: string | null = null;
   void api.stage.shown().then(({ closed, shown }) => useStageStore.setState({ closed, shown }));
   const stopStageScreen = onIpc("stage-screen", ({ byScreens, closed, shown }) => {

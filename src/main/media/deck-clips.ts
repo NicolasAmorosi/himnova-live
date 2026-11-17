@@ -4,7 +4,7 @@ import { getSlidesRepo } from "../services/repos";
 import { broadcast } from "../services/broadcast";
 import { currentDecoderSupport } from "./engine-assets";
 import { ffmpegAvailable, probeMedia } from "./ffmpeg";
-import { parseProbe, playsNatively } from "./media-compat";
+import { parseProbe, playsNatively, playsOnEngine } from "./media-compat";
 import { engineAvailable } from "./media-engine";
 
 /**
@@ -27,8 +27,12 @@ import { engineAvailable } from "./media-engine";
  *  still probed: ffprobe reads the content, not the name. */
 const UNPLAYABLE_EXT = new Set(["mid", "midi"]);
 
-/** Clip rows already looked at this launch — a deck is opened many times. */
+/** Clip rows already looked at this launch, or being looked at: a deck is opened many times. */
 const checked = new Set<string>();
+/** Probes that failed this launch, by clip. A timeout or a busy disk is worth another try the next time the deck is
+ *  built; a file ffprobe can never read is not worth one on every render (`getDeck` runs per tile). */
+const failedProbes = new Map<string, number>();
+const PROBE_TRIES = 3;
 /** The clips the media engine plays (`engineClipUrl`), by `<kind>:<id>`. */
 const engineClips = new Set<string>();
 let chain: Promise<void> = Promise.resolve();
@@ -71,14 +75,23 @@ async function healClip(clip: Clip): Promise<boolean> {
   const input = path.join(clip.dir, clip.file);
   const probe = parseProbe(await probeMedia(input));
   // The app quit while ffprobe ran: the database may already be closed.
-  if (!probe || stopped) return false;
-  if (playsNatively(probe, clip.kind, decoders)) {
-    if (clip.playable) return false;
-    // Flagged unplayable by its extension (an `.mkv`), playable by content.
-    getSlidesRepo().updateClip(clip.kind, clip.id, clip.file, clip.ext, fs.statSync(input).size);
-    return true;
+  if (stopped) return false;
+  if (!probe) {
+    // Left unchecked, the slide's WMV stayed black (or its WMA mute) until the app restarted (2026-11-15 audit, A44).
+    const key = `${clip.kind}:${clip.id}`;
+    const tries = (failedProbes.get(key) ?? 0) + 1;
+    failedProbes.set(key, tries);
+    if (tries < PROBE_TRIES) checked.delete(key);
+    return false;
   }
-  if (!engineAvailable()) return false;
+  let changed = false;
+  if (!clip.playable && playsNatively(probe, clip.kind, decoders)) {
+    // Flagged unplayable by its extension (an `.mkv`), playable by content. Marked where the engine plays it too
+    // (Windows): a package without the engine plays it on Chromium.
+    getSlidesRepo().updateClip(clip.kind, clip.id, clip.file, clip.ext, fs.statSync(input).size);
+    changed = true;
+  }
+  if (!engineAvailable() || !playsOnEngine(probe, clip.kind, decoders)) return changed;
   engineClips.add(`${clip.kind}:${clip.id}`);
   console.info(`[engine] slide clip ${clip.file}`);
   return true;

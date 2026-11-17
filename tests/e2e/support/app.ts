@@ -43,6 +43,9 @@ const FLAGS = [
   // The suite was written against a projector that opens on the first GO LIVE, BLACK or LOGO; `screens.spec.ts`
   // turns the launch's own opening back on.
   "--no-auto-projector",
+  // Windows plays every video on the media engine (`ENGINE_PLAYS_EVERY_PICTURE`); the suite's specs read a `<video>`.
+  // `test.use({ chromiumArgs: ["--engine-video"] })` turns the engine back on (`media-engine.spec.ts`).
+  "--chromium-video",
 ];
 
 /** What the renderer's global handlers log before showing the "error
@@ -52,8 +55,13 @@ const FLAGS = [
 // engine stopped where it should have played, or the watch fired where it should not have.
 const UNEXPECTED = [
   /\[renderer\] unhandled rejection/,
-  /\[renderer\] uncaught error/,
+  // The ErrorBoundary's line too («uncaught render error»).
+  /\[renderer\] uncaught (render )?error/,
+  // Chromium's own line for any window: only the control window installs the handlers above, so a throw or a
+  // rejection in the projector, the stage or the NDI copy said nothing else (2026-11-15 audit, PRUEBAS-02).
+  /CONSOLE[:(][^\]]*\] "Uncaught /,
   /\[uncaughtException\]/,
+  /\[unhandledRejection\]/,
   /\[engine\] live \w+ should play but stays/,
 ];
 
@@ -62,6 +70,8 @@ export class WorshipApp {
    *  disposes `electron.process()` along with the app once it has exited. */
   readonly exited: Promise<void>;
   private hasExited = false;
+  /** Set by a test that kills a renderer on purpose: its `crash.log` line is the point, not a bug. */
+  crashLogExpected = false;
 
   private constructor(
     readonly electron: ElectronApplication,
@@ -110,6 +120,7 @@ export class WorshipApp {
       // `test.use({ chromiumArgs: ["--auto-projector"] })`: the projector opens by itself, as it does for a church.
       chromiumArgs.includes("--auto-projector") && "--no-auto-projector",
       chromiumArgs.includes("--whats-new") && "--no-whats-new",
+      chromiumArgs.includes("--engine-video") && "--chromium-video",
     ];
     const flags = [...FLAGS.filter((flag) => !dropped.includes(flag)), `--lang=${locale}`, ...chromiumArgs];
     const app = await electron.launch({
@@ -452,15 +463,21 @@ export const test = base.extend<Fixtures>({
         if (await page.screenshot({ path: file }).catch(() => null)) await testInfo.attach(path.basename(file), { path: file });
       }
     }
+    // Read before the kill below, which may add a line of its own for renderers it takes down. Main's FIRST
+    // uncaught throw and every renderer that dies go only here — the console never hears of them.
+    const crashLogFile = path.join(current.profile, "crash.log");
+    const crashLog = fs.existsSync(crashLogFile) ? fs.readFileSync(crashLogFile, "utf8").trim() : "";
     // Killed before the log is attached: a stuck exit writes its sample there.
     const exit = await Promise.all([current.kill(), app.kill()]).then(
       () => null,
       (error: unknown) => (error instanceof Error ? error : new Error(String(error))),
     );
     await testInfo.attach("app.log", { body: [...app.log, ...(current === app ? [] : current.log)].join("\n") });
+    if (crashLog) await testInfo.attach("crash.log", { body: crashLog });
     const errors = [...app.unexpectedErrors(), ...(current === app ? [] : current.unexpectedErrors())];
     if (exit) throw exit;
     expect(errors, "the app logged an unexpected error").toEqual([]);
+    if (!app.crashLogExpected && !current.crashLogExpected) expect(crashLog, "the app wrote crash.log").toBe("");
   },
 });
 

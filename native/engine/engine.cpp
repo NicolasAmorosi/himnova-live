@@ -29,6 +29,7 @@
 //       [--slots 6] [--hwdec …] [--close-in-parent <handle,…>] (Windows: a dead engine's ring)
 //       [--log-level error|warn|info|v|debug] (mpv's log on stderr; main keeps its tail for errors)
 //       [--adapter vendor:device:subsys:revision] (Windows, Linux: Chromium's card) [--cache-dir <shader cache>]
+//       [--ndi-tap 1] (macOS: the NDI output takes the app's sound, see becomeKnownToCoreAudio)
 // `--ndi-send <name> …` as the first argument runs the NDI output mode instead: see ndi.cpp.
 #include <mpv/client.h>
 #include <mpv/render.h>
@@ -71,7 +72,9 @@ int ndiSendMain(int argc, char** argv);
 // becomes known when it first plays: each new engine joined the tap 300–400 ms into its video, and that much of its
 // first sound never reached NDI (measured 2026-11-12; 70–83 ms for an engine that had played before). 100 ms of
 // silence on the default output when the engine starts, before any file, makes it known. Windows and Linux capture
-// the process tree and lost nothing.
+// the process tree and lost nothing. Only with `--ndi-tap 1`, which main passes while the NDI output takes the app's
+// sound: every other engine (the spare, a song's background, PREVIEW) opened the output for nothing (2026-11-15
+// audit, X21).
 static void becomeKnownToCoreAudio() {
   AudioObjectID out = kAudioObjectUnknown;
   UInt32 size = sizeof out;
@@ -184,6 +187,15 @@ static void renderLoop(GpuOptions options) {
     gpu.renderContextParams(params);
     params.push_back({MPV_RENDER_PARAM_INVALID, nullptr});
     mpv_render_context* rctx = nullptr;
+    // Freed on every way out, before the GPU it draws with: a ring that could not be made or 30 failed frames threw
+    // past the free, and mpv aborts the process when its core is destroyed with a render context alive (a crash
+    // report after the `engine-gpu` main already had; 2026-11-15 audit, A35).
+    struct FreeContext {
+      mpv_render_context*& c;
+      ~FreeContext() {
+        if (c) mpv_render_context_free(c);
+      }
+    } freeContext{rctx};
     int e = mpv_render_context_create(&rctx, E.mpv, params.data());
     if (e < 0) fail("engine-gpu", std::string("mpv_render_context_create: ") + mpv_error_string(e));
     mpv_render_context_set_update_callback(rctx, onUpdate, nullptr);
@@ -229,6 +241,9 @@ static void renderLoop(GpuOptions options) {
       mpv_render_context_report_swap(rctx);
     }
     mpv_render_context_free(rctx);
+    rctx = nullptr;
+    // Only on a clean end: after a failure main closes the ring itself (an engine that exits non-zero leaves its
+    // handles to the next one, `--close-in-parent`), and closing them here too would close them twice.
     gpu.releaseShared();
   } catch (const Fail& f) {
     emitError(f);
@@ -509,6 +524,7 @@ int main(int argc, char** argv) {
 #endif
   GpuOptions options;
   std::string closeHandles, logLevel = "error", cacheDir;
+  bool ndiTap = false;
 #ifdef _WIN32
   std::string hwdec = "d3d11va";
   timeBeginPeriod(1);
@@ -538,6 +554,7 @@ int main(int argc, char** argv) {
     else if (k == "--log-level") logLevel = v;
     else if (k == "--adapter") options.adapter = v;
     else if (k == "--cache-dir") cacheDir = v;
+    else if (k == "--ndi-tap") ndiTap = v == "1";
   }
 #ifdef _WIN32
   std::vector<unsigned long long> handles;
@@ -550,13 +567,20 @@ int main(int argc, char** argv) {
 #endif
 
 #ifdef __APPLE__
-  std::thread(becomeKnownToCoreAudio).detach();
+  if (ndiTap) std::thread(becomeKnownToCoreAudio).detach();
+#else
+  (void)ndiTap;
 #endif
   E.mpv = mpv_create();
   if (!E.mpv) { emitError({"engine-gpu", "mpv_create"}); return 1; }
   const char* opts[][2] = {{"vo", "libmpv"}, {"hwdec", hwdec.c_str()}, {"keep-open", "yes"}, {"idle", "yes"},
                            {"terminal", "no"}, {"config", "no"}, {"input-default-bindings", "no"}, {"osc", "no"},
                            {"load-scripts", "no"}, {"sub-auto", "no"}, {"audio-display", "no"},
+                           // The file itself and nothing it points at: a playlist, an HLS list or an EDL named like a
+                           // video (`himno.avi` holding `#EXTM3U`) made mpv project another local file and then fetch a
+                           // URL; an archive or a .mov's references the same. `load-unsafe-playlists=no`, already the
+                           // default, did not stop it (2026-11-15 audit, S1; main refuses such text before, too).
+                           {"access-references", "no"},
                            // An interlaced file (a DVD, a camcorder's 1080i) is shown deinterlaced, as the
                            // conversion before 2.2.0 did with bwdif; a progressive one costs nothing. mpv
                            // 0.41 defaults to `no`: every moving edge was combed (2026-11-10 review,
@@ -761,8 +785,14 @@ int main(int argc, char** argv) {
   E.cv.notify_all();
   renderer.join();
   meter.join();
+  // A GPU that failed: out at once. The input thread may be inside mpv this very moment (a `pause` from main), and
+  // the core torn down under it is a second way to crash (2026-11-15 audit, A35).
+  if (E.started < 0) {
+    fflush(stdout);
+    std::_Exit(1);
+  }
   mpv_terminate_destroy(E.mpv);
   // The input thread may be blocked reading stdin; the process is ending, which unblocks it.
   input.detach();
-  return E.started < 0 ? 1 : 0;
+  return 0;
 }

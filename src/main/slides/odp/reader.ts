@@ -57,6 +57,7 @@ export function readOdpDeck(file: string, resources: PptxResources): PptxDeck {
       .map((l) => attr(l, "draw:name") ?? ""),
   );
   const slides: PptxSlide[] = pages.map((page, i) => {
+    resources.onSlide?.();
     const misses: Misses = new Map();
     if (pkg.stylesBroken) miss(misses, "styles:unreadable");
     const deck: DeckScope = { pkg, resources, width, height, fonts, decls, hiddenLayers, pageCount: pages.length };

@@ -92,6 +92,20 @@ test("quitting with something on the projector asks, and «Cancelar» keeps it o
   await app.quit("close");
 });
 
+test("quitting with only music playing in the room asks too, naming it, and «Cancelar» keeps it playing", async ({ app }) => {
+  // The prelude over the resting LOGO, the program saved: closed without a question before (2026-11-15 audit, A29).
+  await app.addMedia("audio", "song.mp3");
+  await app.previewFile("Audios", "song");
+  await app.goLive();
+  const projector = await app.projector();
+  await expect.poll(async () => (await audioStates(projector))[0]?.currentTime ?? 0).toBeGreaterThan(0.3);
+
+  const quitting = app.quit("cancel");
+  await expect(app.control.getByRole("dialog")).toContainText("Está sonando «song»");
+  await quitting;
+  await expect.poll(async () => (await audioStates(projector))[0]?.paused).toBe(false);
+});
+
 const JUAN_3_16 = "Porque de tal manera amó Dios al mundo";
 const row = (app: WorshipApp, text: string) => scheduleRows(app).filter({ hasText: text });
 /** The on-air rail of a schedule row (`ListRow`'s `active`). */

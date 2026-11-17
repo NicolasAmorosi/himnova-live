@@ -125,8 +125,8 @@ export function Button({
       aria-pressed={toggled || undefined}
       className={cn(
         // 6 px, GitHub's (owner, 2026-11-04): the identity's pills read as
-        // «heavily rounded». 32 px by default; `md` (40) is what is pressed
-        // during a service.
+        // «heavily rounded». 32 px by default, GO LIVE, LOGO and BLACK
+        // included.
         "focus-ring relative inline-flex cursor-pointer items-center justify-center overflow-hidden rounded-md font-medium transition-colors disabled:cursor-not-allowed",
         variants[variant],
         disabledVariants[variant],

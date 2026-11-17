@@ -140,6 +140,9 @@ export const api = {
   window: {
     /** Answers main's `close-requested` — see `CloseDecision`. */
     closeDecision: (decision: CloseDecision) => invoke("window:closeDecision", { decision }),
+    /** What is live, kept with main for a page of this window that starts again (`effects/live-copy.ts`). */
+    keepLiveCopy: (copy: unknown) => invoke("window:keepLiveCopy", copy),
+    liveCopy: () => invoke("window:liveCopy", undefined),
   },
   /** Saved time scenes — the countdowns, the clock and the stopwatch of
    *  Functions ▸ Timers. `remove` rather than `delete` for the same reason

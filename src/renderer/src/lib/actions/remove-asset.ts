@@ -8,7 +8,7 @@ import { useAudioStore } from "@renderer/stores/audio.store";
 import { useLibraryStore } from "@renderer/stores/library.store";
 import { usePreviewStore } from "@renderer/stores/preview.store";
 import { useProjectionStore } from "@renderer/stores/projection.store";
-import { useProgramStore } from "@renderer/stores/program.store";
+import { survivingAssetId, useProgramStore } from "@renderer/stores/program.store";
 import { useUiStore } from "@renderer/stores/ui.store";
 import { clearBaseContent } from "./playback";
 import { clearPreview } from "./preview";
@@ -29,13 +29,13 @@ function purgeAsset(id: number): void {
   useProgramStore.getState().removeByMediaAsset(id);
 
   const base = useProjectionStore.getState().base;
-  if (base && "assetId" in base && base.assetId === id) clearBaseContent();
+  if (base && "assetId" in base && survivingAssetId(base.assetId) === id) clearBaseContent();
 
   const target = usePreviewStore.getState().target;
   if (target?.kind === "asset" && target.assetId === id) clearPreview();
 
   for (const track of useAudioStore.getState().tracks) {
-    if (track.assetId === id) useAudioStore.getState().removeTrack(track.trackId);
+    if (track.assetId !== null && survivingAssetId(track.assetId) === id) useAudioStore.getState().removeTrack(track.trackId);
   }
 
   forgetMediaAsset(id);
@@ -103,6 +103,15 @@ function undoRemoval(id: number): void {
   // Back exactly where it was, selection included — the operator was pointing
   // at it a second ago and is most likely about to do something else with it.
   library.select(id);
+}
+
+/** Every removal still in its undo window, done now: the app is closing. Its timer is the renderer's, so a close
+ *  within those seconds dropped it and the file was back in the library at the next launch (2026-11-15 audit, D14).
+ *  Never throws: a removal refused here leaves its row, and the close goes on. */
+export async function commitPendingRemovals(): Promise<void> {
+  const ids = [...pending.keys()];
+  for (const id of ids) clearPending(id);
+  await Promise.all(ids.map((id) => commitRemoval(id).catch((error: unknown) => console.warn("[library] removal on close", error))));
 }
 
 async function commitRemoval(id: number): Promise<void> {

@@ -20,6 +20,12 @@ type AudioLevelsState = {
 export const useAudioLevelsStore = create<AudioLevelsState>()(
   subscribeWithSelector((set) => ({
     levels: { live: SILENT, preview: SILENT },
-    setLevels: (bus, level) => set((state) => ({ levels: { ...state.levels, [bus]: level } })),
+    // The level it already has is no change: PREVIEW's meter was woken and redrawn 25 times a second for the same
+    // silence while only LIVE sounded (2026-11-15 audit, R32).
+    setLevels: (bus, level) =>
+      set((state) => {
+        const now = state.levels[bus];
+        return now[0] === level[0] && now[1] === level[1] ? state : { levels: { ...state.levels, [bus]: level } };
+      }),
   })),
 );

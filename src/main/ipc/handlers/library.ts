@@ -84,11 +84,11 @@ export const libraryHandlers: Pick<
     const relocated = getMediaRepo().relocate(id, chosen);
     if (!relocated) return null;
     // The folders the file moved with: the rest of what they held moves too.
-    const { fixed } = await followFrom(
+    const { fixed, merged } = await followFrom(
       moveBetween(namesOf(asset.path).slice(0, -1), namesOf(chosen).slice(0, -1)),
       [asset.kind],
     );
-    return { asset: relocated, more: fixed.size };
+    return { asset: relocated.asset, more: fixed.size, merged: relocated.merged ? [relocated.merged, ...merged] : merged };
   },
 
   "library:relocateFolder": async ({ path: folder }, ev) => {
@@ -98,8 +98,8 @@ export const libraryHandlers: Pick<
     });
     if (result.canceled || result.filePaths.length === 0) return null;
     const chosen = result.filePaths[0]!;
-    const { fixed } = await followFrom(moveBetween(namesOf(folder), namesOf(chosen)), []);
-    return { name: path.basename(chosen), more: fixed.size - (fixed.has(folder) ? 1 : 0) };
+    const { fixed, merged } = await followFrom(moveBetween(namesOf(folder), namesOf(chosen)), []);
+    return { name: path.basename(chosen), more: fixed.size - (fixed.has(folder) ? 1 : 0), merged };
   },
 
   "library:setLinkedAudio": ({ id, path: audioPath }) => {
@@ -139,7 +139,10 @@ export const libraryHandlers: Pick<
     // Read-only from the caller's point of view: it returns the fresh list
     // directly, so it must never broadcast `library-changed` — see the
     // block comment on `importPaths` for why that would loop.
-    return importPaths(matched, kind, { inLibrary: false, emitChanged: false });
+    const listed = await importPaths(matched, kind, { inLibrary: false, emitChanged: false });
+    // Only after a listing that worked: an unplugged drive threw above and marks nothing.
+    await getMediaRepo().markAbsentFromFolder(kind, folderPath, matched);
+    return listed;
   },
 };
 
@@ -150,7 +153,7 @@ export const libraryHandlers: Pick<
 async function followFrom(move: PathMove | null, alsoChanged: readonly AssetKind[]) {
   const followed = move
     ? await followMove(move, { media: getMediaRepo(), songs: getSongsRepo(), settings: getSettingsRepo() })
-    : { fixed: new Set<string>(), kinds: new Set<AssetKind>() };
+    : { fixed: new Set<string>(), kinds: new Set<AssetKind>(), merged: [] };
   const kinds = new Set([...followed.kinds, ...alsoChanged]);
   for (const kind of kinds) broadcast("library-changed", { kind });
   // Other bytes, so another probe.

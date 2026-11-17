@@ -169,7 +169,9 @@ type ChannelStripProps = {
   muted: boolean;
   /** The mute button's name, constant («Silenciar EN VIVO»): the state is `aria-pressed`, never a second label. */
   muteLabel: string;
-  onChange: (volume: number) => void;
+  /** Every step of the fader, with the level its gesture started from (`from`): a drag or a held key down to 0 is a
+   *  mute, and what it comes back to is where the hand started, never the last step before 0. */
+  onChange: (volume: number, from: number) => void;
   onToggleMute: () => void;
   /** The output control at the strip's foot. */
   output: ReactNode;
@@ -205,6 +207,11 @@ export function ChannelStrip({
   volumeLabel,
 }: ChannelStripProps) {
   const db = formatDb(value);
+  // Taken when a drag or a key press starts, not on a held key's repeats: those are the same gesture.
+  const gestureFrom = useRef(value);
+  const beginGesture = () => {
+    gestureFrom.current = value;
+  };
 
   return (
     <div aria-label={label} className={cn("relative w-12 shrink-0", className)} role="group">
@@ -217,7 +224,11 @@ export function ChannelStrip({
           className="fader h-full min-h-0 w-4 cursor-pointer [direction:rtl] [writing-mode:vertical-lr]"
           max={100}
           min={0}
-          onChange={(event) => onChange(Number(event.currentTarget.value) / 100)}
+          onChange={(event) => onChange(Number(event.currentTarget.value) / 100, gestureFrom.current)}
+          onKeyDown={(event) => {
+            if (!event.repeat) beginGesture();
+          }}
+          onPointerDown={beginGesture}
           step={1}
           style={{ "--fill": `${Math.round(value * 100)}%` } as CSSProperties}
           title={db}
