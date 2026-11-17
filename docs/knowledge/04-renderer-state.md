@@ -399,7 +399,7 @@ skipping keeps what was chosen and Escape does nothing.
 | Key | What it moves |
 |---|---|
 | ←/→, PageUp/PageDown | **what is live** — the slide, verse or song slide on screen, derived from `base` and not from the focused panel. PageUp/PageDown are what a presentation remote sends for back/next |
-| 1–9, C, P, F (Shift) | **only with a song live:** verse N, chorus, bridge, ending — the next time it is sung, Shift the previous one. Digits are read by `code`, so Shift+2 is still a 2; the projector forwards `shift` and `code` too |
+| 1–9, C, P, F, I, R (Shift) | **only with a song live:** verse N, chorus, bridge, ending, intro, pre-chorus: the next time it is sung, Shift the previous one. Digits are read by `code`, so Shift+2 is still a 2; the projector forwards `shift` and `code` too |
 | T | **only with a song live:** hide or show its lyrics, the theme's background stays |
 | ↑/↓ | **the preview cursor** — nothing reaches the projector; nothing at all with PREVIEW empty |
 | Enter | sends the preview to the projector (`goLive()`), which empties PREVIEW; with PREVIEW empty it does nothing, BLACK/LOGO up or not (VIVO, B and L uncover) |
