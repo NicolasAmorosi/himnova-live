@@ -10,7 +10,7 @@ import { broadcast } from "../services/broadcast";
 import { projectionState } from "../services/projection-state";
 import { getSettingsRepo } from "../services/repos";
 import { enginePath } from "../paths";
-import { engineAvailable, handles, type LinuxHandles, type MacHandles } from "../media/media-engine";
+import { engineAvailable, handles, matchSpareToNdiSound, type LinuxHandles, type MacHandles } from "../media/media-engine";
 import { syncLiveEngine } from "../media/engine-sessions";
 import { jsonLineReader, ndiDelayLine, ndiRouteLines } from "../media/engine-protocol";
 import { crashLimit } from "../windows/crash-limit";
@@ -85,6 +85,7 @@ export function syncNdiOutput(): void {
   } catch {
     return;
   }
+  matchSpareToNdiSound();
   if (!settings["ndi.output.enabled"]) {
     stopNdiOutput();
     setStatus({ state: "off" });
