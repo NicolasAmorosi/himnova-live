@@ -405,7 +405,11 @@ class NdiSender {
       case "ready":
         try {
           if (this.machService) this.machPort = handles<MacHandles>().machLookup(this.machService);
-          if (this.socketPath) this.socketFd = handles<LinuxHandles>().connect(this.socketPath);
+          if (this.socketPath) {
+            this.socketFd = handles<LinuxHandles>().connect(this.socketPath);
+            // Connected: the path is not needed any more, and a main killed later would leave it in /tmp (X19).
+            fs.rmSync(this.socketPath, { force: true });
+          }
         } catch (error) {
           console.warn("[ndi] engine unreachable", error instanceof Error ? error.message : error);
           this.give({ state: "error", code: "ndi-gpu" });

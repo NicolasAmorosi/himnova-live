@@ -477,7 +477,14 @@ export class MediaEngine {
         ringHandles = this.macPointers.map((p) => ({ ioSurface: pointerBuffer(p) }));
       } else if (process.platform === "linux") {
         // The engine sent the fds before this line, so the connection is already waiting.
-        this.linuxFds = handles<LinuxHandles>().accept(this.server, 1000);
+        const linux = handles<LinuxHandles>();
+        this.linuxFds = linux.accept(this.server, 1000);
+        // The ring is made once: nothing connects again, so the path goes now. Left for the exit, a main that was
+        // killed (SIGKILL) left one socket in /tmp per engine it had ever started (2026-11-15 audit, X19).
+        linux.close(this.server);
+        this.server = -1;
+        if (this.socketPath) fs.rmSync(this.socketPath, { force: true });
+        this.socketPath = null;
         if (this.linuxFds.length !== event.handles.length) throw new Error(`${this.linuxFds.length} buffers for ${event.handles.length} slots`);
         const fds = this.linuxFds;
         ringHandles = event.handles.map((plane, i) => {
