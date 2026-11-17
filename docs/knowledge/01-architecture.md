@@ -40,6 +40,14 @@ is never patched in place: a changed `app.asar` dies at launch (measured on macO
 archive`, exit 133), so rebuild it. The inspector fuse stays on, because Playwright drives a package through `--inspect=0`;
 `startup.spec.ts` reads the fuses of the package it runs against.
 
+**`dependencies` is only what main and the preload load at run time** (today `better-sqlite3`, `electron-updater` and
+`fast-xml-parser`): electron-builder copies every production dependency, with its own, into `app.asar`, and
+electron-vite leaves them unbundled in main. Everything else is a `devDependency`: what the renderer uses (Vite
+bundles it), what main bundles (`drizzle-orm`, R6), what only tests and scripts use, and a file the package needs
+from a dev package travels by `extraResources` (pdf.js's `.wasm`). Ten packages listed as dependencies made 67.6 MB
+and 6499 of the asar's 7099 files, read by nothing (2026-11-15 audit, R13). To check: the external `from "…"` left in
+`out/main` and `out/preload` after a build.
+
 ## The windows
 
 As in the legacy version (removed from the repo on 2026-10-22; still in git history at
