@@ -308,9 +308,13 @@ export class MediaEngine {
       // The engine is gone; `exit` says so.
     });
     this.child.once("error", (error) => {
-      // Not started at all (not executable, say): `exit` may never come.
+      // Not started at all (not executable, say): `exit` may never come, so this stands for it. Kept as the spare, it
+      // was handed to the next file as an engine that never started (2026-11-15 audit).
       if (!this.ready) failsToStart = true;
       for (const reply of this.deviceReplies.splice(0)) reply(null);
+      this.exited = true;
+      running.delete(this);
+      if (spare === this) spare = null;
       this.fail({ code: "engine-exit", detail: error.message });
     });
     this.child.once("exit", (code, signal) => this.onExit(code, signal));

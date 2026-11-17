@@ -94,6 +94,10 @@ test.skipIf(process.platform !== "darwin")("an engine that cannot start answers 
   expect(h.spawned - spawned).toBe(1);
   expect((await timed()).answer).toBe("none");
   expect(h.spawned - spawned).toBe(1);
+  // Nor is it kept as the spare: the next file got an engine that had never started, and no error came of it.
+  spawned = h.spawned;
+  prewarmEngine();
+  expect(h.spawned - spawned).toBe(1);
 }, 20_000);
 
 // Each engine opened the Mac's default output for 100 ms on start, which only the NDI output's sound tap needs (it
