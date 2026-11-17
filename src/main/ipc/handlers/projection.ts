@@ -2,7 +2,7 @@ import { BrowserWindow } from "electron";
 import type { Handlers } from "../register";
 import { projectionState } from "../../services/projection-state";
 import { createProjectionWindow } from "../../windows/projection-window";
-import { getHistoryRepo, getMediaRepo, getSlidesRepo, getSongsRepo } from "../../services/repos";
+import { getMediaRepo, getSlidesRepo, getSongsRepo } from "../../services/repos";
 import { broadcast } from "../../services/broadcast";
 import { pinDecks } from "../../slides/deck-service";
 import { commandLiveEngine, redrawEngineFrame, syncLiveEngine, syncLiveEngineIntoNewProjector } from "../../media/engine-sessions";
@@ -12,8 +12,6 @@ import { keepLiveDeckSource } from "../../protocol/worship-protocol";
 import { reopenStageWindow, showOnStage, stageShown, stageSnapshot } from "../../windows/stage-window";
 import { crashLimit } from "../../windows/crash-limit";
 import { reportLevel } from "../../media/audio-levels";
-
-let currentProgramId: number | null = null;
 
 /** How long `projection:open` waits for the new window to mount: a renderer
  *  that never pulls its snapshot must not leave GO LIVE hanging. */
@@ -25,14 +23,6 @@ const mountWaiters = new Map<number, () => void>();
 const projectorCrashed = crashLimit();
 /** When the last projector died, until its replacement mounts: how long the room was without one goes to main.log. */
 let diedAt: number | null = null;
-
-export function setCurrentProgramId(id: number | null): void {
-  currentProgramId = id;
-}
-
-export function getCurrentProgramId(): number | null {
-  return currentProgramId;
-}
 
 export const projectionHandlers: Pick<
   Handlers,
@@ -126,19 +116,10 @@ export const projectionHandlers: Pick<
     const deckId = output.kind === "slide" ? deckIdOfUrl(output.url) : null;
     if (deckId !== null) keepLiveDeckSource(deckId);
     syncLiveEngine();
-    // A deck on air under a row a relocate merged away is history and pinned as the row it lives on as: under the dead
-    // id its history row failed the foreign key (the first slide after a LOGO lifted) and the next slide unpinned it
-    // (2026-11-15 audit, D4). The projector got the output as it is.
+    // A deck on air under a row a relocate merged away is pinned as the row it lives on as: under the dead id the
+    // next slide unpinned it (2026-11-15 audit, D4). The projector got the output as it is.
     const shown =
       output.kind === "slide" ? { ...output, deckAssetId: getMediaRepo().survivingId(output.deckAssetId) } : output;
-    // Never in the way of the projector either: a throw here (a full disk, a read-only database) left the CCLI use
-    // uncounted, the deck on air unpinned and the channel answering an error, the projector already changed
-    // (2026-11-15 audit, D11).
-    try {
-      getHistoryRepo().record(shown, currentProgramId);
-    } catch (error) {
-      console.warn("[history] could not record what went on air", error);
-    }
     if (output.kind === "song") {
       // The CCLI report's count: never in the way of the projector.
       try {

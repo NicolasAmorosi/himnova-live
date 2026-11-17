@@ -29,7 +29,7 @@ share the same "the user moved the file" problem), `programs`+`program_items`
 migration `0004_rename_programs.sql` with `ALTER TABLE ... RENAME` — a table recreate would have
 lost the `CHECK`, which Drizzle doesn't materialize in the snapshot), `bible_versions`+`bible_books`+`bible_verses`+
 `bible_verses_fts` (FTS5 external-content), `bible_favorites` + `bible_recents` (`0020`, see «Favorites and
-recent passages» below), `projection_history`, `song_uses` (`0021`, the CCLI report: see «`songs`…» below),
+recent passages» below), `song_uses` (`0021`, the CCLI report: see «`songs`…» below),
 `slide_decks`+`deck_slides`+`deck_audio`+`deck_videos` (persistent record of every deck read,
 addressed by content hash — see `03-slides.md`: a PDF's page sizes, its pages drawn on request
 (until 2026-11-03 its rasterized pages, in a folder); since `0018` also the
@@ -327,8 +327,8 @@ an order, a translation, chords: review 2026-11-06). The result counts apart the
 that were no song file at all — another program's, broken or unreadable (`unsupported`).
 
 `song_uses` (`0021`) is what the CCLI usage report counts (owner, 2026-11-05): `projection:show` writes a
-row when a song goes live, ONE per song per local day (`SongsRepo.recordUse`), never pruned — unlike
-`projection_history`, which keeps 5000 rows and so cannot hold the six months a report covers. Each row
+row when a song goes live, ONE per song per local day (`SongsRepo.recordUse`), never pruned: a report covers six
+months. Each row
 keeps the title, authors and CCLI number it went live with (a song deleted since still reports, `song_id`
 set null); a song still in the library reports under its current ones (`usesBetween` joins `songs`), so a
 CCLI number filled in afterwards counts. Settings ▸ Songs ▸ «Informe CCLI» exports `[from, to)` as CSV
@@ -404,7 +404,7 @@ and reads the saved plates again, whose pictures main moved (`followMerges`; lef
 a live id with a row's through `survivingAssetId`, and main serves a merged-away id's file through
 `MediaRepo.survivingId` (the protocol and the engine only, never the getters a write follows). The engine's list keeps
 a merged-away id (an engine pass drops only an id that merged into nothing), since the renderer hears of a merge only
-once the whole move is followed; the history and pin of a deck on air go to the row it lives on as; and a merge is
+once the whole move is followed; the pin of a deck on air goes to the row it lives on as; and a merge is
 noted only once its transaction commits (one rolled back with a later move of `relocateMany` never happened).
 
 And no import accepts a `._x.pps` (the AppleDouble that
@@ -558,7 +558,7 @@ when the browsed version lacks that book. `version_code` records where it was ma
   `BIBLE_RECENTS_MAX` (20) rows. One row per chapter: reading on through the chapter at the top
   widens its range (`Juan 3:16-18`); another chapter goes on top, replacing an older row of itself.
   The control window records it — `projectVerse` and a program row's verse —, because the `bible`
-  output carries only text: `projection_history` cannot tell which book a verse came from.
+  output carries only text: main cannot tell which book a verse came from.
 
 ## `SETTINGS_NORMALIZERS` — the first `settings` key that is a STRUCTURE
 

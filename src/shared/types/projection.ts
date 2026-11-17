@@ -147,8 +147,7 @@ export type ProjectionOutputKind =
     }
   | {
       kind: "slide";
-      /** media_assets.id of the source deck — lets HistoryRepo coalesce a whole
-       *  deck into one row instead of one per slide change. */
+      /** media_assets.id of the source deck: main pins the deck on air against eviction by it. */
       deckAssetId: number;
       url: string;
       /** The slide's `SlideModel` url when it is drawn from its model

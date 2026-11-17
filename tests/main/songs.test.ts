@@ -15,7 +15,6 @@ import { runMigrations } from "../../src/main/db/migrate";
 import { SongsRepo } from "../../src/main/db/repositories/songs.repo";
 import { ProgramsRepo } from "../../src/main/db/repositories/programs.repo";
 import { DraftRepo } from "../../src/main/db/repositories/draft.repo";
-import { HistoryRepo } from "../../src/main/db/repositories/history.repo";
 import { SettingsRepo } from "../../src/main/db/repositories/settings.repo";
 import { seedSongThemes } from "../../src/main/db/seed/seed-song-themes";
 import { decodeText } from "../../src/main/decode-text";
@@ -43,7 +42,6 @@ import {
 } from "../../src/shared/types/song";
 import { isSongThemeUpsert } from "../../src/shared/song-validators";
 import { DEFAULT_BIBLE_STYLE } from "../../src/shared/types/bible-style";
-import { INSTANT_TRANSITION, type ProjectionOutput } from "../../src/shared/types/projection";
 import { IpcError } from "../../src/shared/ipc/result";
 
 const drizzleDir = path.join(process.cwd(), "drizzle");
@@ -281,38 +279,6 @@ describe("a song in the order of service", () => {
     });
     expect(drafts.load()?.items).toEqual([{ kind: "song", songId: kept, title: null }]);
     drafts.clear();
-  });
-});
-
-describe("the history", () => {
-  test("counts a song once, however many slides it shows", () => {
-    const history = new HistoryRepo(db);
-    const before = history.recent(500).length;
-    const slide = (songId: number, line: string): ProjectionOutput => ({
-      kind: "song",
-      songId,
-      title: `Canción ${songId}`,
-      lines: [line],
-      translation: null,
-      footer: null,
-      theme: DEFAULT_SONG_THEME,
-      backgroundUrl: null,
-      sizeCqw: 5,
-      enter: null,
-      videoUnderlay: null,
-      slideVideo: null,
-      plates: [],
-      transition: INSTANT_TRANSITION,
-    });
-    history.record(slide(1, "a"), null);
-    history.record(slide(1, "b"), null);
-    history.record(slide(1, "c"), null);
-    history.record(slide(2, "a"), null);
-    const rows = history.recent(500).slice(0, history.recent(500).length - before);
-    expect(rows.map((row) => [row.kind, row.reference])).toEqual([
-      ["song", "Canción 2"],
-      ["song", "Canción 1"],
-    ]);
   });
 });
 

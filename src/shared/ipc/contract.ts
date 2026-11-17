@@ -287,16 +287,15 @@ export type IpcContract = {
   "engine:duration": { req: { id: number }; res: number | null };
 
   "programs:list": { req: void; res: ProgramSummary[] };
-  /** ADOPTS the program: main starts attributing `projection_history` to it and
-   *  moves the anti-eviction deck pins onto its decks, and the row's
+  /** ADOPTS the program: main moves the anti-eviction deck pins onto its decks, and the row's
    *  `lastOpenedAt` is bumped. Only the operator actually opening a service
    *  may call this — see `programs:peek` for merely looking at one. */
   "programs:load": { req: { id: number }; res: ProgramDTO };
-  /** The same rows, read-only: no `setCurrentProgramId`, no `pinDecks`, no
+  /** The same rows, read-only: no adoption, no `pinDecks`, no
    *  `lastOpenedAt`. Exists because one click on a row in the programs screen
    *  shows its items, and doing that through
-   *  `programs:load` silently handed the open service's eviction pins and its
-   *  history attribution to a program the operator had only glanced at. */
+   *  `programs:load` silently handed the open service's eviction pins
+   *  to a program the operator had only glanced at. */
   "programs:peek": { req: { id: number }; res: ProgramDTO };
   "programs:save": { req: ProgramUpsert; res: ProgramSummary };
   "programs:delete": { req: { id: number }; res: void };
