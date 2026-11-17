@@ -160,8 +160,9 @@ struct Engine {
 };
 static Engine E;
 // QA only (`--frame-log <file>`, from HIMNOVA_ENGINE_FRAME_LOG): one line per frame rendered, «<steady µs> <mpv's
-// target µs> <flags>». The target is when mpv meant that frame to show, so a frame mpv dropped is a gap of two frame
-// times there, and one that left the engine is not: the Windows loop that loses the 3rd frame from its end
+// target time> <flags>» (the target in mpv's own clock: nanoseconds in the libmpv we ship). The target is when mpv
+// meant that frame to show, so a frame mpv dropped or held is a gap of two frame times or more there (a silent loop's
+// wrap holds its last frame 60–90 ms on the Mac, 2026-11-17), and one that left the engine is not: the Windows loop that loses the 3rd frame from its end
 // (agent8-04) is told apart from a loss downstream. Never asked for `time-pos`: on this thread that wait is a deadlock.
 static FILE* frameLog = nullptr;
 // Seconds the sound of a video is held (see FILE_LOADED), measured per system. ponytail: Linux has no measurement of
