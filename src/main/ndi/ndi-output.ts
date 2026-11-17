@@ -12,7 +12,7 @@ import { getSettingsRepo } from "../services/repos";
 import { enginePath } from "../paths";
 import { engineAvailable, handles, type LinuxHandles, type MacHandles } from "../media/media-engine";
 import { syncLiveEngine } from "../media/engine-sessions";
-import { jsonLineReader, ndiRouteLines } from "../media/engine-protocol";
+import { jsonLineReader, ndiDelayLine, ndiRouteLines } from "../media/engine-protocol";
 import { crashLimit } from "../windows/crash-limit";
 import { paintVerdict } from "./ndi-pacing";
 
@@ -99,9 +99,9 @@ export function syncNdiOutput(): void {
   };
   const key = JSON.stringify(config);
   if (key === running && window && !window.isDestroyed()) return;
-  // The page is kept unless its size or frame rate changed: a new name, the sound or its delay restart the sender
-  // alone. Rebuilding the window on each step of the delay slider built a whole renderer per step (2026-11-15 audit,
-  // A22).
+  // The page is kept unless its size or frame rate changed: a new name or the sound restart the sender alone, and its
+  // delay not even that (below). Rebuilding the window on each step of the delay slider built a whole renderer per
+  // step (2026-11-15 audit, A22).
   const before = running ? (JSON.parse(running) as Config) : null;
   const keepWindow =
     window !== null &&
@@ -109,6 +109,13 @@ export function syncNdiOutput(): void {
     before?.width === config.width &&
     before.height === config.height &&
     before.fps === config.fps;
+  // Only the sound's delay moved: a sender that takes it on stdin keeps running, so the source never leaves OBS's list
+  // while the operator tunes it (an older one is restarted, as before).
+  const onlyDelay = before !== null && JSON.stringify({ ...before, audioDelayMs: config.audioDelayMs }) === key;
+  if (keepWindow && onlyDelay && sender?.delay(config.audioDelayMs)) {
+    running = key;
+    return;
+  }
   if (keepWindow) stopSender();
   else stopNdiOutput();
   running = key;
@@ -180,7 +187,8 @@ function startSender(config: Config): void {
       if (!restart) return;
       restartTimer = setTimeout(() => {
         restartTimer = null;
-        if (running && window && !window.isDestroyed()) startSender(config);
+        // The settings of now: a delay moved on stdin since this sender started is in `running`, not in `config`.
+        if (running && window && !window.isDestroyed()) startSender(JSON.parse(running) as Config);
       }, RESTART_DELAY_MS);
     },
   });
@@ -312,6 +320,14 @@ class NdiSender {
   route(route: NdiAudioRoute): void {
     const lines = ndiRouteLines(this.proto, route);
     if (lines && this.child.stdin?.writable) this.child.stdin.write(lines);
+  }
+
+  /** Moves the sound's delay in place; false to a sender too old for it (or not yet past `hello`). */
+  delay(ms: number): boolean {
+    const line = ndiDelayLine(this.proto, ms);
+    if (!line || !this.child.stdin?.writable) return false;
+    this.child.stdin.write(line);
+    return true;
   }
 
   /** Takes the texture (true) until the engine has read it, or leaves it to the caller to release. */

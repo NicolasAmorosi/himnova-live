@@ -4,6 +4,7 @@ import {
   jsonLineReader,
   matchEngineDevice,
   mpvVolume,
+  ndiDelayLine,
   ndiRouteLines,
   protoAfter,
   textInsteadOfMedia,
@@ -273,4 +274,10 @@ test("a playlist, an EDL or a reference dressed as a video is refused before the
     mp1: "ff fe 92 c0 4a 1b 00 00 0a 2f 23 45 58 54 4d 33 55 0a 00 11 22 33 44 55 66 77 88 99 aa bb cc dd",
   };
   for (const [name, bytes] of Object.entries(real)) expect(textInsteadOfMedia(hex(bytes)), name).toBe(false);
+});
+
+test("only a sender that speaks protocol 9 is told a new sound delay; an older one is restarted", () => {
+  expect(ndiDelayLine(8, 120)).toBe("");
+  expect(ndiDelayLine(9, 120)).toBe("audio-delay 120\n");
+  expect(ndiDelayLine(9, -200.4)).toBe("audio-delay -200\n");
 });

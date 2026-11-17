@@ -118,6 +118,14 @@ export class EngineGate {
   }
 }
 
+/** The first protocol whose NDI sender takes «audio-delay <ms>» on stdin (engine-10). */
+export const NDI_DELAY_PROTO = 9;
+
+/** The line that moves a running NDI sender's sound delay, or none to one too old to take it (it is restarted). */
+export function ndiDelayLine(proto: number, ms: number): string {
+  return proto >= NDI_DELAY_PROTO ? `audio-delay ${Math.round(ms)}\n` : "";
+}
+
 /** The NDI sender's lines that move its capture (`native/engine/ndi.cpp`), the device last: it is the one the sender
  *  acts on. Sent whole every time, unchanged too: the same route starts a capture that stopped (its device was gone and
  *  is back). None to a sender older than `AUDIO_DEVICE_PROTO`, which on Windows answers an unknown line with `done`

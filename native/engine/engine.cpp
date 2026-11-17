@@ -9,7 +9,7 @@
 //   device <mpv audio-device name, «auto» the system's>   (proto 8: before `load`, or later to move the sound)
 //   devices                                               (proto 8: answered with a `devices` event)
 // Engine → main (stdout), JSON:
-//   {"ev":"hello","proto":8}                         first of all; an engine without it is proto 7, which answers any
+//   {"ev":"hello","proto":9}                         first of all; an engine without it is proto 7, which answers any
 //                                                    command it does not know with `engine-args`
 //   {"ev":"ready","gpu":…,"adapter":""|"match"|"none"}  the device is up, waiting for `load`
 //   {"ev":"loaded","duration":…,"width":…,"height":…,"hasVideo":…,"hasAudio":…}
@@ -541,7 +541,7 @@ int main(int argc, char** argv) {
   if (argc > 2 && std::string(argv[1]) == "--ndi-send") return ndiSendMain(argc, argv);
   // What this engine understands, before anything else: main sends an older one (no hello, `ready` first) none of
   // the commands it would answer with `engine-args`, which fails the session it plays.
-  emit("{\"ev\":\"hello\",\"proto\":8}");
+  emit("{\"ev\":\"hello\",\"proto\":9}");
   for (int i = 1; i + 1 < argc; i += 2) {
     std::string k = argv[i], v = argv[i + 1];
     if (k == "--parent") options.parentPid = strtoul(v.c_str(), nullptr, 10);

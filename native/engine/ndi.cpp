@@ -12,9 +12,10 @@
 //   stdin also takes «quit» (or EOF), and since proto 8 «preview-apart 0|1» then «audio-device <mpv name>», which
 //   move the capture when the second comes (an older sender answers them with `done` on Windows: main sends them only
 //   after `hello`). The same route again starts a capture that is off (its device was gone) at once; it is tried every
-//   2 s anyway.
+//   2 s anyway. Since proto 9, «audio-delay <ms>» moves the sound's delay without a new sender: the source no longer
+//   leaves the receivers' lists while the operator tunes it.
 //   Engine → main (stdout), JSON:
-//     {"ev":"hello","proto":8}                   first of all
+//     {"ev":"hello","proto":9}                   first of all
 //     {"ev":"ready","runtime":…}                 listening for frames
 //     {"ev":"done"}                              read the frame main is holding: it can release it now
 //     {"ev":"status","receivers":…}              on every change; with none, a new frame is encoded once, not repeated
@@ -65,6 +66,9 @@ static std::atomic<bool> quitting{false};
 static std::mutex routeMutex;
 static AudioRoute wantedRoute;
 static std::atomic<bool> routeAsked{false};
+// How long the sound is held, in NDI's 100 ns timecode units: `--audio-delay`, then «audio-delay <ms>» (proto 9).
+static std::atomic<int64_t> audioDelay{0};
+static int64_t delayFromMs(const char* ms) { return (int64_t)std::clamp(atoi(ms), -500, 1000) * 10000; }
 
 // A control line from main's stdin; false when it is not one.
 static bool control(const char* line) {
@@ -73,6 +77,7 @@ static bool control(const char* line) {
   std::lock_guard<std::mutex> lock(routeMutex);
   if (!l.compare(0, 14, "preview-apart ")) wantedRoute.previewApart = l.substr(14) == "1";
   else if (!l.compare(0, 13, "audio-device ")) wantedRoute.device = l.substr(13), routeAsked = true;
+  else if (!l.compare(0, 12, "audio-delay ")) audioDelay = delayFromMs(l.c_str() + 12);
   else return false;
   return true;
 }
@@ -412,7 +417,7 @@ struct Queue {
   }
 };
 
-// The app's sound on its way out: stamped with when the room heard it, and held back `delay` so it leaves with the
+// The app's sound on its way out: stamped with when the room heard it, and held back `audioDelay` so it leaves with the
 // picture of that same moment, which waits in the queue above (painted → read → sent at the output's rate). Planar
 // float, NDI's own layout. While watched, a gap the capture left (Windows' loopback says nothing while the app is
 // silent) is filled with silence by the clock, so receivers never see the sound stop and start again.
@@ -424,7 +429,6 @@ struct AudioOut : AudioSink {
   };
   std::mutex m;
   std::deque<Chunk> q;
-  std::atomic<int64_t> delay{0};
   std::atomic<bool> watched{false};
   int64_t expected = 0;  // the timecode right after the last sample queued
   int64_t lag = 0;       // how old the last capture's first sample was when it arrived (its buffer, the OS's latency)
@@ -485,7 +489,7 @@ struct AudioOut : AudioSink {
   void pump(const NDIlib_v6* ndi, NDIlib_send_instance_t sender) {
     std::lock_guard<std::mutex> l(m);
     if (closed) return;
-    int64_t now = nowTc(), d = delay;
+    int64_t now = nowTc(), d = audioDelay;
     // Silence is invented only where the capture should already have delivered: up to as old as its samples arrive,
     // less 50 ms of grace. Never by the delay: a negative one (the sound sent early, −200 ms in Settings) filled the
     // timeline ahead of the capture, and every sample that came after overlapped it and went: a mute stream while a
@@ -520,7 +524,7 @@ struct AudioOut : AudioSink {
 }  // namespace
 
 int ndiSendMain(int argc, char** argv) {
-  emit("{\"ev\":\"hello\",\"proto\":8}");
+  emit("{\"ev\":\"hello\",\"proto\":9}");
   Options o;
   for (int i = 1; i + 1 < argc; i += 2) {
     std::string k = argv[i], v = argv[i + 1];
@@ -576,7 +580,7 @@ int ndiSendMain(int argc, char** argv) {
   emit("{\"ev\":\"ready\",\"runtime\":" + js(ndi->version()) + "}");
 
   static AudioOut audio;
-  audio.delay = (int64_t)o.audioDelayMs * 10000;
+  audioDelay = (int64_t)o.audioDelayMs * 10000;
   static std::atomic<bool> audioDone{false};
   std::thread audioThread;
   if (o.audio) {
