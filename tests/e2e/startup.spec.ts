@@ -32,6 +32,9 @@ test("Ajustes › Acerca de names the product and the build that is running", as
 test("the package ignores ELECTRON_RUN_AS_NODE and NODE_OPTIONS and loads only its sealed app.asar", async () => {
   const executable = process.env["WORSHIP_E2E_EXECUTABLE"];
   test.skip(!executable, "only a package has its fuses flipped");
+  // An AppImage's executable is the squashfs container, where the fuse sentinel can't be found. The binary inside is
+  // the same one `linux-unpacked` ships, so that run covers it.
+  test.skip(executable!.endsWith(".AppImage"), "the fuses live in the binary inside the AppImage");
   const wire = await fuses.getCurrentFuseWire(executable!);
   // Each fuse is one ASCII byte of the wire: "1" on, "0" off.
   const on = (option: fuses.FuseV1Options): boolean => Number(wire[option]) === "1".charCodeAt(0);
