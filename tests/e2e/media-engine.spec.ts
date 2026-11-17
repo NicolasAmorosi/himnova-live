@@ -599,6 +599,7 @@ async function engineEvents(file: string, ms: number): Promise<EngineEvent[]> {
 // projected another local file and then fetched a URL (on Windows and Linux, a GET to someone else's server). The
 // engine opens the file itself and nothing it points at (2026-11-15 audit, S1, the native half).
 test("the engine plays a file, never what a playlist, an HLS list or an EDL named like a video points at", async () => {
+  test.skip(process.env["WORSHIP_E2E_EXECUTABLE"]?.endsWith(".AppImage") === true, "the engine lives inside the AppImage");
   test.setTimeout(60_000);
   expect(fs.existsSync(engineBinary()), `no media engine at ${engineBinary()}`).toBe(true);
   const hits: string[] = [];
