@@ -752,7 +752,13 @@ int main(int argc, char** argv) {
             output.judge();
           }
         } else if (name == "time-pos") seen.time = has && pc->format == MPV_FORMAT_DOUBLE ? *(double*)pc->data : 0;
-        else if (name == "duration") seen.duration = has && pc->format == MPV_FORMAT_DOUBLE ? *(double*)pc->data : 0;
+        else if (name == "duration") {
+          // News on its own: until the scrubber has a length it cannot move, and the 250 ms tick came after
+          // the first frame (2026-11-17, media-engine.spec.ts:49 on Windows).
+          double d = has && pc->format == MPV_FORMAT_DOUBLE ? *(double*)pc->data : 0;
+          if (d != seen.duration) changed = true;
+          seen.duration = d;
+        }
         else if (name == "dwidth" || name == "dheight") {
           (name == "dwidth" ? seen.dwidth : seen.dheight) = has && pc->format == MPV_FORMAT_INT64 ? *(int64_t*)pc->data : 0;
           askForRing();
