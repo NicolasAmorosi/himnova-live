@@ -4,7 +4,8 @@ import type { MediaCommand, MediaTarget, PreviewEngineVideo } from "@shared/type
 import { getMediaRepo, getSlidesRepo } from "../services/repos";
 import { broadcast, controlWindows } from "../services/broadcast";
 import { projectionState } from "../services/projection-state";
-import { takeEngine, type EngineEvents, type MediaEngine } from "./media-engine";
+import { takeEngine, type EngineError, type EngineEvents, type MediaEngine } from "./media-engine";
+import { engineFailedOn } from "./engine-assets";
 import { heardAt, reportLevel } from "./audio-levels";
 import {
   applyToSession,
@@ -30,9 +31,10 @@ import {
  * the projection window, so rebuilding that window neither restarts the video nor needs its position
  * frozen first.
  *
- * An engine that dies takes only its own session, and stays dead: the operator is told, as with a
- * file the projector cannot open, and decides. GO LIVE again is a new epoch, so a new engine (owner,
- * 2026-10-30).
+ * An engine that dies takes only its own session, and is not started again (owner, 2026-10-30). A file Chromium plays
+ * goes on in Chromium from where it was, and the operator is told once a session (owner, 2026-11-17:
+ * `fellBackToChromium`); any other is the operator's to decide, as with a file the projector cannot open, and GO LIVE
+ * again is a new epoch, so a new engine.
  */
 
 type Session = {
@@ -126,6 +128,17 @@ function audioOut(isCurrent: () => boolean): NonNullable<EngineEvents["audioOut"
   };
 }
 
+/** The engine itself failed under `url` (it exited, or its GPU did: not a file it could not open), and Chromium plays
+ *  that file: it goes back to Chromium for the session, and the renderer moves what is live onto it at the same
+ *  position (`engineFailedOn`). True when it did: then no failure is said, only the move, once a session. */
+function fellBackToChromium(url: string, error: EngineError): boolean {
+  if (error.code !== "engine-exit" && error.code !== "engine-gpu") return false;
+  const assetId = engineAssetIdOfUrl(url);
+  if (assetId === null || !engineFailedOn(assetId)) return false;
+  broadcast("engine-fallback", undefined);
+  return true;
+}
+
 /** The live sessions' `media-status` and `media-error`, as the projector's own elements report them. */
 function liveEvents(session: Session, target: MediaTarget, isCurrent: () => boolean): EngineEvents {
   return {
@@ -146,7 +159,7 @@ function liveEvents(session: Session, target: MediaTarget, isCurrent: () => bool
     error: (error) => {
       if (!isCurrent()) return;
       console.warn("[engine] live", target.kind, error.code, error.detail);
-      broadcast("media-error", { target, url: session.url, code: null });
+      if (!fellBackToChromium(session.url, error)) broadcast("media-error", { target, url: session.url, code: null });
     },
     // The engine measures before its volume; the room hears it through the session's (item × LIVE's fader).
     level: (peak) => {
@@ -216,6 +229,7 @@ function syncVideo(target: VideoTarget, want: LiveEngineState | null, windows: (
             error: (error) => {
               if (!isCurrent()) return;
               console.warn("[engine] live songVideo", error.code, error.detail);
+              if (fellBackToChromium(fresh.url, error)) return;
               broadcast("media-error", { target: { kind: "songVideo" }, url: fresh.url, code: null });
             },
           }
@@ -369,7 +383,7 @@ export function setPreviewVideo(video: PreviewEngineVideo | null, contents: WebC
     error: (error) => {
       if (preview !== session) return;
       console.warn("[engine] preview", error.code, error.detail);
-      broadcast("preview-video-error", { url: session.url });
+      if (!fellBackToChromium(session.url, error)) broadcast("preview-video-error", { url: session.url });
     },
     level: (peak) => {
       if (preview === session) reportLevel(session, "preview", heardAt(peak, session.volume));

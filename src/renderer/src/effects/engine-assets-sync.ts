@@ -4,6 +4,8 @@ import { playableAssetUrl, useEngineAssetsStore } from "@renderer/stores/engine-
 import { useProjectionStore } from "@renderer/stores/projection.store";
 import { useAudioStore } from "@renderer/stores/audio.store";
 import { survivingAssetId } from "@renderer/stores/program.store";
+import { t } from "@renderer/lib/i18n/i18n-provider";
+import { toast } from "@renderer/lib/toast";
 import type { DecoderSupport } from "@shared/types/media";
 
 /**
@@ -53,16 +55,34 @@ export function rearmLive(assetId: number): void {
     projection.setVideoPaused(videoPaused);
     projection.setVideoVolume(videoVolume);
   }
+  // A song's video background, re-dressed in place: a background keeps no position, so it starts again.
+  if (
+    base?.kind === "song" &&
+    base.theme.background.kind === "video" &&
+    base.theme.background.assetId === assetId &&
+    base.backgroundVideo !== null &&
+    base.backgroundVideo.url !== url
+  ) {
+    projection.setLiveSong(base.song, base.theme, base.sizeCqw, base.slideIndex, base.language);
+  }
   const audio = useAudioStore.getState();
   for (const track of audio.tracks) {
     if (track.source === "asset" && track.assetId === assetId && track.url !== url) audio.setUrl(track.trackId, url);
   }
 }
 
+/** Once a session: the engine failed and a video went on in Chromium (owner, 2026-11-17). Never in the room. */
+let fallbackSaid = false;
+
 export function startEngineAssetsSync(): () => void {
   const unsubscribe = onIpc("engine-asset-changed", (update) => {
     useEngineAssetsStore.getState().apply(update);
     rearmLive(update.assetId);
+  });
+  const offFallback = onIpc("engine-fallback", () => {
+    if (fallbackSaid) return;
+    fallbackSaid = true;
+    toast.info(t("media.engineFallbackToast"));
   });
   void (async () => {
     try {
@@ -74,5 +94,8 @@ export function startEngineAssetsSync(): () => void {
       console.warn("[engine] sync failed", error);
     }
   })();
-  return unsubscribe;
+  return () => {
+    unsubscribe();
+    offFallback();
+  };
 }

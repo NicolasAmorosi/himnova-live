@@ -773,6 +773,7 @@ const pt: Messages = {
     loadErrorRow: "Não foi possível reproduzir",
     loadErrorToast: "Não foi possível reproduzir “{name}” no projetor",
     loadErrorToastGeneric: "Não foi possível reproduzir um arquivo no projetor",
+    engineFallbackToast: "O motor de mídia falhou: o vídeo continua no reprodutor reserva",
     volumeFor: "Volume de {name}",
     scrubberLabel: "Posição de {name}",
     scrubberValue: "{current} de {total}",

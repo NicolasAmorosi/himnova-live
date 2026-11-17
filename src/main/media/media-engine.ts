@@ -150,6 +150,26 @@ export function engineFailsToStart(): boolean {
   return failsToStart;
 }
 
+/** The session's verdict on the engine (owner, 2026-11-17): the first time one main did not kill ends before it was
+ *  ready, every file Chromium plays goes to Chromium until the app restarts, as with `--chromium-video`; what only the
+ *  engine plays keeps trying it. Not `failsToStart`, which a later `ready` clears: a GPU or a libmpv that failed once
+ *  is not trusted with the room's video again. */
+let gaveUp = false;
+const gaveUpListeners: (() => void)[] = [];
+export function engineGaveUp(): boolean {
+  return gaveUp;
+}
+export function onEngineGaveUp(listener: () => void): void {
+  gaveUpListeners.push(listener);
+}
+function cannotStart(): void {
+  failsToStart = true;
+  if (gaveUp) return;
+  gaveUp = true;
+  console.warn("[engine] an engine could not start: what Chromium plays goes to Chromium until the app restarts");
+  for (const listener of gaveUpListeners) listener();
+}
+
 /** mpv's outputs, «auto» first, asked of the spare engine; null when this build's engine cannot say (none, or
  *  older than `AUDIO_DEVICE_PROTO`) or does not answer. */
 export function listAudioDevices(): Promise<EngineDevice[] | null> {
@@ -313,7 +333,7 @@ export class MediaEngine {
     this.child.once("error", (error) => {
       // Not started at all (not executable, say): `exit` may never come, so this stands for it. Kept as the spare, it
       // was handed to the next file as an engine that never started (2026-11-15 audit).
-      if (!this.ready) failsToStart = true;
+      if (!this.ready) cannotStart();
       for (const reply of this.deviceReplies.splice(0)) reply(null);
       this.exited = true;
       running.delete(this);
@@ -560,7 +580,7 @@ export class MediaEngine {
 
   private onExit(code: number | null, signal: NodeJS.Signals | null): void {
     this.exited = true;
-    if (!this.killed && !this.ready && code !== 0) failsToStart = true;
+    if (!this.killed && !this.ready && code !== 0) cannotStart();
     running.delete(this);
     for (const reply of this.deviceReplies.splice(0)) reply(null);
     if (spare === this) spare = null;

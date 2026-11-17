@@ -5,12 +5,13 @@ import { getConversionsRepo, getMediaRepo } from "../services/repos";
 import { broadcast } from "../services/broadcast";
 import type { ConversionCandidate } from "../db/repositories/conversions.repo";
 import { ffmpegAvailable, killAllFfmpeg, probeMedia } from "./ffmpeg";
-import { engineAvailable } from "./media-engine";
+import { engineAvailable, engineGaveUp, onEngineGaveUp } from "./media-engine";
 import {
   ENGINE_PLAYS_EVERY_PICTURE,
   MEDIA_PROBE_VERSION,
   normalizeProbe,
   parseProbe,
+  playsNatively,
   playsOnEngine,
   type MediaProbe,
 } from "./media-compat";
@@ -49,6 +50,9 @@ const RECONCILE_DEBOUNCE_MS = 300;
 
 let decoders: DecoderSupport | null = null;
 const engineAssets = new Set<number>();
+/** Files whose engine died under them (it exited, or its GPU failed: not the file) and that Chromium plays: back on
+ *  `<video>`/`<audio>` for the rest of the session (owner, 2026-11-17). */
+const refused = new Set<number>();
 /** Rows whose probe said "unreadable", re-probed once this launch: a timeout
  *  or a file still being copied must not be taken for a broken file forever. */
 const reprobed = new Set<number>();
@@ -85,8 +89,27 @@ function storedProbe(c: ConversionCandidate): MediaProbe | null {
 /** By the probe once there is one; by the kind and the extension until then, and for a file ffprobe cannot read. */
 function needsEngine(c: ConversionCandidate, caps: DecoderSupport): boolean {
   const probe = probeIsCurrent(c) ? storedProbe(c) : null;
-  if (probe) return playsOnEngine(probe, c.kind, caps);
-  return (ENGINE_PLAYS_EVERY_PICTURE && c.kind === "video") || !LIKELY_NATIVE_EXT.has(c.ext);
+  // Every picture on Windows until the engine fails for good, or under this very file: what Chromium plays is then
+  // Chromium's again (owner, 2026-11-17).
+  const everyPicture = ENGINE_PLAYS_EVERY_PICTURE && !engineGaveUp() && !refused.has(c.id);
+  if (probe) return playsOnEngine(probe, c.kind, caps, everyPicture);
+  return (everyPicture && c.kind === "video") || !LIKELY_NATIVE_EXT.has(c.ext);
+}
+
+/**
+ * A live engine died under this library file (`engine-exit`, `engine-gpu`). If its probe says Chromium plays it, it
+ * goes back to Chromium for the rest of the session and the renderer re-points what is live at the same position
+ * (`engine-asset-changed`, `effects/engine-assets-sync.ts`): true. False when Chromium cannot, and then the failure
+ * is the operator's, as before.
+ */
+export function engineFailedOn(assetId: number): boolean {
+  if (decoders === null) return false;
+  const [c] = getConversionsRepo().candidates(assetId);
+  const probe = c && probeIsCurrent(c) ? storedProbe(c) : null;
+  if (!c || !probe || !playsNatively(probe, c.kind, decoders)) return false;
+  refused.add(assetId);
+  setEngine(assetId, false);
+  return true;
 }
 
 async function probeAndRecord(c: ConversionCandidate): Promise<ConversionCandidate | null> {
@@ -175,6 +198,12 @@ function scheduleReconcile(delayMs = RECONCILE_DEBOUNCE_MS): void {
 
 /** Startup. The playable copies builds before step 1.4 made go: nothing plays them any more. */
 export function initEngineAssets(): void {
+  onEngineGaveUp(() => {
+    // Only Windows plays a picture Chromium could on the engine: elsewhere nothing moves, and the files only the
+    // engine plays say their own failure when they are played.
+    if (ENGINE_PLAYS_EVERY_PICTURE) broadcast("engine-fallback", undefined);
+    scheduleReconcile(0);
+  });
   void fsp
     .rm(convertedMediaDir, { recursive: true, force: true })
     .catch((error: unknown) => console.warn("[engine] could not delete the old converted copies", error));

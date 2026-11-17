@@ -662,6 +662,11 @@ npm run package:win|mac|linux  # build + electron-builder for that platform
   red message) blocks Chromium's GPU thread, where its video decoder runs, and froze the room's video. The E2E suite
   turns it off with `--chromium-video`. Diagnosis in
   [`.claude/knowledge/on-windows-an-animation-on-a-slower-screen-blocks-chromiums-gpu-thread-and-freezes-its-video.md`](.claude/knowledge/on-windows-an-animation-on-a-slower-screen-blocks-chromiums-gpu-thread-and-freezes-its-video.md).
+  **An engine that fails under a file Chromium plays hands it back to Chromium** (owner, 2026-11-17): the engine dying
+  mid-play leaves that file on a `<video>` from where it was, and an engine that cannot start at all sends every picture
+  Chromium plays to Chromium until the app restarts (`engine-assets.ts`, `deck-clips.ts`; the trigger is
+  `fellBackToChromium` in `engine-sessions.ts`). What only the engine plays keeps trying it. The operator gets one
+  toast a session (`engine-fallback`), the room nothing.
   The engine is libmpv in its own process (`native/engine/`).
   `engine-assets.ts` keeps in memory which library files it plays (re-decided every launch), and
   **the video/audio URL comes from `playableAssetUrl`**: `worship://engine/<id>` for those,
