@@ -55,7 +55,9 @@ test("turned off with the starting volume at 100 %, LIVE's master goes back to b
   start({ "audio.strips": true, "media.volume": 1, "audio.live.volume": 0.5 });
   await setAudioStrips(false);
   expect(levels()).toEqual({ strips: false, master: 1, start: 0.5 });
-  expect(h.set.mock.calls).toEqual([[{ "audio.strips": false, "media.volume": 0.5, "audio.live.volume": 1 }]]);
+  expect(h.set.mock.calls).toEqual([
+    [{ "audio.strips": false, "audio.live.muted": false, "media.volume": 0.5, "audio.live.volume": 1 }],
+  ]);
   expect(useToastStore.getState().toasts.map((toast) => toast.message)).toEqual([
     "Tiras apagadas: el volumen general de EN VIVO (50 %) pasa a ser el volumen inicial.",
   ]);
@@ -69,6 +71,13 @@ test("turned off with the starting volume at 100 %, LIVE's master goes back to b
     await setAudioStrips(false);
     expect(levels()).toEqual({ strips: false, master, start: startAt });
   }
+});
+
+test("turned off, a remembered mute goes with them: on again, LIVE is not silent", async () => {
+  start({ "audio.strips": true, "audio.live.muted": true });
+  await setAudioStrips(false);
+  expect(useSettingsStore.getState().settings["audio.live.muted"]).toBe(false);
+  expect(h.set.mock.calls).toEqual([[{ "audio.strips": false, "audio.live.muted": false }]]);
 });
 
 test("with something sounding on the air, the notice says it changes too: the switch moves only the starting volume", async () => {

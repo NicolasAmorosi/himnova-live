@@ -2,7 +2,7 @@
 // per-row volumes gone while they are on, and LIVE's fader a master that every live level is multiplied by. What the
 // projector plays and what the NDI® output carries are measured, not the strip's own number.
 import { faderToGain } from "../../src/renderer/src/components/ui/fader";
-import { audioStates, expect, test, videoStates, type WorshipApp } from "./support/app";
+import { audioStates, expect, relaunch, test, videoStates, type WorshipApp } from "./support/app";
 
 const LIVE_STRIP = "Sonido de EN VIVO";
 const PREVIEW_STRIP = "Sonido de PREVIEW";
@@ -185,7 +185,7 @@ test("LIVE's fader is a master: at −6 dB the projector plays each item at half
   await mute.click();
   await expect(mute).toHaveAttribute("aria-pressed", "true");
   await expect.poll(levels).toEqual([0, 0]);
-  // The remembered level is untouched by the mute (it is session state).
+  // The remembered level is untouched by the mute (a key of its own).
   expect((await app.invoke<Record<string, unknown>>("settings:get"))["audio.live.volume"]).toBe(half);
   await mute.click();
   await expect(mute).toHaveAttribute("aria-pressed", "false");
@@ -228,6 +228,25 @@ test("a fade-out down to 0 on LIVE's fader is a mute: unmuting, and the next lau
   expect((await app.invoke<Record<string, unknown>>("settings:get"))["audio.live.volume"]).toBe(faderToGain(0.8));
   await mute.click();
   await expect(master).toHaveValue("80");
+});
+
+test("LIVE left silent opens silent: the room hears nothing until the operator unmutes (owner, 2026-11-17)", async ({
+  app,
+}) => {
+  await app.liveColumn().getByRole("slider", { name: MASTER }).fill("80");
+  await app.liveColumn().getByRole("group", { name: LIVE_STRIP }).getByRole("button", { name: "Silenciar EN VIVO" }).click();
+  await expect.poll(async () => (await app.invoke<Record<string, unknown>>("settings:get"))["audio.live.muted"]).toBe(true);
+  await app.quit();
+
+  // Fails with the mute as session state: the app opened with LIVE audible, at 80 %.
+  const again = await relaunch(app);
+  const mute = again.liveColumn().getByRole("group", { name: LIVE_STRIP }).getByRole("button", { name: "Silenciar EN VIVO" });
+  await expect(mute).toHaveAttribute("aria-pressed", "true");
+  const projector = await videoLive(again);
+  await expect.poll(async () => (await videoStates(projector))[0]?.volume).toBe(0);
+  await mute.click();
+  await expect(again.liveColumn().getByRole("slider", { name: MASTER })).toHaveValue("80");
+  await expect.poll(async () => (await videoStates(projector))[0]?.volume).toBe(faderToGain(0.8));
 });
 
 test("the NDI output hears LIVE's fader: three quarters up, its sound is 6 dB under the top", async ({ app }) => {

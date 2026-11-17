@@ -54,10 +54,6 @@ type UiStoreState = {
    *  `EditorScreen` counts itself in (`holdUnsavedEditor`), so a quit asks
    *  about them like it asks about the schedule (2026-11-06). */
   unsavedEditors: number;
-  /** The LIVE strip's mute. Session state on purpose: `audio.live.volume` keeps the level, and the app always opens
-   *  with LIVE audible (a church must never find it silent after a restart). */
-  liveMuted: boolean;
-  setLiveMuted: (liveMuted: boolean) => void;
 };
 
 /** Why closing needs a confirmation: work that is not saved — the schedule
@@ -83,8 +79,6 @@ export const useUiStore = create<UiStoreState>((set) => ({
   closeGuard: null,
   setCloseGuard: (closeGuard) => set({ closeGuard }),
   unsavedEditors: 0,
-  liveMuted: false,
-  setLiveMuted: (liveMuted) => set({ liveMuted }),
 }));
 
 /** An editor with unsaved changes counts itself in; the returned function counts it out. */

@@ -49,8 +49,8 @@ export function busVolume(item: number, master: number): number {
 }
 
 /** The LIVE master in effect. With the strips off it is 100 % (owner, 2026-11-15, D3): a level nobody can see on
- *  screen is a level nobody can explain from the booth. `muted` is the strip's mute, session state that never
- *  outlives the app: `volume` is the remembered level, and a church must never open the app with LIVE silent. */
+ *  screen is a level nobody can explain from the booth. `muted` is the strip's mute (`audio.live.muted`, remembered:
+ *  an app left silent opens silent, owner 2026-11-17); `volume` is the remembered level, never 0. */
 export function liveMasterVolume(strips: boolean, volume: number, muted = false): number {
   if (!strips) return 1;
   return muted ? 0 : volume;
