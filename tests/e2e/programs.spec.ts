@@ -143,6 +143,36 @@ test("a saved program is duplicated, renamed, made a favourite and found by sear
   await expect(programRow(app, "Culto B")).toHaveCount(0);
 });
 
+test("with no program saved there is nothing to search or filter; the first one brings both, cleared (owner, 2026-11-17)", async ({
+  app,
+}) => {
+  await addAll(app, "clip.mp4");
+  await saveAs(app, "Culto A");
+  await app.control.getByRole("button", { name: "Administrar programas" }).click();
+  const search = manager(app).getByRole("textbox", { name: "Buscar programa…" });
+  const filter = manager(app).getByRole("combobox", { name: "Mostrar" });
+  await expect(search).toBeVisible();
+  await expect(filter).toBeVisible();
+  // A search left typed when the last one goes must not hide the next one.
+  await search.fill("Culto");
+  await programRow(app, "Culto A").click();
+  await manager(app).getByRole("button", { name: "Más acciones" }).click();
+  await app.control.getByRole("menuitem", { name: "Eliminar", exact: true }).click();
+  await app.control.getByRole("dialog", { name: "Eliminar programa" }).getByRole("button", { name: "Eliminar", exact: true }).click();
+  await expect(toast(app, "Programa eliminado")).toBeVisible();
+  // Fails with both still there over an empty list.
+  await expect(search).toHaveCount(0);
+  await expect(filter).toHaveCount(0);
+
+  await manager(app).getByRole("button", { name: "Nuevo programa" }).click();
+  await manager(app).getByRole("group", { name: "Crear y abrir" }).getByRole("switch").uncheck();
+  await manager(app).getByRole("textbox", { name: "Nombre" }).fill("Vacío");
+  await app.control.keyboard.press("Enter");
+  await expect(toast(app, '"Vacío" guardado')).toBeVisible();
+  await expect(search).toHaveValue("");
+  await expect(programRow(app, "Vacío")).toBeVisible();
+});
+
 test("deleting the program in use empties the schedule with it, after saying so", async ({ app }) => {
   await addAll(app, "clip.mp4", "photo.png");
   await saveAs(app, "Culto A");
