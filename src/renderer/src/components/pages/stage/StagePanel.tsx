@@ -420,7 +420,7 @@ function MessageSection() {
       e.preventDefault();
       send();
     } else if (e.key === "Escape" && draft) {
-      // A draft is dropped first; with nothing typed, Esc folds the card like anywhere in it. It never takes the
+      // A draft is dropped first; with nothing typed, Esc folds the card like anywhere in it (unless pinned). It never takes the
       // message off the stage: that is its ✕ (2026-11-15 walkthrough: it did, and the card stayed open).
       e.stopPropagation();
       useStageStore.setState({ draft: "" });
@@ -492,7 +492,7 @@ function MessageSection() {
 
 /**
  * Opened, the panel is a card over the left column, like a chat window (owner, 2026-11-13): it grows out of the
- * bar with the same head on top, and the head, Esc or a press anywhere else folds it back. It covers the column rather than squeezing it,
+ * bar with the same head on top, and the head, Esc or a press anywhere else folds it back (pinned, only its arrow). It covers the column rather than squeezing it,
  * which is what gives its controls room.
  */
 function StageCard({ closing, onClosed }: { closing: boolean; onClosed: () => void }) {
@@ -516,12 +516,13 @@ function StageCard({ closing, onClosed }: { closing: boolean; onClosed: () => vo
 
   // Esc folds it wherever the focus is: opened with the mouse (the head is no button), the focus is not inside the card
   // and its own handler never heard it (2026-11-15 audit, U3). Not an Esc a field or a widget already used, nor one
-  // meant for a dialog on top.
+  // meant for a dialog on top, nor any Esc while it is pinned: pinned, only its arrow folds it (owner, 2026-11-17).
   useEffect(() => {
     if (closing) return;
     const onKeyDown = (e: globalThis.KeyboardEvent) => {
       if (e.key !== "Escape" || e.defaultPrevented || getTopModalId() !== null) return;
-      // An Esc typed in a field elsewhere (the library's filter, a search) is that field's, even with the card pinned.
+      if (useStageStore.getState().panelPinned) return;
+      // An Esc typed in a field elsewhere (the library's filter, a search) is that field's.
       const target = e.target instanceof HTMLElement ? e.target : null;
       if (target && !card.current?.contains(target) && target.closest("input, textarea, [contenteditable]")) return;
       setOpen(false);

@@ -534,7 +534,8 @@ test("the stage card opened with the mouse folds with Esc, and the bar under it 
   await expect(card).toHaveCount(0);
   expect(await inert()).toBe(false);
 
-  // Pinned, an Esc typed in a field elsewhere (a library filter) is the field's; from anywhere else it still folds.
+  // Pinned, Esc never folds it (owner, 2026-11-17): typed in a field elsewhere (a library filter) it is the field's,
+  // from anywhere else it is nobody's, and in the message field it still drops what was typed.
   await bar.getByRole("button", { name: "Fijar el panel: no se cierra al tocar afuera" }).click();
   await expect(card).toBeVisible();
   const inField = await app.control.evaluate(() => {
@@ -550,5 +551,17 @@ test("the stage card opened with the mouse folds with Esc, and the bar under it 
   await expect(card).toBeVisible();
   await app.control.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
   await app.control.keyboard.press("Escape");
+  await app.control.waitForTimeout(500);
+  // Fails with Esc folding a pinned card.
+  await expect(card).toBeVisible();
+  const field = card.getByRole("textbox", { name: "Mensaje al escenario" });
+  await field.fill("Otra cosa");
+  await field.press("Escape");
+  await expect(field).toHaveValue("");
+  await field.press("Escape");
+  await app.control.waitForTimeout(500);
+  await expect(card).toBeVisible();
+  // Its arrow does fold it.
+  await card.getByRole("button", { name: "Cerrar el panel del escenario" }).click();
   await expect(card).toHaveCount(0);
 });
