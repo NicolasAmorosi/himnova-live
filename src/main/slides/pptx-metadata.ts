@@ -115,15 +115,23 @@ const PLAYABLE_VIDEO_EXT = new Set(["mp4", "m4v", "mov", "webm"]);
  *  every downstream `.map` silently sees nothing. */
 const ALWAYS_ARRAY = ["p:sldIdLst.p:sldId", "Relationships.Relationship", "p:spTree.p:pic"];
 
-const parser = new XMLParser({
+const PARSER_OPTIONS = {
   ignoreAttributes: false,
   attributeNamePrefix: "@",
   removeNSPrefix: false,
   parseAttributeValue: false,
-  isArray: (_name, jpath) => {
+  isArray: (_name: string, jpath: unknown) => {
     const p = String(jpath);
     return ALWAYS_ARRAY.some((suffix) => p.endsWith(suffix));
   },
+};
+const parser = new XMLParser(PARSER_OPTIONS);
+/** A slide part's: nothing read here lives inside a shape, a group, a table or chart frame or a connector, so those
+ *  stay unparsed text, most of a slide's bytes. The model reader parses every slide whole too, and this second pass
+ *  doubled a deck's opening (2026-11-15 audit, R9). The notes keep `parser`: their text is inside a `p:sp`. */
+const slideParser = new XMLParser({
+  ...PARSER_OPTIONS,
+  stopNodes: ["..p:sp", "..p:grpSp", "..p:graphicFrame", "..p:cxnSp"],
 });
 
 type XmlNode = Record<string, unknown>;
@@ -506,7 +514,7 @@ export function readPresentationMeta(filePath: string): PresentationMeta {
     if (!slideXml) return;
 
     const slideIndex = position + 1;
-    const sld = asNode(asNode(parser.parse(slideXml))?.["p:sld"]) ?? {};
+    const sld = asNode(asNode(slideParser.parse(slideXml))?.["p:sld"]) ?? {};
 
     const slideDir = path.posix.dirname(partName);
     const relsName = path.posix.join(slideDir, "_rels", `${path.posix.basename(partName)}.rels`);

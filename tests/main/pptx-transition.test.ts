@@ -108,3 +108,37 @@ test("a slide with its transition and its timing each wrapped keeps both", () =>
   expect(meta.slides[0]).toMatchObject({ autoAdvanceMs: 7000, advanceOnClick: false, transition: { style: "crossfade", durationMs: 1250 } });
   expect(meta.audio[0]).toMatchObject({ startSlideIndex: 1, slides: 3, loop: true });
 });
+
+// 2026-11-15 audit, R9: a slide's shapes are left unparsed, and its notes, whose text is inside a `p:sp`, are not.
+test("a slide's shapes leave its transition, name and notes as they were", () => {
+  const shapes =
+    `<p:sp><p:txBody><a:p><a:r><a:t>Hymn</a:t></a:r></a:p></p:txBody></p:sp>` +
+    `<p:grpSp><p:grpSp><p:sp/></p:grpSp><p:cxnSp/></p:grpSp><p:graphicFrame/>`;
+  const file = path.join(dir, "notes.pptx");
+  fs.writeFileSync(
+    file,
+    zipSync({
+      "ppt/presentation.xml": strToU8(
+        `<p:presentation ${NS}><p:sldIdLst><p:sldId id="256" r:id="rId1"/></p:sldIdLst></p:presentation>`,
+      ),
+      "ppt/_rels/presentation.xml.rels": strToU8(
+        `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide1.xml"/></Relationships>`,
+      ),
+      "ppt/slides/slide1.xml": strToU8(
+        `<p:sld ${NS}><p:cSld name="Opening"><p:spTree>${shapes}</p:spTree></p:cSld><p:transition advTm="4000"><p:fade/></p:transition></p:sld>`,
+      ),
+      "ppt/slides/_rels/slide1.xml.rels": strToU8(
+        `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/notesSlide" Target="../notesSlides/notesSlide1.xml"/></Relationships>`,
+      ),
+      "ppt/notesSlides/notesSlide1.xml": strToU8(
+        `<p:notes ${NS}><p:cSld><p:spTree><p:sp><p:txBody><a:p><a:r><a:t>Two verses only</a:t></a:r></a:p></p:txBody></p:sp></p:spTree></p:cSld></p:notes>`,
+      ),
+    }),
+  );
+  expect(readPresentationMeta(file).slides[0]).toMatchObject({
+    title: "Opening",
+    notes: "Two verses only",
+    autoAdvanceMs: 4000,
+    transition: { style: "crossfade", durationMs: 500 },
+  });
+});
