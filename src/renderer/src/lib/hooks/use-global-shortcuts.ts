@@ -140,8 +140,14 @@ const ACTIONS: Record<string, () => void> = {
 };
 
 /** The sections a letter jumps to while a song is live (owner, 2026-11-04):
- *  C chorus, P bridge (puente), F ending (final). B is BLACK, so no B. */
-const SONG_SECTION_LETTERS: Record<string, SongJumpTarget["type"]> = { c: "chorus", p: "bridge", f: "ending" };
+ *  C chorus, P bridge (puente), F ending (final); I intro and R pre-chorus (owner, 2026-11-17). B is BLACK, so no B. */
+const SONG_SECTION_LETTERS: Record<string, SongJumpTarget["type"]> = {
+  c: "chorus",
+  p: "bridge",
+  f: "ending",
+  i: "intro",
+  r: "prechorus",
+};
 
 /** What a key does to a live song: a jump (1–9 = verse N, by the physical
  *  key, so Shift+2 is still a 2), T to hide or show the lyrics, or nothing. */
@@ -200,8 +206,8 @@ function runShortcut(key: string, repeat: boolean, shift = false, code = ""): bo
  * - Enter: send the preview to the projector (the GO LIVE button), also right
  *   after clicking a button with the mouse — see `lib/focus-modality.ts`.
  * - Space: pause/resume a self-advancing deck.
- * - With a song live: 1–9 verse N, C chorus, P bridge, F ending — the next
- *   time it is sung, Shift the previous one — and T hides or shows the lyrics.
+ * - With a song live: 1–9 verse N, C chorus, P bridge, F ending, I intro, R pre-chorus (the next
+ *   time it is sung, Shift the previous one), and T hides or shows the lyrics.
  * - B (or a remote's «.»)/L: toggle BLACK/LOGO overlay.
  * - Delete/Backspace: remove the selected library or schedule item.
  * - Escape in a text field gives the keys back: it leaves the field.

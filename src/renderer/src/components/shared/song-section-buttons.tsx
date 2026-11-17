@@ -11,6 +11,8 @@ function sectionKeyName(section: SongSection): string | null {
   if (section.type === "chorus") return "C";
   if (section.type === "bridge") return "P";
   if (section.type === "ending") return "F";
+  if (section.type === "intro") return "I";
+  if (section.type === "prechorus") return "R";
   return null;
 }
 
