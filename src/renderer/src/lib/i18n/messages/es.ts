@@ -1550,6 +1550,8 @@ const es = {
         fader: "Bajar EN VIVO hasta 0 y volver a subirlo vuelve al nivel que tenía.",
         quitSound: "Cerrar la app pregunta también cuando solo está sonando música.",
         scannedPdf: "Los PDF escaneados se proyectan con sus imágenes.",
+        stageFreeze: "En Windows, mandar un mensaje o una cuenta al escenario ya no congela el video de la sala.",
+        controlBack: "Si la ventana de control se cae, vuelve sola sobre lo que está al aire.",
       },
     },
   },

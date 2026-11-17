@@ -33,7 +33,17 @@ const WHATS_NEW: Record<
   },
   "2.11": {
     steps: [{ icon: "play", id: "preview" }],
-    also: ["extraEnter", "coverSounds", "projectorBack", "damagedDb", "fader", "quitSound", "scannedPdf"],
+    also: [
+      "stageFreeze",
+      "extraEnter",
+      "coverSounds",
+      "projectorBack",
+      "controlBack",
+      "damagedDb",
+      "fader",
+      "quitSound",
+      "scannedPdf",
+    ],
   },
 };
 const DONE_STEP = { icon: "circleCheck", id: "done" } as const;

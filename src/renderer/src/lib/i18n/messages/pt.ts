@@ -1531,6 +1531,8 @@ const pt: Messages = {
         fader: "Baixar Ao vivo até 0 e subir de novo volta ao nível que tinha.",
         quitSound: "Fechar o app também pergunta quando só há música tocando.",
         scannedPdf: "PDFs escaneados são projetados com suas imagens.",
+        stageFreeze: "No Windows, mandar uma mensagem ou uma contagem regressiva para o palco não congela mais o vídeo no projetor.",
+        controlBack: "Se a janela de controle travar, ela volta sozinha sobre o que está no ar.",
       },
     },
   },

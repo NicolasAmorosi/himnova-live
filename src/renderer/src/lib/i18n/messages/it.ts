@@ -1534,6 +1534,8 @@ const it: Messages = {
         fader: "Abbassare In onda fino a 0 e rialzarlo torna al livello che aveva.",
         quitSound: "Chiudere l'app chiede conferma anche quando suona solo musica.",
         scannedPdf: "I PDF scansionati si proiettano con le loro immagini.",
+        stageFreeze: "Su Windows, mandare un messaggio o un conto alla rovescia al palco non blocca più il video sul proiettore.",
+        controlBack: "Se la finestra di controllo si blocca, torna da sola su ciò che è in onda.",
       },
     },
   },

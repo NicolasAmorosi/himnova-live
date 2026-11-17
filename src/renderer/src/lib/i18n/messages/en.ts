@@ -1530,6 +1530,8 @@ const en: Messages = {
         fader: "Taking Live down to 0 and back up returns to the level it had.",
         quitSound: "Closing the app also asks when only music is playing.",
         scannedPdf: "Scanned PDFs are projected with their pictures.",
+        stageFreeze: "On Windows, sending a message or a countdown to the stage no longer freezes the video on the projector.",
+        controlBack: "If the control window crashes, it comes back by itself over what is live.",
       },
     },
   },
