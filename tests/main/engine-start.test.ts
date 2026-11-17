@@ -43,7 +43,7 @@ const USB = [{ deviceId: "usb", label: "USB Audio" }];
 
 test.skipIf(process.platform !== "darwin")("an engine that cannot start answers «none» at once and is not launched again", async () => {
   const { matchAudioOutputs } = await import("../../src/main/media/audio-route");
-  const { engineFailsToStart, killAllEngines, listAudioDevices, prewarmEngine } = await import("../../src/main/media/media-engine");
+  const { engineFailsToStart, engineGaveUp, killAllEngines, listAudioDevices, prewarmEngine } = await import("../../src/main/media/media-engine");
   const timed = async () => {
     const t0 = performance.now();
     const answer = await matchAudioOutputs(USB);
@@ -57,6 +57,7 @@ test.skipIf(process.platform !== "darwin")("an engine that cannot start answers 
   killAllEngines();
   expect(await asked).toBeNull();
   expect(engineFailsToStart()).toBe(false);
+  expect(engineGaveUp()).toBe(false);
   expect(h.broadcasts).toEqual([]);
 
   // Says hello and dies, as without libmpv: «pending» for good before, two engines per round every 2 s.
@@ -64,6 +65,8 @@ test.skipIf(process.platform !== "darwin")("an engine that cannot start answers 
   let spawned = h.spawned;
   expect((await timed()).answer).toBe("none");
   expect(h.spawned - spawned).toBe(1);
+  // And what Chromium plays goes to Chromium for the session (owner, 2026-11-17).
+  expect(engineGaveUp()).toBe(true);
   spawned = h.spawned;
   for (let round = 0; round < 3; round++) {
     const { answer, ms } = await timed();
@@ -76,6 +79,8 @@ test.skipIf(process.platform !== "darwin")("an engine that cannot start answers 
   engine(`${HELLO}\necho '{"ev":"ready","gpu":"fake"}'\nexec sleep 30`);
   prewarmEngine();
   await expect.poll(() => engineFailsToStart(), { timeout: 2000 }).toBe(false);
+  // Not trusted with the room's video again until the app restarts.
+  expect(engineGaveUp()).toBe(true);
   // The control window took «none» for the session and is told to ask again, once (review of A28).
   expect(h.broadcasts).toEqual(["engine-starts"]);
   killAllEngines();

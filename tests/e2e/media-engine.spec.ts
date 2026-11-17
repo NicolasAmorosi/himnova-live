@@ -6,6 +6,7 @@ import path from "node:path";
 import readline from "node:readline";
 import type { MediaAsset } from "../../src/shared/types/media";
 import { engineBinary, fixture } from "./support/paths";
+import { CM, REL, buildPptx } from "./support/pptx";
 import { audioStates, engineCanvas, expect, moving, relaunch, test, videoStates, type WorshipApp } from "./support/app";
 
 /**
@@ -23,6 +24,25 @@ const engineAssets = (app: WorshipApp) => app.invoke<number[]>("engine:assets");
 
 async function waitEngine(app: WorshipApp, asset: MediaAsset) {
   await expect.poll(async () => (await engineAssets(app)).includes(asset.id), { timeout: 30_000 }).toBe(true);
+}
+
+/** Kills this app's media engines: the live ones and the spare behind them. On Windows that is also the path where
+ *  the next engine has to close the dead one's textures. Only this app's engines: by name, `taskkill /IM` also cut
+ *  the video of a Himnova open on the test PC, which is in daily use (2026-11-15 audit, P9). */
+function killEngines(app: WorshipApp): void {
+  if (process.platform === "win32") {
+    const children = `ParentProcessId=${app.mainPid} AND Name='media-engine.exe'`;
+    execFileSync("powershell", [
+      "-NoProfile",
+      "-Command",
+      `$engines = @(Get-CimInstance Win32_Process -Filter "${children}"); if ($engines.Count -eq 0) { exit 1 }; ` +
+        "$engines | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }",
+    ]);
+  } else {
+    for (const engine of execFileSync("pgrep", ["-P", String(app.mainPid), "-f", "media-engine"], { encoding: "utf8" }).split("\n")) {
+      if (engine.trim()) process.kill(Number(engine), "SIGKILL");
+    }
+  }
 }
 
 test("an AVI plays through the media engine at once", async ({ app }) => {
@@ -205,22 +225,9 @@ test("an engine that dies is reported and left to the operator", async ({ app })
   const projector = await app.projector();
   await expect.poll(() => moving(projector, "video:")).toBe(true);
 
-  // The live engine and the spare behind it: only the live one has a file. On Windows that is also the path where
-  // the next engine has to close the dead one's textures. Only this app's engines: by name, `taskkill /IM` also cut
-  // the video of a Himnova open on the test PC, which is in daily use (2026-11-15 audit, P9).
-  if (process.platform === "win32") {
-    const children = `ParentProcessId=${app.mainPid} AND Name='media-engine.exe'`;
-    execFileSync("powershell", [
-      "-NoProfile",
-      "-Command",
-      `$engines = @(Get-CimInstance Win32_Process -Filter "${children}"); if ($engines.Count -eq 0) { exit 1 }; ` +
-        "$engines | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }",
-    ]);
-  } else {
-    for (const engine of execFileSync("pgrep", ["-P", String(app.mainPid), "-f", "media-engine"], { encoding: "utf8" }).split("\n")) {
-      if (engine.trim()) process.kill(Number(engine), "SIGKILL");
-    }
-  }
+  // The live engine and the spare behind it: only the live one has a file. Only the engine plays an AVI, so it is not
+  // handed to Chromium (owner, 2026-11-17).
+  killEngines(app);
   await expect(app.control.getByText("No se pudo reproducir «long-xvid» en el proyector")).toBeVisible();
   await expect(app.liveColumn().getByText("No se pudo reproducir", { exact: true })).toBeVisible();
   // Not started again on its own, and the congregation sees no error text.
@@ -470,6 +477,76 @@ test.describe("on Windows, which plays every video on the engine", () => {
     await expect.poll(async () => (await engineCanvas(projector, "video:"))?.width ?? 0).toBe(640);
     await expect.poll(() => moving(projector, "video:")).toBe(true);
     expect(await videoStates(projector)).toEqual([]);
+  });
+
+  const fallbackToast = (app: WorshipApp) => app.control.getByText("El motor de medios falló: el video sigue con el reproductor de respaldo");
+
+  // The owner's call (2026-11-17): what Chromium plays goes on in Chromium when the engine dies under it.
+  test("an MP4 the engine dies under goes on in Chromium from where it was, and the operator is told once", async ({ app }) => {
+    const [mp4] = await app.addMedia("video", "ndi-bar.mp4");
+    if (!mp4) throw new Error("import failed");
+    await waitEngine(app, mp4);
+    await app.previewFile("Videos", "ndi-bar");
+    await app.goLive();
+    const projector = await app.projector();
+    await expect.poll(() => moving(projector, "video:")).toBe(true);
+    // Far enough in for a start from 0:00 to show, and the spare long ready: one killed before it is ready is an
+    // engine that cannot start, which sends every picture to Chromium and is the other case.
+    await app.control.waitForTimeout(4000);
+    killEngines(app);
+
+    await expect.poll(async () => (await videoStates(projector))[0]?.playedFrom ?? null).not.toBeNull();
+    expect((await videoStates(projector))[0]!.playedFrom).toBeGreaterThan(3);
+    await expect.poll(async () => (await videoStates(projector))[0]?.currentTime ?? 0).toBeGreaterThan(6);
+    await expect(fallbackToast(app)).toBeVisible();
+    await expect(app.liveColumn().getByText("No se pudo reproducir", { exact: true })).toHaveCount(0);
+    await expect(projector.locator("body")).not.toContainText("motor");
+    expect(await engineAssets(app)).not.toContain(mp4.id);
+    expect(app.log.some((line) => line.includes("until the app restarts"))).toBe(false);
+
+    // The next one is not said again: once a session.
+    await expect(fallbackToast(app)).toBeHidden({ timeout: 15_000 });
+    const [clip] = await app.addMedia("video", "clip.mp4");
+    if (!clip) throw new Error("import failed");
+    await waitEngine(app, clip);
+    await app.previewFile("Videos", "clip");
+    await app.goLive();
+    await expect.poll(() => moving(projector, "video:")).toBe(true);
+    await app.control.waitForTimeout(2000);
+    killEngines(app);
+    await expect.poll(async () => (await videoStates(projector))[0]?.src ?? "").toBe(`worship://asset/${clip.id}`);
+    await app.control.waitForTimeout(1000);
+    await expect(fallbackToast(app)).toHaveCount(0);
+  });
+
+  test("a slide's MP4 the engine dies under goes on in Chromium on its slide, from where it was", async ({ app }) => {
+    const deck = path.join(app.profile, "clipdeck-mp4.pptx");
+    const clip =
+      '<p:pic><p:nvPicPr><p:cNvPr id="3" name="Clip"/><p:cNvPicPr/><p:nvPr><a:videoFile r:link="rIdVideo"/></p:nvPr></p:nvPicPr>' +
+      '<p:blipFill><a:blip r:embed="rIdPoster"/><a:stretch><a:fillRect/></a:stretch></p:blipFill>' +
+      `<p:spPr><a:xfrm><a:off x="${4 * CM}" y="${2 * CM}"/><a:ext cx="${20 * CM}" cy="${11.25 * CM}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></p:spPr></p:pic>`;
+    const rels =
+      `<Relationship Id="rIdVideo" Type="${REL}/video" Target="../media/media1.mp4"/>` +
+      `<Relationship Id="rIdPoster" Type="${REL}/image" Target="../media/poster.png"/>`;
+    const media = { "ppt/media/media1.mp4": fs.readFileSync(fixture("ndi-bar.mp4")), "ppt/media/poster.png": fs.readFileSync(fixture("photo.png")) };
+    fs.writeFileSync(deck, buildPptx([{ shapes: clip, rels }], media));
+    await app.invoke("library:add", { kind: "ppt", paths: [deck] });
+    await app.previewFile("Presentaciones", "clipdeck-mp4");
+    await expect.poll(() => app.log.some((line) => line.includes("[engine] slide clip")), { timeout: 60_000 }).toBe(true);
+    await app.control.waitForTimeout(1000);
+
+    await app.goLive();
+    const projector = await app.projector();
+    await expect.poll(() => moving(projector, "slideVideo:")).toBe(true);
+    await app.control.waitForTimeout(4000);
+    killEngines(app);
+
+    // The live deck is the GO LIVE snapshot: the clip's new url reaches it in place, the slide and its music untouched.
+    await expect.poll(async () => (await videoStates(projector))[0]?.playedFrom ?? null).not.toBeNull();
+    expect((await videoStates(projector))[0]!.playedFrom).toBeGreaterThan(3);
+    await expect.poll(async () => (await videoStates(projector))[0]?.currentTime ?? 0).toBeGreaterThan(6);
+    await expect(fallbackToast(app)).toBeVisible();
+    await expect(app.liveColumn().getByText("No se pudo reproducir", { exact: true })).toHaveCount(0);
   });
 });
 
