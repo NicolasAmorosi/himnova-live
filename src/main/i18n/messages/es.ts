@@ -43,6 +43,15 @@ const es = {
     crashTitle: "Error inesperado",
     formerAppTitle: "La versión anterior, «Lumina Live», se movió a la Papelera",
     formerAppDetail: "Ahora la app se llama Himnova Live: abrila desde Aplicaciones. Tus programas, la biblioteca y la configuración siguen como estaban.",
+    controlDownTitle: "La ventana de control no volvió",
+    controlDownMessage: "La ventana de control se cerró por un error varias veces seguidas y no volvió sola.",
+    controlDownDetail: "Lo que está al aire sigue igual. «Reintentar» la vuelve a abrir sobre lo que está al aire; si se cierra otra vez, vuelve este aviso.",
+    controlDownRetry: "Reintentar",
+    controlDownLeave: "Dejarla así",
+    closeDeadTitle: "¿Cerrar Himnova Live?",
+    closeDeadDetail: "La ventana de control no responde y no puede mostrar qué está al aire. Cerrar apaga el proyector, el escenario y el sonido.",
+    closeAnyway: "Cerrar igualmente",
+    cancel: "Cancelar",
   },
   /** The file type names an open dialog lists (Windows and Linux show them). */
   filters: {

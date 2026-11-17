@@ -43,6 +43,7 @@ import { installApplicationMenu } from "./windows/app-menu";
 import { holdQuitUntilAnswered, installCloseGuard } from "./windows/close-guard";
 import { watchDisplays } from "./windows/projector-screen";
 import { closeStageWindow, syncStageWindow } from "./windows/stage-window";
+import { showSheet } from "./windows/sheet";
 import { isNdiWindow, stopNdiOutput, syncNdiOutput } from "./ndi/ndi-output";
 import { projectionState } from "./services/projection-state";
 import {
@@ -489,26 +490,14 @@ function reportCrash(label: string, error: unknown): void {
     return;
   }
   crashDialogShown = true;
-  // A sheet on the visible control window keeps main serving (GO LIVE, NEGRO, the engine's frames, NDI) until the
-  // click; `showErrorBox`, or a box with no visible parent, stopped main whole on macOS (2026-11-15 audit, A23).
-  // Before there is a window, the blocking box is all there is.
+  // A sheet on the visible control window keeps main serving until the click (`showSheet`). Before there is a window,
+  // the blocking box is all there is.
   const parent = mainControlWindow && !mainControlWindow.isDestroyed() ? mainControlWindow : null;
   if (!parent) {
     dialog.showErrorBox(mt("dialogs.crashTitle"), detail);
     return;
   }
-  // Minimized mid-service with the projector up (owner, 2026-11-13): brought back first, and the sheet waits until it
-  // is really visible (the restore is animated). The projector is never touched.
-  if (parent.isMinimized()) parent.restore();
-  else if (!parent.isVisible()) parent.show();
-  const sheet = (): void => {
-    if (parent.isDestroyed()) return;
-    if (!parent.isVisible()) return void setTimeout(sheet, 100);
-    dialog
-      .showMessageBox(parent, { type: "error", title: mt("dialogs.crashTitle"), message: mt("dialogs.crashTitle"), detail })
-      .catch(() => undefined);
-  };
-  sheet();
+  void showSheet(parent, { type: "error", title: mt("dialogs.crashTitle"), message: mt("dialogs.crashTitle"), detail });
 }
 
 // Surface crashes as a dialog instead of a silent blank window — the health

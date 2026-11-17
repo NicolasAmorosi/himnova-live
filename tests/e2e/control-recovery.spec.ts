@@ -1,4 +1,6 @@
 import { execFileSync } from "node:child_process";
+import fs from "node:fs";
+import path from "node:path";
 import type { Page } from "@playwright/test";
 import { parseLyrics } from "../../src/shared/song-text";
 import { DEFAULT_SONG_THEME } from "../../src/shared/types/song";
@@ -386,4 +388,111 @@ test("a control window whose renderer dies comes back by itself, knowing the vid
   await tonePlays(projector);
   expect(await controlPage(app, 'document.body.innerText.includes("long-clip")')).toBe(true);
   expect(await controlPage(app, 'document.body.innerText.includes("Sin pantalla")')).toBe(false);
+});
+
+/** Main's own message boxes from now on: each answered with the next of `answers` (then its cancel button), and kept. */
+async function answerMessageBoxes(app: WorshipApp, ...answers: number[]): Promise<void> {
+  await app.electron.evaluate(({ dialog }, queue) => {
+    const kept: { message: string; buttons: string[] }[] = [];
+    (globalThis as { boxes?: typeof kept }).boxes = kept;
+    dialog.showMessageBox = (...args: unknown[]) => {
+      const options = args.at(-1) as Electron.MessageBoxOptions;
+      kept.push({ message: options.message, buttons: options.buttons ?? [] });
+      return Promise.resolve({ response: queue.shift() ?? options.cancelId ?? 0, checkboxChecked: false });
+    };
+  }, answers);
+}
+
+const boxes = (app: WorshipApp) =>
+  app.electron.evaluate(() => (globalThis as { boxes?: { message: string; buttons: string[] }[] }).boxes ?? []);
+
+const crashControl = (app: WorshipApp) =>
+  app.electron.evaluate(({ BrowserWindow }) =>
+    BrowserWindow.getAllWindows()
+      .find((win) => win.webContents.getURL().endsWith("/index.html"))
+      ?.webContents.forcefullyCrashRenderer(),
+  );
+
+const RETRY_BOX = {
+  message: "La ventana de control se cerró por un error varias veces seguidas y no volvió sola.",
+  buttons: ["Reintentar", "Dejarla así"],
+};
+
+/** Past the cap: three deaths within a minute come back alone (each waited for), the fourth asks. */
+async function killPastTheCap(app: WorshipApp): Promise<void> {
+  for (let i = 0; i < 3; i++) {
+    await crashControl(app);
+    await expect
+      .poll(() => controlPage(app, `document.body.innerText.includes(${JSON.stringify(RECOVERED)})`), { timeout: 15_000 })
+      .toBe(true);
+  }
+  expect(await boxes(app)).toEqual([]);
+  await crashControl(app);
+  await expect.poll(() => boxes(app)).toEqual([RETRY_BOX]);
+}
+
+test("a control page that keeps dying asks, and «Reintentar» brings it back over what is live; left down, it is sent nothing", async ({
+  app,
+}, testInfo) => {
+  app.crashLogExpected = true;
+  const projector = await videoMusicAndPlate(app, (name) => testInfo.outputPath(name));
+  await answerMessageBoxes(app, 0, 1);
+  const before = await projectorSnapshot(projector);
+  await recordPushes(projector, ["display-content", "audio-tracks"]);
+  // Before, past the cap the window stayed a flat colour with nothing on it (owner's hand test, 2026-11-16).
+  await killPastTheCap(app);
+  await expect
+    .poll(() => controlPage(app, `document.body.innerText.includes(${JSON.stringify(RECOVERED)})`), { timeout: 15_000 })
+    .toBe(true);
+  await roomUntouched(projector, before);
+  expect(await controlPage(app, 'document.body.innerText.includes("long-clip")')).toBe(true);
+
+  // «Dejarla así»: down for good, the room goes on, and main sends the dead page nothing (each send wrote a stack to
+  // main.log, ~29 a second with the music's meters, measured on Windows).
+  await crashControl(app);
+  await expect.poll(async () => (await boxes(app)).length).toBe(2);
+  // From here on only: while the page dies, this test's own `controlPage` may still reach it once.
+  const log = path.join(app.profile, "main.log");
+  const from = fs.statSync(log).size;
+  await projector.waitForTimeout(3000);
+  expect(await controlPage(app, "1")).toBeNull();
+  await videoPlays(projector);
+  await tonePlays(projector);
+  expect(fs.readFileSync(log).subarray(from).toString()).not.toContain("Error sending from webContents");
+});
+
+test("with the control page down and the projector up, closing asks first: «Cancelar» keeps the room, then it closes", async ({
+  app,
+}) => {
+  app.crashLogExpected = true;
+  await app.addMedia("video", "clip.mp4");
+  await app.previewFile("Videos", "clip");
+  await app.goLive();
+  await app.projector();
+  await answerMessageBoxes(app, 1, 1);
+  await killPastTheCap(app);
+  // Before, the close waited out the 4 s grace and took the projector, the stage and the sound without a word.
+  await app.electron.evaluate(({ app }) => app.quit());
+  await expect.poll(async () => (await boxes(app))[1]).toEqual({
+    message: "¿Cerrar Himnova Live?",
+    buttons: ["Cerrar igualmente", "Cancelar"],
+  });
+  const gone = await Promise.race([app.exited.then(() => true), new Promise((resolve) => setTimeout(() => resolve(false), 6000))]);
+  expect(gone).toBe(false);
+  expect(app.hasProjector()).toBe(true);
+
+  await answerMessageBoxes(app, 0);
+  await app.electron.evaluate(({ app }) => app.quit());
+  await app.exited;
+});
+
+test("with the control page down and nothing up, closing asks nothing and does not wait", async ({ app }) => {
+  app.crashLogExpected = true;
+  await answerMessageBoxes(app, 1);
+  await killPastTheCap(app);
+  await app.electron.evaluate(({ app }) => app.quit());
+  // Under the close guard's 4 s grace, which is how long a dead page made it wait before.
+  const gone = await Promise.race([app.exited.then(() => true), new Promise((resolve) => setTimeout(() => resolve(false), 2500))]);
+  // A box here would have been answered «Cancelar» and kept the app alive.
+  expect(gone).toBe(true);
 });

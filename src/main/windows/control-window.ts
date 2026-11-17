@@ -1,5 +1,7 @@
 import { app, BrowserWindow, screen } from "electron";
 import path from "node:path";
+import { mt } from "../i18n";
+import { showSheet } from "./sheet";
 import { trustWindow } from "../ipc/trusted-senders";
 import { broadcast, controlWindows, registerBroadcastTarget } from "../services/broadcast";
 import { syncStageWindow } from "./stage-window";
@@ -49,9 +51,12 @@ export function createControlWindow(): BrowserWindow {
   win.once("ready-to-show", () => win.show());
   // A dead page left the operator without controls for the rest of the service, with only quitting left, which took
   // the projector with it (2026-11-15 audit, A30). Reloaded, the page starts from the copy of what is live it kept
-  // with main (`window:liveCopy`), so the room sees and hears nothing of it. Past the cap it stays down, as before.
+  // with main (`window:liveCopy`), so the room sees and hears nothing of it. Past the cap it is the operator's call:
+  // a flat window with nothing on it said nothing (owner's hand test, 2026-11-16).
   win.webContents.on("render-process-gone", () => {
-    if (!win.isDestroyed() && controlCrashed()) win.webContents.reload();
+    if (win.isDestroyed()) return;
+    if (controlCrashed()) win.webContents.reload();
+    else offerReload(win);
   });
   // The operator's screen is where this window is (`operatorDisplay`): dragged to another one,
   // Settings' list of screens and the stage window follow.
@@ -65,6 +70,23 @@ export function createControlWindow(): BrowserWindow {
   });
 
   return win;
+}
+
+/** Asks whether to load a control page that keeps dying once more, in a box that never stops main (`showSheet`): the
+ *  room goes on meanwhile. Another death past the cap asks again. */
+function offerReload(win: BrowserWindow): void {
+  void showSheet(win, {
+    type: "warning",
+    title: mt("dialogs.controlDownTitle"),
+    message: mt("dialogs.controlDownMessage"),
+    detail: mt("dialogs.controlDownDetail"),
+    buttons: [mt("dialogs.controlDownRetry"), mt("dialogs.controlDownLeave")],
+    defaultId: 0,
+    cancelId: 1,
+    noLink: true,
+  }).then((answer) => {
+    if (answer?.response === 0 && !win.isDestroyed() && win.webContents.isCrashed()) win.webContents.reload();
+  });
 }
 
 /** The screen the operator works on: the one hosting the control window. Not the OS's «primary»
