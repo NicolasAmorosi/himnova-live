@@ -20,8 +20,8 @@ import path from "node:path";
 
 const ROOT = process.cwd();
 const OUT = path.join(ROOT, "resources", "backgrounds");
-const exe = process.platform === "win32" ? ".exe" : "";
-const FFMPEG = path.join(ROOT, "resources", "ffmpeg", `${process.platform}-${process.arch}`, `ffmpeg${exe}`);
+/** The system's FFmpeg, on the PATH (the app ships none since R14), with libwebp. */
+const FFMPEG = "ffmpeg";
 
 const WIDTH = 384;
 const HEIGHT = 216;

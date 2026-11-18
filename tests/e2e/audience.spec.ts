@@ -134,7 +134,7 @@ test("worship:// answers a byte range with 206 and exactly those bytes", async (
   expect(answer.range).toMatch(/^bytes 100-199\/\d+$/);
 });
 
-/** A second picture, unlike `photo.png`, made once with the bundled FFmpeg. */
+/** A second picture, unlike `photo.png`, made once with FFmpeg. */
 const RED = path.join(os.tmpdir(), "worship-e2e-red.png");
 if (!fs.existsSync(RED)) {
   execFileSync(ffmpegBinary(), ["-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "color=c=#c0392b:size=1280x720", "-frames:v", "1", RED]);

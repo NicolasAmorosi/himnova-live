@@ -29,12 +29,11 @@ jobs:
         with:
           node-version: 24
           cache: npm
-      # What the postinstall downloads (FFmpeg and the media engine, up to 210 MB per system),
+      # What the postinstall downloads (the media engine, up to 50 MB zipped per system),
       # pinned by URL and sha256 in this script, so its hash is the key.
       - uses: actions/cache@v6
         with:
           path: |
-            resources/ffmpeg
             resources/engine
           key: binaries-${{ runner.os }}-${{ hashFiles('scripts/fetch-binaries.ts') }}
       - run: npm ci

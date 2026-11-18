@@ -139,14 +139,6 @@
       ],
       "extraResources": [
         {
-          "from": "resources/ffmpeg/win32-${arch}",
-          "to": "ffmpeg",
-          "filter": [
-            "**/*",
-            "!.stamp"
-          ]
-        },
-        {
           "from": "resources/engine/win32-${arch}",
           "to": "engine",
           "filter": [
@@ -171,14 +163,6 @@
         ]
       },
       "extraResources": [
-        {
-          "from": "resources/ffmpeg/darwin-${arch}",
-          "to": "ffmpeg",
-          "filter": [
-            "**/*",
-            "!.stamp"
-          ]
-        },
         {
           "from": "resources/engine/darwin-${arch}",
           "to": "engine",
@@ -233,14 +217,6 @@
         }
       },
       "extraResources": [
-        {
-          "from": "resources/ffmpeg/linux-${arch}",
-          "to": "ffmpeg",
-          "filter": [
-            "**/*",
-            "!.stamp"
-          ]
-        },
         {
           "from": "resources/engine/linux-${arch}",
           "to": "engine",

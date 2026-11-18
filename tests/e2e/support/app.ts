@@ -109,7 +109,7 @@ export class WorshipApp {
     // `WORSHIP_E2E_EXECUTABLE` runs the suite against an INSTALLED build
     // (`release/mac-arm64/Himnova Live.app/Contents/MacOS/Himnova Live`, or
     // `Himnova Live.exe` on the church PC) instead of `electron .` on `out/`:
-    // what ships resolves FFmpeg, the migrations and the bibles from the
+    // what ships resolves the media engine, the migrations and the bibles from the
     // package's own `resources/`, which only a packaged run exercises.
     const executable = process.env["WORSHIP_E2E_EXECUTABLE"];
     // Every test starts a new profile, and a new profile starts in the OS's

@@ -37,14 +37,7 @@ export const pdfjsWasmDir = app.isPackaged
   ? path.join(resourcesRoot, "pdfjs-wasm")
   : path.join(app.getAppPath(), "node_modules/pdfjs-dist/wasm");
 
-/** FFmpeg + ffprobe, fetched per platform by `scripts/fetch-binaries.ts` into
- *  `resources/ffmpeg/<platform>-<arch>/` and shipped as `resources/ffmpeg/`. */
-const ffmpegDir = app.isPackaged
-  ? path.join(resourcesRoot, "ffmpeg")
-  : path.join(app.getAppPath(), "resources/ffmpeg", `${process.platform}-${process.arch}`);
 const exe = process.platform === "win32" ? ".exe" : "";
-export const ffmpegPath = path.join(ffmpegDir, `ffmpeg${exe}`);
-export const ffprobePath = path.join(ffmpegDir, `ffprobe${exe}`);
 
 /** The media engine (`native/`): fetched per platform by `scripts/fetch-binaries.ts` (or built by
  *  `native/build.sh`) into `resources/engine/<platform>-<arch>/` and shipped as `resources/engine/`,

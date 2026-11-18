@@ -1,17 +1,16 @@
 /**
- * Puts the pinned, checksum-verified binaries the app ships next to it into
- * `resources/<kind>/<platform>-<arch>/`, which `electron-builder` ships as
- * `resources/<kind>/` (each platform's `extraResources`) and `paths.ts` reads
- * in dev:
- *
- * - `ffmpeg`: FFmpeg + ffprobe, from third-party static builds.
- * - `engine`: the media engine (`native/`) with the libmpv it ships with, from
- *   this repo's own GitHub Release `engine-<n>`, built by `native/build.sh`.
+ * Puts the pinned, checksum-verified media engine (`native/`, with the libmpv it
+ * ships with) into `resources/engine/<platform>-<arch>/`, which `electron-builder`
+ * ships as `resources/engine/` (each platform's `extraResources`) and `paths.ts`
+ * reads in dev. It comes from this repo's own GitHub Release `engine-<n>`, built
+ * by `native/build.sh`. FFmpeg was fetched here too until R14 (2026-11-18): the
+ * engine probes files and draws thumbnails since, and the E2E suite and
+ * `scripts/make-backgrounds.ts` use the system's `ffmpeg`.
  *
  *   tsx scripts/fetch-binaries.ts                  # this machine (postinstall)
  *   tsx scripts/fetch-binaries.ts win32-x64        # a cross-build target
  *
- * Downloaded rather than versioned: the Windows FFmpeg pair alone is 210 MB.
+ * Downloaded rather than versioned: Windows' libmpv alone is 120 MB.
  * Pinned by URL AND sha256, so an installer built twice ships the same bytes —
  * the same reason `package-lock.json` is committed. A target whose stamp
  * already matches is skipped, so re-running it costs nothing.
@@ -26,10 +25,10 @@
  * pre-release NOT marked Latest (the in-app updater reads Latest) with the
  * three zips, and their sha256 below.
  *
- * The FFmpeg builds are GPLv3, mpv is GPLv2 or later, and the engine is part of
- * Himnova Live (GPL-3.0-or-later). They run as separate processes, never linked
- * into the app; each folder's `NOTICE.txt` names the sources, which is what the
- * licenses ask of a binary redistributor.
+ * mpv is GPLv2 or later, and the engine is part of Himnova Live
+ * (GPL-3.0-or-later). It runs as a separate process, never linked into the app;
+ * the folder's `NOTICE.txt` names the sources, which is what the licenses ask of
+ * a binary redistributor.
  */
 import { createHash } from "node:crypto";
 import fs from "node:fs";
@@ -42,48 +41,6 @@ type Archive = {
   /** Output file name → path inside the zip. */
   entries: Record<string, string>;
 };
-
-const RIEDL = "https://ffmpeg.martin-riedl.de/download";
-const GYAN = "https://github.com/GyanD/codexffmpeg/releases/download/9.0.2/ffmpeg-9.0.2-essentials_build.zip";
-const GYAN_ROOT = "ffmpeg-9.0.2-essentials_build";
-
-/** FFmpeg 9.0.2 everywhere. Windows: Gyan's static "essentials" build. macOS
- *  and Linux: Martin Riedl's static builds — the macOS ones are signed with a
- *  Developer ID and the hardened runtime, which an Apple Silicon Mac requires
- *  before it will run a binary at all. */
-const FFMPEG: Record<string, Archive[]> = {
-  "win32-x64": [
-    {
-      url: GYAN,
-      sha256: "60f467265b1e312373dbcd92200c2618a74850f98d3d078e94296bb3fa2047ba",
-      entries: {
-        "ffmpeg.exe": `${GYAN_ROOT}/bin/ffmpeg.exe`,
-        "ffprobe.exe": `${GYAN_ROOT}/bin/ffprobe.exe`,
-        "LICENSE.txt": `${GYAN_ROOT}/LICENSE`,
-      },
-    },
-  ],
-  "darwin-arm64": riedl("macos/arm64/1789931890_9.0.2", {
-    ffmpeg: "c8ed4c4e6978a03c485edbfe4e0a5dc2380f8a30bba5150531b31b094492d924",
-    ffprobe: "fcbe839537485eaee7a7a8bc5cbc0f90d53617e80943e8a5b2e31cb851197ea6",
-  }),
-  "darwin-x64": riedl("macos/amd64/1789931006_9.0.2", {
-    ffmpeg: "7c6b4125b191cbf773832dc51f424cf2b6bb7da43007d1e066f95909e47cacd4",
-    ffprobe: "2322438ed2f6319a691291b247d09c69dcaa3a982460d1f269a7e1af335cfdfd",
-  }),
-  "linux-x64": riedl("linux/amd64/1789931100_9.0.2", {
-    ffmpeg: "fa8ecf4abbd290d98f7d188b8649cc6b391ae209a98452be955a15aab1909d7f",
-    ffprobe: "3f428c49070be3d24ec338602b76d412e401ffcb8a5641ef0e729181a232fc32",
-  }),
-};
-
-function riedl(dir: string, sums: { ffmpeg: string; ffprobe: string }): Archive[] {
-  return (["ffmpeg", "ffprobe"] as const).map((name) => ({
-    url: `${RIEDL}/${dir}/${name}.zip`,
-    sha256: sums[name],
-    entries: { [name]: name },
-  }));
-}
 
 const ENGINE_RELEASE = "https://github.com/NicolasAmorosi/himnova-live/releases/download/engine-11";
 
@@ -107,22 +64,16 @@ function engine(target: string, sha256: string, files: string[]): Archive[] {
   ];
 }
 
-const KINDS = [
-  { kind: "ffmpeg", builds: FFMPEG, required: true },
-  { kind: "engine", builds: ENGINE, required: false },
-] as const;
-
 async function download(url: string): Promise<Buffer> {
   const response = await fetch(url, { redirect: "follow" });
   if (!response.ok) throw new Error(`GET ${url} → ${response.status}`);
   return Buffer.from(await response.arrayBuffer());
 }
 
-async function fetchTarget(kind: string, builds: Record<string, Archive[]>, required: boolean, target: string) {
+async function fetchTarget(kind: string, builds: Record<string, Archive[]>, target: string) {
   const archives = builds[target];
   if (!archives) {
     const known = `Known: ${Object.keys(builds).join(", ")}`;
-    if (required) throw new Error(`No ${kind} build pinned for ${target}. ${known}`);
     // The app still runs: what only the engine plays fails like a damaged file.
     console.warn(`[${kind}] ${target}: none published, skipped. ${known}`);
     return;
@@ -209,5 +160,5 @@ async function differsFromPinned(archives: Archive[], outDir: string): Promise<s
 const RELEASE = process.argv.includes("--release");
 const targets = process.argv.slice(2).filter((arg) => !arg.startsWith("--"));
 for (const target of targets.length > 0 ? targets : [`${process.platform}-${process.arch}`]) {
-  for (const { kind, builds, required } of KINDS) await fetchTarget(kind, builds, required, target);
+  await fetchTarget("engine", ENGINE, target);
 }

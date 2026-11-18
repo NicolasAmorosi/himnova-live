@@ -8,11 +8,10 @@ import { CM, REL, buildPptx } from "./pptx";
 import { buildLegacyPpt } from "../../fixtures/legacy-ppt";
 
 /**
- * Generates every file the suite projects, once, with the FFmpeg the app
- * itself ships and decks written in code (`pptx.ts`, `pdf.ts`,
- * `tests/fixtures/legacy-ppt.ts`) — so the suite needs nothing checked in and
- * nothing else installed, and runs the same on the church's Windows PC as on a
- * Mac. Regenerated only when `FIXTURE_VERSION` changes.
+ * Generates every file the suite projects, once, with the system's FFmpeg and
+ * decks written in code (`pptx.ts`, `pdf.ts`, `tests/fixtures/legacy-ppt.ts`),
+ * so the suite needs nothing checked in, and runs the same on the church's
+ * Windows PC as on a Mac. Regenerated only when `FIXTURE_VERSION` changes.
  */
 export default function globalSetup(): void {
   const stamp = path.join(FIXTURES_DIR, ".version");
@@ -30,7 +29,11 @@ export default function globalSetup(): void {
   fs.rmSync(FIXTURES_DIR, { recursive: true, force: true });
   fs.mkdirSync(FIXTURES_DIR, { recursive: true });
   const ffmpeg = ffmpegBinary();
-  if (!fs.existsSync(ffmpeg)) throw new Error(`No bundled FFmpeg at ${ffmpeg} — run \`npm run fetch:binaries\``);
+  try {
+    execFileSync(ffmpeg, ["-version"], { stdio: "ignore" });
+  } catch {
+    throw new Error("No ffmpeg on the PATH. The suite makes its media with the system's: brew, apt or winget install it.");
+  }
 
   const out = (name: string) => path.join(FIXTURES_DIR, name);
   const run = (...args: string[]) => execFileSync(ffmpeg, ["-hide_banner", "-loglevel", "error", "-y", ...args]);

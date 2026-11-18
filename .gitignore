@@ -4,8 +4,7 @@ dist/
 release/
 test-results/
 .scratch/
-# Fetched by `scripts/fetch-binaries.ts` (postinstall and the package scripts):
-# up to 210 MB of binaries per platform, pinned by sha256 instead of versioned.
+# FFmpeg, fetched here by builds before R14 (2026-11-18): up to 210 MB a folder nothing reads now. Delete it.
 resources/ffmpeg/
 .env
 *.log
@@ -16,6 +15,6 @@ resources/ffmpeg/
 # operator's own media. An installer built twice has to be the same installer.
 .DS_Store
 
-# Fetched like FFmpeg from the Release `engine-<n>`, or built by native/build.sh.
+# Fetched by `scripts/fetch-binaries.ts` from the Release `engine-<n>`, or built by native/build.sh.
 resources/engine/
 native/.build/

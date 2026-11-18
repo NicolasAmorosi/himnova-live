@@ -22,7 +22,7 @@ export function engineBinary(): string {
   return path.join(resources, "engine", `media-engine${exe}`);
 }
 
+/** The system's FFmpeg, on the PATH: the app ships none since R14 (2026-11-18). The suite makes its media with it. */
 export function ffmpegBinary(): string {
-  const exe = process.platform === "win32" ? "ffmpeg.exe" : "ffmpeg";
-  return path.join(ROOT, "resources/ffmpeg", `${process.platform}-${process.arch}`, exe);
+  return "ffmpeg";
 }
