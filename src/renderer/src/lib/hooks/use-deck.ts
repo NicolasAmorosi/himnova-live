@@ -8,9 +8,6 @@ export type DeckState = {
    *  that very deck is on the projector — see `reconvertDeck`. */
   reconvert: () => void;
   markStale: () => void;
-  /** Cache-only re-fetch of the DTO — for after a change that never touches
-   *  the deck cache, like setting the linked-audio override. */
-  refresh: () => void;
 };
 
 /**
@@ -26,7 +23,6 @@ export function useDeck(assetId: number | null): DeckState {
   const ensure = useDeckStore((s) => s.ensure);
   const peek = useDeckStore((s) => s.peek);
   const markStale = useDeckStore((s) => s.markStale);
-  const refreshDeck = useDeckStore((s) => s.peek);
   // Asked again whenever this deck's entry DISAPPEARS: the store drops one
   // that turns `ready` with no DTO and nobody awaiting it — a deck the
   // operator cancelled and a background prewarm finished later — and the
@@ -57,9 +53,6 @@ export function useDeck(assetId: number | null): DeckState {
     },
     markStale: () => {
       if (assetId !== null) markStale(assetId);
-    },
-    refresh: () => {
-      if (assetId !== null) void refreshDeck(assetId);
     },
   };
 }

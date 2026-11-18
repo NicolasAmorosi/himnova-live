@@ -48,7 +48,9 @@ import type { DeckDTO } from "@shared/types/deck";
  */
 function DeckPreviewTransport({ deck, title }: { deck: DeckDTO; title: string }) {
   const t = useT();
-  const { refresh } = useDeck(deck.assetId);
+  // Not `useDeck`: this bar mounts once the deck is read, beside the grid that read it, and its loader asked main
+  // again and replaced the store's entry (2026-11-15 audit, R27). Asked only after the music changes.
+  const refresh = () => void useDeckStore.getState().peek(deck.assetId);
   const current = usePreviewStore((s) => s.slideIndex);
   const positionSeconds = usePreviewStore((s) => s.positionSeconds);
   const durationSeconds = usePreviewStore((s) => s.durationSeconds);
