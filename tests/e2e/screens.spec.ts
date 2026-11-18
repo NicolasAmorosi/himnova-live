@@ -47,13 +47,22 @@ async function expectMovableOnControlScreen(app: WorshipApp) {
       return state && { visible: state.visible, fullScreen: state.fullScreen, onTop: state.onTop };
     })
     .toEqual({ visible: true, fullScreen: false, onTop: false });
-  const win = (await projectorWindow(app))!;
   const area = await controlScreen(app);
-  // A title bar: the content is shorter than the window.
-  expect(win.content.height).toBeLessThan(win.bounds.height);
-  const centre = { x: win.bounds.x + win.bounds.width / 2, y: win.bounds.y + win.bounds.height / 2 };
-  expect(Math.abs(centre.x - (area.x + area.width / 2))).toBeLessThan(40);
-  expect(Math.abs(centre.y - (area.y + area.height / 2))).toBeLessThan(40);
+  // Settled bounds: on GNOME (X11) they read the requested place, then 0,0, then the final one within ~30 ms of
+  // showing (CachyOS, 2026-11-18), so two reads 100 ms apart must agree.
+  await expect(async () => {
+    const first = (await projectorWindow(app))!;
+    await app.control.waitForTimeout(100);
+    const win = (await projectorWindow(app))!;
+    expect(win.bounds).toEqual(first.bounds);
+    // A title bar: the content is shorter than the window.
+    expect(win.content.height).toBeLessThan(win.bounds.height);
+    const centre = { x: win.bounds.x + win.bounds.width / 2, y: win.bounds.y + win.bounds.height / 2 };
+    expect(Math.abs(centre.x - (area.x + area.width / 2))).toBeLessThan(40);
+    // GNOME puts its own title bar (32 px) where the window was asked to go and the bounds start below it: 46.5 px
+    // low at scale 2.0. The corner this guards against (A14) is 164 px off in y, 320 in x.
+    expect(Math.abs(centre.y - (area.y + area.height / 2))).toBeLessThan(64);
+  }).toPass();
 }
 
 /** Settings ▸ Screens: the row of the screen that hosts the control window, and the other one. */
