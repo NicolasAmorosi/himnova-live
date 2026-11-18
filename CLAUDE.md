@@ -85,7 +85,7 @@ answer, and ask about what does. Nothing is delivered half-done in silence.
 | DB | `better-sqlite3` (Node-API, no native rebuild) + Drizzle ORM + FTS5 for the Bible |
 | Packaging | `electron-builder` (nsis / ad-hoc signed dmg / AppImage + deb) |
 | Updates | `electron-updater` 6.8.9, from the GitHub release marked Latest; on macOS the app downloads and opens the `.dmg` itself |
-| Media probe + thumbnails | FFmpeg 9.0.2 (`ffmpeg` + `ffprobe`) **bundled**, pinned by sha256 and downloaded by `scripts/fetch-binaries.ts` (GPLv3, see `resources/ffmpeg-NOTICE.txt`) |
+| Media probe + thumbnails | The media engine's inspect mode (`native/engine/inspect.cpp`, `main/media/engine-inspect.ts`): one engine process per file, no GPU. FFmpeg left the app with R14 (2026-11-18); the E2E suite and `scripts/make-backgrounds.ts` use the system's `ffmpeg` |
 | Media engine | Our own process on libmpv (`native/`), **prebuilt** per platform in this repo's GitHub Release `engine-<n>`, pinned by sha256 and downloaded by `scripts/fetch-binaries.ts` (see `resources/engine-NOTICE.txt`); the same binary sends the NDI® output (`--ndi-send`), the app's own sound included (captured from the OS: `native/engine/ndi-audio.h`). `native/build.sh <target>` builds it locally (kept by the fetch: a `.local` marker) and `native/build.sh pack` zips a new release |
 | E2E | Playwright 1.63 (`_electron`) against the built app or the installed one — `tests/e2e/` |
 
@@ -131,8 +131,8 @@ src/
 │   │                              # pictures; the unreadable-deck sniff), pptx/ (OOXML), ppt/model-reader.ts
 │   │                              # (legacy with text), odp/ (OpenDocument) — each into a SlideModel per
 │   │                              # slide on the pptx-worker.ts thread —, rasterizer.ts (a PDF's pages, drawn on request: hidden window+pdfjs)
-│   ├── media/                     # media-compat.ts (what Chromium plays: PURE, tested), ffmpeg.ts
-│   │                              #   (probes, frames), engine-assets.ts (which library files the engine plays),
+│   ├── media/                     # media-compat.ts (what Chromium plays: PURE, tested), engine-inspect.ts
+│   │                              #   (probes, thumbnails' frames), engine-assets.ts (which library files the engine plays),
 │   │                              #   deck-clips.ts (video/audio embedded in a .pptx), thumbnail-service.ts,
 │   │                              #   media-engine.ts (one libmpv process per file) + engine-sessions.ts (live video, slide clip and audio, PREVIEW)
 │   ├── ndi/ndi-output.ts          # the NDI® output: an offscreen projection whose textures the engine's
@@ -362,8 +362,7 @@ npm install              # installs deps — better-sqlite3 ships prebuilt binar
                           #   The `postinstall` also downloads the Electron binary: since v42 the
                           #   package NO longer does it by itself, and without it `npm run dev` dies with
                           #   `Error: Electron uninstall` while build/typecheck/lint still pass.
-                          #   It also downloads this platform's FFmpeg (`resources/ffmpeg/`, ~130 MB
-                          #   on macOS, ~210 MB on Windows) and media engine (`resources/engine/`,
+                          #   It also downloads this platform's media engine (`resources/engine/`,
                           #   10–47 MB zipped), verified by sha256
 npm run dev               # electron-vite dev (HMR in the renderer, main restarts on watch)
 npm run typecheck          # tsc --noEmit over node (main+preload+shared) and web (renderer+shared)
@@ -399,9 +398,9 @@ npm run test:e2e              # build + Playwright: walkthroughs of the real app
                               #   a test with every option at its default starts from a copy of the run's first one, its
                               #   Bibles already seeded (`freshProfile` or E2E_FRESH_PROFILES=1 for a real first launch)
                               #   and media generated on the fly — videos, AVI and WMA with the
-                              #   bundled FFmpeg; PDFs, a legacy .pps made of pictures and .pptx with auto-advance, a
+                              #   system's `ffmpeg` (on the PATH: the app ships none); PDFs, a legacy .pps made of pictures and .pptx with auto-advance, a
                               #   WMA soundtrack and an embedded WMV written in code (`tests/e2e/support/pptx.ts`),
-                              #   nothing else installed:
+                              #   nothing else needed:
                               #   live, library, LOGO, decks, Bible, songs, Functions, programs, keyboard, Settings,
                               #   updates against a local fake of GitHub, robustness and an entire service
                               #   (`service.spec.ts`). Native dialogs are
@@ -416,7 +415,7 @@ npm run test:e2e              # build + Playwright: walkthroughs of the real app
 npm run tutorials             # build + Playwright: films the landing's tutorial videos off the real app in the four
                               #   languages (`tests/e2e/tutorials.record.ts`, captions in `tutorials.content.ts`) into
                               #   $TMPDIR/himnova-tutorials (TUTORIALS=song,bible TUTORIAL_LOCALES=es pick); composed outside this repo
-npm run fetch:binaries        # FFmpeg + media engine for this machine (the postinstall and every package:* also do it)
+npm run fetch:binaries        # the media engine for this machine (the postinstall and every package:* also do it)
 npm run db:generate            # drizzle-kit generate — new migration after editing db/schema.ts
 npm run build                 # electron-vite build
 npm run package:win|mac|linux  # build + electron-builder for that platform
@@ -657,7 +656,7 @@ npm run package:win|mac|linux  # build + electron-builder for that platform
 - **If Chromium can't play a video or an audio file, the media engine plays it; it's never decided by
   the extension alone or by waiting for `error`.** Measured: ProRes, MPEG-4 part 2 or MJPEG inside a
   `.mp4`/`.mov` play sound over black without any `error`, and AC3/DTS/ALAC give a picture WITH NO
-  SOUND. `media-compat.ts` decides from ffprobe's streams (and HEVC depending on the GPU, which the
+  SOUND. `media-compat.ts` decides from the streams the engine's probe reads (and HEVC depending on the GPU, which the
   control window reports); until the probe answers, an extension Chromium never opens (AVI, WMV…)
   already goes to the engine. **On Windows the engine plays every video, not only those** (owner, 2026-11-16;
   `ENGINE_PLAYS_EVERY_PICTURE`): any animation in a full-screen window on a screen slower than the primary (the stage's
@@ -757,7 +756,7 @@ something behaved before: `git show 90d3821:legacy/src/js/app.js`.
 
 - It's developed and verified on macOS: there are no Windows-only features anymore. On an Apple
   Silicon Mac with Rosetta, `npm run package:win` produces the complete NSIS installer;
-  always check `release/win-unpacked/resources/ffmpeg/` afterwards.
+  always check `release/win-unpacked/resources/engine/` afterwards.
 - `git` is active; commit/push only if the user asks.
 - Plans, audits and the brand sources are maintainer notes and **aren't published**:
   they live in the maintainer's workspace, outside this repo (`../docs/plans/`, `../docs/auditorias/`).

@@ -47,4 +47,9 @@
   thumbnail URL must carry a cache-buster
   ([stable-capability-url-needs-a-cache-buster-to-refresh.md](stable-capability-url-needs-a-cache-buster-to-refresh.md)).
 
-**Last updated:** 2026-09-11
+- **Superseded on 2026-11-18 (R14).** Neither route makes thumbnails any more: the media engine draws every one
+  (`--inspect --frame`) and main only encodes its pixels. The measurements above stay as the reason a decode never
+  runs in main; what the engine does instead is in
+  [an-inspecting-libmpv-answers-like-ffprobe-but-each-build-has-gaps.md](an-inspecting-libmpv-answers-like-ffprobe-but-each-build-has-gaps.md).
+
+**Last updated:** 2026-11-18

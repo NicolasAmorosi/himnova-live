@@ -37,7 +37,7 @@ decks read natively, `image_format = 'native'`, which own no folder and whose `d
 say which pictures of the source make up each slide; and the decks drawn from their model,
 `image_format = 'model'`, whose `layers` is each slide's `SlideModel`), `program_draft`,
 `utility_scenes` (the saved timer scenes from Functions ▸ Timers), `overlay_plates` (the saved
-plates from Functions ▸ Overlays, `0014`) and `media_conversions` (ffprobe's verdict per video/audio
+plates from Functions ▸ Overlays, `0014`) and `media_conversions` (the probe's verdict per video/audio
 asset, `0016`).
 
 `program_draft` is **a single row** (`id = 1`), rewritten whole, holding the schedule the operator
@@ -348,8 +348,8 @@ see [`an-fts5-rebuild-after-a-bulk-insert-does-not-replace-the-sync-triggers.md`
 
 ## `media_conversions` — facts, never the decision
 
-One row per video or audio already checked with ffprobe (migration `0016_media_conversions`,
-`cascade` with its asset): what ffprobe said (`probe_json`, a `MediaProbe` versioned by
+One row per video or audio already probed (migration `0016_media_conversions`, `cascade` with its
+asset): what the media engine's probe said (`probe_json`, a `MediaProbe` versioned by
 `MEDIA_PROBE_VERSION`), valid while `source_size` and `source_mtime_ms` are still the asset's.
 
 **Whether the media engine plays a file is not stored.** It's recomputed on every startup

@@ -124,10 +124,10 @@ Himnova Live is free, with no ads and no accounts. If it helps your church, you 
 Requires Node.js 22 or later.
 
 ```bash
-npm install          # also downloads Electron, FFmpeg and the media engine for your platform
+npm install          # also downloads Electron and the media engine for your platform
 npm run dev          # the app with hot reload
 npm run typecheck && npm run lint && npm run test   # the minimum before a PR
-npm run test:e2e     # end-to-end runs of the real app with Playwright
+npm run test:e2e     # end-to-end runs of the real app with Playwright (needs ffmpeg on the PATH)
 npm run package:win  # or package:mac / package:linux
 ```
 
@@ -142,10 +142,8 @@ Stack: Electron, TypeScript, React, Vite, Tailwind, Zustand and SQLite (`better-
 [GPL-3.0-or-later](LICENSE). You can use, study, modify and share it; if you distribute a modified
 version, it has to stay free under the same license.
 
-FFmpeg ships alongside the app as a separate program, under its own GPL-3.0 license (see
-[`resources/ffmpeg-NOTICE.txt`](resources/ffmpeg-NOTICE.txt)), and so does the media engine with its
-libmpv (see [`resources/engine-NOTICE.txt`](resources/engine-NOTICE.txt); the engine's source is in
-[`native/`](native/)). The shapes of legacy `.ppt` files are drawn from LibreOffice's
+The media engine ships alongside the app as a separate program, with its libmpv (see
+[`resources/engine-NOTICE.txt`](resources/engine-NOTICE.txt); the engine's source is in [`native/`](native/)). The shapes of legacy `.ppt` files are drawn from LibreOffice's
 table of Office's shapes, under the MPL-2.0 (see
 [`resources/ooxml/mso-shapes-NOTICE.txt`](resources/ooxml/mso-shapes-NOTICE.txt)). The NDI® output is built against the NDI SDK's headers, under the MIT license
 ([`native/ndi/include/`](native/ndi/include/)); the NDI runtime does not ship with the app: you install it from
