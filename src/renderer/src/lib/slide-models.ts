@@ -86,7 +86,7 @@ export function useSlideModel(
     }
     const cached = peekSlideModel(url);
     if (cached) {
-      setShown({ url, model: cached });
+      setShown((prev) => (prev?.url === url ? prev : { url, model: cached }));
       return;
     }
     let alive = true;
@@ -99,7 +99,10 @@ export function useSlideModel(
       alive = false;
     };
   }, [url]);
-  return shown;
+  // A warm model is handed out on the render that asks for it: `shown` only catches up in the effect, so the previous
+  // slide was drawn once more first (2026-11-15 audit, R25).
+  const cached = url && shown?.url !== url ? peekSlideModel(url) : null;
+  return url && cached ? { url, model: cached } : shown;
 }
 
 /** A deck's embedded fonts, registered once per window. They beat an installed
