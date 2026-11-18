@@ -85,17 +85,16 @@ function riedl(dir: string, sums: { ffmpeg: string; ffprobe: string }): Archive[
   }));
 }
 
-const ENGINE_RELEASE = "https://github.com/NicolasAmorosi/himnova-live/releases/download/engine-10";
+const ENGINE_RELEASE = "https://github.com/NicolasAmorosi/himnova-live/releases/download/engine-11";
 
-/** Release `engine-10`: `native/` as of the commit its tag points at (protocol 9). engine-9 plus: the NDI sender moves
- *  its sound delay on stdin (`audio-delay <ms>`) instead of restarting, a `status` goes out as soon as the duration is
- *  known, Linux says why each libmpv soname failed to load (`dlerror()`), and a QA-only `--frame-log`. Either side
- *  works with the other's engine-9 counterpart: the app sends the new line only to an engine that says protocol 9.
+/** Release `engine-11`: `native/` as of the commit its tag points at (protocol 9). engine-10 plus: an inspect mode
+ *  (`--inspect`, R14) that says what a file holds and draws its thumbnail, decoding with one thread at a background
+ *  priority, and dav1d in the macOS libmpv. Playback and the NDI output are engine-10's.
  *  Linux's is built on Ubuntu 22.04 and ships no libmpv: it loads the system's, .so.2 or .so.1. */
 const ENGINE: Record<string, Archive[]> = {
-  "darwin-arm64": engine("darwin-arm64", "b3ac9bbad697e20aee1426f32a2ac3b82e05edfb5a8257bb4aa3872004abec9b", ["media-engine", "handles.node", "libmpv.2.dylib"]),
-  "win32-x64": engine("win32-x64", "f12b7e31f68113c5ecccb1124e1136a6838e9a40b0f5d03a02c634f11e3e73d1", ["media-engine.exe", "libmpv-2.dll"]),
-  "linux-x64": engine("linux-x64", "314753680c18a4b4ff578883f62769138e16a797a308810caa78f6fd42a2b419", ["media-engine", "handles.node"]),
+  "darwin-arm64": engine("darwin-arm64", "029c0997c09f3d2f9fd60a214571a916e8e554af077134c62d962d42ffd137b3", ["media-engine", "handles.node", "libmpv.2.dylib"]),
+  "win32-x64": engine("win32-x64", "f26168b6a8019f5d2fed3d06a7ca953c2ecc7dd6fd75a6ce11765bce72e94e75", ["media-engine.exe", "libmpv-2.dll"]),
+  "linux-x64": engine("linux-x64", "23a6abd10adeeb78ea4d4ee8873e70afeac6d1c5bde116d2165b78e7c4c46647", ["media-engine", "handles.node"]),
 };
 
 function engine(target: string, sha256: string, files: string[]): Archive[] {
