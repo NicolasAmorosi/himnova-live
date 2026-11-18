@@ -1534,11 +1534,13 @@ const es = {
     },
     done: {
       title: "Eso es todo",
+      titleSummaryOnly: "Lo que cambió",
       subtitle: "Lo que elegiste ya quedó guardado. Estas novedades se vuelven a ver en Configuración ▸ Acerca de.",
       subtitleNoChoices: "Estas novedades se vuelven a ver en Configuración ▸ Acerca de.",
       noStage: "Todavía sin pantalla de escenario",
       screens: "Configurar",
       alsoTitle: "También en esta versión",
+      alsoTitleSummaryOnly: "En esta versión",
       also: {
         projector: "El proyector se abre solo al arrancar, con tu LOGO, y vuelve solo cuando conectás su pantalla.",
         minimize: "Si minimizás la ventana de control, el proyector y el escenario quedan donde están.",

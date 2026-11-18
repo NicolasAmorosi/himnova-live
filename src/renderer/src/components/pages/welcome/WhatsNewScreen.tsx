@@ -111,12 +111,14 @@ function DoneStep({ go, keys }: { go: (step: WhatsNewStepId) => void; keys: read
   const mirror = useSettingsStore((s) => s.settings["stage.mirror"]);
   const stage = useDisplayStore((s) => s.displays.find((d) => d.id === stageId));
   const sound = useSoundSummary();
+  // A version told by its summary alone (2.12): «That's it» and «Also» would close a tour that never happened.
+  const summaryOnly = keys.every((key) => WHATS_NEW[key].steps.length === 0);
 
   return (
     <StepLayout
       // Only 2.10's steps choose something (the stage screen, the strips).
       subtitle={t(keys.includes("2.10") ? "whatsNew.done.subtitle" : "whatsNew.done.subtitleNoChoices")}
-      title={t("whatsNew.done.title")}
+      title={t(summaryOnly ? "whatsNew.done.titleSummaryOnly" : "whatsNew.done.title")}
     >
       {keys.includes("2.10") ? (
         <FieldGroup title={t("welcome.done.group")}>
@@ -147,7 +149,7 @@ function DoneStep({ go, keys }: { go: (step: WhatsNewStepId) => void; keys: read
           </FieldRow>
         </FieldGroup>
       ) : null}
-      <FieldGroup title={t("whatsNew.done.alsoTitle")}>
+      <FieldGroup title={t(summaryOnly ? "whatsNew.done.alsoTitleSummaryOnly" : "whatsNew.done.alsoTitle")}>
         {keys.flatMap((key) => WHATS_NEW[key].also).map((id) => (
           <p className="flex items-start gap-2.5 px-4 py-3 text-sm" key={id}>
             <Icon className="mt-0.5 text-muted-foreground" name="check" />

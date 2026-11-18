@@ -1518,11 +1518,13 @@ const it: Messages = {
     },
     done: {
       title: "È tutto",
+      titleSummaryOnly: "Cosa è cambiato",
       subtitle: "Quello che hai scelto è già salvato. Puoi rivedere queste novità in Impostazioni ▸ Informazioni.",
       subtitleNoChoices: "Puoi rivedere queste novità in Impostazioni ▸ Informazioni.",
       noStage: "Ancora nessuno schermo per il palco",
       screens: "Configura",
       alsoTitle: "Anche in questa versione",
+      alsoTitleSummaryOnly: "In questa versione",
       also: {
         projector: "Il proiettore si apre da solo all'avvio, con il tuo LOGO, e torna da solo quando colleghi il suo schermo.",
         minimize: "Se riduci a icona la finestra di controllo, il proiettore e il palco restano dove sono.",

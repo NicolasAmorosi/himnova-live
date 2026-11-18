@@ -1515,11 +1515,13 @@ const pt: Messages = {
     },
     done: {
       title: "É isso",
+      titleSummaryOnly: "O que mudou",
       subtitle: "O que você escolheu já está salvo. Dá para ver estas novidades de novo em Configurações ▸ Sobre.",
       subtitleNoChoices: "Dá para ver estas novidades de novo em Configurações ▸ Sobre.",
       noStage: "Ainda sem tela de palco",
       screens: "Configurar",
       alsoTitle: "Também nesta versão",
+      alsoTitleSummaryOnly: "Nesta versão",
       also: {
         projector: "O projetor abre sozinho ao iniciar, com o seu LOGO, e volta sozinho quando você conecta a tela dele.",
         minimize: "Se você minimizar a janela de controle, o projetor e o palco continuam onde estão.",

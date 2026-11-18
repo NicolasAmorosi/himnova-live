@@ -1514,11 +1514,13 @@ const en: Messages = {
     },
     done: {
       title: "That's it",
+      titleSummaryOnly: "What changed",
       subtitle: "What you chose is already saved. You can see this again in Settings ▸ About.",
       subtitleNoChoices: "You can see this again in Settings ▸ About.",
       noStage: "No stage screen yet",
       screens: "Set up",
       alsoTitle: "Also in this version",
+      alsoTitleSummaryOnly: "In this version",
       also: {
         projector: "The projector opens by itself at startup, showing your LOGO, and comes back on its own when you plug its screen in.",
         minimize: "Minimizing the control window leaves the projector and the stage where they are.",
