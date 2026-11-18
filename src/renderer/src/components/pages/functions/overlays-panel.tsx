@@ -39,11 +39,10 @@ export function OverlaysPanel() {
   const sort = useSettingsStore((s) => s.settings["functions.platesSort"]);
   const [query, setQuery] = useState("");
   const shown = useMemo(() => viewNamed(plates, sort, query, locale), [plates, sort, query, locale]);
-  const target = usePreviewStore((s) => s.target);
+  // Only the id of its own kind, never the whole PREVIEW target (2026-11-15 audit, R28; as Songs, agent7-03).
+  const previewedId = usePreviewStore((s) => (s.target?.kind === "plate" ? s.target.plateId : null));
   const livePlates = useProjectionStore((s) => s.livePlates);
   const addItem = useProgramStore((s) => s.addItem);
-
-  const previewedId = target?.kind === "plate" ? target.plateId : null;
 
   return (
     <>
