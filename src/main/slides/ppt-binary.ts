@@ -7,9 +7,10 @@ import {
 
 /**
  * Reads a legacy binary `.ppt`/`.pps` (OLE2 + the PowerPoint 97 record
- * stream): per-slide timings and transitions for every deck
- * (`readBinarySlideTimings`), and — for a deck made only of pictures, which is
- * every deck of the hymnal this app exists for — the slides themselves.
+ * stream): for a deck made only of pictures, which is every deck of the hymnal
+ * this app exists for, the slides themselves with their timings and
+ * transitions; and the document both legacy readers start from
+ * (`openDocument`, which `ppt/reader.ts` shares).
  *
  * ## Why the slides are read here (2026-10-26)
  *
@@ -506,7 +507,7 @@ export function childrenOf(buf: Buffer, parent: { body: number; len: number }): 
 }
 
 /** The first record of a type anywhere under `parent`, depth-bounded. */
-export function findDeep(buf: Buffer, parent: { body: number; len: number }, recType: number): Rec | null {
+function findDeep(buf: Buffer, parent: { body: number; len: number }, recType: number): Rec | null {
   let found: Rec | null = null;
   walkRecords(buf, parent.body, parent.body + parent.len, 0, (type, instance, body, len) => {
     if (!found && type === recType) found = { recType: type, recInstance: instance, body, len, container: false };
@@ -520,7 +521,7 @@ export type PptDocument = {
   ole: OleFile;
   doc: Buffer;
   persistOffsets: Map<number, number>;
-  documentContainer: { body: number; len: number };
+  documentContainer: Omit<Rec, "container">;
   /** In presentation order. */
   slidePersistIds: number[];
   /** A master's persist id by its `slideId` — what `SlideAtom.masterIdRef`
@@ -530,7 +531,7 @@ export type PptDocument = {
 
 /** Everything both readers start from, or `null` when this is not a parseable
  *  PowerPoint 97+ binary. */
-function openDocument(fd: number): PptDocument | null {
+export function openDocument(fd: number): PptDocument | null {
   const fileSize = fs.fstatSync(fd).size;
   const ole = openOle(fd, fileSize);
   if (!ole) return null;
@@ -589,7 +590,7 @@ function openDocument(fd: number): PptDocument | null {
 /** Opens the file, hands the parsed document to `read`, and closes the file
  *  whatever happens. Every failure means "another reader answers", so it is
  *  `null`, never a throw. */
-export function withDocument<T>(filePath: string, read: (document: PptDocument) => T | null): T | null {
+function withDocument<T>(filePath: string, read: (document: PptDocument) => T | null): T | null {
   let fd: number | null = null;
   try {
     fd = fs.openSync(filePath, "r");
@@ -674,46 +675,6 @@ export function binaryTransition(
     style = effectDirection === 1 ? "random-bars-vertical" : "random-bars-horizontal";
   } else if (effectType === TT_SMOOTH_FADE) style = "crossfade";
   return { style, durationMs };
-}
-
-// -- public: timings -----------------------------------------------------------
-
-export type BinarySlideTiming = {
-  /** 1-based, in presentation order. */
-  slideIndex: number;
-  /** Milliseconds to wait before advancing, or null when the slide does not
-   *  auto-advance at all. Unrounded, as PowerPoint stored it. */
-  autoAdvanceMs: number | null;
-  hidden: boolean;
-  /** Whether a click also advances. Recorded for completeness; the app does
-   *  not act on it. */
-  advanceOnClick: boolean;
-  transition: SlideTransition | null;
-};
-
-/**
- * Per-slide timings from a legacy binary presentation, in presentation order,
- * or `null` when the file is not a parseable OLE2 PowerPoint deck.
- *
- * Never throws: every failure mode here (a truncated file, a format we do not
- * recognize, a persist id with no offset) means "no timings", never "the deck
- * fails".
- */
-export function readBinarySlideTimings(filePath: string): BinarySlideTiming[] | null {
-  return withDocument(filePath, ({ doc, persistOffsets, slidePersistIds }) =>
-    slidePersistIds.map((persistId, index) => {
-      const offset = persistOffsets.get(persistId);
-      const slide = offset === undefined ? null : recordAt(doc, offset);
-      const info = slide ? readSlideInfo(doc, slide) : null;
-      return {
-        slideIndex: index + 1,
-        autoAdvanceMs: info?.autoAdvanceMs ?? null,
-        hidden: info?.hidden ?? false,
-        advanceOnClick: info?.advanceOnClick ?? true,
-        transition: info?.transition ?? null,
-      };
-    }),
-  );
 }
 
 /**
@@ -882,7 +843,7 @@ function buildDeck({
 /** `foDelay` of every BLIP in the document's store, by `pib - 1`. A BLIP kept
  *  inside the store itself rather than in the `Pictures` stream reads as
  *  `undefined` and refuses whatever uses it. */
-export function readBlipStore(doc: Buffer, documentChildren: Rec[]): (number | undefined)[] {
+function readBlipStore(doc: Buffer, documentChildren: Rec[]): (number | undefined)[] {
   const group = documentChildren.find((child) => child.recType === RT_DRAWING_GROUP);
   if (!group) return [];
   const store = findDeep(doc, group, OA_BSTORE);
@@ -1002,7 +963,7 @@ function drawingShapes(doc: Buffer, container: { body: number; len: number }): S
 
 /** `OfficeArtFOPT`: `recInstance` simple properties of 6 bytes each. Complex
  *  data (names) follows them and is not needed. */
-export function readProps(doc: Buffer, fopt: Rec): Map<number, number> {
+function readProps(doc: Buffer, fopt: Rec): Map<number, number> {
   const props = new Map<number, number>();
   for (let i = 0; i < fopt.recInstance && (i + 1) * 6 <= fopt.len; i++) {
     const at = fopt.body + i * 6;
@@ -1102,7 +1063,7 @@ function slideLayers(
 
 /** Every property set ends in one of these: 16 flags, each meaningful only
  *  where its `fUse` twin in the high half is set (MS-ODRAW 2.3). */
-export function isBooleanProperty(opid: number): boolean {
+function isBooleanProperty(opid: number): boolean {
   return (opid & 0x3f) === 0x3f;
 }
 
@@ -1110,7 +1071,7 @@ export function isBooleanProperty(opid: number): boolean {
  *  does not `fUse` is the master's. Measured on the hymnal: 166 covers say
  *  nothing about their line, and the master's body placeholder they inherit
  *  from says «no line». */
-export function mergeBooleans(own: number, inherited: number): number {
+function mergeBooleans(own: number, inherited: number): number {
   const ownUse = (own >>> 16) & 0xffff;
   const values = (own & ownUse) | (inherited & ~ownUse & 0xffff);
   return (((own | inherited) & 0xffff0000) | values) >>> 0;
