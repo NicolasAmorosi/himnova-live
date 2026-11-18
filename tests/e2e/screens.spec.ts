@@ -284,7 +284,10 @@ test("the control window dragged onto the stage's screen makes the stage a movab
   await app.control.reload();
   const stage = () =>
     app.electron.evaluate(({ BrowserWindow }) => {
-      const w = BrowserWindow.getAllWindows().find((win) => !win.isDestroyed() && win.webContents.getURL().endsWith("/stage.html"));
+      // A stage being replaced can still be listed with its page already gone: «Object has been destroyed» on Windows.
+      const w = BrowserWindow.getAllWindows().find(
+        (win) => !win.isDestroyed() && !win.webContents.isDestroyed() && win.webContents.getURL().endsWith("/stage.html"),
+      );
       return w ? { full: w.isFullScreen(), onTop: w.isAlwaysOnTop() } : null;
     });
   const moveControlTo = (displayId: number) =>
