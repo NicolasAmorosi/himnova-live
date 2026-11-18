@@ -10,7 +10,7 @@ import type {
   SlideElement,
   SlideModel,
 } from "@shared/types/slide-model";
-import { childrenOf, openOle, readSlideInfo, recordAt, walkRecords, type OleFile, type Rec } from "../ppt-binary";
+import { childrenOf, openDocument, readSlideInfo, recordAt, walkRecords, type OleFile, type Rec } from "../ppt-binary";
 import type { PptxDeck, PptxSlide } from "../pptx/reader";
 import { fontList } from "../pptx/text";
 import { imageNaturalSize } from "../pptx/image-size";
@@ -50,10 +50,10 @@ import { readExt9, readExt9Master, readFonts, readRuler, readStyleSheets, readTe
  * placeholders, in the slide list next to the slide's persist atom.
  */
 
-const RT_DOCUMENT = 0x03e8, RT_DOCUMENT_ATOM = 0x03e9, RT_SLIDE = 0x03ee, RT_SLIDE_ATOM = 0x03ef, RT_NOTES = 0x03f0;
+const RT_DOCUMENT_ATOM = 0x03e9, RT_SLIDE = 0x03ee, RT_SLIDE_ATOM = 0x03ef, RT_NOTES = 0x03f0;
 const RT_SLIDE_PERSIST = 0x03f3, RT_MAIN_MASTER = 0x03f8, RT_ENVIRONMENT = 0x03f2, RT_DRAWING_GROUP = 0x040b;
-const RT_DRAWING = 0x040c, RT_COLOR_SCHEME = 0x07f0, RT_SLIDE_LIST = 0x0ff0, RT_USER_EDIT = 0x0ff5;
-const RT_PERSIST_DIR = 0x1772, RT_HEADERS_FOOTERS = 0x0fd9, RT_HEADERS_FOOTERS_ATOM = 0x0fda, RT_CSTRING = 0x0fba;
+const RT_DRAWING = 0x040c, RT_COLOR_SCHEME = 0x07f0, RT_SLIDE_LIST = 0x0ff0;
+const RT_HEADERS_FOOTERS = 0x0fd9, RT_HEADERS_FOOTERS_ATOM = 0x0fda, RT_CSTRING = 0x0fba;
 const RT_PLACEHOLDER = 0x0bc3, RT_EXOBJ_REF = 0x0bc1, RT_ANIMATION_INFO = 0x0ff1, RT_SOUND_COLLECTION = 0x07e4;
 const RT_SOUND = 0x07e6, RT_SOUND_DATA = 0x07e7, RT_FONT_COLLECTION = 0x07d5, RT_FONT_ENTITY = 0x0fb7, RT_FONT_EMBED = 0x0fb8;
 
@@ -126,41 +126,13 @@ export function readPptModel(file: string, resources: PptResources): PptModelRea
   }
 }
 
+/** The document `ppt-binary.ts` opens for the picture reader too: one walk of the compound file and the edit
+ *  chain, guarded once (2026-11-15 audit, X8). */
 function open(fd: number): Doc {
-  const ole = openOle(fd, fs.fstatSync(fd).size);
-  if (!ole) throw new Error("not an OLE2 compound file");
-  const buf = ole.readStreamByName("PowerPoint Document");
-  if (!buf) throw new Error("no PowerPoint Document stream");
-  const current = ole.readStreamByName("Current User");
-  if (!current || current.length < 20) throw new Error("no Current User stream");
-  const persist = new Map<number, number>();
-  let docRef: number | null = null;
-  let edit = current.readUInt32LE(16);
-  const seen = new Set<number>();
-  while (edit !== 0 && !seen.has(edit)) {
-    seen.add(edit);
-    const atom = recordAt(buf, edit);
-    if (!atom || atom.recType !== RT_USER_EDIT || atom.len < 28) break;
-    docRef ??= buf.readUInt32LE(atom.body + 16);
-    const dir = recordAt(buf, buf.readUInt32LE(atom.body + 12));
-    if (dir && dir.recType === RT_PERSIST_DIR) {
-      let p = dir.body;
-      const end = dir.body + dir.len;
-      while (p + 4 <= end) {
-        const packed = buf.readUInt32LE(p);
-        p += 4;
-        const first = packed & 0xfffff, count = packed >>> 20;
-        if (count === 0) break;
-        for (let i = 0; i < count && p + 4 <= end; i++, p += 4) if (!persist.has(first + i)) persist.set(first + i, buf.readUInt32LE(p));
-      }
-    }
-    edit = buf.readUInt32LE(atom.body + 8);
-  }
-  if (docRef === null) throw new Error("no user edit");
-  const offset = persist.get(docRef);
-  const documentRec = offset === undefined ? null : recordAt(buf, offset);
-  if (!documentRec || documentRec.recType !== RT_DOCUMENT) throw new Error("no document container");
-  return { ole, buf, persist, documentRec: { ...documentRec, container: true } };
+  const document = openDocument(fd);
+  if (!document) throw new Error("not a PowerPoint 97+ document");
+  const { ole, doc, persistOffsets, documentContainer } = document;
+  return { ole, buf: doc, persist: persistOffsets, documentRec: { ...documentContainer, container: true } };
 }
 
 function persisted(doc: Doc, id: number | undefined): Rec | null {

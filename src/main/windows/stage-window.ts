@@ -167,6 +167,9 @@ function createStageWindow(display: Electron.Display, own: boolean): BrowserWind
   // Never a sound: it plays what the projector plays, and the room hears the projector.
   win.webContents.setAudioMuted(true);
   forwardKeysToControl(win);
+  // As the projector does: on the owner's Windows PC the constructor's `alwaysOnTop` read false from creation on
+  // (2026-11-18 run).
+  if (!own) win.setAlwaysOnTop(true, "screen-saver");
   win.on("page-title-updated", (event) => event.preventDefault());
   // A dead page left the window up, black or frozen, in front of the musicians and the preacher (2026-11-15 audit,
   // A1). Reloaded, it pulls the stage's snapshot again; it never sounds, so nothing has a position to keep.

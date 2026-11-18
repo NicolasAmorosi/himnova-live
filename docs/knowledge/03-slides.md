@@ -435,9 +435,9 @@ video plays a clip over the wrong slide.
 
 `ppt-binary.ts` reads `SlideShowSlideInfoAtom` from the OLE2's `PowerPoint Document` stream, in
 presentation order (`Current User` → `UserEditAtom` → persist directory → instance-0
-`SlideListWithText` → `SlidePersistAtom`) — `readBinaryDeck` for a native deck, and
-`readBinarySlideTimings` for whatever else needs them (the binary model reader's
-`PresentationMeta`). It never reads the whole file: images live in the `Pictures` stream, so it's
+`SlideListWithText` → `SlidePersistAtom`): `readBinaryDeck` for a native deck, and the binary model
+reader (`ppt/reader.ts`, `readSlideInfo` over the same `openDocument`) for its `PresentationMeta`.
+It never reads the whole file: images live in the `Pictures` stream, so it's
 ~45 KB of a 1.4 MB file, read sector by sector on demand. The format's traps (the `fFlags` bits
 aren't consecutive; `PP97_DUALSTORAGE`) are in
 [`.claude/knowledge/libreoffice-pptx-export-drops-advtm-without-a-transition-effect.md`](../../.claude/knowledge/libreoffice-pptx-export-drops-advtm-without-a-transition-effect.md),

@@ -52,11 +52,11 @@ export function UtilitiesPanel() {
   const shown = useMemo(() => viewNamed(scenes, sort, query, locale), [scenes, sort, query, locale]);
   const runSceneId = useUtilityStore((s) => s.run?.sceneId ?? null);
   const runStarted = useUtilityStore((s) => s.run?.started ?? false);
-  const target = usePreviewStore((s) => s.target);
+  // Only the id of its own kind, never the whole PREVIEW target (2026-11-15 audit, R28; as Songs, agent7-03).
+  const previewedId = usePreviewStore((s) => (s.target?.kind === "utility" ? s.target.sceneId : null));
   const liveSceneId = useProjectionStore((s) => (s.base?.kind === "utility" ? s.base.sceneId : null));
   const addItem = useProgramStore((s) => s.addItem);
 
-  const previewedId = target?.kind === "utility" ? target.sceneId : null;
   // Whose clock is actually going: the projected one, and the armed one once
   // it has been started. Decided here, per row, rather than inside the readout
   // — a resting wall clock is still a *running* clock, so mounting a ticking

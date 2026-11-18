@@ -75,7 +75,8 @@ export function BibleBrowser() {
     versions.filter((v) => v.id !== versionId),
     locale,
   ).map(({ label, value }) => ({ label, value }));
-  const target = usePreviewStore((s) => s.target);
+  // Only the id of its own kind, never the whole PREVIEW target (2026-11-15 audit, R28; as Songs, agent7-03).
+  const previewIndex = usePreviewStore((s) => (s.target?.kind === "verse" ? s.target.verseIndex : null));
   // The interface's language first, under a heading per language (owner, 2026-11-09).
   const versionOptions = useMemo(() => bibleVersionOptions(versions, locale), [versions, locale]);
   const [pendingBook, setPendingBook] = useState("");
@@ -107,7 +108,6 @@ export function BibleBrowser() {
   const itemRefs = useRef<(HTMLLIElement | null)[]>([]);
 
   const selectedBook = books.find((b) => b.id === Number(pendingBook));
-  const previewIndex = target?.kind === "verse" ? target.verseIndex : null;
   const searching = searchMode === "text" ? query.trim().length >= MIN_TEXT_QUERY_LENGTH : query.trim().length > 0;
 
   const loadedBook = books.find((b) => b.id === loadedBookId);

@@ -210,9 +210,8 @@ function readyNative(row: DeckRow, assetId: number): DeckDTO {
  * `null` sends the caller on to the model reader — a deck that is not a
  * legacy binary, or one `readBinaryDeck` refuses.
  */
-function nativeDeck(assetId: number, sourcePath: string, force: boolean): Promise<DeckDTO> | null {
-  const stat = fs.statSync(sourcePath, { throwIfNoEntry: false });
-  if (!stat) return null;
+function nativeDeck(assetId: number, source: Source, force: boolean): Promise<DeckDTO> | null {
+  const { path: sourcePath, stat } = source;
   const inFlightRead = nativeInFlight.get(assetId);
   if (inFlightRead) return inFlightRead;
 
@@ -225,7 +224,7 @@ function nativeDeck(assetId: number, sourcePath: string, force: boolean): Promis
   }
   // By content, never by extension — and before anything that writes: every
   // deck passes through here on its way to the model reader or the cache.
-  if (containerKind(sourcePath) !== "binary") return null;
+  if (source.kind() !== "binary") return null;
 
   if (!force) {
     // The same bytes through another library entry — the same hymn in two
@@ -351,11 +350,21 @@ function isUsableModel(row: DeckRow, stat: fs.Stats): boolean {
   );
 }
 
-/** The deck read straight from its source — native, else its model, else a
- *  PDF — which is every deck: `null` only for a source that is gone. A deck no
+/** The source as the three readers below see it: stat'ed once, and its container sniffed only by the first reader
+ *  that needs it, after its own cache check (a ready hymn never opens the file). 2026-11-15 audit, X9. */
+type Source = { path: string; stat: fs.Stats; kind: () => ContainerKind };
+
+/** The deck read straight from its source: native, else its model, else a
+ *  PDF, which is every deck. `null` only for a source that is gone. A deck no
  *  reader can open rejects with why. */
 function sourceDeck(assetId: number, sourcePath: string, force: boolean, lane: RasterLane): Promise<DeckDTO> | null {
-  return nativeDeck(assetId, sourcePath, force) ?? modelDeck(assetId, sourcePath, force, lane) ?? pdfDeck(assetId, sourcePath, force, lane);
+  const stat = fs.statSync(sourcePath, { throwIfNoEntry: false });
+  if (!stat) return null;
+  let sniffed: ContainerKind | undefined;
+  const source: Source = { path: sourcePath, stat, kind: () => (sniffed ??= containerKind(sourcePath)) };
+  return (
+    nativeDeck(assetId, source, force) ?? modelDeck(assetId, source, force, lane) ?? pdfDeck(assetId, source, force, lane)
+  );
 }
 
 /**
@@ -366,9 +375,8 @@ function sourceDeck(assetId: number, sourcePath: string, force: boolean, lane: R
  * approximated, never refused; and on 2026-11-03: nothing is ever converted
  * by another program — a file no reader can open fails, saying why.
  */
-function modelDeck(assetId: number, sourcePath: string, force: boolean, lane: RasterLane): Promise<DeckDTO> | null {
-  const stat = fs.statSync(sourcePath, { throwIfNoEntry: false });
-  if (!stat) return null;
+function modelDeck(assetId: number, source: Source, force: boolean, lane: RasterLane): Promise<DeckDTO> | null {
+  const { path: sourcePath, stat } = source;
   const inFlightRead = modelInFlight.get(assetId);
   if (inFlightRead) {
     if (lane === "now" && inFlightRead.lane === "later") {
@@ -386,7 +394,7 @@ function modelDeck(assetId: number, sourcePath: string, force: boolean, lane: Ra
     const unreadable = unreadableStamp.get(sourcePath);
     if (unreadable?.stamp === stampOf(stat)) return failUnreadable(assetId, unreadable.reason);
   }
-  const kind = containerKind(sourcePath);
+  const kind = source.kind();
   if (kind === "pdf") return null;
 
   if (!force) {
@@ -620,11 +628,10 @@ function isUsablePdf(row: DeckRow, target: RenderTarget): boolean {
  * A PDF: opened to read how many pages it has and their size, and each page
  * drawn by pdf.js when a window asks for it (`worship://deck/<id>/<n>`,
  * `pdfPageImage`). Decided by the owner on 2026-11-03: nothing converted and
- * nothing cached on disk. `null` when the source is gone.
+ * nothing cached on disk.
  */
-function pdfDeck(assetId: number, sourcePath: string, force: boolean, lane: RasterLane): Promise<DeckDTO> | null {
-  const stat = fs.statSync(sourcePath, { throwIfNoEntry: false });
-  if (!stat) return null;
+function pdfDeck(assetId: number, source: Source, force: boolean, lane: RasterLane): Promise<DeckDTO> | null {
+  const { path: sourcePath, stat } = source;
   const inFlightRead = pdfInFlight.get(assetId);
   if (inFlightRead) return inFlightRead;
 

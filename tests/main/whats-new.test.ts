@@ -21,11 +21,12 @@ test("the keys go oldest first, so the last one is the latest", () => {
 });
 
 test("a profile that skipped a version is told what each brought, oldest first; by hand, the latest", () => {
-  // 2.9 straight to 2.11: the stage screen and the strips (2.10) were never told, and only the latest was shown.
-  expect(whatsNewKeysFor("2.9")).toEqual(["2.10", "2.11"]);
+  // 2.9 straight to 2.12: the stage screen and the strips (2.10) were never told, and only the latest was shown.
+  expect(whatsNewKeysFor("2.9")).toEqual(["2.10", "2.11", "2.12"]);
   expect(whatsNewKeysFor(null)).toEqual(WHATS_NEW_KEYS);
-  expect(whatsNewKeysFor("2.10")).toEqual(["2.11"]);
-  expect(whatsNewKeysFor("2.10.1")).toEqual(["2.11"]);
+  expect(whatsNewKeysFor("2.10")).toEqual(["2.11", "2.12"]);
+  expect(whatsNewKeysFor("2.10.1")).toEqual(["2.11", "2.12"]);
+  expect(whatsNewKeysFor("2.11")).toEqual(["2.12"]);
   // Nothing due: Settings ▸ About opens the latest.
   expect(whatsNewKeysFor(LATEST_WHATS_NEW)).toEqual([LATEST_WHATS_NEW]);
   expect(whatsNewKeysFor("99.0")).toEqual([LATEST_WHATS_NEW]);

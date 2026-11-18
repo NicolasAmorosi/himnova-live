@@ -165,7 +165,7 @@ function initDatabase(): boolean {
   // it reads `bible.builtinSeeded`, which is what keeps a deleted RV1909
   // deleted across launches. After the locale too: a new profile gets the
   // bundled versions of its language. See `seedBuiltinBibles`.
-  seedBuiltinBibles(db, sqlite, biblesDir, getSettingsRepo(), isNewProfile);
+  seedBuiltinBibles(db, sqlite, biblesDir, getSettingsRepo(), isNewProfile, app.getVersion());
   migrateLegacySettingsIfPresent(getSettingsRepo(), legacySettingsPath);
   // After `initRepos`, unlike the Bible seed above: this one needs two
   // repositories rather than a raw handle, and the flag it reads lives in

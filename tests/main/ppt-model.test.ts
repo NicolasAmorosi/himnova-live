@@ -227,6 +227,12 @@ describe("drawing", () => {
     expect(meta.slides[1]).toMatchObject({ hidden: true });
   });
 
+  test("a slide's time counts only under its auto-advance flag", () => {
+    // `buildLegacyPpt`'s default: 12 345 ms with fAutoAdvance, then a stale 999 ms with only fManualAdvance.
+    const { meta } = read({});
+    expect(meta.slides.map((s) => s.autoAdvanceMs)).toEqual([12_345, null]);
+  });
+
   test("a damaged slide costs only itself", () => {
     const { deck } = read({ slides: [{ shapes: [] }, { garbage: true }, { shapes: [] }] });
     expect(deck.slides).toHaveLength(3);

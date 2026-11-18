@@ -32,7 +32,6 @@ import { DraftRepo } from "../../src/main/db/repositories/draft.repo";
 import { UtilityRepo } from "../../src/main/db/repositories/utility.repo";
 import { seedUtilityScenes } from "../../src/main/db/seed/seed-utility-scenes";
 import { getOverlaysRepo, initRepos } from "../../src/main/services/repos";
-import { readBinarySlideTimings } from "../../src/main/slides/ppt-binary";
 import { BIBLE_RECENTS_MAX, SNIPPET_MARK_END, SNIPPET_MARK_START, parseSnippet } from "../../src/shared/types/bible";
 import { DEFAULT_SETTINGS, SETTINGS_VALIDATORS, isSettingsKey } from "../../src/shared/types/settings";
 import { BUILTIN_BIBLE_CODE, SLIDES_CONVERTER_VERSION, SLIDES_MODEL_VERSION, SLIDES_NATIVE_VERSION } from "../../src/shared/constants";
@@ -565,27 +564,6 @@ describe("Deck status is answered by CONTENT, not by row ownership", () => {
     assert(
       afterEditStatuses.get(dupA.id) === undefined,
       "a stale content-hash stamp must not match a deck (the bytes changed)",
-    );
-  });
-});
-
-describe("A legacy binary's auto-advance is read from its own records", () => {
-  // Builds a minimal OLE2 `.ppt` so the reader is exercised without shipping
-  // a real deck.
-  test("the binary reader reads each slide's time, and ignores one whose flag is clear", () => {
-    const legacyPath = path.join(mediaDir, "legacy-timings.ppt");
-    fs.writeFileSync(legacyPath, buildLegacyPpt());
-
-    const binaryTimings = readBinarySlideTimings(legacyPath);
-    assert(binaryTimings !== null, "the synthetic legacy .ppt must parse");
-    assert(binaryTimings.length === 2, `expected 2 slides, got ${binaryTimings.length}`);
-    assert(
-      binaryTimings[0]!.autoAdvanceMs === 12345,
-      `slide 1 must carry its auto-advance time, got ${String(binaryTimings[0]!.autoAdvanceMs)}`,
-    );
-    assert(
-      binaryTimings[1]!.autoAdvanceMs === null,
-      "slide 2 has fAutoAdvance clear, so its stale slideTime must be ignored",
     );
   });
 });

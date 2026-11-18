@@ -18,7 +18,6 @@ import {
   readBinaryDeck,
   readBinaryExternalPaths,
   readBinaryPictures,
-  readBinarySlideTimings,
   type BinaryDeck,
 } from "../../src/main/slides/ppt-binary";
 import { encodeSlideLayers, imagePixelSize, renderNativeSlide } from "../../src/main/slides/native-deck";
@@ -262,13 +261,6 @@ describe("the rest of what the source says", () => {
   test("the linked song's path is read from its record", () => {
     expect(readBinaryExternalPaths(write(hymn()))).toEqual([
       "C:\\Documents and Settings\\Ana Gomez\\Escritorio\\himnos\\522 Suenen las palabras.mp3",
-    ]);
-  });
-
-  test("the timings reader carries the transitions too", () => {
-    expect(readBinarySlideTimings(write(hymn()))?.map((slide) => slide.transition)).toEqual([
-      { style: "crossfade", durationMs: 1000 },
-      { style: "random-bars-vertical", durationMs: 750 },
     ]);
   });
 
