@@ -91,6 +91,40 @@ function makeRoom(): void {
   }
 }
 
+/**
+ * The `library:get` in flight for each id, shared by every consumer that asks
+ * meanwhile: a schedule row mounts three (label, icon and badge, thumbnail),
+ * and each one fired its own request at startup and on every
+ * `library-changed` (2026-11-15 audit, R29). Dropped when it settles, so a
+ * failure is not kept here, and dropped by an invalidation, so a consumer
+ * re-asking after a change never joins a request from before it.
+ */
+const inFlight = new Map<number, Promise<void>>();
+
+function fetchAsset(id: number): Promise<void> {
+  const existing = inFlight.get(id);
+  if (existing) return existing;
+  const request: Promise<void> = api.library
+    .get(id)
+    .catch((error: unknown) => {
+      // Without this the id stayed uncached, so every subsequent render
+      // fired the same failing request again: a rejection storm behind a
+      // schedule row that simply has no name to show. Remembered as "no
+      // asset", which is what the row renders for a missing one anyway;
+      // `forgetMediaAsset` is how a later refresh gets a second chance.
+      console.error(`[media] could not resolve asset ${id}`, error);
+      return null;
+    })
+    .then((asset) => {
+      // Superseded by an invalidation: its answer may predate the change.
+      if (inFlight.get(id) !== request) return;
+      inFlight.delete(id);
+      remember(id, asset);
+    });
+  inFlight.set(id, request);
+  return request;
+}
+
 /** Small id -> MediaAsset cache so playlist rows (which only store a
  *  mediaAssetId) can render a name/badge without threading the whole library
  *  list through every consumer.
@@ -120,22 +154,9 @@ export function useMediaAsset(id: number | null): MediaAsset | null {
   useEffect(() => {
     if (id === null || cache.has(id)) return;
     let cancelled = false;
-    void api.library
-      .get(id)
-      .then((result) => {
-        remember(id, result);
-        if (!cancelled) forceRerender();
-      })
-      .catch((error: unknown) => {
-        // Without this the id stayed uncached, so every subsequent render
-        // fired the same failing request again — a rejection storm behind a
-        // schedule row that simply has no name to show. Remembered as "no
-        // asset", which is what the row renders for a missing one anyway;
-        // `forgetMediaAsset` is how a later refresh gets a second chance.
-        console.error(`[media] could not resolve asset ${id}`, error);
-        remember(id, null);
-        if (!cancelled) forceRerender();
-      });
+    void fetchAsset(id).then(() => {
+      if (!cancelled) forceRerender();
+    });
     return () => {
       cancelled = true;
     };
@@ -160,6 +181,7 @@ export function getCachedMediaAsset(id: number | null): MediaAsset | null {
  *  re-renders and re-fetches; see `generation`. */
 export function forgetMediaAsset(id: number): void {
   cache.delete(id);
+  inFlight.delete(id);
   invalidate();
 }
 
@@ -178,6 +200,7 @@ export function forgetMediaAsset(id: number): void {
  */
 export function forgetAllMediaAssets(): void {
   cache.clear();
+  inFlight.clear();
   invalidate();
 }
 
