@@ -45,7 +45,7 @@ test("a projector whose renderer dies comes back by itself onto what was live, i
 });
 
 test("an uncaught error in main is said in a box that leaves main serving the control window", async ({ app }) => {
-  test.skip(process.platform !== "darwin", "measured on macOS: a sheet on the control window keeps main running");
+  test.skip(process.platform === "win32", "measured on macOS and Linux, not on Windows: a box on the control window keeps main running");
   app.crashLogExpected = true;
   await app.electron.evaluate(() => {
     setTimeout(() => {
