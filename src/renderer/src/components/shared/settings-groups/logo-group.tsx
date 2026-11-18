@@ -26,8 +26,9 @@ export function LogoGroup({ description, preview = true }: { description?: strin
   const [confirmRemove, setConfirmRemove] = useState(false);
 
   async function changeLogo() {
+    let path: string | null;
     try {
-      await api.files.setLogo();
+      path = await api.files.setLogo();
     } catch (error) {
       // Main refuses an image it cannot decode rather than persisting one that
       // would leave LOGO black on the projector, so there is nothing to
@@ -38,15 +39,16 @@ export function LogoGroup({ description, preview = true }: { description?: strin
       }
       throw error;
     }
-    // Refreshes `settings.store` from the DB — this drives both this
-    // thumbnail and (via App.tsx) the logo actually shown on the projector.
-    await useSettingsStore.getState().load();
+    // Main wrote the row: only that key is merged into `settings.store`, which drives this thumbnail and (via App.tsx)
+    // the logo on the projector. Never a whole re-read: main checks the image with the media engine first (R14), and a
+    // name or a mode changed meanwhile was merged into the store before the re-read answered, which threw it away.
+    useSettingsStore.setState((s) => ({ settings: { ...s.settings, "logo.path": path } }));
   }
 
   /** Clears the setting, not a file: the image stays where it is on disk and
    *  can be picked again. Written through the store (unlike `changeLogo`,
-   *  where main itself wrote the row and the store had to re-read it), so the
-   *  thumbnail below and the projector both follow immediately. */
+   *  where main itself wrote the row), so the thumbnail below and the
+   *  projector both follow immediately. */
   async function removeLogo() {
     await updateSettings({ "logo.path": null });
   }
