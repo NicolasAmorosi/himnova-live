@@ -86,7 +86,7 @@ test("a profile that saw 2.10 is told only what came after: what goes live leave
   const updated = await relaunch(app);
   const shown = news(updated);
   await expect(shown).toBeVisible();
-  await expect(shown.getByText("Lo nuevo de la 2.11")).toBeVisible();
+  await expect(shown.getByText("Lo nuevo desde la 2.11")).toBeVisible();
   await expect(shown.getByRole("heading", { name: "Lo que sale al aire se va de PREVIEW" })).toBeVisible();
   await expect(shown.getByRole("heading", { name: "Una pantalla para el escenario" })).toHaveCount(0);
 
@@ -100,6 +100,21 @@ test("a profile that saw 2.10 is told only what came after: what goes live leave
   await expect(shown.getByText("Un Enter de más sobre el himno al aire ya no lo vuelve a empezar.")).toBeVisible();
   await expect(shown.getByText("El volumen inicial se mudó a Configuración ▸ Sonido.")).toHaveCount(0);
   await expect(shown.getByRole("button", { name: "Configurar: Escenario" })).toHaveCount(0);
+  await expect(shown.getByText("Si dejás EN VIVO en silencio, la app vuelve a abrir en silencio.")).toBeVisible();
+  await shown.getByRole("button", { name: "Listo", exact: true }).click();
+  await expect(shown).toBeHidden();
+});
+
+test("a profile that saw 2.11 is told 2.12's smaller changes, in its summary alone", async ({ app }) => {
+  await app.invoke("settings:set", { "ui.whatsNewSeen": "2.11" });
+  await app.quit();
+  const updated = await relaunch(app);
+  const shown = news(updated);
+  await expect(shown).toBeVisible();
+  await expect(shown.getByText("Lo nuevo de la 2.12")).toBeVisible();
+  await expect(shown.getByRole("heading", { name: "Lo que sale al aire se va de PREVIEW" })).toHaveCount(0);
+  await expect(shown.getByText("Si dejás EN VIVO en silencio, la app vuelve a abrir en silencio.")).toBeVisible();
+  await expect(shown.getByText("Un Enter de más sobre el himno al aire ya no lo vuelve a empezar.")).toHaveCount(0);
   await shown.getByRole("button", { name: "Listo", exact: true }).click();
   await expect(shown).toBeHidden();
 });
@@ -139,7 +154,8 @@ test.describe("a new profile", () => {
     await settings.getByRole("button", { name: "Ver novedades" }).click();
     await expect(news(again)).toBeVisible();
     await expect(settings).toBeHidden();
-    await news(again).getByRole("button", { name: "Cerrar las novedades" }).click();
+    // The latest (2.12) is a summary alone: its one step is the last, closed by finishing it.
+    await news(again).getByRole("button", { name: "Listo", exact: true }).click();
     await expect(news(again)).toHaveCount(0);
   });
 });

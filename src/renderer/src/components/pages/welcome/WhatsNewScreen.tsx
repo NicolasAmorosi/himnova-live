@@ -45,6 +45,11 @@ const WHATS_NEW: Record<
       "scannedPdf",
     ],
   },
+  // Only a summary: nothing in it changes how the operator works.
+  "2.12": {
+    steps: [],
+    also: ["engineFallback", "liveMute", "songKeys", "faders", "ndiDelay", "pinnedStage"],
+  },
 };
 const DONE_STEP = { icon: "circleCheck", id: "done" } as const;
 
