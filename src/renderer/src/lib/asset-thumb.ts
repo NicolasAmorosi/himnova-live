@@ -19,14 +19,12 @@ export const failedThumbUrls = createBoundedSet(2_000);
  * What an asset's thumbnail should try to display, given what has already
  * failed.
  *
- * The chain matters for images. Main prefers the OS thumbnailer, which is
- * absent on Linux and declines the occasional file; its in-process fallback
- * (`nativeImage.createFromPath`) only decodes PNG and JPEG dependably, so a
- * `.gif`, `.webp` or `.bmp` can end up with no thumbnail at all. Those used to
- * render fine, because the tile pointed straight at the file — falling back to
- * the full-size image keeps that true instead of quietly downgrading them to
- * an icon. A video gets no such fallback: not mounting a decoder per tile is
- * the entire point of the change.
+ * The chain matters for images. Main draws every thumbnail with the media
+ * engine (R14, 2026-11-18), and has none to give where the engine cannot start
+ * (Linux without libmpv): there the tile points straight at the file, decoded
+ * by this window and never by main, instead of quietly downgrading the photo
+ * to an icon. A video gets no such fallback: not mounting a decoder per tile
+ * is the entire point of the change.
  *
  * `null` means "no picture" — the caller paints its kind's icon.
  */

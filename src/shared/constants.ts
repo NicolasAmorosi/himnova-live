@@ -89,8 +89,10 @@ export const SLIDES_THUMB_WIDTH = 320;
  *  are generated changes (a different width, a different encoder setting).
  *  Same role `SLIDES_CONVERTER_VERSION` plays for decks: it is part of the
  *  cache key, so a bump simply makes every existing file a miss instead of
- *  requiring anyone to delete a directory by hand. */
-export const MEDIA_THUMB_VERSION = 1;
+ *  requiring anyone to delete a directory by hand. 2: the media engine draws
+ *  every one (R14, 2026-11-18): a photo comes out upright wherever the
+ *  libmpv's FFmpeg reads EXIF orientation (6 and later; not Ubuntu 22.04's 4.4). */
+export const MEDIA_THUMB_VERSION = 2;
 /** Width of a generated library thumbnail, in px. Two-ish times the ~120px a
  *  tile occupies, so it still looks right on a HiDPI screen without keeping a
  *  full-resolution decode of every visible image alive. */

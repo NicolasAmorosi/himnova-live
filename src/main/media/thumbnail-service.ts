@@ -4,15 +4,9 @@ import { renameWithRetry } from "../fs-retry";
 import fs from "node:fs";
 import path from "node:path";
 import { thumbCacheDir, thumbCachePath } from "../paths";
-import {
-  MEDIA_THUMB_MAX_AGE_MS,
-  MEDIA_THUMB_MAX_BYTES,
-  MEDIA_THUMB_QUALITY,
-  MEDIA_THUMB_VERSION,
-  MEDIA_THUMB_WIDTH,
-} from "@shared/constants";
+import { MEDIA_THUMB_MAX_AGE_MS, MEDIA_THUMB_MAX_BYTES, MEDIA_THUMB_VERSION, MEDIA_THUMB_WIDTH } from "@shared/constants";
 import type { MediaAsset } from "@shared/types/media";
-import { grabFrame } from "./ffmpeg";
+import { grabFrame, inspectorWorks } from "./engine-inspect";
 import { ThumbSlots, type Turn } from "./thumb-slots";
 
 /**
@@ -33,14 +27,14 @@ import { ThumbSlots, type Turn } from "./thumb-slots";
  * - **The file name IS the index.** No table, no migration, no row that can
  *   disagree with the disk. Deleting the directory is always safe.
  *
- * Which of `nativeImage`'s two routes does the work matters a great deal —
- * one of them blocks the main thread and the other does not. See
- * `renderViaOsThumbnailer` for the measurements that settled it.
+ * The media engine draws every one, photos and videos, on every system (owner, 2026-11-18): each in a process of its
+ * own (`engine-inspect.ts`), so nothing here decodes on main. Before, Linux decoded photos on main with `nativeImage`
+ * (a 12 MP photo held it 107 to 160 ms and came out lying down, R8 of the 2.10.0 audit) and macOS and Windows asked
+ * the OS thumbnailer, which could not read AVI, WMV or MKV. With no engine (Linux without libmpv) there is none.
  */
 
-/** Generations allowed to run at once. The fallback route is synchronous
- *  native work on this thread, so this is a limit on *bursts*: four keeps a
- *  scroll responsive while still filling a screenful quickly. */
+/** Generations allowed to run at once: each is an engine process, so this is a limit on *bursts*. Four fills a
+ *  screenful quickly without starting a process per tile. */
 const MAX_CONCURRENT = 4;
 /** A cache hit refreshes the file's mtime only if it is already this stale, so
  *  the startup prune can use mtime as a proxy for "last used" without paying a
@@ -93,77 +87,11 @@ function cacheKey(asset: MediaAsset, stat: fs.Stats): string {
   return crypto.createHash("sha1").update(material).digest("hex").slice(0, 32);
 }
 
-/**
- * The OS thumbnailer (QuickLook on macOS, the shell's on Windows). Preferred
- * for everything, because it is the only one of the two that does its work off
- * the main thread — measured on this project's own fixtures:
- *
- * | approach                                   | 10× 4K PNG | worst main-thread stall |
- * |--------------------------------------------|-----------|-------------------------|
- * | `createFromPath` + `resize` (synchronous)  |    782 ms | the whole 782 ms        |
- * | `createThumbnailFromPath` (this)           |     35 ms | ~15 ms (idle baseline)  |
- *
- * An 80 ms synchronous stall per large image is a visible stutter in the
- * projection window, which is the one thing this whole plan exists to avoid.
- * As a bonus it also decodes formats `createFromPath` returns empty for (GIF,
- * and by the same route WebP/HEIC).
- *
- * Two traps, both found by measuring rather than by reading the docs:
- *
- * - For a file it cannot parse, it does not fail — it happily returns the
- *   **generic document icon**, at 512×512, ignoring `maxSize`. Left alone,
- *   a corrupt image would show a Finder icon in the middle of the library.
- * - `image.getSize()` reports the size that was *asked for*, not the size that
- *   came back (320×320 for a bitmap that is really 320×180), so it cannot be
- *   used to detect the above. The encoded bytes are the only honest source.
- */
-async function renderViaOsThumbnailer(filePath: string): Promise<Buffer | null> {
-  // Implemented only on macOS and Windows. Checked up front rather than
-  // relying on the rejection, so an unsupported platform doesn't get
-  // remembered as "this file is broken".
-  if (process.platform !== "darwin" && process.platform !== "win32") return null;
-
-  let image;
-  try {
-    image = await nativeImage.createThumbnailFromPath(filePath, {
-      width: MEDIA_THUMB_WIDTH,
-      height: MEDIA_THUMB_WIDTH,
-    });
-  } catch {
-    return null; // Missing/unreadable file — the caller's fallbacks apply.
-  }
-  if (image.isEmpty()) return null;
-
-  const jpeg = image.toJPEG(MEDIA_THUMB_QUALITY);
-  const size = readJpegSize(jpeg);
-  // Anything that ignored the constraint we passed is not a thumbnail of this
-  // file's content — it is the generic icon described above.
-  if (!size || size.width > MEDIA_THUMB_WIDTH || size.height > MEDIA_THUMB_WIDTH) return null;
-  return jpeg;
-}
-
-/** Decode-and-shrink in-process. Blocks the main thread for the duration, so
- *  it is only ever the fallback: a platform with no OS thumbnailer, or a file
- *  that one declined. */
-function renderViaResize(filePath: string): Buffer | null {
-  const image = nativeImage.createFromPath(filePath);
-  if (image.isEmpty()) return null;
-  // Never upscale: a 64px icon blown up to 320px is both uglier and bigger
-  // than the original, and `object-contain` in the tile handles the rest.
-  const { width } = image.getSize();
-  const sized = width > MEDIA_THUMB_WIDTH ? image.resize({ width: MEDIA_THUMB_WIDTH, quality: "good" }) : image;
-  const jpeg = sized.toJPEG(MEDIA_THUMB_QUALITY);
-  return jpeg.length > 0 ? jpeg : null;
-}
-
-/** Whether this image file can actually be decoded — by the OS thumbnailer
- *  (which reads GIF, WebP and BMP, and is told apart from its own generic
- *  icon) or, failing that, by `nativeImage` itself (PNG and JPEG). The logo
- *  picker's check: `nativeImage.createFromPath` alone refused every GIF, WebP
- *  and BMP the projector would have shown perfectly well. */
+/** Whether this image file can actually be decoded: the logo picker's check. The engine, like the thumbnails; where
+ *  it cannot start (Linux without libmpv), `nativeImage`, once per logo picked, or no logo would ever pass. */
 export async function canDecodeImage(filePath: string): Promise<boolean> {
-  if (await renderViaOsThumbnailer(filePath)) return true;
-  return !nativeImage.createFromPath(filePath).isEmpty();
+  if (await grabFrame(filePath, 16, 0)) return true;
+  return !inspectorWorks() && !nativeImage.createFromPath(filePath).isEmpty();
 }
 
 /** Encodes one asset to a JPEG buffer, or null when this kind/platform/file
@@ -173,49 +101,11 @@ async function renderThumbnail(asset: MediaAsset): Promise<Buffer | null> {
   // through here at all: its authoritative thumbnail is the first slide of
   // its converted deck (`worship://deck/<deckId>/1/thumb`), which the tile
   // already receives from `deck:statuses`.
-  if (asset.kind !== "image" && asset.kind !== "video") return null;
-
-  const fromOs = await renderViaOsThumbnailer(asset.path);
-  if (fromOs) return fromOs;
-
-  // A video never gets decoded in-process to grab a frame: that is exactly the
-  // per-tile decoding pipeline this service exists to remove. The OS declines
-  // what QuickLook/the shell cannot read (AVI, WMV, MKV…), and those are the
-  // very files the media engine plays, so ffmpeg grabs one in its own process.
-  if (asset.kind === "video") return grabFrame(asset.path, MEDIA_THUMB_WIDTH);
-  return renderViaResize(asset.path);
-}
-
-/**
- * Real pixel dimensions of a JPEG, read from its SOF segment. Needed because
- * `NativeImage.getSize()` cannot be trusted for the OS thumbnailer's output
- * (see `renderViaOsThumbnailer`). Returns null for anything that isn't a JPEG
- * whose header we can walk, which the caller treats as "don't use this".
- */
-function readJpegSize(buffer: Buffer): { width: number; height: number } | null {
-  if (buffer.length < 4 || buffer[0] !== 0xff || buffer[1] !== 0xd8) return null;
-  let offset = 2;
-  while (offset + 9 < buffer.length) {
-    if (buffer[offset] !== 0xff) {
-      offset += 1;
-      continue;
-    }
-    const marker = buffer[offset + 1]!;
-    // Standalone markers (padding, RSTn, SOI) carry no length field.
-    if (marker === 0xff || marker === 0x01 || (marker >= 0xd0 && marker <= 0xd8)) {
-      offset += 2;
-      continue;
-    }
-    // SOF0-SOF15 hold the frame's real dimensions. 0xc4 (DHT), 0xc8 (JPG) and
-    // 0xcc (DAC) share the range but are not frame headers.
-    if (marker >= 0xc0 && marker <= 0xcf && marker !== 0xc4 && marker !== 0xc8 && marker !== 0xcc) {
-      return { height: buffer.readUInt16BE(offset + 5), width: buffer.readUInt16BE(offset + 7) };
-    }
-    const length = buffer.readUInt16BE(offset + 2);
-    if (length < 2) return null;
-    offset += 2 + length;
-  }
-  return null;
+  if (asset.kind === "image") return grabFrame(asset.path, MEDIA_THUMB_WIDTH, 0);
+  if (asset.kind !== "video") return null;
+  // One second in, past the black most clips open on; from the start when that found nothing (a clip shorter than
+  // that, or an MPEG-TS whose seek decodes no picture).
+  return (await grabFrame(asset.path, MEDIA_THUMB_WIDTH, 1)) ?? grabFrame(asset.path, MEDIA_THUMB_WIDTH, 0);
 }
 
 async function generate(
@@ -257,10 +147,8 @@ async function generate(
     return null;
   } finally {
     slots.release();
-    // Hand the event loop back before the next waiter starts. Free insurance
-    // on the OS-thumbnailer route; load-bearing on the synchronous fallback,
-    // where a burst without a yield is exactly the kind of stall that freezes
-    // the projection window.
+    // Hand the event loop back before the next waiter starts: free insurance
+    // against a burst of encodes, the one part of a thumbnail done on main.
     await new Promise((resolve) => setImmediate(resolve));
   }
 }

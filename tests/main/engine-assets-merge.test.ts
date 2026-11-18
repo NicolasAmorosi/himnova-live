@@ -2,7 +2,7 @@
  * A relocate that merges two rows deletes the twin at once, then follows the rest of the move (seconds on a big
  * folder) before the renderer hears which ids merged. An engine pass in between dropped the merged-away id, and the
  * renderer, not knowing yet, re-pointed the video on air under it at a `<video>` Chromium cannot open: black
- * (2026-11-15 audit, D4, review follow-up). What the engine plays is decided here; the engine itself, ffmpeg and the
+ * (2026-11-15 audit, D4, review follow-up). What the engine plays is decided here; the engine itself, its probe and the
  * windows are outside this suite.
  */
 import { expect, test, vi } from "vitest";
@@ -17,9 +17,9 @@ const h = vi.hoisted(() => ({
 
 vi.mock("../../src/main/paths", () => ({ convertedMediaDir: "/nowhere" }));
 vi.mock("../../src/main/services/broadcast", () => ({ broadcast: h.broadcast }));
-vi.mock("../../src/main/media/ffmpeg", () => ({
-  ffmpegAvailable: () => false,
-  killAllFfmpeg: () => undefined,
+vi.mock("../../src/main/media/engine-inspect", () => ({
+  inspectorWorks: () => false,
+  killAllInspections: () => undefined,
   probeMedia: () => Promise.resolve(null),
 }));
 vi.mock("../../src/main/media/media-engine", () => ({

@@ -3,7 +3,7 @@ import path from "node:path";
 import { getSlidesRepo } from "../services/repos";
 import { broadcast } from "../services/broadcast";
 import { currentDecoderSupport } from "./engine-assets";
-import { ffmpegAvailable, probeMedia } from "./ffmpeg";
+import { inspectorWorks, probeMedia } from "./engine-inspect";
 import { ENGINE_PLAYS_EVERY_PICTURE, parseProbe, playsNatively, playsOnEngine } from "./media-compat";
 import { engineAvailable, engineGaveUp, onEngineGaveUp } from "./media-engine";
 
@@ -24,13 +24,13 @@ import { engineAvailable, engineGaveUp, onEngineGaveUp } from "./media-engine";
  */
 
 /** An extension the extractor did not recognize is saved as `.bin` and is
- *  still probed: ffprobe reads the content, not the name. */
+ *  still probed: the probe reads the content, not the name. */
 const UNPLAYABLE_EXT = new Set(["mid", "midi"]);
 
 /** Clip rows already looked at this launch, or being looked at: a deck is opened many times. */
 const checked = new Set<string>();
 /** Probes that failed this launch, by clip. A timeout or a busy disk is worth another try the next time the deck is
- *  built; a file ffprobe can never read is not worth one on every render (`getDeck` runs per tile). */
+ *  built; a file the probe can never read is not worth one on every render (`getDeck` runs per tile). */
 const failedProbes = new Map<string, number>();
 const PROBE_TRIES = 3;
 /** The clips the media engine plays (`engineClipUrl`), by `<kind>:<id>`. */
@@ -77,8 +77,8 @@ async function healClip(clip: Clip): Promise<boolean> {
   if (!decoders) return false;
   const input = path.join(clip.dir, clip.file);
   const probe = parseProbe(await probeMedia(input));
-  // The app quit while ffprobe ran: the database may already be closed.
-  if (stopped) return false;
+  // The app quit while the probe ran: the database may already be closed. An engine that cannot start reads nothing.
+  if (stopped || !inspectorWorks()) return false;
   if (!probe) {
     // Left unchecked, the slide's WMV stayed black (or its WMA mute) until the app restarted (2026-11-15 audit, A44).
     const key = `${clip.kind}:${clip.id}`;
@@ -173,13 +173,13 @@ onEngineGaveUp(() => giveBack(nativeClips.keys()));
 /** Called whenever a deck's authoritative DTO is built. Cheap when there is
  *  nothing to do; serialized, so two decks never probe at once. */
 export function healDeckClips(deckId: number): void {
-  if (stopped || !ffmpegAvailable() || !currentDecoderSupport()) return;
+  if (stopped || !inspectorWorks() || !currentDecoderSupport()) return;
   chain = chain
     .then(() => healDeck(deckId))
     .catch((error: unknown) => console.warn("[engine] slide clips failed", error));
 }
 
-/** `before-quit`: nothing new starts. A probe still running is killed by `killAllFfmpeg`. */
+/** `before-quit`: nothing new starts. A probe still running is killed by `killAllInspections`. */
 export function stopDeckClips(): void {
   stopped = true;
 }

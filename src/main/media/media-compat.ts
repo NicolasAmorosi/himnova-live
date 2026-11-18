@@ -7,7 +7,8 @@ import type { DecoderSupport } from "@shared/types/media";
  * Pure on purpose — no `electron`, no `child_process` — so the whole decision is
  * unit-tested against the measurements it encodes. Those were taken on
  * 2026-10-18 with Electron 44 on macOS, one generated file per container/codec
- * pair, comparing what ffprobe reported with what a `<video>` actually decoded:
+ * pair, comparing what ffprobe reported with what a `<video>` actually decoded
+ * (the engine reports the same facts since R14, checked pair by pair on 2026-11-18):
  *
  * - **Containers it opens:** MP4/MOV/M4V/3GP, Matroska/WebM, Ogg, and for audio
  *   MP3, WAV, FLAC and ADTS AAC. AVI, ASF (WMV/WMA), FLV, MPEG-PS (MPG/VOB),
@@ -26,11 +27,12 @@ import type { DecoderSupport } from "@shared/types/media";
  * than a constant.
  */
 
-/** What one ffprobe run says about a file, reduced to the facts that decide
- *  playback. Stored as JSON in `media_conversions.probe_json`; bump
- *  `MEDIA_PROBE_VERSION` whenever what is extracted here changes. */
+/** What the media engine's `--inspect` says about a file (`native/engine/inspect.cpp`), reduced to the facts that
+ *  decide playback and in the names the table above was measured with: ffprobe's, which is what said them until R14
+ *  took FFmpeg out of the app (2026-11-18). Stored as JSON in `media_conversions.probe_json`; bump
+ *  `MEDIA_PROBE_VERSION` whenever what is extracted here changes. Rows written from ffprobe read back the same. */
 export type MediaProbe = {
-  /** ffprobe's `format_name`, a comma list such as `mov,mp4,m4a,3gp,3g2,mj2`. */
+  /** FFmpeg's demuxer name, a comma list such as `mov,mp4,m4a,3gp,3g2,mj2`. */
   container: string;
   durationSec: number | null;
   video: VideoStreamFacts | null;
@@ -38,22 +40,15 @@ export type MediaProbe = {
 };
 
 export type VideoStreamFacts = {
-  /** Absolute stream index in the file. */
-  index: number;
   codec: string;
+  /** FFmpeg's name (`yuv420p10le`); null when the engine decoded no picture to read it from. */
   pixFmt: string | null;
-  width: number;
-  height: number;
-  /** `smpte2084` (PQ) or `arib-std-b67` (HLG) mean HDR. */
-  colorTransfer: string | null;
-  /** Fields, not frames (ffprobe's `field_order` tt/bb/tb/bt): a camcorder's 1080i. */
+  /** Fields, not frames: a camcorder's 1080i. */
   interlaced: boolean;
 };
 
 export type AudioStreamFacts = {
-  index: number;
   codec: string;
-  channels: number;
 };
 
 /** 2: `interlaced` (2026-11-10). */
@@ -64,6 +59,8 @@ const NATIVE_AUDIO_CODECS = new Set(["aac", "mp3", "opus", "vorbis", "flac"]);
 /** PCM decoded fine in WAV, measured. In MOV only `pcm_s16le` was measured, so
  *  PCM anywhere else is left to the media engine. */
 const WAV_PCM_CODECS = new Set(["pcm_u8", "pcm_s16le", "pcm_s24le", "pcm_s32le", "pcm_f32le", "pcm_mulaw"]);
+/** mpv reads Matroska and WebM with a demuxer of its own; everything else is FFmpeg's, named as ffprobe names it. */
+const CONTAINER_NAMES: Record<string, string> = { mkv: "matroska,webm" };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -78,55 +75,38 @@ function num(value: unknown): number | null {
   return typeof n === "number" && Number.isFinite(n) ? n : null;
 }
 
+/** mpv names a pixel format as FFmpeg does, less the byte order of this machine: `yuv420p10` is `yuv420p10le`. And a
+ *  JPEG-range `yuvj420p` is `yuv420p` to it, which the table treats alike. */
+function ffmpegPixFmt(mpvName: unknown): string | null {
+  const name = str(mpvName);
+  return name && /^yuv.*p\d+$/.test(name) ? `${name}le` : name;
+}
+
 /**
- * ffprobe's `-print_format json -show_format -show_streams` output → the facts
- * above, or null when there is nothing a player could use.
+ * The engine's `--inspect` line → the facts above, or null when there is nothing a player could use.
  *
- * The first non-cover video stream and the default audio stream (else the
- * first) are what ffmpeg's own stream selection and Chromium both pick. A
- * cover picture is a video stream flagged `attached_pic` — counting it would
- * make every MP3 with album art look like an MJPEG video.
+ * The first video track that is not cover art and the default audio track (else the first), which is what mpv,
+ * ffmpeg and Chromium all pick. The picture's facts are the decoded first frame's (`video`).
  */
 export function parseProbe(raw: unknown): MediaProbe | null {
-  if (!isRecord(raw) || !isRecord(raw.format) || !Array.isArray(raw.streams)) return null;
-  const container = str(raw.format.format_name);
-  if (!container) return null;
+  if (!isRecord(raw) || !Array.isArray(raw.tracks)) return null;
+  const format = str(raw.format);
+  if (!format) return null;
 
-  const streams = raw.streams.filter(isRecord);
-  const isCover = (s: Record<string, unknown>) => isRecord(s.disposition) && s.disposition.attached_pic === 1;
-  const videoStream = streams.find((s) => s.codec_type === "video" && !isCover(s));
-  const audioStreams = streams.filter((s) => s.codec_type === "audio");
-  const audioStream =
-    audioStreams.find((s) => isRecord(s.disposition) && s.disposition.default === 1) ?? audioStreams[0];
+  const tracks = raw.tracks.filter(isRecord);
+  const videoTrack = tracks.find((t) => t.type === "video" && t.albumart !== true);
+  const audioTracks = tracks.filter((t) => t.type === "audio");
+  const audioTrack = audioTracks.find((t) => t.default === true) ?? audioTracks[0];
+  const decoded = isRecord(raw.video) ? raw.video : {};
 
-  const video = videoStream ? toVideoFacts(videoStream) : null;
-  const audio = audioStream ? toAudioFacts(audioStream) : null;
+  const videoCodec = str(videoTrack?.codec);
+  const audioCodec = str(audioTrack?.codec);
+  const video = videoCodec
+    ? { codec: videoCodec, pixFmt: ffmpegPixFmt(decoded.pixfmt), interlaced: decoded.interlaced === true }
+    : null;
+  const audio = audioCodec ? { codec: audioCodec } : null;
   if (!video && !audio) return null;
-
-  const durationSec = num(raw.format.duration) ?? num(videoStream?.duration) ?? num(audioStream?.duration);
-  return { container, durationSec, video, audio };
-}
-
-function toVideoFacts(s: Record<string, unknown>): VideoStreamFacts | null {
-  const index = num(s.index);
-  const codec = str(s.codec_name);
-  if (index === null || !codec) return null;
-  return {
-    index,
-    codec,
-    pixFmt: str(s.pix_fmt),
-    width: num(s.width) ?? 0,
-    height: num(s.height) ?? 0,
-    colorTransfer: str(s.color_transfer),
-    interlaced: ["tt", "bb", "tb", "bt"].includes(str(s.field_order) ?? ""),
-  };
-}
-
-function toAudioFacts(s: Record<string, unknown>): AudioStreamFacts | null {
-  const index = num(s.index);
-  const codec = str(s.codec_name);
-  if (index === null || !codec) return null;
-  return { index, codec, channels: num(s.channels) ?? 2 };
+  return { container: CONTAINER_NAMES[format] ?? format, durationSec: num(raw.duration), video, audio };
 }
 
 /** Reads back what `parseProbe` wrote, field by field. A row that does not
@@ -135,32 +115,15 @@ export function normalizeProbe(raw: unknown): MediaProbe | null {
   if (!isRecord(raw)) return null;
   const container = str(raw.container);
   if (!container) return null;
-  const video = isRecord(raw.video) ? normalizeVideo(raw.video) : null;
-  const audio = isRecord(raw.audio) ? normalizeAudio(raw.audio) : null;
+  const videoCodec = isRecord(raw.video) ? str(raw.video.codec) : null;
+  const audioCodec = isRecord(raw.audio) ? str(raw.audio.codec) : null;
+  const video =
+    videoCodec && isRecord(raw.video)
+      ? { codec: videoCodec, pixFmt: str(raw.video.pixFmt), interlaced: raw.video.interlaced === true }
+      : null;
+  const audio = audioCodec ? { codec: audioCodec } : null;
   if (!video && !audio) return null;
   return { container, durationSec: num(raw.durationSec), video, audio };
-}
-
-function normalizeVideo(v: Record<string, unknown>): VideoStreamFacts | null {
-  const index = num(v.index);
-  const codec = str(v.codec);
-  if (index === null || !codec) return null;
-  return {
-    index,
-    codec,
-    pixFmt: str(v.pixFmt),
-    width: num(v.width) ?? 0,
-    height: num(v.height) ?? 0,
-    colorTransfer: str(v.colorTransfer),
-    interlaced: v.interlaced === true,
-  };
-}
-
-function normalizeAudio(a: Record<string, unknown>): AudioStreamFacts | null {
-  const index = num(a.index);
-  const codec = str(a.codec);
-  if (index === null || !codec) return null;
-  return { index, codec, channels: num(a.channels) ?? 2 };
 }
 
 function containerIs(container: string, names: ReadonlySet<string>): boolean {
@@ -180,8 +143,11 @@ function videoPlaysNatively(video: VideoStreamFacts, decoders: DecoderSupport): 
     case "vp8":
       return true;
     case "vp9":
-    case "av1":
       return eightBit || tenBit;
+    case "av1":
+      // An unread format is AV1 the engine could not decode (a libmpv with no dav1d, as macOS's was before engine-11):
+      // nearly always 4:2:0 at 8 or 10 bits, which Chromium plays with its own dav1d.
+      return eightBit || tenBit || video.pixFmt === null;
     default:
       return false;
   }

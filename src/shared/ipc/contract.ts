@@ -282,7 +282,7 @@ export type IpcContract = {
   /** Whether this machine's Chromium decodes HEVC, which only a renderer can
    *  ask. Nothing is decided before the first report. */
   "engine:reportDecoders": { req: DecoderSupport; res: void };
-  /** A file's length as ffprobe read it, for an audio the media engine plays: no `<audio>` in the
+  /** A file's length as the engine's probe read it, for an audio the media engine plays: no `<audio>` in the
    *  control window can open it to ask (`useMediaDuration`). `null` while it has not been probed. */
   "engine:duration": { req: { id: number }; res: number | null };
 

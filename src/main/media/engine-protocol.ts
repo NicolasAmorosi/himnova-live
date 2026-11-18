@@ -16,8 +16,8 @@ const REFERENCE_LINE =
 
 /**
  * Whether the first bytes of a file the engine is about to open (`SNIFF_BYTES` of them) are text, not audio or video:
- * a playlist (M3U, HLS, PLS), an mpv EDL or a reference dressed up with a video's extension. ffprobe cannot read one,
- * so it goes to the engine by its extension, and mpv recognises the list by its content: it projected ANOTHER local
+ * a playlist (M3U, HLS, PLS), an mpv EDL or a reference dressed up with a video's extension. ffprobe could not read one,
+ * so it went to the engine by its extension, and mpv recognises the list by its content: it projected ANOTHER local
  * file and fetched a URL from someone else's server (2026-11-15 audit, S1). No audio or video container is plain text,
  * so a head with no control byte is refused whole; a text first line that names a list, a URL or an absolute path is
  * refused even with binary after it. A UTF-16 list with its BOM also played (measured): only its first line is read,

@@ -1,6 +1,6 @@
 /**
- * Which of a deck's clips the media engine plays (`media/deck-clips.ts`): decided by an ffprobe in the background, the
- * first time the deck's DTO is built each launch. ffprobe, the engine and the repos are replaced by stubs; what is
+ * Which of a deck's clips the media engine plays (`media/deck-clips.ts`): decided by a probe in the background, the
+ * first time the deck's DTO is built each launch. The probe, the engine and the repos are replaced by stubs; what is
  * checked is whether a clip whose probe failed is ever looked at again, and which clips go back to Chromium when the
  * engine fails (owner, 2026-11-17).
  */
@@ -13,14 +13,14 @@ const h = vi.hoisted(() => ({
   gaveUp: [] as (() => void)[],
 }));
 
-vi.mock("../../src/main/media/ffmpeg", () => ({ ffmpegAvailable: () => true, probeMedia: h.probe }));
+vi.mock("../../src/main/media/engine-inspect", () => ({ inspectorWorks: () => true, probeMedia: h.probe }));
 vi.mock("../../src/main/media/media-engine", () => ({
   engineAvailable: () => true,
   engineGaveUp: () => false,
   onEngineGaveUp: (listener: () => void) => h.gaveUp.push(listener),
 }));
 vi.mock("../../src/main/media/engine-assets", () => ({ currentDecoderSupport: () => ({ hevc: false, hevcMain10: false }) }));
-// A WMV: whatever ffprobe says about it, Chromium does not play it. An MP4 (`h.native`) it plays, and the engine too
+// A WMV: whatever the probe says about it, Chromium does not play it. An MP4 (`h.native`) it plays, and the engine too
 // (Windows: every picture).
 vi.mock("../../src/main/media/media-compat", () => ({
   ENGINE_PLAYS_EVERY_PICTURE: true,
@@ -64,7 +64,7 @@ test("a clip whose probe failed is probed again the next time its deck is built"
   expect(isEngineClip("video", clipId)).toBe(true);
 });
 
-test("a file ffprobe never reads is not probed on every render: three tries a launch", async () => {
+test("a file the probe never reads is not probed on every render: three tries a launch", async () => {
   h.probe.mockResolvedValue(null);
   for (let i = 0; i < 5; i++) {
     healDeckClips(1);

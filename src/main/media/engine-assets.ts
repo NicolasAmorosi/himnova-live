@@ -4,7 +4,7 @@ import { convertedMediaDir } from "../paths";
 import { getConversionsRepo, getMediaRepo } from "../services/repos";
 import { broadcast } from "../services/broadcast";
 import type { ConversionCandidate } from "../db/repositories/conversions.repo";
-import { ffmpegAvailable, killAllFfmpeg, probeMedia } from "./ffmpeg";
+import { inspectorWorks, killAllInspections, probeMedia } from "./engine-inspect";
 import { engineAvailable, engineGaveUp, onEngineGaveUp } from "./media-engine";
 import {
   ENGINE_PLAYS_EVERY_PICTURE,
@@ -28,7 +28,7 @@ import type { DecoderSupport } from "@shared/types/media";
  * (`media_conversions`), stamped with the bytes it describes.
  *
  * A file with an extension Chromium does not open goes to the engine the moment it is seen, before
- * ffprobe has looked at it: an AVI dropped on the library plays at once instead of after the rest
+ * the probe has looked at it: an AVI dropped on the library plays at once instead of after the rest
  * of a 300-file folder has been probed. The probe then decides, and gives the engine's audio its
  * length (`probedDuration`).
  *
@@ -86,7 +86,7 @@ function storedProbe(c: ConversionCandidate): MediaProbe | null {
   }
 }
 
-/** By the probe once there is one; by the kind and the extension until then, and for a file ffprobe cannot read. */
+/** By the probe once there is one; by the kind and the extension until then, and for a file the engine cannot read. */
 function needsEngine(c: ConversionCandidate, caps: DecoderSupport): boolean {
   const probe = probeIsCurrent(c) ? storedProbe(c) : null;
   // Every picture on Windows until the engine fails for good, or under this very file: what Chromium plays is then
@@ -121,8 +121,9 @@ async function probeAndRecord(c: ConversionCandidate): Promise<ConversionCandida
     return null;
   }
   const probe = parseProbe(await probeMedia(c.path));
-  // The app quit while ffprobe ran: the database is already closed.
-  if (shutDown) return null;
+  // The app quit while the probe ran: the database is already closed. And an engine that cannot start says nothing
+  // about the file: no row that calls it unreadable.
+  if (shutDown || !inspectorWorks()) return null;
   // Stamped with what the LIBRARY believes about the file when it has an
   // answer, so the stamp matches the row and this does not re-probe on every
   // reconcile until the sweep catches up with an edit.
@@ -132,7 +133,7 @@ async function probeAndRecord(c: ConversionCandidate): Promise<ConversionCandida
   try {
     getConversionsRepo().recordProbe(c.id, sourceSize, sourceMtimeMs, MEDIA_PROBE_VERSION, probeJson);
   } catch (error) {
-    // The asset was deleted (or merged away by a relocate) while ffprobe ran:
+    // The asset was deleted (or merged away by a relocate) while the probe ran:
     // its FK is gone. One file, not the whole pass.
     console.warn(`[engine] could not record the probe of ${c.path}`, error);
     return null;
@@ -160,9 +161,8 @@ async function reconcileOnce(caps: DecoderSupport): Promise<void> {
       unprobed.push(c);
     }
   }
-  if (!ffmpegAvailable()) return;
   for (const c of unprobed) {
-    if (shutDown) return;
+    if (shutDown || !inspectorWorks()) return;
     const probed = await probeAndRecord(c);
     if (probed) setEngine(c.id, needsEngine(probed, caps));
   }
@@ -207,7 +207,6 @@ export function initEngineAssets(): void {
   void fsp
     .rm(convertedMediaDir, { recursive: true, force: true })
     .catch((error: unknown) => console.warn("[engine] could not delete the old converted copies", error));
-  if (!ffmpegAvailable()) console.warn("[engine] bundled FFmpeg not found — run scripts/fetch-binaries.ts");
 }
 
 /** From the control window at startup. The first report starts everything; a
@@ -248,5 +247,5 @@ export function forgetEngineAsset(assetId: number): void {
 export function shutdownEngineAssets(): void {
   shutDown = true;
   if (reconcileTimer) clearTimeout(reconcileTimer);
-  killAllFfmpeg();
+  killAllInspections();
 }

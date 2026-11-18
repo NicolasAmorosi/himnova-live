@@ -598,7 +598,7 @@ export class MediaEngine {
 }
 
 /** The first `SNIFF_BYTES` of `file`, or null when main cannot read it. */
-async function readHead(file: string): Promise<Uint8Array | null> {
+export async function readHead(file: string): Promise<Uint8Array | null> {
   try {
     const handle = await fsp.open(file, "r");
     try {

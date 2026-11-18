@@ -2,7 +2,7 @@
  * The engine failing under a video Chromium plays (owner, 2026-11-17): the file goes back to Chromium for the session
  * and the renderer moves what is live onto it; one that only the engine plays stays the operator's to decide. And an
  * engine that could not start at all sends every picture Chromium plays to Chromium until the app restarts. Windows'
- * rule (the engine plays every picture) is forced on here; the engine itself, ffmpeg and the windows are outside.
+ * rule (the engine plays every picture) is forced on here; the engine itself, its probe and the windows are outside.
  */
 import { expect, test, vi } from "vitest";
 import type { ConversionCandidate } from "../../src/main/db/repositories/conversions.repo";
@@ -17,9 +17,9 @@ const h = vi.hoisted(() => ({
 
 vi.mock("../../src/main/paths", () => ({ convertedMediaDir: "/nowhere" }));
 vi.mock("../../src/main/services/broadcast", () => ({ broadcast: h.broadcast }));
-vi.mock("../../src/main/media/ffmpeg", () => ({
-  ffmpegAvailable: () => false,
-  killAllFfmpeg: () => undefined,
+vi.mock("../../src/main/media/engine-inspect", () => ({
+  inspectorWorks: () => false,
+  killAllInspections: () => undefined,
   probeMedia: () => Promise.resolve(null),
 }));
 vi.mock("../../src/main/media/media-engine", () => ({

@@ -67,7 +67,8 @@ export const mediaAssets = sqliteTable(
 );
 
 /**
- * What ffprobe said about a video or audio asset (`main/media/engine-assets.ts`).
+ * What the media engine's probe said about a video or audio asset (`main/media/engine-assets.ts`); rows from before
+ * R14 (2026-11-18) are ffprobe's, in the same names.
  *
  * Only facts are stored. Whether the media engine plays a file is re-derived
  * from `probe_json` on every launch, because one input to that decision — can
@@ -90,7 +91,7 @@ export const mediaConversions = sqliteTable("media_conversions", {
   sourceMtimeMs: integer("source_mtime_ms").notNull(),
   /** `MEDIA_PROBE_VERSION` at the time of the probe; an older one re-probes. */
   probeVersion: integer("probe_version").notNull(),
-  /** A `MediaProbe`, or null when ffprobe could not read the file at all. */
+  /** A `MediaProbe`, or null when the probe could not read the file at all. */
   probeJson: text("probe_json"),
   /** Unused since step 1.4 (see above). */
   outputFile: text("output_file"),
