@@ -242,6 +242,11 @@ export type SettingsMap = {
    *  that started in English was offered the RV1909 among the bundled
    *  versions, and does not get it on its second launch. */
   "bible.builtinSeeded": boolean;
+  /** Each installed bundled version's file as the last launch found it already seeded: the app's version, its size
+   *  and its mtime, with the hash its row was seeded from. A launch that finds the same stamp skips hashing that
+   *  file (~4 MB each); any change hashes it again, and only a new hash re-seeds (2026-11-15 audit, R18). Main's
+   *  own, like `bible.builtinSeeded`. */
+  "bible.bundledStamps": Record<string, string>;
   /** Whether the app looks for a new version on its own, once per launch. Off,
    *  it never connects anywhere unless the operator presses «Check now». */
   "updates.autoCheck": boolean;
@@ -332,6 +337,7 @@ export const DEFAULT_SETTINGS: SettingsMap = {
   "bible.defaultVersionId": null,
   "bible.parallelVersionId": null,
   "bible.builtinSeeded": false,
+  "bible.bundledStamps": {},
   "updates.autoCheck": true,
   "updates.announcedVersion": null,
   "programs.openId": null,
@@ -474,6 +480,8 @@ export const SETTINGS_VALIDATORS: Record<keyof SettingsMap, (value: unknown) => 
   "bible.defaultVersionId": (v) => v === null || (typeof v === "number" && Number.isInteger(v) && v > 0),
   "bible.parallelVersionId": (v) => v === null || (typeof v === "number" && Number.isInteger(v) && v > 0),
   "bible.builtinSeeded": isBoolean,
+  "bible.bundledStamps": (v) =>
+    typeof v === "object" && v !== null && !Array.isArray(v) && Object.values(v).every(isString),
   "updates.autoCheck": isBoolean,
   "updates.announcedVersion": isNullOr(isString),
   "programs.openId": (v) => v === null || (typeof v === "number" && Number.isInteger(v) && v > 0),
@@ -531,6 +539,8 @@ export const SETTINGS_NORMALIZERS: {
     Array.isArray(v) ? normalizeStagePhrases(v.filter((phrase): phrase is string => typeof phrase === "string")) : null,
   // A hand-edited row that is no version reads as «none yet»: «Novedades» once more, never a throw at launch.
   "ui.whatsNewSeen": (v) => (isWhatsNewKey(v) ? v : null),
+  // A hand-edited row that is no map of stamps hashes every bundled file once more, never a throw at launch.
+  "bible.bundledStamps": (v) => (SETTINGS_VALIDATORS["bible.bundledStamps"](v) ? (v as Record<string, string>) : {}),
   "audio.strips": (v) => (typeof v === "boolean" ? v : DEFAULT_SETTINGS["audio.strips"]),
   // A master that read back as anything but a level would be silence or a throw on every live element, and 0 is no
   // remembered level: the strip's mute is its own key, so a stored 0 (an older build's mute) opens at the default.

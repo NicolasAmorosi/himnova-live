@@ -202,9 +202,12 @@ export function installBundledBible(db: Db, sqlite: Database.Database, biblesDir
  * design:
  *
  * - row present → seed anyway. `seedBibleFromFile` short-circuits on an
- *   unchanged hash, so this costs a digest per launch and is the path by which
- *   a corrected file in a later build reaches an existing install — for every
- *   bundled version that is installed, not only the RV1909.
+ *   unchanged hash, and is the path by which a corrected file in a later build
+ *   reaches an existing install: every bundled version that is installed,
+ *   not only the RV1909. Not even the digest is paid when the file's stamp
+ *   (`bible.bundledStamps`: app version, size, mtime) is the one this profile
+ *   last seeded it at: hashing every installed file cost 20 to 32 ms of every
+ *   launch, 42 to 45 MB read (2026-11-15 audit, R18).
  * - row gone, flag set → the operator deleted it. Leave it deleted; this is
  *   what makes «delete» mean delete, exactly like `utility.seeded`. A deleted
  *   bundled version is just «not installed» again in Settings.
@@ -222,8 +225,15 @@ export function seedBuiltinBibles(
   biblesDir: string,
   settings: SettingsRepo,
   isNewProfile: boolean,
+  appVersion = "",
 ): void {
-  const installed = new Set(db.select({ code: bibleVersions.code }).from(bibleVersions).all().map((row) => row.code));
+  const rows = db
+    .select({ code: bibleVersions.code, id: bibleVersions.id, hash: bibleVersions.sourceHash })
+    .from(bibleVersions)
+    .all();
+  const installed = new Map(rows.map((row) => [row.code, row]));
+  const stamps = settings.get("bible.bundledStamps");
+  const nextStamps: Record<string, string> = {};
   const offered = settings.get("bible.builtinSeeded");
   const locale = settings.get("ui.locale");
   const wanted = BUNDLED_BIBLES.filter((bible) =>
@@ -234,15 +244,35 @@ export function seedBuiltinBibles(
 
   let firstId: number | null = null;
   for (const bible of wanted) {
-    if (!fs.existsSync(path.join(biblesDir, bible.file))) continue;
+    const stat = fs.statSync(path.join(biblesDir, bible.file), { throwIfNoEntry: false });
+    if (!stat) continue;
+    // Taken before the read: a file replaced mid-seed leaves a stamp that no longer matches. The row's own hash is
+    // part of it, so a row that disagrees with what was stamped is checked against its file again.
+    const file = `${appVersion}:${stat.size}:${Math.trunc(stat.mtimeMs)}`;
+    const row = installed.get(bible.code);
+    const seededStamp = row ? `${file}:${row.hash}` : null;
+    if (row && stamps[bible.code] === seededStamp) {
+      nextStamps[bible.code] = seededStamp;
+      firstId ??= row.id;
+      continue;
+    }
     try {
       const seeded = seedBundled(db, sqlite, biblesDir, bible);
       firstId ??= seeded?.versionId ?? null;
+      if (seeded) {
+        const hash = db
+          .select({ hash: bibleVersions.sourceHash })
+          .from(bibleVersions)
+          .where(eq(bibleVersions.id, seeded.versionId))
+          .get()?.hash;
+        nextStamps[bible.code] = `${file}:${hash}`;
+      }
     } catch (error) {
       console.error(`[bible] the bundled ${bible.code} could not be seeded`, error);
     }
   }
 
+  if (JSON.stringify(nextStamps) !== JSON.stringify(stamps)) settings.setMany({ "bible.bundledStamps": nextStamps });
   if (isNewProfile && firstId !== null) settings.setMany({ "bible.defaultVersionId": firstId });
   if (!offered) settings.setMany({ "bible.builtinSeeded": true });
 }
