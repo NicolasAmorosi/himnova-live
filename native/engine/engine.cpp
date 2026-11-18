@@ -31,6 +31,7 @@
 //       [--adapter vendor:device:subsys:revision] (Windows, Linux: Chromium's card) [--cache-dir <shader cache>]
 //       [--ndi-tap 1] (macOS: the NDI output takes the app's sound, see becomeKnownToCoreAudio)
 // `--ndi-send <name> …` as the first argument runs the NDI output mode instead: see ndi.cpp.
+// `--inspect <path> …` as the first argument describes one file, and draws a small picture of it: see inspect.cpp.
 #include <mpv/client.h>
 #include <mpv/render.h>
 
@@ -61,6 +62,7 @@
 void closeInParent(unsigned long parentPid, const std::vector<unsigned long long>& handles);
 #endif
 int ndiSendMain(int argc, char** argv);
+int inspectMain(int argc, char** argv);
 
 #ifdef __APPLE__
 #include <CoreAudio/CoreAudio.h>
@@ -553,6 +555,8 @@ int main(int argc, char** argv) {
 #endif
   // The NDI output (ndi.cpp) is this same binary in another mode: it never touches mpv.
   if (argc > 2 && std::string(argv[1]) == "--ndi-send") return ndiSendMain(argc, argv);
+  // What ffprobe and ffmpeg did for main before R14: inspect.cpp. Never touches the GPU either.
+  if (argc > 2 && std::string(argv[1]) == "--inspect") return inspectMain(argc, argv);
   // What this engine understands, before anything else: main sends an older one (no hello, `ready` first) none of
   // the commands it would answer with `engine-args`, which fails the session it plays.
   emit("{\"ev\":\"hello\",\"proto\":9}");

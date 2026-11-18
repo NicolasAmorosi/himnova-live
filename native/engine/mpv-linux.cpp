@@ -46,6 +46,8 @@ FORWARD(int, mpv_get_property, (mpv_handle * ctx, const char* name, mpv_format f
 FORWARD(void, mpv_free_node_contents, (mpv_node * node), (node))
 FORWARD(int, mpv_observe_property, (mpv_handle * ctx, uint64_t reply, const char* name, mpv_format format), (ctx, reply, name, format))
 FORWARD(int, mpv_request_log_messages, (mpv_handle * ctx, const char* level), (ctx, level))
+FORWARD(int, mpv_command_ret, (mpv_handle * ctx, const char** args, mpv_node* result), (ctx, args, result))
+FORWARD(void, mpv_free, (void* data), (data))
 FORWARD(int, mpv_command_async, (mpv_handle * ctx, uint64_t reply, const char** args), (ctx, reply, args))
 FORWARD(mpv_event*, mpv_wait_event, (mpv_handle * ctx, double timeout), (ctx, timeout))
 FORWARD(void, mpv_wakeup, (mpv_handle * ctx), (ctx))
