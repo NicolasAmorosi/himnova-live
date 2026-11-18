@@ -3,7 +3,6 @@ import { toast } from "@renderer/lib/toast";
 import { useAudioStore } from "@renderer/stores/audio.store";
 import { useProjectionStore } from "@renderer/stores/projection.store";
 import { useSettingsStore } from "@renderer/stores/settings.store";
-import { useUiStore } from "@renderer/stores/ui.store";
 import { liveMasterVolume } from "@shared/types/audio";
 
 /**
@@ -28,18 +27,17 @@ function soundingOnAir(): boolean {
 
 export function setAudioStrips(on: boolean): Promise<void> {
   const { settings, update } = useSettingsStore.getState();
-  const ui = useUiStore.getState();
   const start = settings["media.volume"];
   if (!on && settings["audio.strips"]) {
     const master = settings["audio.live.volume"];
     const moveBack = start === 1 && master > 0 && master < 1;
-    if (!moveBack && liveMasterVolume(true, master, ui.liveMuted) < 1) toast.info(t("audio.toastStripsOff"));
-    ui.setLiveMuted(false);
+    if (!moveBack && liveMasterVolume(true, master, settings["audio.live.muted"]) < 1) toast.info(t("audio.toastStripsOff"));
     if (moveBack) {
       const key = soundingOnAir() ? "audio.toastStripsOffKeptLive" : "audio.toastStripsOffKept";
       toast.info(t(key, { level: String(Math.round(master * 100)) }));
-      return update({ "audio.strips": false, "media.volume": master, "audio.live.volume": 1 });
+      return update({ "audio.strips": false, "audio.live.muted": false, "media.volume": master, "audio.live.volume": 1 });
     }
+    return update({ "audio.strips": false, "audio.live.muted": false });
   }
   if (on && !settings["audio.strips"] && start > 0 && start < 1) {
     const key = soundingOnAir() ? "audio.toastStripsOnLive" : "audio.toastStripsOn";

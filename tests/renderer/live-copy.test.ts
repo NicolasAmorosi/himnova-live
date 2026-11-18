@@ -86,7 +86,6 @@ test("a copy taken, cloned as IPC clones it and put back into a fresh page gives
   await goLive();
   useProjectionStore.getState().setOverlay("black");
   useProjectionStore.getState().setLiveMasterVolume(0);
-  useUiStore.setState({ liveMuted: true });
   useStageStore.getState().showMessage("Último coro");
   useProgramStore.setState({ activeIndex: 0, selectedIndex: 0 });
   const before = roomSees();
@@ -102,7 +101,6 @@ test("a copy taken, cloned as IPC clones it and put back into a fresh page gives
   expect(useBibleStore.getState().verses).toHaveLength(3);
   expect(useProgramStore.getState()).toMatchObject({ activeIndex: 0, items: [{ id: -1 }] });
   expect(useStageStore.getState().message).toMatchObject({ text: "Último coro" });
-  expect(useUiStore.getState().liveMuted).toBe(true);
   expect(counters).toEqual(issued);
   // PREVIEW is not carried: a page starts with it empty, its row unselected.
   expect(useProgramStore.getState().selectedIndex).toBeNull();

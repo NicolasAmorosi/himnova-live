@@ -10,7 +10,6 @@ import { useProgramStore } from "@renderer/stores/program.store";
 import { useProjectionStore } from "@renderer/stores/projection.store";
 import { useSettingsStore } from "@renderer/stores/settings.store";
 import { useStageStore } from "@renderer/stores/stage.store";
-import { useUiStore } from "@renderer/stores/ui.store";
 import type { MediaStatus } from "@shared/types/projection";
 
 /**
@@ -19,9 +18,10 @@ import type { MediaStatus } from "@shared/types/projection";
  * reached the room with its first push (the projector blanked, the music stopped) and with its first actions (CLEAR
  * left the music on, NEGRO taken off put out LOGO over the video, a new sound cut the one playing).
  *
- * Whole stores, not a list of fields: what is live is spread over several (the picture, the sounds, LIVE's mute, the
+ * Whole stores, not a list of fields: what is live is spread over several (the picture, the sounds, the
  * verse's chapter and cursor, the schedule's live row, the stage's countdown and message), and a field left out of a
- * list is the next blind spot. PREVIEW stays out: a page starts with it empty.
+ * list is the next blind spot. PREVIEW stays out: a page starts with it empty. LIVE's mute is a setting, which a page
+ * that starts again reads from main like any other.
  *
  * Main keeps it as it comes and never reads it (`window:keepLiveCopy`). It is sent on every change of these stores,
  * in a microtask like the projector's output, so it trails the output by one message at most.
@@ -33,7 +33,6 @@ type LiveCopy = {
   bible: Partial<ReturnType<typeof useBibleStore.getState>>;
   program: Partial<ReturnType<typeof useProgramStore.getState>>;
   stage: Partial<ReturnType<typeof useStageStore.getState>>;
-  liveMuted: boolean;
   /** The operator closed the projector: a screen coming back, or this page starting, does not reopen it. */
   projectorClosedByOperator: boolean;
   counters: typeof counters;
@@ -52,7 +51,6 @@ export function takeLiveCopy(): LiveCopy {
     bible: dataOf(useBibleStore.getState()),
     program: { ...dataOf(useProgramStore.getState()), selectedIndex: null },
     stage: dataOf(useStageStore.getState()),
-    liveMuted: useUiStore.getState().liveMuted,
     projectorClosedByOperator: operatorClosedProjector.get(),
     counters: { ...counters },
   };
@@ -66,7 +64,6 @@ export function restoreLiveCopy(copy: LiveCopy, projectorOpen: boolean): void {
   useBibleStore.setState(copy.bible);
   useProgramStore.setState(copy.program);
   useStageStore.setState(copy.stage);
-  useUiStore.setState({ liveMuted: copy.liveMuted });
   operatorClosedProjector.set(copy.projectorClosedByOperator);
   Object.assign(counters, copy.counters);
 }
@@ -150,9 +147,6 @@ export function startLiveCopy(): () => void {
     useBibleStore.subscribe(schedule),
     useProgramStore.subscribe(schedule),
     useStageStore.subscribe(schedule),
-    useUiStore.subscribe((state, previous) => {
-      if (state.liveMuted !== previous.liveMuted) schedule();
-    }),
   ];
   schedule();
   return () => unsubscribe.forEach((off) => off());

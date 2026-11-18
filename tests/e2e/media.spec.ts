@@ -1,5 +1,6 @@
 import { execFileSync } from "node:child_process";
 import type { Locator, Page } from "@playwright/test";
+import { faderToGain } from "../../src/renderer/src/components/ui/fader";
 import { audioStates, expect, moving, test, videoStates, type WorshipApp } from "./support/app";
 import { ffmpegBinary } from "./support/paths";
 
@@ -98,7 +99,7 @@ test("PREVIEW sounds at its own volume, 0 to start, and goes quiet when it goes 
   await expect.poll(async () => (await state()).paused).toBe(false);
   expect((await state()).muted).toBe(true);
   await preview.getByRole("slider", { name: "Volumen de clip" }).fill("60");
-  await expect.poll(state).toMatchObject({ muted: false, volume: 0.6 });
+  await expect.poll(state).toMatchObject({ muted: false, volume: faderToGain(0.6) });
 
   // Going live hands the sound to the projector: PREVIEW stops — the video left PREVIEW with it (owner, 2026-11-15).
   await app.goLive();

@@ -185,7 +185,8 @@ and found by its audio after a save renumbers them), plates skipped, only when t
 is an audio too and at the ended track's volume (owner): the offertory's music further down never starts on its own.
 A deck's own soundtrack and sounds are never touched by it.
 
-**The LIVE master** (2026-11-15): `settings["audio.live.volume"]`, or 1 with the strips off (`liveMasterVolume`), is
+**The LIVE master** (2026-11-15): `settings["audio.live.volume"]`, 0 while `settings["audio.live.muted"]` (the strip's
+mute, remembered: an app left silent opens silent, owner 2026-11-17), or 1 with the strips off (`liveMasterVolume`), is
 mirrored into `projection.store` (`liveMasterVolume`) by `App.tsx` like the transition. `selectOutput` multiplies it into
 the video's and the slide clip's `volume` (`busVolume`, `shared/types/audio.ts`) and `toAudioTrackPush` into every audio
 track's, re-pushed when it moves: the projector and the media engine get the level they play at as state, and the
@@ -235,7 +236,7 @@ whose renderer died (`windows/control-window.ts`, capped like the projector's), 
 A page that started blind reached the room: its first output blanked the projector and its first sound push silenced
 it, and its first actions did worse (CLEAR left the music on, NEGRO taken off put out LOGO over the video). So
 `effects/live-copy.ts` sends main a copy of the stores that hold what is live (the projection store, the sounds, the
-verse's chapter and cursor, the schedule with its live row, the stage's countdown and message, LIVE's mute, whether
+verse's chapter and cursor, the schedule with its live row, the stage's countdown and message, whether
 the operator closed the projector, and `lib/counters.ts`, whose epochs must never repeat one on the air) on every
 change; main keeps the last one in memory
 and never reads it (`window:keepLiveCopy`), which keeps the rule above. `main.tsx` asks for it (`window:liveCopy`)
@@ -398,7 +399,7 @@ skipping keeps what was chosen and Escape does nothing.
 | Key | What it moves |
 |---|---|
 | ←/→, PageUp/PageDown | **what is live** — the slide, verse or song slide on screen, derived from `base` and not from the focused panel. PageUp/PageDown are what a presentation remote sends for back/next |
-| 1–9, C, P, F (Shift) | **only with a song live:** verse N, chorus, bridge, ending — the next time it is sung, Shift the previous one. Digits are read by `code`, so Shift+2 is still a 2; the projector forwards `shift` and `code` too |
+| 1–9, C, P, F, I, R (Shift) | **only with a song live:** verse N, chorus, bridge, ending, intro, pre-chorus: the next time it is sung, Shift the previous one. Digits are read by `code`, so Shift+2 is still a 2; the projector forwards `shift` and `code` too |
 | T | **only with a song live:** hide or show its lyrics, the theme's background stays |
 | ↑/↓ | **the preview cursor** — nothing reaches the projector; nothing at all with PREVIEW empty |
 | Enter | sends the preview to the projector (`goLive()`), which empties PREVIEW; with PREVIEW empty it does nothing, BLACK/LOGO up or not (VIVO, B and L uncover) |

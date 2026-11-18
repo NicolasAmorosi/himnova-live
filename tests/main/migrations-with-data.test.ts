@@ -139,7 +139,8 @@ describe("upgrading a full profile from an older build", () => {
     expect(count(sqlite, "deck_slides")).toBe(2);
     expect(count(sqlite, "deck_audio")).toBe(1);
     expect(count(sqlite, "deck_videos")).toBe(1);
-    expect(count(sqlite, "projection_history")).toBe(1);
+    // Nothing read it (owner, 2026-11-17): 0024 drops it, rows and all, under the foreign keys.
+    expect(sqlite.prepare("SELECT name FROM sqlite_master WHERE name = 'projection_history'").all()).toEqual([]);
     expect(count(sqlite, "bible_verses")).toBe(1);
     expect(count(sqlite, "bible_favorites")).toBe(1);
     expect(count(sqlite, "utility_scenes")).toBe(1);
@@ -248,7 +249,11 @@ test("a profile one migration behind is backed up, then migrated without losing 
   expect(fresh.backup.status).toBe("ok");
   const after = userTableCounts(fresh.sqlite);
   fresh.sqlite.close();
-  for (const [table, rows] of Object.entries(before)) expect({ table, rows: after[table] }).toEqual({ table, rows });
+  // Dropped on purpose by 0024 (owner, 2026-11-17); any other table that goes is a lost row.
+  const dropped = new Set(["projection_history"]);
+  for (const [table, rows] of Object.entries(before)) {
+    if (!dropped.has(table)) expect({ table, rows: after[table] }).toEqual({ table, rows });
+  }
 
   // The next launch has nothing pending: no copy that would rotate the pre-migration one out.
   expect(backupBeforeMigrate(dbFile, backups, drizzleDir).status).toBe("skipped");

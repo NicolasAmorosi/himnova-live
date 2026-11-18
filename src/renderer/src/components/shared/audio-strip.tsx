@@ -7,7 +7,6 @@ import { useAudioRouteStore } from "@renderer/stores/audio-route.store";
 import { useAudioLevelsStore, type StereoLevel } from "@renderer/stores/audio-levels.store";
 import { usePreviewStore } from "@renderer/stores/preview.store";
 import { useSettingsStore } from "@renderer/stores/settings.store";
-import { useUiStore } from "@renderer/stores/ui.store";
 import type { AudioBus } from "@shared/types/audio";
 
 /** Why the bus plays through the default instead of its chosen output, said on the strip. */
@@ -25,7 +24,7 @@ const OUTPUT_MENU_WIDTH_PX = 288;
  * columns stay identical, shown only while `audio.strips` is on.
  *
  * - LIVE's fader is the master (`audio.live.volume`, remembered): everything that sounds live plays at its own level
- *   times this one (`busVolume`). Its mute is session state (`ui.store`), so the app never opens with LIVE silent;
+ *   times this one (`busVolume`). Its mute is remembered too (`audio.live.muted`): an app left silent opens silent;
  *   dragging the fader to 0 is that mute, and the remembered level stays. PREVIEW's IS PREVIEW's volume
  *   (`preview.store`), 0 with every new item.
  * - The output menu writes `audio.output.<bus>`. It turns amber when the chosen output is not used (not plugged in,
@@ -42,9 +41,8 @@ export function AudioStrip({ bus }: { bus: AudioBus }) {
   const setPreviewVolume = usePreviewStore((s) => s.setVolume);
   const update = useSettingsStore((s) => s.update);
   const ndi = useSettingsStore((s) => s.settings["ndi.output.enabled"]);
-  const liveMuted = useUiStore((s) => s.liveMuted);
-  const setLiveMuted = useUiStore((s) => s.setLiveMuted);
-  const toggleLiveMute = () => setLiveMuted(!liveMuted);
+  const liveMuted = useSettingsStore((s) => s.settings["audio.live.muted"]);
+  const toggleLiveMute = () => void update({ "audio.live.muted": !liveMuted });
   const togglePreviewMute = useMuteToggle(previewVolume, setPreviewVolume);
   const outputs = useAudioOutputs();
   const picker = useAudioOutputPicker(bus, outputs);
@@ -65,10 +63,10 @@ export function AudioStrip({ bus }: { bus: AudioBus }) {
   const setMaster = (volume: number, from: number) => {
     // 0 is the mute, not a level to remember: a fade-out down to it leaves the level its gesture started from, which
     // is what unmuting — and the next launch — come back to. Keeping the last step before 0 left the room at −40 dB
-    // (2026-11-15 audit, A8).
-    setLiveMuted(volume === 0);
+    // (2026-11-15 audit, A8). Kept unrounded: on the fader's log scale a gain rounded to 0.01 moved the fader back
+    // (three tenths of the way up is 0.013) and saved nothing at all below a fifth.
     const level = volume > 0 ? volume : from;
-    if (level > 0) void update({ "audio.live.volume": Number(level.toFixed(2)) });
+    void update({ "audio.live.muted": volume === 0, ...(level > 0 ? { "audio.live.volume": level } : {}) });
   };
 
   return (

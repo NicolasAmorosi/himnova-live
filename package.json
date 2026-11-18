@@ -164,6 +164,8 @@
       "extendInfo": {
         "NSLocalNetworkUsageDescription": "Himnova Live sends the projection to programs such as OBS over NDI on your local network.",
         "NSAudioCaptureUsageDescription": "Himnova Live sends its own sound (videos, music, hymns) with the projection over NDI.",
+        "NSCameraUsageDescription": "Himnova Live shows on the projector a camera or capture device you add as a video source.",
+        "NSMicrophoneUsageDescription": "Himnova Live plays the sound of a camera or capture device you add as a video source.",
         "NSBonjourServices": [
           "_ndi._tcp"
         ]
@@ -185,6 +187,26 @@
             "!.stamp",
             "!.local"
           ]
+        },
+        {
+          "from": "build/mac-locales/es.strings",
+          "to": "es.lproj/InfoPlist.strings"
+        },
+        {
+          "from": "build/mac-locales/es.strings",
+          "to": "es_419.lproj/InfoPlist.strings"
+        },
+        {
+          "from": "build/mac-locales/it.strings",
+          "to": "it.lproj/InfoPlist.strings"
+        },
+        {
+          "from": "build/mac-locales/pt.strings",
+          "to": "pt_BR.lproj/InfoPlist.strings"
+        },
+        {
+          "from": "build/mac-locales/pt.strings",
+          "to": "pt_PT.lproj/InfoPlist.strings"
         }
       ]
     },

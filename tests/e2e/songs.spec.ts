@@ -290,6 +290,35 @@ test("a song in the order of service comes back after a restart, and deleting it
   await expect(scheduleRows(again)).toHaveCount(0);
 });
 
+test("I jumps to the intro and R to the pre-chorus, Shift to the previous time (owner, 2026-11-17)", async ({ app }) => {
+  const lyrics = "[Intro]\nla intro\n\n[Estrofa 1]\nprimera\n\n[Estrofa 2]\nsegunda\n\n[Precoro]\nantes del coro\n\n[Coro]\nel coro";
+  await createSong(app, "Con precoro", lyrics, "I E1 PC C E2 PC C");
+  await songRows(app).filter({ hasText: "Con precoro" }).click();
+  await app.goLive();
+  const projector = await app.projector();
+  const live = app.liveColumn();
+  await expect(projector.getByText("la intro")).toBeVisible();
+
+  await app.control.keyboard.press("r");
+  await expect(projector.getByText("antes del coro")).toBeVisible();
+  await expect(live.getByText("3/7")).toBeVisible();
+  await app.control.keyboard.press("r");
+  await expect(live.getByText("6/7")).toBeVisible();
+  await app.control.keyboard.press("Shift+R");
+  await expect(live.getByText("3/7")).toBeVisible();
+  // The intro is behind: sung again as a detour.
+  await app.control.keyboard.press("i");
+  await expect(projector.getByText("la intro")).toBeVisible();
+  await expect(live.getByText("fuera del orden · 1/1")).toBeVisible();
+  // The buttons name the same keys.
+  const sections = live.getByRole("group", { name: "Secciones de la canción" });
+  await expect(sections.getByRole("button", { name: "Intro" })).toHaveAttribute("title", "Intro · tecla I (con Shift, la vez anterior)");
+  await expect(sections.getByRole("button", { name: "Precoro" })).toHaveAttribute(
+    "title",
+    "Precoro · tecla R (con Shift, la vez anterior)",
+  );
+});
+
 test("keys jump to a section: its next time, Shift the previous, and one off the order comes back", async ({ app }) => {
   const lyrics = "[Estrofa 1]\nprimera\n\n[Estrofa 2]\nsegunda\n\n[Coro]\nel coro\n\n[Puente]\npuente uno\n\npuente dos";
   await createSong(app, "Con puente", lyrics, "E1 C E2 C");

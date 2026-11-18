@@ -134,8 +134,11 @@ export type SettingsMap = {
    *  of each media row hides (D2); off, the rows have it back and the LIVE master counts as 100 % (D3). */
   "audio.strips": boolean;
   /** The LIVE strip's fader, 0..1: a master that multiplies the level of everything that sounds live (`busVolume`),
-   *  remembered across launches. Never 0 on read: the LIVE mute is session state (`ui.store`), not this. PREVIEW's fader is `preview.store`'s own volume, 0 with every new item. */
+   *  remembered across launches. Never 0 on read: the LIVE mute is `audio.live.muted`, not this. PREVIEW's fader is `preview.store`'s own volume, 0 with every new item. */
   "audio.live.volume": number;
+  /** The LIVE strip's mute, remembered: an app left silent opens silent (owner, 2026-11-17). Turning the strips off
+   *  clears it, since the master then counts as 100 %. */
+  "audio.live.muted": boolean;
   /** Where each bus sounds, `null` for the system's default output. They apply with the strips off too (D3). */
   "audio.output.live": AudioOutputChoice | null;
   "audio.output.preview": AudioOutputChoice | null;
@@ -301,6 +304,7 @@ export const DEFAULT_SETTINGS: SettingsMap = {
   "media.volume": 1,
   "audio.strips": true,
   "audio.live.volume": 1,
+  "audio.live.muted": false,
   "audio.output.live": null,
   "audio.output.preview": null,
   "projection.transition.style": "crossfade",
@@ -442,6 +446,7 @@ export const SETTINGS_VALIDATORS: Record<keyof SettingsMap, (value: unknown) => 
   "media.volume": isNumberIn(0, 1),
   "audio.strips": isBoolean,
   "audio.live.volume": isNumberIn(0, 1),
+  "audio.live.muted": isBoolean,
   "audio.output.live": isNullOr(isAudioOutputChoice),
   "audio.output.preview": isNullOr(isAudioOutputChoice),
   "projection.transition.style": isOneOf(TRANSITION_STYLES),
@@ -528,7 +533,7 @@ export const SETTINGS_NORMALIZERS: {
   "ui.whatsNewSeen": (v) => (isWhatsNewKey(v) ? v : null),
   "audio.strips": (v) => (typeof v === "boolean" ? v : DEFAULT_SETTINGS["audio.strips"]),
   // A master that read back as anything but a level would be silence or a throw on every live element, and 0 is no
-  // remembered level: the strip's mute is session state, so a stored 0 (an older build's mute) opens at the default.
+  // remembered level: the strip's mute is its own key, so a stored 0 (an older build's mute) opens at the default.
   "audio.live.volume": (v) =>
     SETTINGS_VALIDATORS["audio.live.volume"](v) && (v as number) > 0
       ? (v as number)

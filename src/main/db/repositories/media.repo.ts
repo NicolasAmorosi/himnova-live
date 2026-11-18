@@ -295,7 +295,7 @@ export class MediaRepo {
   /** The row `id` lives on as: itself, or the twin a relocate merged it into this session. What is on the air keeps
    *  the id it went out with, and its file must keep coming under it: a video is read in ranges as it plays, and a
    *  projector reopened asks again (2026-11-15 audit, D4). Only for what is on the air: the bytes it is served, the
-   *  engine's list that keeps it playing, the history and pin of the deck it shows. Never inside a getter: anything
+   *  engine's list that keeps it playing, the pin of the deck it shows. Never inside a getter: anything
    *  that writes rows under an id must not take a dead one for a live one unasked. Ids are AUTOINCREMENT, so a
    *  merged-away id never has a row again. */
   survivingId(id: number): number {
@@ -560,8 +560,8 @@ export class MediaRepo {
   }
 
   /**
-   * Points the row at `newPath`, keeping its id — the one the program items,
-   * plates and history already reference.
+   * Points the row at `newPath`, keeping its id: the one the program items
+   * and plates already reference.
    *
    * The new path may already be a row of its own, and in a real library it
    * usually is: 1485 of 1501 rows come from linked folders, so after a USB
@@ -603,7 +603,6 @@ export class MediaRepo {
           "UPDATE program_items SET media_asset_id = ? WHERE media_asset_id = ?",
           "UPDATE overlay_plates SET image_asset_id = ? WHERE image_asset_id = ?",
           "UPDATE slide_decks SET media_asset_id = ? WHERE media_asset_id = ?",
-          "UPDATE projection_history SET media_asset_id = ? WHERE media_asset_id = ?",
         ]) {
           this.sqlite.prepare(statement).run(id, duplicate.id);
         }

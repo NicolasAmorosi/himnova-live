@@ -4,6 +4,9 @@ import fuses from "@electron/fuses";
 import { ROOT } from "./support/paths";
 import { expect, test } from "./support/app";
 
+// The very first launch is the point here: never from the suite's template profile.
+test.use({ freshProfile: true });
+
 test("a first launch on an empty profile opens clean", async ({ app }) => {
   const { control } = app;
   await expect(control.getByText("Programa vacío")).toBeVisible();

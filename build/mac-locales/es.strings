@@ -1,0 +1,5 @@
+/* The macOS permission prompts in Spanish; English is in package.json's mac.extendInfo (audit U18). */
+"NSCameraUsageDescription" = "Himnova Live muestra en el proyector la cámara o capturadora que agregues como entrada.";
+"NSMicrophoneUsageDescription" = "Himnova Live hace sonar el audio de la cámara o capturadora que agregues como entrada.";
+"NSLocalNetworkUsageDescription" = "Himnova Live manda la proyección por NDI a programas como OBS, en tu red local.";
+"NSAudioCaptureUsageDescription" = "Himnova Live manda su propio sonido (videos, música, himnos) con la proyección por NDI.";

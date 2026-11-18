@@ -26,6 +26,7 @@ import {
 import { readBinaryDeck, sniffUnreadableDeck, type BinaryDeck, type UnreadableDeckReason } from "./ppt-binary";
 import { encodeSlideLayers } from "./native-deck";
 import { extractClips, hurryDeck, readPptx, type PptxRead } from "./pptx-deck";
+import { TOO_SLOW } from "./deck-queue";
 import { readPdfPages, shutdownRasterizer, type RasterLane } from "./rasterizer";
 import { hashFile } from "../media/content-hash";
 import { healDeckClips, isEngineClip, revertPlayableCopies } from "../media/deck-clips";
@@ -309,9 +310,14 @@ async function recordNativeDeck(assetId: number, sourcePath: string, stat: fs.St
 // Model decks — drawn from their model (SlideView), nothing rasterized
 // ---------------------------------------------------------------------------
 
+/** Why a deck failed to open: what `sniffUnreadableDeck` says of the file, or the worker's clock stopped it. */
+type FailedDeckReason = UnreadableDeckReason | "DECK_TOO_SLOW";
+
 /** Decks no reader could open, by path, with the `(size, mtime)` they were
- *  tried at and why: not re-read on every open, and read again once edited. */
-const unreadableStamp = new Map<string, { stamp: string; reason: UnreadableDeckReason }>();
+ *  tried at and why: not re-read on every open, and read again once edited.
+ *  One the clock stopped too: «Reintentar» reads it again, and a file that always
+ *  hangs does not hold the reader at every pass of its tile (owner, 2026-11-17). */
+const unreadableStamp = new Map<string, { stamp: string; reason: FailedDeckReason }>();
 
 /** One read per asset at a time (see `nativeInFlight`), and the lane its
  *  requests to the deck worker go in: the operator opening a deck that is
@@ -322,12 +328,13 @@ const UNREADABLE_MESSAGE = {
   DECK_PASSWORD: "slides.deckPassword",
   DECK_OLD_FORMAT: "slides.deckOldFormat",
   NOT_A_PRESENTATION: "slides.notAPresentation",
-} as const satisfies Record<UnreadableDeckReason, string>;
+  DECK_TOO_SLOW: "slides.deckTooSlow",
+} as const satisfies Record<FailedDeckReason, string>;
 
 /** A deck that won't open, failed the way any deck fails: the control window
  *  says why where a failed deck shows (its panel, the PREVIEW monitor, the
  *  GO LIVE toast). Worded on every ask, in the language chosen now. */
-function failUnreadable(assetId: number, reason: UnreadableDeckReason): Promise<never> {
+function failUnreadable(assetId: number, reason: FailedDeckReason): Promise<never> {
   const error = new SlideError(reason, mt(UNREADABLE_MESSAGE[reason]));
   emitProgress({ assetId, status: "failed", done: 0, total: 0, error: error.message });
   return Promise.reject(error);
@@ -396,8 +403,9 @@ function modelDeck(assetId: number, sourcePath: string, force: boolean, lane: Ra
   const job: { lane: RasterLane } = { lane };
   const promise = readPptx(sourcePath, lane)
     .then((read) => {
-      if (!read || read.slides.every((slide) => slide.hidden)) {
-        const reason = sniffUnreadableDeck(sourcePath);
+      if (read === TOO_SLOW || !read || read.slides.every((slide) => slide.hidden)) {
+        // Cut by the clock is no damage: said as it is, never as a file to save again (owner, 2026-11-17).
+        const reason = read === TOO_SLOW ? "DECK_TOO_SLOW" : sniffUnreadableDeck(sourcePath);
         unreadableStamp.set(sourcePath, { stamp: stampOf(stat), reason });
         return failUnreadable(assetId, reason);
       }
@@ -497,7 +505,11 @@ async function recordModelDeck(
   const extracted = await extractClips(extract, job.lane);
   // The worker stopped before copying them: saved now, the deck would stay
   // mute after a restart too (2026-11-15 audit, D6). Nothing is kept, so the
-  // next open reads it again.
+  // next open reads it again. Stopped by its clock (a pen drive pulled out mid-copy), it says so (owner, 2026-11-17).
+  if (extracted === TOO_SLOW) {
+    removeQuietly(staging);
+    throw new SlideError("DECK_TOO_SLOW", mt("slides.deckTooSlow"));
+  }
   if (!extracted && extract.audio.length + extract.video.length > 0) {
     removeQuietly(staging);
     throw new SlideError("RASTER_FAILED", mt("slides.deckUnreadable"));

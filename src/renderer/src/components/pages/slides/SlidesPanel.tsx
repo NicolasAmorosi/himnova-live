@@ -22,7 +22,7 @@ import { useBibleStore } from "@renderer/stores/bible.store";
 import { useProgramStore } from "@renderer/stores/program.store";
 import { usePreviewStore } from "@renderer/stores/preview.store";
 import { useProjectionStore } from "@renderer/stores/projection.store";
-import { usePreviewContent } from "@renderer/lib/hooks/use-preview";
+import { type PreviewContent, usePreviewContent } from "@renderer/lib/hooks/use-preview";
 import { clearPreview, previewVerse, setPreviewSlide } from "@renderer/lib/actions/preview";
 import { goLive, gotoSongSlide } from "@renderer/lib/actions/playback";
 import { sameSlideIn } from "@renderer/lib/actions/songs";
@@ -156,95 +156,81 @@ export function SlidesPanel() {
   // Rendered as a sibling of the monitor, never inside `PanelBody`, so it lands
   // on the same pixel as the first row under LIVE instead of picking up an
   // extra layer of padding — see `MonitorsColumn`.
-  const mediaBar = (() => {
+  // A switch with no fallback: a new kind of PREVIEW content does not compile until it has a bar here (audit X15).
+  const mediaBar = ((): ReactNode => {
     if (!content) return null;
-    if (content.kind === "deck") {
-      return <DeckPreviewBar assetId={content.assetId} missingSince={content.missingSince} title={content.title} />;
-    }
-    if (content.kind === "media") {
-      if (content.asset.kind === "image") {
+    switch (content.kind) {
+      case "deck":
+        return <DeckPreviewBar assetId={content.assetId} missingSince={content.missingSince} title={content.title} />;
+      case "media":
+        if (content.asset.kind === "image") {
+          return (
+            <MediaPanel className="w-full">
+              <MediaTrackRow kind="image" label={content.asset.name} onDelete={clearPreview} />
+            </MediaPanel>
+          );
+        }
+        return <PreviewMediaBar asset={content.asset} />;
+      case "bible":
         return (
           <MediaPanel className="w-full">
-            <MediaTrackRow kind="image" label={content.asset.name} onDelete={clearPreview} />
+            <MediaTrackRow kind="bible" label={content.reference} onDelete={clearPreview} />
+          </MediaPanel>
+        );
+      // The same transport the LIVE panel gives a projected scene, so a
+      // countdown can be armed, paused and aimed here and reach the projector
+      // already running, and so the two rows, which can be on screen at once,
+      // never show two numbers for one scene (`clockForScene`).
+      case "utility":
+        return (
+          <MediaPanel className="w-full">
+            <UtilityTrackRow onDelete={clearPreview} scene={content.scene} />
+          </MediaPanel>
+        );
+      // The section buttons move the PREVIEW cursor, never the projector: a
+      // section that is not in the order has no slide here to land on.
+      case "song": {
+        const { resolved } = content;
+        return (
+          <MediaPanel className="w-full">
+            <MediaTrackRow kind="song" label={content.song.title} onDelete={clearPreview} />
+            {/* Padding on both sides: the panel draws a line between its rows,
+                and the chips touched it (owner, 2026-11-05). */}
+            <div className="px-2 py-1.5">
+              <SongSectionButtons
+                activeKey={resolved.slides[previewSlideIndex - 1]?.sectionKey ?? null}
+                onPick={(section, shift) => {
+                  // Its next time in the order (Shift: the previous), else the
+                  // other way: PREVIEW has no detour, and a section already
+                  // behind used to do nothing (owner, 2026-11-05: «que se pueda
+                  // mover como quiera»).
+                  const here = { slideIndex: previewSlideIndex, detour: null };
+                  const target = { type: section.type, number: section.number };
+                  const direction = shift ? -1 : 1;
+                  const ahead = jumpTo(resolved, here, target, direction);
+                  const next = ahead && !ahead.detour ? ahead : jumpTo(resolved, here, target, direction === 1 ? -1 : 1);
+                  if (next && !next.detour) setPreviewSlide(next.slideIndex);
+                }}
+                sections={resolved.sections}
+              />
+            </div>
           </MediaPanel>
         );
       }
-      return <PreviewMediaBar asset={content.asset} />;
+      // A plate goes up from its own row: it does not replace what is live, so
+      // the button beside the picture of it is where the operator looks.
+      case "plate":
+        return (
+          <MediaPanel className="w-full">
+            <PlateTrackRow onDelete={clearPreview} plate={content.plate} withLiveButton />
+          </MediaPanel>
+        );
+      default:
+        return content satisfies never;
     }
-    if (content.kind === "bible") {
-      return (
-        <MediaPanel className="w-full">
-          <MediaTrackRow kind="bible" label={content.reference} onDelete={clearPreview} />
-        </MediaPanel>
-      );
-    }
-    // The same transport the LIVE panel gives a projected scene, so a
-    // countdown can be armed, paused and aimed here and reach the projector
-    // already running — and so the two rows, which can be on screen at once,
-    // never show two numbers for one scene (`clockForScene`).
-    if (content.kind === "utility") {
-      return (
-        <MediaPanel className="w-full">
-          <UtilityTrackRow onDelete={clearPreview} scene={content.scene} />
-        </MediaPanel>
-      );
-    }
-    // The section buttons move the PREVIEW cursor, never the projector: a
-    // section that is not in the order has no slide here to land on.
-    if (content.kind === "song") {
-      const { resolved } = content;
-      return (
-        <MediaPanel className="w-full">
-          <MediaTrackRow kind="song" label={content.song.title} onDelete={clearPreview} />
-          {/* Padding on both sides: the panel draws a line between its rows,
-              and the chips touched it (owner, 2026-11-05). */}
-          <div className="px-2 py-1.5">
-            <SongSectionButtons
-              activeKey={resolved.slides[previewSlideIndex - 1]?.sectionKey ?? null}
-              onPick={(section, shift) => {
-                // Its next time in the order (Shift: the previous), else the
-                // other way: PREVIEW has no detour, and a section already
-                // behind used to do nothing (owner, 2026-11-05: «que se pueda
-                // mover como quiera»).
-                const here = { slideIndex: previewSlideIndex, detour: null };
-                const target = { type: section.type, number: section.number };
-                const direction = shift ? -1 : 1;
-                const ahead = jumpTo(resolved, here, target, direction);
-                const next = ahead && !ahead.detour ? ahead : jumpTo(resolved, here, target, direction === 1 ? -1 : 1);
-                if (next && !next.detour) setPreviewSlide(next.slideIndex);
-              }}
-              sections={resolved.sections}
-            />
-          </div>
-        </MediaPanel>
-      );
-    }
-    // A plate goes up from its own row: it does not replace what is live, so
-    // the button beside the picture of it is where the operator looks.
-    if (content.kind === "plate") {
-      return (
-        <MediaPanel className="w-full">
-          <PlateTrackRow onDelete={clearPreview} plate={content.plate} withLiveButton />
-        </MediaPanel>
-      );
-    }
-    return null;
   })();
 
-  const heading =
-    content?.kind === "deck"
-      ? content.title
-      : content?.kind === "media"
-        ? content.asset.name
-        : content?.kind === "bible"
-          ? content.reference
-          : content?.kind === "utility"
-            ? content.scene.name
-            : content?.kind === "plate"
-              ? content.plate.name
-              : content?.kind === "song"
-                ? content.song.title
-                : null;
+  const heading = content ? previewHeading(content) : null;
 
   return (
     <>
@@ -273,6 +259,24 @@ export function SlidesPanel() {
  * (`handLiveItemToTab`), is what hands the chapter to the tab, and from there
  * it is the Bible tab's own flow.
  */
+/** The PREVIEW header's title. No fallback: a new kind of content does not compile without one (audit X15). */
+function previewHeading(content: PreviewContent): string {
+  switch (content.kind) {
+    case "deck":
+      return content.title;
+    case "media":
+      return content.asset.name;
+    case "bible":
+      return content.reference;
+    case "utility":
+      return content.scene.name;
+    case "plate":
+      return content.plate.name;
+    case "song":
+      return content.song.title;
+  }
+}
+
 function ScheduleChapterGrid({ fallback, item }: { fallback: ReactNode; item: BibleScheduleItem }) {
   const t = useT();
   const { bibleBookId, chapter } = item;

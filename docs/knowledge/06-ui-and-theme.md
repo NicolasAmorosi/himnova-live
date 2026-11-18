@@ -560,8 +560,11 @@ A deck in PREVIEW gets EN VIVO's transport (◀ ▶, counter, «Auto-avance») b
 While `audio.strips` is on (the default), each monitor has a 48 px strip at its right (`MonitorWithStrip`,
 `components/shared/audio-strip.tsx`, the same in both columns so the monitors stay twins): a stereo meter (canvas,
 `ChannelStrip` in `ui/channel-strip.tsx`, fed by `stores/audio-levels.store.ts`), a vertical native range, mute, and an
-output menu that writes `audio.output.<bus>`. The strip lays its content out in an absolute box, so it never adds height
-to the monitor's row. LIVE's fader is a master (`audio.live.volume`) multiplied into every live level (`busVolume`);
+output menu that writes `audio.output.<bus>`. The fader, and the rows' `VolumeControl` with the strips off, move on OBS's
+log scale (`ui/fader.ts`, owner 2026-11-17: −18.7 dB halfway) and say their level in dB; every volume they set is still
+a linear gain from 0 to 1, saved unrounded. The strip lays its content out in an absolute box, so it never adds height
+to the monitor's row. LIVE's fader is a master (`audio.live.volume`) multiplied into every live level (`busVolume`),
+and its mute is remembered (`audio.live.muted`): turning the strips off clears it;
 PREVIEW's is `preview.store`'s own volume. On, `MediaTrackRow` draws no volume of its own (owner's D2); off, the rows have
 it back and the master counts as 100 % (D3). PREVIEW's output icon turns amber when both buses end in the same device
 (D6).

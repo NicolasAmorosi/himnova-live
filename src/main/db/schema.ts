@@ -257,22 +257,6 @@ export const bibleRecents = sqliteTable("bible_recents", {
   projectedAt: integer("projected_at").notNull(),
 });
 
-export const projectionHistory = sqliteTable(
-  "projection_history",
-  {
-    id: integer("id").primaryKey({ autoIncrement: true }),
-    projectedAt: integer("projected_at").notNull(),
-    kind: text("kind").notNull(),
-    mediaAssetId: integer("media_asset_id").references(() => mediaAssets.id, {
-      onDelete: "set null",
-    }),
-    programId: integer("program_id").references(() => programs.id, { onDelete: "set null" }),
-    reference: text("reference"),
-    snapshotJson: text("snapshot_json").notNull(),
-  },
-  (t) => [index("ix_history_time").on(t.projectedAt)],
-);
-
 /**
  * A converted PowerPoint/Impress deck, cached on disk. Identity is the SOURCE
  * FILE'S CONTENT HASH, not the media_assets row — two library entries pointing
@@ -603,8 +587,7 @@ export const songs = sqliteTable(
 
 /**
  * What the CCLI usage report counts (owner, 2026-11-05): one row per song per
- * day it went live. Never pruned, unlike `projection_history` (5000 rows): a
- * report covers six months. The title, authors and CCLI number are kept as
+ * day it went live. Never pruned: a report covers six months. The title, authors and CCLI number are kept as
  * they were, for a song deleted since; one still in the library reports with
  * its current ones (a CCLI number filled in after the fact counts).
  */

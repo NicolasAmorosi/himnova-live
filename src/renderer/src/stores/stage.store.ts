@@ -26,8 +26,8 @@ type StageStoreState = {
   /** The panel's card is open (`StagePanel`). Never remembered across launches: an overlay over the left column. */
   panelOpen: boolean;
   setPanelOpen: (open: boolean) => void;
-  /** Pinned, the card stays open when the operator presses elsewhere (owner, 2026-11-13); its arrow and Esc still
-   *  fold it. For this session. */
+  /** Pinned, the card stays open when the operator presses elsewhere (owner, 2026-11-13) or presses Esc (owner,
+   *  2026-11-17); its arrow still folds it. For this session. */
   panelPinned: boolean;
   setPanelPinned: (pinned: boolean) => void;
   /** The message field's text, kept while the panel folds. */

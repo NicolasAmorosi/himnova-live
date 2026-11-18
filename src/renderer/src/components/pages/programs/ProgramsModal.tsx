@@ -211,6 +211,14 @@ export function ProgramsModal({ initialMode, onOpenChange, open }: ProgramsModal
   const named = editing !== null && editing.draft.name.trim() !== "";
   const canSave = editing !== null && named && (editing.kind !== "saved" || dirty);
 
+  // Nothing saved, nothing to search or filter: both hide (owner, 2026-11-17), and what was typed goes with them, or
+  // the first program saved after would come back under a search nobody can see.
+  const searchable = programs.length > 0;
+  useEffect(() => {
+    if (searchable) return;
+    setQuery("");
+    setFavoriteFilter("all");
+  }, [searchable]);
   const filtersActive = query.trim() !== "" || favoriteFilter !== "all";
   // Reordering a filtered view can't be mapped back onto the full list, so the
   // drag affordance is greyed out while a search or filter is on.
@@ -484,28 +492,30 @@ export function ProgramsModal({ initialMode, onOpenChange, open }: ProgramsModal
         }}
         list={
           <>
-            <div className="flex shrink-0 flex-col gap-2 px-2 pb-2">
-              <Input
-                icon="search"
-                onChange={(e) => setQuery(e.target.value)}
-                onKeyDown={handleSearchKeyDown}
-                placeholder={t("programs.searchPlaceholder")}
-                size="sm"
-                value={query}
-              />
-              <Select
-                aria-label={t("programs.filterLabel")}
-                className="w-full"
-                onChange={(value) => setFavoriteFilter(value as FavoriteFilter)}
-                options={[
-                  { label: t("programs.filterAll"), value: "all" },
-                  { label: t("programs.filterFavorites"), value: "favorites" },
-                  { label: t("programs.filterOthers"), value: "others" },
-                ]}
-                size="sm"
-                value={favoriteFilter}
-              />
-            </div>
+            {searchable ? (
+              <div className="flex shrink-0 flex-col gap-2 px-2 pb-2">
+                <Input
+                  icon="search"
+                  onChange={(e) => setQuery(e.target.value)}
+                  onKeyDown={handleSearchKeyDown}
+                  placeholder={t("programs.searchPlaceholder")}
+                  size="sm"
+                  value={query}
+                />
+                <Select
+                  aria-label={t("programs.filterLabel")}
+                  className="w-full"
+                  onChange={(value) => setFavoriteFilter(value as FavoriteFilter)}
+                  options={[
+                    { label: t("programs.filterAll"), value: "all" },
+                    { label: t("programs.filterFavorites"), value: "favorites" },
+                    { label: t("programs.filterOthers"), value: "others" },
+                  ]}
+                  size="sm"
+                  value={favoriteFilter}
+                />
+              </div>
+            ) : null}
             <div
               className="relative min-h-0 flex-1 overflow-y-auto px-2 pb-2"
               onDragLeave={() => setDragOverId(null)}

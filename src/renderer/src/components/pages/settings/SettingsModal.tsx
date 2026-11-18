@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import { useT } from "@renderer/lib/i18n/i18n-provider";
 import { EditorScreen } from "@renderer/components/shared/editor-screen";
 import { PageHeader, TabPanel, TabPanels, Tabs, type TabItem } from "@renderer/components/ui";
@@ -14,6 +14,22 @@ import { AboutSection } from "./sections/about-section";
 import { useUiStore, type SettingsSection } from "@renderer/stores/ui.store";
 
 const SECTION_ID_BASE = "settings";
+
+/** Each section's page, given whether it is the one shown. A record, so a new section does not compile without its
+ *  page; a chain of ternaries showed «About» for one it forgot (audit X17). */
+const SECTION_PAGES: Record<SettingsSection, (active: boolean) => ReactNode> = {
+  projection: () => <ProjectionSection />,
+  screens: () => <ScreensSection />,
+  sound: () => <SoundSection />,
+  // `active` is not about painting: the panel does that. The cache figure is read at mount, and a section that stays
+  // mounted would keep showing the number from the first visit after a conversion or a purge.
+  slides: (active) => <SlidesSection active={active} />,
+  bible: () => <BibleSection />,
+  songs: () => <SongsSection />,
+  system: () => <SystemSection />,
+  backups: () => <BackupsSection />,
+  about: () => <AboutSection />,
+};
 
 /** The app's settings, full screen (2026-11-04 redesign, GitHub's settings):
  *  the sections on the left, the chosen one as a page in a reading column —
@@ -87,29 +103,7 @@ export function SettingsModal() {
               <div className="min-w-0 flex-1 overflow-y-auto [scrollbar-gutter:stable_both-edges]">
                 <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-8 pt-6 pb-16">
                   <PageHeader>{label}</PageHeader>
-                  {value === "projection" ? (
-                    <ProjectionSection />
-                  ) : value === "screens" ? (
-                    <ScreensSection />
-                  ) : value === "sound" ? (
-                    <SoundSection />
-                  ) : value === "slides" ? (
-                    // `active` is not about painting — the panel does that.
-                    // The cache figure is read at mount, and a section that
-                    // stays mounted would keep showing the number from the
-                    // first visit after a conversion or a purge.
-                    <SlidesSection active={value === section} />
-                  ) : value === "bible" ? (
-                    <BibleSection />
-                  ) : value === "songs" ? (
-                    <SongsSection />
-                  ) : value === "system" ? (
-                    <SystemSection />
-                  ) : value === "backups" ? (
-                    <BackupsSection />
-                  ) : (
-                    <AboutSection />
-                  )}
+                  {SECTION_PAGES[value](value === section)}
                 </div>
               </div>
             </TabPanel>

@@ -43,7 +43,7 @@ against a real EasyWorship 7 database.
   full of large pictures.
 - ~~**Bible favorites and history UI**~~: **implemented on 2026-11-05** as the Bible tab's ⭐ list
   (favorites + recent passages, see «Favorites and recent passages» in `05-data-and-persistence.md`).
-  `projection_history` (every `projection:show`, all kinds) still has no screen.
+  `projection_history` (every `projection:show`, all kinds) never got a screen: `0024` dropped it (owner, 2026-11-17).
 - ~~**Video embedded inside a slide**~~: **implemented on 2026-09-20** as a positioned overlay.
   One hard limit remains that isn't debt but format: legacy `.ppt`/`.pps` files lose the video
   entirely, so the feature is only for `.pptx`/`.ppsx` — measured in

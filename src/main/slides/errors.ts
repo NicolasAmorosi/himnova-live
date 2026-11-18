@@ -16,6 +16,8 @@ export type SlideErrorCode =
   | "DECK_PASSWORD"
   /** PowerPoint 95 or older. */
   | "DECK_OLD_FORMAT"
+  /** The deck worker's clock stopped it: reading it, or copying its clips, went too long without progress. */
+  | "DECK_TOO_SLOW"
   | "CANCELED";
 
 export class SlideError extends IpcError {

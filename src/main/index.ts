@@ -20,7 +20,6 @@ import {
   initRepos,
   getSongsRepo,
   closeDatabase,
-  getHistoryRepo,
   getMediaRepo,
   getSettingsRepo,
   getUtilityRepo,
@@ -355,20 +354,13 @@ if (gotSingleInstanceLock) {
       void pruneThumbCache().catch((error: unknown) => {
         console.warn("[thumbs] prune failed", error);
       });
-      // Same deal for the projection history: it grows by one row per change
-      // of output and its `prune()` — which documents itself as "called once
-      // at startup" — had no caller at all, so `MAX_ROWS` was never enforced.
-      try {
-        getHistoryRepo().prune();
-      } catch (error) {
-        console.warn("[history] prune failed", error);
-      }
     }, THUMB_PRUNE_DELAY_MS);
 
     mainControlWindow = openControlWindow();
     // On the backup thread: main stays free for the window and whatever goes on air. Asked again there, so a copy
-    // made from Settings in the meantime counts as today's.
-    if (hadDatabase) {
+    // made from Settings in the meantime counts as today's. The E2E suite starts most tests from a copy of a bare
+    // profile's database and says so with `--no-daily-backup` on that first launch only: a new profile's has no copy.
+    if (hadDatabase && !process.argv.includes("--no-daily-backup")) {
       setTimeout(() => {
         const dir = dailyBackupDir(dbBackupDir);
         try {
@@ -430,8 +422,8 @@ app.on("before-quit", (event) => {
 });
 
 // `will-quit`, not `before-quit`, for two reasons. It runs after every window
-// is gone, so no in-flight `projection:show` can reach `HistoryRepo.record()`
-// on a connection that was just closed — and more importantly, `before-quit`
+// is gone, so no in-flight `projection:show` can reach the database (a song's
+// CCLI use) on a connection that was just closed. More importantly, `before-quit`
 // now fires while the close guard may still be ASKING the operator, who is
 // free to answer "cancel": closing the database there would leave a perfectly
 // alive app with no database. Synchronous by necessity either way — see

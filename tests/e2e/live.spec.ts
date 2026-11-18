@@ -1,4 +1,5 @@
 import { fixture } from "./support/paths";
+import { faderToGain, gainToFader } from "../../src/renderer/src/components/ui/fader";
 import { audioStates, expect, test, videoStates, type WorshipApp } from "./support/app";
 
 /**
@@ -54,7 +55,7 @@ test("the LIVE row's volume reaches the projector, survives NEGRO and mutes", as
   const live = app.liveColumn();
 
   await live.getByRole("slider", { name: "Volumen de clip" }).fill("30");
-  await expect.poll(async () => (await videoStates(projector))[0]?.volume).toBeCloseTo(0.3, 2);
+  await expect.poll(async () => (await videoStates(projector))[0]?.volume).toBeCloseTo(faderToGain(0.3), 4);
 
   // The level is state the projector holds, not a one-off command: a cover
   // and an uncover must not reset it.
@@ -62,13 +63,13 @@ test("the LIVE row's volume reaches the projector, survives NEGRO and mutes", as
   await expect.poll(async () => (await videoStates(projector))[0]?.paused).toBe(true);
   await app.control.locator("body").press("b");
   await expect.poll(async () => (await videoStates(projector))[0]?.paused).toBe(false);
-  expect((await videoStates(projector))[0]?.volume).toBeCloseTo(0.3, 2);
+  expect((await videoStates(projector))[0]?.volume).toBeCloseTo(faderToGain(0.3), 4);
 
   await live.getByRole("button", { name: "Silenciar" }).click();
   await expect.poll(async () => (await videoStates(projector))[0]?.volume).toBe(0);
   await live.getByRole("button", { name: "Activar sonido" }).click();
   // Back to what the operator had set, not to a default.
-  await expect.poll(async () => (await videoStates(projector))[0]?.volume).toBeCloseTo(0.3, 2);
+  await expect.poll(async () => (await videoStates(projector))[0]?.volume).toBeCloseTo(faderToGain(0.3), 4);
 });
 
 test("a video that plays to its end leaves the projector by itself", async ({ app }) => {
@@ -152,7 +153,7 @@ test("«Al terminar un audio»: the next audio row plays at the level the ended 
   await expect(live.getByRole("slider", { name: "Posición de song" })).toBeVisible();
   await expect(scrubber).toHaveCount(0);
   await expect.poll(async () => (await audioStates(projector))[0]?.currentTime ?? 0).toBeGreaterThan(0.3);
-  expect((await audioStates(projector))[0]?.volume).toBeCloseTo(0.3, 2);
+  expect((await audioStates(projector))[0]?.volume).toBeCloseTo(faderToGain(0.3), 4);
 
   // Changed while it plays, it reaches the one already sounding.
   await pickAudioEnd("Repetir en bucle");
@@ -169,7 +170,10 @@ test("the start volume set in Ajustes is the level a new video starts at", async
 
   const projector = await videoLive(app);
   expect((await videoStates(projector))[0]?.volume).toBeCloseTo(0.4, 2);
-  await expect(app.liveColumn().getByRole("slider", { name: "Volumen de clip" })).toHaveValue("40");
+  // Ajustes says the gain in %; the row's slider stands where OBS's log scale puts it (−8 dB, 70 of 100).
+  const slider = app.liveColumn().getByRole("slider", { name: "Volumen de clip" });
+  await expect(slider).toHaveValue(String(Math.round(gainToFader(0.4) * 100)));
+  await expect(slider).toHaveAttribute("aria-valuetext", "−8 dB");
 });
 
 test("closing and reopening the projector from Ajustes keeps the video where it was", async ({ app }) => {

@@ -1,0 +1,9 @@
+## A perf harness in the windows made the engine look like it drops frames
+**Area:** projection
+**Trigger:** a performance run that finds the media engine (mpv) rendering fewer frames than its source, or a projector drawing at about half rate, while the app is driven through main's inspector with a DevTools session on its windows; deciding whether a frame-rate «regression» is real
+
+- Believed (2026-11-17, audit R15): with the NDI output at 60 fps, a 1080p30 engine video dropped to about 17 frames per second in mpv and 18 on the projector, with 30+ gaps over 100 ms in 20 s, even with no NDI receiver. True: **it was the measuring harness, not the app.** The same scene with no debugger attached to any window, nothing wrapped in main and none of Chromium's anti-throttling switches (`--disable-renderer-backgrounding`, `--disable-backgrounding-occluded-windows`, `--disable-background-timer-throttling`), measured only through the engine's own frame log (`HIMNOVA_ENGINE_FRAME_LOG=<folder>`, one line per rendered frame), rendered 30 of 30 with NDI at 30 and at 60, three phases each, no gap over 100 ms.
+- The harness that produced the false drop attached `webContents.debugger` with `Page` + `Performance` enabled to every window and injected a script before each document. Which of the three (debuggers, main's wrappers, the switches) caused it was not separated.
+- Rule: **judge the engine's frame rate from its frame log in a run with no DevTools session on any window and the app's own launch switches.** A harness's per-window numbers (CPU per process, draw intervals) are fine for comparing two arms of the same run, never for claiming the room loses frames. Same lesson for memory: [a-playwright-driven-soak-measures-devtools-network-buffer-not-the-app.md](a-playwright-driven-soak-measures-devtools-network-buffer-not-the-app.md).
+
+**Last updated:** 2026-11-17

@@ -18,7 +18,12 @@ import {
   selectOutputMemo,
   useProjectionStore,
   type LiveDeck,
+  type ProjectionStoreState,
 } from "@renderer/stores/projection.store";
+import { resolveSong } from "@renderer/stores/song.store";
+import { songBackgroundVideo } from "@renderer/lib/song-output";
+import { parseLyrics } from "@shared/song-text";
+import { DEFAULT_SONG_THEME, type Song, type SongTheme } from "@shared/types/song";
 import { LOGO_URL, assetUrl, slideUrl } from "@shared/urls";
 import type { DeckSlide, DeckSlideVideo } from "@shared/types/deck";
 import { DEFAULT_BIBLE_STYLE } from "@shared/types/bible-style";
@@ -873,5 +878,101 @@ describe("editing the scene that is live", () => {
 
     useProjectionStore.getState().setLiveScene(live);
     expect(selectOutputMemo(useProjectionStore.getState())).toBe(before);
+  });
+});
+
+/**
+ * The memo compares a hand-written list of inputs, and a field `selectOutput` reads that is missing from it reaches the
+ * projector only when something else rebuilds the output: a level that jumps under NEGRO, a style that waits for a
+ * plate (2026-11-15 audit, X25). A Proxy records which fields of the state each one reads, over every kind of output.
+ */
+describe("every field selectOutput reads is an input of its memo (audit X25)", () => {
+  function fieldsRead(read: (state: ProjectionStoreState) => unknown): Set<string> {
+    const seen = new Set<string>();
+    const state = useProjectionStore.getState();
+    read(
+      new Proxy(state, {
+        get(target, key, receiver) {
+          if (typeof key === "string") seen.add(key);
+          return Reflect.get(target, key, receiver) as unknown;
+        },
+      }),
+    );
+    return seen;
+  }
+
+  const song: Song = {
+    id: 7,
+    title: "Sublime gracia",
+    number: null,
+    authors: null,
+    copyright: null,
+    ccliNumber: null,
+    notes: null,
+    sections: parseLyrics("[Estrofa 1]\nuno\n\ndos", "es").sections,
+    order: [],
+    themeId: null,
+    sourceFolder: null,
+    file: null,
+    updatedAt: 1,
+  };
+  const plate: Plate = {
+    id: 1,
+    name: "Logo",
+    kind: "bug",
+    position: "top-right",
+    title: null,
+    subtitle: null,
+    imageAssetId: 5,
+    style: DEFAULT_BUG_STYLE,
+  };
+
+  const outputs: [string, () => void][] = [
+    ["nothing live", () => {}],
+    ["an image under LOGO", () => {
+      useProjectionStore.getState().setBase({ kind: "image", assetId: 3 });
+      useProjectionStore.getState().setOverlay("logo");
+    }],
+    ["a video under NEGRO", () => {
+      useProjectionStore.getState().setBase({ kind: "video", assetId: 5, url: assetUrl(5), epoch: 2, startAtSeconds: 0 });
+      useProjectionStore.getState().setOverlay("black");
+    }],
+    ["a deck slide with its clip, and a plate", () => {
+      useProjectionStore.getState().setLiveDeck(deckOf(9, 2, [slideVideoOn(1)]));
+      useProjectionStore.getState().setBase({ kind: "deck", assetId: 9, slideIndex: 1 });
+      useProjectionStore.getState().showPlate(plate);
+    }],
+    ["a verse", () => {
+      useProjectionStore.getState().setBase({ kind: "bible", text: "Jesús lloró.", reference: "Juan 11:35", versionLabel: null });
+    }],
+    ["a song with a video background", () => {
+      const theme: SongTheme = { ...DEFAULT_SONG_THEME, background: { kind: "video", assetId: 5, fit: "cover" } };
+      useProjectionStore.getState().setBase({
+        kind: "song",
+        songId: 7,
+        song: resolveSong(song, theme, null),
+        slideIndex: 1,
+        detour: null,
+        lyricsHidden: false,
+        enterSeq: 0,
+        theme,
+        sizeCqw: 4,
+        backgroundVideo: songBackgroundVideo(theme, null),
+        language: "both",
+      });
+    }],
+    ["a timer scene", () => {
+      const clock = { mode: "countdown", state: "running", endsAtMs: 1_000 } as const;
+      useProjectionStore.getState().setBase({ kind: "utility", sceneId: 1, scene: scene(), clock });
+    }],
+  ];
+
+  test.each(outputs)("%s", (_, arrange) => {
+    arrange();
+    const read = fieldsRead(selectOutput);
+    selectOutputMemo(useProjectionStore.getState());
+    // The same state again: the memo hits, so all it reads is its inputs.
+    const inputs = fieldsRead(selectOutputMemo);
+    expect([...read].filter((field) => !inputs.has(field))).toEqual([]);
   });
 });

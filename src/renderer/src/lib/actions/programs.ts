@@ -257,8 +257,7 @@ export async function deleteProgram(id: number): Promise<void> {
  *
  * A draft of a SAVED program has to adopt it in main as well, or the restored
  * service looks right and behaves like a program nobody opened: its decks lose
- * the anti-eviction pin and every `projection_history` row written from there
- * on goes unattributed. The items then come from the draft, not from disk —
+ * the anti-eviction pin. The items then come from the draft, not from disk:
  * that is the whole point of restoring one.
  */
 export async function restoreDraft(draft: ProgramDraft): Promise<void> {

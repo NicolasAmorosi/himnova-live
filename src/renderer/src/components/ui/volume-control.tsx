@@ -1,6 +1,7 @@
 import { cn } from "@renderer/lib/utils";
 import { Icon } from "./icon";
 import { IconButton } from "./icon-button";
+import { faderToGain, formatDb, gainToFader } from "./fader";
 import { useMuteToggle } from "./use-mute-toggle";
 
 type VolumeControlProps = {
@@ -13,7 +14,7 @@ type VolumeControlProps = {
   muteLabel: string;
   onChange: (volume: number) => void;
   tone?: "accent" | "audio";
-  /** 0..1. */
+  /** 0..1, a linear gain; the slider moves on the strips' log scale (`fader.ts`) and says it in dB. */
   value: number;
 };
 
@@ -55,14 +56,15 @@ export function VolumeControl({ className, label, muteLabel, onChange, tone = "a
       </IconButton>
       <input
         aria-label={label}
-        aria-valuetext={`${Math.round(value * 100)}%`}
+        aria-valuetext={formatDb(value)}
         className={cn("h-1 w-14 cursor-pointer", accent[tone])}
         max={100}
         min={0}
-        onChange={(event) => onChange(Number(event.currentTarget.value) / 100)}
+        onChange={(event) => onChange(faderToGain(Number(event.currentTarget.value) / 100))}
         step={1}
+        title={formatDb(value)}
         type="range"
-        value={Math.round(value * 100)}
+        value={Math.round(gainToFader(value) * 100)}
       />
     </div>
   );

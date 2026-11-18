@@ -120,7 +120,7 @@ src/
 │   │   │                         #   the first song theme, and seed-starter-look.ts: the backgrounds in
 │   │   │                         #   resources/backgrounds/ (drawn by scripts/make-backgrounds.ts) into the
 │   │   │                         #   library, song themes over them, the verse's and time scenes' look, 3 overlays
-│   │   └── repositories/         # one repo per aggregate (settings, media, bible, programs, history, slides)
+│   │   └── repositories/         # one repo per aggregate (settings, media, bible, programs, slides)
 │   ├── ipc/
 │   │   ├── register.ts           # registerHandlers<Handlers> — exhaustiveness enforced by TS
 │   │   ├── index.ts               # assembles every *.ts in handlers/
@@ -377,7 +377,7 @@ npm run test                 # vitest run — two projects: `main` (Node: migrat
                               #   placeholders, scheme, built-in shapes, fields, autonumbers, a damaged slide) and an
                               #   `.odp` (`odp-reader.test.ts`),
                               #   what older builds' LibreOffice decks leave at startup,
-                              #   slide transitions from OOXML, native deck rows, linked audio, urls, history prune, timer functions,
+                              #   slide transitions from OOXML, native deck rows, linked audio, urls, timer functions,
                               #   dragging a countdown, timer scenes as an order-of-service item,
                               #   video embedded in a slide: geometry, external rels and node by `spid`,
                               #   verse style, the update errors and launch check, the .dmg's sha512 check,
@@ -395,7 +395,9 @@ npm run test                 # vitest run — two projects: `main` (Node: migrat
                               #   the suite's boundary
 npm run test:watch            # the same suite in watch mode, while working on a module
 npm run test:e2e              # build + Playwright: walkthroughs of the real app (~26 min on the M3) with a
-                              #   throwaway, bare profile (`--no-starter-look`, `--no-welcome`, `--no-system-folders`; a spec turns each back on)
+                              #   throwaway, bare profile (`--no-starter-look`, `--no-welcome`, `--no-system-folders`; a spec turns each back on);
+                              #   a test with every option at its default starts from a copy of the run's first one, its
+                              #   Bibles already seeded (`freshProfile` or E2E_FRESH_PROFILES=1 for a real first launch)
                               #   and media generated on the fly — videos, AVI and WMA with the
                               #   bundled FFmpeg; PDFs, a legacy .pps made of pictures and .pptx with auto-advance, a
                               #   WMA soundtrack and an embedded WMV written in code (`tests/e2e/support/pptx.ts`),
@@ -516,7 +518,7 @@ npm run package:win|mac|linux  # build + electron-builder for that platform
 - **Main doesn't know what's live either, and no second source of truth is invented for it.**
   `selectOutput` is a **lossy** projection: a deck covered by BLACK/LOGO and "nothing is
   live" reach main as the same `ProjectionOutput`. Any decision main makes about "what's
-  live" (eviction pins, history attribution, rejecting an operation) either travels inside
+  live" (eviction pins, rejecting an operation) either travels inside
   the output because the projector itself needs it —like `videoUnderlay`— or belongs to the control
   window. A guard in main that's right 95% of the time is worse than none: the 5% is a rejection the
   operator can neither explain nor bypass mid-service. Diagnosis in
