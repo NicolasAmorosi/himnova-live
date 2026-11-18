@@ -222,7 +222,7 @@ that starts without the operator asking is one check, 10 s after launch.
 |---|---|---|---|
 | Windows (NSIS) | electron-updater, sha512 | silent install, reopens; UAC if installed for all users | silent install, doesn't reopen |
 | macOS (ad-hoc) | `mac-dmg.ts`: `net.fetch`, sha512 against `latest-mac.yml` | opens the `.dmg` and quits; the operator drags it over the app | opens the `.dmg` on the way out |
-| Linux AppImage / `.deb` | electron-updater, sha512 | replaces the file / `pkexec dpkg -i`, reopens | the same, on the way out |
+| Linux AppImage / `.deb` | electron-updater, sha512 | replaces the file, reopens once this process is gone (`relaunchOnQuit`, never electron-updater's own spawn) / `pkexec dpkg -i`, reopens | the same, on the way out |
 
 - **macOS doesn't go through `MacUpdater`.** Squirrel.Mac rejects every new build of an ad-hoc
   signed app: see

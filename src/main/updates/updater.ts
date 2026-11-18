@@ -5,6 +5,7 @@ import { app, shell } from "electron";
 // «Named export 'autoUpdater' not found» when the app starts.
 import electronUpdater, { type AppUpdater, type UpdateInfo } from "electron-updater";
 import { canCheck, type UpdateStatus, type UpdateStep } from "@shared/types/updates";
+import { relaunchOnQuit } from "../ipc/handlers/backups";
 import { broadcast } from "../services/broadcast";
 import { getSettingsRepo } from "../services/repos";
 import { releaseForUpdate } from "../windows/close-guard";
@@ -172,7 +173,16 @@ function launchInstaller(relaunch: boolean): boolean {
     dmgPath = null;
     return true;
   }
-  return updater instanceof electronUpdater.BaseUpdater && updater.install(true, relaunch);
+  if (!(updater instanceof electronUpdater.BaseUpdater)) return false;
+  // An AppImage started again by electron-updater is spawned from this process at once and inherits its open files
+  // on the old AppImage's mount (`app.asar`, the `.pak` files): that mount and its runtime stayed alive, the old
+  // file's space with them, for as long as the new version ran (measured on the Linux PC, 2026-11-18). So the file
+  // is only replaced here (AppRun exits at once under `APPIMAGE_EXIT_AFTER_INSTALL`), and the new one starts once
+  // this process is gone, with nothing inherited, as «Restore and restart» does.
+  const appImage = relaunch && updater instanceof electronUpdater.AppImageUpdater;
+  if (!updater.install(true, relaunch && !appImage)) return false;
+  if (appImage) relaunchOnQuit();
+  return true;
 }
 
 /** The installer next to the release's `latest*.yml`: the GitHub release's
