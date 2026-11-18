@@ -59,8 +59,7 @@ export function readFill(el: XmlElement, ctx: StyleContext): Fill | null {
       if (!image) return null;
       const tile = child(el, "a:tile");
       if (tile) {
-        const bytes = readZipEntries(ctx.pkg.file, (n) => n === image.part)[image.part];
-        const size = bytes ? imageNaturalSize(bytes) : null;
+        const size = tileImageSize(ctx.pkg, image.part);
         if (!size) {
           miss(ctx, "fill:tile-size");
           return { kind: "image", image, mode: "stretch" };
@@ -92,6 +91,19 @@ export function readFill(el: XmlElement, ctx: StyleContext): Fill | null {
     default:
       return null;
   }
+}
+
+/** A tiled picture's natural size, read once per deck: a template's tiled background is on every slide, and reading
+ *  the zip and the whole picture again for each cost 6 s on 300 slides of a 4 MB picture (2026-11-15 audit, R19). */
+const tileSizes = new WeakMap<PptxPackage, Map<string, { w: number; h: number } | null>>();
+function tileImageSize(pkg: PptxPackage, part: string): { w: number; h: number } | null {
+  let sizes = tileSizes.get(pkg);
+  if (!sizes) tileSizes.set(pkg, (sizes = new Map<string, { w: number; h: number } | null>()));
+  if (!sizes.has(part)) {
+    const bytes = readZipEntries(pkg.file, (n) => n === part)[part];
+    sizes.set(part, bytes ? imageNaturalSize(bytes) : null);
+  }
+  return sizes.get(part) ?? null;
 }
 
 function readGradient(el: XmlElement, ctx: StyleContext): Fill | null {
