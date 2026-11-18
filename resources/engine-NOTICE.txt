@@ -13,7 +13,8 @@ libmpv:
             source of mpv and of every library linked into it by URL and sha256, and carries the one
             patch applied to mpv. mpv is built in its default configuration, under the GNU GPL,
             version 2 or later. Linked in: FFmpeg 8.0.3 (built without --enable-gpl, LGPL 2.1 or
-            later), libplacebo, libass, HarfBuzz, FreeType and FriBidi, each under its own license.
+            later), dav1d (BSD 2-Clause), libplacebo, libass, HarfBuzz, FreeType and FriBidi, each under
+            its own license.
   Windows   libmpv-2.dll from shinchiro's mpv-winbuild-cmake, build 20261021 of mpv master e471496c56:
               https://github.com/shinchiro/mpv-winbuild-cmake/releases/tag/20261021
               https://github.com/mpv-player/mpv/tree/e471496c56

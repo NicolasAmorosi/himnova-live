@@ -1,6 +1,6 @@
 #!/bin/zsh
 # Builds a self-contained libmpv 0.41.0 for macOS arm64, minimum macOS 12.0: a single libmpv.2.dylib with
-# FFmpeg (decoding only), libplacebo, libass, harfbuzz, freetype and fribidi linked in statically. It only
+# FFmpeg (decoding only), dav1d, libplacebo, libass, harfbuzz, freetype and fribidi linked in statically. It only
 # links system frameworks and /usr/lib. Nothing is installed system-wide: meson/ninja live in a venv, pkgconf
 # is built from source, everything else under out/.
 #   ./build.sh         build (re-runnable: each finished step leaves a stamp in out/stamps and is skipped;
@@ -28,6 +28,7 @@ SOURCES=(
   freetype   freetype-2.14.3.tar.xz     36bc4f1cc413335368ee656c42afca65c5a3987e8768cc28cf11ba775e785a5f https://download.savannah.gnu.org/releases/freetype/freetype-2.14.3.tar.xz
   harfbuzz   harfbuzz-14.6.0.tar.xz     d07a007327277708a2a73ae437887cdbaf282937f6d03ca5467723e9099af586 https://github.com/harfbuzz/harfbuzz/releases/download/14.6.0/harfbuzz-14.6.0.tar.xz
   libass     libass-0.17.5.tar.xz       2dca25c0e0c837ddf00b52011b3f82cac1e4ddd3ad018227806b0c2288864acc https://github.com/libass/libass/releases/download/0.17.5/libass-0.17.5.tar.xz
+  dav1d      dav1d-1.5.4.tar.xz         686616b7c69eb88d44459391ab25cac13b6647a3b288835c5784e71c1514a5c5 https://downloads.videolan.org/pub/videolan/dav1d/1.5.4/dav1d-1.5.4.tar.xz
   ffmpeg     ffmpeg-8.0.3.tar.xz        6136812ea6d4e68bdba27e33c2a94382711cdf4f8602ffef056ff792bd6f9818 https://ffmpeg.org/releases/ffmpeg-8.0.3.tar.xz
   libplacebo libplacebo-7.360.1.tar.gz  d05fdf90bea2f629eaa2d115e909fd356388ac639e54f77b87a018a6d76224bd https://github.com/haasn/libplacebo/archive/refs/tags/v7.360.1.tar.gz
   fast_float fast_float-97b54ca9.tar.gz 2b132274539286e41f37857cac22aa8441d21bd86d55de825a3342b149f66801 https://github.com/fastfloat/fast_float/archive/97b54ca9e75f5303507699d27c6b4f4efe4641a1.tar.gz
@@ -118,8 +119,16 @@ build_libass() {
   meson_build libass -Dcoretext=enabled -Dasm=enabled
 }
 
+# AV1 in software: FFmpeg's own AV1 decoder only drives hardware (VideoToolbox has it from the M3 on), and the engine's
+# inspect mode decodes in software, so an AV1 video gave not even its thumbnail (2026-11-18). The library alone, with
+# its NEON assembly.
+build_dav1d() {
+  src dav1d
+  meson_build dav1d -Denable_tools=false -Denable_tests=false -Denable_examples=false -Denable_docs=false
+}
+
 # Decoding only: every decoder, demuxer, parser, bitstream filter and filter, VideoToolbox hwaccels;
-# no encoders, muxers, devices, network or external libraries but the system's zlib and iconv.
+# no encoders, muxers, devices, network or external libraries but the system's zlib and iconv, and dav1d.
 build_ffmpeg() {
   src ffmpeg
   rm -rf $BUILD/ffmpeg && mkdir -p $BUILD/ffmpeg && cd $BUILD/ffmpeg
@@ -127,7 +136,7 @@ build_ffmpeg() {
     --extra-cflags=-mmacosx-version-min=$MIN --extra-objcflags=-mmacosx-version-min=$MIN \
     --extra-ldflags=-mmacosx-version-min=$MIN \
     --enable-static --disable-shared --disable-programs --disable-doc --disable-debug \
-    --disable-autodetect --enable-pthreads --enable-videotoolbox --enable-zlib --enable-iconv \
+    --disable-autodetect --enable-pthreads --enable-videotoolbox --enable-zlib --enable-iconv --enable-libdav1d \
     --disable-avdevice --disable-encoders --disable-muxers --disable-devices --disable-network
   make -j $JOBS && make install
   cd $OLDPWD
@@ -239,6 +248,7 @@ step fribidi
 step freetype
 step harfbuzz
 step libass
+step dav1d
 step ffmpeg
 step libplacebo
 step mpv
