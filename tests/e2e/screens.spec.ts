@@ -76,10 +76,17 @@ async function expectMovableOnControlScreen(app: WorshipApp) {
   }).toPass();
 }
 
-/** Settings ▸ Screens: the row of the screen that hosts the control window, and the other one. */
+/** Settings ▸ Screens: the row of the screen that hosts the control window. */
 const ownScreenRow = (settings: Locator) => settings.getByRole("group").filter({ hasText: "Esta pantalla tiene la ventana de control" });
-const otherScreenRow = (settings: Locator) =>
-  settings.getByRole("group").filter({ hasText: /^2 · / }).filter({ hasNotText: "Esta pantalla tiene la ventana de control" });
+/** The row of the screen the projector took, by its number, read once: the rows follow the OS's order, and Windows
+ *  changed it on a restart (2026-11-19: the operator's screen listed third, the projector's first). */
+async function projectorScreenRow(settings: Locator): Promise<{ row: Locator; number: string }> {
+  const rows = settings.getByRole("group").filter({ hasText: /^\d+ · / });
+  const projector = rows.filter({ has: settings.page().getByRole("combobox").filter({ hasText: /^Proyector$/ }) });
+  await expect(projector).toHaveCount(1);
+  const number = /^(\d+) · /.exec(await projector.innerText())?.[1] ?? "?";
+  return { row: rows.filter({ hasText: new RegExp(`^${number} · `) }), number };
+}
 
 async function screensSettings(app: WorshipApp): Promise<Locator> {
   await app.control.getByRole("button", { name: "Configuración" }).click();
@@ -218,8 +225,8 @@ test("the roles exclude each other: the stage given the projector's screen moves
 }) => {
   test.skip((await app.invoke<unknown[]>("displays:list")).length < 2, "needs two screens");
   const settings = await screensSettings(app);
-  const other = otherScreenRow(settings);
-  await expect(other.getByRole("combobox")).toHaveText(/Proyector/);
+  const { row: other, number } = await projectorScreenRow(settings);
+  await expect(other).not.toContainText("Esta pantalla tiene la ventana de control");
 
   await pickRole(app, other, "Escenario");
   await expect(app.control.getByRole("status").filter({ hasText: /^El proyector pasó a / })).toBeVisible();
@@ -227,7 +234,7 @@ test("the roles exclude each other: the stage given the projector's screen moves
   // Onto another screen: a third if there is one, else the operator's own (as a window). One projector, always.
   await expect(settings.getByRole("combobox").filter({ hasText: /^Proyector$/ })).toHaveCount(1);
   await expect.poll(() => stageOpen(app)).toBe(true);
-  await expect(settings.getByRole("list", { name: "Ahora" })).toContainText("Escenario visible en 2");
+  await expect(settings.getByRole("list", { name: "Ahora" })).toContainText(`Escenario visible en ${number}`);
 
   await pickRole(app, other, "Proyector");
   await expect(app.control.getByRole("status").filter({ hasText: "pasó a ser el proyector: el escenario quedó sin pantalla" })).toBeVisible();
