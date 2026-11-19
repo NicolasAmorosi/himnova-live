@@ -3,6 +3,7 @@ import { subscribeWithSelector } from "zustand/middleware";
 import { mediaErrorKey, mediaTargetKey } from "@shared/types/projection";
 import type {
   BaseContent,
+  BibleParallel,
   MediaStatus,
   OverlayState,
   ProjectionMediaError,
@@ -236,6 +237,10 @@ export type ProjectionStoreState = {
    *  itself, and the mark inside `base.clock` is untouched, so the count does
    *  not restart. A no-op unless this exact scene is the one that is live. */
   setLiveScene: (scene: UtilityScene) => void;
+
+  /** The live verse with the parallel the operator just chose (`chooseParallelVersion`): `base` patched in place, no
+   *  new scene, as `setLiveScene`. A no-op unless a verse is live. */
+  setLiveParallel: (parallel: BibleParallel | null) => void;
 
   /** Re-dresses the live song after it, or its theme, was saved — or in
    *  another `language`, re-resolved and re-measured by the caller — the
@@ -495,6 +500,13 @@ export const useProjectionStore = create<ProjectionStoreState>()(
         const { base } = state;
         if (base?.kind !== "utility" || base.sceneId !== scene.id || base.scene === scene) return state;
         return { base: { ...base, scene } };
+      }),
+
+    setLiveParallel: (parallel) =>
+      set((state) => {
+        const { base } = state;
+        if (base?.kind !== "bible" || JSON.stringify(base.parallel ?? null) === JSON.stringify(parallel)) return state;
+        return { base: { ...base, parallel } };
       }),
 
     setLiveSong: (song, theme, sizeCqw, slideIndex, language) =>

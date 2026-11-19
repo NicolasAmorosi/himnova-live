@@ -310,9 +310,7 @@ export const useBibleStore = create<BibleStoreState>((set, get) => ({
   },
 
   setParallelVersion: async (versionId) => {
-    // ponytail: the verse already live keeps the parallel it went out with; the
-    // choice reaches the NEXT verse (PREVIEW shows it at once). Upgrade: patch
-    // `base.parallel` in place with no new scene, as a restyled verse does.
+    // The verse already live is `chooseParallelVersion`'s (`lib/actions/bible.ts`), which calls this.
     // The mirror is written at once (`update`), so the reload already reads it.
     const saved = useSettingsStore.getState().update({ "bible.parallelVersionId": versionId });
     await get().refreshParallel();

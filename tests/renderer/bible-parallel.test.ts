@@ -14,7 +14,7 @@ import { useProgramStore } from "@renderer/stores/program.store";
 import { bibleOutputFor } from "@renderer/lib/bible-output";
 import { DEFAULT_SETTINGS } from "@shared/types/settings";
 import { stageOutputFor } from "@renderer/lib/stage-output";
-import { advanceVerse, projectVerse } from "@renderer/lib/actions/bible";
+import { advanceVerse, chooseParallelVersion, projectVerse } from "@renderer/lib/actions/bible";
 import { goLive } from "@renderer/lib/actions/playback";
 import { previewScheduleItem } from "@renderer/lib/actions/preview";
 import { DEFAULT_BIBLE_STYLE } from "@shared/types/bible-style";
@@ -183,17 +183,33 @@ describe("the Bible tab", () => {
     expect(useProjectionStore.getState().base).toMatchObject({ reference: "Juan 3:3", parallel: null });
   });
 
-  test("choosing the parallel reaches PREVIEW's chapter at once and the NEXT verse, not the live one", async () => {
+  test("choosing the parallel reaches PREVIEW's chapter and the live verse at once, in place", async () => {
     await useBibleStore.getState().setBookAndChapter(43, 3);
     projectVerse(15);
-    const live = useProjectionStore.getState().base;
+    const epoch = useProjectionStore.getState().sceneEpoch;
 
-    await useBibleStore.getState().setParallelVersion(2);
+    await chooseParallelVersion(2);
     expect(useBibleStore.getState().parallelVerses[15]?.text).toBe("143:16");
-    expect(useProjectionStore.getState().base).toBe(live);
+    expect(useProjectionStore.getState().base).toMatchObject({
+      reference: "Juan 3:16",
+      parallel: { text: "For God so loved the world.", reference: "John 3:16", versionLabel: "English" },
+    });
+    // Not a new scene: the projector cuts to it, as to a restyled verse.
+    expect(useProjectionStore.getState().sceneEpoch).toBe(epoch);
 
-    await useBibleStore.getState().setParallelVersion(null);
+    await chooseParallelVersion(null);
     expect(useBibleStore.getState()).toMatchObject({ parallelVersionId: null, parallelVerses: [] });
+    expect(useProjectionStore.getState().base).toMatchObject({ reference: "Juan 3:16", parallel: null });
+  });
+
+  test("a verse that left the air is not touched by a parallel chosen later", async () => {
+    await useBibleStore.getState().setBookAndChapter(43, 3);
+    projectVerse(15);
+    // Another verse went live by another path (a schedule row of no parallel lookup, say).
+    const other = { kind: "bible" as const, text: "otra cosa", reference: "Juan 1:1", versionLabel: null, parallel: null };
+    useProjectionStore.getState().setBase(other);
+    await chooseParallelVersion(2);
+    expect(useProjectionStore.getState().base).toBe(other);
   });
 
   test("the browsed version itself as the parallel is none", async () => {
@@ -230,6 +246,32 @@ describe("a schedule row", () => {
       parallel: { text: "For God so loved the world.", reference: "John 3:16", versionLabel: "English" },
     });
     expect(useProgramStore.getState().activeIndex).toBe(0);
+  });
+
+  test("a parallel chosen while the row is live reaches it in place", async () => {
+    addRow();
+    await goLive();
+    const epoch = useProjectionStore.getState().sceneEpoch;
+    await chooseParallelVersion(2);
+    expect(useProjectionStore.getState().base).toMatchObject({
+      reference: "Juan 3:16",
+      parallel: { text: "For God so loved the world.", reference: "John 3:16" },
+    });
+    expect(useProjectionStore.getState().sceneEpoch).toBe(epoch);
+  });
+
+  test("a verse sent while the new parallel is looked up keeps its own", async () => {
+    addRow();
+    await goLive();
+    let answerPassage = () => {};
+    passageGate = new Promise((resolve) => (answerPassage = resolve));
+    const choosing = chooseParallelVersion(2);
+    await vi.waitFor(() => expect(passageCalls.length).toBeGreaterThan(0));
+    const other = { kind: "bible" as const, text: "otra", reference: "Juan 1:1", versionLabel: null, parallel: null };
+    useProjectionStore.getState().setBase(other);
+    answerPassage();
+    await choosing;
+    expect(useProjectionStore.getState().base).toBe(other);
   });
 
   test("with no parallel it goes live alone, asking main nothing", async () => {

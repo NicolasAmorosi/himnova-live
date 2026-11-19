@@ -22,7 +22,13 @@ import { bibleVersionLabel, bookmarkCovers, parallelVersionFor, useBibleStore } 
 import { usePreviewStore } from "@renderer/stores/preview.store";
 import { useSettingsStore } from "@renderer/stores/settings.store";
 import { api } from "@renderer/lib/api";
-import { addVerseToSchedule, buildVerseDrag, previewPassage, previewSearchHit } from "@renderer/lib/actions/bible";
+import {
+  addVerseToSchedule,
+  buildVerseDrag,
+  chooseParallelVersion,
+  previewPassage,
+  previewSearchHit,
+} from "@renderer/lib/actions/bible";
 import { previewVerse } from "@renderer/lib/actions/preview";
 import { goLive } from "@renderer/lib/actions/playback";
 import { setBibleVerseDrag } from "@renderer/lib/dnd";
@@ -65,7 +71,6 @@ export function BibleBrowser() {
   const favorites = useBibleStore((s) => s.favorites);
   const recents = useBibleStore((s) => s.recents);
   const setFavorite = useBibleStore((s) => s.setFavorite);
-  const setParallelVersion = useBibleStore((s) => s.setParallelVersion);
   const parallelSetting = useSettingsStore((s) => s.settings["bible.parallelVersionId"]);
   // The browsed version itself, or one deleted since, is no parallel.
   const parallelId = parallelVersionFor(parallelSetting, versions, versionId);
@@ -312,7 +317,7 @@ export function BibleBrowser() {
               disabled={parallelOptions.length === 0}
               icon="columns"
               label={t("bible.parallel")}
-              onSelect={(value) => void setParallelVersion(value === "none" ? null : Number(value))}
+              onSelect={(value) => void chooseParallelVersion(value === "none" ? null : Number(value))}
               options={[{ label: t("bible.parallelNone"), value: "none" }, ...parallelOptions]}
               size="sm"
               value={parallelId === null ? "none" : String(parallelId)}
