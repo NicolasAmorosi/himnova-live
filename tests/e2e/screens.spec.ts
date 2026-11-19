@@ -102,7 +102,10 @@ async function pickRole(app: WorshipApp, row: Locator, role: "Proyector" | "Esce
 
 const stageOpen = (app: WorshipApp) =>
   app.electron.evaluate(({ BrowserWindow }) =>
-    BrowserWindow.getAllWindows().some((w) => !w.isDestroyed() && w.webContents.getURL().endsWith("/stage.html")),
+    // A window on its way out can still be listed with its page already gone.
+    BrowserWindow.getAllWindows().some(
+      (w) => !w.isDestroyed() && !w.webContents.isDestroyed() && w.webContents.getURL().endsWith("/stage.html"),
+    ),
   );
 
 async function verseLive(app: WorshipApp) {
