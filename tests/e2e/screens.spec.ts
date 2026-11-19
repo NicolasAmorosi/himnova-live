@@ -16,6 +16,7 @@ type WinState = {
   fullScreen: boolean;
   onTop: boolean;
   visible: boolean;
+  menu: boolean;
 };
 
 function projectorWindow(app: WorshipApp): Promise<WinState | null> {
@@ -25,7 +26,14 @@ function projectorWindow(app: WorshipApp): Promise<WinState | null> {
       .filter((win) => !win.isDestroyed() && win.webContents.getURL().endsWith("/projection.html"))
       .sort((a, b) => b.id - a.id)[0];
     return w
-      ? { bounds: w.getBounds(), content: w.getContentBounds(), fullScreen: w.isFullScreen(), onTop: w.isAlwaysOnTop(), visible: w.isVisible() }
+      ? {
+          bounds: w.getBounds(),
+          content: w.getContentBounds(),
+          fullScreen: w.isFullScreen(),
+          onTop: w.isAlwaysOnTop(),
+          visible: w.isVisible(),
+          menu: w.isMenuBarVisible(),
+        }
       : null;
   });
 }
@@ -47,6 +55,8 @@ async function expectMovableOnControlScreen(app: WorshipApp) {
       return state && { visible: state.visible, fullScreen: state.fullScreen, onTop: state.onTop };
     })
     .toEqual({ visible: true, fullScreen: false, onTop: false });
+  // Linux gave it the app's menu, 29 px over the picture (2026-11-18); macOS's menu is the screen's, Windows has none.
+  if (process.platform === "linux") expect((await projectorWindow(app))!.menu).toBe(false);
   const area = await controlScreen(app);
   // Settled bounds: on GNOME (X11) they read the requested place, then 0,0, then the final one within ~30 ms of
   // showing (CachyOS, 2026-11-18), so two reads 100 ms apart must agree.
@@ -55,8 +65,9 @@ async function expectMovableOnControlScreen(app: WorshipApp) {
     await app.control.waitForTimeout(100);
     const win = (await projectorWindow(app))!;
     expect(win.bounds).toEqual(first.bounds);
-    // A title bar: the content is shorter than the window.
-    expect(win.content.height).toBeLessThan(win.bounds.height);
+    // A title bar: the content is shorter than the window. Not on GNOME, which draws it outside the bounds: the 29 px
+    // read there were the app's menu, gone since 2026-11-19.
+    if (process.platform !== "linux") expect(win.content.height).toBeLessThan(win.bounds.height);
     const centre = { x: win.bounds.x + win.bounds.width / 2, y: win.bounds.y + win.bounds.height / 2 };
     expect(Math.abs(centre.x - (area.x + area.width / 2))).toBeLessThan(40);
     // GNOME puts its own title bar (32 px) where the window was asked to go and the bounds start below it: 46.5 px
