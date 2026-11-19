@@ -12,8 +12,9 @@
 - What to do: each role keeps its screen's print (`DisplayPrint`, label and bounds) while that screen is connected, and
   main finds a lost id again by it, at launch and on every change of screens (`reconcileDisplayRoles` in
   `src/main/windows/projector-screen.ts`, the pure `recognizeDisplay` in `projector-display-choice.ts`). The size
-  alone tells nothing apart (all three are 1920x1080); two monitors of one model need the place too; a screen with no
-  name is never recognized, and anything less certain changes nothing.
+  alone tells nothing apart (all three are 1920x1080); two monitors of one model need the place too, and keep needing it
+  after one of them leaves (the print's `unique` stays false once a twin was seen: the one left alone while the other
+  is in standby is not it); a screen with no name is never recognized, and anything less certain changes nothing.
 - In an E2E, never assume a screen's row number in Settings or that the projector's row is «2»: read it
   (`projectorScreenRow` in `tests/e2e/screens.spec.ts`). `screens.spec.ts`'s roles test failed 3 of 3 against 2.12.0
   on that PC on 2026-11-19 for exactly that.
