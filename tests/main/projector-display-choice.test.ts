@@ -1,5 +1,10 @@
 import { expect, test } from "vitest";
-import { chooseProjectorMove, chooseStageDisplay } from "../../src/main/windows/projector-display-choice";
+import {
+  chooseProjectorMove,
+  chooseStageDisplay,
+  printOf,
+  recognizeDisplay,
+} from "../../src/main/windows/projector-display-choice";
 import { projectorDisplayFor, stageSharesProjector } from "../../src/shared/display-roles";
 
 // Screens: 1 = the operator's (hosts the control window), 2 = the projector, 3 = a third one.
@@ -84,4 +89,39 @@ test("a 2.9 profile with the stage on the projector's screen keeps the projector
   expect(stageSharesProjector(2, 3, 1)).toBe(false);
   expect(stageSharesProjector(null, null, 1)).toBe(false);
   expect(stageSharesProjector(null, 2, 1)).toBe(false);
+});
+
+// The owner's Windows PC before and after the restart of 2026-11-18: three new ids, the same names and places.
+const before = [
+  { id: 115815580, label: "GS25F2", bounds: { x: 0, y: 0, width: 1920, height: 1080 } },
+  { id: 2926163071, label: "PHL 221V8", bounds: { x: -1920, y: 0, width: 1920, height: 1080 } },
+  { id: 3750548484, label: "LG FULL HD", bounds: { x: 1920, y: 0, width: 1920, height: 1080 } },
+];
+const after = [
+  { id: 989985988, label: "GS25F2", bounds: { x: 0, y: 0, width: 1920, height: 1080 } },
+  { id: 2560382816, label: "PHL 221V8", bounds: { x: -1920, y: 0, width: 1920, height: 1080 } },
+  { id: 3161383203, label: "LG FULL HD", bounds: { x: 1920, y: 0, width: 1920, height: 1080 } },
+];
+
+test("a screen Windows renumbered is found again by its name", () => {
+  expect(recognizeDisplay(printOf(before[2]!), after, [])).toBe(3161383203);
+  expect(recognizeDisplay(printOf(before[1]!), after, [])).toBe(2560382816);
+  // Same size, so the size alone could not tell them apart.
+});
+
+test("two screens of one model are told apart by their place, and only by both", () => {
+  const twins = [
+    { id: 7, label: "EPSON PJ", bounds: { x: 1920, y: 0, width: 1920, height: 1080 } },
+    { id: 8, label: "EPSON PJ", bounds: { x: 3840, y: 0, width: 1920, height: 1080 } },
+  ];
+  expect(recognizeDisplay({ label: "EPSON PJ", x: 3840, y: 0, width: 1920, height: 1080 }, twins, [])).toBe(8);
+  // Moved since: neither is certain, so nothing is guessed.
+  expect(recognizeDisplay({ label: "EPSON PJ", x: 0, y: 1080, width: 1920, height: 1080 }, twins, [])).toBeNull();
+});
+
+test("nothing is recognized without a name, without a match, or onto a screen another role holds", () => {
+  expect(printOf({ id: 1, label: "  ", bounds: { x: 0, y: 0, width: 1920, height: 1080 } })).toBeNull();
+  expect(recognizeDisplay(null, after, [])).toBeNull();
+  expect(recognizeDisplay({ label: "Proyector", x: 0, y: 0, width: 1920, height: 1080 }, after, [])).toBeNull();
+  expect(recognizeDisplay(printOf(before[2]!), after, [3161383203])).toBeNull();
 });

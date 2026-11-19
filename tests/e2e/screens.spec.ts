@@ -308,6 +308,27 @@ test("the control window dragged onto the stage's screen makes the stage a movab
   await expect.poll(stage, { timeout: 10_000 }).toMatchObject({ onTop: true });
 });
 
+// Windows can give every screen a new id on a restart (the owner's PC, 2026-11-18): with three screens the stage stayed
+// off and the projector took the first free screen. A role saved under an id that is gone finds its screen again.
+test("a role's screen back under a new id is found again by its name and place", async ({ app }) => {
+  const own = await app.electron.evaluate(({ BrowserWindow, screen }) => {
+    const control = BrowserWindow.getAllWindows().find((w) => !w.isDestroyed() && w.webContents.getURL().endsWith("/index.html"))!;
+    const d = screen.getDisplayMatching(control.getBounds());
+    return { id: d.id, print: { label: d.label.trim(), x: d.bounds.x, y: d.bounds.y, width: d.bounds.width, height: d.bounds.height } };
+  });
+  test.skip(own.print.label === "", "a screen with no name is never recognized");
+  // The stage's screen as an earlier launch saved it: this screen's name and place, under an id this launch never saw.
+  await app.invoke("settings:set", { "stage.displayId": 4242, "stage.displayPrint": own.print });
+  expect((await app.invoke<Record<string, unknown>>("settings:get"))["stage.displayId"]).toBe(own.id);
+  await expect
+    .poll(() =>
+      app.electron.evaluate(({ BrowserWindow }) =>
+        BrowserWindow.getAllWindows().some((w) => !w.isDestroyed() && w.isVisible() && w.webContents.getURL().endsWith("/stage.html")),
+      ),
+    )
+    .toBe(true);
+});
+
 test("«Identificar» puts each screen's number on it for a few seconds, the map's numbers", async ({ app }) => {
   const count = (await app.invoke<unknown[]>("displays:list")).length;
   const settings = await screensSettings(app);

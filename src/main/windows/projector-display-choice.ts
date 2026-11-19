@@ -1,4 +1,39 @@
 import { projectorDisplayFor } from "@shared/display-roles";
+import type { DisplayPrint } from "@shared/types/settings";
+
+/** What the two functions below read of an Electron `Display`. */
+type ScreenSeen = { id: number; label: string; bounds: { x: number; y: number; width: number; height: number } };
+
+/** A screen's print, kept for its role while it is connected; `null` for a screen with no name (Linux may give none),
+ *  which is never recognized by its place alone. */
+export function printOf(display: ScreenSeen): DisplayPrint | null {
+  const label = display.label.trim();
+  if (label === "") return null;
+  const { x, y, width, height } = display.bounds;
+  return { label, x, y, width, height };
+}
+
+/**
+ * The screen a role's print points to once its saved id is gone. Windows can hand every screen a new id after a
+ * restart (measured 2026-11-18 on the owner's PC: three screens, three new ids, the same names and places), and with
+ * three screens the stage then stayed off and the projector took the first free screen, maybe the musicians'.
+ * The same name; with two screens of one model, the same place as well. Anything less certain is `null`, and the roles
+ * behave as before (`projectorDisplayFor`, `chooseStageDisplay`). Never a screen another role holds. Pure.
+ */
+export function recognizeDisplay(
+  print: DisplayPrint | null,
+  displays: readonly ScreenSeen[],
+  taken: readonly number[],
+): number | null {
+  if (print === null) return null;
+  const named = displays.filter((display) => display.label.trim() === print.label);
+  const placed =
+    named.length === 1
+      ? named
+      : named.filter(({ bounds: b }) => b.x === print.x && b.y === print.y && b.width === print.width && b.height === print.height);
+  const found = placed.length === 1 ? placed[0]!.id : null;
+  return found !== null && !taken.includes(found) ? found : null;
+}
 
 /**
  * Where the projection window goes once the list of screens changes, or `null` to leave it where it

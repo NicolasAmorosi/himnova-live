@@ -203,6 +203,14 @@ export const useDisplayStore = create<DisplayStoreState>((set, get) => ({
   },
 
   refresh: async () => {
+    // Main may have found a role's screen again under a new id (`reconcileDisplayRoles`): read the two roles back first.
+    const fresh = await api.settings.get();
+    const { settings } = useSettingsStore.getState();
+    if (fresh["projection.displayId"] !== settings["projection.displayId"] || fresh["stage.displayId"] !== settings["stage.displayId"]) {
+      useSettingsStore.setState({
+        settings: { ...settings, "projection.displayId": fresh["projection.displayId"], "stage.displayId": fresh["stage.displayId"] },
+      });
+    }
     await get().load();
     // A projector turned on after the app opened.
     await get().autoOpen();
