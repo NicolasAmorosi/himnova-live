@@ -136,8 +136,8 @@ const pt: Messages = {
     messageHelp: "Só o palco vê. Enter mostra; o ✕ tira.",
     screenLost: "A tela do palco foi desconectada. Ela volta sozinha assim que for conectada.",
     screenBack: "A tela do palco voltou",
-    pin: "Fixar o painel: não fecha ao clicar fora",
-    unpin: "Soltar o painel: fecha ao clicar fora",
+    pin: "Fixar o painel: não fecha ao clicar fora nem com Esc",
+    unpin: "Soltar o painel: fecha ao clicar fora ou com Esc",
   },
   status: {
     black: "PRETO",
@@ -1453,7 +1453,7 @@ const pt: Messages = {
       },
       move: {
         title: "Avance",
-        body: "As setas ou um passador de slides avançam slides e versículos. Numa música: 1–9 estrofes, C refrão, P ponte.",
+        body: "As setas ou um passador de slides avançam slides e versículos. Numa música: 1–\u20609 estrofes, C refrão, R pré-refrão, P ponte, I intro, F final.",
       },
       practice: "Praticar",
       firstSteps: "Mostrar “Primeiros passos”",

@@ -136,8 +136,8 @@ const en: Messages = {
     messageHelp: "Only the stage sees it. Enter shows it; the ✕ takes it off.",
     screenLost: "The stage screen was disconnected. It comes back on its own as soon as it's connected.",
     screenBack: "The stage screen is back",
-    pin: "Pin the panel: it stays open when you click elsewhere",
-    unpin: "Unpin the panel: it closes when you click elsewhere",
+    pin: "Pin the panel: it stays open when you click elsewhere or press Esc",
+    unpin: "Unpin the panel: it closes when you click elsewhere or press Esc",
   },
   status: {
     black: "BLACK",
@@ -1452,7 +1452,7 @@ const en: Messages = {
       },
       move: {
         title: "Move on",
-        body: "The arrows or a presentation remote step through slides and verses. In a song: 1–9 verses, C chorus, P bridge.",
+        body: "The arrows or a presentation remote step through slides and verses. In a song: 1–\u20609 verses, C chorus, R pre-chorus, P bridge, I intro, F ending.",
       },
       practice: "Practice",
       firstSteps: "Show me “First steps”",

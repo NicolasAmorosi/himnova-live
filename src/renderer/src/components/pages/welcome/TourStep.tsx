@@ -6,7 +6,7 @@ const IDEAS: readonly { icon: IconName; id: "select" | "live" | "cover" | "move"
   { icon: "click", id: "select", keys: [] },
   { icon: "play", id: "live", keys: ["Enter"] },
   { icon: "offAir", id: "cover", keys: ["B", "L"] },
-  { icon: "keyboard", id: "move", keys: ["←", "→", "1–9", "C", "P"] },
+  { icon: "keyboard", id: "move", keys: ["←", "→", "1–9", "C", "R", "P", "I", "F"] },
 ];
 
 /** The four ideas the whole work screen rests on, and the switch for «Primeros pasos» — the checklist that

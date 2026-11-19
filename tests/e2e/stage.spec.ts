@@ -311,7 +311,7 @@ test("the bar and the card share one head, the count in the time's place for the
   await expect(bar.getByRole("button")).toHaveCount(2);
 
   // The pin on the folded bar opens the card, pinned.
-  await bar.getByRole("button", { name: "Fijar el panel: no se cierra al tocar afuera" }).click();
+  await bar.getByRole("button", { name: "Fijar el panel: no se cierra al tocar afuera ni con Esc" }).click();
   await expect(card).toBeVisible();
   await card.getByRole("button", { name: "Iniciar la cuenta" }).click();
 
@@ -327,7 +327,7 @@ test("the bar and the card share one head, the count in the time's place for the
   await elsewhere();
   await app.control.waitForTimeout(500);
   await expect(card).toBeVisible();
-  await card.getByRole("button", { name: "Soltar el panel: se cierra al tocar afuera" }).click();
+  await card.getByRole("button", { name: "Soltar el panel: se cierra al tocar afuera o con Esc" }).click();
   await elsewhere();
   await expect(card).toHaveCount(0);
   // Folded, the same head: the count with its ✕, the pin and the arrow.
@@ -536,7 +536,7 @@ test("the stage card opened with the mouse folds with Esc, and the bar under it 
 
   // Pinned, Esc never folds it (owner, 2026-11-17): typed in a field elsewhere (a library filter) it is the field's,
   // from anywhere else it is nobody's, and in the message field it still drops what was typed.
-  await bar.getByRole("button", { name: "Fijar el panel: no se cierra al tocar afuera" }).click();
+  await bar.getByRole("button", { name: "Fijar el panel: no se cierra al tocar afuera ni con Esc" }).click();
   await expect(card).toBeVisible();
   const inField = await app.control.evaluate(() => {
     const open = document.querySelector('[role="dialog"][aria-label="Escenario"]');

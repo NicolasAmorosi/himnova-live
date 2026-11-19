@@ -138,8 +138,8 @@ const es = {
     messageHelp: "Solo lo ve el escenario. Enter lo muestra; la ✕ lo quita.",
     screenLost: "Se desconectó la pantalla del escenario. Vuelve sola en cuanto se conecte.",
     screenBack: "Volvió la pantalla del escenario",
-    pin: "Fijar el panel: no se cierra al tocar afuera",
-    unpin: "Soltar el panel: se cierra al tocar afuera",
+    pin: "Fijar el panel: no se cierra al tocar afuera ni con Esc",
+    unpin: "Soltar el panel: se cierra al tocar afuera o con Esc",
   },
   status: {
     black: "NEGRO",
@@ -1472,7 +1472,7 @@ const es = {
       },
       move: {
         title: "Avanzá",
-        body: "Las flechas o el control remoto pasan diapositivas y versículos. En una canción: 1–9 estrofas, C coro, P puente.",
+        body: "Las flechas o el control remoto pasan diapositivas y versículos. En una canción: 1–\u20609 estrofas, C coro, R precoro, P puente, I intro, F final.",
       },
       practice: "Practicar",
       firstSteps: "Mostrarme «Primeros pasos»",

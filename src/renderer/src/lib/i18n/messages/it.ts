@@ -136,8 +136,8 @@ const it: Messages = {
     messageHelp: "Lo vede solo il palco. Invio lo mostra; la ✕ lo toglie.",
     screenLost: "Lo schermo del palco si è scollegato. Torna da solo appena si ricollega.",
     screenBack: "Lo schermo del palco è tornato",
-    pin: "Fissa il pannello: non si chiude cliccando altrove",
-    unpin: "Sblocca il pannello: si chiude cliccando altrove",
+    pin: "Fissa il pannello: non si chiude cliccando altrove né con Esc",
+    unpin: "Sblocca il pannello: si chiude cliccando altrove o con Esc",
   },
   status: {
     black: "NERO",
@@ -1456,7 +1456,7 @@ const it: Messages = {
       },
       move: {
         title: "Avanza",
-        body: "Le frecce o un telecomando passano diapositive e versetti. In un canto: 1–9 strofe, C ritornello, P ponte.",
+        body: "Le frecce o un telecomando passano diapositive e versetti. In un canto: 1–\u20609 strofe, C ritornello, R pre-ritornello, P ponte, I intro, F finale.",
       },
       practice: "Esercitati",
       firstSteps: "Mostrami «Primi passi»",
