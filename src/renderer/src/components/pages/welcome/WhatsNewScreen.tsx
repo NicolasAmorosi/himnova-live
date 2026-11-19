@@ -50,6 +50,10 @@ const WHATS_NEW: Record<
     steps: [],
     also: ["engineFallback", "liveMute", "songKeys", "faders", "ndiDelay", "pinnedStage"],
   },
+  "2.12.1": {
+    steps: [],
+    also: ["screenRoles", "parallelLive", "linuxMenu"],
+  },
 };
 const DONE_STEP = { icon: "circleCheck", id: "done" } as const;
 
