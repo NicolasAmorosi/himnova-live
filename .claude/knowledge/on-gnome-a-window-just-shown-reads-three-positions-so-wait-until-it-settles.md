@@ -10,6 +10,10 @@
 - What to do: read twice 100 ms apart inside `expect(...).toPass()` and assert only once both agree
   (`expectMovableOnControlScreen` in `tests/e2e/screens.spec.ts`), with a y tolerance that covers a window manager's
   title bar (64 px there; the corner A14 guards against is 164 px off). 20 of 20 after.
+- The title bar is outside the bounds as well, so on GNOME `getContentBounds()` equals `getBounds()` for a framed
+  window: a «content shorter than the window» check for a frame only held there because of the app's 29 px menu bar.
+  Once the projector and stage windows dropped the menu (2026-11-19), the movable projector read 450 of 450 and the
+  check moved to Windows and macOS only.
 - Related: [Electron runs a GNOME Wayland session on XWayland](electron-runs-a-gnome-wayland-session-on-xwayland.md).
 
-**Last updated:** 2026-11-18
+**Last updated:** 2026-11-19
