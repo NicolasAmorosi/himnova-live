@@ -17,10 +17,39 @@ import { api } from "@renderer/lib/api";
 import type { DraggedVerse } from "@renderer/lib/dnd";
 import { canonAbbrev } from "@shared/bible-canon";
 import type { BibleSearchHit } from "@shared/types/bible";
-import type { BibleParallel } from "@shared/types/projection";
+import type { BaseContent, BibleParallel } from "@shared/types/projection";
 import type { ProgramItemDTO } from "@shared/types/program";
 
 export type BibleScheduleItem = Extract<ProgramItemDTO, { kind: "bible" }>;
+/** Where a passage is: what `scheduleItemParallel` reads of a row, or of the Bible tab's verse. */
+type PassageSource = Pick<BibleScheduleItem, "bibleVersionId" | "bibleBookId" | "chapter" | "verseFrom" | "verseTo">;
+
+/** The verse on air and where it came from, so a parallel chosen while it is live reaches it
+ *  (`chooseParallelVersion`). Stale as soon as anything else goes live: `base` is compared by identity. */
+let liveVerse: { base: BaseContent; source: PassageSource } | null = null;
+let parallelChoice = 0;
+
+/** Called right after a verse goes live, with where it came from. */
+export function recordLiveVerse(source: PassageSource): void {
+  const { base } = useProjectionStore.getState();
+  liveVerse = base?.kind === "bible" ? { base, source } : null;
+}
+
+/**
+ * Chooses the parallel version: the Bible tab's chapter and PREVIEW at once, and the verse already live in place,
+ * without a new scene, as a restyled verse (owner, 2026-11-19). A newer choice, or anything else going live
+ * meanwhile, wins over a lookup still on its way.
+ */
+export async function chooseParallelVersion(versionId: number | null): Promise<void> {
+  const choice = ++parallelChoice;
+  await useBibleStore.getState().setParallelVersion(versionId);
+  const live = liveVerse;
+  if (live === null || useProjectionStore.getState().base !== live.base) return;
+  const parallel = await scheduleItemParallel(live.source);
+  if (choice !== parallelChoice || useProjectionStore.getState().base !== live.base) return;
+  useProjectionStore.getState().setLiveParallel(parallel);
+  recordLiveVerse(live.source);
+}
 
 /**
  * A schedule row's passage in the parallel version, or `null`: none is set, it
@@ -28,7 +57,7 @@ export type BibleScheduleItem = Extract<ProgramItemDTO, { kind: "bible" }>;
  * its book by id, so its own version's books give the abbrev every version
  * shares (`canonAbbrev`).
  */
-export async function scheduleItemParallel(item: BibleScheduleItem): Promise<BibleParallel | null> {
+export async function scheduleItemParallel(item: PassageSource): Promise<BibleParallel | null> {
   const { bibleBookId, bibleVersionId, chapter, verseFrom, verseTo } = item;
   const { versions } = useBibleStore.getState();
   const setting = useSettingsStore.getState().settings["bible.parallelVersionId"];
@@ -88,6 +117,13 @@ export function projectVerse(index: number): void {
     );
   }
   useProjectionStore.getState().setBase({ kind: "bible", text: verse.text, reference, versionLabel, parallel });
+  recordLiveVerse({
+    bibleVersionId: versionId,
+    bibleBookId: bookId,
+    chapter,
+    verseFrom: verse.verse,
+    verseTo: verse.verse,
+  });
   setCurrentVerseIndex(index);
   if (bookId !== null && chapter !== null) recordRecent(bookId, chapter, verse.verse, verse.verse);
 }

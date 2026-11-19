@@ -3,6 +3,7 @@ import { useI18n } from "@renderer/lib/i18n/i18n-provider";
 import { FieldGroup, FieldRow, Select } from "@renderer/components/ui";
 import { BundledBiblesGroup } from "@renderer/components/shared/settings-groups/bundled-bibles-group";
 import { api } from "@renderer/lib/api";
+import { chooseParallelVersion } from "@renderer/lib/actions/bible";
 import { bibleOutputFor } from "@renderer/lib/bible-output";
 import { bibleVersionOptions } from "@renderer/lib/utils";
 import { useBibleStore } from "@renderer/stores/bible.store";
@@ -23,7 +24,6 @@ const SAMPLE = { bookAbbrev: "jo", chapter: 3, verse: 16 } as const;
 export function BiblesStep() {
   const { locale, t } = useI18n();
   const versions = useBibleStore((s) => s.versions);
-  const setParallelVersion = useBibleStore((s) => s.setParallelVersion);
   const defaultId = useSettingsStore((s) => s.settings["bible.defaultVersionId"]);
   const parallelId = useSettingsStore((s) => s.settings["bible.parallelVersionId"]);
   const style = useSettingsStore((s) => s.settings["bible.style"]);
@@ -86,7 +86,7 @@ export function BiblesStep() {
           <FieldRow description={t("welcome.bibles.parallelDesc")} label={t("welcome.bibles.parallel")}>
             <Select
               disabled={versions.length < 2}
-              onChange={(value) => void setParallelVersion(value === NONE ? null : Number(value))}
+              onChange={(value) => void chooseParallelVersion(value === NONE ? null : Number(value))}
               options={[
                 { label: t("welcome.bibles.parallelNone"), value: NONE },
                 ...bibleVersionOptions(

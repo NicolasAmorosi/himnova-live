@@ -40,7 +40,7 @@ import { createControlWindow, operatorDisplay } from "./windows/control-window";
 import { installNavigationGuards } from "./windows/navigation-guards";
 import { installApplicationMenu } from "./windows/app-menu";
 import { holdQuitUntilAnswered, installCloseGuard } from "./windows/close-guard";
-import { watchDisplays } from "./windows/projector-screen";
+import { reconcileDisplayRoles, watchDisplays } from "./windows/projector-screen";
 import { closeStageWindow, syncStageWindow } from "./windows/stage-window";
 import { showSheet } from "./windows/sheet";
 import { isNdiWindow, stopNdiOutput, syncNdiOutput } from "./ndi/ndi-output";
@@ -237,6 +237,8 @@ function userFacingWindows(): BrowserWindow[] {
 function openControlWindow(): BrowserWindow {
   const win = createControlWindow();
   wireMinimizeRestoreSync(win);
+  // Screens Windows renamed since the last launch (a restart can): their roles find them again before anything reads them.
+  reconcileDisplayRoles();
   // Before the stage window opens, and without a word: the operator never chose anything new (`stageSharesProjector`).
   const settings = getSettingsRepo();
   if (stageSharesProjector(settings.get("projection.displayId"), settings.get("stage.displayId"), operatorDisplay().id)) {

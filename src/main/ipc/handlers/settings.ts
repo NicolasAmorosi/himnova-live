@@ -5,6 +5,7 @@ import { SETTINGS_VALIDATORS, isSettingsKey, type SettingsMap } from "@shared/ty
 import { mainMessages, setMainLocale } from "../../i18n";
 import { installApplicationMenu } from "../../windows/app-menu";
 import { reopenStageWindow, syncStageWindow } from "../../windows/stage-window";
+import { reconcileDisplayRoles } from "../../windows/projector-screen";
 import { factoryVerseStyle } from "../../db/seed/seed-starter-look";
 import { profileBackgroundsDir } from "../../paths";
 import { syncNdiOutput } from "../../ndi/ndi-output";
@@ -47,6 +48,8 @@ export const settingsHandlers: Pick<Handlers, "settings:get" | "settings:set" | 
   "settings:set": (partial) => {
     assertValidSettings(partial);
     getSettingsRepo().setMany(partial);
+    // The chosen screen's print, kept for when Windows renumbers the screens (`reconcileDisplayRoles`).
+    if ("stage.displayId" in partial || "projection.displayId" in partial) reconcileDisplayRoles();
     // Main speaks the interface language too: its menu, dialogs and errors.
     if (partial["ui.locale"]) {
       setMainLocale(partial["ui.locale"]);

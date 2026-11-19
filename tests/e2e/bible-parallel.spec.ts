@@ -87,6 +87,12 @@ test("«En paralelo»: a verse of the tab and a schedule row go out in two versi
   await again.control.getByRole("tabpanel", { name: "Biblia" }).getByRole("listitem").filter({ hasText: JUAN_3_17 }).dblclick();
   await expect(again.liveColumn().getByText(JUAN_3_17, { exact: false }).first()).toBeVisible();
   await expect(again.liveColumn().locator("[data-bible-parallel]")).toHaveCount(0);
+
+  // Chosen while a verse is live: that verse gets it in place, on the projector too (owner, 2026-11-19).
+  await again.control.getByRole("tabpanel", { name: "Biblia" }).getByRole("button", { name: "En paralelo" }).click();
+  await again.control.getByRole("menuitemradio", { name: "English" }).click();
+  await expectSideBySide(again.liveColumn(), [JUAN_3_17, JOHN_3_17], ["Juan 3:17", "John 3:17"]);
+  await expectSideBySide((await again.projector()).locator("body"), [JUAN_3_17, JOHN_3_17], ["Juan 3:17", "John 3:17"]);
 });
 
 test("«En paralelo» with a version that numbers the chapter otherwise: one column and a word to the operator", async ({ app }) => {

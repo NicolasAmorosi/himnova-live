@@ -16,6 +16,7 @@ type WinState = {
   fullScreen: boolean;
   onTop: boolean;
   visible: boolean;
+  menu: boolean;
 };
 
 function projectorWindow(app: WorshipApp): Promise<WinState | null> {
@@ -25,7 +26,14 @@ function projectorWindow(app: WorshipApp): Promise<WinState | null> {
       .filter((win) => !win.isDestroyed() && win.webContents.getURL().endsWith("/projection.html"))
       .sort((a, b) => b.id - a.id)[0];
     return w
-      ? { bounds: w.getBounds(), content: w.getContentBounds(), fullScreen: w.isFullScreen(), onTop: w.isAlwaysOnTop(), visible: w.isVisible() }
+      ? {
+          bounds: w.getBounds(),
+          content: w.getContentBounds(),
+          fullScreen: w.isFullScreen(),
+          onTop: w.isAlwaysOnTop(),
+          visible: w.isVisible(),
+          menu: w.isMenuBarVisible(),
+        }
       : null;
   });
 }
@@ -47,6 +55,8 @@ async function expectMovableOnControlScreen(app: WorshipApp) {
       return state && { visible: state.visible, fullScreen: state.fullScreen, onTop: state.onTop };
     })
     .toEqual({ visible: true, fullScreen: false, onTop: false });
+  // Linux gave it the app's menu, 29 px over the picture (2026-11-18); macOS's menu is the screen's, Windows has none.
+  if (process.platform === "linux") expect((await projectorWindow(app))!.menu).toBe(false);
   const area = await controlScreen(app);
   // Settled bounds: on GNOME (X11) they read the requested place, then 0,0, then the final one within ~30 ms of
   // showing (CachyOS, 2026-11-18), so two reads 100 ms apart must agree.
@@ -55,8 +65,9 @@ async function expectMovableOnControlScreen(app: WorshipApp) {
     await app.control.waitForTimeout(100);
     const win = (await projectorWindow(app))!;
     expect(win.bounds).toEqual(first.bounds);
-    // A title bar: the content is shorter than the window.
-    expect(win.content.height).toBeLessThan(win.bounds.height);
+    // A title bar: the content is shorter than the window. Not on GNOME, which draws it outside the bounds: the 29 px
+    // read there were the app's menu, gone since 2026-11-19.
+    if (process.platform !== "linux") expect(win.content.height).toBeLessThan(win.bounds.height);
     const centre = { x: win.bounds.x + win.bounds.width / 2, y: win.bounds.y + win.bounds.height / 2 };
     expect(Math.abs(centre.x - (area.x + area.width / 2))).toBeLessThan(40);
     // GNOME puts its own title bar (32 px) where the window was asked to go and the bounds start below it: 46.5 px
@@ -65,10 +76,17 @@ async function expectMovableOnControlScreen(app: WorshipApp) {
   }).toPass();
 }
 
-/** Settings ▸ Screens: the row of the screen that hosts the control window, and the other one. */
+/** Settings ▸ Screens: the row of the screen that hosts the control window. */
 const ownScreenRow = (settings: Locator) => settings.getByRole("group").filter({ hasText: "Esta pantalla tiene la ventana de control" });
-const otherScreenRow = (settings: Locator) =>
-  settings.getByRole("group").filter({ hasText: /^2 · / }).filter({ hasNotText: "Esta pantalla tiene la ventana de control" });
+/** The row of the screen the projector took, by its number, read once: the rows follow the OS's order, and Windows
+ *  changed it on a restart (2026-11-19: the operator's screen listed third, the projector's first). */
+async function projectorScreenRow(settings: Locator): Promise<{ row: Locator; number: string }> {
+  const rows = settings.getByRole("group").filter({ hasText: /^\d+ · / });
+  const projector = rows.filter({ has: settings.page().getByRole("combobox").filter({ hasText: /^Proyector$/ }) });
+  await expect(projector).toHaveCount(1);
+  const number = /^(\d+) · /.exec(await projector.innerText())?.[1] ?? "?";
+  return { row: rows.filter({ hasText: new RegExp(`^${number} · `) }), number };
+}
 
 async function screensSettings(app: WorshipApp): Promise<Locator> {
   await app.control.getByRole("button", { name: "Configuración" }).click();
@@ -84,7 +102,10 @@ async function pickRole(app: WorshipApp, row: Locator, role: "Proyector" | "Esce
 
 const stageOpen = (app: WorshipApp) =>
   app.electron.evaluate(({ BrowserWindow }) =>
-    BrowserWindow.getAllWindows().some((w) => !w.isDestroyed() && w.webContents.getURL().endsWith("/stage.html")),
+    // A window on its way out can still be listed with its page already gone.
+    BrowserWindow.getAllWindows().some(
+      (w) => !w.isDestroyed() && !w.webContents.isDestroyed() && w.webContents.getURL().endsWith("/stage.html"),
+    ),
   );
 
 async function verseLive(app: WorshipApp) {
@@ -207,8 +228,8 @@ test("the roles exclude each other: the stage given the projector's screen moves
 }) => {
   test.skip((await app.invoke<unknown[]>("displays:list")).length < 2, "needs two screens");
   const settings = await screensSettings(app);
-  const other = otherScreenRow(settings);
-  await expect(other.getByRole("combobox")).toHaveText(/Proyector/);
+  const { row: other, number } = await projectorScreenRow(settings);
+  await expect(other).not.toContainText("Esta pantalla tiene la ventana de control");
 
   await pickRole(app, other, "Escenario");
   await expect(app.control.getByRole("status").filter({ hasText: /^El proyector pasó a / })).toBeVisible();
@@ -216,7 +237,7 @@ test("the roles exclude each other: the stage given the projector's screen moves
   // Onto another screen: a third if there is one, else the operator's own (as a window). One projector, always.
   await expect(settings.getByRole("combobox").filter({ hasText: /^Proyector$/ })).toHaveCount(1);
   await expect.poll(() => stageOpen(app)).toBe(true);
-  await expect(settings.getByRole("list", { name: "Ahora" })).toContainText("Escenario visible en 2");
+  await expect(settings.getByRole("list", { name: "Ahora" })).toContainText(`Escenario visible en ${number}`);
 
   await pickRole(app, other, "Proyector");
   await expect(app.control.getByRole("status").filter({ hasText: "pasó a ser el proyector: el escenario quedó sin pantalla" })).toBeVisible();
@@ -306,6 +327,27 @@ test("the control window dragged onto the stage's screen makes the stage a movab
   await expect.poll(stage, { timeout: 10_000 }).toEqual({ full: false, onTop: false });
   await moveControlTo(ids.control);
   await expect.poll(stage, { timeout: 10_000 }).toMatchObject({ onTop: true });
+});
+
+// Windows can give every screen a new id on a restart (the owner's PC, 2026-11-18): with three screens the stage stayed
+// off and the projector took the first free screen. A role saved under an id that is gone finds its screen again.
+test("a role's screen back under a new id is found again by its name and place", async ({ app }) => {
+  const own = await app.electron.evaluate(({ BrowserWindow, screen }) => {
+    const control = BrowserWindow.getAllWindows().find((w) => !w.isDestroyed() && w.webContents.getURL().endsWith("/index.html"))!;
+    const d = screen.getDisplayMatching(control.getBounds());
+    return { id: d.id, print: { label: d.label.trim(), x: d.bounds.x, y: d.bounds.y, width: d.bounds.width, height: d.bounds.height } };
+  });
+  test.skip(own.print.label === "", "a screen with no name is never recognized");
+  // The stage's screen as an earlier launch saved it: this screen's name and place, under an id this launch never saw.
+  await app.invoke("settings:set", { "stage.displayId": 4242, "stage.displayPrint": { ...own.print, unique: true } });
+  expect((await app.invoke<Record<string, unknown>>("settings:get"))["stage.displayId"]).toBe(own.id);
+  await expect
+    .poll(() =>
+      app.electron.evaluate(({ BrowserWindow }) =>
+        BrowserWindow.getAllWindows().some((w) => !w.isDestroyed() && w.isVisible() && w.webContents.getURL().endsWith("/stage.html")),
+      ),
+    )
+    .toBe(true);
 });
 
 test("«Identificar» puts each screen's number on it for a few seconds, the map's numbers", async ({ app }) => {

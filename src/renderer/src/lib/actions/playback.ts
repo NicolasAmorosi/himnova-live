@@ -8,7 +8,7 @@ import { bibleVersionLabel, useBibleStore } from "@renderer/stores/bible.store";
 import { useAudioStore, nextAssetTrack, type LiveAudioTrack } from "@renderer/stores/audio.store";
 import { findScene, useUtilityStore } from "@renderer/stores/utility.store";
 import { notifyManualNavigation, restartDeck } from "@renderer/effects/deck-autoplay";
-import { handLiveItemToTab, projectVerse, scheduleItemParallel } from "@renderer/lib/actions/bible";
+import { handLiveItemToTab, projectVerse, recordLiveVerse, scheduleItemParallel } from "@renderer/lib/actions/bible";
 import { stopPreviewPlayback } from "@renderer/lib/actions/preview-playback";
 import { dropSentPreview, previewedScheduleItem } from "@renderer/lib/actions/preview";
 import type { ProgramItemDTO } from "@shared/types/program";
@@ -461,6 +461,7 @@ async function goLiveWithScheduleItem(
         versionLabel: bibleVersionLabel(useBibleStore.getState().versions, item.bibleVersionId),
         parallel,
       });
+      recordLiveVerse(item);
       useProjectionStore.getState().setOverlay("none");
       const { bibleBookId, chapter, verseFrom, verseTo } = item;
       if (bibleBookId !== null && chapter !== null && verseFrom !== null) {

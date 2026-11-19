@@ -66,6 +66,9 @@ export function createProjectionWindow(displayId?: number): BrowserWindow {
     },
   });
 
+  // Linux gives every framed window the app's menu: 29 px of it over the movable projector, and its zoom keys would zoom
+  // the picture. An output window has no menu (macOS's is the screen's, Windows has none).
+  win.removeMenu();
   trustWindow(win);
   attachProjector(win, target.id);
   // The page's <title> would replace the localized one on every load.

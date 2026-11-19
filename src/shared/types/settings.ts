@@ -83,6 +83,11 @@ export const SLIDE_FALLBACK_FONTS = [
 ] as const;
 export type SlideFallbackFont = (typeof SLIDE_FALLBACK_FONTS)[number];
 
+/** A chosen screen as the OS described it the last time it was connected: its name, where it sat, and whether no other
+ *  screen then had its name. Windows can give every screen a new id after a restart, and this is how its role finds it
+ *  again (`recognizeDisplay`). */
+export type DisplayPrint = { label: string; x: number; y: number; width: number; height: number; unique: boolean };
+
 export type SettingsMap = {
   "logo.path": string | null;
   /** Which of the two LOGO shows; `null` until the operator picks — see
@@ -102,9 +107,13 @@ export type SettingsMap = {
    *  the operator chose in Settings. */
   "files.defaultFolders": Record<AssetKind, string | null>;
   "projection.displayId": number | null;
+  /** Kept by main for `projection.displayId` while that screen is connected (`reconcileDisplayRoles`). */
+  "projection.displayPrint": DisplayPrint | null;
   /** The musicians' screen (`main/windows/stage-window.ts`): what is live, what
    *  comes next and the time. `null`, the default, is no stage display. */
   "stage.displayId": number | null;
+  /** Kept by main for `stage.displayId`, as `projection.displayPrint`. */
+  "stage.displayPrint": DisplayPrint | null;
   /** The stage panel (work screen, foot of the left column): the view the operator picked, «auto» by default. */
   "stage.layout": StageLayoutChoice;
   /** Settings ▸ Screens' «Copia del proyector»: the stage's screen copies the projector, always, and the work screen
@@ -289,7 +298,9 @@ export const DEFAULT_SETTINGS: SettingsMap = {
   "logo.background": { kind: "solid", color: "#000000" },
   "files.defaultFolders": { video: null, image: null, audio: null, ppt: null },
   "projection.displayId": null,
+  "projection.displayPrint": null,
   "stage.displayId": null,
+  "stage.displayPrint": null,
   "stage.layout": "auto",
   "stage.mirror": false,
   "stage.textSize": "normal",
@@ -410,6 +421,17 @@ const isNumberIn =
  *  projector silently falls back to the default screen forever. */
 const isDisplayId = (v: unknown): boolean => v === null || (typeof v === "number" && Number.isInteger(v) && v >= 0);
 
+const isDisplayPrint = (v: unknown): boolean => {
+  if (typeof v !== "object" || v === null) return false;
+  const print = v as Record<string, unknown>;
+  return (
+    typeof print["label"] === "string" &&
+    ["x", "y", "width", "height"].every((key) => Number.isInteger(print[key])) &&
+    typeof print["unique"] === "boolean" &&
+    Object.keys(print).length === 6
+  );
+};
+
 const isRecordOfKinds =
   (valueOk: (v: unknown) => boolean) =>
   (v: unknown): boolean => {
@@ -431,7 +453,9 @@ export const SETTINGS_VALIDATORS: Record<keyof SettingsMap, (value: unknown) => 
   "logo.background": isSceneBackground,
   "files.defaultFolders": isRecordOfKinds(isNullOr(isString)),
   "projection.displayId": isDisplayId,
+  "projection.displayPrint": isNullOr(isDisplayPrint),
   "stage.displayId": isDisplayId,
+  "stage.displayPrint": isNullOr(isDisplayPrint),
   "stage.layout": isOneOf(STAGE_LAYOUT_CHOICES),
   "stage.mirror": isBoolean,
   "stage.textSize": isOneOf(STAGE_TEXT_SIZES),

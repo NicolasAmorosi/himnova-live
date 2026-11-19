@@ -14,6 +14,7 @@ import { useDisplayStore } from "@renderer/stores/display.store";
 import { useProjectionStore } from "@renderer/stores/projection.store";
 import { useSettingsStore } from "@renderer/stores/settings.store";
 import type { DisplayInfo } from "@shared/types/display";
+import { DEFAULT_SETTINGS, type SettingsMap } from "@shared/types/settings";
 
 const LAPTOP: DisplayInfo = {
   id: 1,
@@ -31,20 +32,30 @@ const PROJECTOR: DisplayInfo = {
 };
 
 let screens: DisplayInfo[] = [];
+/** What main's settings hold. */
+let mainSettings: SettingsMap = DEFAULT_SETTINGS;
 const calls: string[] = [];
 
 beforeEach(() => {
   screens = [LAPTOP];
+  mainSettings = DEFAULT_SETTINGS;
   calls.length = 0;
   (window as unknown as { worship: unknown }).worship = {
     invoke: vi.fn((channel: string) => {
       calls.push(channel);
-      const data = channel === "displays:list" ? screens : channel === "projection:open" ? true : undefined;
+      const data =
+        channel === "displays:list"
+          ? screens
+          : channel === "settings:get"
+            ? mainSettings
+            : channel === "projection:open"
+              ? true
+              : undefined;
       return Promise.resolve({ ok: true, data });
     }),
     on: () => () => {},
   };
-  useSettingsStore.setState({ loaded: true });
+  useSettingsStore.setState({ settings: DEFAULT_SETTINGS, loaded: true });
   useDisplayStore.setState({ displays: [], displayId: null, loaded: false });
 });
 
@@ -88,4 +99,22 @@ test("moving the projector to another screen clears «Pantalla desconectada»: t
   useDisplayStore.setState({ projectorHidden: true });
   await useDisplayStore.getState().open();
   expect(useDisplayStore.getState().projectorHidden).toBe(false);
+});
+
+test("a role main found again under a new id reaches the control window on the next screen change", async () => {
+  const STAGE: DisplayInfo = { ...PROJECTOR, id: 3, label: "Escenario", bounds: { ...PROJECTOR.bounds, x: -1920 } };
+  const settings = { ...DEFAULT_SETTINGS, "projection.displayId": PROJECTOR.id, "stage.displayId": STAGE.id };
+  useSettingsStore.setState({ settings });
+  screens = [LAPTOP, PROJECTOR, STAGE];
+  await useDisplayStore.getState().load();
+  expect(useDisplayStore.getState().displayId).toBe(PROJECTOR.id);
+
+  // Windows renumbered the screens; main recognized both (`reconcileDisplayRoles`) and rewrote the two ids.
+  screens = [LAPTOP, { ...STAGE, id: 30 }, { ...PROJECTOR, id: 20 }];
+  mainSettings = { ...settings, "projection.displayId": 20, "stage.displayId": 30 };
+  await useDisplayStore.getState().refresh();
+  expect(useSettingsStore.getState().settings["projection.displayId"]).toBe(20);
+  expect(useSettingsStore.getState().settings["stage.displayId"]).toBe(30);
+  // Not the first free screen, which is now the stage's.
+  expect(useDisplayStore.getState().displayId).toBe(20);
 });

@@ -1,6 +1,6 @@
 {
   "name": "worship-app",
-  "version": "2.12.0",
+  "version": "2.12.1",
   "description": "Free and open-source church presentation software: slides, video, Bible and timers on a second screen.",
   "main": "./out/main/index.js",
   "author": "Nicolas Amorosi",
@@ -53,7 +53,7 @@
     "clsx": "^2.1.1",
     "drizzle-kit": "^0.31.1",
     "drizzle-orm": "^0.45.2",
-    "electron": "^44.11.3",
+    "electron": "^44.11.5",
     "electron-builder": "^26.15.3",
     "electron-vite": "^5.0.0",
     "eslint": "^9.27.0",

@@ -164,6 +164,7 @@ function createStageWindow(display: Electron.Display, own: boolean): BrowserWind
     },
   });
   trustWindow(win);
+  win.removeMenu(); // as the projector's (`createProjectionWindow`)
   // Never a sound: it plays what the projector plays, and the room hears the projector.
   win.webContents.setAudioMuted(true);
   forwardKeysToControl(win);
