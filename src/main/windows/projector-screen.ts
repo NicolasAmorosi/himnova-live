@@ -82,8 +82,9 @@ export function reconcileDisplayRoles(): void {
     if (id === null) continue;
     const present = displays.find((display) => display.id === id);
     if (present) {
-      const print = printOf(present);
-      if (print !== null && JSON.stringify(print) !== JSON.stringify(settings.get(printKey))) {
+      const before = settings.get(printKey);
+      const print = printOf(present, displays, before);
+      if (print !== null && JSON.stringify(print) !== JSON.stringify(before)) {
         settings.setMany({ [printKey]: print });
       }
       continue;

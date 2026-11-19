@@ -83,9 +83,10 @@ export const SLIDE_FALLBACK_FONTS = [
 ] as const;
 export type SlideFallbackFont = (typeof SLIDE_FALLBACK_FONTS)[number];
 
-/** A chosen screen as the OS described it the last time it was connected: its name and where it sat. Windows can give
- *  every screen a new id after a restart, and this is how its role finds it again (`recognizeDisplay`). */
-export type DisplayPrint = { label: string; x: number; y: number; width: number; height: number };
+/** A chosen screen as the OS described it the last time it was connected: its name, where it sat, and whether no other
+ *  screen then had its name. Windows can give every screen a new id after a restart, and this is how its role finds it
+ *  again (`recognizeDisplay`). */
+export type DisplayPrint = { label: string; x: number; y: number; width: number; height: number; unique: boolean };
 
 export type SettingsMap = {
   "logo.path": string | null;
@@ -426,7 +427,8 @@ const isDisplayPrint = (v: unknown): boolean => {
   return (
     typeof print["label"] === "string" &&
     ["x", "y", "width", "height"].every((key) => Number.isInteger(print[key])) &&
-    Object.keys(print).length === 5
+    typeof print["unique"] === "boolean" &&
+    Object.keys(print).length === 6
   );
 };
 

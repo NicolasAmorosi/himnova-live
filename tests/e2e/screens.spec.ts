@@ -339,7 +339,7 @@ test("a role's screen back under a new id is found again by its name and place",
   });
   test.skip(own.print.label === "", "a screen with no name is never recognized");
   // The stage's screen as an earlier launch saved it: this screen's name and place, under an id this launch never saw.
-  await app.invoke("settings:set", { "stage.displayId": 4242, "stage.displayPrint": own.print });
+  await app.invoke("settings:set", { "stage.displayId": 4242, "stage.displayPrint": { ...own.print, unique: true } });
   expect((await app.invoke<Record<string, unknown>>("settings:get"))["stage.displayId"]).toBe(own.id);
   await expect
     .poll(() =>

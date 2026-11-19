@@ -104,8 +104,8 @@ const after = [
 ];
 
 test("a screen Windows renumbered is found again by its name", () => {
-  expect(recognizeDisplay(printOf(before[2]!), after, [])).toBe(3161383203);
-  expect(recognizeDisplay(printOf(before[1]!), after, [])).toBe(2560382816);
+  expect(recognizeDisplay(printOf(before[2]!, before, null), after, [])).toBe(3161383203);
+  expect(recognizeDisplay(printOf(before[1]!, before, null), after, [])).toBe(2560382816);
   // Same size, so the size alone could not tell them apart.
 });
 
@@ -114,14 +114,27 @@ test("two screens of one model are told apart by their place, and only by both",
     { id: 7, label: "EPSON PJ", bounds: { x: 1920, y: 0, width: 1920, height: 1080 } },
     { id: 8, label: "EPSON PJ", bounds: { x: 3840, y: 0, width: 1920, height: 1080 } },
   ];
-  expect(recognizeDisplay({ label: "EPSON PJ", x: 3840, y: 0, width: 1920, height: 1080 }, twins, [])).toBe(8);
+  const eight = printOf(twins[1]!, twins, null)!;
+  expect(eight.unique).toBe(false);
+  expect(recognizeDisplay(eight, twins.map((d) => ({ ...d, id: d.id * 10 })), [])).toBe(80);
   // Moved since: neither is certain, so nothing is guessed.
-  expect(recognizeDisplay({ label: "EPSON PJ", x: 0, y: 1080, width: 1920, height: 1080 }, twins, [])).toBeNull();
+  expect(recognizeDisplay({ ...eight, x: 0, y: 1080 }, twins, [])).toBeNull();
+  // 8 in standby: 7, alone with that name now, is still not 8.
+  expect(recognizeDisplay(eight, [twins[0]!], [])).toBeNull();
+  // Nor once 7 left for a while and 8's print was kept meanwhile: 7 may be back while 8 sleeps.
+  const kept = printOf(twins[1]!, [twins[1]!], eight)!;
+  expect(kept.unique).toBe(false);
+  expect(recognizeDisplay(kept, [twins[0]!], [])).toBeNull();
+});
+
+test("a name that was alone when its print was taken is enough, wherever that screen is now", () => {
+  const moved = { ...after[2]!, bounds: { ...after[2]!.bounds, x: -3840 } };
+  expect(recognizeDisplay(printOf(before[2]!, before, null), [after[0]!, after[1]!, moved], [])).toBe(3161383203);
 });
 
 test("nothing is recognized without a name, without a match, or onto a screen another role holds", () => {
-  expect(printOf({ id: 1, label: "  ", bounds: { x: 0, y: 0, width: 1920, height: 1080 } })).toBeNull();
+  expect(printOf({ id: 1, label: "  ", bounds: { x: 0, y: 0, width: 1920, height: 1080 } }, [], null)).toBeNull();
   expect(recognizeDisplay(null, after, [])).toBeNull();
-  expect(recognizeDisplay({ label: "Proyector", x: 0, y: 0, width: 1920, height: 1080 }, after, [])).toBeNull();
-  expect(recognizeDisplay(printOf(before[2]!), after, [3161383203])).toBeNull();
+  expect(recognizeDisplay({ label: "Proyector", x: 0, y: 0, width: 1920, height: 1080, unique: true }, after, [])).toBeNull();
+  expect(recognizeDisplay(printOf(before[2]!, before, null), after, [3161383203])).toBeNull();
 });
