@@ -3,7 +3,7 @@ import path from "node:path";
 import type { Handlers } from "../register";
 import { getBibleRepo, getProgramsRepo, getSettingsRepo } from "../../services/repos";
 import { bibleFileHash, bundledSeedFor } from "../../db/seed/seed-bible";
-import { seedBibleOffThread } from "../../db/seed/seed-bible-thread";
+import { deleteBibleVersionOffThread, seedBibleOffThread } from "../../db/seed/seed-bible-thread";
 import { bibleImportFilters } from "../../db/seed/bible-formats";
 import { bundledBibleDTOs } from "../../db/seed/bundled-bibles";
 import { IpcError } from "@shared/ipc/result";
@@ -94,7 +94,7 @@ export const bibleHandlers: Pick<
    * like a setting that never saved. The parallel version is reset the same
    * way: the next version to get that id must not start going out side by side.
    */
-  "bible:delete": ({ id, force }) => {
+  "bible:delete": async ({ id, force }) => {
     const usages = getProgramsRepo().findBibleVersionUsages(id);
     if (usages.length > 0 && !force) {
       throw new IpcError({
@@ -102,7 +102,8 @@ export const bibleHandlers: Pick<
         message: `Bible version ${id} is still referenced by ${usages.length} program(s)`,
       });
     }
-    getBibleRepo().deleteVersion(id);
+    // Off main: the FTS index forgets every verse one by one (2026-11-15 audit, R17).
+    await deleteBibleVersionOffThread(id);
 
     const settings = getSettingsRepo();
     if (settings.get("bible.defaultVersionId") === id) settings.setMany({ "bible.defaultVersionId": null });
