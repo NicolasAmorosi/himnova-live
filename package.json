@@ -27,7 +27,6 @@
     "tutorials": "npm run build && playwright test -c playwright.tutorials.config.ts",
     "db:generate": "drizzle-kit generate",
     "fetch:binaries": "tsx scripts/fetch-binaries.ts",
-    "package": "npm run build && tsx scripts/fetch-binaries.ts --release && electron-builder",
     "package:win": "npm run build && tsx scripts/fetch-binaries.ts --release win32-x64 && electron-builder --win",
     "package:mac": "npm run build && tsx scripts/fetch-binaries.ts --release darwin-arm64 && electron-builder --mac",
     "package:linux": "npm run build && tsx scripts/fetch-binaries.ts --release linux-x64 && electron-builder --linux -c.productName=himnova-live",
@@ -39,7 +38,6 @@
     "fast-xml-parser": "^5.12.1"
   },
   "devDependencies": {
-    "@electron-toolkit/tsconfig": "^1.0.1",
     "@electron/fuses": "^1.8.0",
     "@eslint/js": "^9.27.0",
     "@fontsource-variable/noto-sans": "^5.3.0",
