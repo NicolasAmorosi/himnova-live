@@ -1,8 +1,8 @@
 /**
  * The app's one tooltip (2026-11-15 audit, X16). The in-flow bubble it replaced lived in the DOM while hidden (a
  * screen reader read it, it counted for scroll, a panel clipped it), and neither bubble described its control nor
- * closed with Esc: the shortcuts Enter, B and L were only in the bubble. Esc must close the bubble and leave the
- * modal under it open (2026-11-15 audit, U2 and U3: an Esc meant for a popup closed the whole editor).
+ * closed with Esc: the shortcuts Enter, B and L were only in the bubble. Esc closes the bubble and is not used up by
+ * it: the bubble shows wherever the pointer rests, so taking the key would make leaving a modal take two presses.
  */
 import { act, createElement } from "react";
 import { createRoot } from "react-dom/client";

@@ -16,7 +16,9 @@
   that burst (`bump`). Mac: 0.95 s → 0.26–0.32 s. Abandoned pages are still drawn afterwards.
 - The library's thumbnails follow the same rule since 2026-11-16 (`src/main/media/thumb-slots.ts`):
   300 videos scrolled past, the last screen ready 0.1 s after the scroll stops instead of ~0.6 s.
+- Re-measured on Electron 45.4.1 (2026-11-20): a `<video>` seeking 40 times then dropped, 114 range requests over
+  three runs, 0 aborts. `serve-file.ts`'s abort block, which never ran, was deleted (2026-11-15 audit, X10).
 - Do not build cancellation on `request.signal` without re-measuring on the Electron in use.
   Related: [a PDF page drawn on request costs milliseconds](a-pdf-page-drawn-on-request-costs-milliseconds-and-webp-is-most-of-it.md).
 
-**Last updated:** 2026-11-16 (thumbnails)
+**Last updated:** 2026-11-20 (Electron 45)
