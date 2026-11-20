@@ -66,15 +66,22 @@ export function DependentFields({ children, enabled }: { children: ReactNode; en
   );
 }
 
-/** The «?» after a label: the hint in a tooltip, on hover or focus. Inside a
- *  switch row's `<label>` a click on it would flip the switch, hence the
- *  `preventDefault`. */
+/** The «?» after a label: the hint in a tooltip, on hover or focus. A tab
+ *  stop of its own, or the keyboard never saw the hint (2026-11-15 audit,
+ *  X16). Nameless on purpose: it sits inside the label that names the row and
+ *  its control, and a name here would join theirs; the tooltip describes it.
+ *  Not a `<button>` either: inside a switch row's `<label>`, ahead of the
+ *  switch, it would become the control that label names. A click on it would
+ *  flip that switch, hence the `preventDefault`. */
 function HelpIcon({ content }: { content: ReactNode }) {
   return (
-    // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- only stops the enclosing <label> from treating a click on the «?» as one on its switch; the keyboard never reaches it
+    // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- only stops the enclosing <label> from treating a click on the «?» as one on its switch; a key on the «?» does nothing to it
     <span onClick={(e) => e.preventDefault()}>
-      <Tooltip className="ml-1 align-[-0.125rem]" content={content} floating>
-        <Icon className="size-3.5 text-subtle" name="help" />
+      <Tooltip className="ml-1 align-[-0.125rem]" content={content}>
+        {/* eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- a tab stop only to show the hint, which the tooltip also gives it as its description */}
+        <span className="focus-ring rounded-full" tabIndex={0}>
+          <Icon className="size-3.5 text-subtle" name="help" />
+        </span>
       </Tooltip>
     </span>
   );
@@ -281,7 +288,7 @@ export function FieldRow({
           )}
           {help ? <HelpIcon content={help} /> : null}
         </span>
-        {/* The «?» is hover-only; its text is the row's description too. */}
+        {/* The «?»'s text is the row's description too. */}
         {help ? (
           <span className="sr-only" id={helpId}>
             {help}

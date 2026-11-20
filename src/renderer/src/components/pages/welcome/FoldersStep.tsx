@@ -36,7 +36,8 @@ export function FoldersStep() {
                     {linked.map((path) => (
                       <Token className="max-w-full pr-0.5" key={path}>
                         <Icon className="size-3.5" name="folder" />
-                        <Tooltip content={path}>
+                        {/* `min-w-0`, or a long name pushes the ✕ out of its token. */}
+                        <Tooltip className="min-w-0" content={path} fit="path">
                           <span className="truncate">{folderName(path)}</span>
                         </Tooltip>
                         <IconButton

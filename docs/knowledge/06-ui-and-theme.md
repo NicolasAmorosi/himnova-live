@@ -521,7 +521,7 @@ one, another takes it off) and a field Enter sends; «Parpadear» (blink until t
 message is showing, beside how long it has been there. Every row keeps its height, so the card never changes size.
 Taking either off the stage is its token in the head. A press anywhere else folds it unless it is pinned (for the
 session); Esc inside it folds it pinned or not, on purpose (the 2.10.0 decision). Its tooltips are
-`floating`: in-flow bubbles widened the card's scroll area. Measured 2026-11-14: 629 px tall at 1366×768 and 561 at
+floating, like every tooltip since 2026-11-20 (audit X16): in-flow bubbles widened the card's scroll area. Measured 2026-11-14: 629 px tall at 1366×768 and 561 at
 1000×700, no scroll.
 
 ### Toasts: every one goes, with its time drawn
