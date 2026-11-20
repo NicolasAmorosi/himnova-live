@@ -7,7 +7,7 @@
  * on the projector; a new scene used to replace the held picture with the video that never drew.
  */
 import { beforeEach, describe, expect, test } from "vitest";
-import { entryOf, nextLayers, type Layer, type LayerHold, type LayerStep } from "@renderer/lib/output-layers";
+import { entryOf, keepsLayers, nextLayers, type Layer, type LayerHold, type LayerStep } from "@renderer/lib/output-layers";
 import { buildCumulativeMs, selectOutput, useProjectionStore, type LiveDeck } from "@renderer/stores/projection.store";
 import { slideUrl } from "@shared/urls";
 import type { DeckSlide } from "@shared/types/deck";
@@ -86,6 +86,9 @@ function stage(options: { animate?: boolean; videoMounted?: boolean } = {}) {
     },
     get hold() {
       return hold;
+    },
+    get layers(): readonly Layer[] {
+      return layers;
     },
   };
 }
@@ -349,5 +352,39 @@ describe("one layer, nothing in flight", () => {
     goVideo(2, 91);
     expect(view.push().kind).toBe("steady");
     expect(view.hold).toBeNull();
+  });
+});
+
+describe("a push that leaves the picture as it is draws nothing again (R22)", () => {
+  test("the same scene in a new object, or a plate over it: only the ref follows", () => {
+    goImage(1);
+    const view = stage();
+    // `selectOutput` builds a new object at every call, as PREVIEW's hook does at every render.
+    let before = view.layers;
+    expect(keepsLayers(before, view.push())).toBe(true);
+    store().showPlate(PLATE);
+    before = view.layers;
+    expect(keepsLayers(before, view.push())).toBe(true);
+  });
+
+  test("a new picture, a fade that ends in a cut and a scene leaving are drawn", () => {
+    store().setTransitionSettings("none", 0);
+    goImage(1);
+    const view = stage();
+    let before = view.layers;
+    goImage(2);
+    expect(keepsLayers(before, view.push())).toBe(false);
+
+    store().setTransitionSettings("crossfade", 300);
+    goImage(3);
+    before = view.layers;
+    const fade = view.push();
+    expect(fade.kind).toBe("transition");
+    expect(keepsLayers(before, fade)).toBe(false);
+    // Two layers down to one, the top the same scene: the outgoing one has to go.
+    const top = fade.layers[1]!;
+    expect(keepsLayers(fade.layers, { kind: "steady", layers: [{ seq: top.seq, output: { ...top.output } }] })).toBe(
+      false,
+    );
   });
 });

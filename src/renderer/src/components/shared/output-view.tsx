@@ -1,11 +1,28 @@
-import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode, type Ref } from "react";
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+  type Ref,
+} from "react";
 import { flushSync } from "react-dom";
 // The icon on its own, not the `components/ui` barrel: the barrel brought the four UI dictionaries into the projector,
 // the stage and the NDI copy (298 KB, 2.6 ms and 0.62 MB of heap per output window; 2026-11-15 audit, R23).
 import { Icon } from "@renderer/components/ui/icon";
 import { cn } from "@renderer/lib/utils";
 import { frameCaptureSize } from "@renderer/lib/frame-capture";
-import { entryOf, nextLayers, withoutOutgoing, type Layer, type LayerHold } from "@renderer/lib/output-layers";
+import {
+  entryOf,
+  keepsLayers,
+  nextLayers,
+  withoutOutgoing,
+  type Layer,
+  type LayerHold,
+} from "@renderer/lib/output-layers";
 import {
   isRandomBars,
   randomBarDelays,
@@ -821,10 +838,12 @@ type SceneLayerProps = {
   incomingCovers: boolean;
   mode: OutputViewMode;
   onImageError?: ((url: string) => void) | undefined;
-  onLeaveComplete?: (() => void) | undefined;
+  /** Called with `seq` when this layer's own way out ends. */
+  onLeaveComplete?: ((seq: number) => void) | undefined;
   posterUrl: string | null;
   output: ProjectionOutput;
   role: LayerRole;
+  seq: number;
   transition: LayerTransition;
   videoBehind: boolean;
 };
@@ -835,8 +854,13 @@ type SceneLayerProps = {
  *  paint nothing in `OutputScene`, so the layer's own background does it —
  *  except for `video`, which paints nothing here on purpose (see
  *  `OutputScene`) and must stay transparent so the persistent `<video>`
- *  element shows through instead of being hidden behind an opaque box. */
-function SceneLayer({
+ *  element shows through instead of being hidden behind an opaque box.
+ *
+ *  Memoized: a media status (~4 a second) re-renders `OutputView` in the LIVE
+ *  monitor, the NDI copy and the stage, and the scene under it (a model slide,
+ *  drawn again) had not changed (2026-11-15 audit, R22). Every prop is a value
+ *  or a callback that stays the same function across renders. */
+const SceneLayer = memo(function SceneLayer({
   frozenFrame,
   held,
   incomingCovers,
@@ -846,6 +870,7 @@ function SceneLayer({
   output,
   posterUrl,
   role,
+  seq,
   transition,
   videoBehind,
 }: SceneLayerProps) {
@@ -874,7 +899,7 @@ function SceneLayer({
     <div
       className={cn("absolute inset-0 flex items-center justify-center", opaque && !bars && "bg-black")}
       onAnimationEnd={(e) => {
-        if (e.target === e.currentTarget && role === "leaving") onLeaveComplete?.();
+        if (e.target === e.currentTarget && role === "leaving") onLeaveComplete?.(seq);
       }}
       style={transitionStyle(role, transition, 1, held, incomingCovers)}
     >
@@ -891,7 +916,7 @@ function SceneLayer({
       )}
     </div>
   );
-}
+});
 
 /**
  * The slide entering by random bars: `RANDOM_BAR_COUNT` strips across the
@@ -1367,7 +1392,9 @@ export function OutputView({
     });
     lastEpochRef.current = output.transition.epoch;
     lastEnterSeqRef.current = entryOf(output)?.seq ?? null;
-    commitLayers(step.layers);
+    // The same picture: the ref follows the push, the stage is not drawn again (R22).
+    if (keepsLayers(layersRef.current, step)) layersRef.current = step.layers;
+    else commitLayers(step.layers);
 
     if (step.kind === "patch") return; // a fade or a hold in flight goes on as it was
     // Anything else replaces the scene an earlier hold was for.
@@ -1416,10 +1443,11 @@ export function OutputView({
     [],
   );
 
-  function handleLeaveComplete(seq: number) {
+  // The same function at every render, like `handleImageError`: `SceneLayer` is memoized.
+  const handleLeaveComplete = useCallback((seq: number) => {
     clearLeaveFallback();
     commitLayers(withoutOutgoing(layersRef.current, seq));
-  }
+  }, []);
 
   // One slot each, holding the url that last failed — never a growing set.
   // A single scene and a single video are on screen at a time, and the notice
@@ -1453,10 +1481,12 @@ export function OutputView({
     [plateImages],
   );
 
-  function handleImageError(url: string) {
+  const onMediaErrorRef = useRef(onMediaError);
+  onMediaErrorRef.current = onMediaError;
+  const handleImageError = useCallback((url: string) => {
     setFailedSceneUrl(url);
-    onMediaError?.({ target: { kind: "scene" }, url, code: null });
-  }
+    onMediaErrorRef.current?.({ target: { kind: "scene" }, url, code: null });
+  }, []);
 
   /**
    * Keeps the outgoing video's last frame so the layer it leaves behind has
@@ -1659,13 +1689,14 @@ export function OutputView({
           // nobody is looking at any more, and would overwrite the slot that
           // holds the incoming layer's own failure.
           onImageError={i === layers.length - 1 ? handleImageError : undefined}
-          onLeaveComplete={i === 0 ? () => handleLeaveComplete(layer.seq) : undefined}
+          onLeaveComplete={i === 0 ? handleLeaveComplete : undefined}
           output={layer.output}
           frozenFrame={layer.frozenFrame}
           held={held}
           incomingCovers={incomingCovers}
           posterUrl={posterFor(layer)}
           role={layers.length < 2 ? "steady" : i === 0 ? "leaving" : "entering"}
+          seq={layer.seq}
           transition={transition}
           videoBehind={videoBehind(layer)}
         />
