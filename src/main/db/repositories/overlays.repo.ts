@@ -2,17 +2,10 @@ import { eq, min } from "drizzle-orm";
 import Database from "better-sqlite3";
 import type { Db } from "../client";
 import { overlayPlates } from "../schema";
+import { parseJson } from "../parse-json";
 import { IpcError } from "@shared/ipc/result";
 import { normalizePlateStyle } from "@shared/overlay-validators";
 import { PLATE_KIND_POSITIONS, type Plate } from "@shared/types/overlay";
-
-function parseJson(raw: string): unknown {
-  try {
-    return JSON.parse(raw) as unknown;
-  } catch {
-    return null;
-  }
-}
 
 /** A row as a `Plate`, whatever the row holds — normalized field by field, so
  *  a bad style cannot take the panel down at boot (same rule as

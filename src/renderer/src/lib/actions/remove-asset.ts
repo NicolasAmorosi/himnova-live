@@ -193,7 +193,7 @@ export async function removeAsset(id: number): Promise<void> {
 /** The "Remove anyway" escape hatch — same cleanup as `removeAsset`,
  *  but bypasses the in-use guard by also deleting the referencing
  *  `program_items` (main-side, in one transaction — see
- *  `main/services/media-asset-removal.ts`). Not deferred: the operator has
+ *  `main/services/removal.ts`). Not deferred: the operator has
  *  just read a list of the programs this breaks and confirmed anyway, so a
  *  second chance to take it back would only be noise. */
 export async function forceRemoveAsset(id: number): Promise<void> {

@@ -342,6 +342,11 @@ test("a daily copy is due with none, or with the newest a day old or dated in th
   // A clock set back: the newest copy is «from the future».
   at(2 * hour);
   expect(dailyBackupDue(daily)).toBe(true);
+  // Written in the same millisecond as `now`: the file's time has the fraction `Date` drops. Taken now, not ahead.
+  const now = new Date();
+  fs.utimesSync(copy, (now.getTime() + 0.6) / 1000, (now.getTime() + 0.6) / 1000);
+  expect(fs.statSync(copy).mtimeMs).toBeGreaterThan(now.getTime());
+  expect(dailyBackupDue(daily, now)).toBe(false);
 });
 
 test("a daily copy once a day, the last 7 kept, the pre-migration copies left alone", () => {

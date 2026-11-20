@@ -7,6 +7,7 @@ import { runMigrations } from "../../src/main/db/migrate";
 import { MediaRepo } from "../../src/main/db/repositories/media.repo";
 import { SlidesRepo } from "../../src/main/db/repositories/slides.repo";
 import { SLIDES_CONVERTER_VERSION } from "../../src/shared/constants";
+import { upsertFile } from "./support/upsert-file";
 
 /** A profile copied elsewhere: its rows still name the original's folders. */
 const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "worship-cache-root-"));
@@ -23,7 +24,7 @@ afterAll(() => {
 function deckAt(cacheDir: string, name: string): number {
   const file = path.join(tmpDir, `${name}.pptx`);
   fs.writeFileSync(file, name);
-  const asset = mediaRepo.upsertFromPath(file, "ppt", true);
+  const asset = upsertFile(mediaRepo, file, "ppt", true);
   return slidesRepo.insertDeck(
     {
       contentHash: name.padEnd(64, "0"),

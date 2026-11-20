@@ -1,5 +1,6 @@
-import { app, BrowserWindow, powerSaveBlocker, screen, type Display } from "electron";
+import { BrowserWindow, powerSaveBlocker, screen, type Display } from "electron";
 import path from "node:path";
+import { loadPage } from "./load-page";
 import type { StageOutput } from "@shared/types/projection";
 import { mt } from "../i18n";
 import { trustWindow } from "../ipc/trusted-senders";
@@ -189,9 +190,7 @@ function createStageWindow(display: Electron.Display, own: boolean): BrowserWind
     broadcast("stage-screen", { shown, byScreens: false, closed: true });
   });
 
-  const devServerUrl = process.env["ELECTRON_RENDERER_URL"];
-  if (!app.isPackaged && devServerUrl) void win.loadURL(`${devServerUrl}/stage.html`);
-  else void win.loadFile(path.join(__dirname, "../renderer/stage.html"));
+  void loadPage(win, "stage.html");
   // Shown the way the projector is (see `createProjectionWindow`); a key that
   // reaches it anyway is forwarded to the control window.
   win.once("ready-to-show", () => (process.platform === "win32" ? win.showInactive() : win.show()));

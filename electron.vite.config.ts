@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { defineConfig, externalizeDepsPlugin } from "electron-vite";
+import { defineConfig } from "electron-vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import type { Plugin } from "vite";
@@ -31,15 +31,15 @@ function stripDevCsp(): Plugin {
 
 export default defineConfig({
   main: {
-    // `drizzle-orm` bundled: external, Node resolved each of its internal files as ESM against a 177 KB
-    // `package.json` with 443 `exports`, ~100 to 180 ms of main before the first window (2026-11-15 audit, R6).
-    plugins: [externalizeDepsPlugin({ exclude: ["drizzle-orm"] })],
     resolve: {
       alias: {
         "@shared": resolve("src/shared"),
       },
     },
     build: {
+      // `drizzle-orm` bundled: external, Node resolved each of its internal files as ESM against a 177 KB
+      // `package.json` with 443 `exports`, ~100 to 180 ms of main before the first window (2026-11-15 audit, R6).
+      externalizeDeps: { exclude: ["drizzle-orm"] },
       // No source map: main is not minified, so the line `crash.log` names in `out/main/index.js` reads as the code,
       // and Node applies no map without `setSourceMapsEnabled`, whose first stack after a load reads all 2.6 MB of
       // it on main. Shipped, the map was never read (2026-11-15 audit, Doc11).
@@ -51,7 +51,6 @@ export default defineConfig({
     },
   },
   preload: {
-    plugins: [externalizeDepsPlugin()],
     resolve: {
       alias: {
         "@shared": resolve("src/shared"),
@@ -92,6 +91,9 @@ export default defineConfig({
     },
     plugins: [react(), tailwindcss(), stripDevCsp()],
     build: {
+      // electron-vite leaves the renderer unminified: 4414 kB against 2778, and the projector's page compiled in
+      // 10.3 ms against 8.1 (2026-11-15 audit, R33). Main stays readable for `crash.log`.
+      minify: true,
       rollupOptions: {
         input: {
           control: resolve("src/renderer/index.html"),

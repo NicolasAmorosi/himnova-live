@@ -21,14 +21,15 @@ test("the keys go oldest first, so the last one is the latest", () => {
 });
 
 test("a profile that skipped a version is told what each brought, oldest first; by hand, the latest", () => {
-  // 2.9 straight to 2.12.1: the stage screen and the strips (2.10) were never told, and only the latest was shown.
-  expect(whatsNewKeysFor("2.9")).toEqual(["2.10", "2.11", "2.12", "2.12.1"]);
+  // 2.9 straight to 2.13: the stage screen and the strips (2.10) were never told, and only the latest was shown.
+  expect(whatsNewKeysFor("2.9")).toEqual(["2.10", "2.11", "2.12", "2.12.1", "2.13"]);
   expect(whatsNewKeysFor(null)).toEqual(WHATS_NEW_KEYS);
-  expect(whatsNewKeysFor("2.10")).toEqual(["2.11", "2.12", "2.12.1"]);
-  expect(whatsNewKeysFor("2.10.1")).toEqual(["2.11", "2.12", "2.12.1"]);
-  expect(whatsNewKeysFor("2.11")).toEqual(["2.12", "2.12.1"]);
-  // A patch with a key of its own: the profile that saw its minor is told only the patch.
-  expect(whatsNewKeysFor("2.12")).toEqual(["2.12.1"]);
+  expect(whatsNewKeysFor("2.10")).toEqual(["2.11", "2.12", "2.12.1", "2.13"]);
+  expect(whatsNewKeysFor("2.10.1")).toEqual(["2.11", "2.12", "2.12.1", "2.13"]);
+  expect(whatsNewKeysFor("2.11")).toEqual(["2.12", "2.12.1", "2.13"]);
+  // A patch with a key of its own counts like any version: after its minor, then before the next.
+  expect(whatsNewKeysFor("2.12")).toEqual(["2.12.1", "2.13"]);
+  expect(whatsNewKeysFor("2.12.1")).toEqual(["2.13"]);
   // Nothing due: Settings ▸ About opens the latest.
   expect(whatsNewKeysFor(LATEST_WHATS_NEW)).toEqual([LATEST_WHATS_NEW]);
   expect(whatsNewKeysFor("99.0")).toEqual([LATEST_WHATS_NEW]);

@@ -19,6 +19,7 @@ import { OverlaysRepo } from "../../src/main/db/repositories/overlays.repo";
 import { DEFAULT_PLATE_STYLE } from "../../src/shared/types/overlay";
 import { SlidesRepo } from "../../src/main/db/repositories/slides.repo";
 import { SLIDES_NATIVE_VERSION } from "../../src/shared/constants";
+import { upsertFile } from "./support/upsert-file";
 
 let dir: string;
 let handle: ReturnType<typeof openDatabase>;
@@ -45,9 +46,9 @@ test("relocating onto a file the library already has merges the two rows", () =>
     fs.mkdirSync(path.dirname(file), { recursive: true });
     fs.writeFileSync(file, "png");
   }
-  const original = media.upsertFromPath(oldPath, "image", true);
+  const original = upsertFile(media, oldPath, "image", true);
   // The re-linked folder registered the same file at its new letter.
-  const duplicate = media.upsertFromPath(newPath, "image", false);
+  const duplicate = upsertFile(media, newPath, "image", false);
   fs.rmSync(oldPath);
 
   const program = programs.save({
@@ -99,7 +100,7 @@ test("a deck read before its file moved is served from where the file is now, on
   fs.mkdirSync(path.dirname(oldPath), { recursive: true });
   fs.mkdirSync(path.dirname(newPath), { recursive: true });
   fs.writeFileSync(oldPath, "pps bytes");
-  const asset = media.upsertFromPath(oldPath, "ppt", false);
+  const asset = upsertFile(media, oldPath, "ppt", false);
   const stat = fs.statSync(oldPath);
   const deckId = slides.insertDeck(
     {
@@ -153,9 +154,9 @@ test("a merge counts once committed: one rolled back with a later move of the sa
     fs.writeFileSync(at, "mp4");
     return at;
   };
-  const moved = media.upsertFromPath(file("moved.mp4"), "video", true);
-  const twin = media.upsertFromPath(file("twin.mp4"), "video", false);
-  const other = media.upsertFromPath(file("other.mp4"), "video", true);
+  const moved = upsertFile(media, file("moved.mp4"), "video", true);
+  const twin = upsertFile(media, file("twin.mp4"), "video", false);
+  const other = upsertFile(media, file("other.mp4"), "video", true);
   const failing = { get size(): number { throw new Error("the drive went away"); }, mtimeMs: 1 } as fs.Stats;
 
   expect(() =>

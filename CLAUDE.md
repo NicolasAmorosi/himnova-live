@@ -623,7 +623,7 @@ npm run package:win|mac|linux  # build + electron-builder for that platform
   variant of `ProjectionOutput` carries its resolved `BibleStyle` and `backgroundUrl` inside it, for
   the same reason a timer scene carries them: the projector resolves nothing and
   `projection-state.ts` replays that value as is. The style lives in `settings["bible.style"]`,
-  `App` mirrors it to `projection.store` (as it already does with the two transition keys) and that's
+  `effects/settings-mirror.ts` mirrors it to `projection.store` (with the two transition keys) and that's
   why `selectOutput` can stay a pure function of that store. Editing it while a verse is
   live reaches the projector instantly and **without a transition**: none of that touches `sceneEpoch`.
   It's built by `bibleOutputFor`, shared with the PREVIEW monitor just like `timerOutputFor`.

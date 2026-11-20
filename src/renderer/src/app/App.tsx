@@ -27,10 +27,7 @@ import {
 import { loadScenes } from "@renderer/lib/actions/utility";
 import { loadPlates } from "@renderer/lib/actions/overlays";
 import { loadSongs, refreshLiveSong } from "@renderer/lib/actions/songs";
-import { useProjectionStore } from "@renderer/stores/projection.store";
 import { useProgramStore } from "@renderer/stores/program.store";
-import { logoLook } from "@shared/types/settings";
-import { liveMasterVolume } from "@shared/types/audio";
 import { useSettingsStore } from "@renderer/stores/settings.store";
 import { useBibleStore } from "@renderer/stores/bible.store";
 import { useDisplayStore } from "@renderer/stores/display.store";
@@ -45,10 +42,10 @@ import { startEngineAssetsSync } from "@renderer/effects/engine-assets-sync";
 import { startUpdateAnnouncement } from "@renderer/effects/update-announcement";
 import { startFirstSteps } from "@renderer/effects/first-steps";
 import { startAudioRouteEffects } from "@renderer/effects/audio-route";
+import { startSettingsMirror } from "@renderer/effects/settings-mirror";
 import { finishRecovery, startLiveCopy, wasRecovered } from "@renderer/effects/live-copy";
 import { useAudioRouteStore } from "@renderer/stores/audio-route.store";
 import { useAudioSink } from "@renderer/lib/hooks/use-audio-sink";
-import { startAudioLevels } from "@renderer/effects/audio-levels";
 import { useGlobalShortcuts } from "@renderer/lib/hooks/use-global-shortcuts";
 
 /**
@@ -94,34 +91,6 @@ export function App() {
    *  again instead of finding a stale pending record. */
   const closeConfirmedRef = useRef(false);
   const loadSettings = useSettingsStore((s) => s.load);
-  const logoPath = useSettingsStore((s) => s.settings["logo.path"]);
-  const logoMode = useSettingsStore((s) => s.settings["logo.mode"]);
-  const setLogoUrl = useProjectionStore((s) => s.setLogoUrl);
-  const logoName = useSettingsStore((s) => s.settings["logo.name"]);
-  const logoBackground = useSettingsStore((s) => s.settings["logo.background"]);
-  const setLogoScene = useProjectionStore((s) => s.setLogoScene);
-  const transitionStyle = useSettingsStore(
-    (s) => s.settings["projection.transition.style"],
-  );
-  const transitionDurationMs = useSettingsStore(
-    (s) => s.settings["projection.transition.durationMs"],
-  );
-  const setTransitionSettings = useProjectionStore(
-    (s) => s.setTransitionSettings,
-  );
-  const videoEnd = useSettingsStore((s) => s.settings["projection.videoEnd"]);
-  const setVideoEnd = useProjectionStore((s) => s.setVideoEnd);
-  const bibleStyle = useSettingsStore((s) => s.settings["bible.style"]);
-  const setBibleStyle = useProjectionStore((s) => s.setBibleStyle);
-  const fallbackFont = useSettingsStore((s) => s.settings["slides.fallbackFont"]);
-  const locale = useSettingsStore((s) => s.settings["ui.locale"]);
-  const setSlideText = useProjectionStore((s) => s.setSlideText);
-  const liveMaster = useSettingsStore((s) =>
-    liveMasterVolume(s.settings["audio.strips"], s.settings["audio.live.volume"], s.settings["audio.live.muted"]),
-  );
-  const setLiveMasterVolume = useProjectionStore((s) => s.setLiveMasterVolume);
-  const strips = useSettingsStore((s) => s.settings["audio.strips"]);
-  const setLiveMeters = useProjectionStore((s) => s.setLiveMeters);
 
   useGlobalShortcuts(useAnyModalOpen());
   // Every sound of this window is PREVIEW's (the monitors' copies of LIVE are muted).
@@ -205,6 +174,9 @@ export function App() {
       }
     })();
     const stopProjectionEffects = startProjectionEffects();
+    // The settings `selectOutput` depends on, into `projection.store`: outside React, so App does not render again
+    // on every step of LIVE's fader (2026-11-15 audit, R16).
+    const stopSettingsMirror = startSettingsMirror();
     const stopStageSync = startStageSync();
     const stopLibrarySync = startLibrarySyncEffects();
     // Also what lets main decide what the media engine plays — see `engine-assets-sync.ts`.
@@ -224,6 +196,7 @@ export function App() {
     return () => {
       stopLiveCopy();
       stopAudioRoute();
+      stopSettingsMirror();
       stopProjectionEffects();
       stopStageSync();
       stopLibrarySync();
@@ -234,60 +207,6 @@ export function App() {
       stopFirstSteps();
     };
   }, [loadSettings]);
-
-  // The image or the name over its background, whichever mode LOGO is in:
-  // edited in Settings, it reaches the projector in place, like the verse's style.
-  useEffect(() => {
-    const look = logoLook({
-      "logo.path": logoPath,
-      "logo.mode": logoMode,
-      "logo.name": logoName,
-      "logo.background": logoBackground,
-    });
-    setLogoUrl(look.url);
-    setLogoScene(look.scene);
-  }, [logoPath, logoMode, logoName, logoBackground, setLogoUrl, setLogoScene]);
-
-  // Mirrors the projection settings into the store the same way the logo
-  // does above — `selectOutput` reads them off `projection.store`, not
-  // straight from settings, so the projection window's input stays a single
-  // self-contained value with no settings dependency of its own.
-  useEffect(() => {
-    setTransitionSettings(transitionStyle, transitionDurationMs);
-  }, [transitionStyle, transitionDurationMs, setTransitionSettings]);
-
-  // What a video does at its end: `loop` travels in the output, the rest is
-  // `end-of-playback.ts`'s. Changed while a video plays, it applies to that one.
-  useEffect(() => {
-    setVideoEnd(videoEnd);
-  }, [videoEnd, setVideoEnd]);
-
-  // Measuring only while the strips are on: nothing is listened to, sent or crossed to main otherwise. The projector
-  // learns it through its output.
-  useEffect(() => {
-    setLiveMeters(strips);
-    return strips ? startAudioLevels() : undefined;
-  }, [strips, setLiveMeters]);
-
-  // The LIVE strip's fader (100 % with the strips off), mirrored the same way: it multiplies every live level.
-  useEffect(() => {
-    setLiveMasterVolume(liveMaster);
-  }, [liveMaster, setLiveMasterVolume]);
-
-  // The verse's own look, mirrored for the same reason and by the same route.
-  // Editing it in Settings while scripture is on the projector therefore
-  // reaches the room immediately and WITHOUT a scene transition: nothing here
-  // touches `sceneEpoch`, so `OutputView` swaps the layer in place instead of
-  // fading a verse into a near-identical copy of itself.
-  useEffect(() => {
-    setBibleStyle(bibleStyle);
-  }, [bibleStyle, setBibleStyle]);
-
-  // What a model slide leaves to the machine (the face for a missing font,
-  // the language of chart numbers): same route, same in-place restyle.
-  useEffect(() => {
-    setSlideText({ fallbackFont, locale });
-  }, [fallbackFont, locale, setSlideText]);
 
   return (
     <>

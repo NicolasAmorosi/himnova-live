@@ -175,8 +175,8 @@ test("LIVE's fader is a master: at −6 dB the projector plays each item at half
   const half = faderToGain(0.75);
   await master.fill("75");
   await expect.poll(levels).toEqual([half, half]);
-  // Remembered as a setting, not lost with the item.
-  expect((await app.invoke<Record<string, unknown>>("settings:get"))["audio.live.volume"]).toBe(half);
+  // Remembered as a setting, not lost with the item. Polled: the settings of a burst reach main every 300 ms (R16).
+  await expect.poll(async () => (await app.invoke<Record<string, unknown>>("settings:get"))["audio.live.volume"]).toBe(half);
 
   // Mute is the master at 0; unmute brings back the level it had.
   const strip = app.liveColumn().getByRole("group", { name: LIVE_STRIP });
@@ -203,7 +203,7 @@ test("LIVE's fader is a master: at −6 dB the projector plays each item at half
       "Tiras apagadas: el volumen general de EN VIVO (49 %) pasa a ser el volumen inicial, y lo que ya está al aire vuelve al 100 %.",
     ),
   ).toBeVisible();
-  expect((await app.invoke<Record<string, unknown>>("settings:get"))["media.volume"]).toBe(half);
+  await expect.poll(async () => (await app.invoke<Record<string, unknown>>("settings:get"))["media.volume"]).toBe(half);
   // And turning them on again does not silence LIVE: the mute went with them. Fails if it survives the switch.
   await setStrips(app, true);
   await expect(mute).toHaveAttribute("aria-pressed", "false");
@@ -225,7 +225,7 @@ test("a fade-out down to 0 on LIVE's fader is a mute: unmuting, and the next lau
   await expect(mute).toHaveAttribute("aria-pressed", "true");
   // Fails with the last step before 0 remembered (−93 dB): the room barely hears the next song, and the app opens
   // like that tomorrow (2026-11-15 audit, A8).
-  expect((await app.invoke<Record<string, unknown>>("settings:get"))["audio.live.volume"]).toBe(faderToGain(0.8));
+  await expect.poll(async () => (await app.invoke<Record<string, unknown>>("settings:get"))["audio.live.volume"]).toBe(faderToGain(0.8));
   await mute.click();
   await expect(master).toHaveValue("80");
 });
@@ -287,9 +287,14 @@ test("the NDI output hears LIVE's fader: three quarters up, its sound is 6 dB un
 test("each strip's output menu lists this computer's outputs and keeps the one chosen by its name", async ({ app }) => {
   const strip = app.previewColumn().getByRole("group", { name: PREVIEW_STRIP });
   const trigger = strip.getByRole("button", { name: "Salida de PREVIEW" });
-  // D6: both on the system's default, so PREVIEW is heard in the room too, and says so.
-  await trigger.hover();
-  await expect(app.control.getByRole("tooltip", { name: "Salida de PREVIEW:" })).toContainText("También se escucha en la sala");
+  // D6: both on the system's default, so PREVIEW is heard in the room too, and says so. The bubble opens on a pointer
+  // that comes in, and right after launch on Linux one hover did not show it (cause not found): retried from outside.
+  const bubble = app.control.getByRole("tooltip", { name: "Salida de PREVIEW:" });
+  await expect(async () => {
+    await app.control.mouse.move(0, 0);
+    await trigger.hover();
+    await expect(bubble).toContainText("También se escucha en la sala", { timeout: 1000 });
+  }).toPass();
 
   await trigger.click();
   const menu = app.control.getByRole("menu", { name: "Salida de PREVIEW" });

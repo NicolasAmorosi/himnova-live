@@ -82,6 +82,24 @@ function pictureKey(output: ProjectionOutput): string {
   return JSON.stringify(output, (key: string, value: unknown) => (NOT_PICTURE.has(key) ? undefined : value));
 }
 
+/**
+ * Whether a step leaves the stage drawing what it already draws: one layer before and after, the same one, nothing
+ * hung on it, the same scene. Then only `OutputView`'s ref needs the new output; a render would paint the same picture
+ * again. PREVIEW's hook builds a new output object on every render, and each one was a second render of the whole
+ * scene (2026-11-15 audit, R22).
+ */
+export function keepsLayers(before: readonly Layer[], step: LayerStep): boolean {
+  const [only] = before;
+  return (
+    step.kind === "steady" &&
+    before.length === 1 &&
+    only !== undefined &&
+    only.seq === step.layers[0].seq &&
+    !only.frozenFrame &&
+    sceneContentKey(only.output) === sceneContentKey(step.layers[0].output)
+  );
+}
+
 /** Drops the outgoing half of a finished transition, leaving one "steady"
  *  layer (`role` is derived from `layers.length`, so this is also what takes
  *  the survivor off its keyframe and back to a plain opacity). */

@@ -1,6 +1,6 @@
-// The LEGACY build, deliberately: pdf.js's modern bundle uses JS built-ins
-// (e.g. Uint8Array.prototype.toHex) that Electron 36's Chromium doesn't have
-// yet, and it fails at runtime with an unhelpful "n.toHex is not a function".
+// The LEGACY build: pdf.js's modern bundle used JS built-ins (e.g. Uint8Array.prototype.toHex) that Electron 36's
+// Chromium lacked, and failed at runtime with an unhelpful "n.toHex is not a function". Electron 45's V8 has them;
+// the modern build has not been tried since.
 import * as pdfjs from "pdfjs-dist/legacy/build/pdf.mjs";
 import type { PDFDocumentProxy, PDFPageProxy } from "pdfjs-dist/legacy/build/pdf.mjs";
 import pdfWorkerUrl from "pdfjs-dist/legacy/build/pdf.worker.min.mjs?url";

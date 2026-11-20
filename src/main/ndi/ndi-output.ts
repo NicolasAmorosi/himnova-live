@@ -1,8 +1,9 @@
-import { app, BrowserWindow, type OffscreenSharedTexture } from "electron";
+import { BrowserWindow, type OffscreenSharedTexture } from "electron";
 import { spawn, type ChildProcess } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { loadPage } from "../windows/load-page";
 import { NDI_ERROR_CODES, NDI_SIZES, type NdiAudioStatus, type NdiOutputStatus } from "@shared/types/ndi";
 import type { SettingsMap } from "@shared/types/settings";
 import { trustWindow } from "../ipc/trusted-senders";
@@ -232,9 +233,7 @@ function createNdiWindow(config: Config): BrowserWindow {
     if (!win.isDestroyed() && ndiCrashed()) win.webContents.reload();
   });
   projectionState.addMirror(win);
-  const devServerUrl = process.env["ELECTRON_RENDERER_URL"];
-  if (!app.isPackaged && devServerUrl) void win.loadURL(`${devServerUrl}/projection.html?role=ndi`);
-  else void win.loadFile(path.join(__dirname, "../renderer/projection.html"), { query: { role: "ndi" } });
+  void loadPage(win, "projection.html", { role: "ndi" });
   win.once("closed", () => {
     if (window === win) window = null;
     syncLiveEngine();

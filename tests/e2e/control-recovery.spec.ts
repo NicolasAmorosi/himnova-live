@@ -357,13 +357,14 @@ test("the NDI output goes on through a control reload: every frame, and every be
 });
 
 /** The control window's page, read from main: after a crash Playwright's own handle on it is gone. A script sent
- *  while the page is dying never answers, so each try gives up after a second. */
+ *  while the page is dying never answers (Electron 44) or rejects with «Render frame was disposed» (45), so each try
+ *  gives up after a second or on that rejection. */
 const controlPage = (app: WorshipApp, script: string) =>
   app.electron.evaluate(({ BrowserWindow }, script) => {
     const control = BrowserWindow.getAllWindows().find((win) => win.webContents.getURL().endsWith("/index.html"));
     if (!control || control.webContents.isCrashed() || control.webContents.isLoading()) return null;
     return Promise.race([
-      control.webContents.executeJavaScript(script) as Promise<unknown>,
+      (control.webContents.executeJavaScript(script) as Promise<unknown>).catch(() => null),
       new Promise((resolve) => setTimeout(() => resolve(null), 1000)),
     ]);
   }, script);
@@ -489,6 +490,9 @@ test("with the control page down and the projector up, closing asks first: «Can
 test("with the control page down and nothing up, closing asks nothing and does not wait", async ({ app }) => {
   app.crashLogExpected = true;
   await answerMessageBoxes(app, 1);
+  // The page gives main its copy of what is live just after it is drawn: crashed before that (Windows, in this file's
+  // run, right after the fixture saw EN VIVO), it comes back as a launch, which loses nothing and says nothing.
+  await expect.poll(async () => (await app.invoke<{ copy: unknown }>("window:liveCopy")).copy !== null).toBe(true);
   await killPastTheCap(app);
   await app.electron.evaluate(({ app }) => app.quit());
   // Under the close guard's 4 s grace, which is how long a dead page made it wait before.

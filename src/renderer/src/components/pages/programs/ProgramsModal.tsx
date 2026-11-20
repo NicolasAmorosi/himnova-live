@@ -1,4 +1,14 @@
-import { useEffect, useMemo, useRef, useState, type DragEvent, type KeyboardEvent } from "react";
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type DragEvent,
+  type KeyboardEvent,
+  type RefObject,
+} from "react";
 import { createPortal } from "react-dom";
 import { useI18n } from "@renderer/lib/i18n/i18n-provider";
 import { ConfirmModal } from "@renderer/components/shared/modal";
@@ -44,10 +54,10 @@ import type { ProgramItemDTO, ProgramSummary } from "@shared/types/program";
 
 type FavoriteFilter = "all" | "favorites" | "others";
 
-/** The floating clone standing in for the browser's native drag-ghost — see
- *  the window listener below. `offsetY` is where inside the row the cursor
- *  first grabbed it, kept constant so the clone doesn't jump to align its top
- *  with the cursor. `left`/`width` never change: only `top` tracks the
+/** The floating clone standing in for the browser's native drag-ghost, where
+ *  the drag started: see `DragClone`. `offsetY` is where inside the row the
+ *  cursor first grabbed it, kept constant so the clone doesn't jump to align
+ *  its top with the cursor. `left`/`width` never change: only `top` tracks the
  *  cursor, which is what makes the drag read as vertical-only. */
 type DragPreview = { height: number; id: number; left: number; name: string; offsetY: number; top: number; width: number };
 
@@ -82,6 +92,91 @@ const savedEditing = (program: ProgramSummary): Editing => ({
   baseline: draftOf(program),
 });
 const sameDraft = (a: Draft, b: Draft) => a.name === b.name && a.notes === b.notes && a.favorite === b.favorite;
+
+/** What a saved program's row does, the same functions at every render: `SavedProgramRows` is memoized. */
+type RowActions = {
+  dragStart: (program: ProgramSummary, e: DragEvent<HTMLLIElement>) => void;
+  open: (id: number) => void;
+  select: (program: ProgramSummary) => void;
+  toggleFavorite: (program: ProgramSummary) => void;
+};
+
+/**
+ * The saved programs' rows, apart from the screen: each key typed into the
+ * name or the notes re-rendered every row (2026-11-15 audit, R30). They
+ * change with the list, the selection and the drag; never with the draft.
+ */
+const SavedProgramRows = memo(function SavedProgramRows({
+  actions,
+  currentProgramId,
+  dragOverId,
+  draggingId,
+  programs,
+  reorderEnabled,
+  rowRefs,
+  selectedId,
+}: {
+  actions: RowActions;
+  currentProgramId: number | null;
+  dragOverId: number | null;
+  draggingId: number | null;
+  programs: readonly ProgramSummary[];
+  reorderEnabled: boolean;
+  rowRefs: RefObject<Map<number, HTMLLIElement>>;
+  selectedId: number | null;
+}) {
+  return programs.map((program) => (
+    <ProgramRow
+      dragOver={dragOverId === program.id}
+      dragging={draggingId === program.id}
+      draggable={reorderEnabled}
+      isCurrent={program.id === currentProgramId}
+      key={program.id}
+      onDragStart={(e) => actions.dragStart(program, e)}
+      onOpen={() => actions.open(program.id)}
+      onSelect={() => actions.select(program)}
+      onToggleFavorite={() => actions.toggleFavorite(program)}
+      program={program}
+      ref={(el) => {
+        if (el) rowRefs.current.set(program.id, el);
+        else rowRefs.current.delete(program.id);
+      }}
+      selected={selectedId === program.id}
+    />
+  ));
+});
+
+/**
+ * The clone that follows the cursor while a row is dragged. Its own component,
+ * holding its own `top`: it moves on every `dragover` (~20 a second), and in
+ * the screen's state that re-rendered the whole screen each time (R30). It
+ * listens on the window, not the list, because it has to keep tracking the
+ * cursor past the list's own bounds (dragged up over the search bar, say).
+ */
+function DragClone({ onEnd, preview }: { onEnd: () => void; preview: DragPreview }) {
+  const [top, setTop] = useState(preview.top);
+  useEffect(() => {
+    function trackY(e: globalThis.DragEvent) {
+      setTop(e.clientY - preview.offsetY);
+    }
+    window.addEventListener("dragover", trackY);
+    window.addEventListener("dragend", onEnd);
+    return () => {
+      window.removeEventListener("dragover", trackY);
+      window.removeEventListener("dragend", onEnd);
+    };
+  }, [onEnd, preview.offsetY]);
+  return createPortal(
+    <div
+      className="pointer-events-none fixed z-[var(--z-drag)] flex items-center gap-2 rounded-md border border-border bg-card px-4 text-sm text-foreground shadow-overlay"
+      style={{ height: preview.height, left: preview.left, top, width: preview.width }}
+    >
+      <Icon className="text-subtle" name="grip" />
+      <span className="min-w-0 flex-1 truncate">{preview.name}</span>
+    </div>,
+    document.body,
+  );
+}
 
 type ProgramsModalProps = {
   initialMode?: { kind: "create" } | undefined;
@@ -120,27 +215,9 @@ export function ProgramsModal({ initialMode, onOpenChange, open }: ProgramsModal
   const nameRef = useRef<HTMLInputElement>(null);
   const rowRefs = useRef(new Map<number, HTMLLIElement>());
   const [dragOverId, setDragOverId] = useState<number | null>(null);
+  /** Where the drag started; the clone tracks the cursor on its own. */
   const [dragPreview, setDragPreview] = useState<DragPreview | null>(null);
-
-  // The clone has to keep tracking the cursor even past the list's own
-  // bounds (e.g. dragged up over the search bar), so it listens on the
-  // window rather than relying on the list's own onDragOver/onDragEnd.
-  useEffect(() => {
-    if (!dragPreview) return;
-    function trackY(e: globalThis.DragEvent) {
-      setDragPreview((prev) => (prev ? { ...prev, top: e.clientY - prev.offsetY } : prev));
-    }
-    function clear() {
-      setDragPreview(null);
-    }
-    window.addEventListener("dragover", trackY);
-    window.addEventListener("dragend", clear);
-    return () => {
-      window.removeEventListener("dragover", trackY);
-      window.removeEventListener("dragend", clear);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- only (re)subscribe when a drag starts/ends, not on every tracked pixel
-  }, [dragPreview !== null]);
+  const endDrag = useCallback(() => setDragPreview(null), []);
 
   async function refreshList(): Promise<ProgramSummary[] | null> {
     setLoading(true);
@@ -438,6 +515,39 @@ export function ProgramsModal({ initialMode, onOpenChange, open }: ProgramsModal
 
   const dateFormat = useMemo(() => new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeStyle: "short" }), [locale]);
 
+  function startDrag(program: ProgramSummary, e: DragEvent<HTMLLIElement>) {
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData(PROGRAM_ROW_MIME, String(program.id));
+    const rect = e.currentTarget.getBoundingClientRect();
+    setDragPreview({
+      height: rect.height,
+      id: program.id,
+      left: rect.left,
+      name: program.name,
+      offsetY: e.clientY - rect.top,
+      top: rect.top,
+      width: rect.width,
+    });
+  }
+
+  // The rows' actions read this render's state through the ref, so the object the rows get never changes.
+  const rowActionsRef = useRef<RowActions | null>(null);
+  rowActionsRef.current = {
+    dragStart: startDrag,
+    open: requestOpen,
+    select,
+    toggleFavorite: (program) => void toggleFavorite(program),
+  };
+  const rowActions = useMemo<RowActions>(
+    () => ({
+      dragStart: (program, e) => rowActionsRef.current?.dragStart(program, e),
+      open: (id) => rowActionsRef.current?.open(id),
+      select: (program) => rowActionsRef.current?.select(program),
+      toggleFavorite: (program) => rowActionsRef.current?.toggleFavorite(program),
+    }),
+    [],
+  );
+
   const menuOptions: MenuOption<"duplicate" | "delete">[] = [
     { disabled: editing?.kind !== "saved", label: t("common.duplicate"), value: "duplicate" },
     { disabled: editing?.kind !== "saved", label: t("common.delete"), tone: "danger", value: "delete" },
@@ -550,38 +660,16 @@ export function ProgramsModal({ initialMode, onOpenChange, open }: ProgramsModal
                       {t("header.untitled")}
                     </ListRow>
                   ) : null}
-                  {filtered.map((program) => (
-                    <ProgramRow
-                      dragOver={dragOverId === program.id}
-                      dragging={dragPreview?.id === program.id}
-                      draggable={reorderEnabled}
-                      isCurrent={program.id === currentProgramId}
-                      key={program.id}
-                      onDragStart={(e) => {
-                        e.dataTransfer.effectAllowed = "move";
-                        e.dataTransfer.setData(PROGRAM_ROW_MIME, String(program.id));
-                        const rect = e.currentTarget.getBoundingClientRect();
-                        setDragPreview({
-                          height: rect.height,
-                          id: program.id,
-                          left: rect.left,
-                          name: program.name,
-                          offsetY: e.clientY - rect.top,
-                          top: rect.top,
-                          width: rect.width,
-                        });
-                      }}
-                      onOpen={() => requestOpen(program.id)}
-                      onSelect={() => select(program)}
-                      onToggleFavorite={() => void toggleFavorite(program)}
-                      program={program}
-                      ref={(el) => {
-                        if (el) rowRefs.current.set(program.id, el);
-                        else rowRefs.current.delete(program.id);
-                      }}
-                      selected={selectedId === program.id}
-                    />
-                  ))}
+                  <SavedProgramRows
+                    actions={rowActions}
+                    currentProgramId={currentProgramId}
+                    dragOverId={dragOverId}
+                    draggingId={dragPreview?.id ?? null}
+                    programs={filtered}
+                    reorderEnabled={reorderEnabled}
+                    rowRefs={rowRefs}
+                    selectedId={selectedId}
+                  />
                   {editing?.kind === "new" ? (
                     <ListRow selected>{editing.draft.name || t("programs.namePlaceholder")}</ListRow>
                   ) : null}
@@ -757,23 +845,7 @@ export function ProgramsModal({ initialMode, onOpenChange, open }: ProgramsModal
         title={t("programs.sameNameTitle", { name: sameName?.meta.name ?? "" })}
       />
 
-      {dragPreview
-        ? createPortal(
-            <div
-              className="pointer-events-none fixed z-[var(--z-drag)] flex items-center gap-2 rounded-md border border-border bg-card px-4 text-sm text-foreground shadow-overlay"
-              style={{
-                height: dragPreview.height,
-                left: dragPreview.left,
-                top: dragPreview.top,
-                width: dragPreview.width,
-              }}
-            >
-              <Icon className="text-subtle" name="grip" />
-              <span className="min-w-0 flex-1 truncate">{dragPreview.name}</span>
-            </div>,
-            document.body,
-          )
-        : null}
+      {dragPreview ? <DragClone onEnd={endDrag} preview={dragPreview} /> : null}
     </>
   );
 }

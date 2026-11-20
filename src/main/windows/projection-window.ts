@@ -1,5 +1,6 @@
-import { app, BrowserWindow, screen } from "electron";
+import { BrowserWindow, screen } from "electron";
 import path from "node:path";
+import { loadPage } from "./load-page";
 import { mt } from "../i18n";
 import { trustWindow } from "../ipc/trusted-senders";
 import { broadcast } from "../services/broadcast";
@@ -74,13 +75,8 @@ export function createProjectionWindow(displayId?: number): BrowserWindow {
   // The page's <title> would replace the localized one on every load.
   win.on("page-title-updated", (event) => event.preventDefault());
 
-  const devServerUrl = process.env["ELECTRON_RENDERER_URL"];
-  // See `control-window.ts` for why these are `void` and not `.catch`.
-  if (!app.isPackaged && devServerUrl) {
-    void win.loadURL(`${devServerUrl}/projection.html`);
-  } else {
-    void win.loadFile(path.join(__dirname, "../renderer/projection.html"));
-  }
+  // See `control-window.ts` for why this is `void` and not `.catch`.
+  void loadPage(win, "projection.html");
 
   // Never focused on Windows: the operator's next →, B or Enter belongs to the
   // control window, and a focused projector also answered the window's own

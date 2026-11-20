@@ -962,7 +962,9 @@ type OutputInputs = readonly [
   boolean,
   ProjectionStoreState["videoPaused"],
   ProjectionStoreState["videoVolume"],
-  ProjectionStoreState["liveMasterVolume"],
+  // Only while a video or a slide's clip is live, the two levels it multiplies: on a verse or the LOGO a move of
+  // LIVE's fader sent the same picture again on every step (2026-11-15 audit, R16).
+  ProjectionStoreState["liveMasterVolume"] | null,
   ProjectionStoreState["liveMeters"],
   ProjectionStoreState["liveAudioOut"],
   ProjectionStoreState["slideVideoEpoch"],
@@ -989,7 +991,7 @@ function outputInputs(state: ProjectionStoreState): OutputInputs {
     state.videoEnd === "loop",
     state.videoPaused,
     state.videoVolume,
-    state.liveMasterVolume,
+    state.base?.kind === "video" || liveSlideClip(state) !== null ? state.liveMasterVolume : null,
     state.liveMeters,
     state.liveAudioOut,
     state.slideVideoEpoch,

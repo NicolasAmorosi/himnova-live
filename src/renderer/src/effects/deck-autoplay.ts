@@ -4,15 +4,13 @@ import {
   type LiveDeck,
   type ProjectionStoreState,
 } from "@renderer/stores/projection.store";
-import { DECK_SOUNDTRACK_TRACK_ID, useAudioStore } from "@renderer/stores/audio.store";
+import { DECK_AUDIO_STATUS_KEY, DECK_SOUNDTRACK_TRACK_ID, useAudioStore } from "@renderer/stores/audio.store";
 import { restartDeckSounds } from "./deck-sounds";
-import { mediaTargetKey } from "@shared/types/projection";
 import { SLIDES_MIN_ADVANCE_MS } from "@shared/constants";
 
 /** Fixed identity for the deck's own soundtrack track — routes both the
  *  `mediaCommand` calls below and the `mediaStatus` read they react to. */
 const DECK_AUDIO_TARGET = { kind: "audio", trackId: DECK_SOUNDTRACK_TRACK_ID } as const;
-const DECK_AUDIO_STATUS_KEY = mediaTargetKey(DECK_AUDIO_TARGET);
 
 /**
  * Deck auto-advance lives in the CONTROL window, never in the projection

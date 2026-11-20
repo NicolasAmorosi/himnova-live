@@ -5,7 +5,7 @@ import { SLIDES_MIN_ADVANCE_MS } from "@shared/constants";
 import type { SlideRect } from "@shared/types/deck";
 import { SLIDE_TRANSITION_SPEED_MS, type SlideTransition } from "@shared/types/transition";
 import { readBinaryPart } from "./ppt/parts";
-import { readZipEntries } from "./zip-reader";
+import { copyZipEntries, readZipEntries } from "./zip-reader";
 
 export type ContainerKind = "ooxml" | "binary" | "odf" | "pdf" | "unknown";
 
@@ -209,16 +209,20 @@ function readEntries(filePath: string, wanted: (name: string) => boolean): Recor
   return readZipEntries(filePath, wanted);
 }
 
-/** A deck's media parts by name: zip entries of a `.pptx` or `.odp`, or the
- *  ranges of a legacy binary's streams its reader names (`ppt/parts.ts`). */
-function readParts(filePath: string, names: Set<string>): Record<string, Uint8Array> {
-  if (containerKind(filePath) !== "binary") return readEntries(filePath, (name) => names.has(name));
-  const out: Record<string, Uint8Array> = {};
-  for (const name of names) {
+/** Writes a deck's media parts to the files `destFor` names, one part at a time: zip entries of a `.pptx` or
+ *  `.odp` (a stored one by blocks, `copyZipEntries`), or the ranges of a legacy binary's streams its reader names
+ *  (`ppt/parts.ts`). The bytes written, by part name; `onPart` after each. */
+function writeParts(filePath: string, destFor: Map<string, string>, onPart?: () => void): Map<string, number> {
+  if (containerKind(filePath) !== "binary") return copyZipEntries(filePath, (name) => destFor.get(name) ?? null, onPart);
+  const written = new Map<string, number>();
+  for (const [name, dest] of destFor) {
     const bytes = readBinaryPart(filePath, name);
-    if (bytes) out[name] = bytes;
+    if (!bytes) continue;
+    fs.writeFileSync(dest, bytes);
+    written.set(name, bytes.byteLength);
+    onPart?.();
   }
-  return out;
+  return written;
 }
 
 function decode(entry: Uint8Array | undefined): string | null {
@@ -665,49 +669,34 @@ export function extractAudioParts(
   filePath: string,
   refs: AudioRef[],
   destDir: string,
-  /** Called once the parts are read and after each file is written: the deck worker's beat. */
+  /** Called after each file is written: the deck worker's beat. */
   onProgress?: () => void,
 ): ExtractedAudio[] {
   if (refs.length === 0) return [];
 
-  const entries = readParts(filePath, new Set(refs.map((ref) => ref.partName)));
-  onProgress?.();
-
   fs.mkdirSync(destDir, { recursive: true });
 
-  const extracted: ExtractedAudio[] = [];
-  const seen = new Map<string, ExtractedAudio>();
-
+  // The same media part can be referenced by several slides; write it once, under its first reference's number.
+  const files = new Map<string, { file: string; ext: string }>();
   refs.forEach((ref, index) => {
-    const data = entries[ref.partName];
-    if (!data) return;
-
-    // The same media part can be referenced by several slides; write it once.
-    const already = seen.get(ref.partName);
-    if (already) {
-      extracted.push({ ...ref, file: already.file, ext: already.ext, bytes: already.bytes, playable: already.playable });
-      return;
-    }
-
     const rawExt = path.posix.extname(ref.partName).replace(/^\./, "").toLowerCase();
-    if (VIDEO_EXT.has(rawExt)) return;
+    if (files.has(ref.partName) || VIDEO_EXT.has(rawExt)) return;
     const ext = AUDIO_EXT.has(rawExt) ? rawExt : "bin";
-    const file = `${index + 1}.${ext}`;
-
-    fs.writeFileSync(path.join(destDir, file), data);
-    onProgress?.();
-
-    const record: ExtractedAudio = {
-      ...ref,
-      file,
-      ext,
-      bytes: data.byteLength,
-      playable: ext !== "bin" && !UNPLAYABLE_AUDIO_EXT.has(ext),
-    };
-    seen.set(ref.partName, record);
-    extracted.push(record);
+    files.set(ref.partName, { file: `${index + 1}.${ext}`, ext });
   });
+  const written = writeParts(
+    filePath,
+    new Map([...files].map(([part, { file }]) => [part, path.join(destDir, file)])),
+    onProgress,
+  );
 
+  const extracted: ExtractedAudio[] = [];
+  for (const ref of refs) {
+    const bytes = written.get(ref.partName);
+    const target = files.get(ref.partName);
+    if (bytes === undefined || !target) continue;
+    extracted.push({ ...ref, ...target, bytes, playable: target.ext !== "bin" && !UNPLAYABLE_AUDIO_EXT.has(target.ext) });
+  }
   return extracted;
 }
 
@@ -733,32 +722,32 @@ export function extractVideoParts(
 ): ExtractedVideo[] {
   if (refs.length === 0) return [];
 
-  const entries = readParts(filePath, new Set(refs.map((ref) => ref.partName)));
-  onProgress?.();
-
   fs.mkdirSync(destDir, { recursive: true });
 
-  const extracted: ExtractedVideo[] = [];
-
-  refs.forEach((ref, index) => {
-    const data = entries[ref.partName];
-    if (!data) return;
-
+  const files = refs.map((ref, index) => {
     const rawExt = path.posix.extname(ref.partName).replace(/^\./, "").toLowerCase();
     const ext = VIDEO_EXT.has(rawExt) ? rawExt : "bin";
-    const file = `${index + 1}.${ext}`;
-
-    fs.writeFileSync(path.join(destDir, file), data);
-    onProgress?.();
-
-    extracted.push({
-      ...ref,
-      file,
-      ext,
-      bytes: data.byteLength,
-      playable: PLAYABLE_VIDEO_EXT.has(ext),
-    });
+    return { file: `${index + 1}.${ext}`, ext };
   });
+  // Each part read out of the deck once, into its first reference's file; a clip on two slides is then copied
+  // from there (one file per element, see above).
+  const first = new Map<string, string>();
+  refs.forEach((ref, index) => {
+    if (!first.has(ref.partName)) first.set(ref.partName, path.join(destDir, files[index]!.file));
+  });
+  const written = writeParts(filePath, first, onProgress);
 
+  const extracted: ExtractedVideo[] = [];
+  refs.forEach((ref, index) => {
+    const bytes = written.get(ref.partName);
+    if (bytes === undefined) return;
+    const { file, ext } = files[index]!;
+    const dest = path.join(destDir, file);
+    if (dest !== first.get(ref.partName)) {
+      fs.copyFileSync(first.get(ref.partName)!, dest);
+      onProgress?.();
+    }
+    extracted.push({ ...ref, file, ext, bytes, playable: PLAYABLE_VIDEO_EXT.has(ext) });
+  });
   return extracted;
 }

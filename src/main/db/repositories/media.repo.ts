@@ -55,91 +55,21 @@ export class MediaRepo {
       .map(toDTO);
   }
 
-  /** Adds a file if new, or reactivates it in the library if it already exists (e.g. was
-   *  referenced by a program but not shown in the library list). */
-  upsertFromPath(filePath: string, kind: AssetKind, inLibrary: boolean): MediaAsset {
-    const stat = fs.statSync(filePath);
-    const pathKey = toPathKey(filePath);
-    const now = Date.now();
-    const existing = this.db
-      .select()
-      .from(mediaAssets)
-      .where(eq(mediaAssets.pathKey, pathKey))
-      .get();
-
-    if (existing) {
-      const mtimeMs = Math.trunc(stat.mtimeMs);
-      // `createdAt` is when the asset joined the library — the media tabs'
-      // «newest first» (`lib/media-view.ts`). A linked folder's or a program's
-      // file that is added now is new to the library now.
-      const createdAt = inLibrary && existing.inLibrary === 0 ? now : existing.createdAt;
-      this.db
-        .update(mediaAssets)
-        .set({
-          inLibrary: inLibrary || existing.inLibrary === 1 ? 1 : 0,
-          createdAt,
-          missingSince: null,
-          lastSeenAt: now,
-          sizeBytes: stat.size,
-          mtimeMs,
-          updatedAt: now,
-        })
-        .where(eq(mediaAssets.id, existing.id))
-        .run();
-      // The returned DTO must carry what was just written, not the row as it
-      // was read: `sizeBytes`/`mtimeMs` are the identity a thumbnail's
-      // cache-buster is built from (`assetThumbVersion`), so handing back the
-      // pre-update values would leave the caller pointing at the previous
-      // file's thumbnail.
-      return toDTO({
-        ...existing,
-        inLibrary: inLibrary ? 1 : existing.inLibrary,
-        createdAt,
-        missingSince: null,
-        sizeBytes: stat.size,
-        mtimeMs,
-        updatedAt: now,
-      });
-    }
-
-    const ext = path.extname(filePath).slice(1).toLowerCase();
-    const name = path.basename(filePath, path.extname(filePath));
-
-    // Linked-audio resolution is deliberately NOT done here: for a legacy
-    // `.ppt`/`.pps` it means reading the whole file into memory (see
-    // `linked-audio.ts`), which is exactly the cost that makes importing many
-    // decks at once freeze the app. It's left at version 0 and resolved
-    // lazily, once, the first time the deck is actually opened
-    // (`ensureLinkedAudio`, called from `deck-service.ts`'s `toDeckDTO`).
-    const row = this.db
-      .insert(mediaAssets)
-      .values({
-        kind,
-        path: filePath,
-        pathKey,
-        name,
-        ext,
-        sizeBytes: stat.size,
-        mtimeMs: Math.trunc(stat.mtimeMs),
-        linkedAudioPath: null,
-        linkedAudioResolvedVersion: 0,
-        inLibrary: inLibrary ? 1 : 0,
-        lastSeenAt: now,
-        missingSince: null,
-        createdAt: now,
-        updatedAt: now,
-      })
-      .returning()
-      .get();
-    return toDTO(row);
-  }
-
-  /** Same upsert as `upsertFromPath`, batched: one `statSync` result per file
-   *  (already gathered by the caller — `library-import.ts` — so a vanished
-   *  file just isn't in the list) and a single transaction for the whole
-   *  slice. A row whose `pathKey`, size and mtime are unchanged and already
-   *  `!missing` is skipped entirely — the common case of revisiting a stable
-   *  linked folder, which used to cost one `UPDATE` per file every time. */
+  /** Adds each file if new, or reactivates it in the library if it already
+   *  exists (e.g. was referenced by a program but not shown in the library
+   *  list). One `statSync` result per file (already gathered by the caller,
+   *  `library-import.ts`, so a vanished file just isn't in the list) and a
+   *  single transaction for the whole slice. A row whose `pathKey`, size and
+   *  mtime are unchanged and already `!missing` is skipped entirely: the
+   *  common case of revisiting a stable linked folder, which used to cost one
+   *  `UPDATE` per file every time.
+   *
+   *  Linked-audio resolution is deliberately NOT done here: for a legacy
+   *  `.ppt`/`.pps` it means reading the whole file into memory (see
+   *  `linked-audio.ts`), which is exactly the cost that makes importing many
+   *  decks at once freeze the app. It's left at version 0 and resolved
+   *  lazily, once, the first time the deck is actually opened
+   *  (`ensureLinkedAudio`, called from `deck-service.ts`'s `toDeckDTO`). */
   upsertBatch(
     files: { path: string; stat: fs.Stats }[],
     kind: AssetKind,
@@ -209,12 +139,14 @@ export class MediaRepo {
             target: mediaAssets.pathKey,
             set: {
               // Reactivating an inactive row must not deactivate an already-active
-              // one — same "OR" semantics `upsertFromPath` uses, expressed in SQL
-              // so it stays correct even under the race described above.
+              // one: "OR" semantics, expressed in SQL so it stays correct even
+              // under the race described above.
               inLibrary: inLibrary
                 ? sql`1`
                 : sql`CASE WHEN ${mediaAssets.inLibrary} = 1 THEN 1 ELSE 0 END`,
-              // Joining the library now is «newest» now (see `upsertFromPath`).
+              // `createdAt` is when the asset joined the library, the media tabs'
+              // «newest first» (`lib/media-view.ts`): a linked folder's or a
+              // program's file that is added now is new to the library now.
               // SQLite reads every column of the SET from the row as it was.
               ...(inLibrary
                 ? { createdAt: sql`CASE WHEN ${mediaAssets.inLibrary} = 1 THEN ${mediaAssets.createdAt} ELSE ${now} END` }
@@ -634,8 +566,9 @@ export class MediaRepo {
     })();
     this.noteMerges(merged);
 
-    // Same reason as `upsertFromPath`: the relocated file is a different set
-    // of bytes as far as the thumbnail cache is concerned.
+    // The DTO carries what was just written: `sizeBytes`/`mtimeMs` build the
+    // thumbnail's cache-buster (`assetThumbVersion`), and the relocated file
+    // is a different set of bytes as far as the thumbnail cache is concerned.
     const asset = toDTO({
       ...row,
       path: newPath,

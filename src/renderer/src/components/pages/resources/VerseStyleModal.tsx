@@ -23,6 +23,7 @@ import {
 } from "@renderer/components/shared/style-fields";
 import { api } from "@renderer/lib/api";
 import { toast } from "@renderer/lib/toast";
+import { useEditorLibrary } from "@renderer/lib/hooks/use-editor-library";
 import { useSettingsStore } from "@renderer/stores/settings.store";
 import {
   BIBLE_AUTOFIT_MIN_CQW,
@@ -40,7 +41,6 @@ import {
   type TextCase,
   type VersionDisplay,
 } from "@shared/types/bible-style";
-import type { MediaAsset } from "@shared/types/media";
 import type { SceneBackground } from "@shared/types/scene-style";
 import { VersePreview } from "./verse-preview";
 
@@ -116,26 +116,14 @@ export function VerseStyleModal({ onOpenChange, open }: { onOpenChange: (open: b
   const style = useSettingsStore((s) => s.settings["bible.style"]);
   const update = useSettingsStore((s) => s.update);
   const [longPreview, setLongPreview] = useState(false);
-  const [imageAssets, setImageAssets] = useState<readonly MediaAsset[]>([]);
-  const [addingImages, setAddingImages] = useState(false);
+  const images = useEditorLibrary(open, "image", "bible");
   const [confirmingReset, setConfirmingReset] = useState(false);
   // «Image» picked before an image: shown here, never saved — a save is
   // immediate, and an image background with no image is one main refuses.
   const [pendingImage, setPendingImage] = useState<Extract<SceneBackground, { kind: "image" }> | null>(null);
 
-  // The image library, for an image background's picker. Read on open rather
-  // than kept in a store: it is one query, only this editor wants it, and it
-  // must reflect whatever the operator added since the last time they were
-  // here. Same as the scene editor's.
   useEffect(() => {
-    if (!open) {
-      setPendingImage(null);
-      return;
-    }
-    void api.library
-      .list("image")
-      .then(setImageAssets)
-      .catch((error: unknown) => console.warn("[bible] could not list the image library", error));
+    if (!open) setPendingImage(null);
   }, [open]);
 
   // Off the store at the moment of writing, not off this render: an image
@@ -152,25 +140,10 @@ export function VerseStyleModal({ onOpenChange, open }: { onOpenChange: (open: b
     );
 
   async function handleAddImages() {
-    setAddingImages(true);
-    try {
-      const paths = await api.files.pick("image", true);
-      if (paths.length === 0) return;
-      const added = await api.library.add(paths, "image");
-      setImageAssets(await api.library.list("image"));
-      // Selecting the first one is the point of the button: the operator
-      // picked a file in order to use it, not in order to then find it in a
-      // dropdown.
-      const first = added[0];
-      if (first) {
-        setPendingImage(null);
-        patch({ background: { kind: "image", assetId: first.id, fit: pendingImage?.fit ?? "cover" } });
-      }
-    } catch (error) {
-      console.warn("[bible] could not add images", error);
-      toast.danger(t("style.addImageError"));
-    } finally {
-      setAddingImages(false);
+    const first = await images.add();
+    if (first) {
+      setPendingImage(null);
+      patch({ background: { kind: "image", assetId: first.id, fit: pendingImage?.fit ?? "cover" } });
     }
   }
 
@@ -181,8 +154,8 @@ export function VerseStyleModal({ onOpenChange, open }: { onOpenChange: (open: b
           <Inspector id="verseStyle" label={t("bible.styleTitle")}>
             <InspectorSection id="background" title={t("style.groups.background")}>
               <BackgroundFields
-                addingImages={addingImages}
-                imageAssets={imageAssets}
+                addingImages={images.adding}
+                imageAssets={images.assets}
                 onAddImages={() => void handleAddImages()}
                 onChange={(background) => {
                   const noImageYet = background.kind === "image" && background.assetId === 0;

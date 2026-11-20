@@ -255,3 +255,35 @@ test("a window that could not move its elements to the output sends the bus to t
   await settle();
   expect(toasts()).toHaveLength(1);
 });
+
+test("the pickers list the outputs the route read, once per device plugged in or out, before the engine answers", async () => {
+  // Each strip and Settings ▸ Sound read them on their own: three or four reads per `devicechange`, and a menu that
+  // could list another set than the route's (2026-11-15 audit, X18).
+  const enumerate = vi.spyOn(devices, "enumerateDevices");
+  let answer = () => {};
+  h.match.mockImplementation(
+    (outputs) =>
+      new Promise((resolve) => (answer = () => resolve(outputs.map((o) => (o.label === "Scarlett 2i2" ? SCARLETT : null))))),
+  );
+  const listed = () => useAudioRouteStore.getState().outputs.devices.map((d) => d.label);
+  try {
+    plugged = [...speakers];
+    stop = startAudioRouteEffects();
+    await settle();
+    expect(listed()).toEqual(["Altavoces"]);
+    expect(enumerate).toHaveBeenCalledOnce();
+
+    plugged = [...speakers, scarlett];
+    devices.dispatchEvent(new Event("devicechange"));
+    await settle();
+    // Listed while the engine is still naming it: the menu does not call the chosen output unplugged meanwhile.
+    expect(listed()).toEqual(["Altavoces", "Scarlett 2i2"]);
+    expect(useAudioRouteStore.getState().outputs.defaultDeviceId).toBe("a1");
+    expect(enumerate).toHaveBeenCalledTimes(2);
+    answer();
+    await settle();
+    expect(useAudioRouteStore.getState().live.device?.label).toBe("Scarlett 2i2");
+  } finally {
+    enumerate.mockRestore();
+  }
+});

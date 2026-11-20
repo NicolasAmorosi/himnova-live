@@ -182,7 +182,6 @@ export type IconName = keyof typeof icons;
 
 type IconProps = {
   className?: string;
-  decorative?: boolean;
   name: IconName;
 };
 
@@ -192,11 +191,11 @@ type IconProps = {
  *  `shrink-0` lives here, not at the call sites: an icon is a flex item almost
  *  everywhere it appears, and a squeezed row shrank the glyph instead of
  *  truncating the label next to it. A label gives way; an icon never does. */
-export function Icon({ className, decorative = true, name }: IconProps) {
+export function Icon({ className, name }: IconProps) {
   const Component = icons[name];
   return (
     <Component
-      aria-hidden={decorative || undefined}
+      aria-hidden="true"
       className={cn("size-4 shrink-0", className)}
       focusable="false"
     />

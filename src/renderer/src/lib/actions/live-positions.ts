@@ -1,9 +1,6 @@
 import { useAudioStore } from "@renderer/stores/audio.store";
 import { useProjectionStore } from "@renderer/stores/projection.store";
-import { mediaTargetKey } from "@shared/types/projection";
-
-const VIDEO_STATUS_KEY = mediaTargetKey({ kind: "video" });
-const SLIDE_VIDEO_STATUS_KEY = mediaTargetKey({ kind: "slideVideo" });
+import { mediaTargetKey, SLIDE_VIDEO_STATUS_KEY, VIDEO_STATUS_KEY } from "@shared/types/projection";
 
 /**
  * Folds "where each live media element actually is" back into "where it would

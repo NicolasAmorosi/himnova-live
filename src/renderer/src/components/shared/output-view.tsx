@@ -1,11 +1,28 @@
-import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode, type Ref } from "react";
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+  type Ref,
+} from "react";
 import { flushSync } from "react-dom";
 // The icon on its own, not the `components/ui` barrel: the barrel brought the four UI dictionaries into the projector,
 // the stage and the NDI copy (298 KB, 2.6 ms and 0.62 MB of heap per output window; 2026-11-15 audit, R23).
 import { Icon } from "@renderer/components/ui/icon";
 import { cn } from "@renderer/lib/utils";
 import { frameCaptureSize } from "@renderer/lib/frame-capture";
-import { entryOf, nextLayers, withoutOutgoing, type Layer, type LayerHold } from "@renderer/lib/output-layers";
+import {
+  entryOf,
+  keepsLayers,
+  nextLayers,
+  withoutOutgoing,
+  type Layer,
+  type LayerHold,
+} from "@renderer/lib/output-layers";
 import {
   isRandomBars,
   randomBarDelays,
@@ -38,7 +55,7 @@ import type {
 
 /** Above this drift (seconds) the LIVE monitor's own video is resynced to the
  *  projector's reported position instead of left to run — see
- *  `LiveVideo`'s drift-correction effect. */
+ *  `useMirroredMedia`'s drift-correction effect. */
 const MONITOR_DRIFT_THRESHOLD_SECONDS = 0.35;
 
 /** The longest a transition into a new video waits for that video's first
@@ -71,6 +88,171 @@ function canResync(element: HTMLVideoElement): boolean {
   return element.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA && !element.seeking;
 }
 
+type MirroredMediaOptions = {
+  /** This element sounds: the projector, and PREVIEW's own monitor for `LiveVideo`. Every other view is held at 0. */
+  audible: boolean;
+  /** BLACK/LOGO (or, for a slide's clip, anything else) is over it: pauses, never unmounts. */
+  covered: boolean;
+  epoch: number;
+  mode: OutputViewMode;
+  /** Called with the element as it unmounts, while it still holds decoded pixels, before its player goes. */
+  onRelease?: ((element: HTMLVideoElement) => void) | undefined;
+  /** The operator's own pause, which outlives a BLACK/LOGO round trip. */
+  paused: boolean;
+  startAtSeconds: number;
+  /** The projector's own report for this very element (`mediaStatus`): a copy's only, never the projector's. */
+  status: MediaStatus | null | undefined;
+  videoRef: Ref<HTMLVideoElement> | undefined;
+  volume: number;
+};
+
+/**
+ * What a Chromium `<video>` of the live picture does, on the projector and on
+ * every copy of it (the monitors, the stage, the NDI window), in one place:
+ * `LiveVideo` (the full-screen video) and `SlideVideoLayer` (a slide's clip)
+ * repeated these blocks and had already drifted apart (2026-11-15 audit,
+ * X13). For a video the media engine draws there is no element, and every
+ * effect here does nothing.
+ */
+function useMirroredMedia({
+  audible,
+  covered,
+  epoch,
+  mode,
+  onRelease,
+  paused,
+  startAtSeconds,
+  status,
+  videoRef,
+  volume,
+}: MirroredMediaOptions) {
+  const elementRef = useRef<HTMLVideoElement | null>(null);
+  /** Never cleared, unlike `elementRef`: the unmount hook below has to reach
+   *  the element AFTER React has detached its ref. */
+  const lastElementRef = useRef<HTMLVideoElement | null>(null);
+  const releaseRef = useRef(onRelease);
+  releaseRef.current = onRelease;
+  const shouldPlay = !covered && !paused;
+
+  // A LAYOUT effect, and empty deps: its cleanup has to run in the very commit
+  // that removes this element. A passive effect's would run after the browser
+  // has already painted the frame where the video is simply gone, which is the
+  // black flash `LiveVideo`'s frozen frame exists to remove. Read through
+  // `releaseRef` so a changed callback never re-arms it mid-playback. The
+  // player goes only after its last frame is taken (`releaseMedia`); a slide's
+  // clip, which keeps no frame, lets go of it in the same commit too.
+  useLayoutEffect(
+    () => () => {
+      const element = lastElementRef.current;
+      if (!element) return;
+      releaseRef.current?.(element);
+      releaseMedia(element);
+    },
+    [],
+  );
+
+  function attach(element: HTMLVideoElement | null) {
+    elementRef.current = element;
+    if (element) lastElementRef.current = element;
+    // Belt-and-suspenders alongside the `muted` attribute: an explicit
+    // `volume = 0` on every view that is not `audible` means a future mode
+    // that forgets to check `muted` still can't make this element audible.
+    if (element && !audible) element.volume = 0;
+    if (typeof videoRef === "function") videoRef(element);
+    else if (videoRef) (videoRef as { current: HTMLVideoElement | null }).current = element;
+  }
+
+  // `autoPlay` only applies to a freshly loaded element, so every later
+  // change (BLACK/LOGO, an operator pause or resume from the media panel) has
+  // to be driven imperatively.
+  //
+  // Except lifting BLACK/LOGO off a video that had already ended: «hold»
+  // (`projection.videoEnd`) keeps a video on air on its last frame, so does
+  // «next» while the next row is still being read, and a clip stays on its
+  // slide. `play()` on an ended element restarts it from 0 by spec: the whole
+  // clip again, sound included, just because the operator uncovered it. An
+  // explicit resume from the media panel still replays it.
+  const wasCovered = useRef(covered);
+  useEffect(() => {
+    const element = elementRef.current;
+    const uncovered = wasCovered.current && !covered;
+    wasCovered.current = covered;
+    if (!element) return;
+    if (shouldPlay && !(uncovered && element.ended)) element.play().catch(() => undefined);
+    else element.pause();
+  }, [shouldPlay, covered]);
+
+  // Declarative, like `paused`: re-applied whenever the operator moves the
+  // level AND on every remount, so a video that survives a rebuilt projection
+  // window comes back at the level it was playing at. Never in a muted view:
+  // `attach` pins those to 0 and the element also carries `muted`.
+  useEffect(() => {
+    const element = elementRef.current;
+    if (element && audible) element.volume = volume;
+  }, [audible, volume]);
+
+  // Resyncs a monitor's independently decoding copy to the projector's real
+  // position whenever a fresh `mediaStatus` report arrives (~4x/second) and
+  // drifts past the threshold. This is also what makes a manual seek or
+  // restart from the media panel reach this element: it isn't routed here
+  // directly, it just shows up as a jump in `status` on the next report and
+  // gets corrected like any other drift. Guarded by `epoch` so a report still
+  // describing the previous video (the instant before the projector reports
+  // the new one) is never applied here.
+  useEffect(() => {
+    if (mode !== "monitor" || !status || status.epoch !== epoch) return;
+    const element = elementRef.current;
+    if (!element || !canResync(element)) return;
+    if (Math.abs(element.currentTime - status.currentTimeSeconds) > MONITOR_DRIFT_THRESHOLD_SECONDS) {
+      element.currentTime = status.currentTimeSeconds;
+    }
+  }, [mode, status, epoch]);
+
+  // The NDI window's copy keeps step with the projector's, whose sound NDI sends (`follow-projector.ts`).
+  // Only the copies get a status in "live" mode (`ProjectorCopy`: NDI, the stage as «Proyector»); the projector's
+  // own view never does.
+  useEffect(() => {
+    if (mode !== "live" || !status || status.epoch !== epoch) return;
+    const element = elementRef.current;
+    if (!element || !canResync(element) || status.paused || status.ended) return;
+    followProjector(element, status.currentTimeSeconds, status.durationSeconds, element.loop);
+  }, [mode, status, epoch]);
+
+  // Keyed by epoch at the call site (a clip by its url too), so this instance
+  // only ever has one `startAtSeconds` for its whole lifetime: applying it
+  // once, on mount, is correct without watching for later changes. A copy (a
+  // monitor, the stage, the NDI window) starts where the projector last said
+  // it was instead: mounted mid-video (a stage view switched, a monitor
+  // reopened, a clip the engine gives back to Chromium mid-play) it began at
+  // the GO LIVE point, and a paused projector sends no new report to correct
+  // it (2026-11-14 review).
+  const statusRef = useRef(status);
+  statusRef.current = status;
+  useEffect(() => {
+    const element = elementRef.current;
+    if (!element) return;
+    const apply = () => {
+      const at = startFrom(statusRef.current, epoch, startAtSeconds);
+      if (at > 0) element.currentTime = at;
+    };
+    if (element.readyState >= 1) apply();
+    else element.addEventListener("loadedmetadata", apply, { once: true });
+    return () => element.removeEventListener("loadedmetadata", apply);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // "auto" wherever this element exists to be played right now: "metadata"
+  // stops buffering after the first seek, so the decoder started cold in the
+  // middle of the fade. The preview keeps "metadata": it moves with every
+  // click through the library and only plays on the operator's own button. No
+  // preview output carries a slide's clip (each builder sets it null), and a
+  // clip's copies seek on mount like any other video; it had kept "metadata"
+  // only because it was written beside `LiveVideo` the day this rule went into
+  // `LiveVideo` alone (X13).
+  const preload: "auto" | "metadata" = mode === "preview" ? "metadata" : "auto";
+  return { attach, elementRef, preload, shouldPlay };
+}
+
 type LiveVideoProps = {
   /** BLACK/LOGO is over the video right now. */
   covered: boolean;
@@ -81,7 +263,7 @@ type LiveVideoProps = {
    *  stays at full opacity under it while it leaves. */
   incomingCovers: boolean;
   /** This video's identity for its whole mount — see the drift-correction
-   *  effect below, which must ignore a `liveVideoStatus` still describing the
+   *  effect in `useMirroredMedia`, which must ignore a `liveVideoStatus` still describing the
    *  previous epoch's video during the instant it takes the projector to
    *  report the new one. */
   epoch: number;
@@ -153,7 +335,7 @@ type LiveVideoProps = {
  * `BrowserWindow` its own process; a decoder can't be shared across that
  * boundary), so it free-runs on its own clock and can drift from the
  * projector's from decode-timing jitter alone. The drift-correction effect
- * below periodically snaps it back to the projector's real position
+ * (`useMirroredMedia`) periodically snaps it back to the projector's real position
  * (`liveVideoStatus`, sourced from the same `mediaStatus` the transport bar
  * already reads) — play/pause need no such correction since both elements
  * derive `paused` from the same declarative store field in the same render.
@@ -178,18 +360,23 @@ function LiveVideo({
   videoRef,
   volume,
 }: LiveVideoProps) {
-  const elementRef = useRef<HTMLVideoElement | null>(null);
-  /** Never cleared, unlike `elementRef`: the unmount hook below has to reach
-   *  the element AFTER React has detached its ref. */
-  const lastElementRef = useRef<HTMLVideoElement | null>(null);
-  const freezeRef = useRef(onFreezeFrame);
-  freezeRef.current = onFreezeFrame;
+  const { attach, elementRef, preload, shouldPlay } = useMirroredMedia({
+    audible,
+    covered,
+    epoch,
+    mode,
+    onRelease: onFreezeFrame,
+    paused,
+    startAtSeconds,
+    status: liveVideoStatus,
+    videoRef,
+    volume,
+  });
   const firstFrameRef = useRef(onFirstFrame);
   firstFrameRef.current = onFirstFrame;
-  const shouldPlay = !covered && !paused;
 
   // `requestVideoFrameCallback` and not `loadeddata`/`canplay`: those say the
-  // pipeline HAS a frame, this says one was handed to the compositor — which
+  // pipeline HAS a frame, this says one was handed to the compositor, which
   // is the moment fading it in stops being a fade of an empty box. It also
   // fires for an element that is paused on its first frame. `loadeddata` is
   // only the fallback for an engine without it (jsdom).
@@ -204,112 +391,6 @@ function LiveVideo({
     element.addEventListener("loadeddata", fire, { once: true });
     return () => element.removeEventListener("loadeddata", fire);
     // Keyed by epoch at the call site: one element, one first frame.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // A LAYOUT effect, and empty deps: its cleanup has to run in the very commit
-  // that removes this element — a passive effect's would run after the browser
-  // has already painted the frame where the video is simply gone, which is the
-  // black flash this exists to remove. Read through `freezeRef` so a changed
-  // callback never re-arms it mid-playback. The player goes only after its
-  // last frame is taken.
-  useLayoutEffect(
-    () => () => {
-      const element = lastElementRef.current;
-      if (!element) return;
-      freezeRef.current?.(element);
-      releaseMedia(element);
-    },
-    [],
-  );
-
-  function attach(element: HTMLVideoElement | null) {
-    elementRef.current = element;
-    if (element) lastElementRef.current = element;
-    // Belt-and-suspenders alongside the `muted` attribute below: an explicit
-    // `volume = 0` on every view that is not `audible` means a future mode
-    // that forgets to check `muted` still can't make this element audible.
-    if (element && !audible) element.volume = 0;
-    if (typeof videoRef === "function") videoRef(element);
-    else if (videoRef) (videoRef as { current: HTMLVideoElement | null }).current = element;
-  }
-
-  // `autoPlay` only applies to a freshly loaded element, so every transition —
-  // BLACK/LOGO, and an operator pause/resume from the media panel — has to be
-  // driven imperatively.
-  //
-  // Except lifting BLACK/LOGO off a video that had already ended: «hold»
-  // (`projection.videoEnd`) keeps it on air on its last frame, and so does
-  // «next» while the next row is still being read. `play()` on an ended
-  // element restarts it from 0 by spec — the whole clip again, sound included,
-  // just because the operator uncovered it. An explicit resume from the media
-  // panel still replays it.
-  const wasCovered = useRef(covered);
-  useEffect(() => {
-    const element = elementRef.current;
-    const uncovered = wasCovered.current && !covered;
-    wasCovered.current = covered;
-    if (!element) return;
-    if (shouldPlay && !(uncovered && element.ended)) element.play().catch(() => undefined);
-    else element.pause();
-  }, [shouldPlay, covered]);
-
-  // Declarative, like `paused`: re-applied whenever the operator moves the
-  // level AND on every remount, so a video that survives a rebuilt projection
-  // window comes back at the level it was playing at. Never in a muted view
-  // — `attach` pins those to 0 and the element also carries `muted`.
-  useEffect(() => {
-    const element = elementRef.current;
-    if (element && audible) element.volume = volume;
-  }, [audible, volume]);
-
-  // Resyncs the LIVE monitor's independently decoding video to the
-  // projector's real position whenever a fresh `mediaStatus` report arrives
-  // (~4x/second) and drifts past the threshold — this is also what makes a
-  // manual seek/restart from the media panel reach this element: it isn't
-  // routed here directly, it just shows up as a jump in `liveVideoStatus` on
-  // the next report and gets corrected like any other drift. Guarded by
-  // `epoch` so a status report still describing the previous video (the
-  // instant before the projector reports the new one) is never applied here.
-  useEffect(() => {
-    if (mode !== "monitor" || !liveVideoStatus || liveVideoStatus.epoch !== epoch) return;
-    const element = elementRef.current;
-    if (!element || !canResync(element)) return;
-    const drift = Math.abs(element.currentTime - liveVideoStatus.currentTimeSeconds);
-    if (drift > MONITOR_DRIFT_THRESHOLD_SECONDS) {
-      element.currentTime = liveVideoStatus.currentTimeSeconds;
-    }
-  }, [mode, liveVideoStatus, epoch]);
-
-  // The NDI window's copy keeps step with the projector's, whose sound NDI sends (`follow-projector.ts`).
-  // Only the copies get a status in "live" mode (`ProjectorCopy`: NDI, the stage as «Proyector»); the projector's
-  // own view never does.
-  useEffect(() => {
-    if (mode !== "live" || !liveVideoStatus || liveVideoStatus.epoch !== epoch) return;
-    const element = elementRef.current;
-    if (!element || !canResync(element) || liveVideoStatus.paused || liveVideoStatus.ended) return;
-    followProjector(element, liveVideoStatus.currentTimeSeconds, liveVideoStatus.durationSeconds, element.loop);
-  }, [mode, liveVideoStatus, epoch]);
-
-  // The component is keyed by epoch at the call site, so this instance only
-  // ever has one `startAtSeconds` for its whole lifetime — applying it once,
-  // on mount, is correct without watching for later changes. A copy (a
-  // monitor, the stage, the NDI window) starts where the projector last said
-  // it was instead: mounted mid-video — a stage view switched, a monitor
-  // reopened — it began at the GO LIVE point, and a paused projector sends no
-  // new report to correct it (2026-11-14 review).
-  const statusRef = useRef(liveVideoStatus);
-  statusRef.current = liveVideoStatus;
-  useEffect(() => {
-    const element = elementRef.current;
-    if (!element) return;
-    const apply = () => {
-      const at = startFrom(statusRef.current, epoch, startAtSeconds);
-      if (at > 0) element.currentTime = at;
-    };
-    if (element.readyState >= 1) apply();
-    else element.addEventListener("loadedmetadata", apply, { once: true });
-    return () => element.removeEventListener("loadedmetadata", apply);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -329,12 +410,7 @@ function LiveVideo({
       // operator's volume, 0 to start) ever get sound.
       muted={!audible || volume === 0}
       onError={(event) => onError(event.currentTarget.error?.code ?? null)}
-      // "auto" wherever this element exists to be played right now: "metadata"
-      // stops buffering after the first seek, so the decoder started cold in
-      // the middle of the fade. The preview keeps "metadata" — it moves with
-      // every click through the library and only plays on the operator's own
-      // button.
-      preload={mode === "preview" ? "metadata" : "auto"}
+      preload={preload}
       ref={attach}
       src={url}
       style={transitionStyle(role, transition, covered ? 0 : 1, held, incomingCovers)}
@@ -511,8 +587,19 @@ function SlideVideoLayer({
   transition,
   videoRef,
 }: SlideVideoLayerProps) {
-  const elementRef = useRef<HTMLVideoElement | null>(null);
-  const shouldPlay = !covered && !slideVideo.paused;
+  // Only the projector is audible. The url is in the call site's key for a clip the engine gives back to Chromium
+  // mid-play (`rearmLiveClips`): the `<video>` that takes over mounts here and starts where the engine was.
+  const { attach, preload, shouldPlay } = useMirroredMedia({
+    audible: mode === "live",
+    covered,
+    epoch: slideVideo.epoch,
+    mode,
+    paused: slideVideo.paused,
+    startAtSeconds: slideVideo.startAtSeconds,
+    status,
+    videoRef,
+    volume: slideVideo.volume,
+  });
   const { rect } = slideVideo;
   const rectStyle = {
     left: `${rect.x * 100}%`,
@@ -520,88 +607,6 @@ function SlideVideoLayer({
     width: `${rect.width * 100}%`,
     height: `${rect.height * 100}%`,
   };
-
-  function attach(element: HTMLVideoElement | null) {
-    elementRef.current = element;
-    // Same belt-and-suspenders as `LiveVideo`: only the projector is audible,
-    // whatever a future mode forgets to check.
-    if (element && mode !== "live") element.volume = 0;
-    if (typeof videoRef === "function") videoRef(element);
-    else if (videoRef) (videoRef as { current: HTMLVideoElement | null }).current = element;
-  }
-
-  // `autoPlay` only applies to a freshly loaded element, so every later
-  // transition — an overlay, an operator pause — is driven imperatively.
-  //
-  // Except one: lifting BLACK/LOGO off a clip that had already ended — it
-  // stays on its slide, and `play()` on an ended element restarts it from 0 by
-  // spec, the whole clip again, sound included, just because the operator
-  // uncovered the slide. `LiveVideo` has the same guard for a video held on
-  // its last frame. An explicit resume from the media panel still replays it.
-  const wasCovered = useRef(covered);
-  useEffect(() => {
-    const element = elementRef.current;
-    const uncovered = wasCovered.current && !covered;
-    wasCovered.current = covered;
-    if (!element) return;
-    if (shouldPlay && !(uncovered && element.ended)) element.play().catch(() => undefined);
-    else element.pause();
-  }, [shouldPlay, covered]);
-
-  useEffect(() => {
-    const element = elementRef.current;
-    if (element && mode === "live") element.volume = slideVideo.volume;
-  }, [mode, slideVideo.volume]);
-
-  // Resyncs a confidence monitor's own independently decoding copy to the
-  // projector's real position — and, as a side effect, is how a seek from the
-  // media panel reaches this element at all. See `LiveVideo`'s twin.
-  const epoch = slideVideo.epoch;
-  useEffect(() => {
-    if (mode !== "monitor" || !status || status.epoch !== epoch) return;
-    const element = elementRef.current;
-    if (!element || !canResync(element)) return;
-    if (Math.abs(element.currentTime - status.currentTimeSeconds) > MONITOR_DRIFT_THRESHOLD_SECONDS) {
-      element.currentTime = status.currentTimeSeconds;
-    }
-  }, [mode, status, epoch]);
-
-  // The NDI window's copy follows the projector's, like `LiveVideo`'s.
-  useEffect(() => {
-    if (mode !== "live" || !status || status.epoch !== epoch) return;
-    const element = elementRef.current;
-    if (!element || !canResync(element) || status.paused || status.ended) return;
-    followProjector(element, status.currentTimeSeconds, status.durationSeconds, element.loop);
-  }, [mode, status, epoch]);
-
-  // Captured on mount: by the time an unmount's cleanup runs, React has
-  // already detached the ref.
-  useEffect(() => {
-    const element = elementRef.current;
-    return () => {
-      if (element) releaseMedia(element);
-    };
-  }, []);
-
-  // Keyed by epoch and url at the call site, so this instance has exactly one
-  // `startAtSeconds` for its whole life, applied once, on mount; a copy's from
-  // the projector's last report, like `LiveVideo`'s. The url is in the key for a
-  // clip the engine gives back to Chromium mid-play (`rearmLiveClips`): the
-  // `<video>` that takes over mounts here and starts where the engine was.
-  const statusRef = useRef(status);
-  statusRef.current = status;
-  useEffect(() => {
-    const element = elementRef.current;
-    if (!element) return;
-    const apply = () => {
-      const at = startFrom(statusRef.current, epoch, slideVideo.startAtSeconds);
-      if (at > 0) element.currentTime = at;
-    };
-    if (element.readyState >= 1) apply();
-    else element.addEventListener("loadedmetadata", apply, { once: true });
-    return () => element.removeEventListener("loadedmetadata", apply);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   return (
     <div
@@ -632,7 +637,7 @@ function SlideVideoLayer({
             loop={slideVideo.loop}
             muted={mode !== "live"}
             onError={(event) => onError(event.currentTarget.error?.code ?? null)}
-            preload="metadata"
+            preload={preload}
             ref={attach}
             src={slideVideo.url}
             style={rectStyle}
@@ -821,10 +826,12 @@ type SceneLayerProps = {
   incomingCovers: boolean;
   mode: OutputViewMode;
   onImageError?: ((url: string) => void) | undefined;
-  onLeaveComplete?: (() => void) | undefined;
+  /** Called with `seq` when this layer's own way out ends. */
+  onLeaveComplete?: ((seq: number) => void) | undefined;
   posterUrl: string | null;
   output: ProjectionOutput;
   role: LayerRole;
+  seq: number;
   transition: LayerTransition;
   videoBehind: boolean;
 };
@@ -835,8 +842,13 @@ type SceneLayerProps = {
  *  paint nothing in `OutputScene`, so the layer's own background does it —
  *  except for `video`, which paints nothing here on purpose (see
  *  `OutputScene`) and must stay transparent so the persistent `<video>`
- *  element shows through instead of being hidden behind an opaque box. */
-function SceneLayer({
+ *  element shows through instead of being hidden behind an opaque box.
+ *
+ *  Memoized: a media status (~4 a second) re-renders `OutputView` in the LIVE
+ *  monitor, the NDI copy and the stage, and the scene under it (a model slide,
+ *  drawn again) had not changed (2026-11-15 audit, R22). Every prop is a value
+ *  or a callback that stays the same function across renders. */
+const SceneLayer = memo(function SceneLayer({
   frozenFrame,
   held,
   incomingCovers,
@@ -846,6 +858,7 @@ function SceneLayer({
   output,
   posterUrl,
   role,
+  seq,
   transition,
   videoBehind,
 }: SceneLayerProps) {
@@ -874,7 +887,7 @@ function SceneLayer({
     <div
       className={cn("absolute inset-0 flex items-center justify-center", opaque && !bars && "bg-black")}
       onAnimationEnd={(e) => {
-        if (e.target === e.currentTarget && role === "leaving") onLeaveComplete?.();
+        if (e.target === e.currentTarget && role === "leaving") onLeaveComplete?.(seq);
       }}
       style={transitionStyle(role, transition, 1, held, incomingCovers)}
     >
@@ -891,7 +904,7 @@ function SceneLayer({
       )}
     </div>
   );
-}
+});
 
 /**
  * The slide entering by random bars: `RANDOM_BAR_COUNT` strips across the
@@ -1367,7 +1380,9 @@ export function OutputView({
     });
     lastEpochRef.current = output.transition.epoch;
     lastEnterSeqRef.current = entryOf(output)?.seq ?? null;
-    commitLayers(step.layers);
+    // The same picture: the ref follows the push, the stage is not drawn again (R22).
+    if (keepsLayers(layersRef.current, step)) layersRef.current = step.layers;
+    else commitLayers(step.layers);
 
     if (step.kind === "patch") return; // a fade or a hold in flight goes on as it was
     // Anything else replaces the scene an earlier hold was for.
@@ -1416,10 +1431,11 @@ export function OutputView({
     [],
   );
 
-  function handleLeaveComplete(seq: number) {
+  // The same function at every render, like `handleImageError`: `SceneLayer` is memoized.
+  const handleLeaveComplete = useCallback((seq: number) => {
     clearLeaveFallback();
     commitLayers(withoutOutgoing(layersRef.current, seq));
-  }
+  }, []);
 
   // One slot each, holding the url that last failed — never a growing set.
   // A single scene and a single video are on screen at a time, and the notice
@@ -1453,10 +1469,12 @@ export function OutputView({
     [plateImages],
   );
 
-  function handleImageError(url: string) {
+  const onMediaErrorRef = useRef(onMediaError);
+  onMediaErrorRef.current = onMediaError;
+  const handleImageError = useCallback((url: string) => {
     setFailedSceneUrl(url);
-    onMediaError?.({ target: { kind: "scene" }, url, code: null });
-  }
+    onMediaErrorRef.current?.({ target: { kind: "scene" }, url, code: null });
+  }, []);
 
   /**
    * Keeps the outgoing video's last frame so the layer it leaves behind has
@@ -1659,13 +1677,14 @@ export function OutputView({
           // nobody is looking at any more, and would overwrite the slot that
           // holds the incoming layer's own failure.
           onImageError={i === layers.length - 1 ? handleImageError : undefined}
-          onLeaveComplete={i === 0 ? () => handleLeaveComplete(layer.seq) : undefined}
+          onLeaveComplete={i === 0 ? handleLeaveComplete : undefined}
           output={layer.output}
           frozenFrame={layer.frozenFrame}
           held={held}
           incomingCovers={incomingCovers}
           posterUrl={posterFor(layer)}
           role={layers.length < 2 ? "steady" : i === 0 ? "leaving" : "entering"}
+          seq={layer.seq}
           transition={transition}
           videoBehind={videoBehind(layer)}
         />

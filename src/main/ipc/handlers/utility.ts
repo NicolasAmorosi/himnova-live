@@ -1,6 +1,6 @@
 import type { Handlers } from "../register";
 import { getProgramsRepo, getUtilityRepo } from "../../services/repos";
-import { removeUtilityScene } from "../../services/utility-scene-removal";
+import { removeUtilityScene } from "../../services/removal";
 import { IpcError } from "@shared/ipc/result";
 import { isSceneName, isUtilitySceneUpsert } from "@shared/scene-validators";
 import type { UtilityScene } from "@shared/types/utility";

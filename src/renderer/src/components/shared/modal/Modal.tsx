@@ -10,27 +10,14 @@ import { ModalTitleIdContext } from "./modal-title-id";
  *  the stack, the focus trap, the `inert` work screen behind it, Escape and the
  *  shortcuts switched off (`useAnyModalOpen`) are exactly what an editor that
  *  covers everything needs, and a confirm opened from it still stacks on top. */
-type ModalSize = "sm" | "md" | "lg" | "xl" | "2xl" | "screen";
+type ModalSize = "sm" | "screen";
 const modalSizes: Record<ModalSize, string> = {
   sm: "max-w-md",
-  md: "max-w-lg",
-  lg: "max-w-2xl",
-  xl: "max-w-4xl",
-  "2xl": "max-w-5xl",
   screen: "",
 };
 
 /** How long a full-screen editor takes to fade out — `.wa-screen-exit`. */
 const SCREEN_EXIT_MS = 150;
-
-type ModalHeight = "auto" | "tall";
-/** "tall" gives a modal a large, fixed height instead of growing to its
- *  content — for a multi-section screen (e.g. Settings) where switching
- *  section must not resize the dialog. Still capped by the viewport. */
-const modalHeights: Record<ModalHeight, string> = {
-  auto: "",
-  tall: "h-[min(44rem,calc(100dvh-2rem))]",
-};
 
 /** Everything the platform considers tabbable, minus what is explicitly opted
  *  out. Disabled controls are excluded by the selector; hidden ones by the
@@ -55,11 +42,9 @@ function focusablesIn(root: HTMLElement): HTMLElement[] {
 type ModalProps = {
   children: ReactNode;
   className?: string;
-  closeOnOverlay?: boolean;
-  height?: ModalHeight;
   onOpenChange: (open: boolean) => void;
   open: boolean;
-  size?: ModalSize;
+  size: ModalSize;
 };
 
 /**
@@ -78,15 +63,7 @@ type ModalProps = {
  * `inert` on the background is the fourth and lives in `modal-stack.ts`,
  * where push/pop give it a single choke point.
  */
-export function Modal({
-  children,
-  className,
-  closeOnOverlay = true,
-  height = "auto",
-  onOpenChange,
-  open,
-  size = "md",
-}: ModalProps) {
+export function Modal({ children, className, onOpenChange, open, size }: ModalProps) {
   const id = useId();
   const titleId = useId();
   const topId = useSyncExternalStore(subscribeModalStack, getTopModalId);
@@ -179,7 +156,7 @@ export function Modal({
           <button
             aria-hidden="true"
             className="wa-backdrop-enter absolute inset-0 cursor-default bg-scrim backdrop-blur-sm"
-            onClick={() => closeOnOverlay && onOpenChange(false)}
+            onClick={() => onOpenChange(false)}
             tabIndex={-1}
             type="button"
           />
@@ -203,7 +180,6 @@ export function Modal({
                 )
               : "wa-modal-enter relative max-h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)]",
             modalSizes[size],
-            !screen && modalHeights[height],
             className,
           )}
           ref={dialogRef}

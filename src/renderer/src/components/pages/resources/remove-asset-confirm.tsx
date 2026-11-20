@@ -18,7 +18,7 @@ type RemoveAssetConfirmProps = {
 /** "Remove anyway" — the escape hatch from the in-use toast. Names what uses
  *  the file — saved programs, and the looks drawn over it (owner, 2026-11-06)
  *  — then force-deletes: the asset AND every saved-program item pointing at it
- *  (see `forceRemoveAsset` / `main/services/media-asset-removal.ts`). A look
+ *  (see `removeMediaAsset` in `main/services/removal.ts`). A look
  *  keeps pointing at the gone file, which the projector reports like any
  *  other missing picture.
  *

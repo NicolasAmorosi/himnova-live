@@ -11,12 +11,6 @@ import type { MediaAsset, MediaSortOrder } from "@shared/types/media";
  * be tested.
  */
 
-/** `numeric` is the whole point: a hymnal folder is "Himno 2", "Himno 10",
- *  "Himno 100", and a plain code-unit comparison puts 100 before 2. `base`
- *  sensitivity makes "Ángel" and "angel" neighbours instead of putting every
- *  accented name after Z, which is what a church library is full of. */
-const collator = new Intl.Collator("es", { numeric: true, sensitivity: "base" });
-
 /** In «Biblioteca», «newest first» means newest in Himnova, not on the disk
  *  (owner, 2026-11-06): `createdAt` is when the asset joined the library
  *  (`MediaRepo` moves it when a linked folder's file is added), and the id
@@ -49,7 +43,14 @@ function sizeOf(asset: MediaAsset): number {
  *  same folder. */
 type Compare = (a: MediaAsset, b: MediaAsset) => number;
 
-function comparator(order: MediaSortOrder, dates: MediaDates): Compare {
+function comparator(order: MediaSortOrder, dates: MediaDates, locale: string): Compare {
+  /** `numeric` is the whole point: a hymnal folder is "Himno 2", "Himno 10",
+   *  "Himno 100", and a plain code-unit comparison puts 100 before 2. `base`
+   *  sensitivity makes "Ángel" and "angel" neighbours instead of putting every
+   *  accented name after Z, which is what a church library is full of. The
+   *  interface's language, as Songs and Functions sort (2026-11-15 audit, X6):
+   *  in Spanish «ñ» is a letter after «n», elsewhere an «n». */
+  const collator = new Intl.Collator(locale, { numeric: true, sensitivity: "base" });
   const byDate = dates === "library" ? byAdded : byFileDate;
   const comparators: Record<MediaSortOrder, Compare> = {
     "name-asc": (a, b) => collator.compare(a.name, b.name),
@@ -65,8 +66,19 @@ function comparator(order: MediaSortOrder, dates: MediaDates): Compare {
 /** Never in place: the array handed in is the one the library store holds, and
  *  sorting it there would reorder the store's own copy of the view without any
  *  subscriber being told. */
-export function sortAssets(assets: readonly MediaAsset[], order: MediaSortOrder, dates: MediaDates = "library"): MediaAsset[] {
-  return [...assets].sort(comparator(order, dates));
+export function sortAssets(
+  assets: readonly MediaAsset[],
+  order: MediaSortOrder,
+  dates: MediaDates,
+  locale: string,
+): MediaAsset[] {
+  return [...assets].sort(comparator(order, dates, locale));
+}
+
+/** The last part of a path, whichever separator the system writes: how a linked folder is named in Media, Songs and
+ *  Welcome. */
+export function folderName(path: string): string {
+  return path.split(/[\\/]/).filter(Boolean).pop() ?? path;
 }
 
 /**

@@ -2,7 +2,7 @@ import { useCallback, type ReactNode } from "react";
 import { ChannelStrip, Menu, Tooltip } from "@renderer/components/ui";
 import { useMuteToggle } from "@renderer/components/ui/use-mute-toggle";
 import { useT } from "@renderer/lib/i18n/i18n-provider";
-import { useAudioOutputPicker, useAudioOutputs } from "@renderer/lib/hooks/use-audio-outputs";
+import { useAudioOutputPicker } from "@renderer/lib/hooks/use-audio-outputs";
 import { useAudioRouteStore } from "@renderer/stores/audio-route.store";
 import { useAudioLevelsStore, type StereoLevel } from "@renderer/stores/audio-levels.store";
 import { usePreviewStore } from "@renderer/stores/preview.store";
@@ -44,7 +44,7 @@ export function AudioStrip({ bus }: { bus: AudioBus }) {
   const liveMuted = useSettingsStore((s) => s.settings["audio.live.muted"]);
   const toggleLiveMute = () => void update({ "audio.live.muted": !liveMuted });
   const togglePreviewMute = useMuteToggle(previewVolume, setPreviewVolume);
-  const outputs = useAudioOutputs();
+  const outputs = useAudioRouteStore((s) => s.outputs);
   const picker = useAudioOutputPicker(bus, outputs);
   const shared = useAudioRouteStore((s) => !live && s.shared);
   const state = useAudioRouteStore((s) => s[bus].state);

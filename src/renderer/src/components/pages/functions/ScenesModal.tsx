@@ -12,7 +12,7 @@ import {
   Segmented,
   type MenuOption,
 } from "@renderer/components/ui";
-import { api } from "@renderer/lib/api";
+import { useEditorLibrary } from "@renderer/lib/hooks/use-editor-library";
 import { toast } from "@renderer/lib/toast";
 import { hideDragGhost, UTILITY_SCENE_MIME } from "@renderer/lib/dnd";
 import { copyName } from "@renderer/lib/named-list";
@@ -27,7 +27,6 @@ import {
 import { useUtilityStore } from "@renderer/stores/utility.store";
 import { SCENE_NAME_MAX_LENGTH } from "@shared/scene-validators";
 import { isCountdownTool } from "@shared/types/timer";
-import type { MediaAsset } from "@shared/types/media";
 import type { UtilityScene, UtilitySceneUsage } from "@shared/types/utility";
 import { emptySceneDraft, isDraftSavable, toDraft, toUpsert, type SceneDraft } from "./scene-draft";
 import { SceneForm } from "./scene-form";
@@ -68,8 +67,7 @@ export function ScenesModal({ onOpenChange, open }: { onOpenChange: (open: boole
   const [pending, setPending] = useState<Pending | null>(null);
   const [saving, setSaving] = useState(false);
   const [dragOverId, setDragOverId] = useState<number | null>(null);
-  const [imageAssets, setImageAssets] = useState<readonly MediaAsset[]>([]);
-  const [addingImages, setAddingImages] = useState(false);
+  const images = useEditorLibrary(open, "image", "scenes");
   /** Whether the stage is drawing the scene as it rests or as it ends. A view
    *  of the editor, not part of the draft: it must never reach a row, and it
    *  survives switching scenes on purpose — an operator dressing the end state
@@ -83,18 +81,6 @@ export function ScenesModal({ onOpenChange, open }: { onOpenChange: (open: boole
    *  left the button dead. `dirty` keeps its own meaning — it is what the
    *  discard guard and the bar's «Discard» ask. */
   const canSave = editing !== null && isDraftSavable(editing.draft) && (editing.sceneId === null || dirty);
-
-  // The image library, for an image background's picker. Read on open rather
-  // than kept in a store: it is one query, only this dialog wants it, and it
-  // must reflect whatever the operator added since the last time they were
-  // here.
-  useEffect(() => {
-    if (!open) return;
-    void api.library
-      .list("image")
-      .then(setImageAssets)
-      .catch((error: unknown) => console.warn("[scenes] could not list the image library", error));
-  }, [open]);
 
   // Opening on the first scene is what makes the dialog useful on arrival; an
   // empty right-hand pane next to a full list reads as something broken.
@@ -181,36 +167,21 @@ export function ScenesModal({ onOpenChange, open }: { onOpenChange: (open: boole
 
   async function handleAddImages() {
     const requestedFor = editing?.sceneId;
-    setAddingImages(true);
-    try {
-      const paths = await api.files.pick("image", true);
-      if (paths.length === 0) return;
-      const added = await api.library.add(paths, "image");
-      setImageAssets(await api.library.list("image"));
-      // Selecting the first one it just added is the point of the button: the
-      // operator picked a file in order to use it, not in order to then find
-      // it in a dropdown.
-      // Onto the form as it is NOW, not as it was before the file dialog and
-      // the import: anything typed meanwhile used to be reverted.
-      const first = added[0];
-      if (first) {
-        setEditing((current) =>
-          current && current.sceneId === requestedFor
-            ? {
-                ...current,
-                draft: {
-                  ...current.draft,
-                  style: { ...current.draft.style, background: { kind: "image", assetId: first.id, fit: "cover" } },
-                },
-              }
-            : current,
-        );
-      }
-    } catch (error) {
-      console.warn("[scenes] could not add images", error);
-      toast.danger(t("style.addImageError"));
-    } finally {
-      setAddingImages(false);
+    const first = await images.add();
+    // Onto the form as it is NOW, not as it was before the file dialog and the
+    // import: anything typed meanwhile used to be reverted.
+    if (first) {
+      setEditing((current) =>
+        current && current.sceneId === requestedFor
+          ? {
+              ...current,
+              draft: {
+                ...current.draft,
+                style: { ...current.draft.style, background: { kind: "image", assetId: first.id, fit: "cover" } },
+              },
+            }
+          : current,
+      );
     }
   }
 
@@ -240,8 +211,8 @@ export function ScenesModal({ onOpenChange, open }: { onOpenChange: (open: boole
             <Inspector id="scenes" key={editing.sceneId ?? "new"} label={t("scenes.title")}>
               <SceneForm
                 onEndFocus={() => setPreviewAtEnd(true)}
-                addingImages={addingImages}
-                imageAssets={imageAssets}
+                addingImages={images.adding}
+                imageAssets={images.assets}
                 onAddImages={() => void handleAddImages()}
                 onChange={(draft) => setEditing({ ...editing, draft })}
                 value={editing.draft}

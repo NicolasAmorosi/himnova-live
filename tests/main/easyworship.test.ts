@@ -87,7 +87,8 @@ describe("RTF", () => {
 describe("the EasyWorship database", () => {
   const data = () => path.join(tmpDir, "Default", "v6.1", "Databases", "Data");
 
-  test("lyrics become sections and the repeated chorus the order", () => {
+  // Written here, not in the first test: the others find and import it, in any order (2026-11-15 audit, P7).
+  beforeAll(() => {
     writeEasyWorship(data(), [
       {
         title: "Sublime gracia",
@@ -100,6 +101,9 @@ describe("the EasyWorship database", () => {
       { title: "Vacía", words: rtf("") },
       { title: "Coro en español", reference: "Den Danske", words: rtf("Coro\nGloria\n\nEstrofa 1\nuno") },
     ]);
+  });
+
+  test("lyrics become sections and the repeated chorus the order", () => {
     const { problems, songs } = readEasyWorship(data(), "es");
     expect(problems).toBe(1);
     expect(songs.map((s) => s.title)).toEqual(["Sublime gracia", "Coro en español"]);

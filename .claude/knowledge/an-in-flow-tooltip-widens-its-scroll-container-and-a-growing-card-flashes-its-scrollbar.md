@@ -18,4 +18,7 @@
 - The same `interpolate-size` trick eases a band in and out of a flex column (the stage's message), so what is
   above it moves instead of jumping. Keep the last content drawn while it collapses, then unmount it.
 
+- 2026-11-20 (audit X16): the in-flow tooltip is gone; every `Tooltip` floats, so the first point above can no
+  longer happen. The `floating` prop is still accepted and does nothing.
+
 **Last updated:** 2026-11-13

@@ -17,6 +17,8 @@ import { stageOutputFor } from "@renderer/lib/stage-output";
 import { advanceVerse, chooseParallelVersion, projectVerse } from "@renderer/lib/actions/bible";
 import { goLive } from "@renderer/lib/actions/playback";
 import { previewScheduleItem } from "@renderer/lib/actions/preview";
+import { scheduleRowParallel } from "@renderer/lib/hooks/use-preview";
+import type { BibleScheduleItem } from "@renderer/lib/actions/bible";
 import { DEFAULT_BIBLE_STYLE } from "@shared/types/bible-style";
 import type { BibleBookDTO, BibleVerseDTO, BibleVersionDTO } from "@shared/types/bible";
 
@@ -299,5 +301,52 @@ describe("a schedule row", () => {
       parallel: { reference: "John 3:1" },
     });
     expect(useProgramStore.getState().activeIndex).toBeNull();
+  });
+});
+
+/** PREVIEW's three readers of a row (the column, the slide grid, the top bar) each looked its parallel up: 15 IPC
+ *  calls in main for one click instead of 5 (2026-11-15 audit, R26). */
+describe("PREVIEW's lookup of a row", () => {
+  const row = (): BibleScheduleItem => ({
+    id: 1,
+    kind: "bible",
+    bibleVersionId: 1,
+    bibleBookId: 43,
+    chapter: 3,
+    verseFrom: 16,
+    verseTo: null,
+    reference: "Juan 3:16",
+    text: "Porque de tal manera…",
+  } as BibleScheduleItem);
+  const calls = () => (window as unknown as { worship: { invoke: ReturnType<typeof vi.fn> } }).worship.invoke.mock.calls.length;
+  const ask = (item: BibleScheduleItem, setting: number | null) => {
+    useSettingsStore.setState((s) => ({ settings: { ...s.settings, "bible.parallelVersionId": setting } }));
+    return scheduleRowParallel(item, setting, useBibleStore.getState().versions);
+  };
+
+  test("is asked of main once for the same row, and again for an edited row or another parallel", async () => {
+    const item = row();
+    const first = await ask(item, 2);
+    const once = calls();
+    expect(first).toMatchObject({ reference: "John 3:16" });
+    expect(await Promise.all([ask(item, 2), ask(item, 2)])).toEqual([first, first]);
+    expect(calls()).toBe(once);
+
+    await ask(row(), 2);
+    expect(calls()).toBe(2 * once);
+    // Its own version: no parallel, and nothing to ask.
+    expect(await ask(item, 1)).toBeNull();
+    expect(await ask(item, 2)).toEqual(first);
+    expect(calls()).toBe(3 * once);
+  });
+
+  test("a lookup that found nothing is asked again", async () => {
+    // A book this version does not have.
+    const item = { ...row(), bibleBookId: 99 };
+    const before = calls();
+    expect(await ask(item, 2)).toBeNull();
+    const once = calls() - before;
+    await ask(item, 2);
+    expect(calls() - before).toBe(2 * once);
   });
 });

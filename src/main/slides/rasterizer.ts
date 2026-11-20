@@ -1,5 +1,6 @@
-import { app, BrowserWindow, ipcMain } from "electron";
+import { BrowserWindow, ipcMain } from "electron";
 import path from "node:path";
+import { loadPage } from "../windows/load-page";
 import { randomUUID } from "node:crypto";
 import { SLIDES_RASTER_PAGE_TIMEOUT_MS, SLIDES_THUMB_WIDTH } from "@shared/constants";
 import { SlideError } from "./errors";
@@ -104,12 +105,7 @@ async function ensureWindow(): Promise<BrowserWindow> {
   // which also kept `BrowserWindow.getAllWindows()` non-empty forever, and
   // that count is what `app.on("activate")`/`window-all-closed` read.
   try {
-    const devServerUrl = process.env["ELECTRON_RENDERER_URL"];
-    if (!app.isPackaged && devServerUrl) {
-      await win.loadURL(`${devServerUrl}/rasterizer.html`);
-    } else {
-      await win.loadFile(path.join(__dirname, "../renderer/rasterizer.html"));
-    }
+    await loadPage(win, "rasterizer.html");
   } catch (error) {
     if (!win.isDestroyed()) win.destroy();
     throw error;

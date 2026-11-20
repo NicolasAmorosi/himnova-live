@@ -8,10 +8,12 @@
  * report per case, fail with a name instead of a stack, and stop being
  * something a person has to remember to run.
  *
- * The cases share ONE database on purpose, built up in order — several of them
- * assert about what earlier ones left behind (the manual list order, the
- * duplicate-bytes deck, the draft's dead reference). Vitest runs the tests of a
- * file in declaration order, which is what keeps that chain honest.
+ * Every `describe` opens a database of its own (`freshDatabase`), copied from
+ * one that was migrated and seeded with RV1909 once for the whole file, so the
+ * blocks run alone (`-t`) or in any order (`--sequence.shuffle.tests`). Inside
+ * a block that is a story told in steps (import, then re-import, then edit),
+ * the steps are kept in order with `{ shuffle: false }`; the rest of the
+ * blocks' tests stand alone (2026-11-15 audit, P7).
  */
 import fs from "node:fs";
 import os from "node:os";
@@ -37,8 +39,8 @@ import { DEFAULT_SETTINGS, SETTINGS_VALIDATORS, isSettingsKey } from "../../src/
 import { BUILTIN_BIBLE_CODE, SLIDES_CONVERTER_VERSION, SLIDES_MODEL_VERSION, SLIDES_NATIVE_VERSION } from "../../src/shared/constants";
 import { defaultUtilityScenes } from "../../src/shared/types/utility";
 import mainEs from "../../src/main/i18n/messages/es";
-import { removeUtilityScene } from "../../src/main/services/utility-scene-removal";
-import { removeOverlayPlate } from "../../src/main/services/overlay-plate-removal";
+import { removeOverlayPlate, removeUtilityScene } from "../../src/main/services/removal";
+import { upsertFile } from "./support/upsert-file";
 import { DEFAULT_PLATE_STYLE, type Plate } from "../../src/shared/types/overlay";
 import { IpcError } from "../../src/shared/ipc/result";
 import type { UtilityScene } from "../../src/shared/types/utility";
@@ -58,7 +60,7 @@ const drizzleDir = path.join(process.cwd(), "drizzle");
 const biblesDir = path.join(process.cwd(), "resources/bibles");
 
 let tmpDir: string;
-let dbFile: string;
+let templateFile: string;
 let sqlite: ReturnType<typeof openDatabase>["sqlite"];
 let db: ReturnType<typeof openDatabase>["db"];
 
@@ -79,36 +81,58 @@ let filePaths: string[];
 let statted: { path: string; stat: fs.Stats }[];
 let inserted: MediaAsset[];
 let firstAsset: MediaAsset;
+let caseCount = 0;
 
+// The real migrations and the real RV1909 (31 102 verses, ~600 ms), once: every block copies the result.
 beforeAll(() => {
   tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "worship-data-layer-"));
-  dbFile = path.join(tmpDir, "smoke.db");
-  const opened = openDatabase(dbFile);
-  sqlite = opened.sqlite;
-  db = opened.db;
-  runMigrations(db, drizzleDir);
-
-  bibleRepo = new BibleRepo(db, sqlite);
-  settingsRepo = new SettingsRepo(db);
-  // After the repo exists: the seed reads (and sets) `bible.builtinSeeded`.
-  seedBuiltinBibles(db, sqlite, biblesDir, settingsRepo, false);
-  programsRepo = new ProgramsRepo(db, sqlite);
-  mediaRepo = new MediaRepo(db, sqlite);
-  slidesRepo = new SlidesRepo(db, sqlite);
-  utilityRepo = new UtilityRepo(db, sqlite);
+  templateFile = path.join(tmpDir, "template.db");
+  const opened = openDatabase(templateFile);
+  runMigrations(opened.db, drizzleDir);
+  // The seed reads (and sets) `bible.builtinSeeded`.
+  seedBuiltinBibles(opened.db, opened.sqlite, biblesDir, new SettingsRepo(opened.db), false);
+  // Closing checkpoints the WAL into the file: a copy of an open one would miss it (see the backup case below).
+  opened.sqlite.close();
 });
 
 afterAll(() => {
-  sqlite.close();
   fs.rmSync(tmpDir, { recursive: true, force: true });
 });
 
+/** A `describe`'s own copy of the template, with its own repos, media folder and the process-wide repos
+ *  (`initRepos`) the removal services read; closed when the block ends. */
+function useFreshDatabase(): void {
+  beforeAll(() => {
+    const caseDir = path.join(tmpDir, `case-${caseCount++}`);
+    mediaDir = path.join(caseDir, "media");
+    fs.mkdirSync(mediaDir, { recursive: true });
+    const dbFile = path.join(caseDir, "smoke.db");
+    fs.copyFileSync(templateFile, dbFile);
+    const opened = openDatabase(dbFile);
+    sqlite = opened.sqlite;
+    db = opened.db;
+    initRepos(db, sqlite);
+    bibleRepo = new BibleRepo(db, sqlite);
+    settingsRepo = new SettingsRepo(db);
+    programsRepo = new ProgramsRepo(db, sqlite);
+    mediaRepo = new MediaRepo(db, sqlite);
+    slidesRepo = new SlidesRepo(db, sqlite);
+    utilityRepo = new UtilityRepo(db, sqlite);
+    versionId = bibleRepo.listVersions()[0]!.id;
+    bookIds = bibleRepo.listBooks(versionId).map((book) => book.id);
+  });
+  afterAll(() => {
+    sqlite.close();
+  });
+}
+
 describe("Bible seed", () => {
+  useFreshDatabase();
+
   test("seeds exactly one version with every verse and book", () => {
     const versions = bibleRepo.listVersions();
     assert(versions.length === 1, `expected 1 Bible version, got ${versions.length}`);
     assert(versions[0]!.verseCount === 31102, `expected 31102 verses, got ${versions[0]!.verseCount}`);
-    versionId = versions[0]!.id;
 
     const books = bibleRepo.listBooks(versionId);
     assert(books.length === 66, `expected 66 books, got ${books.length}`);
@@ -123,7 +147,6 @@ describe("Bible seed", () => {
     assert(ot.length === 39, `expected 39 OT books, got ${ot.length}`);
     assert(books[38]!.testament === "OT", `expected Malaquías in the OT, got ${books[38]!.testament}`);
     assert(books[39]!.testament === "NT", `expected Mateo in the NT, got ${books[39]!.testament}`);
-    bookIds = books.map((book) => book.id);
   });
 
   test("chapter lookup returns the whole chapter", () => {
@@ -178,7 +201,8 @@ describe("Bible seed", () => {
   });
 });
 
-describe("Settings and programs", () => {
+describe("Settings and programs", { shuffle: false }, () => {
+  useFreshDatabase();
   test("settings and a program round-trip", () => {
     settingsRepo.setMany({ "ui.theme": "light" });
     assert(settingsRepo.get("ui.theme") === "light", "settings round-trip failed");
@@ -284,7 +308,8 @@ describe("Settings and programs", () => {
   });
 });
 
-describe("Media library", () => {
+describe("Media library", { shuffle: false }, () => {
+  useFreshDatabase();
   test("a batch import inserts every file and resolves no audio eagerly", () => {
     mediaDir = path.join(tmpDir, "media");
     fs.mkdirSync(mediaDir, { recursive: true });
@@ -362,13 +387,8 @@ describe("Media library", () => {
       "upsertBatch must return the new mtime, not the row's previous one",
     );
 
-    const editedSingle = mediaRepo.upsertFromPath(changedPath, "ppt", true);
     assert(
-      editedSingle.sizeBytes === changedStat.size && editedSingle.mtimeMs === Math.trunc(changedStat.mtimeMs),
-      "upsertFromPath's existing-row branch must return what it just wrote, not the stale row",
-    );
-    assert(
-      mediaRepo.getById(editedSingle.id)?.mtimeMs === Math.trunc(changedStat.mtimeMs),
+      mediaRepo.getById(editedBatch.id)?.mtimeMs === Math.trunc(changedStat.mtimeMs),
       "the persisted row must agree with the returned DTO",
     );
   });
@@ -419,7 +439,8 @@ describe("Media library", () => {
   });
 });
 
-describe("Deck status is answered by CONTENT, not by row ownership", () => {
+describe("Deck status is answered by CONTENT, not by row ownership", { shuffle: false }, () => {
+  useFreshDatabase();
   // The regression test for `N3` (media-chain audit §5.2). The deck cache is
   // content-addressed, but `statusesByAsset` used to ask "which deck row does
   // this asset OWN?" — and `relinkDeck` MOVES that ownership. With the same
@@ -568,7 +589,8 @@ describe("Deck status is answered by CONTENT, not by row ownership", () => {
   });
 });
 
-describe("A deck read natively owns no folder, and what LibreOffice drew goes at startup", () => {
+describe("A deck read natively owns no folder, and what LibreOffice drew goes at startup", { shuffle: false }, () => {
+  useFreshDatabase();
   // `image_format = 'native'`: slides are pictures read straight from the
   // source (`ppt-binary.ts`), so the row has no cache folder at all — and every
   // path that deletes or rebases a deck's folder has to know that, or it acts
@@ -598,7 +620,7 @@ describe("A deck read natively owns no folder, and what LibreOffice drew goes at
   beforeAll(() => {
     const source = path.join(mediaDir, "native-hymn.pps");
     fs.writeFileSync(source, buildLegacyPpt());
-    asset = mediaRepo.upsertFromPath(source, "ppt", true);
+    asset = upsertFile(mediaRepo, source, "ppt", true);
     const stat = fs.statSync(source);
     mediaRepo.setContentHash(asset.id, hash, stat.size, Math.trunc(stat.mtimeMs));
     convertedDir = path.join(tmpDir, "converted-hymn");
@@ -748,13 +770,20 @@ describe("A deck read natively owns no folder, and what LibreOffice drew goes at
 });
 
 describe("Unsaved-schedule draft", () => {
+  useFreshDatabase();
   let draftRepo: DraftRepo;
+  let liveAsset: MediaAsset;
+
+  beforeAll(() => {
+    draftRepo = new DraftRepo(db);
+    const source = path.join(mediaDir, "draft-deck.pptx");
+    fs.writeFileSync(source, "fake pptx for the draft");
+    liveAsset = upsertFile(mediaRepo, source, "ppt", true);
+  });
 
   test("round-trips, and drops items pointing at a deleted asset", () => {
-    draftRepo = new DraftRepo(db);
     assert(draftRepo.load() === null, "a database with no draft row must report no draft");
 
-    const liveAsset = mediaRepo.list("ppt")[0]!;
     const deadAssetId = 999_999;
     draftRepo.save({
       programId: null,
@@ -783,15 +812,18 @@ describe("Unsaved-schedule draft", () => {
 
   test("there is always exactly one draft row, and clearing leaves nothing", () => {
     // One row, always: saving twice replaces rather than accumulates.
-    draftRepo.save({ programId: 1, name: "Otro", notes: "n", items: [], updatedAt: Date.now() });
+    // A draft names a program that exists: a dead `programId` would come back as null.
+    const { id: programId } = programsRepo.save({ name: "Otro", items: [] });
+    draftRepo.save({ programId, name: "Otro", notes: "n", items: [], updatedAt: Date.now() });
     const second = draftRepo.load();
-    assert(second?.name === "Otro" && second.programId === 1, "the draft row must be replaced, not appended");
+    assert(second?.name === "Otro" && second.programId === programId, "the draft row must be replaced, not appended");
     draftRepo.clear();
     assert(draftRepo.load() === null, "clearing the draft must leave nothing behind");
   });
 });
 
 describe("A verse whose Bible version was deleted", () => {
+  useFreshDatabase();
   test("keeps its text, and the open schedule's dead ids neither fail a save nor come back in a draft", () => {
     const deletedVersionId = db
       .insert(bibleVersions)
@@ -922,7 +954,8 @@ describe("The pre-migration backup is WAL-aware", () => {
   });
 });
 
-describe("Utility scenes", () => {
+describe("Utility scenes", { shuffle: false }, () => {
+  useFreshDatabase();
   test("the four built-in scenes are seeded exactly once", () => {
     seedUtilityScenes(utilityRepo, settingsRepo);
     const seeded = utilityRepo.list();
@@ -1043,14 +1076,16 @@ describe("Utility scenes", () => {
  * deleted scene can still be referenced (a draft is a JSON blob no constraint
  * can reach).
  */
-describe("A time scene as an order-of-service item", () => {
+describe("A time scene as an order-of-service item", { shuffle: false }, () => {
+  useFreshDatabase();
   let scene: UtilityScene;
   let program: ProgramSummary;
 
   // Set up here, not in the first test: a test run alone (`-t`) found `program` undefined, and a bare `toThrow()`
   // took that TypeError for the CHECK (2026-11-15 audit, P7).
   beforeAll(() => {
-    initRepos(db, sqlite);
+    // The draft case needs a live scene besides this one.
+    seedUtilityScenes(utilityRepo, settingsRepo);
     scene = utilityRepo.create({ ...DEFAULT_UTILITY_SCENES[0]!, name: "Cuenta del culto" });
     program = programsRepo.save({
       name: "Culto con cuenta regresiva",
@@ -1133,12 +1168,14 @@ describe("A time scene as an order-of-service item", () => {
   });
 });
 
-describe("An overlay plate as an order-of-service item", () => {
+describe("An overlay plate as an order-of-service item", { shuffle: false }, () => {
+  useFreshDatabase();
   let plate: Plate;
   let program: ProgramSummary;
 
   beforeAll(() => {
-    initRepos(db, sqlite);
+    // The CHECK case pairs the plate with a scene.
+    seedUtilityScenes(utilityRepo, settingsRepo);
     plate = getOverlaysRepo().create({
       name: "Pastor Juan Pérez",
       kind: "lower-third",
@@ -1211,34 +1248,27 @@ describe("An overlay plate as an order-of-service item", () => {
  * settings screen that forgets, and a re-seed that reset it would send the
  * bundled bible back to the bottom of that picker after an update.
  */
-describe("Installed bibles keep the order the operator gave them", () => {
-  let extraIds: number[] = [];
+describe("Installed bibles keep the order the operator gave them", { shuffle: false }, () => {
+  useFreshDatabase();
 
   beforeAll(() => {
     const now = Date.now();
-    extraIds = ["test-a", "test-b"].map(
-      (code, index) =>
-        db
-          .insert(bibleVersions)
-          .values({
-            code,
-            name: code,
-            language: "es",
-            isBuiltin: 0,
-            verseCount: 0,
-            // What `BibleRepo.nextSortOrder` would have given them: the bundled
-            // bible was backfilled to 0 by the migration.
-            sortOrder: index + 1,
-            installedAt: now + index,
-          })
-          .run().lastInsertRowid as number,
+    ["test-a", "test-b"].forEach((code, index) =>
+      db
+        .insert(bibleVersions)
+        .values({
+          code,
+          name: code,
+          language: "es",
+          isBuiltin: 0,
+          verseCount: 0,
+          // What `BibleRepo.nextSortOrder` would have given them: the bundled
+          // bible was backfilled to 0 by the migration.
+          sortOrder: index + 1,
+          installedAt: now + index,
+        })
+        .run(),
     );
-  });
-
-  afterAll(() => {
-    for (const id of extraIds) db.delete(bibleVersions).where(eq(bibleVersions.id, id)).run();
-    // Back to the single row every earlier case in this file assumes.
-    bibleRepo.reorderVersions(bibleRepo.listVersions().map((version) => version.id));
   });
 
   test("a new version is imported at the BOTTOM, never on top", () => {
@@ -1312,6 +1342,7 @@ describe("Installed bibles keep the order the operator gave them", () => {
 });
 
 describe("a deck's sounds", () => {
+  useFreshDatabase();
   const sound = (file: string, scope: "deck" | "slide", start: number, stop: number | null, loop = false) => ({
     audioFile: file,
     ext: path.extname(file).slice(1),
@@ -1332,7 +1363,7 @@ describe("a deck's sounds", () => {
   ) {
     const source = path.join(mediaDir, `${name}.pptx`);
     fs.writeFileSync(source, name);
-    const asset = mediaRepo.upsertFromPath(source, "ppt", true);
+    const asset = upsertFile(mediaRepo, source, "ppt", true);
     const stat = fs.statSync(source);
     const id = slidesRepo.insertDeck(
       {
@@ -1387,7 +1418,8 @@ describe("a deck's sounds", () => {
   });
 });
 
-describe("Bible favorites and recent passages", () => {
+describe("Bible favorites and recent passages", { shuffle: false }, () => {
+  useFreshDatabase();
   const bookId = (name: string) => {
     const version = bibleRepo.listVersions().find((v) => v.code === BUILTIN_BIBLE_CODE)!;
     const book = bibleRepo.listBooks(version.id).find((b) => b.name === name);

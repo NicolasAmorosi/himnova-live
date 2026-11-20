@@ -5,10 +5,10 @@ import { IpcError } from "@shared/ipc/result";
 import type { Handlers } from "../register";
 import { getMediaRepo, getProgramsRepo, getSettingsRepo, getSongsRepo } from "../../services/repos";
 import { followMove, moveBetween, namesOf, type PathMove } from "../../services/relocate-move";
-import { removeMediaAsset } from "../../services/media-asset-removal";
+import { removeMediaAsset } from "../../services/removal";
 import { importPaths } from "../../services/library-import";
 import { broadcast } from "../../services/broadcast";
-import { notifyMediaChanged } from "../../media/engine-assets";
+import { forgetEngineAsset, notifyMediaChanged } from "../../media/engine-assets";
 import { showOpenDialogFor } from "../open-dialog";
 import { mt } from "../../i18n";
 
@@ -41,6 +41,8 @@ export const libraryHandlers: Pick<
 
   "library:remove": ({ id, force }) => {
     removeMediaAsset(id, force ?? false);
+    // Only once the row is actually gone: `MEDIA_ASSET_IN_USE` throws before this.
+    forgetEngineAsset(id);
   },
 
   "library:usages": ({ id }) => getProgramsRepo().findUsages(id),

@@ -8,9 +8,8 @@ import { survivingAssetId } from "@renderer/stores/program.store";
 import { t } from "@renderer/lib/i18n/i18n-provider";
 import { toast } from "@renderer/lib/toast";
 import type { DecoderSupport } from "@shared/types/media";
-import { mediaTargetKey } from "@shared/types/projection";
+import { SLIDE_VIDEO_STATUS_KEY } from "@shared/types/projection";
 
-const SLIDE_VIDEO_STATUS_KEY = mediaTargetKey({ kind: "slideVideo" });
 const deckVideoId = (url: string) => /^worship:\/\/(?:engine\/)?deck-video\/(\d+)/.exec(url)?.[1];
 
 /**

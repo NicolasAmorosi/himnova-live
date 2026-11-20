@@ -72,8 +72,8 @@ const PROGRESS_MIN_DELAY_MS = 400;
  * event-loop yield between them, so a linked folder with hundreds of
  * presentations never freezes the control window or the projector mid-service.
  *
- * Deliberately does NOT resolve `.ppt`/`.pps` linked audio — see
- * `MediaRepo.upsertFromPath`/`upsertBatch` — that happens lazily, once, the
+ * Deliberately does NOT resolve `.ppt`/`.pps` linked audio (see
+ * `MediaRepo.upsertBatch`): that happens lazily, once, the
  * first time each deck is actually opened.
  *
  * `library-changed` is emitted only when something actually changed

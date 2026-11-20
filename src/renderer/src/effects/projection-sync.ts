@@ -110,6 +110,9 @@ export function startProjectionEffects(): () => void {
   // `setDeckTrack(B)` in one synchronous action, and pushing each set on its
   // own sent A's soundtrack UNcovered for a moment before B replaced it.
   let audioFlushScheduled = false;
+  /** Main already has an empty list: sent again on every step of LIVE's fader with nothing playing (2026-11-15 audit,
+   *  R16). Any list with a track in it, or the first empty one after it, still goes. */
+  let sentEmpty = false;
   const pushAudioTracks = () => {
     if (audioFlushScheduled) return;
     audioFlushScheduled = true;
@@ -119,6 +122,8 @@ export function startProjectionEffects(): () => void {
       const covered = overlay !== "none";
       const loopStandalone = useSettingsStore.getState().settings["projection.audioEnd"] === "loop";
       const tracks = useAudioStore.getState().tracks;
+      if (sentEmpty && tracks.length === 0) return;
+      sentEmpty = tracks.length === 0;
       // The one place that knows the complete live track list, so it is also
       // where the status slots of tracks that no longer exist get collected —
       // every path that can retire a track (`removeTrack`, `restartTrack`'s new

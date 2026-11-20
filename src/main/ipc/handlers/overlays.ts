@@ -1,6 +1,6 @@
 import type { Handlers } from "../register";
 import { getOverlaysRepo, getProgramsRepo } from "../../services/repos";
-import { removeOverlayPlate } from "../../services/overlay-plate-removal";
+import { removeOverlayPlate } from "../../services/removal";
 import { IpcError } from "@shared/ipc/result";
 import { isPlateName, isPlateUpsert } from "@shared/overlay-validators";
 import type { Plate } from "@shared/types/overlay";

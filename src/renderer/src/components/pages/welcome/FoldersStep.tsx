@@ -2,6 +2,7 @@ import { useT } from "@renderer/lib/i18n/i18n-provider";
 import { Button, Callout, FieldGroup, FieldRow, Icon, IconButton, Token, Tooltip, type IconName } from "@renderer/components/ui";
 import { addLinkedFolder, removeLinkedFolder } from "@renderer/lib/actions/library-folders";
 import { linkSongFolder, unlinkSongFolder } from "@renderer/lib/actions/songs";
+import { folderName } from "@renderer/lib/media-view";
 import { useSettingsStore } from "@renderer/stores/settings.store";
 import { ASSET_KINDS, type AssetKind } from "@shared/constants";
 import { StepLayout } from "./StepLayout";
@@ -9,9 +10,6 @@ import { StepLayout } from "./StepLayout";
 type FolderKind = AssetKind | "songs";
 
 const KIND_ICONS: Record<FolderKind, IconName> = { video: "video", image: "image", audio: "audio", ppt: "ppt", songs: "song" };
-
-/** The last part of a path, whichever separator the system writes. */
-const folderName = (path: string) => path.split(/[\\/]/).filter(Boolean).pop() ?? path;
 
 /** The computer's folders each tab shows (Media's four kinds and Songs), linked with the same actions the
  *  tabs' folder button runs — so the tab opens on the folder just linked, as it does there. */
@@ -36,7 +34,8 @@ export function FoldersStep() {
                     {linked.map((path) => (
                       <Token className="max-w-full pr-0.5" key={path}>
                         <Icon className="size-3.5" name="folder" />
-                        <Tooltip content={path}>
+                        {/* `min-w-0`, or a long name pushes the ✕ out of its token. */}
+                        <Tooltip className="min-w-0" content={path} fit="path">
                           <span className="truncate">{folderName(path)}</span>
                         </Tooltip>
                         <IconButton

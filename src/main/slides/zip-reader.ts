@@ -291,7 +291,8 @@ function sliceWindow(window: ReadWindow, offset: number, length: number): Buffer
   return window.buffer.subarray(from, from + length);
 }
 
-function readEntryData(fd: number, entry: CentralEntry, window: ReadWindow, budget: number): Uint8Array {
+/** Where an entry's bytes start: past its local header, whose name and extra lengths are the ones that count. */
+function entryDataOffset(fd: number, entry: CentralEntry, window: ReadWindow): number {
   const header =
     sliceWindow(window, entry.localHeaderOffset, LOCAL_HEADER_FIXED_SIZE) ??
     readChunk(fd, entry.localHeaderOffset, LOCAL_HEADER_FIXED_SIZE);
@@ -300,8 +301,11 @@ function readEntryData(fd: number, entry: CentralEntry, window: ReadWindow, budg
   }
   const nameLength = header.readUInt16LE(26);
   const extraLength = header.readUInt16LE(28);
-  const dataOffset = entry.localHeaderOffset + LOCAL_HEADER_FIXED_SIZE + nameLength + extraLength;
+  return entry.localHeaderOffset + LOCAL_HEADER_FIXED_SIZE + nameLength + extraLength;
+}
 
+function readEntryData(fd: number, entry: CentralEntry, window: ReadWindow, budget: number): Uint8Array {
+  const dataOffset = entryDataOffset(fd, entry, window);
   const raw =
     sliceWindow(window, dataOffset, entry.compressedSize) ??
     readChunk(fd, dataOffset, entry.compressedSize);
@@ -364,6 +368,82 @@ export function readZipEntries(
   wanted: (name: string) => boolean,
   inflateBudget = MAX_INFLATED_TOTAL_BYTES,
 ): Record<string, Uint8Array> {
+  const result: Record<string, Uint8Array> = {};
+  eachEntry(filePath, wanted, inflateBudget, true, (name, fd, entry, window, budget) => {
+    result[name] = readEntryData(fd, entry, window, budget);
+    return result[name].length;
+  });
+  return result;
+}
+
+/** A stored entry is copied this much at a time. */
+const COPY_BLOCK_BYTES = 1024 * 1024;
+
+/**
+ * `readZipEntries` for parts that go to disk (a deck's clips): each entry `destFor` names a file for is written
+ * there, one entry at a time, and a stored one by blocks, so a deck's video is never in memory whole. They all used
+ * to be read at once first: ~2.2 times the deck's media in memory, and a stored 1 GB video read whole (2026-11-15
+ * audit, R20). The budgets are `readZipEntries`', run across the whole call the same way (S10): a deflated entry
+ * inflates whole, within what is left of `inflateBudget` and never past the size it declares; the stored ones copy
+ * no more than the file's size between them. An entry skipped, or that failed, leaves no file. The bytes written,
+ * by entry name; `onEntry` after each one written.
+ */
+export function copyZipEntries(
+  filePath: string,
+  destFor: (name: string) => string | null,
+  onEntry?: () => void,
+  inflateBudget = MAX_INFLATED_TOTAL_BYTES,
+): Map<string, number> {
+  const written = new Map<string, number>();
+  eachEntry(filePath, (name) => destFor(name) !== null, inflateBudget, false, (name, fd, entry, window, budget) => {
+    const dest = destFor(name)!;
+    try {
+      const bytes =
+        entry.method === METHOD_STORE
+          ? copyStored(fd, entryDataOffset(fd, entry, window), entry.compressedSize, dest)
+          : writeWhole(dest, readEntryData(fd, entry, window, budget));
+      written.set(name, bytes);
+      onEntry?.();
+      return bytes;
+    } catch (error) {
+      fs.rmSync(dest, { force: true });
+      throw error;
+    }
+  });
+  return written;
+}
+
+function writeWhole(dest: string, data: Uint8Array): number {
+  fs.writeFileSync(dest, data);
+  return data.length;
+}
+
+function copyStored(fd: number, offset: number, length: number, dest: string): number {
+  const out = fs.openSync(dest, "w");
+  try {
+    const block = Buffer.allocUnsafe(Math.min(COPY_BLOCK_BYTES, length));
+    let done = 0;
+    while (done < length) {
+      const n = fs.readSync(fd, block, 0, Math.min(block.length, length - done), offset + done);
+      if (n === 0) throw new ZipFormatError("Unexpected end of file");
+      fs.writeSync(out, block, 0, n);
+      done += n;
+    }
+    return done;
+  } finally {
+    fs.closeSync(out);
+  }
+}
+
+/** Hands `take` every readable entry `wanted` names, in directory order, with what is left of the call's two
+ *  budgets; `take` answers the bytes it produced. */
+function eachEntry(
+  filePath: string,
+  wanted: (name: string) => boolean,
+  inflateBudget: number,
+  readAhead: boolean,
+  take: (name: string, fd: number, entry: CentralEntry, window: ReadWindow, budget: number) => number,
+): void {
   const fd = fs.openSync(filePath, "r");
   try {
     const { size } = fs.fstatSync(fd);
@@ -378,13 +458,15 @@ export function readZipEntries(
         (entry.flags & FLAG_ENCRYPTED) === 0 &&
         (entry.method === METHOD_STORE || entry.method === METHOD_DEFLATE),
     );
-    const window = openReadWindow(
-      fd,
-      readable.map(([, entry]) => entry),
-      size,
-    );
+    // A copy reads each entry on its own: the window would hold up to 8 MB of all of them at once.
+    const window = readAhead
+      ? openReadWindow(
+          fd,
+          readable.map(([, entry]) => entry),
+          size,
+        )
+      : null;
 
-    const result: Record<string, Uint8Array> = {};
     let budget = inflateBudget;
     // Stored entries are copied, not inflated: honest ones hold no more than the file between them, but directory
     // entries that all point at one stored blob copied it once each, N times a file of a few MB (2026-11-15 audit,
@@ -393,14 +475,13 @@ export function readZipEntries(
     for (const [name, entry] of readable) {
       if (entry.method === METHOD_STORE && entry.compressedSize > storedLeft) continue;
       try {
-        result[name] = readEntryData(fd, entry, window, budget);
-        if (entry.method === METHOD_DEFLATE) budget -= result[name].length;
-        else storedLeft -= result[name].length;
+        const bytes = take(name, fd, entry, window, budget);
+        if (entry.method === METHOD_DEFLATE) budget -= bytes;
+        else storedLeft -= bytes;
       } catch {
         /* One unreadable part is not a reason to lose the rest. */
       }
     }
-    return result;
   } finally {
     fs.closeSync(fd);
   }

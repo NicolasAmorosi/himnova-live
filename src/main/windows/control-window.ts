@@ -1,5 +1,6 @@
-import { app, BrowserWindow, screen } from "electron";
+import { BrowserWindow, screen } from "electron";
 import path from "node:path";
+import { loadPage } from "./load-page";
 import { mt } from "../i18n";
 import { showSheet } from "./sheet";
 import { trustWindow } from "../ipc/trusted-senders";
@@ -35,18 +36,10 @@ export function createControlWindow(): BrowserWindow {
   // window and only this one — see `broadcast.ts`.
   registerBroadcastTarget(win);
 
-  // electron-vite sets ELECTRON_RENDERER_URL in `electron-vite dev`; app.isPackaged
-  // is the production check. Both paths avoid the church-presenter bug of NODE_ENV
-  // never being set and dev always falling through to loadFile.
-  const devServerUrl = process.env["ELECTRON_RENDERER_URL"];
-    // `void`, not a `.catch`: a failed load is a startup failure with nothing
-    // useful to do about it here, and `unhandledRejection` below already
-    // writes it to `crash.log`.
-  if (!app.isPackaged && devServerUrl) {
-    void win.loadURL(devServerUrl);
-  } else {
-    void win.loadFile(path.join(__dirname, "../renderer/index.html"));
-  }
+  // `void`, not a `.catch`: a failed load is a startup failure with nothing
+  // useful to do about it here, and `unhandledRejection` below already
+  // writes it to `crash.log`.
+  void loadPage(win, "index.html");
 
   win.once("ready-to-show", () => win.show());
   // A dead page left the operator without controls for the rest of the service, with only quitting left, which took

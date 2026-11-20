@@ -70,6 +70,9 @@ export function startAudioRouteEffects(): () => void {
     const mine = ++request;
     const next = { live: settings[OUTPUT_KEY.live], preview: settings[OUTPUT_KEY.preview] };
     const outputs = audioOutputsOf(await media.enumerateDevices());
+    if (stopped || mine !== request) return;
+    // The pickers' list at once, without waiting for the engine below (it can take seconds to name the outputs).
+    useAudioRouteStore.setState({ outputs });
     const labels = new Set(outputs.devices.map((device) => device.label));
     for (const [label, entry] of refused) {
       if (!labels.has(label)) entry.gone = true;

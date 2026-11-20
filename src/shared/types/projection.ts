@@ -326,6 +326,10 @@ export function mediaTargetKey(target: MediaTarget): string {
   }
 }
 
+/** The two video slots' keys (the deck soundtrack's is in `audio.store`), declared once instead of in every reader. */
+export const VIDEO_STATUS_KEY = mediaTargetKey({ kind: "video" });
+export const SLIDE_VIDEO_STATUS_KEY = mediaTargetKey({ kind: "slideVideo" });
+
 /** Which element of the projection window failed. "scene" is the still image
  *  of an image/slide/logo output — the only one without a `MediaTarget`,
  *  because nothing ever commands it. */

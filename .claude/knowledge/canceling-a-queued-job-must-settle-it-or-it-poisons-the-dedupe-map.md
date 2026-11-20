@@ -38,7 +38,7 @@ Two consequences, and the second is the one that hurts:
    until the app restarts.
 
 Reachable from the "Cancel" button in `components/shared/deck-conversion-status.tsx` and from
-force-deleting an asset (`services/media-asset-removal.ts` calls `cancel`).
+force-deleting an asset (at the time; since the own readers, a deck has no conversion to cancel).
 
 ### The rule
 

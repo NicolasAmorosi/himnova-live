@@ -1,15 +1,12 @@
 import { useProjectionStore, type ProjectionStoreState } from "@renderer/stores/projection.store";
-import { DECK_SOUNDTRACK_TRACK_ID } from "@renderer/stores/audio.store";
+import { DECK_AUDIO_STATUS_KEY } from "@renderer/stores/audio.store";
 import {
   clearBaseContent,
   clearBaseContentUnder,
   endLiveContent,
   goLiveWithNextScheduleItem,
 } from "@renderer/lib/actions/playback";
-import { mediaTargetKey } from "@shared/types/projection";
-
-const VIDEO_STATUS_KEY = mediaTargetKey({ kind: "video" });
-const DECK_AUDIO_STATUS_KEY = mediaTargetKey({ kind: "audio", trackId: DECK_SOUNDTRACK_TRACK_ID });
+import { VIDEO_STATUS_KEY } from "@shared/types/projection";
 
 /**
  * A video or an auto-advancing deck that finished playing on its own — as

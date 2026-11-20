@@ -1,4 +1,3 @@
-import { useEffect, useState } from "react";
 import { useT } from "@renderer/lib/i18n/i18n-provider";
 import { useSettingsStore } from "@renderer/stores/settings.store";
 import { DEFAULT_AUDIO_OUT, type AudioBus, type AudioOut, type AudioOutputChoice } from "@shared/types/audio";
@@ -84,35 +83,6 @@ export function sameAudioOutput(
   if (device === null) return true;
   if (defaultDeviceId !== null) return device.deviceId === defaultDeviceId;
   return defaultGroupId !== null && device.groupId === defaultGroupId;
-}
-
-/** The outputs, read again whenever one is plugged in or out. Empty until Chromium answers, and where it has no
- *  `mediaDevices` at all. */
-export function useAudioOutputs(): AudioOutputs {
-  const [outputs, setOutputs] = useState<AudioOutputs>({ devices: [], defaultDeviceId: null, defaultGroupId: null });
-  useEffect(() => {
-    const media = navigator.mediaDevices as MediaDevices | undefined;
-    if (!media) return;
-    let current = true;
-    // A slower, older answer must not overwrite a newer one (two plug events in a row).
-    let latest = 0;
-    const read = () => {
-      const request = ++latest;
-      media.enumerateDevices().then(
-        (list) => {
-          if (current && request === latest) setOutputs(audioOutputsOf(list));
-        },
-        (error: unknown) => console.warn("[audio] could not list the outputs", error),
-      );
-    };
-    read();
-    media.addEventListener("devicechange", read);
-    return () => {
-      current = false;
-      media.removeEventListener("devicechange", read);
-    };
-  }, []);
-  return outputs;
 }
 
 const SYSTEM_DEFAULT = "";

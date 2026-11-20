@@ -33,6 +33,7 @@ import {
 import { goLive } from "@renderer/lib/actions/playback";
 import { relocateFolder } from "@renderer/lib/actions/relocate-asset";
 import { useDebouncedCallback } from "@renderer/lib/hooks/use-debounced-callback";
+import { folderName } from "@renderer/lib/media-view";
 import { findSong, sortSongs, useSongStore } from "@renderer/stores/song.store";
 import { useSettingsStore } from "@renderer/stores/settings.store";
 import { usePreviewStore } from "@renderer/stores/preview.store";
@@ -60,9 +61,6 @@ const SORT_LABEL_KEY: Record<SongSortOrder, MessageKey> = {
 
 /** The view of the library itself; any other is a linked folder's path. */
 const LIBRARY = "library";
-
-/** A folder's own name: its tail is what tells two folders apart. */
-const folderName = (folderPath: string) => folderPath.split(/[\\/]/).filter(Boolean).pop() ?? folderPath;
 
 /**
  * The Songs tab: the library, or one of the computer's folders linked to it,

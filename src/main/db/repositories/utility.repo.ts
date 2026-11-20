@@ -3,6 +3,7 @@ import Database from "better-sqlite3";
 import { IpcError } from "@shared/ipc/result";
 import type { Db } from "../client";
 import { utilityScenes } from "../schema";
+import { parseJson } from "../parse-json";
 import { normalizeSceneStyle, normalizeTimerConfig } from "@shared/scene-validators";
 import type { UtilityScene } from "@shared/types/utility";
 
@@ -28,16 +29,6 @@ function toScene(row: typeof utilityScenes.$inferSelect): UtilityScene {
     title: row.title,
     message: row.message,
   };
-}
-
-function parseJson(raw: string): unknown {
-  try {
-    return JSON.parse(raw) as unknown;
-  } catch {
-    // `null` is not a shape any normalizer accepts, so this lands on the
-    // defaults exactly like a structurally wrong object would.
-    return null;
-  }
 }
 
 /** The stored half of a scene, shared by insert and update. `tool` is a column

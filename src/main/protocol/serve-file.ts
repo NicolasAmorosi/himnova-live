@@ -78,13 +78,14 @@ function parseRange(
 /**
  * A file descriptor must never outlive its request.
  *
- * Chromium normally cancels the web stream when it is done (a seek abandons the
+ * Chromium cancels the web stream when it is done (a seek abandons the
  * previous range mid-read, and `<video>` issues a lot of those), and cancelling
- * it destroys the Node stream underneath. But that is the *only* thing that was
- * closing these descriptors: nothing was tied to `request.signal`, so a request
- * aborted before the body was consumed left the handle open, and a read error —
- * the USB drive holding a video unplugged mid-service, the exact scenario the
- * media-error notice exists for — was swallowed with no record anywhere.
+ * it destroys the Node stream underneath. That is the only thing closing these
+ * descriptors, and it is enough: `request.signal` never fires (measured on
+ * Electron 44 and again on 45.4.1, 2026-11-20: a `<video>` seeking 40 times and
+ * then dropped, 114 range requests over three runs, 0 aborts, every stream
+ * closed by the cancel, 0 descriptors left open). See
+ * `.claude/knowledge/electron-never-aborts-a-protocol-request-the-page-gave-up-on.md`.
  */
 /** A read the consumer walked away from, not a read that failed. `AbortError`
  *  is what `Readable.toWeb`'s cancel path destroys the stream with;
@@ -106,11 +107,7 @@ function isExpectedCancellation(error: unknown): boolean {
  *  bounded — `fs` never allocates past a range's `end` (see `serveFile`). */
 const READ_CHUNK_BYTES = 1024 * 1024;
 
-function streamFile(
-  filePath: string,
-  signal: AbortSignal | undefined,
-  range?: { start: number; end: number },
-): ReadableStream {
+function streamFile(filePath: string, range?: { start: number; end: number }): ReadableStream {
   const stream = range
     ? fs.createReadStream(filePath, { start: range.start, end: range.end, highWaterMark: READ_CHUNK_BYTES })
     : fs.createReadStream(filePath, { highWaterMark: READ_CHUNK_BYTES });
@@ -129,19 +126,6 @@ function streamFile(
     if (isExpectedCancellation(error)) return;
     console.error(`[worship] read failed: ${filePath}`, error);
   });
-
-  if (signal) {
-    if (signal.aborted) stream.destroy();
-    else {
-      const onAbort = (): void => {
-        stream.destroy();
-      };
-      signal.addEventListener("abort", onAbort, { once: true });
-      // Symmetric teardown: without this, a long-lived request's signal keeps
-      // the closure (and the stream with it) reachable after the file is done.
-      stream.once("close", () => signal.removeEventListener("abort", onAbort));
-    }
-  }
 
   return Readable.toWeb(stream) as ReadableStream;
 }
@@ -197,7 +181,7 @@ export async function serveFile(
     const length = range.end - range.start + 1;
     headers.set("Content-Range", `bytes ${range.start}-${range.end}/${size}`);
     headers.set("Content-Length", String(length));
-    return new Response(wantsBody ? streamFile(filePath, request.signal, range) : null, {
+    return new Response(wantsBody ? streamFile(filePath, range) : null, {
       status: 206,
       headers,
     });
@@ -208,7 +192,7 @@ export async function serveFile(
   // allocates a full `READ_CHUNK_BYTES` buffer per turn, which for a 40 KB
   // slide thumbnail is 1 MB of garbage per request.
   const whole = size > 0 ? { start: 0, end: size - 1 } : undefined;
-  return new Response(wantsBody ? streamFile(filePath, request.signal, whole) : null, {
+  return new Response(wantsBody ? streamFile(filePath, whole) : null, {
     status: 200,
     headers,
   });

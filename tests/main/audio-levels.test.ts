@@ -1,6 +1,6 @@
 /** The audio strips' meters, main's half (`media/audio-levels.ts`): each bus is the loudest of its sources after their
  *  gain, and the control windows hear it only while something sounds. */
-import { afterEach, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, expect, test, vi } from "vitest";
 
 const sent = vi.hoisted(() => [] as unknown[]);
 vi.mock("../../src/main/services/broadcast", () => ({ broadcast: (_channel: string, payload: unknown) => sent.push(payload) }));
@@ -8,7 +8,17 @@ vi.mock("../../src/main/services/broadcast", () => ({ broadcast: (_channel: stri
 const strips = vi.hoisted(() => ({ on: true }));
 vi.mock("../../src/main/services/repos", () => ({ getSettingsRepo: () => ({ get: () => strips.on }) }));
 
-const { heardAt, mixBuses, reportLevel } = await import("../../src/main/media/audio-levels");
+type AudioLevels = typeof import("../../src/main/media/audio-levels");
+let heardAt: AudioLevels["heardAt"];
+let mixBuses: AudioLevels["mixBuses"];
+let reportLevel: AudioLevels["reportLevel"];
+
+// A fresh module per test: the sources it heard and its timer are module state, and a test must not hear the last
+// one's sources (2026-11-15 audit, P7).
+beforeEach(async () => {
+  vi.resetModules();
+  ({ heardAt, mixBuses, reportLevel } = await import("../../src/main/media/audio-levels"));
+});
 
 afterEach(() => {
   vi.useRealTimers();

@@ -1,74 +1,28 @@
 import type { ReactNode } from "react";
-import { useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { cn } from "@renderer/lib/utils";
 
 type TooltipProps = {
-  /** Which edge the bubble hangs off of horizontally — "end" (default) keeps
-   *  it on-screen for a trigger near a panel's right end, "start" for one
-   *  near the left end. Every panel here (`Panel`, `shared/panel.tsx`) clips
-   *  overflow, so picking the wrong side renders the bubble past the clip
-   *  and it never becomes visible. Ignored when `floating` is set. */
+  /** Unused: the bubble is placed against the viewport and flips by itself.
+   *  Kept so the call sites written for the retired in-flow bubble still
+   *  compile. */
   align?: "start" | "end";
   children: ReactNode;
   className?: string;
   content: ReactNode;
-  /** How the floating bubble sizes itself. "text" (the default) wraps prose
-   *  at a readable measure; "path" keeps a filesystem path or a file name on
-   *  ONE line at its natural width, breaking mid-token only when it runs out
-   *  of viewport. A sentence under `path` becomes a single line the width of
-   *  the screen, which is how this bubble looked everywhere before the two
-   *  cases were told apart. Ignored without `floating`. */
+  /** How the bubble sizes itself. "text" (the default) wraps prose at a
+   *  readable measure; "path" keeps a filesystem path or a file name on ONE
+   *  line at its natural width, breaking mid-token only when it runs out of
+   *  viewport. A sentence under `path` becomes a single line the width of the
+   *  screen, which is how this bubble looked everywhere before the two cases
+   *  were told apart. */
   fit?: "text" | "path";
-  /** Renders the bubble through a portal to `document.body`, positioned in
-   *  viewport coordinates (clamped so it never crosses the screen edge)
-   *  instead of the in-flow CSS bubble — see `computeMenuPosition` for
-   *  the same pattern. Use it when an ancestor clips overflow (every `Panel`
-   *  does, and so does Settings' scrolling section), or when the content needs
-   *  to render at its natural width in a narrow column. */
+  /** Unused, see `align`: every tooltip floats now. */
   floating?: boolean;
-  /** Which side of the trigger the bubble opens toward — "bottom" (default)
-   *  for a trigger near a panel's top, "top" for one near a panel's bottom
-   *  (a `PanelFooter` button), for the same clipping reason as `align`.
-   *  Ignored when `floating` is set — it flips automatically instead. */
+  /** Unused, see `align`. */
   placement?: "top" | "bottom";
 };
-
-/**
- * Pure-CSS hover/focus tooltip — no portal, no library. `content` sits
- * absolutely positioned off the trigger and only becomes visible (and
- * hit-testable) on `:hover`/`:focus-visible`, so it never affects layout or
- * steals clicks while hidden.
- *
- * Uses `focus-visible` rather than `focus-within`: a `<button>` keeps focus
- * after a mouse click (not just after Tab), so `focus-within` left the
- * bubble stuck open post-click until the user focused something else.
- * `focus-visible` only engages for keyboard focus, so Tab navigation still
- * reveals the tooltip while a click dismisses it immediately.
- *
- * And a trigger whose menu or list is open (`aria-expanded="true"`) shows no
- * bubble: it sat over the menu it had just opened (owner, 2026-11-05).
- */
-export function Tooltip(props: TooltipProps) {
-  if (props.floating) return <FloatingTooltip {...props} />;
-
-  const { align = "end", children, className, content, placement = "bottom" } = props;
-  return (
-    <span className={cn("group relative inline-flex", className)}>
-      {children}
-      <span
-        className={cn(
-          "pointer-events-none absolute z-[var(--z-raised)] w-64 rounded-md border border-border bg-card p-2 text-xs text-foreground opacity-0 shadow-raised transition-opacity group-hover:opacity-100 group-has-[:focus-visible]:opacity-100 group-has-[[aria-expanded=true]]:opacity-0!",
-          placement === "top" ? "bottom-full mb-1.5" : "top-full mt-1.5",
-          align === "start" ? "left-0" : "right-0",
-        )}
-        role="tooltip"
-      >
-        {content}
-      </span>
-    </span>
-  );
-}
 
 // Kept clear of the viewport edge, and of the trigger itself.
 const VIEWPORT_MARGIN = 8;
@@ -83,7 +37,30 @@ const fits: Record<"text" | "path", string> = {
   path: "max-w-[calc(100vw-1rem)] break-all",
 };
 
-function FloatingTooltip({ children, className, content, fit = "text" }: TooltipProps) {
+/** What a tooltip describes: the control inside it, else whatever it wraps (a status dot, a badge). */
+const DESCRIBED = "button, [href], input, select, textarea, [tabindex]:not([tabindex='-1'])";
+
+/**
+ * A hover/focus bubble, rendered through a portal to `document.body` and
+ * positioned in viewport coordinates (clamped so it never crosses the screen
+ * edge; see `computeMenuPosition` for the same pattern): every `Panel` clips
+ * its overflow, and so does Settings' scrolling section and Welcome's folder
+ * list. The in-flow CSS bubble this replaced lived in the DOM even while
+ * hidden, so a screen reader read it, it counted for scroll and it was clipped
+ * (2026-11-15 audit, X16).
+ *
+ * Opens on hover and on KEYBOARD focus only (`:focus-visible`): a `<button>`
+ * keeps focus after a mouse click, and a bubble on any focus stayed stuck
+ * open after the click. A trigger whose menu or list is open
+ * (`aria-expanded="true"`) shows no bubble: it sat over the menu it had just
+ * opened (owner, 2026-11-05). Esc closes it.
+ *
+ * The text is also the control's description (`aria-describedby`, onto a
+ * `hidden` copy that is always there): the shortcuts Enter, B and L were only
+ * ever said in the bubble.
+ */
+export function Tooltip({ children, className, content, fit = "text" }: TooltipProps) {
+  const descriptionId = useId();
   const [open, setOpen] = useState(false);
   const [position, setPosition] = useState<BubblePosition | null>(null);
   const triggerRef = useRef<HTMLSpanElement>(null);
@@ -132,9 +109,30 @@ function FloatingTooltip({ children, className, content, fit = "text" }: Tooltip
       setOpen(false);
       setPosition(null);
     };
+    // Esc dismisses the bubble, and is NOT used up by it: the bubble shows
+    // whenever the pointer rests on a control, as it does after clicking one,
+    // so taking the key would make leaving an editor or Settings take two
+    // presses. A menu or a palette is what takes an Esc of its own (U2, U3).
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") hide();
+    };
     window.addEventListener("blur", hide);
-    return () => window.removeEventListener("blur", hide);
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => {
+      window.removeEventListener("blur", hide);
+      window.removeEventListener("keydown", onKeyDown, true);
+    };
   }, [open]);
+
+  // Set on the DOM rather than passed as a prop: the control is whatever the
+  // call site wrapped, and `Menu` keeps its trigger to itself.
+  useEffect(() => {
+    const trigger = triggerRef.current;
+    const target = trigger?.querySelector(DESCRIBED) ?? trigger?.firstElementChild;
+    if (!target) return;
+    const ids = target.getAttribute("aria-describedby")?.split(" ") ?? [];
+    if (!ids.includes(descriptionId)) target.setAttribute("aria-describedby", [...ids, descriptionId].join(" "));
+  });
 
   /** Not over an open menu: the trigger's own list says what it is. */
   const show = () => {
@@ -171,6 +169,13 @@ function FloatingTooltip({ children, className, content, fit = "text" }: Tooltip
       ref={triggerRef}
     >
       {children}
+      {/* In `body`, not here: inside the trigger it would join the text of every row and token that holds one. */}
+      {createPortal(
+        <span hidden id={descriptionId}>
+          {content}
+        </span>,
+        document.body,
+      )}
       {open
         ? createPortal(
             <span
