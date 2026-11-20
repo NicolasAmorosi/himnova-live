@@ -357,13 +357,14 @@ test("the NDI output goes on through a control reload: every frame, and every be
 });
 
 /** The control window's page, read from main: after a crash Playwright's own handle on it is gone. A script sent
- *  while the page is dying never answers, so each try gives up after a second. */
+ *  while the page is dying never answers (Electron 44) or rejects with «Render frame was disposed» (45), so each try
+ *  gives up after a second or on that rejection. */
 const controlPage = (app: WorshipApp, script: string) =>
   app.electron.evaluate(({ BrowserWindow }, script) => {
     const control = BrowserWindow.getAllWindows().find((win) => win.webContents.getURL().endsWith("/index.html"));
     if (!control || control.webContents.isCrashed() || control.webContents.isLoading()) return null;
     return Promise.race([
-      control.webContents.executeJavaScript(script) as Promise<unknown>,
+      (control.webContents.executeJavaScript(script) as Promise<unknown>).catch(() => null),
       new Promise((resolve) => setTimeout(() => resolve(null), 1000)),
     ]);
   }, script);
