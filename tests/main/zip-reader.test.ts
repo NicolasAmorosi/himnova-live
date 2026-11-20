@@ -12,7 +12,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, test, vi } from "vitest";
 import { strFromU8, strToU8, zipSync } from "fflate";
-import { ZipFormatError, readZipEntries } from "../../src/main/slides/zip-reader";
+import { ZipFormatError, copyZipEntries, readZipEntries } from "../../src/main/slides/zip-reader";
 
 const XML = '<?xml version="1.0"?><p:presentation><p:sldSz cx="9144000" cy="6858000"/></p:presentation>';
 /** Incompressible, so the stored copy on disk really is this big. */
@@ -223,5 +223,52 @@ test("stored entries copy no more than the file holds in all, however many entri
   const out = readZipEntries(file, () => true);
   expect(out["a.mp4"]!.length).toBe(blob.length);
   expect(Object.keys(out)).toEqual(["a.mp4"]);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+// 2026-11-15 audit, R20: a deck's clips are copied to disk one entry at a time, and S10's budgets still run across the
+// whole call: deflated bytes past the budget, a part inflating past the size it declares, and stored entries past the
+// file's size are each skipped, and leave no file behind.
+test("copying entries to disk keeps every budget of a read", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "worship-zip-copy-"));
+  const file = path.join(dir, "deck.pptx");
+  const mb = new Uint8Array(1024 * 1024);
+  const blob = new Uint8Array(1024 * 1024).fill(7);
+  const zip = Buffer.from(
+    zipSync({
+      "a.xml": mb,
+      "b.xml": mb,
+      "video.mp4": [blob, { level: 0 }],
+      "c.xml": mb,
+      "twin.mp4": [new Uint8Array(1), { level: 0 }],
+      "liar.xml": [new Uint8Array(64 * 1024).fill(0x61), { level: 9 }],
+    }),
+  );
+  for (let at = 0; at < zip.length - 46; at++) {
+    if (zip.readUInt32LE(at) !== 0x02014b50) continue;
+    const name = zip.subarray(at + 46, at + 46 + zip.readUInt16LE(at + 28)).toString();
+    // `twin` says it is `video`'s bytes, at `video`'s offset; `liar` declares 1000 bytes of its 64 KB.
+    if (name === "twin.mp4") {
+      const video = zip.indexOf(Buffer.from("video.mp4"), 0);
+      zip.writeUInt32LE(blob.length, at + 20);
+      zip.writeUInt32LE(blob.length, at + 24);
+      zip.writeUInt32LE(video - 30, at + 42);
+    }
+    if (name === "liar.xml") zip.writeUInt32LE(1000, at + 24);
+  }
+  fs.writeFileSync(file, zip);
+  const out = path.join(dir, "out");
+  fs.mkdirSync(out);
+  // The deflated three need 3 MB; the budget leaves 2.5. The file holds one blob, not two.
+  const written = copyZipEntries(file, (name) => path.join(out, name), undefined, 2.5 * 1024 * 1024);
+  expect([...written]).toEqual([
+    ["a.xml", mb.length],
+    ["b.xml", mb.length],
+    ["video.mp4", blob.length],
+  ]);
+  expect(fs.readdirSync(out).sort()).toEqual(["a.xml", "b.xml", "video.mp4"]);
+  expect(fs.readFileSync(path.join(out, "video.mp4")).equals(Buffer.from(blob))).toBe(true);
+  // Asked alone, `twin` copies: what skipped it above was the file's size, spent on `video`.
+  expect([...copyZipEntries(file, (name) => (name === "twin.mp4" ? path.join(out, name) : null))]).toEqual([["twin.mp4", blob.length]]);
   fs.rmSync(dir, { recursive: true, force: true });
 });

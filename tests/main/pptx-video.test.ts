@@ -15,8 +15,8 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { afterAll, beforeAll, describe, expect, test } from "vitest";
-import { zipSync, strToU8 } from "fflate";
+import { afterAll, beforeAll, describe, expect, test, vi } from "vitest";
+import { zipSync, strToU8, type ZippableFile } from "fflate";
 import { extractVideoParts, readPresentationMeta } from "../../src/main/slides/pptx-metadata";
 
 /** 16:9 at PowerPoint's own EMU scale — the size the fixture's rects are
@@ -120,8 +120,8 @@ function relsXml(entries: { id: string; type: string; target: string; external?:
 let dir: string;
 
 /** Writes a `.pptx` whose slide parts are exactly what the caller passed. */
-function writeDeck(name: string, slides: { xml: string; rels: string }[], media: Record<string, Uint8Array>): string {
-  const files: Record<string, Uint8Array> = {
+function writeDeck(name: string, slides: { xml: string; rels: string }[], media: Record<string, ZippableFile>): string {
+  const files: Record<string, ZippableFile> = {
     "[Content_Types].xml": strToU8(CONTENT_TYPES),
     "ppt/presentation.xml": strToU8(presentationXml(slides.length)),
     "ppt/_rels/presentation.xml.rels": strToU8(presentationRels(slides.length)),
@@ -224,6 +224,35 @@ describe("a video embedded in a slide", () => {
 
     const extracted = extractVideoParts(file, readPresentationMeta(file).video, path.join(dir, "out-wmv"));
     expect(extracted[0]).toMatchObject({ ext: "wmv", playable: false });
+  });
+
+  // 2026-11-15 audit, R20: every clip of a deck used to be read whole, all of them at once, before the first was
+  // written (~2.2 times the media in memory; a stored 1 GB video read whole).
+  test("a stored clip is copied by blocks, never read whole, and a clip on two slides comes out twice", () => {
+    const clip = new Uint8Array(5 * 1024 * 1024).map((_, i) => (i * 31) & 0xff);
+    const slide = {
+      xml: slideXml(videoPicXml({ shapeId: 4, relId: "rId1", xfrm: { x: 0, y: 0, cx: SLIDE_CX, cy: SLIDE_CY } }), ""),
+      rels: relsXml([{ id: "rId1", type: "video", target: "../media/media1.mp4" }]),
+    };
+    const file = writeDeck("stored.pptx", [slide, slide], { "ppt/media/media1.mp4": [clip, { level: 0 }] });
+    const refs = readPresentationMeta(file).video;
+    const destDir = path.join(dir, "out-stored");
+
+    const spy = vi.spyOn(fs, "readSync");
+    let extracted: ReturnType<typeof extractVideoParts>;
+    let reads: number[];
+    try {
+      extracted = extractVideoParts(file, refs, destDir);
+      // `readSync(fd, buffer, offset, length, position)`: the length of every read.
+      reads = spy.mock.calls.map((call) => Number((call as unknown[])[3]));
+    } finally {
+      spy.mockRestore();
+    }
+
+    expect(reads.length).toBeGreaterThan(0);
+    expect(Math.max(...reads)).toBeLessThanOrEqual(1024 * 1024);
+    expect(extracted.map(({ file, bytes }) => [file, bytes])).toEqual([["1.mp4", clip.length], ["2.mp4", clip.length]]);
+    for (const out of ["1.mp4", "2.mp4"]) expect(fs.readFileSync(path.join(destDir, out)).equals(Buffer.from(clip))).toBe(true);
   });
 });
 
