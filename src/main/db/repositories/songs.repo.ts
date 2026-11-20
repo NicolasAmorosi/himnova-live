@@ -5,19 +5,12 @@ import type { Db } from "../client";
 import { songs, songThemes, songUses } from "../schema";
 import { DraftRepo } from "./draft.repo";
 import { toFtsQuery } from "../fts-query";
+import { parseJson } from "../parse-json";
 import { IpcError } from "@shared/ipc/result";
 import { normalizeOrder, normalizeSections, normalizeSongTheme } from "@shared/song-validators";
 import { songLyricsText, translationByLine, translationSections, withTranslation } from "@shared/song-text";
 import { SONG_FILE_LIMITS, type SongFileFormat } from "@shared/song-file-limits";
 import type { Song, SongSearchHit, SongTheme, SongThemeRow, SongUpsert, SongUse } from "@shared/types/song";
-
-function parseJson(raw: string): unknown {
-  try {
-    return JSON.parse(raw) as unknown;
-  } catch {
-    return null;
-  }
-}
 
 /** A row as a `Song`, whatever it holds: a section that is not whole costs
  *  that section, never the song or the boot. */
