@@ -1,7 +1,8 @@
 import { useT } from "@renderer/lib/i18n/i18n-provider";
 import { Caption, FieldGroup, FieldRow, Select, Slider, Switch } from "@renderer/components/ui";
 import { setAudioStrips } from "@renderer/lib/actions/audio-strips";
-import { useAudioOutputPicker, useAudioOutputs, type AudioOutputs } from "@renderer/lib/hooks/use-audio-outputs";
+import { useAudioOutputPicker, type AudioOutputs } from "@renderer/lib/hooks/use-audio-outputs";
+import { useAudioRouteStore } from "@renderer/stores/audio-route.store";
 import { useSettingsStore } from "@renderer/stores/settings.store";
 import type { AudioBus } from "@shared/types/audio";
 
@@ -66,7 +67,7 @@ function OutputRow({ bus, outputs }: { bus: AudioBus; outputs: AudioOutputs }) {
  */
 export function AudioOutputsGroup({ essentials = false }: { essentials?: boolean }) {
   const t = useT();
-  const outputs = useAudioOutputs();
+  const outputs = useAudioRouteStore((s) => s.outputs);
   const ndi = useSettingsStore((s) => s.settings["ndi.output.enabled"]);
   return (
     <FieldGroup title={t("settings.groups.outputs")}>
