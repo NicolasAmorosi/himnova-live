@@ -328,6 +328,24 @@ describe("the video underlay survives the overlay", () => {
     expect(output().slideVideo?.volume).toBeCloseTo(0.3, 6);
   });
 
+  test("on what has no video of its own, a move of the LIVE master is not a new output (audit R16)", () => {
+    // Every step of LIVE's fader over a verse sent the same picture to the projector, the NDI copy and the stage.
+    const store = useProjectionStore.getState();
+    const moveMaster = (volume: number) => {
+      const before = selectOutputMemo(useProjectionStore.getState());
+      store.setLiveMasterVolume(volume);
+      return selectOutputMemo(useProjectionStore.getState()) === before;
+    };
+    store.setBase({ kind: "bible", text: "Jesús lloró.", reference: "Juan 11:35", versionLabel: null });
+    expect(moveMaster(0.5)).toBe(true);
+    store.setLiveDeck(deckOf(9, 2, [slideVideoOn(2)]));
+    store.setBase({ kind: "deck", assetId: 9, slideIndex: 1 });
+    expect(moveMaster(0.4)).toBe(true);
+    // The slide with the clip: its level is the master's too.
+    store.setBase({ kind: "deck", assetId: 9, slideIndex: 2 });
+    expect(moveMaster(0.3)).toBe(false);
+  });
+
   test("anything that is not a video has no underlay", () => {
     useProjectionStore.getState().setBase({ kind: "image", assetId: 3 });
     expect(output().videoUnderlay).toBeNull();

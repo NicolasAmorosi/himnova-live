@@ -111,7 +111,7 @@ SlideView (React, components/shared/slide-view/) ◄── worship://deck/<id>/<
   ships, or the system's sans-serif by default — one for every face, owner 2026-10-28), placed after
   the file's face and its twins, never instead of them. It and `ui.locale` (the language chart
   numbers are written in — the interface's, not the system's) reach the slide as `SlideTextSettings`:
-  `App` mirrors them into `projection.store`, every `slide` output carries them (the projector has
+  `effects/settings-mirror.ts` mirrors them into `projection.store`, every `slide` output carries them (the projector has
   no settings), and `SlideView` hands them down through `SlideTextContext`. Changing either restyles
   a live slide in place, with no transition.
 - **What the show hides stays hidden**: a sound or video set to «Hide during show» (its media node

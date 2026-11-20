@@ -5,6 +5,7 @@ import { hasUnsavedChanges, toUpsertItems } from "@renderer/lib/actions/programs
 import { useAudioStore } from "@renderer/stores/audio.store";
 import { useProgramStore } from "@renderer/stores/program.store";
 import { useProjectionStore } from "@renderer/stores/projection.store";
+import { flushSettings } from "@renderer/stores/settings.store";
 import { useUiStore, type CloseGuardReasons } from "@renderer/stores/ui.store";
 import type { ProgramDraft } from "@shared/types/program";
 import { commitPendingRemovals } from "@renderer/lib/actions/remove-asset";
@@ -80,6 +81,7 @@ function soundOnAir(): string | null {
  *  the same way. */
 export function quitRisks(): CloseGuardReasons | null {
   flushDraft();
+  flushSettings();
   const unsaved = hasUnsavedChanges();
   const editor = useUiStore.getState().unsavedEditors > 0;
   const onAir = isOnAir();
