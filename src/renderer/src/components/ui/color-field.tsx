@@ -42,24 +42,13 @@ const PICKER_WIDTH_PX = 232;
 /** Exactly `#rrggbb` — the one canonical form the row validator accepts. */
 const HEX = /^#[0-9a-fA-F]{6}$/;
 
-type ColorFieldSize = "xs" | "sm";
-
 type ColorFieldProps = {
   className?: string;
   /** Accessible name of the trigger: it shows a swatch and a hex, neither of
    *  which says WHICH colour of the scene this is. */
   label: string;
   onChange: (value: string) => void;
-  /** The same scale as `Input` and `Select`, so a colour sitting in a
-   *  `FieldRow` next to a dropdown lines up with it instead of being the one
-   *  short control in the group. */
-  size?: ColorFieldSize;
   value: string;
-};
-
-const sizes: Record<ColorFieldSize, string> = {
-  xs: "h-7 px-2 text-xs",
-  sm: "h-8 px-3 text-sm",
 };
 
 /**
@@ -76,7 +65,7 @@ const sizes: Record<ColorFieldSize, string> = {
  * one a designer handed over. Both commit only a valid `#rrggbb`, so the row
  * never holds a half-typed value.
  */
-export function ColorField({ className, label, onChange, size = "sm", value }: ColorFieldProps) {
+export function ColorField({ className, label, onChange, value }: ColorFieldProps) {
   const t = useT();
   const presetName = (preset: ColorPreset) => t(preset.labelKey);
   const [open, setOpen] = useState(false);
@@ -148,8 +137,8 @@ export function ColorField({ className, label, onChange, size = "sm", value }: C
         aria-haspopup="dialog"
         aria-label={label}
         className={cn(
-          "focus-ring flex cursor-pointer items-center gap-2 rounded-md border border-border bg-surface text-foreground transition-colors hover:border-accent disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:border-border",
-          sizes[size],
+          // `Input`'s and `Select`'s `sm`: beside a dropdown in a `FieldRow` it lines up with it.
+          "focus-ring flex h-8 cursor-pointer items-center gap-2 rounded-md border border-border bg-surface px-3 text-sm text-foreground transition-colors hover:border-accent disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:border-border",
           open && "border-accent",
           className,
         )}

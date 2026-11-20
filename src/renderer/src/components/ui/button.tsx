@@ -2,7 +2,7 @@ import { Children, type ButtonHTMLAttributes, type ReactNode, type Ref } from "r
 import { cn } from "@renderer/lib/utils";
 
 type ButtonVariant = "primary" | "outline" | "ghost" | "danger" | "live" | "link";
-type ButtonSize = "xs" | "sm" | "md" | "lg";
+type ButtonSize = "xs" | "sm";
 
 type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   loading?: boolean;
@@ -70,15 +70,11 @@ const disabledVariants: Record<ButtonVariant, string> = {
 const linkSizes: Record<ButtonSize, string> = {
   xs: "text-xs",
   sm: "text-sm",
-  md: "text-sm",
-  lg: "text-base",
 };
 
 const sizes: Record<ButtonSize, string> = {
   xs: "h-7 px-2 text-xs gap-1",
   sm: "h-8 px-3 text-sm gap-1.5",
-  md: "h-10 px-4 text-sm gap-2",
-  lg: "h-12 px-5 text-base gap-2",
 };
 
 /** Puts each run of text children in its own `truncate` span. A bare text

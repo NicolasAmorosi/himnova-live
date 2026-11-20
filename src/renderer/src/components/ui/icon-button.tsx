@@ -4,7 +4,7 @@ import { cn } from "@renderer/lib/utils";
 /** Two looks only (2026-11-04 redesign, F4b): an icon button is a tool, never
  *  the main action of a surface — that is a `Button` with its word. */
 type IconButtonVariant = "outline" | "ghost";
-type IconButtonSize = "xs" | "sm" | "md";
+type IconButtonSize = "xs" | "sm";
 
 type IconButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   /** Required: an icon is all a sighted user gets, and nothing at all for a
@@ -28,7 +28,6 @@ export const TOGGLED_CLASS = "border-accent bg-accent text-accent-foreground hov
 const sizes: Record<IconButtonSize, string> = {
   xs: "size-6",
   sm: "size-8",
-  md: "size-10",
 };
 
 export function IconButton({
