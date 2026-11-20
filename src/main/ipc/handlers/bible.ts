@@ -9,15 +9,8 @@ import { bundledBibleDTOs } from "../../db/seed/bundled-bibles";
 import { IpcError } from "@shared/ipc/result";
 import { isBibleLanguage, isBibleVersionName } from "@shared/types/bible";
 import { biblesDir } from "../../paths";
-import type { Db } from "../../db/client";
-import type Database from "better-sqlite3";
 import { showOpenDialogFor } from "../open-dialog";
 import { mt } from "../../i18n";
-
-let dbRef: { db: Db; sqlite: Database.Database } | null = null;
-export function setBibleDb(db: Db, sqlite: Database.Database): void {
-  dbRef = { db, sqlite };
-}
 
 export const bibleHandlers: Pick<
   Handlers,
@@ -57,7 +50,7 @@ export const bibleHandlers: Pick<
       properties: ["openFile"],
       filters: bibleImportFilters(),
     });
-    if (result.canceled || result.filePaths.length === 0 || !dbRef) return null;
+    if (result.canceled || result.filePaths.length === 0) return null;
 
     const filePath = result.filePaths[0]!;
     const fallbackName = path.basename(filePath, path.extname(filePath));
@@ -125,7 +118,6 @@ export const bibleHandlers: Pick<
   // Lands at the bottom of the list like an import (`nextSortOrder`); the
   // control window blocks a second click on the row while this runs.
   "bible:installBundled": async ({ code }) => {
-    if (!dbRef) throw new IpcError({ code: "DB_NOT_READY", message: "Database not ready" });
     const { filePath, options } = bundledSeedFor(biblesDir, code);
     const seeded = await seedBibleOffThread(filePath, options);
     const version = seeded ? getBibleRepo().getVersion(seeded.versionId) : null;

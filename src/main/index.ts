@@ -31,7 +31,6 @@ import {
 } from "./services/migrate-legacy-data";
 import { importPaths } from "./services/library-import";
 import { quitWaitForSongSaves } from "./services/song-files";
-import { setBibleDb } from "./ipc/handlers/bible";
 import { registerAllIpcHandlers } from "./ipc";
 import { isTrustedSender } from "./ipc/trusted-senders";
 import { relaunchOnQuit } from "./ipc/handlers/backups";
@@ -160,7 +159,6 @@ function initDatabase(): boolean {
     getSettingsRepo().setMany({ "library.linkedFolders": systemLinkedFolders() });
   }
   setMainLocale(getSettingsRepo().get("ui.locale"));
-  setBibleDb(db, sqlite);
   // After `initRepos` now, and for the same reason the utility seed below is:
   // it reads `bible.builtinSeeded`, which is what keeps a deleted RV1909
   // deleted across launches. After the locale too: a new profile gets the
