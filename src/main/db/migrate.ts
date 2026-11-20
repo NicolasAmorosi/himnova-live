@@ -104,6 +104,11 @@ export function dailyBackup(dbFilePath: string, dailyDir: string, now = new Date
   return takeSnapshot(dbFilePath, dailyDir, 7, now);
 }
 
+/** How far ahead of `now` a copy may be dated and still count as taken now. A file's `mtimeMs` has a fraction of a
+ *  millisecond and `Date` does not: a copy written in the same millisecond as `now` was «from the future», and a
+ *  second call right after the first took another (Vitest, 1 run in 13 on a loaded Mac, 2026-11-19 and 2026-11-20). */
+const CLOCK_SLACK_MS = 60_000;
+
 /** Whether the newest copy in `dailyDir` is a day old, or there is none. A newest copy dated in the future (a clock
  *  set back) counts as stale, or none would ever be taken. A few `stat`s: main asks before starting the thread. */
 export function dailyBackupDue(dailyDir: string, now = new Date()): boolean {
@@ -112,7 +117,7 @@ export function dailyBackupDue(dailyDir: string, now = new Date()): boolean {
     Number.NEGATIVE_INFINITY,
   );
   const age = now.getTime() - newest;
-  return !(age >= 0 && age < DAY_MS);
+  return !(age >= -CLOCK_SLACK_MS && age < DAY_MS);
 }
 
 export function listBackups(dir: string): string[] {
