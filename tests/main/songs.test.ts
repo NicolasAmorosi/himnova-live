@@ -21,7 +21,7 @@ import { decodeText } from "../../src/main/decode-text";
 import { getSongsRepo, initRepos } from "../../src/main/services/repos";
 import { listSongFolder, writeSongFile } from "../../src/main/services/song-files";
 import { importSongFiles } from "../../src/main/services/song-import";
-import { removeSong } from "../../src/main/services/song-removal";
+import { removeSong } from "../../src/main/services/removal";
 import { readOpenLyrics } from "../../src/main/songs/openlp";
 import { readSongText } from "../../src/main/songs/text-files";
 import {

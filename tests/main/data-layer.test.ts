@@ -37,9 +37,8 @@ import { DEFAULT_SETTINGS, SETTINGS_VALIDATORS, isSettingsKey } from "../../src/
 import { BUILTIN_BIBLE_CODE, SLIDES_CONVERTER_VERSION, SLIDES_MODEL_VERSION, SLIDES_NATIVE_VERSION } from "../../src/shared/constants";
 import { defaultUtilityScenes } from "../../src/shared/types/utility";
 import mainEs from "../../src/main/i18n/messages/es";
-import { removeUtilityScene } from "../../src/main/services/utility-scene-removal";
+import { removeOverlayPlate, removeUtilityScene } from "../../src/main/services/removal";
 import { upsertFile } from "./support/upsert-file";
-import { removeOverlayPlate } from "../../src/main/services/overlay-plate-removal";
 import { DEFAULT_PLATE_STYLE, type Plate } from "../../src/shared/types/overlay";
 import { IpcError } from "../../src/shared/ipc/result";
 import type { UtilityScene } from "../../src/shared/types/utility";

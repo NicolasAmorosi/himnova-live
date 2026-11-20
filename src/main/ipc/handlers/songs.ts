@@ -1,6 +1,6 @@
 import type { Handlers } from "../register";
 import { getProgramsRepo, getSettingsRepo, getSongsRepo } from "../../services/repos";
-import { removeSong } from "../../services/song-removal";
+import { removeSong } from "../../services/removal";
 import { importSongFiles } from "../../services/song-import";
 import { listSongFolder, saveSong } from "../../services/song-files";
 import { exportSongUsage } from "../../services/song-usage";
