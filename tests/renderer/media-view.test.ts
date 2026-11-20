@@ -35,13 +35,13 @@ describe("sortAssets", () => {
     // The case the whole collator exists for: a real hymnal folder. Plain
     // string comparison puts "Himno 100" between 10 and 2.
     const list = [asset({ name: "Himno 100" }), asset({ name: "Himno 2" }), asset({ name: "Himno 10" })];
-    expect(names(sortAssets(list, "name-asc"))).toEqual(["Himno 2", "Himno 10", "Himno 100"]);
-    expect(names(sortAssets(list, "name-desc"))).toEqual(["Himno 100", "Himno 10", "Himno 2"]);
+    expect(names(sortAssets(list, "name-asc", "library", "es"))).toEqual(["Himno 2", "Himno 10", "Himno 100"]);
+    expect(names(sortAssets(list, "name-desc", "library", "es"))).toEqual(["Himno 100", "Himno 10", "Himno 2"]);
   });
 
   test("an accent does not banish a name past Z", () => {
     const list = [asset({ name: "Biblia" }), asset({ name: "Ángeles" }), asset({ name: "culto" })];
-    expect(names(sortAssets(list, "name-asc"))).toEqual(["Ángeles", "Biblia", "culto"]);
+    expect(names(sortAssets(list, "name-asc", "library", "es"))).toEqual(["Ángeles", "Biblia", "culto"]);
   });
 
   test("date is when the file joined the library, not the file's own mtime", () => {
@@ -50,8 +50,8 @@ describe("sortAssets", () => {
       asset({ id: 2, name: "nuevo", mtimeMs: 100, createdAt: 300 }),
       asset({ id: 3, name: "medio", mtimeMs: null, createdAt: 200 }),
     ];
-    expect(names(sortAssets(list, "date-desc"))).toEqual(["nuevo", "medio", "viejo"]);
-    expect(names(sortAssets(list, "date-asc"))).toEqual(["viejo", "medio", "nuevo"]);
+    expect(names(sortAssets(list, "date-desc", "library", "es"))).toEqual(["nuevo", "medio", "viejo"]);
+    expect(names(sortAssets(list, "date-asc", "library", "es"))).toEqual(["viejo", "medio", "nuevo"]);
   });
 
   test("one import shares a timestamp: the id keeps the order they came in", () => {
@@ -60,8 +60,8 @@ describe("sortAssets", () => {
       asset({ id: 1, name: "c", createdAt: 500 }),
       asset({ id: 2, name: "b", createdAt: 500 }),
     ];
-    expect(names(sortAssets(list, "date-asc"))).toEqual(["c", "b", "a"]);
-    expect(names(sortAssets(list, "date-desc"))).toEqual(["a", "b", "c"]);
+    expect(names(sortAssets(list, "date-asc", "library", "es"))).toEqual(["c", "b", "a"]);
+    expect(names(sortAssets(list, "date-desc", "library", "es"))).toEqual(["a", "b", "c"]);
   });
 
   test("a linked folder goes by the files' own dates: nothing in it was added", () => {
@@ -71,8 +71,8 @@ describe("sortAssets", () => {
       // Never stat'd: the row's date rather than 1970.
       asset({ id: 3, name: "sin-mtime", mtimeMs: null, createdAt: 200 }),
     ];
-    expect(names(sortAssets(list, "date-desc", "file"))).toEqual(["nuevo", "sin-mtime", "viejo"]);
-    expect(names(sortAssets(list, "date-asc", "file"))).toEqual(["viejo", "sin-mtime", "nuevo"]);
+    expect(names(sortAssets(list, "date-desc", "file", "es"))).toEqual(["nuevo", "sin-mtime", "viejo"]);
+    expect(names(sortAssets(list, "date-asc", "file", "es"))).toEqual(["viejo", "sin-mtime", "nuevo"]);
   });
 
   test("a folder copied in one go ties by name A → Z in BOTH date orders, as the size orders do", () => {
@@ -81,26 +81,33 @@ describe("sortAssets", () => {
       asset({ id: 1, name: "Himno 10", mtimeMs: 5000 }),
       asset({ id: 2, name: "Himno 1", mtimeMs: 5000 }),
     ];
-    expect(names(sortAssets(folder, "date-desc", "file"))).toEqual(["Himno 1", "Himno 2", "Himno 10"]);
-    expect(names(sortAssets(folder, "date-asc", "file"))).toEqual(["Himno 1", "Himno 2", "Himno 10"]);
+    expect(names(sortAssets(folder, "date-desc", "file", "es"))).toEqual(["Himno 1", "Himno 2", "Himno 10"]);
+    expect(names(sortAssets(folder, "date-asc", "file", "es"))).toEqual(["Himno 1", "Himno 2", "Himno 10"]);
   });
 
   test("a size tie falls back to the name", () => {
     const list = [asset({ name: "c" }), asset({ name: "a" }), asset({ name: "b" })];
-    expect(names(sortAssets(list, "size-desc"))).toEqual(["a", "b", "c"]);
+    expect(names(sortAssets(list, "size-desc", "library", "es"))).toEqual(["a", "b", "c"]);
   });
 
   test("a null size counts as zero rather than dropping the file", () => {
     const list = [asset({ name: "grande", sizeBytes: 900 }), asset({ name: "desconocido", sizeBytes: null })];
-    expect(names(sortAssets(list, "size-desc"))).toEqual(["grande", "desconocido"]);
-    expect(names(sortAssets(list, "size-asc"))).toEqual(["desconocido", "grande"]);
+    expect(names(sortAssets(list, "size-desc", "library", "es"))).toEqual(["grande", "desconocido"]);
+    expect(names(sortAssets(list, "size-asc", "library", "es"))).toEqual(["desconocido", "grande"]);
+  });
+
+  test("names sort in the interface's language, as Songs and Functions do (2026-11-15 audit, X6)", () => {
+    // Fixed to Spanish, «ñ» came after «n» in every language.
+    const list = [asset({ name: "nube" }), asset({ name: "ñandú" })];
+    expect(names(sortAssets(list, "name-asc", "library", "es"))).toEqual(["nube", "ñandú"]);
+    expect(names(sortAssets(list, "name-asc", "library", "en"))).toEqual(["ñandú", "nube"]);
   });
 
   test("the input array is never reordered in place", () => {
     // It is the library store's own copy of the view: sorting it there would
     // change what every other subscriber sees, with nothing notified.
     const list = [asset({ name: "b" }), asset({ name: "a" })];
-    const sorted = sortAssets(list, "name-asc");
+    const sorted = sortAssets(list, "name-asc", "library", "es");
     expect(names(list)).toEqual(["b", "a"]);
     expect(names(sorted)).toEqual(["a", "b"]);
   });

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type DragEvent } from "react";
-import { useT, type MessageKey } from "@renderer/lib/i18n/i18n-provider";
+import { useI18n, type MessageKey } from "@renderer/lib/i18n/i18n-provider";
 import {
   Button,
   EmptyState,
@@ -30,7 +30,7 @@ import {
   setMediaSortOrder,
 } from "@renderer/lib/actions/library-folders";
 import { useDebouncedCallback } from "@renderer/lib/hooks/use-debounced-callback";
-import { filterAssetsByName, sortAssets } from "@renderer/lib/media-view";
+import { filterAssetsByName, folderName, sortAssets } from "@renderer/lib/media-view";
 import { AssetTile } from "./asset-tile";
 import { FolderRefreshButton, LibraryFilterBar } from "@renderer/components/shared/library-filter-bar";
 import { PanelProgressRow } from "./panel-progress-row";
@@ -49,9 +49,6 @@ const SORT_LABEL_KEY: Record<MediaSortOrder, MessageKey> = {
   "size-desc": "resources.sortOrders.size-desc",
   "size-asc": "resources.sortOrders.size-asc",
 };
-
-/** A folder's own name: its tail is what tells two folders apart. */
-const folderName = (folderPath: string) => folderPath.split(/[\\/]/).filter(Boolean).pop() ?? folderPath;
 
 /** Rough estimate for the "this can take about N minutes" warning: a flat,
  *  slightly conservative per-deck figure. Reading a real deck took 0.2–0.5 s on
@@ -86,7 +83,7 @@ const EMPTY_ASSETS: MediaAsset[] = [];
  * this kind's linked folders, browsed live from disk (the source dropdown in `LibraryFilterBar`).
  */
 export function MediaBrowser({ active, kind }: { active: boolean; kind: AssetKind }) {
-  const t = useT();
+  const { locale, t } = useI18n();
   const recentAssets = useLibraryStore((s) => s.byKind[kind]);
   const selectedId = useLibraryStore((s) => s.selectedId);
   const refresh = useLibraryStore((s) => s.refresh);
@@ -127,8 +124,8 @@ export function MediaBrowser({ active, kind }: { active: boolean; kind: AssetKin
    *  thousand presentations — for a map the tiles look up by id anyway, and
    *  which filtering cannot change a single entry of. */
   const assets = useMemo(
-    () => sortAssets(filterAssetsByName(viewAssets, query), sortOrder, isFolderView ? "file" : "library"),
-    [isFolderView, query, sortOrder, viewAssets],
+    () => sortAssets(filterAssetsByName(viewAssets, query), sortOrder, isFolderView ? "file" : "library", locale),
+    [isFolderView, locale, query, sortOrder, viewAssets],
   );
   // A new order, filter or view starts from its first file. The grid used to
   // keep its scroll offset, so an operator scrolled to the bottom of A → Z who
