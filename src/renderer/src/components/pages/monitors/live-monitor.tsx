@@ -4,11 +4,8 @@ import { Monitor } from "@renderer/components/ui";
 import { OutputView } from "@renderer/components/shared/output-view";
 import { selectOutputMemo, useProjectionStore } from "@renderer/stores/projection.store";
 import { useSettingsStore } from "@renderer/stores/settings.store";
-import { mediaTargetKey } from "@shared/types/projection";
+import { SLIDE_VIDEO_STATUS_KEY, VIDEO_STATUS_KEY } from "@shared/types/projection";
 import { useLiveVideoPoster } from "@renderer/lib/hooks/use-live-video-poster";
-
-const VIDEO_TARGET_KEY = mediaTargetKey({ kind: "video" });
-const SLIDE_VIDEO_TARGET_KEY = mediaTargetKey({ kind: "slideVideo" });
 
 /** What the congregation is seeing, rendered by the same component the
  *  projection window uses — so the monitor can't lie. Its status text (BLACK,
@@ -33,10 +30,10 @@ export function LiveMonitor() {
   // ("Maximum update depth exceeded").
   const output = useProjectionStore(selectOutputMemo);
   const presentationOpen = useProjectionStore((s) => s.presentationOpen);
-  const liveVideoStatus = useProjectionStore((s) => s.mediaStatus[VIDEO_TARGET_KEY] ?? null);
+  const liveVideoStatus = useProjectionStore((s) => s.mediaStatus[VIDEO_STATUS_KEY] ?? null);
   // The same job for a video embedded in the live slide, which decodes here as
   // its own second copy exactly like the full-screen one does.
-  const slideVideoStatus = useProjectionStore((s) => s.mediaStatus[SLIDE_VIDEO_TARGET_KEY] ?? null);
+  const slideVideoStatus = useProjectionStore((s) => s.mediaStatus[SLIDE_VIDEO_STATUS_KEY] ?? null);
   // The record, not a derived array: a selector returning a fresh array on
   // every call makes `useSyncExternalStore` see a new snapshot each render and
   // loop. `mediaErrors` only changes when the projector actually reports

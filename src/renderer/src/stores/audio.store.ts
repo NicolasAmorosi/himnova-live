@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { subscribeWithSelector } from "zustand/middleware";
 import { counters } from "@renderer/lib/counters";
+import { mediaTargetKey } from "@shared/types/projection";
 
 /** One audio track playing right now in the projection window — either a
  *  standalone asset sent live or a deck's own soundtrack. Kept separate from
@@ -35,6 +36,8 @@ export type LiveAudioTrack = {
 /** Stable id for the one deck-soundtrack slot — at most one at a time,
  *  replaced wholesale by `setDeckTrack` on every `goLiveWithDeck`. */
 export const DECK_SOUNDTRACK_TRACK_ID = "deck-soundtrack";
+/** Its key in `mediaStatus`. */
+export const DECK_AUDIO_STATUS_KEY = mediaTargetKey({ kind: "audio", trackId: DECK_SOUNDTRACK_TRACK_ID });
 
 /** Bumps the shared epoch counter, like `counters.video` in `playback.ts`.
  *  A track's `epoch` is used as (part of) its React key on the projection

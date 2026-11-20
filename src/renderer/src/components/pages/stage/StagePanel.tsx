@@ -22,7 +22,7 @@ import { useSettingsStore } from "@renderer/stores/settings.store";
 import { FOCUS_STAGE_MESSAGE, useStageStore } from "@renderer/stores/stage.store";
 import { countdownTone, formatCountdown, stageThresholds, type CountdownTone } from "@shared/stage";
 import { formatSignedSeconds, formatWallClock, parseMinuteOfDay, resolveTargetMs } from "@shared/timer";
-import { mediaTargetKey } from "@shared/types/projection";
+import { SLIDE_VIDEO_STATUS_KEY, VIDEO_STATUS_KEY } from "@shared/types/projection";
 import { STAGE_LAYOUT_CHOICES, STAGE_MESSAGE_MAX_LENGTH, type StageLayoutChoice } from "@shared/types/stage";
 import type { TimerClock, TimerFormat } from "@shared/types/timer";
 
@@ -31,8 +31,6 @@ const MINUTE = 60_000;
 const MAX_COUNTDOWN_MINUTES = 5 * 60;
 const TICK_FORMAT: TimerFormat = { hour12: false, showSeconds: true, hideZeroHours: true, overrun: true };
 const HELD: TimerClock = { mode: "countdown", state: "held", remainingMs: 0 };
-const VIDEO_TARGET_KEY = mediaTargetKey({ kind: "video" });
-const SLIDE_VIDEO_TARGET_KEY = mediaTargetKey({ kind: "slideVideo" });
 
 /** The countdown's colour here: the stage's, in this theme's inks. */
 const TONE_INK: Record<CountdownTone, string> = {
@@ -233,8 +231,8 @@ function MonitorSection() {
   const choice = useSettingsStore((s) => s.settings["stage.layout"]);
   // The projector's reports only when the monitor plays videos: otherwise ~4 a second re-rendered it for nothing.
   const moving = useSettingsStore((s) => s.settings["monitors.liveVideoMotion"] && s.settings["stage.videoMotion"]);
-  const video = useProjectionStore((s) => (moving ? (s.mediaStatus[VIDEO_TARGET_KEY] ?? null) : null));
-  const slideVideo = useProjectionStore((s) => (moving ? (s.mediaStatus[SLIDE_VIDEO_TARGET_KEY] ?? null) : null));
+  const video = useProjectionStore((s) => (moving ? (s.mediaStatus[VIDEO_STATUS_KEY] ?? null) : null));
+  const slideVideo = useProjectionStore((s) => (moving ? (s.mediaStatus[SLIDE_VIDEO_STATUS_KEY] ?? null) : null));
   const media = useMemo(() => ({ video, slideVideo }), [video, slideVideo]);
   const update = useSettingsStore((s) => s.update);
   const display = useDisplayStore((s) => s.displays.find((d) => d.id === stageId));

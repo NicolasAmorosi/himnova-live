@@ -18,12 +18,10 @@ import {
 } from "@renderer/lib/actions/media";
 import { clearBaseContent } from "@renderer/lib/actions/playback";
 import { hidePlate } from "@renderer/lib/actions/overlays";
-import { mediaErrorKey, mediaTargetKey } from "@shared/types/projection";
+import { mediaErrorKey, mediaTargetKey, SLIDE_VIDEO_STATUS_KEY, VIDEO_STATUS_KEY } from "@shared/types/projection";
 import { assetUrl } from "@shared/urls";
 
-const VIDEO_STATUS_KEY = mediaTargetKey({ kind: "video" });
 const VIDEO_ERROR_KEY = mediaErrorKey({ kind: "video" });
-const SLIDE_VIDEO_STATUS_KEY = mediaTargetKey({ kind: "slideVideo" });
 const SLIDE_VIDEO_ERROR_KEY = mediaErrorKey({ kind: "slideVideo" });
 
 /**

@@ -2,7 +2,7 @@ import { useProjectionStore } from "@renderer/stores/projection.store";
 import { useAudioStore, DECK_SOUNDTRACK_TRACK_ID } from "@renderer/stores/audio.store";
 import { toggleAutoplay } from "@renderer/effects/deck-autoplay";
 import { api } from "@renderer/lib/api";
-import { mediaTargetKey, type MediaTarget } from "@shared/types/projection";
+import { VIDEO_STATUS_KEY, type MediaTarget } from "@shared/types/projection";
 
 /**
  * Sets the level of one live media target, 0..1.
@@ -35,7 +35,7 @@ export function toggleVideoPause(): void {
   // A video held on its last frame («Al terminar»: hold) plays again from the
   // top. Chromium's `<video>` would restart by itself, the media engine
   // (`keep-open`) would only unpause on its last frame.
-  const status = mediaStatus[mediaTargetKey({ kind: "video" })];
+  const status = mediaStatus[VIDEO_STATUS_KEY];
   if (videoPaused && base?.kind === "video" && status?.ended && status.epoch === base.epoch) {
     seekMedia({ kind: "video" }, 0);
   }

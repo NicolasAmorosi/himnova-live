@@ -4,12 +4,9 @@ import { Button, IconButton, Icon, MediaPanel, ProgressBar } from "@renderer/com
 import { useProjectionStore } from "@renderer/stores/projection.store";
 import { useSettingsStore } from "@renderer/stores/settings.store";
 import { useLiveHeading } from "@renderer/lib/hooks/use-live";
-import { DECK_SOUNDTRACK_TRACK_ID } from "@renderer/stores/audio.store";
+import { DECK_AUDIO_STATUS_KEY } from "@renderer/stores/audio.store";
 import { advanceSlide, clearBaseContent } from "@renderer/lib/actions/playback";
 import { resyncDeck, restartDeck, toggleAutoplay } from "@renderer/effects/deck-autoplay";
-import { mediaTargetKey } from "@shared/types/projection";
-
-const DECK_AUDIO_STATUS_KEY = mediaTargetKey({ kind: "audio", trackId: DECK_SOUNDTRACK_TRACK_ID });
 
 /**
  * Transport for the deck currently being projected — it lives under the LIVE
