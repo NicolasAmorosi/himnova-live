@@ -58,8 +58,6 @@ export const importEasyWorshipFolder = (folder: string): Promise<SongImportResul
 export const importOpenLpDatabase = (file: string): Promise<SongImportResult> => writeSongs(readOpenLp(file));
 export const importOpenLyricsFiles = async (files: readonly string[]): Promise<SongImportResult> =>
   writeSongs(await readOpenLyricsFiles(files));
-export const importSongTextFiles = async (files: readonly string[]): Promise<SongImportResult> =>
-  writeSongs(await readSongTextFiles(files, getSettingsRepo().get("ui.locale")));
 
 /** EasyWorship's two databases: picking either one means its folder. */
 const EASYWORSHIP_FILE = /^song(s|words)\.db$/i;

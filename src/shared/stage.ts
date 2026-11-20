@@ -18,11 +18,6 @@ export function resolveStageLayout(choice: StageLayoutChoice, followed: boolean)
   return followed ? "musicians" : "preacher";
 }
 
-/** Milliseconds left: negative past zero. */
-export function countdownRemainingMs(clock: CountdownClock, now: number): number {
-  return clock.state === "running" ? clock.endsAtMs - now : clock.remainingMs;
-}
-
 /**
  * The thresholds for a countdown of `totalMs`: the operator's (amber 5:00 and red 1:00 by default), but never more
  * than a fifth and a twentieth of the length, so a ten-minute count turns amber at 2:00 and red at 0:30 instead of

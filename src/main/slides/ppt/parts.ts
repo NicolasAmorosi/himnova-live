@@ -17,8 +17,6 @@ import { MAX_METAFILE_BYTES } from "../pptx/metafile";
  */
 export type BinaryPart = { stream: "d" | "p"; offset: number; length: number; codec: "raw" | "z" | "dib"; ext: string };
 
-export const isBinaryPart = (part: string): boolean => part.startsWith("ppt/");
-
 export function encodePart(p: BinaryPart): string {
   return `ppt/${p.stream}/${p.offset}/${p.length}/${p.codec}.${p.ext}`;
 }
