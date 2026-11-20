@@ -25,9 +25,33 @@ import type { Plate } from "@shared/types/overlay";
 import { INSTANT_TRANSITION } from "@shared/types/projection";
 import type { BibleParallel, ProjectionOutput } from "@shared/types/projection";
 
+/** One lookup per row, «En paralelo» and list of versions: the PREVIEW column, the slide grid and the top bar each
+ *  ask for the same row, and a click on it was three lookups in main, 15 IPC calls instead of 5 (2026-11-15 audit,
+ *  R26). An edited row is a new object, so it is looked up again; a lookup that found nothing, or failed, is not
+ *  kept. */
+const rowParallels = new WeakMap<
+  BibleScheduleItem,
+  { setting: number | null; versions: unknown; parallel: Promise<BibleParallel | null> }
+>();
+
+export function scheduleRowParallel(
+  item: BibleScheduleItem,
+  setting: number | null,
+  versions: unknown,
+): Promise<BibleParallel | null> {
+  const known = rowParallels.get(item);
+  if (known?.setting === setting && known.versions === versions) return known.parallel;
+  const parallel = scheduleItemParallel(item);
+  rowParallels.set(item, { setting, versions, parallel });
+  void parallel.then((found) => {
+    if (found === null && rowParallels.get(item)?.parallel === parallel) rowParallels.delete(item);
+  });
+  return parallel;
+}
+
 /**
  * A schedule row's verse in the parallel version, for PREVIEW: looked up in
- * main (`scheduleItemParallel`), again when «En paralelo» changes — so PREVIEW
+ * main (`scheduleItemParallel`), again when «En paralelo» changes, so PREVIEW
  * shows the choice at once, while the verse already live keeps its own.
  * Nothing while it is looked up: a parallel from another choice is worse.
  */
@@ -39,7 +63,7 @@ function useScheduleItemParallel(item: BibleScheduleItem | null): BibleParallel 
   useEffect(() => {
     if (!item) return;
     let current = true;
-    void scheduleItemParallel(item).then((parallel) => {
+    void scheduleRowParallel(item, setting, versions).then((parallel) => {
       if (current) setFound({ item, setting, versions, parallel });
     });
     return () => {
