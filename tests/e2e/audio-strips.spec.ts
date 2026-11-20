@@ -288,7 +288,7 @@ test("each strip's output menu lists this computer's outputs and keeps the one c
   const strip = app.previewColumn().getByRole("group", { name: PREVIEW_STRIP });
   const trigger = strip.getByRole("button", { name: "Salida de PREVIEW" });
   // D6: both on the system's default, so PREVIEW is heard in the room too, and says so. The bubble opens on a pointer
-  // that comes in: right after launch it can open and close at once, when another window takes the focus (Linux).
+  // that comes in, and right after launch on Linux one hover did not show it (cause not found): retried from outside.
   const bubble = app.control.getByRole("tooltip", { name: "Salida de PREVIEW:" });
   await expect(async () => {
     await app.control.mouse.move(0, 0);

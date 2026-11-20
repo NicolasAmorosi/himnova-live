@@ -491,7 +491,7 @@ test("with the control page down and nothing up, closing asks nothing and does n
   app.crashLogExpected = true;
   await answerMessageBoxes(app, 1);
   // The page gives main its copy of what is live just after it is drawn: crashed before that (Windows, in this file's
-  // run, 31 ms after the fixture saw EN VIVO), it comes back as a launch, which loses nothing and says nothing.
+  // run, right after the fixture saw EN VIVO), it comes back as a launch, which loses nothing and says nothing.
   await expect.poll(async () => (await app.invoke<{ copy: unknown }>("window:liveCopy")).copy !== null).toBe(true);
   await killPastTheCap(app);
   await app.electron.evaluate(({ app }) => app.quit());
