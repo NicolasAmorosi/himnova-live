@@ -38,6 +38,7 @@ import { BUILTIN_BIBLE_CODE, SLIDES_CONVERTER_VERSION, SLIDES_MODEL_VERSION, SLI
 import { defaultUtilityScenes } from "../../src/shared/types/utility";
 import mainEs from "../../src/main/i18n/messages/es";
 import { removeUtilityScene } from "../../src/main/services/utility-scene-removal";
+import { upsertFile } from "./support/upsert-file";
 import { removeOverlayPlate } from "../../src/main/services/overlay-plate-removal";
 import { DEFAULT_PLATE_STYLE, type Plate } from "../../src/shared/types/overlay";
 import { IpcError } from "../../src/shared/ipc/result";
@@ -362,13 +363,8 @@ describe("Media library", () => {
       "upsertBatch must return the new mtime, not the row's previous one",
     );
 
-    const editedSingle = mediaRepo.upsertFromPath(changedPath, "ppt", true);
     assert(
-      editedSingle.sizeBytes === changedStat.size && editedSingle.mtimeMs === Math.trunc(changedStat.mtimeMs),
-      "upsertFromPath's existing-row branch must return what it just wrote, not the stale row",
-    );
-    assert(
-      mediaRepo.getById(editedSingle.id)?.mtimeMs === Math.trunc(changedStat.mtimeMs),
+      mediaRepo.getById(editedBatch.id)?.mtimeMs === Math.trunc(changedStat.mtimeMs),
       "the persisted row must agree with the returned DTO",
     );
   });
@@ -598,7 +594,7 @@ describe("A deck read natively owns no folder, and what LibreOffice drew goes at
   beforeAll(() => {
     const source = path.join(mediaDir, "native-hymn.pps");
     fs.writeFileSync(source, buildLegacyPpt());
-    asset = mediaRepo.upsertFromPath(source, "ppt", true);
+    asset = upsertFile(mediaRepo, source, "ppt", true);
     const stat = fs.statSync(source);
     mediaRepo.setContentHash(asset.id, hash, stat.size, Math.trunc(stat.mtimeMs));
     convertedDir = path.join(tmpDir, "converted-hymn");
@@ -1332,7 +1328,7 @@ describe("a deck's sounds", () => {
   ) {
     const source = path.join(mediaDir, `${name}.pptx`);
     fs.writeFileSync(source, name);
-    const asset = mediaRepo.upsertFromPath(source, "ppt", true);
+    const asset = upsertFile(mediaRepo, source, "ppt", true);
     const stat = fs.statSync(source);
     const id = slidesRepo.insertDeck(
       {

@@ -16,6 +16,7 @@ import { SettingsRepo } from "../../src/main/db/repositories/settings.repo";
 import { SongsRepo } from "../../src/main/db/repositories/songs.repo";
 import { followMove, moveBetween, movedPath, namesOf } from "../../src/main/services/relocate-move";
 import { parseLyrics } from "../../src/shared/song-text";
+import { upsertFile } from "./support/upsert-file";
 import type { SongUpsert } from "../../src/shared/types/song";
 
 describe("the move between two paths", () => {
@@ -122,13 +123,13 @@ describe("following a move", () => {
     write(outside);
     write(at(oldRoot, "Videos", "gone.mp4"));
 
-    const a = media.upsertFromPath(at(oldRoot, "Videos", "a.mp4"), "video", true);
-    const b = media.upsertFromPath(at(oldRoot, "Videos", "b.mp4"), "video", true);
-    const kept = media.upsertFromPath(at(oldRoot, "Decks", "kept.mp4"), "video", true);
-    const gone = media.upsertFromPath(at(oldRoot, "Videos", "gone.mp4"), "video", true);
-    const c = media.upsertFromPath(at(oldRoot, "Fotos", "sub", "c.png"), "image", false);
-    const d = media.upsertFromPath(at(oldRoot, "Decks", "d.pptx"), "ppt", true);
-    const x = media.upsertFromPath(outside, "video", true);
+    const a = upsertFile(media, at(oldRoot, "Videos", "a.mp4"), "video", true);
+    const b = upsertFile(media, at(oldRoot, "Videos", "b.mp4"), "video", true);
+    const kept = upsertFile(media, at(oldRoot, "Decks", "kept.mp4"), "video", true);
+    const gone = upsertFile(media, at(oldRoot, "Videos", "gone.mp4"), "video", true);
+    const c = upsertFile(media, at(oldRoot, "Fotos", "sub", "c.png"), "image", false);
+    const d = upsertFile(media, at(oldRoot, "Decks", "d.pptx"), "ppt", true);
+    const x = upsertFile(media, outside, "video", true);
     media.setLinkedAudio(d.id, at(oldRoot, "Audio", "d.mp3"));
     const program = programs.save({ name: "Culto", items: [{ kind: "media", mediaAssetId: c.id, title: null }] });
 
@@ -189,12 +190,12 @@ describe("following a move", () => {
     const after = path.join(dir, "USB-F", "Videos");
     write(path.join(before, "uno.mp4"));
     write(path.join(before, "dos.mp4"));
-    const uno = media.upsertFromPath(path.join(before, "uno.mp4"), "video", true);
-    const dos = media.upsertFromPath(path.join(before, "dos.mp4"), "video", true);
+    const uno = upsertFile(media, path.join(before, "uno.mp4"), "video", true);
+    const dos = upsertFile(media, path.join(before, "dos.mp4"), "video", true);
     fs.mkdirSync(path.dirname(after), { recursive: true });
     fs.renameSync(before, after);
-    const unoTwin = media.upsertFromPath(path.join(after, "uno.mp4"), "video", false);
-    const dosTwin = media.upsertFromPath(path.join(after, "dos.mp4"), "video", false);
+    const unoTwin = upsertFile(media, path.join(after, "uno.mp4"), "video", false);
+    const dosTwin = upsertFile(media, path.join(after, "dos.mp4"), "video", false);
 
     const located = media.relocate(uno.id, path.join(after, "uno.mp4"));
     const { merged } = await followMove(moveBetween(namesOf(before), namesOf(after))!, { media, songs, settings });
