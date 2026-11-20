@@ -118,9 +118,10 @@ async function generate(
   await slots.acquire(turn);
   try {
     // Checked after the wait, not before it: a tile that walked away while its
-    // turn was queued has nothing left to draw. Electron 44 never aborts a
-    // `protocol.handle` request's signal, so a scroll does not retire its own
-    // queue; `ThumbSlots` serves the newest ask first instead.
+    // turn was queued has nothing left to draw. Electron (44, and 45.4.1 as
+    // measured 2026-11-20) never aborts a `protocol.handle` request's signal,
+    // so a scroll does not retire its own queue; `ThumbSlots` serves the
+    // newest ask first instead.
     if (signal?.aborted) return null;
     const buffer = await renderThumbnail(asset);
     if (!buffer || buffer.length === 0) {

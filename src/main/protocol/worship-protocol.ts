@@ -86,10 +86,9 @@ export function registerWorshipProtocolHandler(mediaRepo: MediaRepo): void {
           // that this tile is on screen right now.
           if (segments[1] === "thumb") {
             const asset = mediaRepo.getById(mediaRepo.survivingId(id));
-            // The signal is what retires a queued generation whose tile has
-            // scrolled away: Chromium aborts the <img> request when the
-            // virtualized grid unmounts it, and there is no point stalling the
-            // main thread to decode something nobody can see any more.
+            // The signal would retire a queued generation whose tile has
+            // scrolled away, but Electron never aborts it (measured on 44 and
+            // 45): `ThumbSlots` serves the newest ask first instead.
             const thumbPath = asset ? await ensureThumbnail(asset, request.signal) : null;
             // 404 rather than a placeholder image: the renderer owns the
             // fallback, so it can paint it with its own theme tokens instead
