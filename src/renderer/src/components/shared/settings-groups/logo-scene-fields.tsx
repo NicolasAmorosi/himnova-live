@@ -6,11 +6,9 @@ import { BackgroundFields } from "@renderer/components/shared/style-fields";
 import { useSettingsStore } from "@renderer/stores/settings.store";
 import { useCommitOnUnmount } from "@renderer/lib/hooks/use-commit-on-unmount";
 import { useLogoPreview } from "./use-logo-preview";
-import { api } from "@renderer/lib/api";
-import { toast } from "@renderer/lib/toast";
+import { useEditorLibrary } from "@renderer/lib/hooks/use-editor-library";
 import { LOGO_NAME_MAX_LENGTH } from "@shared/types/projection";
 import { logoModeOf } from "@shared/types/settings";
-import type { MediaAsset } from "@shared/types/media";
 import type { SceneBackground } from "@shared/types/scene-style";
 
 /**
@@ -31,19 +29,12 @@ export function LogoSceneFields({ preview = true }: { preview?: boolean }) {
   const background = useSettingsStore((s) => s.settings["logo.background"]);
   const update = useSettingsStore((s) => s.update);
   const [draft, setDraft] = useState(name ?? "");
-  const [imageAssets, setImageAssets] = useState<readonly MediaAsset[]>([]);
-  const [addingImages, setAddingImages] = useState(false);
+  const images = useEditorLibrary(true, "image", "logo");
   // «Image» picked before an image: shown, never saved — an image background
   // with no image is one the settings validator refuses.
   const [pendingImage, setPendingImage] = useState<Extract<SceneBackground, { kind: "image" }> | null>(null);
 
   useEffect(() => setDraft(name ?? ""), [name]);
-  useEffect(() => {
-    void api.library
-      .list("image")
-      .then(setImageAssets)
-      .catch((error: unknown) => console.warn("[logo] could not list the image library", error));
-  }, []);
 
   function commitName() {
     const next = draft.trim() === "" ? null : draft.trim();
@@ -52,22 +43,10 @@ export function LogoSceneFields({ preview = true }: { preview?: boolean }) {
   useCommitOnUnmount(commitName);
 
   async function addImages() {
-    setAddingImages(true);
-    try {
-      const paths = await api.files.pick("image", true);
-      if (paths.length === 0) return;
-      const [first] = await api.library.add(paths, "image");
-      setImageAssets(await api.library.list("image"));
-      if (first) {
-        setPendingImage(null);
-        void update({ "logo.background": { kind: "image", assetId: first.id, fit: pendingImage?.fit ?? "cover" } });
-      }
-    } catch (error) {
-      console.warn("[logo] could not add images", error);
-      toast.danger(t("style.addImageError"));
-    } finally {
-      setAddingImages(false);
-    }
+    const first = await images.add();
+    if (!first) return;
+    setPendingImage(null);
+    void update({ "logo.background": { kind: "image", assetId: first.id, fit: pendingImage?.fit ?? "cover" } });
   }
 
   const output = useLogoPreview(pendingImage);
@@ -92,8 +71,8 @@ export function LogoSceneFields({ preview = true }: { preview?: boolean }) {
             />
           </FieldRow>
           <BackgroundFields
-            addingImages={addingImages}
-            imageAssets={imageAssets}
+            addingImages={images.adding}
+            imageAssets={images.assets}
             onAddImages={() => void addImages()}
             onChange={(next) => {
               const noImageYet = next.kind === "image" && next.assetId === 0;
