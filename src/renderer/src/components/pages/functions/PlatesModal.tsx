@@ -4,7 +4,7 @@ import { ConfirmModal } from "@renderer/components/shared/modal";
 import { EditorScreen } from "@renderer/components/shared/editor-screen";
 import { ProgramUsages } from "@renderer/components/shared/program-usages";
 import { Button, EmptyState, Icon, Inspector, ListRow, type MenuOption } from "@renderer/components/ui";
-import { api } from "@renderer/lib/api";
+import { useEditorLibrary } from "@renderer/lib/hooks/use-editor-library";
 import { toast } from "@renderer/lib/toast";
 import { hideDragGhost, OVERLAY_PLATE_MIME } from "@renderer/lib/dnd";
 import { copyName } from "@renderer/lib/named-list";
@@ -19,7 +19,6 @@ import {
 } from "@renderer/lib/actions/overlays";
 import { useOverlayStore } from "@renderer/stores/overlay.store";
 import { PLATE_NAME_MAX_LENGTH } from "@shared/overlay-validators";
-import type { MediaAsset } from "@shared/types/media";
 import type { Plate, PlateUsage } from "@shared/types/overlay";
 import { emptyPlateDraft, isPlateDraftSavable, toPlateDraft, toPlateUpsert, type PlateDraft } from "./plate-draft";
 import { PlateForm } from "./plate-form";
@@ -46,22 +45,13 @@ export function PlatesModal({ onOpenChange, open }: { onOpenChange: (open: boole
   const [pending, setPending] = useState<Pending | null>(null);
   const [saving, setSaving] = useState(false);
   const [dragOverId, setDragOverId] = useState<number | null>(null);
-  const [imageAssets, setImageAssets] = useState<readonly MediaAsset[]>([]);
-  const [addingImages, setAddingImages] = useState(false);
+  const images = useEditorLibrary(open, "image", "plates");
 
   const dirty = editing !== null && JSON.stringify(editing.draft) !== JSON.stringify(editing.baseline);
   const savable = editing !== null && isPlateDraftSavable(editing.draft);
   // A plate that does not exist yet has nothing to differ from — the lesson
   // of the scene editor's dead «Save».
   const canSave = savable && (editing.plateId === null || dirty);
-
-  useEffect(() => {
-    if (!open) return;
-    void api.library
-      .list("image")
-      .then(setImageAssets)
-      .catch((error: unknown) => console.warn("[plates] could not list the image library", error));
-  }, [open]);
 
   useEffect(() => {
     if (!open) {
@@ -145,26 +135,14 @@ export function PlatesModal({ onOpenChange, open }: { onOpenChange: (open: boole
 
   async function handleAddImages() {
     const requestedFor = editing?.plateId;
-    setAddingImages(true);
-    try {
-      const paths = await api.files.pick("image", true);
-      if (paths.length === 0) return;
-      const added = await api.library.add(paths, "image");
-      setImageAssets(await api.library.list("image"));
-      // Onto the form as it is NOW (see the same line in `ScenesModal`).
-      const first = added[0];
-      if (first) {
-        setEditing((current) =>
-          current && current.plateId === requestedFor
-            ? { ...current, draft: { ...current.draft, imageAssetId: first.id } }
-            : current,
-        );
-      }
-    } catch (error) {
-      console.warn("[plates] could not add images", error);
-      toast.danger(t("style.addImageError"));
-    } finally {
-      setAddingImages(false);
+    const first = await images.add();
+    // Onto the form as it is NOW (see the same line in `ScenesModal`).
+    if (first) {
+      setEditing((current) =>
+        current && current.plateId === requestedFor
+          ? { ...current, draft: { ...current.draft, imageAssetId: first.id } }
+          : current,
+      );
     }
   }
 
@@ -195,8 +173,8 @@ export function PlatesModal({ onOpenChange, open }: { onOpenChange: (open: boole
             // of at the scroll position the previous one was left at.
             <Inspector id="plates" key={editing.plateId ?? "new"} label={t("plates.title")}>
               <PlateForm
-                addingImages={addingImages}
-                imageAssets={imageAssets}
+                addingImages={images.adding}
+                imageAssets={images.assets}
                 onAddImages={() => void handleAddImages()}
                 onChange={(draft) => setEditing({ ...editing, draft })}
                 value={editing.draft}

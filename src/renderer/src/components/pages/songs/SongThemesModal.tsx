@@ -23,7 +23,7 @@ import {
   DependentFields,
   type MenuOption,
 } from "@renderer/components/ui";
-import { api } from "@renderer/lib/api";
+import { useEditorLibrary, type EditorLibrary } from "@renderer/lib/hooks/use-editor-library";
 import { toast } from "@renderer/lib/toast";
 import { transitionDurationOptions } from "@renderer/lib/transition";
 import { copyName } from "@renderer/lib/named-list";
@@ -38,7 +38,6 @@ import { isSongThemeUpsert } from "@shared/song-validators";
 import { parseLyrics, withTranslation } from "@shared/song-text";
 import { BIBLE_LINE_HEIGHT_MAX, BIBLE_LINE_HEIGHT_MIN, TEXT_ALIGNS, type TextAlign } from "@shared/types/bible-style";
 import { INSTANT_TRANSITION, type ProjectionOutput } from "@shared/types/projection";
-import type { MediaAsset } from "@shared/types/media";
 import type { SongBackground } from "@shared/types/song";
 import {
   DEFAULT_SONG_THEME,
@@ -146,10 +145,8 @@ export function SongThemesModal({ onOpenChange, open }: { onOpenChange: (open: b
   const [editing, setEditing] = useState<Editing | null>(null);
   const [pending, setPending] = useState<Pending | null>(null);
   const [saving, setSaving] = useState(false);
-  const [imageAssets, setImageAssets] = useState<readonly MediaAsset[]>([]);
-  const [addingImages, setAddingImages] = useState(false);
-  const [videoAssets, setVideoAssets] = useState<readonly MediaAsset[]>([]);
-  const [addingVideos, setAddingVideos] = useState(false);
+  const images = useEditorLibrary(open, "image", "songThemes");
+  const videos = useEditorLibrary(open, "video", "songThemes");
   /** Which slide the canvas draws (owner, 2026-11-05): the footer's «first /
    *  last» rule and the translation only show on the slide they apply to. */
   const [sample, setSample] = useState<"first" | "last" | "translation">("first");
@@ -163,14 +160,6 @@ export function SongThemesModal({ onOpenChange, open }: { onOpenChange: (open: b
       setPendingBackground(null);
       return;
     }
-    void api.library
-      .list("image")
-      .then(setImageAssets)
-      .catch((error: unknown) => console.warn("[songThemes] could not list the image library", error));
-    void api.library
-      .list("video")
-      .then(setVideoAssets)
-      .catch((error: unknown) => console.warn("[songThemes] could not list the video library", error));
     setEditing((current) => {
       if (current) return current;
       const first = themes[0];
@@ -270,43 +259,11 @@ export function SongThemesModal({ onOpenChange, open }: { onOpenChange: (open: b
     toast.success(t("songThemes.saved", { name: copy.name }));
   }
 
-  async function handleAddImages() {
-    setAddingImages(true);
-    try {
-      const paths = await api.files.pick("image", true);
-      if (paths.length === 0) return;
-      const added = await api.library.add(paths, "image");
-      setImageAssets(await api.library.list("image"));
-      const first = added[0];
-      if (first) {
-        setPendingBackground(null);
-        patchStyle({ background: { kind: "image", assetId: first.id, fit: "cover" } });
-      }
-    } catch (error) {
-      console.warn("[songThemes] could not add images", error);
-      toast.danger(t("style.addImageError"));
-    } finally {
-      setAddingImages(false);
-    }
-  }
-
-  async function handleAddVideos() {
-    setAddingVideos(true);
-    try {
-      const paths = await api.files.pick("video", true);
-      if (paths.length === 0) return;
-      const added = await api.library.add(paths, "video");
-      setVideoAssets(await api.library.list("video"));
-      const first = added[0];
-      if (first) {
-        setPendingBackground(null);
-        patchStyle({ background: { kind: "video", assetId: first.id, fit: "cover" } });
-      }
-    } catch (error) {
-      console.warn("[songThemes] could not add videos", error);
-      toast.danger(t("style.addVideoError"));
-    } finally {
-      setAddingVideos(false);
+  async function handleAdd(library: EditorLibrary, kind: "image" | "video") {
+    const first = await library.add();
+    if (first) {
+      setPendingBackground(null);
+      patchStyle({ background: { kind, assetId: first.id, fit: "cover" } });
     }
   }
 
@@ -324,19 +281,19 @@ export function SongThemesModal({ onOpenChange, open }: { onOpenChange: (open: b
             <Inspector id="songThemes" key={editing.themeId ?? "new"} label={t("songThemes.title")}>
           <InspectorSection id="background" title={t("style.groups.background")}>
             <BackgroundFields<SongBackground>
-              addingImages={addingImages}
-              addingVideos={addingVideos}
-              imageAssets={imageAssets}
+              addingImages={images.adding}
+              addingVideos={videos.adding}
+              imageAssets={images.assets}
               kinds={["solid", "gradient", "image", "video"]}
-              onAddImages={() => void handleAddImages()}
-              onAddVideos={() => void handleAddVideos()}
+              onAddImages={() => void handleAdd(images, "image")}
+              onAddVideos={() => void handleAdd(videos, "video")}
               onChange={(background) => {
                 const nothingYet = (background.kind === "image" || background.kind === "video") && background.assetId === 0;
                 setPendingBackground(nothingYet ? background : null);
                 if (!nothingYet) patchStyle({ background });
               }}
               value={pendingBackground ?? style.background}
-              videoAssets={videoAssets}
+              videoAssets={videos.assets}
             />
           </InspectorSection>
 
