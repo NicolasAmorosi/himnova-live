@@ -54,6 +54,10 @@ const WHATS_NEW: Record<
     steps: [],
     also: ["screenRoles", "parallelLive", "linuxMenu"],
   },
+  "2.13": {
+    steps: [],
+    also: ["lighterFader", "tooltips", "deckVideoMemory"],
+  },
 };
 const DONE_STEP = { icon: "circleCheck", id: "done" } as const;
 
@@ -107,6 +111,12 @@ export function WhatsNewScreen() {
   );
 }
 
+/** The summary's heading: a list of several versions' changes is not «in this version». */
+function alsoTitle(summaryOnly: boolean, several: boolean) {
+  if (summaryOnly) return several ? "whatsNew.done.alsoTitleSummaryOnlySince" : "whatsNew.done.alsoTitleSummaryOnly";
+  return several ? "whatsNew.done.alsoTitleSince" : "whatsNew.done.alsoTitle";
+}
+
 /** What the steps left chosen (2.10's screens and sound, when it is among them), each with its way back, and the
  *  smaller changes of every version shown, in one list. */
 function DoneStep({ go, keys }: { go: (step: WhatsNewStepId) => void; keys: readonly WhatsNewKey[] }) {
@@ -153,7 +163,7 @@ function DoneStep({ go, keys }: { go: (step: WhatsNewStepId) => void; keys: read
           </FieldRow>
         </FieldGroup>
       ) : null}
-      <FieldGroup title={t(summaryOnly ? "whatsNew.done.alsoTitleSummaryOnly" : "whatsNew.done.alsoTitle")}>
+      <FieldGroup title={t(alsoTitle(summaryOnly, keys.length > 1))}>
         {keys.flatMap((key) => WHATS_NEW[key].also).map((id) => (
           <p className="flex items-start gap-2.5 px-4 py-3 text-sm" key={id}>
             <Icon className="mt-0.5 text-muted-foreground" name="check" />
