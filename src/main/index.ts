@@ -220,10 +220,10 @@ function wireMinimizeRestoreSync(controlWindow: BrowserWindow): void {
   });
 }
 
-/** Every window the operator can actually see — i.e. not the offscreen
- *  rasterizer, which is a real `BrowserWindow` and would otherwise make the
- *  app look "still open" for the 60s its idle timer keeps it alive after a
- *  conversion. */
+/** Every window the operator can actually see: not the offscreen rasterizer,
+ *  which is a real `BrowserWindow` and would otherwise make the app look
+ *  "still open" for the 5 min its idle timer keeps it alive after a PDF was
+ *  drawn (`rasterizer.ts`), nor the NDI output's hidden window. */
 function userFacingWindows(): BrowserWindow[] {
   return BrowserWindow.getAllWindows().filter((win) => !isRasterizerWindow(win) && !isNdiWindow(win));
 }
@@ -254,7 +254,7 @@ function openControlWindow(): BrowserWindow {
   installCloseGuard(win);
   win.on("closed", () => {
     // `window-all-closed` only fires when NO window is left, rasterizer
-    // included — so on Windows/Linux a recent conversion could leave the app
+    // included, so on Windows/Linux a recently drawn PDF could leave the app
     // running with no visible window at all. The control window IS the app
     // there: it closing means quitting, unconditionally. Counting the windows
     // still open did not work — the projector's own `close()` is asynchronous
@@ -390,7 +390,7 @@ if (gotSingleInstanceLock) {
     app.on("activate", () => {
       // Counts only windows the user can actually see: the rasterizer is a
       // real (hidden) BrowserWindow, so `getAllWindows()` stays non-empty for
-      // up to 60s after any conversion — during which a dock click used to
+      // up to 5 min after a PDF was drawn, during which a dock click used to
       // reopen nothing at all.
       if (userFacingWindows().length === 0) mainControlWindow = openControlWindow();
     });
