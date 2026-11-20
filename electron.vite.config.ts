@@ -91,6 +91,9 @@ export default defineConfig({
     },
     plugins: [react(), tailwindcss(), stripDevCsp()],
     build: {
+      // electron-vite leaves the renderer unminified: 4414 kB against 2778, and the projector's page compiled in
+      // 10.3 ms against 8.1 (2026-11-15 audit, R33). Main stays readable for `crash.log`.
+      minify: true,
       rollupOptions: {
         input: {
           control: resolve("src/renderer/index.html"),
