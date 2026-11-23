@@ -176,3 +176,22 @@ test("a slide that failed once and was left behind never sends the hymn on air a
   await goLive();
   expect(useProjectionStore.getState().base).toMatchObject({ kind: "deck", assetId: 7, slideIndex: 2 });
 });
+
+test("the slide on air that failed once and drew when shown again is not taken as failed", async () => {
+  swept = [asset(7, "ppt")];
+  onDisk = [asset(7, "ppt")];
+  useDeckStore.setState({ byAssetId: { 7: ready(deck(7, 100)) } });
+  useProgramStore.setState({ items: [ppt(11, 7)] });
+  previewScheduleItem(0);
+  await goLive();
+  useProjectionStore.getState().setSlideIndex(2);
+  // Slide 2 hiccups once; the operator goes back to 1, then on to 2, which draws now (no new error is reported).
+  useProjectionStore.getState().setMediaError({ target: { kind: "scene" }, url: slideUrl(100, 2), code: null });
+  useProjectionStore.getState().setSlideIndex(1);
+  useProjectionStore.getState().setSlideIndex(2);
+
+  // Picked again: only uncovered, still on its second slide (review of the night 2, RN2-2).
+  previewScheduleItem(0);
+  await goLive();
+  expect(useProjectionStore.getState().base).toMatchObject({ kind: "deck", assetId: 7, slideIndex: 2 });
+});

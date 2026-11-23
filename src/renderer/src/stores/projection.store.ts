@@ -605,7 +605,10 @@ export const useProjectionStore = create<ProjectionStoreState>()(
           base: { ...base, slideIndex: next },
           slideEntry: next > base.slideIndex ? (liveDeck.slides[next - 1]?.transition ?? null) : null,
           ...slideVideo,
-          mediaErrors: errorsAfter(state, slideVideo),
+          // Another slide is another picture: the one that failed is gone with it, as a clip's error goes with its
+          // clip. Kept, a slide that hiccuped once and drew when shown again still read as failed, and picking the
+          // hymn again sent it from PREVIEW's slide with its music at 0:00 (review of the night 2, RN2-2).
+          mediaErrors: withoutErrors(errorsAfter(state, slideVideo), [mediaErrorKey({ kind: "scene" })]),
         };
       });
     },
