@@ -12,6 +12,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, expect, test, vi } from "vitest";
 import { buildLegacyPpt } from "../fixtures/legacy-ppt";
+import mainEs from "../../src/main/i18n/messages/es";
 import {
   SLIDES_CONVERTER_VERSION,
   SLIDES_FALLBACK_RENDER_WIDTH,
@@ -88,6 +89,8 @@ vi.mock("../../src/main/slides/pptx-deck", () => ({
 vi.mock("../../src/main/slides/rasterizer", () => ({ readPdfPages: vi.fn(), shutdownRasterizer: vi.fn() }));
 
 const { getDeck, prepareDeck } = await import("../../src/main/slides/deck-service");
+const { readPdfPages } = await import("../../src/main/slides/rasterizer");
+const { rasterReplyError } = await import("../../src/main/slides/errors");
 const { backgroundStat } = await import("../../src/main/services/background-files");
 
 let dir = "";
@@ -342,4 +345,24 @@ test("a stat of the operator's that never answers does not hold «Reintentar» o
     vi.restoreAllMocks();
     vi.useRealTimers();
   }
+});
+
+test("a PDF pdf.js cannot open is told in the operator's words, never in pdf.js's", async () => {
+  // «Invalid PDF structure.» in English reached the deck's panel, PREVIEW and the GO LIVE toast (2026-11-22, EC-1).
+  vi.mocked(readPdfPages).mockRejectedValueOnce(new Error("Invalid PDF structure."));
+  const { dto } = await open("damaged.pdf", PDF, "pdf", null, (id) => prepareDeck(id).catch((error: unknown) => error));
+  expect(dto).toMatchObject({ code: "RASTER_FAILED", slideCode: "RASTER_FAILED", message: mainEs.slides.pdfUnreadable });
+});
+
+test("what the rasterizer window says of a PDF reaches the operator in their words, a password apart", () => {
+  const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+  expect(rasterReplyError({ kind: "unknown", message: "Couldn't read the PDF (404)" })).toMatchObject({
+    slideCode: "RASTER_FAILED",
+    message: mainEs.slides.pdfUnreadable,
+  });
+  expect(rasterReplyError({ kind: "password", message: "No password given" })).toMatchObject({
+    slideCode: "PDF_PASSWORD",
+    message: mainEs.slides.pdfPassword,
+  });
+  warn.mockRestore();
 });

@@ -3,7 +3,7 @@ import path from "node:path";
 import { loadPage } from "../windows/load-page";
 import { randomUUID } from "node:crypto";
 import { SLIDES_RASTER_PAGE_TIMEOUT_MS, SLIDES_THUMB_WIDTH } from "@shared/constants";
-import { SlideError } from "./errors";
+import { SlideError, rasterReplyError } from "./errors";
 import { takeNewestBurst } from "./raster-order";
 import { mt } from "../i18n";
 
@@ -173,12 +173,7 @@ function registerChannel(): void {
     const task = running;
     if (!task || task.id !== reply.id) return;
     if (reply.error) {
-      settle(
-        task,
-        reply.error.kind === "password"
-          ? new SlideError("PDF_PASSWORD", mt("slides.pdfPassword"))
-          : new SlideError("RASTER_FAILED", reply.error.message),
-      );
+      settle(task, rasterReplyError(reply.error));
     } else {
       settle(task, undefined, reply.result);
     }

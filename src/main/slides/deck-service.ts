@@ -760,14 +760,18 @@ async function recordPdfDeck(
     emitProgress({ assetId, status: "ready", done: dto.slideCount, total: dto.slideCount, error: null });
     return dto;
   } catch (error) {
+    // What pdf.js or the disk said ("Invalid PDF structure.", ENOENT) is no text for the operator: their own words
+    // reach the panel, the PREVIEW monitor and the GO LIVE toast.
+    const failure = isSlideError(error) ? error : new SlideError("RASTER_FAILED", mt("slides.pdfUnreadable"), error);
+    if (failure !== error) console.warn(`[slides] could not read the PDF ${sourcePath}`, error);
     emitProgress({
       assetId,
-      status: isSlideError(error) && error.slideCode === "CANCELED" ? "stale" : "failed",
+      status: failure.slideCode === "CANCELED" ? "stale" : "failed",
       done: 0,
       total: 0,
-      error: error instanceof Error ? error.message : String(error),
+      error: failure.message,
     });
-    throw error;
+    throw failure;
   }
 }
 

@@ -80,6 +80,8 @@ const es = {
       "No se pudo abrir el archivo como presentación: puede estar dañado o no ser una presentación. Probá abrirlo en PowerPoint y guardarlo de nuevo como .pptx.",
     deckTooSlow:
       "La presentación tardó demasiado en leerse. Probá de nuevo con «Reintentar».",
+    pdfUnreadable:
+      "No se pudo abrir el PDF. Probá de nuevo con «Reintentar»; si vuelve a pasar, puede estar dañado: abrilo en tu lector de PDF y exportalo de nuevo.",
   },
   bible: {
     unknownFormat:
