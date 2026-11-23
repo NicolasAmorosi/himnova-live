@@ -227,6 +227,12 @@ export class WorshipApp {
     return this.control.getByRole("button", { name: textAt("actions.goLive", this.locale), exact: true }).first().click();
   }
 
+  /** The row PREVIEW took by itself after a GO LIVE ignores GO LIVE for half a second (`TOOK_ITSELF_HOLD_MS` in
+   *  `preview.ts`: a double click or a bouncing Enter sent two rows). An operator sending it next is that much later. */
+  pastAutoPreviewHold(): Promise<void> {
+    return this.control.waitForTimeout(600);
+  }
+
   /** A resource tab, and one of its inner tabs. */
   async openResources(
     tab: "Biblia" | "Canciones" | "Medios" | "Funciones",

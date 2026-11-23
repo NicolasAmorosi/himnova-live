@@ -493,6 +493,7 @@ test("«Al terminar: siguiente» chains the schedule's decks and PREVIEW follows
   await expect(onAir).toContainText("tres");
   await expect(inPreview).toContainText("cuatro");
 
+  await app.pastAutoPreviewHold();
   await app.goLive();
   await expect(onAir).toContainText("cuatro");
   await expect(inPreview).toHaveCount(0);

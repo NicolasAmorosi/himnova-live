@@ -199,11 +199,13 @@ test("a row sent live leaves the one under it in PREVIEW, so Enter walks the ord
   await expect(row(app, "photo")).toHaveAttribute("aria-current", "true");
   await expect(rail(row(app, "clip"))).toHaveCount(1);
 
+  await app.pastAutoPreviewHold();
   await app.control.keyboard.press("Enter");
   await expect(projector.locator('img[src^="worship://asset/"]')).toBeVisible();
   await expect(row(app, "song")).toHaveAttribute("aria-current", "true");
 
   // The last row: it plays, and PREVIEW is left empty, so one more Enter sends nothing.
+  await app.pastAutoPreviewHold();
   await app.control.keyboard.press("Enter");
   await expect.poll(async () => (await audioStates(projector)).length).toBe(1);
   await expect(scheduleRows(app).and(app.control.locator('[aria-current="true"]'))).toHaveCount(0);
