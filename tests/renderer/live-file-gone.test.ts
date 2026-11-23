@@ -152,9 +152,27 @@ test("GO LIVE on the deck on air whose slides stopped drawing sends it again, re
   // Its file edited under it before its copy was kept: the projector's next slide answers 410.
   onDisk = [{ ...asset(7, "ppt"), mtimeMs: 2 }];
   ensured = deck(7, 101, 2);
+  useProjectionStore.getState().setSlideIndex(2);
   useProjectionStore.getState().setMediaError({ target: { kind: "scene" }, url: slideUrl(100, 2), code: null });
   previewScheduleItem(0);
   await goLive();
   expect(useProjectionStore.getState().liveDeck?.deckId).toBe(101);
   expect(useProjectionStore.getState().mediaErrors[mediaErrorKey({ kind: "scene" })]).toBeUndefined();
+});
+
+test("a slide that failed once and was left behind never sends the hymn on air again from PREVIEW's slide", async () => {
+  swept = [asset(7, "ppt")];
+  onDisk = [asset(7, "ppt")];
+  useDeckStore.setState({ byAssetId: { 7: ready(deck(7, 100)) } });
+  useProgramStore.setState({ items: [ppt(11, 7)] });
+  previewScheduleItem(0);
+  await goLive();
+  // Its first slide did not draw once (a picture that hiccuped); the operator went on to the second, which did.
+  useProjectionStore.getState().setMediaError({ target: { kind: "scene" }, url: slideUrl(100, 1), code: null });
+  useProjectionStore.getState().setSlideIndex(2);
+
+  // Picked again: only uncovered, still on its second slide (review of the night, RN-1).
+  previewScheduleItem(0);
+  await goLive();
+  expect(useProjectionStore.getState().base).toMatchObject({ kind: "deck", assetId: 7, slideIndex: 2 });
 });

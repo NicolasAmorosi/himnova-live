@@ -596,8 +596,14 @@ function isAlreadyLive(target: PreviewTarget, item: ProgramItemDTO | undefined):
   if (base?.kind === "deck") {
     const deck = target.kind === "asset" && target.assetKind === "ppt" ? target.assetId : item?.kind === "ppt" ? item.mediaAssetId : null;
     // One whose slides stopped drawing (its file edited or gone under it, 410) is sent again, as a failed image is:
-    // read again if it changed, refused with the missing-file notice if it went (2026-11-22 audit, RV-2).
-    const failed = mediaErrors[mediaErrorKey({ kind: "scene" })]?.url.startsWith(`worship://deck/${liveDeck?.deckId}/`) === true;
+    // read again if it changed, refused with the missing-file notice if it went (2026-11-22 audit, RV-2). The slide on
+    // air, not the deck: the slot keeps a slide that failed once and was left behind, and with it a hymn picked again
+    // went back to PREVIEW's slide with its music at 0:00 (review of the night, RN-1). Its url is the one the projector
+    // reports (`output-view.tsx`), a model slide's included: `/<n>/model`.
+    const slides = liveDeck?.slides ?? [];
+    const onAir = slides[Math.min(Math.max(base.slideIndex, 1), slides.length) - 1];
+    const failed =
+      onAir !== undefined && mediaErrors[mediaErrorKey({ kind: "scene" })]?.url === (onAir.modelUrl ?? onAir.url);
     return !failed && deck === survivingAssetId(base.assetId);
   }
   if (base?.kind === "song") {
