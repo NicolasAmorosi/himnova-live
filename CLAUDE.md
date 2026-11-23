@@ -142,7 +142,7 @@ src/
 │   ├── logging.ts                 # main.log and crash.log, rotated
 │   ├── songs/                     # song-writers.ts (OpenLyrics, ChordPro, SongSelect written back: a linked folder's
 │   │                              #   song saved into its own file — services/song-files.ts), rtf.ts (RTF → text), easyworship.ts (EasyWorship 6's song database),
-│   │                              #   openlp.ts (OpenLP's songs.sqlite and OpenLyrics files), text-files.ts (SongSelect .txt and
+│   │                              #   openlp.ts (OpenLP's songs.sqlite and OpenLyrics files; both databases read on song-db-worker.ts), text-files.ts (SongSelect .txt and
 │   │                              #   ChordPro, told apart by their words), usage-report.ts (CCLI CSV)
 │   └── services/                  # what crosses repos and windows: repos.ts (registry), projection-state.ts,
 │                                  #   broadcast.ts, library-import/-sweeper, song-files/-import, the removals…

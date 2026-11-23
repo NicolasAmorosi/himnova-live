@@ -281,7 +281,12 @@ The lyrics text format (`shared/song-text.ts`) is shared by the editor and the E
 (`main/songs/`): EasyWorship's RTF (`SongWords.db`) becomes plain text whose blocks start with a label
 («Verse 1», «Chorus») — exactly what `parseLyrics` reads, in any of the four languages. Its databases
 are opened read-only and never queried with `ORDER BY`/`WHERE` on text: EasyWorship 7 declares a
-collation SQLite lacks.
+collation SQLite lacks. Both programs' databases (EasyWorship's two, OpenLP's `songs.sqlite`) are SQL from a file
+of anywhere: only plain tables are read (`onlyPlainTables`: a view, a virtual table or a generated column is
+refused), and the read runs on a thread of its own (`songs/song-db-worker.ts`), one per database, with a 30 s clock
+(`SONG_DB_READ_TIMEOUT_MS` in `services/song-import.ts`); main gets the songs back and writes them. A read past the
+clock is the same «could not be read» as a broken file. The thread itself cannot be stopped while SQLite is inside
+its own loop (better-sqlite3 has no interrupt): it is asked to stop and never waited for (2026-11-22 audit, SE3).
 
 OpenLP (`songs.sqlite`, 2.0 on) and OpenLyrics (its export, one `.xml` per song) need no text format:
 both name each verse (`v1`, `c`, `v1a` a part of verse 1) and `main/songs/openlp.ts` builds the sections

@@ -7,7 +7,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import Database from "better-sqlite3";
-import { afterAll, beforeAll, describe, expect, test } from "vitest";
+import { afterAll, beforeAll, describe, expect, test, vi } from "vitest";
 import { openDatabase } from "../../src/main/db/client";
 import { runMigrations } from "../../src/main/db/migrate";
 import { getSongsRepo, initRepos } from "../../src/main/services/repos";
@@ -15,6 +15,9 @@ import { importEasyWorshipFolder } from "../../src/main/services/song-import";
 import { findEasyWorshipData, readEasyWorship } from "../../src/main/songs/easyworship";
 import { rtfToText } from "../../src/main/songs/rtf";
 import { IpcError } from "../../src/shared/ipc/result";
+
+// The databases are read on a thread (`song-db-worker.ts`); here, in this process.
+vi.mock("../../src/main/songs/song-db-worker?nodeWorker", () => import("./support/song-db-worker-in-process"));
 
 const drizzleDir = path.join(process.cwd(), "drizzle");
 

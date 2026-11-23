@@ -44,6 +44,9 @@ import { isSongThemeUpsert } from "../../src/shared/song-validators";
 import { DEFAULT_BIBLE_STYLE } from "../../src/shared/types/bible-style";
 import { IpcError } from "../../src/shared/ipc/result";
 
+// The databases are read on a thread (`song-db-worker.ts`); here, in this process.
+vi.mock("../../src/main/songs/song-db-worker?nodeWorker", () => import("./support/song-db-worker-in-process"));
+
 const drizzleDir = path.join(process.cwd(), "drizzle");
 
 let tmpDir: string;
