@@ -144,12 +144,31 @@ export function dropSentPreview(sent: PreviewTarget, row?: ProgramItemDTO): void
     const at = rowIndexOf(row);
     if (at >= 0 && at + 1 < useProgramStore.getState().items.length) {
       previewScheduleItem(at + 1);
+      tookItself = { target: usePreviewStore.getState().target, at: performance.now() };
       return;
     }
   }
   useProgramStore.getState().select(null);
   useLibraryStore.getState().select(null);
   usePreviewStore.getState().clear();
+}
+
+/** The row PREVIEW took on its own after GO LIVE, and when. Picking anything, that row included, is a new target. */
+let tookItself: { target: PreviewTarget | null; at: number } | null = null;
+
+/** The second press of a double click, or an Enter that bounced, came ~200 ms after the first, and sent the row
+ *  PREVIEW had just taken: the hymn flashed and its music cut (owner, 2026-11-22, RV-1). That row waits this long. */
+const TOOK_ITSELF_HOLD_MS = 500;
+
+/** PREVIEW still holds the row it took on its own (not one the operator picked). */
+export function previewTookItself(): boolean {
+  const { target } = usePreviewStore.getState();
+  return target !== null && target === tookItself?.target;
+}
+
+/** PREVIEW took its row on its own less than `TOOK_ITSELF_HOLD_MS` ago: GO LIVE does nothing yet. */
+export function previewJustTookItself(): boolean {
+  return previewTookItself() && performance.now() - (tookItself?.at ?? 0) < TOOK_ITSELF_HOLD_MS;
 }
 
 /** The schedule row PREVIEW holds: the selected one, or the Bible row a verse was walked out of. */

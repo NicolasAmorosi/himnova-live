@@ -10,7 +10,12 @@ import { findScene, useUtilityStore } from "@renderer/stores/utility.store";
 import { notifyManualNavigation, restartDeck } from "@renderer/effects/deck-autoplay";
 import { handLiveItemToTab, projectVerse, recordLiveVerse, scheduleItemParallel } from "@renderer/lib/actions/bible";
 import { stopPreviewPlayback } from "@renderer/lib/actions/preview-playback";
-import { dropSentPreview, followChain, previewedScheduleItem } from "@renderer/lib/actions/preview";
+import {
+  dropSentPreview,
+  followChain,
+  previewedScheduleItem,
+  previewJustTookItself,
+} from "@renderer/lib/actions/preview";
 import type { ProgramItemDTO } from "@shared/types/program";
 import { defaultMediaVolume, useSettingsStore } from "@renderer/stores/settings.store";
 import { api } from "@renderer/lib/api";
@@ -601,7 +606,7 @@ function isAlreadyLive(target: PreviewTarget, item: ProgramItemDTO | undefined):
  */
 export async function goLive(): Promise<void> {
   const { slideIndex, positionSeconds, target } = usePreviewStore.getState();
-  if (!target) return;
+  if (!target || previewJustTookItself()) return;
   // Everything PREVIEW names is pinned here, before the first `await`: the operator keeps working while the
   // projector opens (up to 5 s), and the row clicked meanwhile used to be what went out (2026-11-15 audit, A5).
   const item = target.kind === "scheduleItem" ? previewedScheduleItem() : undefined;

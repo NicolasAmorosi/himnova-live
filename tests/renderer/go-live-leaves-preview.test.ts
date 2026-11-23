@@ -10,6 +10,7 @@ import { goLive, goLiveWithNextScheduleAudio, goLiveWithNextScheduleItem } from 
 import { saveCurrentProgram } from "@renderer/lib/actions/programs";
 import { advanceVerse } from "@renderer/lib/actions/bible";
 import { advancePreview, previewAsset, previewScheduleItem, previewVerse } from "@renderer/lib/actions/preview";
+import { removeSelected } from "@renderer/lib/actions/remove-selected";
 import { useAudioStore } from "@renderer/stores/audio.store";
 import { useBibleStore } from "@renderer/stores/bible.store";
 import { useDisplayStore } from "@renderer/stores/display.store";
@@ -56,6 +57,10 @@ const initialProgram = useProgramStore.getState();
 const initialAudio = useAudioStore.getState();
 const initialSettings = useSettingsStore.getState();
 
+/** The clock the row PREVIEW took on its own is held by (500 ms, RV-1): it moves only when a test says so. */
+let now = 0;
+const later = (ms = 1_000) => void (now += ms);
+
 /** A projector that opens only when the test says so — the wait the operator keeps working through. */
 function coldProjector(): () => void {
   let open: () => void = () => {};
@@ -64,6 +69,7 @@ function coldProjector(): () => void {
 }
 
 beforeEach(() => {
+  vi.spyOn(performance, "now").mockImplementation(() => now);
   (window as unknown as { worship: unknown }).worship = {
     invoke: vi.fn((channel: string, req: { id?: number; bookId?: number; chapter?: number }) =>
       Promise.resolve({
@@ -99,12 +105,14 @@ test("a schedule row that went live leaves the next row in PREVIEW, and the next
   expect(useProgramStore.getState().selectedIndex).toBe(1);
   expect(usePreviewStore.getState().target).toMatchObject({ kind: "scheduleItem" });
 
+  later();
   await goLive();
   expect(useProjectionStore.getState().base).toMatchObject({ kind: "image", assetId: 2 });
   expect(useProgramStore.getState().activeIndex).toBe(1);
   expect(useProgramStore.getState().selectedIndex).toBe(2);
 
   // Whatever the next row is: an audio, which never claims the rail, still leaves the one under it, here none.
+  later();
   await goLive();
   expect(useAudioStore.getState().tracks.map((t) => t.assetId)).toEqual([4]);
   expect(useProgramStore.getState().activeIndex).toBe(1);
@@ -316,8 +324,10 @@ test("the same image sent again from a later row only uncovers it, and that row 
   useProgramStore.setState({ items: [row(10, 1), row(11, 4), row(12, 1), row(13, 2)] });
   previewScheduleItem(0);
   await goLive();
+  later();
   await goLive(); // the audio
   const epoch = useProjectionStore.getState().sceneEpoch;
+  later();
   await goLive(); // image 1 again, already on air
   expect(useProjectionStore.getState().sceneEpoch).toBe(epoch);
   expect(useProgramStore.getState().activeIndex).toBe(2);
@@ -485,4 +495,42 @@ test("a verse walked out of a Bible row with ↓ is still that row's: it takes t
   expect(program().activeIndex).toBe(0);
   expect(program().selectedIndex).toBe(1);
   expect(usePreviewStore.getState().target).toMatchObject({ kind: "scheduleItem" });
+});
+
+test("a double click or a bounced Enter does not send the row PREVIEW just took; half a second later, Enter does", async () => {
+  useProgramStore.setState({ items: [row(10, 1), row(11, 2)] });
+  previewScheduleItem(0);
+  await goLive();
+  const epoch = useProjectionStore.getState().sceneEpoch;
+
+  later(200);
+  await goLive();
+  expect(useProjectionStore.getState().base).toMatchObject({ kind: "image", assetId: 1 });
+  expect(useProjectionStore.getState().sceneEpoch).toBe(epoch);
+  expect(useProgramStore.getState().selectedIndex).toBe(1);
+
+  later(400);
+  await goLive();
+  expect(useProjectionStore.getState().base).toMatchObject({ kind: "image", assetId: 2 });
+});
+
+test("a row the operator picks right after GO LIVE goes out at once, the one PREVIEW took included", async () => {
+  useProgramStore.setState({ items: [row(10, 1), row(11, 2)] });
+  previewScheduleItem(0);
+  await goLive();
+  previewScheduleItem(1);
+  await goLive();
+  expect(useProjectionStore.getState().base).toMatchObject({ kind: "image", assetId: 2 });
+});
+
+test("Delete or Backspace leaves the row PREVIEW took on its own; picked by hand, the key removes it", async () => {
+  useProgramStore.setState({ items: [row(10, 1), row(11, 2), row(12, 5)] });
+  previewScheduleItem(0);
+  await goLive();
+  removeSelected();
+  expect(useProgramStore.getState().items.map((i) => i.id)).toEqual([10, 11, 12]);
+
+  previewScheduleItem(1);
+  removeSelected();
+  expect(useProgramStore.getState().items.map((i) => i.id)).toEqual([10, 12]);
 });
