@@ -3,6 +3,7 @@ import path from "node:path";
 import { ASSET_KINDS, type AssetKind } from "@shared/constants";
 import type { MergedAsset } from "@shared/types/media";
 import type { SettingsMap } from "@shared/types/settings";
+import { backgroundStat } from "./background-files";
 import type { MediaRepo } from "../db/repositories/media.repo";
 import type { SongsRepo } from "../db/repositories/songs.repo";
 import type { SettingsRepo } from "../db/repositories/settings.repo";
@@ -85,7 +86,7 @@ async function explained(paths: Iterable<string>, move: PathMove, kind: "file" |
     return after === null || after === before ? [] : [[before, after] as const];
   });
   const found: Found = new Map();
-  const stat = (p: string) => fs.promises.stat(p).catch(() => null);
+  const stat = (p: string) => backgroundStat(p).catch(() => null);
   for (let i = 0; i < pairs.length; i += PROBE_CHUNK) {
     const slice = pairs.slice(i, i + PROBE_CHUNK);
     const stats = await Promise.all(slice.map(([before, after]) => Promise.all([stat(before), stat(after)])));

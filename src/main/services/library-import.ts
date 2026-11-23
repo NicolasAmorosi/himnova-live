@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { ASSET_EXTENSIONS, PREWARM_EXPLICIT_MAX, type AssetKind } from "@shared/constants";
 import type { MediaAsset } from "@shared/types/media";
+import { backgroundStat } from "./background-files";
 import { getMediaRepo } from "./repos";
 import { broadcast } from "./broadcast";
 import { prewarm } from "../slides/deck-service";
@@ -104,15 +105,16 @@ export async function importPaths(
     let mutated = 0;
 
     for (const slice of chunk(paths, CHUNK_SIZE)) {
-      // One `stat` per file, but asynchronously and all at once per chunk: on
-      // a network share a serial `statSync` run is a few milliseconds EACH,
-      // and a chunk of 100 would block the main process (and the projection
-      // with it) for seconds. A vanished file just isn't in the result —
-      // never a reason to fail the batch.
+      // One `stat` per file, but asynchronously: on a network share a serial
+      // `statSync` run is a few milliseconds EACH, and a chunk of 100 would
+      // block the main process (and the projection with it) for seconds. Two
+      // at a time (`backgroundStat`), so the projector's own reads always find
+      // a thread. A vanished file just isn't in the result — never a reason to
+      // fail the batch.
       const stats = await Promise.all(
         slice.map(async (p) => {
           try {
-            return { path: p, stat: await fs.promises.stat(p) };
+            return { path: p, stat: await backgroundStat(p) };
           } catch {
             return null;
           }

@@ -8,6 +8,7 @@ import { LINKED_AUDIO_RESOLVER_VERSION, type AssetKind } from "@shared/constants
 import type { MediaAsset, MergedAsset } from "@shared/types/media";
 import { resolveLinkedAudio } from "../../slides/linked-audio";
 import { IpcError } from "@shared/ipc/result";
+import { backgroundStat } from "../../services/background-files";
 
 /** One `IN (...)` binds one parameter per id, and SQLite refuses the
  *  statement past `SQLITE_MAX_VARIABLE_NUMBER`. Every query here that takes
@@ -410,7 +411,8 @@ export class MediaRepo {
     // milliseconds-to-seconds, and a synchronous loop over a large library
     // then blocks the main process — and therefore the projection — for as
     // long as that takes. The `setImmediate` yield only limited how long each
-    // BATCH blocked, not the calls themselves.
+    // BATCH blocked, not the calls themselves. Two in flight at most
+    // (`backgroundStat`): a chunk is one transaction, not 200 threads.
     const PROBE_CHUNK = 200;
     for (let i = 0; i < rows.length; i += PROBE_CHUNK) {
       const slice = rows.slice(i, i + PROBE_CHUNK);
@@ -420,7 +422,7 @@ export class MediaRepo {
       // content hash, a video's probe, a thumbnail — is
       // checked against the row's `(size, mtime)`, so a row nobody refreshed
       // kept last week's announcements "current" forever.
-      const stats = await Promise.all(slice.map((row) => fs.promises.stat(row.path).catch(() => null)));
+      const stats = await Promise.all(slice.map((row) => backgroundStat(row.path).catch(() => null)));
       slice.forEach((row, index) => {
         const stat = stats[index];
         if (stat && row.missingSince !== null) {
@@ -521,7 +523,7 @@ export class MediaRepo {
       .where(and(eq(mediaAssets.kind, kind), eq(mediaAssets.inLibrary, 0), sql`${mediaAssets.missingSince} IS NULL`))
       .all()
       .filter((row) => path.dirname(row.pathKey) === folderKey && !presentKeys.has(row.pathKey));
-    const opens = await Promise.all(absent.map((row) => fs.promises.stat(row.path).then(() => true, () => false)));
+    const opens = await Promise.all(absent.map((row) => backgroundStat(row.path).then(() => true, () => false)));
     const gone = absent.filter((_, i) => !opens[i]).map((row) => row.id);
     const now = Date.now();
     for (let i = 0; i < gone.length; i += ID_CHUNK) {
