@@ -186,6 +186,7 @@ const pt: Messages = {
     importing: "Importando {done} de {total}…",
     loading: "Lendo a pasta…",
     loadFailed: "Não foi possível ler a biblioteca",
+    loadFailedHint: "Tente de novo com “Tentar de novo”. Se acontecer outra vez, reinicie o app.",
     folderMissing:
       "A pasta não está disponível. Se for um pendrive ou um disco externo, conecte-o; se você a moveu ou a letra da unidade mudou, encontre-a com “Localizar pasta…”.",
   },

@@ -189,6 +189,7 @@ const es = {
     importing: "Importando {done} de {total}…",
     loading: "Leyendo la carpeta…",
     loadFailed: "No se pudo leer la biblioteca",
+    loadFailedHint: "Probá de nuevo con «Reintentar». Si vuelve a pasar, reiniciá la app.",
     folderMissing:
       "La carpeta no está disponible. Si es un pendrive o un disco externo, conectalo; si la moviste o cambió de letra, buscala con «Buscar la carpeta…».",
   },

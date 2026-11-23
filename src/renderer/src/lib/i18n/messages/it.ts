@@ -186,6 +186,7 @@ const it: Messages = {
     importing: "Importazione {done} di {total}…",
     loading: "Lettura della cartella…",
     loadFailed: "Impossibile leggere la libreria",
+    loadFailedHint: "Prova di nuovo con «Riprova». Se succede ancora, riavvia l’app.",
     folderMissing:
       "La cartella non è disponibile. Se è una chiavetta USB o un disco esterno, collegalo; se l'hai spostata o ha cambiato lettera, trovala con «Individua cartella…».",
   },

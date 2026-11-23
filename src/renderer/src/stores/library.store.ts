@@ -4,6 +4,7 @@ import type { ImportProgress, MediaAsset } from "@shared/types/media";
 import { api } from "@renderer/lib/api";
 import { IpcError } from "@shared/ipc/result";
 import { t } from "@renderer/lib/i18n/i18n-provider";
+import { describeError } from "@renderer/lib/utils";
 
 /** A resource tab's source view: either the added-to-library list, or one of
  *  its linked folders (see `settings["library.linkedFolders"]`), addressed
@@ -86,10 +87,6 @@ function isCurrent(key: string, seq: number): boolean {
   return requestSeq.get(key) === seq;
 }
 
-function messageOf(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
-
 export const useLibraryStore = create<LibraryStoreState>((set, get) => ({
   activeTab: "video",
   byKind: { video: [], image: [], audio: [], ppt: [] },
@@ -116,9 +113,9 @@ export const useLibraryStore = create<LibraryStoreState>((set, get) => ({
       }));
     } catch (error) {
       if (!isCurrent(kind, seq)) return;
-      set((state) => ({
-        viewStatus: { ...state.viewStatus, [kind]: { error: messageOf(error), loading: false } },
-      }));
+      // SQLite's own English («database disk image is malformed») is no hint for the booth (2026-11-22 review, EC-5).
+      const message = describeError(error, t("library.loadFailedHint"));
+      set((state) => ({ viewStatus: { ...state.viewStatus, [kind]: { error: message, loading: false } } }));
     }
   },
 
@@ -166,7 +163,9 @@ export const useLibraryStore = create<LibraryStoreState>((set, get) => ({
     } catch (error) {
       if (!isCurrent(key, seq)) return;
       const message =
-        error instanceof IpcError && error.code === "FOLDER_MISSING" ? t("library.folderMissing") : messageOf(error);
+        error instanceof IpcError && error.code === "FOLDER_MISSING"
+          ? t("library.folderMissing")
+          : describeError(error, t("library.loadFailedHint"));
       // The old listing goes with the failed read: kept, a folder gone from
       // the disk went on showing its files — pickable, sendable, savable into
       // a program — and the grid, which says why only when it has nothing to

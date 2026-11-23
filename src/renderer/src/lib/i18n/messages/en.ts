@@ -186,6 +186,7 @@ const en: Messages = {
     importing: "Importing {done} of {total}…",
     loading: "Reading the folder…",
     loadFailed: "Couldn't read the library",
+    loadFailedHint: "Try again with “Retry”. If it happens again, restart the app.",
     folderMissing:
       "The folder isn't available. If it's on a USB drive or an external disk, plug it in; if you moved it or its drive letter changed, find it with “Locate folder…”.",
   },
