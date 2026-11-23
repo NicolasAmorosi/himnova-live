@@ -2,7 +2,7 @@
  *  the errors that reach a toast or a panel. Spanish is the reference locale,
  *  as in the renderer: `MainMessages` is this file's type. */
 const es = {
-  window: { projectionTitle: "Himnova Live — Proyección", stageTitle: "Himnova Live — Escenario" },
+  window: { projectionTitle: "Himnova Live · Proyección", stageTitle: "Himnova Live · Escenario" },
   menu: {
     about: "Acerca de {app}",
     services: "Servicios",

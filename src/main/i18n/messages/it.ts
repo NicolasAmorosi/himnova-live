@@ -1,7 +1,7 @@
 import type { MainMessages } from "./es";
 
 const it: MainMessages = {
-  window: { projectionTitle: "Himnova Live — Proiezione", stageTitle: "Himnova Live — Palco" },
+  window: { projectionTitle: "Himnova Live · Proiezione", stageTitle: "Himnova Live · Palco" },
   menu: {
     about: "Informazioni su {app}",
     services: "Servizi",
