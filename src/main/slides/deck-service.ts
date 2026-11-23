@@ -82,7 +82,7 @@ function stampOf(stat: fs.Stats): string {
 /**
  * A source's stat off main's thread, `null` when it can't be had: a hymn on a share that stopped answering held a
  * synchronous stat, and main with it, 21 s on Windows (measured for A26, 2026-11-16), with the engine's video and NDI
- * frozen (2026-11-22 audit, RM1). One question per file at a time, shared with GO LIVE's check of the same file; the
+ * frozen (2026-11-22 audit, RM1). Shared with GO LIVE's check of the same file while it is young (`operatorStat`); the
  * read-ahead's waits for one of the two threads background work may hold (`background-files.ts`).
  */
 function statOf(file: string, lane: RasterLane): Promise<fs.Stats | null> {
@@ -90,7 +90,8 @@ function statOf(file: string, lane: RasterLane): Promise<fs.Stats | null> {
 }
 
 /** A peek (`getDeck`) is answered within a second. Its `null` past it only sends the renderer on to `deck:ensure`, which
- *  waits for the same stat: a disk slow to wake is never a file that is gone (2026-11-22 review, RN-2). */
+ *  waits for a stat of its own however long it takes: a disk slow to wake is never a file that is gone (2026-11-22
+ *  review, RN-2), and a share back since the peek answers at once (RN2-1). */
 function statWithin(file: string): Promise<fs.Stats | null> {
   return Promise.race([statOf(file, "now"), new Promise<null>((resolve) => setTimeout(resolve, 1000, null))]);
 }

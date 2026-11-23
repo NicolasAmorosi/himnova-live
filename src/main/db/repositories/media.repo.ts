@@ -477,8 +477,8 @@ export class MediaRepo {
   async check(id: number): Promise<{ asset: MediaAsset | null; changed: boolean }> {
     const asset = this.getById(id);
     if (!asset) return { asset, changed: false };
-    // The one stat of this path under way, shared with the deck read after it: each one hung on a share that went
-    // away holds a thread of the pool the projector's own file reads share.
+    // The one stat of this path under way, shared with the deck read after it while it is young (`operatorStat`): each
+    // one hung on a share that went away holds a thread of the pool the projector's own file reads share.
     const pending = operatorStat(asset.path).catch(() => null);
     const stat = await Promise.race([pending, new Promise<"slow">((resolve) => setTimeout(resolve, 1000, "slow"))]);
     if (stat === "slow") return { asset, changed: false };

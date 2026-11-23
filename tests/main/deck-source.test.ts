@@ -281,3 +281,34 @@ test("a source slow to answer its stat is waited for, and gone only when the sta
     vi.useRealTimers();
   }
 });
+
+test("a stat of the operator's that never answers does not hold «Reintentar» once the share is back", async () => {
+  // «Reintentar» and a new GO LIVE joined the stat that began while the share was down: a mount that never answers left
+  // the deck «Convirtiendo» until a restart, and one back since answered only when the system gave up (review, RN2-1).
+  vi.useFakeTimers();
+  h.file = path.join(dir, "share-back.pps");
+  fs.writeFileSync(h.file, OLE);
+  h.kind.value = "binary";
+  h.rows = {};
+  const real = fs.promises.stat;
+  let down = true;
+  const stats = vi
+    .spyOn(fs.promises, "stat")
+    .mockImplementation((file) => (down && file === h.file ? new Promise(() => undefined) : real(file)));
+  try {
+    const id = ++assetId;
+    let first: unknown = "pending";
+    void prepareDeck(id).then((dto) => (first = dto), (error: unknown) => (first = error));
+    await vi.advanceTimersByTimeAsync(120_000);
+    expect(first).toBe("pending");
+    down = false;
+    let retried: unknown = "pending";
+    void prepareDeck(id, { force: true }).then((dto) => (retried = dto), (error: unknown) => (retried = error));
+    await vi.waitFor(() => expect(retried).toEqual({ format: "native" }));
+    expect(first).toBe("pending");
+    expect(stats.mock.calls.filter(([file]) => file === h.file)).toHaveLength(2);
+  } finally {
+    vi.restoreAllMocks();
+    vi.useRealTimers();
+  }
+});

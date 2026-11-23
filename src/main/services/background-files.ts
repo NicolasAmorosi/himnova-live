@@ -10,14 +10,17 @@ const IN_FLIGHT = 2;
 let running = 0;
 const waiting: (() => void)[] = [];
 
-/** The stats under way, one per path, and whether the operator started it: GO LIVE's check of a file
- *  (`MediaRepo.check`) and the deck read after it stat it once, and background work never stats a file twice at a
- *  time (2026-11-22 review, RN-6). Only a stat already started is here, never one still waiting for a thread, and
+/** The stats under way, one per path, whether the operator started it and when: GO LIVE's check of a file
+ *  (`MediaRepo.check`) and the deck read right after it stat it once, and background work never stats a file twice at
+ *  a time (2026-11-22 review, RN-6). Only a stat already started is here, never one still waiting for a thread, and
  *  nothing is kept once it answers. */
-const started = new Map<string, { stat: Promise<fs.Stats>; operator: boolean }>();
+const started = new Map<string, { stat: Promise<fs.Stats>; operator: boolean; at: number }>();
+
+/** How old a stat of the operator's may be for another of their asks to join it. */
+const OPERATOR_JOIN_MS = 2000;
 
 function start(file: string, operator: boolean): Promise<fs.Stats> {
-  const entry = { stat: fs.promises.stat(file), operator };
+  const entry = { stat: fs.promises.stat(file), operator, at: Date.now() };
   started.set(file, entry);
   // Only its own entry: the operator's may have taken the place of a background one still under way.
   const forget = (): void => {
@@ -29,14 +32,16 @@ function start(file: string, operator: boolean): Promise<fs.Stats> {
 
 /**
  * What the operator waits on (GO LIVE, a deck chosen): started at once, never behind the background's queue, and it
- * waits no longer than if it asked alone. It joins only a stat the operator started, which began no earlier than its
- * own would have: one the background started may have begun while the share was down, and answer only when the
- * system gives up (21 s on Windows) for a file that is back. So it starts its own beside that one, a thread more for
- * that file only; the background then joins the operator's, a background ask still waiting for a thread included.
+ * waits no longer than if it asked alone. It joins only a stat the operator started within the last two seconds: one the
+ * background started, or an older one of theirs, may have begun while the share was down, and answer only when the
+ * system gives up (21 s on Windows, never on a mount that never answers) for a file that is back. So «Reintentar» or a
+ * new GO LIVE starts its own beside that one, a thread more for that file only (review, RN2-1); the background then
+ * joins the newest, a background ask still waiting for a thread included. A deck read after a check or a peek that gave
+ * up at its second on a disk slow to wake starts one too.
  */
 export function operatorStat(file: string): Promise<fs.Stats> {
   const asked = started.get(file);
-  return asked?.operator ? asked.stat : start(file, true);
+  return asked?.operator && Date.now() - asked.at <= OPERATOR_JOIN_MS ? asked.stat : start(file, true);
 }
 
 export async function backgroundStat(file: string): Promise<fs.Stats> {
