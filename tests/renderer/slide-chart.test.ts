@@ -102,7 +102,7 @@ function chart(plot: ChartPlot, face = "Calibri", view3D: Chart3D | null = null)
 }
 
 function draw(model: ChartModel): string {
-  return renderToStaticMarkup(createElement(SlideChart, { chart: model, w: 6_000_000, h: 4_000_000, slideWidth: 12_192_000 }));
+  return renderToStaticMarkup(createElement(SlideChart, { chart: model, w: 6_000_000, h: 4_000_000 }));
 }
 
 test("a chart in Tinos (Google Slides) is drawn in its serif twin, not the sans fallback", () => {

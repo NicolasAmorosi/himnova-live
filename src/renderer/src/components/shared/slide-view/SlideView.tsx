@@ -128,7 +128,7 @@ function Element({ el, place, scope, path }: { el: SlideElement; place: Place; s
       const b = boxOf(el.frame, place);
       return (
         <div style={frameStyle(el.frame, place, scope)}>
-          <SlideChart chart={el.chart} w={b.w} h={b.h} slideWidth={scope.slideWidth} resolve={scope.resolve} />
+          <SlideChart chart={el.chart} w={b.w} h={b.h} resolve={scope.resolve} />
         </div>
       );
     }

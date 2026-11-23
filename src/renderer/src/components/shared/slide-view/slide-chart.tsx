@@ -40,7 +40,6 @@ export function SlideChart({
   chart: ChartModel;
   w: number;
   h: number;
-  slideWidth: number;
   resolve?: ResolvePart;
 }): ReactNode {
   slideText = useContext(SlideTextContext);
@@ -583,13 +582,10 @@ const LEGEND_PAD_Y = 4.9 * PT;
 
 type AxisLayout = {
   axis: ChartAxis;
-  horizontal: boolean;
   /** Value axes: the scale. Category axes: none. */
   scale: Scale | null;
   /** Category count, for category axes. */
   count: number;
-  /** Category axes: categories on ticks (`midCat`) instead of between. */
-  onTicks: boolean;
   /** `at`: the value (value axes) or category index; `t`: where along the
    *  axis, 0..1 from its start. */
   labels: { text: string; at: number; t: number }[];
@@ -1116,10 +1112,8 @@ function valueAxisLayout(
   const slot = (v: number): number => (v - scale.min) / span;
   return {
     axis,
-    horizontal,
     scale,
     count: 0,
-    onTicks: false,
     labels: labels.map((l) => ({ ...l, t: slot(l.at) })),
     tickTs: ticks(scale, scale.major).map(slot),
     slot,
@@ -1227,10 +1221,8 @@ function categoryAxisLayout(axis: ChartAxis, chart: Chart, count: number, onTick
   const gap = horizontal ? categoryGap(tickOut, axis.labelOffset) : tickOut + (6.1 * PT * axis.labelOffset) / 100;
   return {
     axis,
-    horizontal,
     scale: null,
     count,
-    onTicks,
     labels: shown ? items.filter((_, i) => i % skip === 0) : [],
     tickTs,
     slot,
