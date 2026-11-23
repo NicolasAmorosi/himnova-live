@@ -35,10 +35,11 @@ rasterized whole into the slide cache, one at a time behind a two-lane queue wit
 queue, `deck:cancel` and the `slides.preemptBackground` escape hatch are gone.
 
 **Main does not stat, sniff or read a deck's file to open it** (2026-11-22 audit, RM1). The source
-is stat'ed with `fs.promises.stat`, one question per file at a time; what the operator waits on
-(`deck:get`, `deck:ensure`) is answered within a second, and past it the source is not there, as a
-file that is gone (a share that stopped answering held a synchronous stat, and main with it, 21 s on
-Windows). The read-ahead stats its decks one at a time, in the order asked. The sniff
+is stat'ed with `fs.promises.stat`, one question per file at a time, shared with GO LIVE's check of
+the same file (`background-files.ts`); what the operator waits on (`deck:get`, `deck:ensure`) is
+answered within a second, and past it the source is not there, as a file that is gone (a share that
+stopped answering held a synchronous stat, and main with it, 21 s on Windows). The read-ahead's stats
+take one of the two threads background work may hold (`backgroundStat`), never one beside them. The sniff
 (`containerKind`), the picture reader and `sniffUnreadableDeck` run on a second thread of
 `pptx-worker.ts` with its own queue (`pptx-deck.ts`, `hymnal`): in the model readers' queue a hymn
 waited behind a heavy `.pptx`, and on main a screen of 32 unread hymns was one turn of the thread

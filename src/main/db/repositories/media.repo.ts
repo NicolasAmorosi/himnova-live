@@ -8,7 +8,7 @@ import { LINKED_AUDIO_RESOLVER_VERSION, type AssetKind } from "@shared/constants
 import type { MediaAsset, MergedAsset } from "@shared/types/media";
 import { resolveLinkedAudio } from "../../slides/linked-audio";
 import { IpcError } from "@shared/ipc/result";
-import { backgroundStat } from "../../services/background-files";
+import { backgroundStat, operatorStat } from "../../services/background-files";
 
 /** One `IN (...)` binds one parameter per id, and SQLite refuses the
  *  statement past `SQLITE_MAX_VARIABLE_NUMBER`. Every query here that takes
@@ -467,10 +467,6 @@ export class MediaRepo {
     return changedKinds;
   }
 
-  /** `check()`'s stats still under way, one per path, as `isDirectory` (`files.ts`): each one hung on a share that
-   *  went away holds a thread of the pool the projector's own file reads share. */
-  private readonly checking = new Map<string, Promise<fs.Stats | null>>();
-
   /**
    * One row of `sweep()`, now: what GO LIVE asks before it cuts what is on air, since the sweep runs on focus and
    * every 5 minutes and a file gone in between cut the stage to black. A file that does not answer within a second
@@ -481,14 +477,9 @@ export class MediaRepo {
   async check(id: number): Promise<{ asset: MediaAsset | null; changed: boolean }> {
     const asset = this.getById(id);
     if (!asset) return { asset, changed: false };
-    let pending = this.checking.get(asset.path);
-    if (!pending) {
-      pending = fs.promises
-        .stat(asset.path)
-        .catch(() => null)
-        .finally(() => this.checking.delete(asset.path));
-      this.checking.set(asset.path, pending);
-    }
+    // The one stat of this path under way, shared with the deck read after it: each one hung on a share that went
+    // away holds a thread of the pool the projector's own file reads share.
+    const pending = operatorStat(asset.path).catch(() => null);
     const stat = await Promise.race([pending, new Promise<"slow">((resolve) => setTimeout(resolve, 1000, "slow"))]);
     if (stat === "slow") return { asset, changed: false };
 

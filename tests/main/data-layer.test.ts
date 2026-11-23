@@ -26,6 +26,7 @@ import { backupBeforeMigrate, runMigrations } from "../../src/main/db/migrate";
 import { bibleFileHash, seedBuiltinBibles } from "../../src/main/db/seed/seed-bible";
 import { bibleBooks, bibleVersions, mediaAssets } from "../../src/main/db/schema";
 import { BibleRepo } from "../../src/main/db/repositories/bible.repo";
+import { operatorStat } from "../../src/main/services/background-files";
 import { SettingsRepo } from "../../src/main/db/repositories/settings.repo";
 import { ProgramsRepo } from "../../src/main/db/repositories/programs.repo";
 import { MediaRepo } from "../../src/main/db/repositories/media.repo";
@@ -455,6 +456,25 @@ describe("Media library", { shuffle: false }, () => {
       await vi.advanceTimersByTimeAsync(1000);
       expect(await checked).toEqual({ asset: before, changed: false });
       expect(mediaRepo.getById(id)).toEqual(before);
+    } finally {
+      settle();
+      vi.useRealTimers();
+      stat.mockRestore();
+    }
+  });
+
+  test("GO LIVE's check joins the stat of the same file already under way, and takes no second thread", async () => {
+    // The deck read after it asks the same file: on a share that went away each held a thread (2026-11-22 review, RN-6).
+    const { id } = inserted[1]!;
+    let settle = (): void => {};
+    const stat = vi.spyOn(fs.promises, "stat").mockImplementation(() => new Promise((_, reject) => (settle = () => reject(new Error("EIO")))));
+    vi.useFakeTimers();
+    try {
+      void operatorStat(filePaths[1]!).catch(() => null);
+      const checked = mediaRepo.check(id);
+      await vi.advanceTimersByTimeAsync(1000);
+      expect((await checked).changed).toBe(false);
+      expect(stat).toHaveBeenCalledTimes(1);
     } finally {
       settle();
       vi.useRealTimers();

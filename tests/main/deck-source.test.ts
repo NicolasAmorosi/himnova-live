@@ -88,6 +88,7 @@ vi.mock("../../src/main/slides/pptx-deck", () => ({
 vi.mock("../../src/main/slides/rasterizer", () => ({ readPdfPages: vi.fn(), shutdownRasterizer: vi.fn() }));
 
 const { getDeck, prepareDeck } = await import("../../src/main/slides/deck-service");
+const { backgroundStat } = await import("../../src/main/services/background-files");
 
 let dir = "";
 beforeAll(() => {
@@ -190,6 +191,29 @@ test("a hymn the picture reader refuses, or whose thread stops on it, goes whole
     expect(readPptx.mock.calls.map((call: unknown[]) => call[0])).toEqual([h.file]);
     expect(h.inserted).toBe(inserted);
   }
+});
+
+test("reading ahead takes one of the background's two threads, never a third", async () => {
+  // A dead share with the hymns on screen: the sweep's two stats, the read-ahead's and GO LIVE's held five of libuv's
+  // four threads, and the projector's own reads waited behind them (2026-11-22 review, RN-6).
+  h.file = path.join(dir, "read-ahead.pps");
+  fs.writeFileSync(h.file, OLE);
+  h.rows = {};
+  const real = fs.promises.stat;
+  const held: (() => void)[] = [];
+  const stats = vi.spyOn(fs.promises, "stat").mockImplementation((file) =>
+    String(file).startsWith("sweep-") ? new Promise((resolve) => held.push(() => resolve({} as fs.Stats))) : real(file),
+  );
+  const sweep = [backgroundStat("sweep-1"), backgroundStat("sweep-2")];
+  const ahead = prepareDeck(++assetId, { priority: "background" }).catch(() => undefined);
+  await new Promise((resolve) => setImmediate(resolve));
+  expect(stats.mock.calls.map(([file]) => file)).toEqual(["sweep-1", "sweep-2"]);
+  held.shift()!();
+  await ahead;
+  expect(stats.mock.calls.map(([file]) => file)).toContain(h.file);
+  held.shift()!();
+  await Promise.all(sweep);
+  vi.restoreAllMocks();
 });
 
 test("a source whose stat never answers is a source that is gone after a second, asked once", async () => {

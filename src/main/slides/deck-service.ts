@@ -14,6 +14,7 @@ import {
 import type { DeckDTO, DeckProgress } from "@shared/types/deck";
 import { deckCacheDir, slidesCacheDir, userDataDir } from "../paths";
 import { getMediaRepo, getSettingsRepo, getSlidesRepo } from "../services/repos";
+import { backgroundStat, operatorStat } from "../services/background-files";
 import { broadcast } from "../services/broadcast";
 import type { DeckRow, NewAudio, NewSlide, NewVideo } from "../db/repositories/slides.repo";
 import { SlideError, isSlideError } from "./errors";
@@ -78,39 +79,19 @@ function stampOf(stat: fs.Stats): string {
   return `${stat.size}-${Math.trunc(stat.mtimeMs)}`;
 }
 
-/** Sources being stat'ed, so a second ask waits on the same question (`isDirectory` in `ipc/handlers/files.ts`). */
-const statting = new Map<string, Promise<fs.Stats | null>>();
-
 /**
  * A source's stat off main's thread, `null` when it can't be had: a hymn on a share that stopped answering held a
  * synchronous stat, and main with it, 21 s on Windows (measured for A26, 2026-11-16), with the engine's video and NDI
- * frozen (2026-11-22 audit, RM1). One question per file at a time: each one hung holds a thread of libuv's pool.
+ * frozen (2026-11-22 audit, RM1). One question per file at a time, shared with GO LIVE's check of the same file; the
+ * read-ahead's waits for one of the two threads background work may hold (`background-files.ts`).
  */
-function statOf(file: string): Promise<fs.Stats | null> {
-  let stat = statting.get(file);
-  if (!stat) {
-    stat = fs.promises
-      .stat(file)
-      .catch(() => null)
-      .finally(() => statting.delete(file));
-    statting.set(file, stat);
-  }
-  return stat;
+function statOf(file: string, lane: RasterLane): Promise<fs.Stats | null> {
+  return (lane === "now" ? operatorStat(file) : backgroundStat(file)).catch(() => null);
 }
 
 /** What the operator waits on is answered within a second: past it, the source is not there, as a file that is gone. */
 function statWithin(file: string): Promise<fs.Stats | null> {
-  return Promise.race([statOf(file), new Promise<null>((resolve) => setTimeout(resolve, 1000, null))]);
-}
-
-/** The read-ahead stats its sources one at a time, in the order asked, each waited out whole: thirty-two at once on a
- *  share that stopped answering would hold every thread of the pool the projector's own file reads wait on. */
-let readingAhead: Promise<unknown> = Promise.resolve();
-
-function statAhead(file: string): Promise<fs.Stats | null> {
-  const stat = readingAhead.then(() => statOf(file));
-  readingAhead = stat;
-  return stat;
+  return Promise.race([statOf(file, "now"), new Promise<null>((resolve) => setTimeout(resolve, 1000, null))]);
 }
 
 // ---------------------------------------------------------------------------
@@ -396,7 +377,7 @@ const inFlight = new Map<number, { promise: Promise<DeckDTO | null>; lane: Raste
  *  PDF, which is every deck. `null` only for a source that is gone. A deck no
  *  reader can open rejects with why. */
 async function sourceDeck(assetId: number, sourcePath: string, force: boolean, lane: RasterLane): Promise<DeckDTO | null> {
-  const stat = await (lane === "now" ? statWithin(sourcePath) : statAhead(sourcePath));
+  const stat = await (lane === "now" ? statWithin(sourcePath) : statOf(sourcePath, lane));
   if (!stat) return null;
   // Nothing awaited from here to the entry, so a second ask joins the first.
   const reading = inFlight.get(assetId);
