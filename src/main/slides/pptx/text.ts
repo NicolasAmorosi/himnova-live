@@ -1,5 +1,6 @@
 import { metricTwin } from "@shared/font-twins";
 import type { Bullet, Fill, Paragraph, TextBody, TextRun } from "@shared/types/slide-model";
+import { alpha, roman } from "../list-number";
 import { colorIn, css, schemeColor } from "./color";
 import { fillIn, miss, NO_EFFECTS, readEffects, readImage, readLine, type StyleContext } from "./style";
 import { attr, child, children, isTrue, numAttr, type XmlElement } from "./xml";
@@ -326,17 +327,6 @@ function readBullet(chain: XmlElement[], runs: TextRun[], ctx: TextContext, coun
 }
 
 function autoNumber(scheme: string, n: number): string {
-  const roman = (v: number): string => {
-    const table: [number, string][] = [[1000, "m"], [900, "cm"], [500, "d"], [400, "cd"], [100, "c"], [90, "xc"], [50, "l"], [40, "xl"], [10, "x"], [9, "ix"], [5, "v"], [4, "iv"], [1, "i"]];
-    let out = "";
-    for (const [value, letters] of table) while (v >= value) { out += letters; v -= value; }
-    return out;
-  };
-  const alpha = (v: number): string => {
-    let out = "";
-    while (v > 0) { v -= 1; out = String.fromCharCode(97 + (v % 26)) + out; v = Math.floor(v / 26); }
-    return out;
-  };
   const body = scheme.startsWith("romanUc") ? roman(n).toUpperCase()
     : scheme.startsWith("romanLc") ? roman(n)
     : scheme.startsWith("alphaUc") ? alpha(n).toUpperCase()

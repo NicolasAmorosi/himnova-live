@@ -1,4 +1,5 @@
 import type { Bullet, Effects, Paragraph, TextBody, TextRun } from "@shared/types/slide-model";
+import { alpha, roman } from "../list-number";
 import { fontList, SYMBOL_BULLETS } from "../pptx/text";
 import { childrenOf, type Rec } from "../ppt-binary";
 import { cssColor, EMU_PER_MASTER, flag, NO_EFFECTS, P, type Props, type Rgb, type Scheme } from "./escher";
@@ -673,18 +674,6 @@ function numberOf(data: TextData, ctx: TextContext, cf: CF, level: number, bulle
   counters[level] = n;
   return formatNumber(n, s & 0xffff);
 }
-
-const roman = (n: number): string => {
-  const table: [number, string][] = [[1000, "m"], [900, "cm"], [500, "d"], [400, "cd"], [100, "c"], [90, "xc"], [50, "l"], [40, "xl"], [10, "x"], [9, "ix"], [5, "v"], [4, "iv"], [1, "i"]];
-  let out = "";
-  for (const [v, s] of table) for (; n >= v; n -= v) out += s;
-  return out;
-};
-const alpha = (n: number): string => {
-  let out = "";
-  for (; n > 0; n = Math.floor((n - 1) / 26)) out = String.fromCharCode(97 + ((n - 1) % 26)) + out;
-  return out;
-};
 
 /** `TextAutoNumberSchemeEnum` (MS-PPT), the Latin ones; others count in Arabic. */
 function formatNumber(n: number, scheme: number): string {

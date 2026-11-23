@@ -1,4 +1,5 @@
 import type { Bullet, Fill, Paragraph, TextBody, TextRun } from "@shared/types/slide-model";
+import { alpha, roman } from "../list-number";
 import { NO_EFFECTS } from "../pptx/style";
 import { fontList, SYMBOL_BULLETS } from "../pptx/text";
 import { attr, child, children, type XmlElement } from "../pptx/xml";
@@ -492,24 +493,6 @@ function listStart(value: string | null): number {
 const MAX_LETTERED = 3999;
 
 function formatNumber(n: number, format: string): string {
-  const roman = (v: number): string => {
-    const table: [number, string][] = [[1000, "m"], [900, "cm"], [500, "d"], [400, "cd"], [100, "c"], [90, "xc"], [50, "l"], [40, "xl"], [10, "x"], [9, "ix"], [5, "v"], [4, "iv"], [1, "i"]];
-    let out = "";
-    for (const [value, letters] of table) while (v >= value) {
-      out += letters;
-      v -= value;
-    }
-    return out;
-  };
-  const alpha = (v: number): string => {
-    let out = "";
-    while (v > 0) {
-      v -= 1;
-      out = String.fromCharCode(97 + (v % 26)) + out;
-      v = Math.floor(v / 26);
-    }
-    return out;
-  };
   if (n > MAX_LETTERED) return String(n);
   switch (format) {
     case "i": return roman(n);
