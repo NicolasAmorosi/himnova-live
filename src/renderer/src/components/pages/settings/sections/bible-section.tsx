@@ -1,4 +1,4 @@
-import { useEffect, useState, type DragEvent, type KeyboardEvent } from "react";
+import { useState, type DragEvent, type KeyboardEvent } from "react";
 import { useI18n, useT } from "@renderer/lib/i18n/i18n-provider";
 import {
   Button,
@@ -14,6 +14,7 @@ import {
 import { ConfirmModal } from "@renderer/components/shared/modal";
 import { ProgramUsages } from "@renderer/components/shared/program-usages";
 import { BundledBiblesGroup, LanguageGroup } from "@renderer/components/shared/settings-groups/bundled-bibles-group";
+import { useBundledBibles } from "@renderer/lib/hooks/use-bundled-bibles";
 import { api } from "@renderer/lib/api";
 import { byLanguage, cn, describeError, languageName } from "@renderer/lib/utils";
 import { BIBLE_VERSION_MIME, hideDragGhost } from "@renderer/lib/dnd";
@@ -22,7 +23,7 @@ import { useBibleStore } from "@renderer/stores/bible.store";
 import { useProgramStore } from "@renderer/stores/program.store";
 import { useSettingsStore } from "@renderer/stores/settings.store";
 import { BIBLE_VERSION_NAME_MAX_LENGTH, isBibleVersionName } from "@shared/types/bible";
-import type { BibleVersionDTO, BibleVersionUsage, BundledBibleDTO } from "@shared/types/bible";
+import type { BibleVersionDTO, BibleVersionUsage } from "@shared/types/bible";
 import { LOCALES } from "@shared/types/settings";
 
 /** What a delete confirmation is about to do. The usages are read BEFORE the
@@ -96,22 +97,7 @@ export function BibleSection() {
   const [dragOverId, setDragOverId] = useState<number | null>(null);
   const [draggingId, setDraggingId] = useState<number | null>(null);
   const reorderVersions = useBibleStore((s) => s.reorderVersions);
-  const [bundled, setBundled] = useState<BundledBibleDTO[]>([]);
-
-  // Read again whenever the installed list changes — an install, a delete, an
-  // import —, which is what moves a version between the two lists.
-  useEffect(() => {
-    let current = true;
-    api.bible
-      .bundled()
-      .then((list) => {
-        if (current) setBundled(list);
-      })
-      .catch((error: unknown) => console.error("[bible] bundled list failed", error));
-    return () => {
-      current = false;
-    };
-  }, [versions]);
+  const [bundled] = useBundledBibles();
 
   const installedGroups = byLanguage(versions);
   const credits = new Map(bundled.map((bible) => [bible.code, bible.credit]));

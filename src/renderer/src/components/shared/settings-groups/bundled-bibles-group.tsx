@@ -1,9 +1,10 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { useI18n } from "@renderer/lib/i18n/i18n-provider";
 import { Button, Caption, FieldGroup, FieldRow, Icon } from "@renderer/components/ui";
 import { api } from "@renderer/lib/api";
 import { byLanguage, describeError, languageName } from "@renderer/lib/utils";
 import { toast } from "@renderer/lib/toast";
+import { useBundledBibles } from "@renderer/lib/hooks/use-bundled-bibles";
 import { useBibleStore } from "@renderer/stores/bible.store";
 import type { BundledBibleDTO } from "@shared/types/bible";
 
@@ -30,22 +31,8 @@ export function BundledBiblesGroup({ showInstalled = false }: { showInstalled?: 
   const { locale, t } = useI18n();
   const versions = useBibleStore((s) => s.versions);
   const loadVersions = useBibleStore((s) => s.loadVersions);
-  const [bundled, setBundled] = useState<readonly BundledBibleDTO[]>([]);
+  const [bundled, setBundled] = useBundledBibles();
   const [installingCode, setInstallingCode] = useState<string | null>(null);
-
-  // Read again whenever the installed list changes — an install, a delete, an import.
-  useEffect(() => {
-    let current = true;
-    api.bible
-      .bundled()
-      .then((list) => {
-        if (current) setBundled(list);
-      })
-      .catch((error: unknown) => console.error("[bible] bundled list failed", error));
-    return () => {
-      current = false;
-    };
-  }, [versions]);
 
   /** ~0.4 s of synchronous work in main: the row says so and every «Install» waits for it, so a second click
    *  cannot start a second one. */
