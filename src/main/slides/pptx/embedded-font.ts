@@ -259,6 +259,8 @@ function buildPreload(): Uint8Array {
 
 /** Past this distance a 2-byte match is not worth a copy item, so lengths there start at 3. */
 const MAX_2_BYTE_DISTANCE = 512;
+/** A font past this is not a font: 32 MB, where a real one is a few hundred KB. */
+const MAX_FONT_BYTES = 32 * 1024 * 1024;
 
 function unpackLzcomp(block: Uint8Array): Uint8Array {
   const bits = new BitReader(block);
@@ -314,11 +316,13 @@ function unpackLzcomp(block: Uint8Array): Uint8Array {
 }
 
 /** The run-length pass under LZCOMP (`MTX_RUNLENGTHCOMP_SaveBytes`): the first byte names an escape;
- *  `escape, 0` is the escape byte itself and `escape, n, b` is `n` copies of `b`. */
-function expandRuns(data: Uint8Array): Uint8Array {
+ *  `escape, 0` is the escape byte itself and `escape, n, b` is `n` copies of `b`.Exported for its test. */
+export function expandRuns(data: Uint8Array): Uint8Array {
   const escape = data[0];
   if (escape === undefined) return data;
   const out = new ByteWriter();
+  // Each 3-byte run can stand for 255 bytes: 16 MB of LZCOMP output could expand to 1.4 GB, byte by byte, in main
+  // (2026-11-22 audit, SE1). A real font is a few hundred KB.
   for (let i = 1; i < data.length; i += 1) {
     const value = data[i]!;
     if (value !== escape) {
@@ -333,6 +337,7 @@ function expandRuns(data: Uint8Array): Uint8Array {
     }
     const repeated = data[++i];
     if (repeated === undefined) throw new RangeError("LZCOMP: run cut short");
+    if (out.length + count > MAX_FONT_BYTES) throw new RangeError("LZCOMP: font past its size cap");
     for (let k = 0; k < count; k += 1) out.u8(repeated);
   }
   return out.result();

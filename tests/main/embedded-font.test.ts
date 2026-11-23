@@ -12,7 +12,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, test } from "vitest";
-import { decodeEmbeddedFont } from "../../src/main/slides/pptx/embedded-font";
+import { decodeEmbeddedFont, expandRuns } from "../../src/main/slides/pptx/embedded-font";
 
 const CARLITO = fs.readFileSync(path.resolve("src/renderer/src/assets/fonts/slides/Carlito-Regular.ttf"));
 
@@ -278,4 +278,13 @@ describe("decodeEmbeddedFont — MTX", () => {
       expect(sum(f)).toBe(0xb1b0afba);
     });
   }
+});
+
+test("a run-length pass that would expand past 32 MB is refused, not written byte by byte (2026-11-22 audit, SE1)", () => {
+  const escape = 0xfe;
+  const runs = new Uint8Array(1 + 3 * 140_000);
+  runs[0] = escape;
+  for (let i = 1; i < runs.length; i += 3) runs.set([escape, 255, 0x41], i);
+  expect(() => expandRuns(runs)).toThrow(RangeError);
+  expect(expandRuns(new Uint8Array([escape, escape, 3, 0x41, 0x42]))).toEqual(new Uint8Array([0x41, 0x41, 0x41, 0x42]));
 });
