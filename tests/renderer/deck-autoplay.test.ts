@@ -185,6 +185,16 @@ test("slides that outlast their music stay up on their own times, as PowerPoint 
   expect(slideOnAir()).toBe(3);
 });
 
+test("music that ends with its position lost never sends the deck back to its first slide", () => {
+  sendLive(withMusic(deck(8, 4000)));
+  report(0.1);
+  report(4.1);
+  expect(slideOnAir()).toBe(2);
+  // The engine's `ended` came with no position (0 s): the slides go on from where they are.
+  report(0, { ended: true });
+  expect(slideOnAir()).toBe(2);
+});
+
 test("music that outlasts the slides still decides the end", () => {
   sendLive(withMusic(deck(6, 2000)));
   report(0.1);

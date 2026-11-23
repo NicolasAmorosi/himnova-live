@@ -5,12 +5,15 @@
  * projector opened (2026-11-15 audit, A5). A schedule row leaves the row under it, whatever it is
  * (`projection.previewNext`, owner 2026-11-21, on by default).
  */
+import { act, createElement } from "react";
+import { createRoot } from "react-dom/client";
 import { beforeEach, expect, test, vi } from "vitest";
 import { goLive, goLiveWithNextScheduleAudio, goLiveWithNextScheduleItem } from "@renderer/lib/actions/playback";
 import { saveCurrentProgram } from "@renderer/lib/actions/programs";
 import { advanceVerse } from "@renderer/lib/actions/bible";
 import { advancePreview, previewAsset, previewScheduleItem, previewVerse } from "@renderer/lib/actions/preview";
 import { removeSelected } from "@renderer/lib/actions/remove-selected";
+import { forgetMediaAsset, getCachedMediaAsset, useMediaAsset } from "@renderer/lib/hooks/use-media-asset";
 import { useAudioStore } from "@renderer/stores/audio.store";
 import { useBibleStore } from "@renderer/stores/bible.store";
 import { useDisplayStore } from "@renderer/stores/display.store";
@@ -463,6 +466,77 @@ test("background music on «siguiente» moves PREVIEW along, so Enter never star
   expect(usePreviewStore.getState().target).toBeNull();
   await goLive();
   expect(useAudioStore.getState().tracks.map((t) => t.assetId)).toEqual([4, 6, 8]);
+});
+
+/** The schedule row that reads asset `id`, mounted as the list draws it: what puts the asset in the cache. */
+async function rowDrawn(id: number): Promise<() => void> {
+  (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+  function Row() {
+    useMediaAsset(id);
+    return null;
+  }
+  const root = createRoot(document.createElement("div"));
+  act(() => root.render(createElement(Row)));
+  await vi.waitFor(() => expect(getCachedMediaAsset(id)).not.toBeNull());
+  return () => {
+    act(() => root.unmount());
+    forgetMediaAsset(id);
+  };
+}
+
+test("«siguiente» passes over the audio row under what ended: the next picture goes up and nothing starts to sound", async () => {
+  useProgramStore.setState({ items: [row(10, 1), row(11, 4), row(12, 5)] });
+  const undraw = await rowDrawn(4);
+  try {
+    previewScheduleItem(0);
+    await goLive();
+    await goLiveWithNextScheduleItem();
+    expect(useProjectionStore.getState().base).toMatchObject({ kind: "image", assetId: 5 });
+    expect(useAudioStore.getState().tracks).toEqual([]);
+  } finally {
+    undraw();
+  }
+});
+
+test("a row the chain could not send stays in PREVIEW, where the operator sees it failed", async () => {
+  useProgramStore.setState({ items: [row(10, 1), row(11, 3), row(12, 5)] });
+  previewScheduleItem(0);
+  await goLive();
+  expect(program().selectedIndex).toBe(1);
+  // Row 11's picture is missing: nothing went out, so PREVIEW is not behind what is live.
+  await goLiveWithNextScheduleItem();
+  expect(useProjectionStore.getState().base).toMatchObject({ kind: "image", assetId: 1 });
+  expect(program().selectedIndex).toBe(1);
+});
+
+test("a verse walked out of the Bible row that was live is behind the chain too: PREVIEW moves on", async () => {
+  useProgramStore.setState({
+    items: [
+      {
+        id: 20,
+        position: 0,
+        kind: "bible",
+        bibleVersionId: null,
+        bibleBookId: 43,
+        chapter: 3,
+        verseFrom: 16,
+        verseTo: null,
+        reference: "Juan 3:16",
+        text: "A",
+      },
+      row(21, 1),
+      row(22, 5),
+    ],
+  });
+  previewScheduleItem(0);
+  advancePreview(1);
+  await vi.waitFor(() => expect(usePreviewStore.getState().target).toMatchObject({ kind: "verse", row: { id: 20 } }));
+  // The Bible row is the one on air; its end chains to row 21.
+  program().setActive(0);
+  await goLiveWithNextScheduleItem();
+  expect(program().activeIndex).toBe(1);
+  expect(usePreviewStore.getState().target).toMatchObject({ kind: "scheduleItem" });
+  expect(program().selectedIndex).toBe(2);
 });
 
 test("a verse walked out of a Bible row with ↓ is still that row's: it takes the rail and leaves the next row", async () => {
