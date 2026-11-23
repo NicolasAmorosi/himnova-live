@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import { format } from "node:util";
+import { mt } from "./i18n";
 
 /** Past this, a log is rotated onto `<name>.1`. A stack is ~1 KB, so this
  *  holds hundreds of them — and a repeating fault writes one per occurrence,
@@ -28,6 +29,12 @@ export function appendLogLine(file: string, label: string, text: string): void {
   } catch {
     // Nowhere left to say it.
   }
+}
+
+/** The crash dialog's text: whether the app goes on and what to do, in the operator's words, then the stack for
+ *  whoever looks into it (2026-11-22 review, EC-7). Only a failed `startup` is followed by a quit. */
+export function crashDialogText(label: string, detail: string): string {
+  return `${mt(label === "startup" ? "dialogs.crashStartup" : "dialogs.crashRunning")}\n\n${detail}`;
 }
 
 /**

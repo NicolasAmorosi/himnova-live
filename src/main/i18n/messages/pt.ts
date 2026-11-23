@@ -40,6 +40,10 @@ const pt: MainMessages = {
     dbRestoreOffer: "Ele está danificado. Há uma cópia verificada de {date}: restaurá-la deixa tudo como estava naquele dia e abre o app de novo. O banco danificado fica guardado à parte, em backups/before-restore.",
     dbRestoreButton: "Restaurar a cópia de {date}",
     crashTitle: "Erro inesperado",
+    crashRunning:
+      "O Himnova Live continua funcionando, mas algo falhou por dentro. Reinicie o app quando puder. Se acontecer outra vez, os detalhes abaixo ajudam a encontrar a causa.",
+    crashStartup:
+      "O Himnova Live não conseguiu abrir e vai fechar. Abra-o de novo; se acontecer outra vez, os detalhes abaixo ajudam a encontrar a causa.",
     formerAppTitle: "A versão anterior, “Lumina Live”, foi movida para a Lixeira",
     formerAppDetail: "Agora o app se chama Himnova Live: abra-o em Aplicativos. Seus roteiros, a biblioteca e as configurações continuam como estavam.",
     controlDownTitle: "A janela de controle não voltou",

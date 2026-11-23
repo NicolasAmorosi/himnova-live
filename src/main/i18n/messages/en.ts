@@ -40,6 +40,10 @@ const en: MainMessages = {
     dbRestoreOffer: "It is damaged. There is a verified copy from {date}: restoring it brings everything back to how it was that day and opens the app again. The damaged database is kept aside, in backups/before-restore.",
     dbRestoreButton: "Restore the copy from {date}",
     crashTitle: "Unexpected error",
+    crashRunning:
+      "Himnova Live is still running, but something failed inside it. Restart the app when you can. If it happens again, the details below help find the cause.",
+    crashStartup:
+      "Himnova Live couldn't start and will close. Open it again; if it happens again, the details below help find the cause.",
     formerAppTitle: "The previous version, “Lumina Live”, was moved to the Trash",
     formerAppDetail: "The app is now called Himnova Live: open it from Applications. Your schedules, library and settings are as they were.",
     controlDownTitle: "The control window did not come back",

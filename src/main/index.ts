@@ -61,7 +61,7 @@ import { initEngineAssets, shutdownEngineAssets } from "./media/engine-assets";
 import { engineAvailable, killAllEngines, startEngines } from "./media/media-engine";
 import { stopDeckClips } from "./media/deck-clips";
 import { stopPreviewEngine, syncLiveEngine } from "./media/engine-sessions";
-import { appendLogLine, installMainLog } from "./logging";
+import { appendLogLine, crashDialogText, installMainLog } from "./logging";
 import { initUpdates } from "./updates/updater";
 import { retireFormerMacApp } from "./updates/former-mac-app";
 import { LATEST_WHATS_NEW } from "@shared/whats-new";
@@ -470,14 +470,16 @@ function reportCrash(label: string, error: unknown): void {
     return;
   }
   crashDialogShown = true;
+  const text = crashDialogText(label, detail);
   // A sheet on the visible control window keeps main serving until the click (`showSheet`). Before there is a window,
   // the blocking box is all there is.
   const parent = mainControlWindow && !mainControlWindow.isDestroyed() ? mainControlWindow : null;
   if (!parent) {
-    dialog.showErrorBox(mt("dialogs.crashTitle"), detail);
+    dialog.showErrorBox(mt("dialogs.crashTitle"), text);
     return;
   }
-  void showSheet(parent, { type: "error", title: mt("dialogs.crashTitle"), message: mt("dialogs.crashTitle"), detail });
+  const title = mt("dialogs.crashTitle");
+  void showSheet(parent, { type: "error", title, message: title, detail: text });
 }
 
 // Surface crashes as a dialog instead of a silent blank window — the health

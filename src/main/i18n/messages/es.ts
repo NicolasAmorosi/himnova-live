@@ -41,6 +41,10 @@ const es = {
     dbRestoreOffer: "Está dañada. Hay una copia verificada del {date}: restaurarla deja todo como estaba ese día y vuelve a abrir la app. La base dañada queda guardada aparte, en backups/before-restore.",
     dbRestoreButton: "Restaurar la copia del {date}",
     crashTitle: "Error inesperado",
+    crashRunning:
+      "Himnova Live sigue funcionando, pero algo falló por dentro. Reiniciá la app cuando puedas. Si vuelve a pasar, el detalle de abajo ayuda a encontrar la causa.",
+    crashStartup:
+      "Himnova Live no pudo abrirse y se va a cerrar. Volvé a abrirla; si vuelve a pasar, el detalle de abajo ayuda a encontrar la causa.",
     formerAppTitle: "La versión anterior, «Lumina Live», se movió a la Papelera",
     formerAppDetail: "Ahora la app se llama Himnova Live: abrila desde Aplicaciones. Tus programas, la biblioteca y la configuración siguen como estaban.",
     controlDownTitle: "La ventana de control no volvió",

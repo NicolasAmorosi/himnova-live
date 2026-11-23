@@ -40,6 +40,10 @@ const it: MainMessages = {
     dbRestoreOffer: "È danneggiato. C'è una copia verificata del {date}: ripristinarla riporta tutto a com'era quel giorno e riapre l'app. Il database danneggiato viene conservato a parte, in backups/before-restore.",
     dbRestoreButton: "Ripristina la copia del {date}",
     crashTitle: "Errore imprevisto",
+    crashRunning:
+      "Himnova Live funziona ancora, ma qualcosa al suo interno non è andato a buon fine. Riavvia l'app quando puoi. Se succede ancora, i dettagli qui sotto aiutano a trovare la causa.",
+    crashStartup:
+      "Himnova Live non è riuscita ad avviarsi e verrà chiusa. Riaprila; se succede ancora, i dettagli qui sotto aiutano a trovare la causa.",
     formerAppTitle: "La versione precedente, «Lumina Live», è stata spostata nel Cestino",
     formerAppDetail: "Ora l’app si chiama Himnova Live: aprila da Applicazioni. Le tue scalette, la libreria e le impostazioni restano come erano.",
     controlDownTitle: "La finestra di controllo non è tornata",
