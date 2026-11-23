@@ -8,19 +8,19 @@ import { afterAll, beforeEach, expect, test, vi } from "vitest";
 import type { BrowserWindow, WebContents } from "electron";
 import type { ProjectionOutput } from "@shared/types/projection";
 import { INSTANT_TRANSITION } from "@shared/types/projection";
-import { engineAssetUrl } from "@shared/urls";
+import { engineAssetUrl, engineLinkedAudioUrl } from "@shared/urls";
 
 const h = vi.hoisted(() => {
   /** What a real engine is told, line by line; `redraw` is the real one's: a seek where it stands, paused only. */
   class FakeEngine {
     readonly calls: string[] = [];
-    load: { device?: string; paused?: boolean } | null = null;
+    load: { device?: string; paused?: boolean; file?: string | Promise<string> } | null = null;
     /** What the session told it to report to: a real engine's stdout events go there. */
     events: { audioOut?: (state: { ok: boolean; device: string }) => void } = {};
     paused = false;
     usable = true;
     position = 0;
-    loadFile(opts: { device?: string; paused?: boolean }) {
+    loadFile(opts: { device?: string; paused?: boolean; file?: string | Promise<string> }) {
       this.load = opts;
       this.paused = opts.paused ?? false;
     }
@@ -41,7 +41,7 @@ vi.mock("../../src/main/media/media-engine", () => ({
     h.engines.push(engine);
     const log = (line: string) => () => engine.calls.push(line);
     return Object.assign(engine, {
-      load: (opts: { device?: string; paused?: boolean }, _key: string, events: typeof engine.events) => {
+      load: (opts: { device?: string; paused?: boolean; file?: string | Promise<string> }, _key: string, events: typeof engine.events) => {
         engine.events = events;
         engine.loadFile(opts);
       },
@@ -74,7 +74,15 @@ vi.mock("../../src/main/ndi/ndi-output", () => ({ setNdiAudioRoute: h.ndi }));
 vi.mock("../../src/main/media/engine-assets", () => ({ engineFailedOn: () => false }));
 vi.mock("../../src/main/media/deck-clips", () => ({ clipEngineFailed: () => false }));
 vi.mock("../../src/main/services/repos", () => ({
-  getMediaRepo: () => ({ getPathById: (id: number) => `/media/${id}.avi`, survivingId: (id: number) => id }),
+  getMediaRepo: () => ({
+    getPathById: (id: number) => `/media/${id}.avi`,
+    linkedAudioPathById: (id: number) => `/hymnal/${id}.wma`,
+    survivingId: (id: number) => id,
+  }),
+}));
+// The copy of the deck on air (`keepLiveDeckSource`) holds this music, and its own file is gone.
+vi.mock("../../src/main/protocol/worship-protocol", () => ({
+  liveMusicFile: (file: string) => Promise.resolve(file.replace("/hymnal/", "/live-deck/")),
 }));
 vi.mock("../../src/main/services/broadcast", () => ({ broadcast: h.broadcast, controlWindows: () => [] }));
 
@@ -252,4 +260,15 @@ test("PREVIEW's status comes only from the engine PREVIEW has now, not from one 
   first.events.status?.(status);
   expect(h.broadcast.mock.calls.filter(([channel]) => channel === "preview-video-status")).toEqual([]);
   setPreviewVideo(null, control);
+});
+
+test("a hymn's music the engine plays opens from the copy of the deck on air once its own file is gone (RV-4)", async () => {
+  projectionState.setWindow(projector);
+  // A `.wma` beside the hymn goes to the engine; started again (the projector reopened, «Reiniciar»), it opened the
+  // file of a pen drive no longer there and the room sang without music (2026-11-22 audit, RV-4).
+  projectionState.setAudioTracks([
+    { trackId: "deck-soundtrack", url: engineLinkedAudioUrl(522), epoch: 30, paused: false, startAtSeconds: 42, volume: 1, loop: false },
+  ]);
+  syncLiveEngine();
+  expect(await h.engines.at(-1)?.load?.file).toBe("/live-deck/522.wma");
 });

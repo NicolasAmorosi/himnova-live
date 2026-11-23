@@ -191,7 +191,8 @@ export function registerWorshipProtocolHandler(mediaRepo: MediaRepo): void {
           // arbitrary library location.
           const assetId = Number(segments[0]);
           if (!Number.isFinite(assetId)) return new Response("Not found", { status: 404 });
-          return serveFile(request, mediaRepo.linkedAudioPathById(mediaRepo.survivingId(assetId)));
+          const music = mediaRepo.linkedAudioPathById(mediaRepo.survivingId(assetId));
+          return serveFile(request, music && (await liveMusicFile(music)));
         }
         case "raster": {
           // Short-lived capability handed to the offscreen rasterizer window so
@@ -254,7 +255,7 @@ async function sourceUnchanged(source: DeckSource): Promise<boolean> {
  * taken in the profile as the deck goes live (`keepLiveDeckSource`, from `projection:show`), in the
  * background, and read only once the original is gone or changed. One deck at a time.
  */
-let liveCopy: { deckId: number; path: string; source: DeckSource } | null = null;
+let liveCopy: { deckId: number; path: string; source: DeckSource; music: { path: string; source: DeckSource } | null } | null = null;
 let copyingDeckId: number | null = null;
 /** The deck asked for last: the one on air. A copy that lands for another one is dropped. */
 let wantedDeckId: number | null = null;
@@ -273,8 +274,24 @@ async function readableSource(source: DeckSource): Promise<string | null> {
   return same ? copy.path : null;
 }
 
-/** The deck `deckId` is on air: copies its source aside unless it already is. Never blocks main. */
-export function keepLiveDeckSource(deckId: number): void {
+/** A hymn's music file (`linked-audio.ts`) taken aside with its deck goes up to this size. Real ones are an MP3 or
+ *  a WMA of 2 to 10 MB, and 200 MB is still an hour of MP3 at 320 kbps or 20 minutes of WAV; a bigger file is not a
+ *  hymn's music, and copying it off a pen drive would hold the drive for a minute while the room reads from it. */
+const LIVE_MUSIC_MAX_BYTES = 200 * 1024 * 1024;
+
+/** Where to read the music of a deck on air from (`worship://linked-audio`, and the engine for a `.wma`): the copy
+ *  taken with the deck once its own file is gone or changed, under the same rule as its slides (`readableSource`);
+ *  the file itself in every other case, as before there was a copy. A hymn whose pen drive was pulled went silent
+ *  as soon as the player asked for more bytes, or at once when anything mounted it again (2026-11-22 audit, RV-4). */
+export async function liveMusicFile(file: string): Promise<string> {
+  const music = liveCopy?.music;
+  if (!music || music.source.sourcePath !== file || (await sourceUnchanged(music.source))) return file;
+  return music.path;
+}
+
+/** The deck `deckId` is on air, `musicPath` its linked music if it has one: copies them aside unless they already
+ *  are. Never blocks main. */
+export function keepLiveDeckSource(deckId: number, musicPath: string | null = null): void {
   // Asked even when it returns here: back to the deck already kept, a copy of another one still under way is no
   // longer the deck on air, and landing it replaced this one's copy and deleted it (2026-11-15 audit, A47).
   wantedDeckId = deckId;
@@ -303,8 +320,32 @@ export function keepLiveDeckSource(deckId: number): void {
         throw error;
       }
       const previous = liveCopy;
-      liveCopy = { deckId, path: dest, source };
+      const kept = { deckId, path: dest, source, music: previous?.deckId === deckId ? previous.music : null };
+      liveCopy = kept;
       if (previous && previous.path !== dest) await fs.promises.rm(previous.path, { force: true });
+      if (previous?.music && previous.music !== kept.music) await fs.promises.rm(previous.music.path, { force: true });
+      // Its music after its slides, which matter first; dropped like the deck's if another deck is kept meanwhile.
+      if (musicPath && !kept.music) {
+        const stat = await fs.promises.stat(musicPath).catch(() => null);
+        if (!stat || stat.size > LIVE_MUSIC_MAX_BYTES) return;
+        const music = { sourcePath: musicPath, sourceSizeBytes: stat.size, sourceMtimeMs: Math.trunc(stat.mtimeMs) };
+        const musicDest = `${dest}.music${path.extname(musicPath)}`;
+        const musicPartial = `${musicDest}.${++liveCopySeq}.partial`;
+        try {
+          await fs.promises.copyFile(musicPath, musicPartial);
+          if ((await fs.promises.stat(musicPartial)).size !== stat.size || liveCopy !== kept) {
+            await fs.promises.rm(musicPartial, { force: true });
+            return;
+          }
+          await renameWithRetry(musicPartial, musicDest);
+        } catch (error) {
+          await fs.promises.rm(musicPartial, { force: true }).catch(() => undefined);
+          throw error;
+        }
+        // Kept again meanwhile (D, E, D), the copy under way for it lands in this same place.
+        if (liveCopy === kept) kept.music = { path: musicDest, source: music };
+        else if (liveCopy?.deckId !== deckId) await fs.promises.rm(musicDest, { force: true });
+      }
     } catch (error) {
       console.warn(`[slides] could not keep a copy of the deck on air (${source.sourcePath})`, error);
     } finally {

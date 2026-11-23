@@ -115,9 +115,11 @@ export const projectionHandlers: Pick<
 
   "projection:show": (output) => {
     projectionState.send(output);
-    // The output names the deck the projector shows; its bytes must outlive its file.
+    // The output names the deck the projector shows; its bytes, and its music's, must outlive their files.
     const deckId = output.kind === "slide" ? deckIdOfUrl(output.url) : null;
-    if (deckId !== null) keepLiveDeckSource(deckId);
+    if (deckId !== null && output.kind === "slide") {
+      keepLiveDeckSource(deckId, getMediaRepo().linkedAudioPathById(getMediaRepo().survivingId(output.deckAssetId)));
+    }
     syncLiveEngine();
     // A deck on air under a row a relocate merged away is pinned as the row it lives on as: under the dead id the
     // next slide unpinned it (2026-11-15 audit, D4). The projector got the output as it is.

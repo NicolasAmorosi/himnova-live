@@ -32,7 +32,8 @@ import {
  */
 
 export type EngineLoad = {
-  file: string;
+  /** Or the file it will be once main has looked (a deck's music on air: `liveMusicFile`). */
+  file: string | Promise<string>;
   startAtSeconds: number;
   paused: boolean;
   /** 0..1 */
@@ -338,25 +339,28 @@ export class MediaEngine {
     /** `target` is what the renderer listens for (`window.worship.onVideoFrame`): one engine, one key. */
   load(opts: EngineLoad, target: string, events: EngineEvents): void {
     if (this.loadedOnce) throw new Error("an engine plays one file");
-    if (/[\r\n]/.test(opts.file)) throw new Error("a path with a line break");
+    if (typeof opts.file === "string" && /[\r\n]/.test(opts.file)) throw new Error("a path with a line break");
     this.loadedOnce = true;
     this.targetKey = target;
     this.events = events;
     const volume = mpvVolume(opts.volume);
     const flag = (b: boolean) => (b ? "1" : "0");
-    const line = `load ${Math.max(0, opts.startAtSeconds)} ${flag(opts.paused)} ${volume} ${flag(opts.loop)} ${flag(opts.audio)} ${longPathSafe(opts.file)}`;
+    const line = (file: string) =>
+      `load ${Math.max(0, opts.startAtSeconds)} ${flag(opts.paused)} ${volume} ${flag(opts.loop)} ${flag(opts.audio)} ${longPathSafe(file)}`;
     // The output opens where it is told before the file: the device goes first, to an engine that knows it.
     if (opts.device !== undefined) this.setDevice(opts.device);
     // Every file the engine plays comes through here (library, PREVIEW, a deck's clips and music, a song's video), and
     // a playlist with a video's extension made it project another file and fetch URLs (2026-11-15 audit, S1). A file
     // main cannot read goes on to the engine, which says so itself.
-    this.sent = readHead(opts.file)
-      .then((head) => {
+    this.sent = Promise.resolve(opts.file)
+      .then(async (file) => {
+        if (/[\r\n]/.test(file)) throw new Error("a path with a line break");
+        const head = await readHead(file);
         if (head && textInsteadOfMedia(head)) {
           this.refused = true;
-          console.warn(`[engine] refused, text and not audio or video: ${opts.file}`);
+          console.warn(`[engine] refused, text and not audio or video: ${file}`);
           this.fail({ code: "engine-open", detail: "a text file (a playlist?), not audio or video" });
-        } else this.gate.send(line);
+        } else this.gate.send(line(file));
       })
       .catch((error: unknown) => console.warn("[engine] load", error));
   }

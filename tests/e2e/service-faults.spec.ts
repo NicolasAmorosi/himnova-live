@@ -1,10 +1,11 @@
+import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import type { Page } from "@playwright/test";
 import type { MediaAsset } from "../../src/shared/types/media";
 import { DEFAULT_BIBLE_STYLE } from "../../src/shared/types/bible-style";
 import { buildPptx, CM } from "./support/pptx";
-import { fixture } from "./support/paths";
+import { ffmpegBinary, fixture } from "./support/paths";
 import { audioStates, expect, test, videoStates, type WorshipApp } from "./support/app";
 
 /**
@@ -92,6 +93,45 @@ test("a hymn whose .pps goes away while it is live keeps showing its next slides
   await app.control.keyboard.press("PageDown");
   await app.control.keyboard.press("PageDown");
   await expect.poll(() => projectedImage(projector), { timeout: 10_000 }).toEqual({ n: 3, loaded: true });
+});
+
+test("a hymn whose .pps and music go away while it is live keeps its music, also in a reopened projector", async ({ app }) => {
+  const pps = copyIn(app, "legacy-hymn.pps", "Himno 522.pps");
+  // Its music beside it, as in a real hymnal (`linked-audio.ts`): long and heavy, so the player may still ask for bytes
+  // after the drive is gone. How much Chromium buffers is not measured; the reopened projector below is the half that
+  // fails without the copy.
+  const mp3 = path.join(path.dirname(pps), "Himno 522.mp3");
+  const tone = ["-f", "lavfi", "-i", "sine=frequency=440:duration=300", "-c:a", "libmp3lame", "-b:a", "320k"];
+  execFileSync(ffmpegBinary(), ["-hide_banner", "-loglevel", "error", "-y", ...tone, mp3]);
+  await app.invoke<MediaAsset[]>("library:add", { kind: "ppt", paths: [pps] });
+  await app.previewFile("Presentaciones", "Himno 522");
+  await expect(app.previewColumn().getByText("1/3", { exact: true })).toBeVisible({ timeout: 60_000 });
+  await expect(app.previewColumn().getByText("Himno 522.mp3").first()).toBeVisible();
+  await app.goLive();
+  const first = await app.projector();
+  // `audio:deck-soundtrack`, as the projector plays it.
+  const music = async (projector: Page) =>
+    (await audioStates(projector)).find((audio) => audio.src.startsWith("worship://linked-audio/")) ?? null;
+  await expect.poll(async () => (await music(first))?.currentTime ?? 0).toBeGreaterThan(0.5);
+  await app.control.waitForTimeout(1500); // the copies are taken in the background as it goes live
+  fs.renameSync(pps, `${pps}.gone`); // a pendrive pulled: the hymn and its music go together
+  fs.renameSync(mp3, `${mp3}.gone`);
+  const pulledAt = (await music(first))?.currentTime ?? 0;
+  await app.control.waitForTimeout(10_000);
+  expect((await music(first))?.currentTime ?? 0).toBeGreaterThan(pulledAt + 8);
+
+  // The projector closed and reopened mounts the music again, where it was (`freezeLivePositions`): it asked a file no
+  // longer there and the room sang without it (2026-11-22 audit, RV-4).
+  await first.close();
+  const notice = app.control.getByRole("status").filter({ hasText: "Se cerró la ventana de proyección" });
+  await expect(notice).toBeVisible();
+  await notice.getByRole("button", { name: "Reabrir" }).click();
+  const second = await app.projector();
+  await expect.poll(async () => (await music(second))?.currentTime ?? 0, { timeout: 10_000 }).toBeGreaterThan(pulledAt + 10);
+  const reopenedAt = (await music(second))?.currentTime ?? 0;
+  await app.control.waitForTimeout(10_000);
+  expect(await music(second)).toMatchObject({ paused: false });
+  expect((await music(second))?.currentTime ?? 0).toBeGreaterThan(reopenedAt + 8);
 });
 
 test("a .pptx whose file goes away while it is live keeps showing its next slides", async ({ app }) => {

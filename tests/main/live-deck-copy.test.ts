@@ -12,11 +12,14 @@ const h = vi.hoisted(() => ({
   dir: "",
   asked: 0,
   decks: new Map<number, { sourcePath: string; sourceSizeBytes: number; sourceMtimeMs: number }>(),
+  handler: null as ((request: Request) => Promise<Response>) | null,
 }));
 h.dir = fs.mkdtempSync(path.join(os.tmpdir(), "live-deck-"));
 const LIVE = path.join(h.dir, "live-deck");
 
-vi.mock("electron", () => ({ protocol: {} }));
+vi.mock("electron", () => ({
+  protocol: { handle: (_scheme: string, handler: (request: Request) => Promise<Response>) => (h.handler = handler) },
+}));
 vi.mock("../../src/main/paths", () => ({ liveDeckDir: LIVE, pdfjsWasmDir: h.dir, slidesCacheDir: h.dir }));
 vi.mock("../../src/main/services/repos", () => ({
   getSettingsRepo: () => ({}),
@@ -147,4 +150,40 @@ test("a second copy of the deck on air that fails mid-write leaves the copy that
   expect(kept()).toEqual(["5.pptx"]);
   warn.mockRestore();
   copyFile.mockRestore();
+});
+
+test("the music of the hymn on air plays on from its copy once its file is gone or changed (2026-11-22 audit, RV-4)", async () => {
+  const { keepLiveDeckSource, liveMusicFile, registerWorshipProtocolHandler } = await import(
+    "../../src/main/protocol/worship-protocol"
+  );
+  const music = path.join(h.dir, "Himno 522.mp3");
+  fs.writeFileSync(music, "the hymn's music");
+  // `worship://linked-audio/<asset>` names the deck's asset; its music is the file beside it (`linked-audio.ts`).
+  registerWorshipProtocolHandler({
+    survivingId: (id: number) => id,
+    linkedAudioPathById: (id: number) => (id === 522 ? music : null),
+  } as unknown as Parameters<typeof registerWorshipProtocolHandler>[0]);
+  await vi.waitFor(() => expect(fs.existsSync(LIVE)).toBe(false)); // a previous run's copies, cleared at start
+  const play = async () => {
+    const response = await h.handler!(new Request("worship://linked-audio/522", { headers: { Range: "bytes=4-" } }));
+    return { status: response.status, body: await response.text() };
+  };
+
+  deck(7);
+  keepLiveDeckSource(7, music);
+  await vi.waitFor(() => expect(kept()).toEqual(["7.pptx", "7.pptx.music.mp3"]));
+  expect(await liveMusicFile(music)).toBe(music); // its own file while it is still there
+  // The pen drive pulled mid-hymn: the next bytes the player asks for, and what the engine opens (a `.wma`).
+  fs.rmSync(music);
+  expect(await play()).toEqual({ status: 206, body: "hymn's music" });
+  expect(await liveMusicFile(music)).toBe(path.join(LIVE, "7.pptx.music.mp3"));
+  // Another file under its name: the copy, never bytes of two files in one song.
+  fs.writeFileSync(music, "another song altogether");
+  expect(await play()).toEqual({ status: 206, body: "hymn's music" });
+
+  // Another deck on air takes the music copy with it, and music that is not the deck on air's is never redirected.
+  deck(8);
+  keepLiveDeckSource(8);
+  await vi.waitFor(() => expect(kept()).toEqual(["8.pptx"]));
+  expect(await liveMusicFile(music)).toBe(music);
 });
