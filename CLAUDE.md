@@ -289,7 +289,7 @@ drew a white halo around every focused control.
 | [`docs/knowledge/02-ipc-contract.md`](docs/knowledge/02-ipc-contract.md) | `IpcContract`, how to add a channel, why the preload never changes |
 | [`docs/knowledge/03-slides.md`](docs/knowledge/03-slides.md) | which reader opens a deck, model/native/PDF decks, OOXML parsing (timings/audio), a deck that won't open, deck cache |
 | [`docs/knowledge/04-renderer-state.md`](docs/knowledge/04-renderer-state.md) | Zustand, `selectOutput`, the effects layer |
-| [`docs/knowledge/05-data-and-persistence.md`](docs/knowledge/05-data-and-persistence.md) | SQLite schema, FTS5, legacy data migration, missing files |
+| [`docs/knowledge/05-data-and-persistence.md`](docs/knowledge/05-data-and-persistence.md) | SQLite schema, FTS5, missing files |
 | [`docs/knowledge/06-ui-and-theme.md`](docs/knowledge/06-ui-and-theme.md) | design system, tokens, panel layout |
 | [`docs/knowledge/07-roadmap-and-debt.md`](docs/knowledge/07-roadmap-and-debt.md) | what's missing, what was left out of scope, known debt |
 
@@ -380,7 +380,7 @@ npm run test                 # vitest run — two projects: `main` (Node: migrat
                               #   dragging a countdown, timer scenes as an order-of-service item,
                               #   video embedded in a slide: geometry, external rels and node by `spid`,
                               #   verse style, the update errors and launch check, the .dmg's sha512 check,
-                              #   backup-before-migrate at launch, the close guard's veto and 4 s grace, the 1.0 app's data,
+                              #   backup-before-migrate at launch, the close guard's veto and 4 s grace,
                               #   the engine's volume curve and stdout events, which engine sessions are kept, paused or
                               #   report their end, `worship://`'s Range contract, NDI frame pacing, and the Bible format
                               #   readers against real files written on the fly: Zefania, USFX, OSIS,
