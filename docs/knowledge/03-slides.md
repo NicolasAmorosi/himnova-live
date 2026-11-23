@@ -43,7 +43,9 @@ gives up after a second with `null`, which only sends the renderer on to `ensure
 a stat of theirs only while it is under two seconds old: one that began while the share was down answers only
 when the system gives up (21 s on Windows, never on a mount that never answers), so «Reintentar» or a new GO LIVE
 starts its own and a share that came back answers at once (2026-11-22 review, RN2-1). The read-ahead's stats
-take one of the two threads background work may hold (`backgroundStat`), never one beside them. The sniff
+take one of the two threads background work may hold (`backgroundStat`), never one beside them, and
+wait in a row of their own served before the sweep's: in one row a hymn read ahead waited behind a sweep's
+whole chunk of 200 rows, ~35 min with a dead share in the library (2026-11-22 review, RN2-3). The sniff
 (`containerKind`), the picture reader and `sniffUnreadableDeck` run on a second thread of
 `pptx-worker.ts` with its own queue (`pptx-deck.ts`, `hymnal`): in the model readers' queue a hymn
 waited behind a heavy `.pptx`, and on main a screen of 32 unread hymns was one turn of the thread

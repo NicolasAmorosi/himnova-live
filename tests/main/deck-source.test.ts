@@ -248,6 +248,37 @@ test("reading ahead takes one of the background's two threads, never a third", a
   }
 });
 
+test("a deck read ahead takes the next free thread, ahead of a sweep's whole queue", async () => {
+  // With a dead share in the library, a sweep's chunk of 200 stats went two at a time, 21 s each on Windows, and the
+  // hymns of the service were read ahead only when it emptied: GO LIVE read them on the spot (review, RN2-3).
+  h.file = path.join(dir, "ahead-of-sweep.pps");
+  fs.writeFileSync(h.file, OLE);
+  h.kind.value = "binary";
+  h.rows = {};
+  const real = fs.promises.stat;
+  const held: (() => void)[] = [];
+  let hanging = true;
+  const stats = vi.spyOn(fs.promises, "stat").mockImplementation((file) => {
+    if (!String(file).startsWith("dead-")) return real(file);
+    return hanging ? new Promise((resolve) => held.push(() => resolve({} as fs.Stats))) : Promise.resolve({} as fs.Stats);
+  });
+  const sweep = Array.from({ length: 10 }, (_, i) => backgroundStat(`dead-${i}`));
+  const ahead = prepareDeck(++assetId, { priority: "background" }).catch(() => undefined);
+  try {
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(stats.mock.calls.map(([file]) => file)).toEqual(["dead-0", "dead-1"]);
+    // The first dead stat gives up: its thread goes to the hymn, not to the third dead one.
+    held.shift()!();
+    await vi.waitFor(() => expect(stats.mock.calls.length).toBeGreaterThanOrEqual(3));
+    expect(stats.mock.calls[2]?.[0]).toBe(h.file);
+  } finally {
+    hanging = false;
+    while (held.length) held.shift()!();
+    await Promise.all([...sweep, ahead]);
+    vi.restoreAllMocks();
+  }
+});
+
 test("a source slow to answer its stat is waited for, and gone only when the stat fails, asked once", async () => {
   // A disk slow to wake that lost a race of a second was a file that is gone: «El archivo ya no está disponible»,
   // and GO LIVE refused (2026-11-22 review, RN-2). A peek still gives up after a second: its `null` means «ensure it».

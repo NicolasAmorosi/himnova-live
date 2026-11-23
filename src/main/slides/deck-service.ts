@@ -83,10 +83,10 @@ function stampOf(stat: fs.Stats): string {
  * A source's stat off main's thread, `null` when it can't be had: a hymn on a share that stopped answering held a
  * synchronous stat, and main with it, 21 s on Windows (measured for A26, 2026-11-16), with the engine's video and NDI
  * frozen (2026-11-22 audit, RM1). Shared with GO LIVE's check of the same file while it is young (`operatorStat`); the
- * read-ahead's waits for one of the two threads background work may hold (`background-files.ts`).
+ * read-ahead's waits for one of the two threads background work may hold (`background-files.ts`), ahead of the sweep.
  */
 function statOf(file: string, lane: RasterLane): Promise<fs.Stats | null> {
-  return (lane === "now" ? operatorStat(file) : backgroundStat(file)).catch(() => null);
+  return (lane === "now" ? operatorStat(file) : backgroundStat(file, true)).catch(() => null);
 }
 
 /** A peek (`getDeck`) is answered within a second. Its `null` past it only sends the renderer on to `deck:ensure`, which

@@ -8,7 +8,11 @@ import fs from "node:fs";
  */
 const IN_FLIGHT = 2;
 let running = 0;
+/** Two rows for the same two threads: the decks read ahead are served before the sweep and the rest. In one row a
+ *  hymn read ahead waited behind a sweep's whole chunk of 200 rows, up to ~35 min with a dead share in the library,
+ *  and GO LIVE read it on the spot (2026-11-22 review, RN2-3). */
 const waiting: (() => void)[] = [];
+const waitingAhead: (() => void)[] = [];
 
 /** The stats under way, one per path, whether the operator started it and when: GO LIVE's check of a file
  *  (`MediaRepo.check`) and the deck read right after it stat it once, and background work never stats a file twice at
@@ -44,18 +48,19 @@ export function operatorStat(file: string): Promise<fs.Stats> {
   return asked?.operator && Date.now() - asked.at <= OPERATOR_JOIN_MS ? asked.stat : start(file, true);
 }
 
-export async function backgroundStat(file: string): Promise<fs.Stats> {
+/** `ahead`: a deck read ahead, which waits in the row served first. */
+export async function backgroundStat(file: string, ahead = false): Promise<fs.Stats> {
   // Joining a stat under way takes no thread.
   const asked = started.get(file);
   if (asked) return asked.stat;
   if (running < IN_FLIGHT) running += 1;
-  else await new Promise<void>((resolve) => waiting.push(resolve));
+  else await new Promise<void>((resolve) => (ahead ? waitingAhead : waiting).push(resolve));
   try {
     // Asked again: the operator may have started this file while it waited.
     return await (started.get(file)?.stat ?? start(file, false));
   } finally {
     // The slot passes straight to the next one waiting, so a caller arriving in between cannot take a third.
-    const next = waiting.shift();
+    const next = waitingAhead.shift() ?? waiting.shift();
     if (next) next();
     else running -= 1;
   }
