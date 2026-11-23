@@ -14,7 +14,7 @@ import {
 import type { AssetKind } from "../../../src/shared/constants";
 import type { MediaAsset } from "../../../src/shared/types/media";
 import type { Locale } from "../../../src/shared/types/settings";
-import { translate } from "./locale";
+import { textAt, translate } from "./locale";
 import { ROOT, fixture } from "./paths";
 
 /**
@@ -139,7 +139,7 @@ export class WorshipApp {
     app.process().stderr?.on("data", collect);
 
     const control = await app.firstWindow();
-    await expect(control.getByRole("button", { name: translate("EN VIVO", locale), exact: true })).toBeVisible();
+    await expect(control.getByRole("button", { name: textAt("actions.goLive", locale), exact: true })).toBeVisible();
     return new WorshipApp(app, control, profile, log, await app.evaluate(() => process.pid), locale, starterLook, welcome, chromiumArgs);
   }
 
@@ -199,12 +199,13 @@ export class WorshipApp {
   /** The right-hand column: the LIVE monitor and everything that controls
    *  what is on the projector. */
   liveColumn(): Locator {
-    return this.control.locator("section").filter({ has: this.control.getByRole("heading", { name: this.tr("En Vivo") }) });
+    const title = this.control.getByRole("heading", { name: textAt("live.title", this.locale) });
+    return this.control.locator("section").filter({ has: title });
   }
 
   /** The centre column: PREVIEW and its grid. */
   previewColumn(): Locator {
-    return this.control.locator("section").filter({ has: this.control.getByRole("heading", { name: this.tr("Preview") }) });
+    return this.control.locator("section").filter({ has: this.control.getByRole("heading", { name: this.tr("PREVIEW") }) });
   }
 
   /** Settings ▸ Sonido ▸ «Mostrar las tiras» off: each media row has its own volume again (owner, 2026-11-15, D2),
@@ -223,7 +224,7 @@ export class WorshipApp {
   /** The top bar's EN VIVO, which every kind of content shares. (A plate's
    *  own row carries a second one, and so does a time scene's.) */
   goLive(): Promise<void> {
-    return this.control.getByRole("button", { name: this.tr("EN VIVO"), exact: true }).first().click();
+    return this.control.getByRole("button", { name: textAt("actions.goLive", this.locale), exact: true }).first().click();
   }
 
   /** A resource tab, and one of its inner tabs. */

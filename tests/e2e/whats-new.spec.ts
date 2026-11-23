@@ -58,11 +58,11 @@ test("a profile from an older build sees «Novedades» once, and turning the str
   await shown.getByRole("button", { name: "Siguiente: Sonido" }).click();
   const strips = shown.getByRole("switch", { name: "Mostrar las tiras" });
   await expect(strips).toBeChecked();
-  const sample = shown.getByRole("group", { name: "Tira de muestra: En Vivo" });
+  const sample = shown.getByRole("group", { name: "Tira de muestra: EN VIVO" });
   await expect.poll(() => sample.locator("canvas").getAttribute("data-level-db-l")).not.toBe("-inf");
   await strips.click();
   await expect(sample).toHaveCount(0);
-  await expect(shown.getByRole("slider", { name: "Volumen de muestra: En Vivo" })).toBeVisible();
+  await expect(shown.getByRole("slider", { name: "Volumen de muestra: EN VIVO" })).toBeVisible();
 
   await shown.getByRole("button", { name: "Siguiente: Vista previa" }).click();
   await expect(shown.getByRole("heading", { name: "Lo que sale al aire se va de PREVIEW" })).toBeVisible();
@@ -98,7 +98,7 @@ test("a profile that saw 2.10 is told only what came after: what goes live leave
   // The work screen's two monitors play it by themselves: a verse picked, then sent, and PREVIEW is left empty.
   const demo = shown.getByRole("img", { name: "PREVIEW y EN VIVO mientras se mandan dos versículos" });
   await expect(demo.getByText("Lo mandás: pasa a EN VIVO y PREVIEW queda vacía.")).toBeVisible({ timeout: 8_000 });
-  await expect(demo.getByText("Nada en vista previa")).toBeVisible();
+  await expect(demo.getByText("Nada en PREVIEW")).toBeVisible();
 
   // Its summary: no 2.10 settings to go back to, only what else changed.
   await shown.getByRole("button", { name: "Siguiente: Resumen" }).click();
@@ -177,7 +177,7 @@ test.describe("a new profile", () => {
     await expect(welcome.getByRole("heading", { name: "Sonido", exact: true })).toBeVisible();
     await expect(welcome.getByRole("switch", { name: "Mostrar las tiras" })).toBeChecked();
     await expect(welcome.getByRole("combobox", { name: "Salida de EN VIVO" })).toHaveText(/^(Predeterminada del|Del) sistema/);
-    await expect(welcome.getByRole("group", { name: "Tira de muestra: En Vivo" })).toBeVisible();
+    await expect(welcome.getByRole("group", { name: "Tira de muestra: EN VIVO" })).toBeVisible();
 
     await welcome.getByRole("tab", { name: "Listo" }).click();
     await expect(welcome.getByText("Con tiras · Salidas: predeterminada del sistema")).toBeVisible();

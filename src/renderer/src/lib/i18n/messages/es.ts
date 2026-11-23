@@ -87,8 +87,8 @@ const es = {
       "Se deja de ver «{folder}» en esta pestaña. No se borra ningún archivo del disco, y podés volver a vincularla cuando quieras.",
   },
   slides: {
-    title: "Preview",
-    placeholder: "Nada en vista previa",
+    title: "PREVIEW",
+    placeholder: "Nada en PREVIEW",
     placeholderHint: "Elegí un elemento del programa o de los recursos",
   },
   actions: { goLive: "EN VIVO" },
@@ -193,8 +193,8 @@ const es = {
       "La carpeta no está disponible. Si es un pendrive o un disco externo, conectalo; si la moviste o cambió de letra, buscala con «Buscar la carpeta…».",
   },
   preview: {
-    placeholder: "Nada en vista previa",
-    clear: "Limpiar vista previa",
+    placeholder: "Nada en PREVIEW",
+    clear: "Vaciar PREVIEW",
     missing: "Media no encontrada",
     missingHint: "El archivo original ya no está disponible en el disco",
   },
@@ -819,7 +819,7 @@ const es = {
   },
   live: {
     takeOffAir: "Sacar del aire",
-    title: "En Vivo",
+    title: "EN VIVO",
     disconnected: "Sin pantalla",
     screenLost: "Pantalla desconectada",
     noSignal: "Sin señal",
@@ -830,7 +830,7 @@ const es = {
   },
   footer: { black: "NEGRO", logo: "LOGO", live: "VIVO" },
   /** The top bar's live buttons, in their tooltips beside their keys. */
-  footerHints: { goLive: "Mandar la vista previa al proyector", logo: "Mostrar el logo", black: "Pantalla en negro", live: "Volver a mostrar el contenido" },
+  footerHints: { goLive: "Mandar PREVIEW al proyector", logo: "Mostrar el logo", black: "Pantalla en negro", live: "Volver a mostrar el contenido" },
   /** A keycap's name where the locale has its own (Italian says «Invio»). */
   keys: { enter: "Enter" },
   projector: {
@@ -1299,14 +1299,14 @@ const es = {
     audioEndOptions: { stop: "Detenerse", loop: "Repetir en bucle", next: "Pasar al siguiente audio del programa" },
     startVolume: "Volumen inicial",
     startVolumeDesc: "Con qué volumen arranca lo que mandás en vivo.",
-    startVolumeHelp: "Cada video, audio o música de PPT. Con las tiras, el volumen general de EN VIVO los ajusta a todos; sin ellas, cada uno se ajusta en el panel de En Vivo.",
+    startVolumeHelp: "Cada video, audio o música de PPT. Con las tiras, el volumen general de EN VIVO los ajusta a todos; sin ellas, cada uno se ajusta en el panel de EN VIVO.",
     transitionStyle: "Estilo",
     transitionStyleDesc: "Cómo pasa el proyector de una escena a la siguiente.",
     transitionDuration: "Duración",
     transitionDurationDesc: "Se ignora con el estilo Instantáneo.",
     language: "Idioma",
     languageDesc: "Idioma de la interfaz de control.",
-    liveVideoMotion: "Video en movimiento en el monitor En Vivo",
+    liveVideoMotion: "Video en movimiento en el monitor EN VIVO",
     liveVideoMotionDesc: "Apagalo en equipos justos. Lo que se proyecta no cambia.",
     liveVideoMotionHelp: "El monitor EN VIVO muestra la miniatura del video en lugar de reproducir una segunda copia.",
     gpu: "Placa de video",
@@ -1473,9 +1473,9 @@ const es = {
       subtitle: "Cuatro ideas y ya podés usarla.",
       select: {
         title: "Elegí",
-        body: "Un clic en un versículo, una canción o un archivo lo pone en la vista previa (Preview). Ahí lo ves solo vos.",
+        body: "Un clic en un versículo, una canción o un archivo lo pone en PREVIEW, la vista previa. Ahí lo ves solo vos.",
       },
-      live: { title: "Proyectá", body: "Enter, doble clic o EN VIVO lo manda al proyector, y la vista previa queda lista para lo que sigue." },
+      live: { title: "Proyectá", body: "Enter, doble clic o EN VIVO lo manda al proyector, y PREVIEW queda lista para lo que sigue." },
       cover: {
         title: "Tapá",
         body: "NEGRO deja la pantalla en negro y LOGO muestra tu iglesia. Con VIVO vuelve lo que estaba.",
@@ -1591,7 +1591,7 @@ const es = {
     doneTitle: "¡Ya sabés lo esencial!",
     doneBody: "La lista se vuelve a mostrar desde Configuración ▸ Acerca de.",
     items: {
-      preview: { title: "Elegí algo para la vista previa", hint: "En Biblia, escribí «Juan 3:16» y hacé clic en el versículo." },
+      preview: { title: "Elegí algo para PREVIEW, la vista previa", hint: "En Biblia, escribí «Juan 3:16» y hacé clic en el versículo." },
       live: { title: "Mandalo al proyector", hint: "Enter, doble clic o EN VIVO." },
       cover: { title: "Tapá con NEGRO o LOGO", hint: "Las teclas B y L, o los botones de arriba a la derecha." },
       schedule: { title: "Armá el programa", hint: "Arrastrá algo a la columna de la izquierda." },

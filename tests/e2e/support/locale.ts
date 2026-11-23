@@ -47,3 +47,12 @@ export function translate(text: string, locale: Locale, vars: Record<string, str
   }
   return result.replace(/\{(\w+)\}/g, (match, name: string) => vars[name] ?? match);
 }
+
+/** The window's text at `path` (`live.title`) in `locale`, for a word Spanish gives two keys that other languages
+ *  tell apart: «EN VIVO» is both the top bar's button and the LIVE monitor's title, so `translate` can't pick. */
+export function textAt(path: string, locale: Locale): string {
+  const dictionary = DICTIONARIES[0]![locale];
+  const text = path.split(".").reduce<unknown>((node, key) => (node as Tree | undefined)?.[key], dictionary);
+  if (typeof text !== "string") throw new Error(`${path} → ${locale}: no such text`);
+  return text;
+}
