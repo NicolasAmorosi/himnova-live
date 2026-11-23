@@ -72,6 +72,34 @@ function describeMediaError(error: ProjectionMediaError): string | null {
   return getCachedMediaAsset(assetId)?.name ?? null;
 }
 
+/** What the current batch of store changes still owes main, in the order its changes came: the output, the tracks. */
+const due = new Set<() => void>();
+let flushQueued = false;
+
+/** One microtask per synchronous batch, whoever asks first; a send asked for while it runs gets the next one. */
+function queueFlush(): void {
+  if (flushQueued) return;
+  flushQueued = true;
+  queueMicrotask(() => {
+    flushQueued = false;
+    const sends = [...due];
+    due.clear();
+    for (const send of sends) send();
+  });
+}
+
+/**
+ * Called by `main.tsx` before anything is drawn: zustand calls a store's listeners in the order they subscribed, and a
+ * component that reads the change queues React's render of the control window in a microtask of its own. Subscribed
+ * first, the batch's one flush is queued before that render, so the projector's picture and sound leave first (with
+ * the Songs tab open, 1500 rows were drawn again before a song went out: 2026-11-22 audit, RR-01). It only queues:
+ * what is sent is still decided by `startProjectionEffects`, which subscribes after the live copy is restored.
+ */
+export function queueProjectionPushesFirst(): void {
+  useProjectionStore.subscribe(queueFlush);
+  useAudioStore.subscribe(queueFlush);
+}
+
 /**
  * Wires the control window to main. What used to live here — the PowerPoint
  * overlay dance, which hid the projection window so PowerPoint's own fullscreen
@@ -94,45 +122,41 @@ export function startProjectionEffects(): () => void {
   // pushed, which is also what makes a single scene transition (one
   // `sceneEpoch`) correspond to exactly one push to the projection window.
   let pendingOutput: ProjectionOutput | null = null;
-  let flushScheduled = false;
+  const sendOutput = () => {
+    if (pendingOutput) void api.projection.show(pendingOutput);
+  };
   const unsubscribeOutput = useProjectionStore.subscribe(selectOutputMemo, (next) => {
     pendingOutput = next;
-    if (flushScheduled) return;
-    flushScheduled = true;
-    queueMicrotask(() => {
-      flushScheduled = false;
-      if (pendingOutput) void api.projection.show(pendingOutput);
-    });
+    due.add(sendOutput);
+    queueFlush();
   });
 
   // Coalesced the same way as the output above, and for the same reason: going
   // live from BLACK from deck A to deck B is `setOverlay("none")` and then
   // `setDeckTrack(B)` in one synchronous action, and pushing each set on its
   // own sent A's soundtrack UNcovered for a moment before B replaced it.
-  let audioFlushScheduled = false;
   /** Main already has an empty list: sent again on every step of LIVE's fader with nothing playing (2026-11-15 audit,
    *  R16). Any list with a track in it, or the first empty one after it, still goes. */
   let sentEmpty = false;
+  const sendAudioTracks = () => {
+    const { overlay, liveMasterVolume } = useProjectionStore.getState();
+    const covered = overlay !== "none";
+    const loopStandalone = useSettingsStore.getState().settings["projection.audioEnd"] === "loop";
+    const tracks = useAudioStore.getState().tracks;
+    if (sentEmpty && tracks.length === 0) return;
+    sentEmpty = tracks.length === 0;
+    // The one place that knows the complete live track list, so it is also
+    // where the status slots of tracks that no longer exist get collected:
+    // every path that can retire a track (`removeTrack`, `restartTrack`'s new
+    // epoch, `setDeckTrack`, `clear`) ends up here.
+    useProjectionStore.getState().pruneMediaStatus(tracks.map((track) => track.trackId));
+    void api.projection.setAudioTracks(
+      tracks.map((track) => toAudioTrackPush(track, covered, loopStandalone, liveMasterVolume)),
+    );
+  };
   const pushAudioTracks = () => {
-    if (audioFlushScheduled) return;
-    audioFlushScheduled = true;
-    queueMicrotask(() => {
-      audioFlushScheduled = false;
-      const { overlay, liveMasterVolume } = useProjectionStore.getState();
-      const covered = overlay !== "none";
-      const loopStandalone = useSettingsStore.getState().settings["projection.audioEnd"] === "loop";
-      const tracks = useAudioStore.getState().tracks;
-      if (sentEmpty && tracks.length === 0) return;
-      sentEmpty = tracks.length === 0;
-      // The one place that knows the complete live track list, so it is also
-      // where the status slots of tracks that no longer exist get collected —
-      // every path that can retire a track (`removeTrack`, `restartTrack`'s new
-      // epoch, `setDeckTrack`, `clear`) ends up here.
-      useProjectionStore.getState().pruneMediaStatus(tracks.map((track) => track.trackId));
-      void api.projection.setAudioTracks(
-        tracks.map((track) => toAudioTrackPush(track, covered, loopStandalone, liveMasterVolume)),
-      );
-    });
+    due.add(sendAudioTracks);
+    queueFlush();
   };
 
   const unsubscribeAudioTracks = useAudioStore.subscribe((state) => state.tracks, pushAudioTracks);

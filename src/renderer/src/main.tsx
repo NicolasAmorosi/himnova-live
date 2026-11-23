@@ -10,8 +10,11 @@ import { t } from "@renderer/lib/i18n/i18n-provider";
 import { LoadingState } from "@renderer/components/ui";
 import { App } from "@renderer/app/App";
 import { recoverLiveState } from "@renderer/effects/live-copy";
+import { queueProjectionPushesFirst } from "@renderer/effects/projection-sync";
 
 installDropGuard();
+// Before any component subscribes to the stores: what goes to the projector leaves before this window draws again.
+queueProjectionPushesFirst();
 
 const container = document.getElementById("root");
 if (!container) throw new Error("#root element not found");
