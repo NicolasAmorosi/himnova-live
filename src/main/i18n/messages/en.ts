@@ -41,7 +41,7 @@ const en: MainMessages = {
     dbRestoreButton: "Restore the copy from {date}",
     crashTitle: "Unexpected error",
     formerAppTitle: "The previous version, “Lumina Live”, was moved to the Trash",
-    formerAppDetail: "The app is now called Himnova Live: open it from Applications. Your programs, library and settings are as they were.",
+    formerAppDetail: "The app is now called Himnova Live: open it from Applications. Your schedules, library and settings are as they were.",
     controlDownTitle: "The control window did not come back",
     controlDownMessage: "The control window closed because of an error several times in a row and did not come back on its own.",
     controlDownDetail: "What is live goes on as it is. “Retry” opens it again over what is live; if it closes again, this notice comes back.",

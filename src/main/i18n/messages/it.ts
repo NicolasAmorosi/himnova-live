@@ -41,7 +41,7 @@ const it: MainMessages = {
     dbRestoreButton: "Ripristina la copia del {date}",
     crashTitle: "Errore imprevisto",
     formerAppTitle: "La versione precedente, «Lumina Live», è stata spostata nel Cestino",
-    formerAppDetail: "Ora l’app si chiama Himnova Live: aprila da Applicazioni. I tuoi programmi, la libreria e le impostazioni restano come erano.",
+    formerAppDetail: "Ora l’app si chiama Himnova Live: aprila da Applicazioni. Le tue scalette, la libreria e le impostazioni restano come erano.",
     controlDownTitle: "La finestra di controllo non è tornata",
     controlDownMessage: "La finestra di controllo si è chiusa per un errore più volte di seguito e non è tornata da sola.",
     controlDownDetail: "Ciò che è in onda resta com’è. «Riprova» la riapre su ciò che è in onda; se si richiude, questo avviso ricompare.",

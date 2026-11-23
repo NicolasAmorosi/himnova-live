@@ -41,7 +41,7 @@ const pt: MainMessages = {
     dbRestoreButton: "Restaurar a cópia de {date}",
     crashTitle: "Erro inesperado",
     formerAppTitle: "A versão anterior, “Lumina Live”, foi movida para a Lixeira",
-    formerAppDetail: "Agora o app se chama Himnova Live: abra-o em Aplicativos. Seus programas, a biblioteca e as configurações continuam como estavam.",
+    formerAppDetail: "Agora o app se chama Himnova Live: abra-o em Aplicativos. Seus roteiros, a biblioteca e as configurações continuam como estavam.",
     controlDownTitle: "A janela de controle não voltou",
     controlDownMessage: "A janela de controle fechou por um erro várias vezes seguidas e não voltou sozinha.",
     controlDownDetail: "O que está no ar continua como está. “Tentar de novo” a abre outra vez sobre o que está no ar; se fechar de novo, este aviso volta.",

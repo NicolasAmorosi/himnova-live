@@ -67,4 +67,18 @@ describe("dictionaries", () => {
     const dashed = strings(dictionary).filter(([, value]) => /\u2014| [-\u2013] /.test(value));
     expect(dashed.map(([key, value]) => `${key}: ${value}`)).toEqual([]);
   });
+
+  // en, it and pt call the order of service a schedule, a scaletta and a roteiro: their word
+  // for «program» is left to other software (OBS, vMix, an installer, a song file's editor).
+  const software = /^(settings\.ndi\.|welcome\.stream\.|settings\.updatesErrors\.install$|songs\.file)/;
+  const program = { en: /\bprograms?\b/i, it: /programm/i, pt: /\bprogramas?\b/i };
+  test.each([["en", en, mainEn], ["it", it, mainIt], ["pt", pt, mainPt]] as const)(
+    "%s says program only for other software",
+    (locale, dictionary, main) => {
+      const found = [...strings(dictionary), ...strings(main)].filter(
+        ([key, value]) => program[locale].test(value) && !software.test(key),
+      );
+      expect(found.map(([key, value]) => `${key}: ${value}`)).toEqual([]);
+    },
+  );
 });
