@@ -1,0 +1,177 @@
+/**
+ * A model deck's metafiles and fonts were converted on main, synchronously, as `worship://deck/<id>/part|font/` served
+ * them: an EMF of 156 bytes (one `ANGLEARC` of 3.4e38 degrees) held main a minute and then took the app down by
+ * memory, with the projector and the engine's video on air frozen meanwhile; a real EMF of 24.5 MB was a turn of
+ * 200 ms (2026-11-22 audit, SE1). They are read on a thread of their own now, the cache still in front of it on main.
+ * The thread is faked here: what reaches main is the point.
+ */
+import { EventEmitter } from "node:events";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { zipSync } from "fflate";
+import { expect, test, vi } from "vitest";
+import { decodeEmbeddedFont } from "../../src/main/slides/pptx/embedded-font";
+import { metafileToSvg } from "../../src/main/slides/pptx/metafile";
+
+/** The parts thread's clock, short for the test. */
+const CLOCK_MS = 300;
+
+const h = vi.hoisted(() => ({
+  dir: "",
+  handler: null as ((request: Request) => Promise<Response>) | null,
+  decks: new Map<number, { sourcePath: string; sourceSizeBytes: number; sourceMtimeMs: number }>(),
+  /** What the fake thread does with a part: answer it, never answer, or die on it. */
+  mode: "answer",
+  posted: [] as unknown[],
+}));
+h.dir = fs.mkdtempSync(path.join(os.tmpdir(), "deck-parts-"));
+
+vi.mock("electron", () => ({
+  protocol: { handle: (_scheme: string, handler: (request: Request) => Promise<Response>) => (h.handler = handler) },
+}));
+vi.mock("../../src/main/paths", () => ({
+  liveDeckDir: path.join(h.dir, "live"),
+  pdfjsWasmDir: h.dir,
+  slidesCacheDir: h.dir,
+  ooxmlDir: h.dir,
+}));
+vi.mock("../../src/main/services/repos", () => ({
+  getSettingsRepo: () => ({}),
+  getSlidesRepo: () => ({ getDeckSource: (id: number) => h.decks.get(id) ?? null }),
+  isDatabaseOpen: () => true,
+}));
+vi.mock("../../src/main/slides/rasterizer", () => ({}));
+vi.mock("../../src/main/slides/native-deck", () => ({}));
+vi.mock("../../src/main/media/thumbnail-service", () => ({}));
+vi.mock("../../src/shared/constants", async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  SLIDES_PART_READ_TIMEOUT_MS: CLOCK_MS,
+}));
+// Spied: neither may run on this thread, which stands for main.
+vi.mock("../../src/main/slides/pptx/metafile", async (importOriginal) => {
+  const real = await importOriginal<typeof import("../../src/main/slides/pptx/metafile")>();
+  return { ...real, metafileToSvg: vi.fn(real.metafileToSvg) };
+});
+vi.mock("../../src/main/slides/pptx/embedded-font", async (importOriginal) => {
+  const real = await importOriginal<typeof import("../../src/main/slides/pptx/embedded-font")>();
+  return { ...real, decodeEmbeddedFont: vi.fn(real.decodeEmbeddedFont) };
+});
+vi.mock("../../src/main/slides/pptx-worker?nodeWorker", () => ({
+  default: () => {
+    const worker = Object.assign(new EventEmitter(), {
+      unref: () => undefined,
+      terminate: () => undefined,
+      postMessage(request: { id: number; deckPart: { part: string } }) {
+        h.posted.push(request);
+        setImmediate(() => {
+          if (h.mode === "die") {
+            worker.emit("error", new Error("ERR_WORKER_OUT_OF_MEMORY"));
+            worker.emit("exit", 1);
+          } else if (h.mode === "answer") {
+            const body = new TextEncoder().encode(`<svg>${request.deckPart.part}</svg>`);
+            worker.emit("message", { id: request.id, deckPart: { body, type: "image/svg+xml" } });
+          }
+        });
+      },
+    });
+    return worker;
+  },
+}));
+
+/** The EMF of the audit: a header, one `ANGLEARC` swept 3.4e38 degrees, and the end. 156 bytes. */
+function angleArcEmf(): Uint8Array {
+  const emf = Buffer.alloc(156);
+  emf.writeUInt32LE(1, 0); // EMR_HEADER
+  emf.writeUInt32LE(108, 4);
+  emf.writeInt32LE(2540, 24); // rclFrame right, bottom (0.01 mm)
+  emf.writeInt32LE(2540, 28);
+  emf.writeUInt32LE(0x464d4520, 40);
+  emf.writeUInt32LE(0x10000, 44);
+  emf.writeUInt32LE(156, 48);
+  emf.writeUInt32LE(3, 52);
+  emf.writeInt32LE(1920, 72); // szlDevice
+  emf.writeInt32LE(1080, 76);
+  emf.writeInt32LE(508, 80); // szlMillimeters
+  emf.writeInt32LE(285, 84);
+  emf.writeUInt32LE(41, 108); // EMR_ANGLEARC: center 50,50, radius 20, start 0, sweep 3.4e38
+  emf.writeUInt32LE(28, 112);
+  emf.writeInt32LE(50, 116);
+  emf.writeInt32LE(50, 120);
+  emf.writeUInt32LE(20, 124);
+  emf.writeUInt32LE(0x7f7fc99e, 132);
+  emf.writeUInt32LE(14, 136); // EMR_EOF
+  emf.writeUInt32LE(20, 140);
+  emf.writeUInt32LE(16, 148);
+  emf.writeUInt32LE(20, 152);
+  return emf;
+}
+
+function deck(id: number): void {
+  const sourcePath = path.join(h.dir, `deck-${id}.pptx`);
+  fs.writeFileSync(
+    sourcePath,
+    zipSync({ "ppt/media/image1.emf": angleArcEmf(), "ppt/fonts/font1.fntdata": new Uint8Array([1, 2, 3, 4]) }),
+  );
+  const stat = fs.statSync(sourcePath);
+  h.decks.set(id, { sourcePath, sourceSizeBytes: stat.size, sourceMtimeMs: Math.trunc(stat.mtimeMs) });
+}
+
+async function ask(id: number, kind: "part" | "font", part: string): Promise<{ status: number; body: string }> {
+  if (!h.handler) {
+    const { registerWorshipProtocolHandler } = await import("../../src/main/protocol/worship-protocol");
+    registerWorshipProtocolHandler({} as Parameters<typeof registerWorshipProtocolHandler>[0]);
+  }
+  const response = await h.handler!(new Request(`worship://deck/${id}/${kind}/${encodeURIComponent(part)}`));
+  return { status: response.status, body: await response.text() };
+}
+
+test("a deck's metafile and font are converted off main, and four windows asking are one read", async () => {
+  h.mode = "answer";
+  h.posted = [];
+  deck(1);
+  const windows = await Promise.all([1, 2, 3, 4].map(() => ask(1, "part", "ppt/media/image1.emf")));
+  expect(metafileToSvg).not.toHaveBeenCalled();
+  expect(windows).toEqual([1, 2, 3, 4].map(() => ({ status: 200, body: "<svg>ppt/media/image1.emf</svg>" })));
+  expect(await ask(1, "font", "ppt/fonts/font1.fntdata")).toEqual({
+    status: 200,
+    body: "<svg>ppt/fonts/font1.fntdata</svg>",
+  });
+  expect(decodeEmbeddedFont).not.toHaveBeenCalled();
+  expect(h.posted).toHaveLength(2);
+  // Already converted: answered from main's cache, the thread not asked again.
+  expect((await ask(1, "part", "ppt/media/image1.emf")).status).toBe(200);
+  expect(h.posted).toHaveLength(2);
+});
+
+test("a part whose thread never answers is missing within the clock, and one that kills it unreadable, never read on main", async () => {
+  h.mode = "hang";
+  h.posted = [];
+  deck(2);
+  const started = performance.now();
+  expect((await ask(2, "part", "ppt/media/image1.emf")).status).toBe(404);
+  expect(performance.now() - started).toBeLessThan(CLOCK_MS + 500);
+  // Too slow says nothing about the file (a pen drive slow for a moment): not kept, the next ask goes to a thread again.
+  expect((await ask(2, "part", "ppt/media/image1.emf")).status).toBe(404);
+  expect(h.posted).toHaveLength(2);
+
+  // A thread that dies on a part: kept as unreadable, neither read on main nor handed to a thread again.
+  h.mode = "die";
+  expect((await ask(2, "font", "ppt/fonts/font1.fntdata")).status).toBe(415);
+  expect((await ask(2, "font", "ppt/fonts/font1.fntdata")).status).toBe(415);
+  expect(h.posted).toHaveLength(3);
+  expect(metafileToSvg).not.toHaveBeenCalled();
+  expect(decodeEmbeddedFont).not.toHaveBeenCalled();
+});
+
+test("on its thread, the EMF of the audit is converted to an SVG whose bytes cross to main moved, not copied", async () => {
+  deck(3);
+  const { readDeckPart } = await import("../../src/main/slides/pptx-worker");
+  const found = readDeckPart(h.decks.get(3)!.sourcePath, "part", "ppt/media/image1.emf");
+  if (typeof found === "number") throw new Error(`no SVG: ${found}`);
+  expect(found.type).toBe("image/svg+xml");
+  expect(new TextDecoder().decode(found.body)).toMatch(/^<svg/);
+  // Its own buffer, whole: moving it to main moves no more than the SVG.
+  expect(found.body.buffer.byteLength).toBe(found.body.byteLength);
+  expect(readDeckPart(h.decks.get(3)!.sourcePath, "part", "ppt/media/missing.png")).toBe(404);
+});

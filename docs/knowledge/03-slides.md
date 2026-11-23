@@ -111,7 +111,16 @@ SlideView (React, components/shared/slide-view/) ◄── worship://deck/<id>/<
   EMF/WMF (or its gzipped `.emz`/`.wmz`) as the SVG `metafileToSvg` makes of it — Chromium decodes
   neither; `…/font/<part>` is an embedded font (EOT / MicroType Express) rebuilt as TrueType by
   `decodeEmbeddedFont`. All `immutable`, and all 410 once the source is no longer the file the model
-  was read from. A model slide's `url`/`thumbUrl` serve no image: `modelUrl` (on `DeckSlide`, the
+  was read from. Read and converted on a third thread of `pptx-worker.ts` (`pptx-deck.ts`, `parts`,
+  `readDeckPart`), never on main: an EMF of 156 bytes froze main a minute and then took the app down,
+  and a real one of 24.5 MB was a turn of 200 ms (2026-11-22 audit, SE1). Its own thread because a
+  slide on air waits on its parts: they never queue behind a `.pptx` read nor a hymn's file on a dead
+  share. Its clock is `SLIDES_PART_READ_TIMEOUT_MS` (10 s); a part whose thread dies on it is served as
+  one that won't convert (415), kept, and never tried again on main; one that runs out of the clock
+  says nothing about the file and answers 404, never kept, so the next ask reads it again. A byte-budgeted
+  cache on main (`byte-lru.ts`) stays in front: a part already read is answered at once, and the
+  windows asking for one still being read wait for that same read. A model slide's `url`/`thumbUrl`
+  serve no image: `modelUrl` (on `DeckSlide`, the
   `slide` output and `DeckStatusSummary`) is what draws it, and every consumer — `OutputView`, the
   two slide grids, the library tile — checks it first.
 - **In the renderer**: `lib/slide-models.ts` fetches a model once per window and hands it out only

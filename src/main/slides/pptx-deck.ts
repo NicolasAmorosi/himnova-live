@@ -1,13 +1,17 @@
-import { SLIDES_CLIP_COPY_TIMEOUT_MS, SLIDES_DECK_READ_TIMEOUT_MS } from "@shared/constants";
+import {
+  SLIDES_CLIP_COPY_TIMEOUT_MS,
+  SLIDES_DECK_READ_TIMEOUT_MS,
+  SLIDES_PART_READ_TIMEOUT_MS,
+} from "@shared/constants";
 import { ooxmlDir } from "../paths";
 import { createDeckQueue, TOO_SLOW } from "./deck-queue";
 import type { RasterLane } from "./rasterizer";
 import createPptxWorker from "./pptx-worker?nodeWorker";
-import type { NativeRead, PptxClips, PptxExtract, PptxRead, PptxReply, PptxRequest } from "./pptx-worker";
+import type { DeckPart, NativeRead, PptxClips, PptxExtract, PptxRead, PptxReply, PptxRequest } from "./pptx-worker";
 import type { ContainerKind } from "./pptx-metadata";
 import type { UnreadableDeckReason } from "./ppt-binary";
 
-export type { NativeRead, PptxRead } from "./pptx-worker";
+export type { DeckPart, NativeRead, PptxRead } from "./pptx-worker";
 
 function spawn(): ReturnType<typeof createPptxWorker> {
   const started = createPptxWorker({ workerData: { ooxmlDir } });
@@ -33,6 +37,14 @@ const queue = createDeckQueue<PptxRequest, PptxReply>(spawn, SLIDES_DECK_READ_TI
  * whole (2026-11-22 audit, RM1). A file that kills this thread is never read on main either.
  */
 const hymnal = createDeckQueue<PptxRequest, PptxReply>(spawn, SLIDES_DECK_READ_TIMEOUT_MS);
+
+/**
+ * A model deck's pictures, metafiles and fonts, on a third thread with a short clock of its own: a slide on air asks
+ * for its parts and waits on them, so they never queue behind a `.pptx` read (5 to 11 s) nor a hymn's file on a
+ * share that stopped answering (the hymnal's 60 s). Converted on main, an EMF of 156 bytes froze it a minute and
+ * then took the app down (2026-11-22 audit, SE1).
+ */
+const parts = createDeckQueue<PptxRequest, PptxReply>(spawn, SLIDES_PART_READ_TIMEOUT_MS);
 let nextId = 0;
 
 export async function readPptx(sourcePath: string, lane: RasterLane): Promise<PptxRead | null | typeof TOO_SLOW> {
@@ -68,6 +80,17 @@ export async function sniffDeck(
 export async function unreadableReason(sourcePath: string): Promise<UnreadableDeckReason> {
   const reply = await hymnal.ask(sourcePath, { id: ++nextId, unreadable: sourcePath }, "now");
   return reply !== null && reply !== TOO_SLOW && "reason" in reply ? reply.reason : "NOT_A_PRESENTATION";
+}
+
+/** A part of a model deck's package, read and converted on `parts`' thread (`readDeckPart`), never on main. A part
+ *  whose thread died on it won't convert: 415. One that ran out of the clock says nothing about the file (a pen drive
+ *  or a share slow for a moment, as `TOO_SLOW` says for a deck): 404, which is never kept, so the next ask reads it
+ *  again. */
+export async function readDeckPart(sourcePath: string, kind: "part" | "font", part: string): Promise<DeckPart> {
+  const reply = await parts.ask(sourcePath, { id: ++nextId, deckPart: { file: sourcePath, kind, part } }, "now");
+  if (reply === TOO_SLOW) return 404;
+  if (reply !== null && "error" in reply) throw new Error(reply.error);
+  return reply !== null && "deckPart" in reply ? reply.deckPart : 415;
 }
 
 /** The operator opened a deck that was being read ahead: what is still queued for it goes first. */

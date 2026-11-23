@@ -6,11 +6,7 @@ import { getSettingsRepo, getSlidesRepo, isDatabaseOpen } from "../services/repo
 import { liveDeckDir, pdfjsWasmDir, slidesCacheDir } from "../paths";
 import { pdfPageImage, resolveRasterPdf } from "../slides/rasterizer";
 import { renderNativeSlide } from "../slides/native-deck";
-import { decodeEmbeddedFont } from "../slides/pptx/embedded-font";
-import { metafileToSvg } from "../slides/pptx/metafile";
-import { readBinaryPart } from "../slides/ppt/parts";
-import { containerKind } from "../slides/pptx-metadata";
-import { readZipEntries } from "../slides/zip-reader";
+import { readDeckPart, type DeckPart } from "../slides/pptx-deck";
 import { ensureThumbnail } from "../media/thumbnail-service";
 import { byteLru } from "./byte-lru";
 import { serveFile } from "./serve-file";
@@ -354,42 +350,12 @@ export function keepLiveDeckSource(deckId: number, musicPath: string | null = nu
   })();
 }
 
-const PART_TYPES: Record<string, string> = {
-  png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", jpe: "image/jpeg", gif: "image/gif", bmp: "image/bmp",
-  svg: "image/svg+xml", webp: "image/webp", tif: "image/tiff", tiff: "image/tiff", ico: "image/x-icon",
-};
-
-/** A part as served: its bytes and type, or why not (404 not in the file, 415 won't convert). */
-type DeckPart = { body: Uint8Array; type: string } | 404 | 415;
-
-/** A part of a model deck's package as `serveDeckPart` serves it, read and converted from `sourcePath`. */
-function readDeckPart(sourcePath: string, kind: "part" | "font", part: string): DeckPart {
-  // A legacy binary's parts are ranges of its OLE streams (`ppt/parts.ts`);
-  // a `.pptx`'s and an `.odp`'s, zip entries.
-  const raw =
-    containerKind(sourcePath) === "binary"
-      ? (readBinaryPart(sourcePath, part) ?? undefined)
-      : readZipEntries(sourcePath, (name) => name === part)[part];
-  if (!raw) return 404;
-  const ext = part.slice(part.lastIndexOf(".") + 1).toLowerCase();
-  let body: Uint8Array | string | null = raw;
-  let type = PART_TYPES[ext] ?? "application/octet-stream";
-  if (kind === "font") {
-    body = decodeEmbeddedFont(raw);
-    type = "font/ttf";
-  } else if (ext === "emf" || ext === "wmf" || ext === "emz" || ext === "wmz") {
-    body = metafileToSvg(raw, ext.startsWith("w") ? "wmf" : "emf");
-    type = "image/svg+xml";
-  }
-  if (body === null) return 415;
-  return { body: typeof body === "string" ? Buffer.from(body) : body, type };
-}
-
 /** Parts already read, by the file's stamp: every window drawing a deck (control, projector, stage, NDI) asks for
  *  the same fonts and pictures, and each was read and converted on main again, 70 to 104 ms a font and up to 460 ms
- *  a metafile, over a video of the engine on air (2026-11-15 audit, A11). A 415 is kept (the same bytes never
- *  convert); a 404 never is, sized past the budget: the readers answer a read error (a pen drive that hiccups) as a
- *  missing part, and kept it was a missing picture for the session (review follow-up). */
+ *  a metafile, over a video of the engine on air (2026-11-15 audit, A11). Read on their own thread now (SE1), a part
+ *  already read is still answered from here at once. A 415 is kept (the same bytes never convert, or killed the
+ *  parts' thread). A 404 never is, sized past the budget (a part that ran out of its thread's clock answers 404 too): the readers answer a read error (a pen drive that
+ *  hiccups) as a missing part, and kept it was a missing picture for the session (review follow-up). */
 const deckParts = byteLru<DeckPart>(64 * 1024 * 1024, (found) =>
   found === 404 ? Number.POSITIVE_INFINITY : found === 415 ? 0 : found.body.byteLength,
 );
@@ -397,16 +363,16 @@ const deckParts = byteLru<DeckPart>(64 * 1024 * 1024, (found) =>
 /**
  * A part of a model deck's package: a picture as is, a metafile (EMF/WMF,
  * which Chromium can't decode) as the SVG `metafileToSvg` makes of it, a font
- * as the TrueType `decodeEmbeddedFont` rebuilds. Immutable like everything
- * under a deck id.
+ * as the TrueType `decodeEmbeddedFont` rebuilds, all read on the parts' thread
+ * (`readDeckPart`), never on main. Immutable like everything under a deck id.
  */
 async function serveDeckPart(request: Request, deckId: number, kind: "part" | "font", part: string): Promise<Response> {
   const source = Number.isFinite(deckId) ? getSlidesRepo().getDeckSource(deckId) : null;
   const sourcePath = source && (await readableSource(source));
   if (!source || !sourcePath) return new Response("Gone", { status: 410 });
-  // Synchronous from here: the four windows' asks, awaiting above together, meet in the cache.
+  // The four windows' asks meet in the cache, or in the one read still under way.
   const key = [source.sourcePath, source.sourceSizeBytes, source.sourceMtimeMs, kind, part].join("\n");
-  const found = deckParts(key, () => readDeckPart(sourcePath, kind, part));
+  const found = await deckParts(key, () => readDeckPart(sourcePath, kind, part));
   if (found === 404) return new Response("Not found", { status: 404 });
   if (found === 415) return new Response("Unreadable", { status: 415 });
   return new Response(request.method === "HEAD" ? null : new Uint8Array(found.body), {

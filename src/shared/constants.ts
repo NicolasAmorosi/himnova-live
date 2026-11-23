@@ -155,6 +155,10 @@ export const SLIDES_DECK_READ_TIMEOUT_MS = 60_000;
  *  drive takes minutes, and untimed, a network share that went away mid-copy held the only deck worker for good
  *  (review of the 2026-11-15 audit, S4). */
 export const SLIDES_CLIP_COPY_TIMEOUT_MS = 15 * 60_000;
+/** How long a model deck's picture, metafile or font may take on its thread before it is served as one that won't
+ *  convert. The heaviest real one measured, a 24.5 MB EMF, is 0.2 s on an M3; a window draws its slide without the
+ *  part after 3 s anyway (`slide-models.ts`), and a part that hangs holds every other part behind it this long. */
+export const SLIDES_PART_READ_TIMEOUT_MS = 10_000;
 
 /** The bundled bible's identity, NOT its edition: the text has always been the Reina-Valera
  *  1909 (public domain), shipped as «Reina-Valera 1960» through 2.2.0-beta.3. `bible_favorites`
