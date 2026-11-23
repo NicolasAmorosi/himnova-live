@@ -8,7 +8,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterAll, describe, expect, test } from "vitest";
 import { realMissing, realPath } from "../fixtures/real-material";
-import { readChordPro, readSongSelect, readSongTextFiles } from "../../src/main/songs/text-files";
+import { directiveOf, isChordPro, readChordPro, readSongSelect, readSongTextFiles } from "../../src/main/songs/text-files";
 import type { SongSection } from "../../src/shared/types/song";
 
 const outline = (sections: readonly SongSection[] | undefined) =>
@@ -259,4 +259,26 @@ describe.skipIf(realMissing(SWING_LOW))("real files", () => {
     ]);
     expect(read?.order).toEqual(["c1", "v1", "c1", "v2", "c1", "v3", "c1"]);
   });
+});
+
+test("a directive line that never closes is read at once, not after minutes of backtracking (SE2)", () => {
+  const started = performance.now();
+  expect(isChordPro(`{c${" ".repeat(10_000)}x\nAmazing grace`)).toBe(false);
+  expect(directiveOf(`{c${" ".repeat(10_000)}x`)).toBeNull();
+  expect(performance.now() - started).toBeLessThan(500);
+});
+
+test("directives read as before: spaces, colons, selectors, settings and a brace inside the value", () => {
+  expect(directiveOf("{title: Amazing grace}")).toEqual({ name: "title", value: "Amazing grace" });
+  expect(directiveOf("{ title : Amazing grace }")).toEqual({ name: "title", value: "Amazing grace" });
+  expect(directiveOf("{t Amazing grace}")).toEqual({ name: "title", value: "Amazing grace" });
+  expect(directiveOf("{soc}")).toEqual({ name: "start_of_chorus", value: "" });
+  expect(directiveOf("{ soc }")).toEqual({ name: "start_of_chorus", value: "" });
+  expect(directiveOf("{start_of_chorus-de}")).toEqual({ name: "start_of_chorus", value: "" });
+  expect(directiveOf("{+settings.transcode: roman}")).toEqual({ name: "settings.transcode", value: "roman" });
+  expect(directiveOf("{title: a}b}")).toEqual({ name: "title", value: "a}b" });
+  expect(directiveOf("{title:\tTabbed}")).toEqual({ name: "title", value: "Tabbed" });
+  expect(directiveOf("{1 x}")).toBeNull();
+  expect(directiveOf("{}")).toBeNull();
+  expect(directiveOf("{title: open")).toBeNull();
 });
