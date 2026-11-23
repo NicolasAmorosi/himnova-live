@@ -147,3 +147,19 @@ describe("the EasyWorship database", () => {
     }
   });
 });
+
+test("a Songs.db whose song table is a view that never ends is refused at once, not run on main (2026-11-22 audit, SE3)", () => {
+  const folder = path.join(tmpDir, "hostile");
+  fs.mkdirSync(folder, { recursive: true });
+  const songs = new Database(path.join(folder, "Songs.db"));
+  songs.exec(
+    "CREATE VIEW song AS WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x + 1 FROM c) SELECT 1 AS rowid, 't' AS title, NULL AS author, NULL AS copyright, NULL AS administrator, NULL AS reference_number, NULL AS vendor_id FROM c WHERE x < 0",
+  );
+  songs.close();
+  const words = new Database(path.join(folder, "SongWords.db"));
+  words.exec("CREATE TABLE word (song_id integer, words rtf)");
+  words.close();
+  const started = performance.now();
+  expect(() => readEasyWorship(folder, "es")).toThrow(/not a plain table/);
+  expect(performance.now() - started).toBeLessThan(1000);
+});

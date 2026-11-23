@@ -366,3 +366,15 @@ describe("OpenLyrics: languages and text kept as written (2026-11-06)", () => {
     expect(read?.sections[0]?.slides[0]?.lines).toEqual(["いつくしみ深き　友なるイエスは", "Všemohúci Boh"]);
   });
 });
+
+test("a database whose songs table is a view that never ends is refused at once, not run on main (2026-11-22 audit, SE3)", () => {
+  const file = path.join(tmpDir, "hostile.sqlite");
+  const db = new Database(file);
+  db.exec(
+    "CREATE VIEW songs AS WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x + 1 FROM c) SELECT 1 AS id, 't' AS title, '' AS lyrics, NULL AS verse_order, NULL AS copyright, NULL AS comments, NULL AS ccli_number FROM c WHERE x < 0",
+  );
+  db.close();
+  const started = performance.now();
+  expect(() => readOpenLpDatabase(file)).toThrow(/not a plain table/);
+  expect(performance.now() - started).toBeLessThan(1000);
+});
