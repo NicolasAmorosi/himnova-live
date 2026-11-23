@@ -25,6 +25,7 @@ import {
   parseBibleFile,
 } from "../../src/main/db/seed/bible-formats";
 import { cleanModuleText } from "../../src/main/db/seed/bible-formats/mybible";
+import { toIpcError } from "../../src/shared/ipc/result";
 import {
   CANON,
   canonByAbbrev,
@@ -355,5 +356,14 @@ describe("format detection", () => {
     // list in the Bible tab is a bug report waiting to happen.
     const file = write("empty.xml", `<?xml version="1.0"?><XMLBIBLE><INFORMATION/></XMLBIBLE>`);
     expect(parseBibleFile(file).books).toEqual([]);
+  });
+});
+
+test("a file the readers refuse crosses to the control window with its code, so its worded message is shown", () => {
+  // As a plain Error it crossed as UNKNOWN, the same as a parser's English, and the toast could not tell them apart
+  // (2026-11-22, EC-2).
+  expect(toIpcError(new BibleFormatError("No se reconoce el formato"))).toEqual({
+    code: "BIBLE_UNREADABLE",
+    message: "No se reconoce el formato",
   });
 });

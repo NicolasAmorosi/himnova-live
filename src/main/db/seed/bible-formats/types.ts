@@ -1,3 +1,4 @@
+import { IpcError } from "@shared/ipc/result";
 import { testamentOf, type CanonBook } from "./canon";
 import { fallbackBookName } from "./book-names";
 
@@ -44,8 +45,15 @@ export function asPlainText(value: unknown): string {
 
 /** Thrown when a file is not the format it was dispatched as, or is not any
  *  format at all. Caught at the importer's edge and turned into the one
- *  message the operator gets — a parser never decides what to tell them. */
-export class BibleFormatError extends Error {}
+ *  message the operator gets: a parser never decides what to tell them.
+ *  An `IpcError` with its code, so the control window tells its worded message
+ *  apart from a parser's or the disk's raw text, which crosses as `UNKNOWN`. */
+export class BibleFormatError extends IpcError {
+  constructor(message: string) {
+    super({ code: "BIBLE_UNREADABLE", message });
+    this.name = "BibleFormatError";
+  }
+}
 
 /**
  * Accumulates `(book, chapter, verse, text)` from any format and produces the

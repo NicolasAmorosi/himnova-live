@@ -147,7 +147,6 @@ export const useDeckStore = create<DeckStoreState>((set, get) => ({
       })
       .catch((error: unknown) => {
         if (!isCurrent(assetId, gen)) return null;
-        const message = error instanceof Error ? error.message : String(error);
         // A cancellation is not a failure: main only cancels a read because
         // the app is quitting, so surfacing it as "couldn't convert" would be
         // a wrong error message.
@@ -159,7 +158,9 @@ export const useDeckStore = create<DeckStoreState>((set, get) => ({
               status: canceled ? "stale" : "failed",
               progress: { done: 0, total: 0 },
               deck: s.byAssetId[assetId]?.deck ?? null,
-              error: canceled ? null : message,
+              // Main's worded reason, or none: an UNKNOWN is Node's or SQLite's English, and the panel, PREVIEW and
+              // the GO LIVE toast already say «deck.failed» without one (2026-11-22, EC-2).
+              error: canceled || !(error instanceof IpcError) || error.code === "UNKNOWN" ? null : error.message,
             },
           },
         }));

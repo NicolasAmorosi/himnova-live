@@ -7,7 +7,8 @@
  * spelled the combining range out as raw invisible characters.
  */
 import { describe, expect, test } from "vitest";
-import { cn, createBoundedSet, formatBytes, formatClock, languageName, normalizeForSearch } from "@renderer/lib/utils";
+import { cn, createBoundedSet, describeError, formatBytes, formatClock, languageName, normalizeForSearch } from "@renderer/lib/utils";
+import { IpcError, toIpcError } from "@shared/ipc/result";
 
 describe("cn", () => {
   test("the later class wins a conflict", () => {
@@ -119,5 +120,16 @@ describe("languageName", () => {
     expect(languageName("it", "pt")).toBe("Italiano");
     expect(languageName("zz", "es")).toBe("zz");
     expect(languageName("?", "es")).toBe("?");
+  });
+});
+
+describe("describeError", () => {
+  test("main's worded message is shown; what Node or a parser threw falls back to the operator's text", () => {
+    // «Unexpected end of JSON input» in English reached the Bible import toast (2026-11-22, EC-2).
+    const worded = new IpcError({ code: "BIBLE_UNREADABLE", message: "No se reconoce el formato" });
+    const raw = new IpcError(toIpcError(new SyntaxError("Unexpected end of JSON input")));
+    expect(describeError(worded, "No se pudo importar esa Biblia")).toBe("No se reconoce el formato");
+    expect(describeError(raw, "No se pudo importar esa Biblia")).toBe("No se pudo importar esa Biblia");
+    expect(describeError(new Error("ENOENT: no such file"), "fallback")).toBe("fallback");
   });
 });

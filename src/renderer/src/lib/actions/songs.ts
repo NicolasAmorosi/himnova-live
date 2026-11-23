@@ -1,6 +1,7 @@
 import { api } from "@renderer/lib/api";
 import { t } from "@renderer/lib/i18n/i18n-provider";
 import { toast } from "@renderer/lib/toast";
+import { describeError } from "@renderer/lib/utils";
 import { currentMeasureAspect, fitSongSize } from "@renderer/lib/song-fit";
 import { findSong, resolveSong, themeForSong, useSongStore } from "@renderer/stores/song.store";
 import { useProjectionStore } from "@renderer/stores/projection.store";
@@ -298,8 +299,7 @@ export async function importSongs(): Promise<void> {
     toast.success(t("songs.importDone", result));
   } catch (error) {
     console.warn("[songs] import failed", error);
-    const message = error instanceof Error ? error.message.trim() : "";
-    toast.danger(message || t("songs.importError"));
+    toast.danger(describeError(error, t("songs.importError")));
   }
 }
 

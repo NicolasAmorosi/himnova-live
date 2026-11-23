@@ -1,6 +1,7 @@
 import { clsx, type ClassValue } from "clsx";
 import { extendTailwindMerge } from "tailwind-merge";
 import { BUNDLED_BIBLE_SHORT } from "@shared/constants";
+import { IpcError } from "@shared/ipc/result";
 
 // The semantic shadow scale (globals.css --shadow-surface/raised/overlay) isn't
 // part of tailwind-merge's default value list for the `shadow` group, so plain
@@ -137,8 +138,10 @@ export function byLanguage<T extends { language: string }>(items: readonly T[]):
   return [...groups];
 }
 
-/** Main's own message when it has one (it says which file and why), else `fallback`. */
+/** Main's own message when it worded one for the operator (it says which file and why), else `fallback`. An
+ *  `UNKNOWN` error is whatever Node, SQLite or a parser threw, in English («Unexpected end of JSON input»), never
+ *  a text for the booth (2026-11-22, EC-2). */
 export function describeError(error: unknown, fallback: string): string {
-  const message = error instanceof Error ? error.message.trim() : "";
+  const message = error instanceof IpcError && error.code !== "UNKNOWN" ? error.message.trim() : "";
   return message.length > 0 ? message : fallback;
 }
