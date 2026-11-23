@@ -159,11 +159,11 @@ export const SLIDES_CLIP_COPY_TIMEOUT_MS = 15 * 60_000;
  *  convert. The heaviest real one measured, a 24.5 MB EMF, is 0.2 s on an M3; a window draws its slide without the
  *  part after 3 s anyway (`slide-models.ts`), and a part that hangs holds every other part behind it this long. */
 export const SLIDES_PART_READ_TIMEOUT_MS = 10_000;
-/** How long the hymnal's thread may take on one file read ahead (what it is, a legacy deck read as pictures, why a
- *  deck won't open) before it is stopped. Each is a millisecond or two on the real hymnal (M3, local disk); the decks'
- *  60 s let a hymn on a share that stopped answering hold every hymn behind it (2026-11-22 review, RN-7). What the
- *  operator waits on keeps `SLIDES_DECK_READ_TIMEOUT_MS`: a large legacy deck on a slow PC or a share over WiFi, never
- *  measured, must not fail at every ask, «Reintentar» included (review, RN2-4). */
+/** How long the hymnal's thread may go without a beat on one file (what it is, a legacy deck read as pictures, why a
+ *  deck won't open) before it is stopped, read ahead or waited on by the operator. Each is a millisecond or two on the
+ *  real hymnal (M3, local disk), and the thread beats as it reads the file, so a large deck on a slow share is never
+ *  cut while it reads. A deck's 60 s let a hymn on a share that stopped answering hold every hymn behind it, and the
+ *  operator's next one 55 s (2026-11-22 review, RN-7, RN3-2). */
 export const SLIDES_HYMNAL_READ_TIMEOUT_MS = 5_000;
 /** How long opening a deck the operator asked for (PREVIEW, GO LIVE, «Reintentar») waits for its file's `stat`. A disk
  *  slow to wake is waited for, never told as a file that is gone (2026-11-22 review, RN-2), but a share that never

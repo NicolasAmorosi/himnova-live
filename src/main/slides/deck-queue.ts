@@ -31,6 +31,7 @@ export type DeckWorker = EventEmitter & { postMessage(request: unknown): void; t
  * timed whole failed on a slow PC that was still reading it (2026-11-15 audit,
  * S4, review). Copying its clips beats once per clip and gets its own, longer
  * window (`ask`'s `hangMs`): untimed, a share that went away held the worker.
+ * The hymnal's thread beats per read of the file (`paced` in `pptx-worker.ts`).
  */
 export function createDeckQueue<Req extends { id: number }, Reply extends { id: number }>(
   spawn: () => DeckWorker,
@@ -120,20 +121,12 @@ export function createDeckQueue<Req extends { id: number }, Reply extends { id: 
         pump();
       });
     },
-    /** The read-ahead of `file` still waiting goes to the `now` lane, in the order it was asked. With `windowMs`, the
-     *  operator's own window, it gets at least that window too, the read of `file` under way included (timed again
-     *  from now). Never a shorter one: a copy of clips hurried with a minute's window would be cut at 60 s of its
-     *  15 min (2026-11-22 review, RN3-6). */
-    hurry(file: string, windowMs?: number): void {
+    /** The read-ahead of `file` still waiting goes to the `now` lane, in the order it was asked, with the window it
+     *  was asked with: a lane is an order, never a clock (2026-11-22 review, RN3-2). */
+    hurry(file: string): void {
       const moving = lanes.later.filter((job) => job.file === file);
       lanes.later = lanes.later.filter((job) => job.file !== file);
       lanes.now.push(...moving);
-      if (windowMs === undefined) return;
-      for (const job of moving) job.hangMs = Math.max(job.hangMs, windowMs);
-      if (running?.file === file && running.hangMs < windowMs) {
-        running.hangMs = windowMs;
-        arm();
-      }
     },
   };
 }

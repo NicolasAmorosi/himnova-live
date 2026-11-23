@@ -16,8 +16,8 @@ import { metafileToSvg } from "../../src/main/slides/pptx/metafile";
 
 /** The parts and the hymnal threads' clocks, short for the test. */
 const CLOCK_MS = 300;
-/** A deck's clock, which the operator's asks of the hymnal keep: longer than the hymnal's own. */
-const DECK_CLOCK_MS = 3000;
+/** How many times the fake hymnal thread beats on a `slow…` hymn before it answers, one every half clock. */
+const SLOW_BEATS = 10;
 
 const h = vi.hoisted(() => ({
   dir: "",
@@ -52,7 +52,6 @@ vi.mock("../../src/shared/constants", async (importOriginal) => ({
   ...(await importOriginal<object>()),
   SLIDES_PART_READ_TIMEOUT_MS: CLOCK_MS,
   SLIDES_HYMNAL_READ_TIMEOUT_MS: CLOCK_MS,
-  SLIDES_DECK_READ_TIMEOUT_MS: DECK_CLOCK_MS,
 }));
 // Spied: neither may run on this thread, which stands for main.
 vi.mock("../../src/main/slides/pptx/metafile", async (importOriginal) => {
@@ -69,8 +68,27 @@ vi.mock("../../src/main/slides/pptx-worker?nodeWorker", () => ({
     const worker = Object.assign(new EventEmitter(), {
       unref: () => undefined,
       terminate: () => undefined,
-      postMessage(request: { id: number; deckPart: { part: string } }) {
+      postMessage(
+        request: { id: number; deckPart: { part: string } } | { id: number; sniff: string } | { id: number; unreadable: string },
+      ) {
         h.posted.push(request);
+        // A hymn's sniff or «why it won't open», by its name: `hung…` never answers (a read that hangs on a share),
+        // `slow…` beats as a large hymn read off a slow share does and then answers, any other answers at once.
+        if (!("deckPart" in request)) {
+          const name = path.basename("sniff" in request ? request.sniff : request.unreadable);
+          const reply = "sniff" in request ? { kind: "binary", native: undefined } : { reason: "DECK_PASSWORD" };
+          const answer = (): void => void worker.emit("message", { id: request.id, ...reply });
+          if (h.mode === "hang" || name.startsWith("hung")) return;
+          if (!name.startsWith("slow")) return void setImmediate(answer);
+          let beats = 0;
+          const tick = (): void => {
+            if (++beats > SLOW_BEATS) return answer();
+            worker.emit("message", { id: request.id, alive: true });
+            setTimeout(tick, CLOCK_MS / 2);
+          };
+          setTimeout(tick, CLOCK_MS / 2);
+          return;
+        }
         setImmediate(() => {
           if (h.mode === "die") {
             worker.emit("error", new Error("ERR_WORKER_OUT_OF_MEMORY"));
@@ -184,42 +202,48 @@ test("a hymn read ahead whose thread never answers is too slow within the hymnal
   }
 });
 
-test("what the operator waits on keeps a deck's clock, a read-ahead it hurries included", async () => {
-  // Measured only on an M3 with local files: a large legacy deck on a slow PC or a share over WiFi that passed the
-  // hymnal's 5 s was DECK_TOO_SLOW at every ask, «Reintentar» included (review, RN2-4).
-  h.mode = "hang";
+test("the hymnal has one clock without a beat: a hymn still reading is never cut, a hung one is in either lane", async () => {
+  // With a deck's 60 s for what the operator waits on, a hymn whose read hung held the hymnal's only thread, and the
+  // next hymn the operator chose waited 55 s behind it, measured on Windows (2026-11-22 review, RN3-2).
   vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
   try {
-    const { hurryDeck, sniffDeck } = await import("../../src/main/slides/pptx-deck");
+    const { hurryDeck, sniffDeck, unreadableReason } = await import("../../src/main/slides/pptx-deck");
     const answers = new Map<string, unknown>();
     const sniff = (name: string, lane: "now" | "later") =>
       void sniffDeck(path.join(h.dir, name), true, lane).then((answer) => answers.set(name, answer));
     const wait = async (ms: number) => {
       await vi.advanceTimersByTimeAsync(ms);
-      await new Promise((resolve) => setImmediate(resolve));
+      for (let turn = 0; turn < 3; turn++) await new Promise((resolve) => setImmediate(resolve));
     };
-    // The operator's own ask; behind it, two read ahead: «running» starts when it ends, «queued» after that.
-    sniff("chosen.pps", "now");
-    sniff("running.pps", "later");
-    sniff("queued.pps", "later");
+
+    // A large hymn the operator waits on, read off a slow share: five clocks long, beating all along.
+    sniff("slow.pps", "now");
+    await wait(CLOCK_MS * 3);
+    expect(answers.has("slow.pps")).toBe(false);
+    await wait(CLOCK_MS * (SLOW_BEATS + 1) * 0.5 - CLOCK_MS * 3 + 50);
+    expect(answers.get("slow.pps")).toMatchObject({ kind: "binary" });
+
+    // The measured case: A's read-ahead starts, the operator hurries it, and then chooses B, not read yet.
+    sniff("hung-a.pps", "later");
+    hurryDeck(path.join(h.dir, "hung-a.pps"));
+    sniff("b.pps", "now");
+    await wait(CLOCK_MS - 50);
+    expect(answers.size).toBe(1);
+    await wait(100);
+    expect(answers.get("hung-a.pps")).toBe("too-slow");
+    // B, on a new thread, answers within A's clock: not 55 s behind it.
+    expect(answers.get("b.pps")).toMatchObject({ kind: "binary" });
+
+    // Asked straight in `now`, the sniff and «why it won't open» alike: the same clock, one after the other.
+    sniff("hung-now.pps", "now");
+    void unreadableReason(path.join(h.dir, "hung-why.pps"), "now").then((answer) => answers.set("hung-why.pps", answer));
     await wait(CLOCK_MS + 50);
-    expect(answers.has("chosen.pps")).toBe(false);
-    await wait(DECK_CLOCK_MS - CLOCK_MS - 50);
-    expect(answers.get("chosen.pps")).toBe("too-slow");
-    // «running» has just started on the read-ahead's clock, «queued» waits: the operator chooses both.
-    hurryDeck(path.join(h.dir, "running.pps"));
-    hurryDeck(path.join(h.dir, "queued.pps"));
-    await wait(CLOCK_MS + 50);
-    expect(answers.has("running.pps")).toBe(false);
-    await wait(DECK_CLOCK_MS);
-    expect(answers.get("running.pps")).toBe("too-slow");
-    await wait(CLOCK_MS + 50);
-    expect(answers.has("queued.pps")).toBe(false);
-    await wait(DECK_CLOCK_MS);
-    expect(answers.get("queued.pps")).toBe("too-slow");
+    expect(answers.get("hung-now.pps")).toBe("too-slow");
+    expect(answers.has("hung-why.pps")).toBe(false);
+    await wait(CLOCK_MS);
+    expect(answers.get("hung-why.pps")).toBe("too-slow");
   } finally {
     vi.useRealTimers();
-    h.mode = "answer";
   }
 });
 

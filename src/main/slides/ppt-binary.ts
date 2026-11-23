@@ -225,9 +225,20 @@ export type OleFile = {
   readStreamRange: (name: string, offset: number, length: number) => Buffer | null;
 };
 
-export function openOle(fd: number, fileSize: number): OleFile | null {
+/**
+ * `onRead` is called after every read of the file: the hymnal thread's beat (`pptx-worker.ts`). A read here is one
+ * sector (512 B or 4 KB) or, in `readStreamRange`, one run of them (a picture's 8-byte header when a deck is sniffed),
+ * so a deck still being read off a share at 100 KB/s says so every few milliseconds, and one whose read hangs says
+ * nothing: the queue's 5 s clock stops that one (2026-11-22 review, RN3-2).
+ */
+export function openOle(fd: number, fileSize: number, onRead?: () => void): OleFile | null {
+  const readAt = (buf: Buffer, at: number, length: number, position: number): number => {
+    const got = fs.readSync(fd, buf, at, length, position);
+    onRead?.();
+    return got;
+  };
   const header = Buffer.alloc(512);
-  if (fs.readSync(fd, header, 0, 512, 0) < 512) return null;
+  if (readAt(header, 0, 512, 0) < 512) return null;
   if (!header.subarray(0, 8).equals(OLE_SIGNATURE)) return null;
 
   // [MS-CFB] allows exactly these: 512- or 4096-byte sectors, 64-byte mini sectors.
@@ -252,7 +263,7 @@ export function openOle(fd: number, fileSize: number): OleFile | null {
     const offset = sectorOffset(sector);
     if (offset + sectorSize > fileSize) return null;
     const buf = Buffer.alloc(sectorSize);
-    return fs.readSync(fd, buf, 0, sectorSize, offset) === sectorSize ? buf : null;
+    return readAt(buf, 0, sectorSize, offset) === sectorSize ? buf : null;
   };
 
   // The DIFAT: which sectors hold the FAT. The first 109 live in the header;
@@ -440,7 +451,7 @@ export function openOle(fd: number, fileSize: number): OleFile | null {
         run += sectorSize;
       }
       const take = Math.min(run, length - written);
-      if (fs.readSync(fd, out, written, take, sectorOffset(sector) + within) !== take) return null;
+      if (readAt(out, written, take, sectorOffset(sector) + within) !== take) return null;
       written += take;
     }
     return out;
@@ -542,9 +553,9 @@ export type PptDocument = {
 
 /** Everything both readers start from, or `null` when this is not a parseable
  *  PowerPoint 97+ binary. */
-export function openDocument(fd: number): PptDocument | null {
+export function openDocument(fd: number, onRead?: () => void): PptDocument | null {
   const fileSize = fs.fstatSync(fd).size;
-  const ole = openOle(fd, fileSize);
+  const ole = openOle(fd, fileSize, onRead);
   if (!ole) return null;
 
   const doc = ole.readStreamByName(STREAM_POWERPOINT);
@@ -605,11 +616,15 @@ export function openDocument(fd: number): PptDocument | null {
 /** Opens the file, hands the parsed document to `read`, and closes the file
  *  whatever happens. Every failure means "another reader answers", so it is
  *  `null`, never a throw. */
-function withDocument<T>(filePath: string, read: (document: PptDocument) => T | null): T | null {
+function withDocument<T>(
+  filePath: string,
+  read: (document: PptDocument) => T | null,
+  onRead?: () => void,
+): T | null {
   let fd: number | null = null;
   try {
     fd = fs.openSync(filePath, "r");
-    const document = openDocument(fd);
+    const document = openDocument(fd, onRead);
     return document ? read(document) : null;
   } catch {
     return null;
@@ -758,15 +773,22 @@ class Unsupported extends Error {}
  * icon flagged to hide). Anything else anywhere refuses the whole deck — half
  * a deck through each path would be two looks in one hymn.
  */
-export function readBinaryDeck(filePath: string): { deck: BinaryDeck } | BinaryDeckRefusal | null {
-  return withDocument(filePath, (document) => {
-    try {
-      return { deck: buildDeck(document) };
-    } catch (error) {
-      if (error instanceof Unsupported) return { unsupported: error.message };
-      throw error;
-    }
-  });
+export function readBinaryDeck(
+  filePath: string,
+  onRead?: () => void,
+): { deck: BinaryDeck } | BinaryDeckRefusal | null {
+  return withDocument(
+    filePath,
+    (document) => {
+      try {
+        return { deck: buildDeck(document) };
+      } catch (error) {
+        if (error instanceof Unsupported) return { unsupported: error.message };
+        throw error;
+      }
+    },
+    onRead,
+  );
 }
 
 function buildDeck({
@@ -1153,11 +1175,11 @@ const CURRENT_USER_97_MIN_LEN = 28;
  *   short to be the 97 atom (PowerPoint 95) — what Apache POI tells apart too.
  * - **Anything else** is not a presentation we know.
  */
-export function sniffUnreadableDeck(filePath: string): UnreadableDeckReason {
+export function sniffUnreadableDeck(filePath: string, onRead?: () => void): UnreadableDeckReason {
   let fd: number | null = null;
   try {
     fd = fs.openSync(filePath, "r");
-    const ole = openOle(fd, fs.fstatSync(fd).size);
+    const ole = openOle(fd, fs.fstatSync(fd).size, onRead);
     if (!ole) return "NOT_A_PRESENTATION";
     if (ole.has("EncryptionInfo") || ole.has("EncryptedPackage") || ole.has("EncryptedSummary")) return "DECK_PASSWORD";
     if (!ole.has(STREAM_POWERPOINT)) return ole.has("PP40") ? "DECK_OLD_FORMAT" : "NOT_A_PRESENTATION";

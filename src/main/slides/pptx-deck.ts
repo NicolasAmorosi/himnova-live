@@ -40,17 +40,14 @@ const queue = createDeckQueue<PptxRequest, PptxReply>(spawn, SLIDES_DECK_READ_TI
  * The hymnal's own thread and queue, of the same module: what a file is, a legacy deck read as pictures and why a
  * deck won't open, each a millisecond or two. In `queue` a hymn waited behind a heavy `.pptx` (5 to 11 s); on main,
  * 32 of them were one turn of the thread every engine frame crosses, and a share that stopped answering held it
- * whole (2026-11-22 audit, RM1). A file that kills this thread is never read on main either. The read-ahead has a
- * short clock of its own: a hymn on a share that stopped answering held this thread, and every hymn behind it, a
- * deck's 60 s (review, RN-7). The operator keeps a deck's (`hymnalWindow`).
+ * whole (2026-11-22 audit, RM1). A file that kills this thread is never read on main either. One short clock for
+ * both lanes, without a beat: the thread beats as it reads the file (`paced`), so a large hymn on a slow share is
+ * never cut while it reads, and one whose read hangs is cut at 5 s whoever waits on it. With a deck's 60 s for the
+ * operator, a hymn on a share that stopped answering held this thread, and the next hymn the operator chose, 55 s
+ * (review, RN-7, RN3-2). A share that hands over the whole file at open (WebDAV on Windows) gives no beat: a hymn
+ * that takes longer than 5 s there fails as too slow.
  */
-const hymnal = createDeckQueue<PptxRequest, PptxReply>(spawn, SLIDES_DECK_READ_TIMEOUT_MS);
-
-/** The hymnal's clock for `lane`: what the operator waits on is never cut sooner than before the read-ahead's 5 s, so a
- *  large legacy deck on a slow PC or a share over WiFi still opens (2026-11-22 review, RN2-4). */
-function hymnalWindow(lane: RasterLane): number {
-  return lane === "now" ? SLIDES_DECK_READ_TIMEOUT_MS : SLIDES_HYMNAL_READ_TIMEOUT_MS;
-}
+const hymnal = createDeckQueue<PptxRequest, PptxReply>(spawn, SLIDES_HYMNAL_READ_TIMEOUT_MS);
 
 /**
  * A model deck's pictures, metafiles and fonts, on a third thread with a short clock of its own: a slide on air asks
@@ -85,7 +82,7 @@ export async function sniffDeck(
   native: boolean,
   lane: RasterLane,
 ): Promise<{ kind: ContainerKind; native: NativeRead | undefined } | null | typeof TOO_SLOW> {
-  const reply = await hymnal.ask(sourcePath, { id: ++nextId, sniff: sourcePath, native }, lane, hymnalWindow(lane));
+  const reply = await hymnal.ask(sourcePath, { id: ++nextId, sniff: sourcePath, native }, lane);
   if (reply === null || reply === TOO_SLOW) return reply;
   return "kind" in reply ? reply : null;
 }
@@ -96,7 +93,7 @@ export async function unreadableReason(
   sourcePath: string,
   lane: RasterLane,
 ): Promise<UnreadableDeckReason | typeof TOO_SLOW> {
-  const reply = await hymnal.ask(sourcePath, { id: ++nextId, unreadable: sourcePath }, lane, hymnalWindow(lane));
+  const reply = await hymnal.ask(sourcePath, { id: ++nextId, unreadable: sourcePath }, lane);
   if (reply === TOO_SLOW) return reply;
   return reply !== null && "reason" in reply ? reply.reason : "NOT_A_PRESENTATION";
 }
@@ -114,6 +111,6 @@ export async function readDeckPart(sourcePath: string, kind: "part" | "font", pa
 
 /** The operator opened a deck that was being read ahead: what is still queued for it goes first. */
 export function hurryDeck(sourcePath: string): void {
-  hymnal.hurry(sourcePath, hymnalWindow("now"));
+  hymnal.hurry(sourcePath);
   queue.hurry(sourcePath);
 }

@@ -18,8 +18,10 @@ import {
   readBinaryDeck,
   readBinaryExternalPaths,
   readBinaryPictures,
+  sniffUnreadableDeck,
   type BinaryDeck,
 } from "../../src/main/slides/ppt-binary";
+import { paced } from "../../src/main/slides/pptx-worker";
 import { encodeSlideLayers, imagePixelSize, renderNativeSlide } from "../../src/main/slides/native-deck";
 import { buildLegacyPpt, jpegHeader, oleHeader, pngHeader, showInfo, type LegacyDeck, type LegacyShape } from "../fixtures/legacy-ppt";
 
@@ -357,5 +359,46 @@ describe("a fabricated compound file costs at most its own size", () => {
     const odd = Buffer.from(deck);
     odd.writeUInt16LE(16, 30); // 64 KB sectors
     expect(open("odd-sectors.ppt", odd).ole).toBeNull();
+  });
+});
+
+describe("a hymn being read says so from its reads, never from a timer (2026-11-22 review, RN3-2)", () => {
+  test("off a slow share it beats every 500 ms of reading, from reads of a sector at most; off a disk, never", () => {
+    // The hymnal's thread is cut after 5 s without a beat: a large hymn still reading must beat well inside that, and a
+    // read that hangs must not beat at all, which only a beat sent from a finished read guarantees.
+    const file = write(hymn());
+    let now = 0;
+    let perRead = 0;
+    const real = fs.readSync;
+    const reads = vi.spyOn(fs, "readSync").mockImplementation((...args: Parameters<typeof fs.readSync>) => {
+      now += perRead;
+      return real(...args);
+    });
+    const read = (ms: number): number[] => {
+      perRead = ms;
+      reads.mockClear();
+      const beats: number[] = [];
+      expect(readBinaryDeck(file, paced(() => beats.push(now), 500, () => now))).toHaveProperty("deck");
+      return beats;
+    };
+    try {
+      // 100 ms a read: a share at ~5 KB/s for a 512-byte sector.
+      const slow = read(100);
+      const count = reads.mock.calls.length;
+      expect(count).toBeGreaterThan(10);
+      expect(slow).toEqual(Array.from({ length: Math.floor(count / 5) }, (_, at) => (at + 1) * 500));
+      // `readSync(fd, buffer, offset, length, position)`: the length of each read.
+      for (const call of reads.mock.calls) expect((call as unknown[])[3]).toBeLessThanOrEqual(4096);
+      expect(read(0)).toEqual([]);
+
+      // Every read of the file reaches `onRead`, «why it won't open» too.
+      let calls = 0;
+      reads.mockClear();
+      sniffUnreadableDeck(file, () => calls++);
+      expect(calls).toBe(reads.mock.calls.length);
+      expect(calls).toBeGreaterThan(0);
+    } finally {
+      reads.mockRestore();
+    }
   });
 });

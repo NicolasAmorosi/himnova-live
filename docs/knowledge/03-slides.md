@@ -54,12 +54,16 @@ whole chunk of 200 rows, ~35 min with a dead share in the library (2026-11-22 re
 `pptx-worker.ts` with its own queue (`pptx-deck.ts`, `hymnal`): in the model readers' queue a hymn
 waited behind a heavy `.pptx`, and on main a screen of 32 unread hymns was one turn of the thread
 every engine frame crosses. A file that stops that thread is refused whole and goes to the model
-reader's thread, never to main. The read-ahead's clock there is its own and short
-(`SLIDES_HYMNAL_READ_TIMEOUT_MS`, 5 s for a millisecond's work; a deck's 60 s let a hymn on a share that
-stopped answering hold every hymn behind it). What the operator waits on, a read-ahead it hurries
-included, keeps a deck's 60 s (`SLIDES_DECK_READ_TIMEOUT_MS`): the 5 s were measured only on an M3 with
-local files, and a large legacy deck on a slow PC or a share over WiFi that passed them would never open,
-«Reintentar» included (2026-11-22 review, RN2-4). A file it stops is far more often the disk's doing than the file's: the read-ahead does not ask it
+reader's thread, never to main. Its clock is its own, short and one for both lanes
+(`SLIDES_HYMNAL_READ_TIMEOUT_MS`, 5 s without a beat for a millisecond's work), and the thread beats as it
+reads the file, as the model readers beat per slide: every read of the OLE file is a sector (512 B or
+4 KB) or a picture's 8-byte header, and each one that finishes may beat, at most every 500 ms (`paced` in
+`pptx-worker.ts`, fed by `openOle`'s `onRead`). Never a timer: a read that hangs sends nothing. A large hymn
+on a slow share is never cut while it reads, and one whose read hangs is cut at 5 s, whoever waits on it.
+A deck's 60 s for the operator (RN2-4) let a hung hymn hold this thread and the next hymn the operator
+chose 55 s, measured on Windows (2026-11-22 review, RN3-2). The known cost: a share that hands over the
+whole file at open (Windows' WebDAV client) gives no beat, so a hymn that takes over 5 s to download
+there fails as too slow and is retried; SMB reads by parts, so it should beat (not measured yet). A file it stops is far more often the disk's doing than the file's: the read-ahead does not ask it
 again until it changes, the operator's ask always does. A deck already read as a model or a PDF still
 answers from its row, and one not read yet fails as `DECK_TOO_SLOW` (2026-11-22 review, RN-7). A slide is still served
 on main (`renderNativeSlide`, ~1 ms). The one exception left: the linked song's first resolution

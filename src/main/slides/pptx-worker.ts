@@ -71,7 +71,8 @@ export type PptxReply =
   | { id: number; reason: UnreadableDeckReason }
   | { id: number; deckPart: DeckPart }
   | { id: number; error: string }
-  /** Still reading `id`: one per slide, which restarts the queue's timer (`deck-queue.ts`). */
+  /** Still reading `id`: one per slide (the hymnal's thread: per read of the file, `paced`), which restarts the queue's
+   *  timer (`deck-queue.ts`). */
   | { id: number; alive: true };
 
 type Resources = PptxResources & PptResources;
@@ -81,6 +82,25 @@ let resources: Resources | null = null;
  *  limit without one, so a long deck on a slow PC is read to the end (2026-11-15 audit, S4, review). */
 let reading = 0;
 const beat = (): void => parentPort?.postMessage({ id: reading, alive: true } satisfies PptxReply);
+
+/** How often, at most, a hymn being read says so: the hymnal's clock is 5 s without a beat, and a read of a sector is
+ *  milliseconds even at 100 KB/s, so a deck that is still reading beats well inside it. */
+const READ_BEAT_MS = 500;
+
+/**
+ * `send` from a read that finished, at most once every `everyMs` since it was made (one per request): the hymnal's
+ * beat comes from bytes read, never from a timer, so a read that hangs on a share sends none and the queue's clock
+ * stops it. A hymn read off a disk (a millisecond or two) sends none either (2026-11-22 review, RN3-2).
+ */
+export function paced(send: () => void, everyMs = READ_BEAT_MS, now = (): number => performance.now()): () => void {
+  let last = now();
+  return () => {
+    const at = now();
+    if (at - last < everyMs) return;
+    last = at;
+    send();
+  };
+}
 
 /** By what the bytes are, never by the extension. */
 function readModel(file: string, loaded: Resources): { deck: PptxDeck; meta: PresentationMeta | null } {
@@ -212,9 +232,10 @@ parentPort?.on("message", (request: PptxRequest) => {
       };
     } else if ("sniff" in request) {
       const kind = containerKind(request.sniff);
-      reply = { id, kind, native: request.native && kind === "binary" ? readBinaryDeck(request.sniff) : undefined };
+      const native = request.native && kind === "binary" ? readBinaryDeck(request.sniff, paced(beat)) : undefined;
+      reply = { id, kind, native };
     } else if ("unreadable" in request) {
-      reply = { id, reason: sniffUnreadableDeck(request.unreadable) };
+      reply = { id, reason: sniffUnreadableDeck(request.unreadable, paced(beat)) };
     } else if ("deckPart" in request) {
       const { file, kind, part } = request.deckPart;
       reply = { id, deckPart: readDeckPart(file, kind, part) };
