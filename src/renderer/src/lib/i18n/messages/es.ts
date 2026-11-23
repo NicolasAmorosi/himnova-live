@@ -4,7 +4,7 @@ const es = {
   app: {
     crashed: "Algo falló en la interfaz",
     modalCrashed: "Algo falló en esa ventana y se cerró",
-    unexpectedError: "Ocurrió un error inesperado. La aplicación sigue funcionando.",
+    unexpectedError: "Ocurrió un error inesperado. La app sigue funcionando.",
     reload: "Recargar",
     /** The control window's page died and came back over what is live (A30). */
     controlRecovered: "La ventana de control se cerró por un error y se recuperó. Lo que está al aire siguió igual.",
@@ -1124,7 +1124,7 @@ const es = {
     },
     /** Settings ▸ Projection ▸ «Salida NDI®» (`ndi-output-group.tsx`). */
     ndi: {
-      groupDesc: "La proyección como fuente de video en la red, para OBS, vMix u otro programa.",
+      groupDesc: "La proyección como fuente de video en la red, para OBS, vMix u otra app.",
       enabled: "Enviar por NDI®",
       enabledDesc: "La imagen, tal como se ve en el proyector, con el sonido de la app.",
       enabledHelp:
@@ -1136,7 +1136,7 @@ const es = {
         off: "Apagada",
         starting: "Arrancando…",
         sending:
-          "{count, plural, =0 {Enviando · ningún programa la está recibiendo} one {Enviando · # programa la recibe} other {Enviando · # programas la reciben}}",
+          "{count, plural, =0 {Enviando · ninguna app la está recibiendo} one {Enviando · # app la recibe} other {Enviando · # apps la reciben}}",
         runtimeMissing: "Falta instalar NDI, que es gratis. Instalalo y cerrá y volvé a abrir Himnova Live.",
       },
       errors: {
@@ -1147,7 +1147,7 @@ const es = {
       },
       getRuntime: "Descargar NDI",
       name: "Nombre",
-      nameDesc: "Los programas la listan como «COMPUTADORA (nombre)».",
+      nameDesc: "Las apps la listan como «COMPUTADORA (nombre)».",
       resolution: "Resolución",
       resolutionDesc: "1080p pide cable de red gigabit; por Wi-Fi o un cable más lento, 720p.",
       fps: "Cuadros por segundo",
@@ -1156,9 +1156,9 @@ const es = {
       audioDescWin: "El sonido de la app (videos, música, himnos), sin el resto de la computadora.",
       audioDescMac:
         "El sonido de la app (videos, música, himnos). Pide macOS 14.2 o posterior, y la primera vez macOS pregunta si Himnova Live puede grabar el audio del sistema: tocá «Permitir».",
-      audioDescLinux: "Lo que suena por la salida de EN VIVO, también otros programas que usen esa salida: cerralos.",
+      audioDescLinux: "Lo que suena por la salida de EN VIVO, también otras apps que usen esa salida: cerralos.",
       audioDelay: "Sincronía del sonido",
-      audioDelayDesc: "Si en el programa que recibe el sonido llega antes que la imagen, subilo; si llega después, bajalo.",
+      audioDelayDesc: "Si en la app que recibe el sonido llega antes que la imagen, subilo; si llega después, bajalo.",
       audioStates: {
         on: "Sonido: se envía",
         level: "Sonido: se envía · pico {level} dB",
@@ -1460,7 +1460,7 @@ const es = {
       subtitle: "¿Transmiten el culto por internet? Himnova puede mandarle a OBS o vMix lo mismo que proyecta, por la red y con NDI®, sin placas de captura.",
       question: "¿Transmiten el culto?",
       yes: "Sí, transmitimos",
-      yesDesc: "Con OBS, vMix u otro programa",
+      yesDesc: "Con OBS, vMix u otra app",
       no: "Por ahora no",
       noDesc: "Se activa cuando quieras",
       howTitle: "Para verlo en OBS",
