@@ -7,8 +7,8 @@ import { broadcast } from "../../services/broadcast";
 import { pinDecks } from "../../slides/deck-service";
 import { commandLiveEngine, redrawEngineFrame, syncLiveEngine, syncLiveEngineIntoNewProjector } from "../../media/engine-sessions";
 import { IpcError } from "@shared/ipc/result";
-import { deckIdOfUrl } from "@shared/urls";
-import { keepLiveDeckSource } from "../../protocol/worship-protocol";
+import { deckIdOfUrl, linkedAudioAssetIdOfUrl } from "@shared/urls";
+import { keepLiveDeckSource, liveMusicPlays } from "../../protocol/worship-protocol";
 import { reopenStageWindow, showOnStage, stageShown, stageSnapshot } from "../../windows/stage-window";
 import { crashLimit } from "../../windows/crash-limit";
 import { reportLevel } from "../../media/audio-levels";
@@ -181,6 +181,12 @@ export const projectionHandlers: Pick<
   },
 
   "projection:setAudioTracks": (tracks) => {
+    // A new epoch of a deck's music is a new playback of it (the projector keys its `<audio>` by it): the file it
+    // reads is settled before its first byte. A push without it ends the one there was.
+    const track = tracks.find((candidate) => linkedAudioAssetIdOfUrl(candidate.url) !== null);
+    const assetId = track ? linkedAudioAssetIdOfUrl(track.url) : null;
+    const music = assetId === null ? null : getMediaRepo().linkedAudioPathById(getMediaRepo().survivingId(assetId));
+    liveMusicPlays(music, track?.epoch ?? null);
     projectionState.setAudioTracks(tracks);
     syncLiveEngine();
   },

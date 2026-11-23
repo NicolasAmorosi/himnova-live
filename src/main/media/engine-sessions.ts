@@ -106,7 +106,7 @@ function start(
   session.engine = takeEngine();
   session.engine.load(
     {
-      // The music of the deck on air, from its copy once its own file is gone (`liveMusicFile`, 2026-11-22 audit, RV-4).
+      // The music of the deck on air, from its copy when there is one (`liveMusicFile`, 2026-11-22 audit, RV-4).
       file: linked !== null ? liveMusicFile(file) : file,
       startAtSeconds: opts.startAtSeconds,
       paused: session.paused,

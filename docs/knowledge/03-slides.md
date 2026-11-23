@@ -129,7 +129,8 @@ SlideView (React, components/shared/slide-view/) ◄── worship://deck/<id>/<
   EMF/WMF (or its gzipped `.emz`/`.wmz`) as the SVG `metafileToSvg` makes of it — Chromium decodes
   neither; `…/font/<part>` is an embedded font (EOT / MicroType Express) rebuilt as TrueType by
   `decodeEmbeddedFont`. All `immutable`, and all 410 once the source is no longer the file the model
-  was read from. Read and converted on a third thread of `pptx-worker.ts` (`pptx-deck.ts`, `parts`,
+  was read from (unless the copy of the deck on air has it: «The copy of the deck on air», below).
+  Read and converted on a third thread of `pptx-worker.ts` (`pptx-deck.ts`, `parts`,
   `readDeckPart`), never on main: an EMF of 156 bytes froze main a minute and then took the app down,
   and a real one of 24.5 MB was a turn of 200 ms (2026-11-22 audit, SE1). Its own thread because a
   slide on air waits on its parts: they never queue behind a `.pptx` read nor a hymn's file on a dead
@@ -309,7 +310,8 @@ worship://deck/<id>/<n> ◄── native-deck.ts: the JPEG as is, or an SVG ◄�
 - **What is served**: a slide that is one picture edge to edge in its own proportions is that JPEG,
   byte for byte (~4 of 5 hymnal slides); otherwise an SVG placing each picture where PowerPoint does,
   pictures as `data:` URIs (an SVG used as an image fetches nothing). The source must still be the
-  file the layers were read from — same `(size, mtime)` — or the answer is 410. `/thumb` is the base
+  file the layers were read from (same `(size, mtime)`), or the answer is 410; the copy of the deck
+  on air, once landed, is read first («The copy of the deck on air»). `/thumb` is the base
   picture alone: composing the SVG for every tile of a library grid cost ~800 KB of base64 each.
 - **The linked song** is found from the record that names it (`ExObjList` → `CString`,
   `readBinaryExternalPaths`), not by scanning the file: the scan was most of a second per hymn
@@ -537,6 +539,29 @@ semantics** (206 + `Content-Range`, `Accept-Ranges: bytes`, 416, streaming with
 forwarding the headers, which left all video/audio **without seek** and broke playback with
 `PIPELINE_ERROR_DECODE (-12909)` from misaligned data — see
 [`.claude/knowledge/worship-protocol-range-and-video-lifecycle.md`](../../.claude/knowledge/worship-protocol-range-and-video-lifecycle.md).
+
+### The copy of the deck on air
+
+A slide, a page or a part is read from the deck's source when asked for, so a pen drive pulled or a
+network folder down took the next slide away. `projection:show` takes a copy of the deck on air in
+the profile (`keepLiveDeckSource`, `liveDeckDir`, one deck at a time, `.partial` then a rename), and
+its linked music after it (up to 200 MB). Once landed, the copy is **read first**: a slide is served
+from it whenever its stamp is the one the deck was read with, without a `stat` of the file (a share
+that stopped answering held every slide 21 s on Windows: 2026-11-22 audit, RM3); without a copy, or
+while it is still being written, the file is read as before, and 410 once it is no longer the file
+the deck was read from. The cost: a PDF's pages are cached by the file they were drawn from, so the
+pages drawn before the copy landed are drawn once more from it.
+
+The music (`worship://linked-audio`, and the engine for a `.wma`) reads its copy first too
+(`liveMusicFile`), and that copy changes only as a playback begins: a new epoch of its audio track
+in `projection:setAudioTracks` (the hymn sent live again, `goLiveWithDeck`; the projector keys its
+`<audio>` by that epoch) looks at the file (`liveMusicPlays`), and that playback's bytes wait for the
+look, a second at most (`MUSIC_LOOK_MS`). As copied, unreadable or not answering by then, it reads the
+copy, whatever a late answer says; changed, it reads the file until a copy of it as it is now lands. A slide change, BLACK, a restart or a seek and a reopened projector are the same
+playback, so its `Range` reads never mix two files (RN2-6), and an MP3 replaced mid-hymn plays new
+from the next time the hymn goes live. PREVIEW of the
+hymn on air reads the same copy. The engine opens its file once per playback and keeps it open: a
+`.wma` playing from the pen drive does not move to the copy if the drive is pulled (RN-4, debt).
 
 ## Verification
 
