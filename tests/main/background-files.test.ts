@@ -111,6 +111,47 @@ test("the operator never joins a stat the background started, which may answer o
   await Promise.all([operator, ...joined]);
 });
 
+test("the operator's asks of a file that never answers hold two threads at most, never one per click", async () => {
+  // «Reintentar» every 3 s on a share that never answers started a stat each time, and four clicks filled libuv's four
+  // threads, the ones the projector reads from (2026-11-22 review, RN3-1). The second still starts its own (RN2-1).
+  const answers: ((fail?: boolean) => void)[] = [];
+  const stats = vi.spyOn(fs.promises, "stat").mockImplementation(
+    () =>
+      new Promise((resolve, reject) =>
+        answers.push((fail) => (fail ? reject(new Error("ETIMEDOUT")) : resolve({} as fs.Stats))),
+      ),
+  );
+  let now = 1_000_000;
+  vi.spyOn(Date, "now").mockImplementation(() => now);
+  const file = "//nas/hymns/522.pps";
+  const asks: Promise<fs.Stats>[] = [];
+  for (let click = 0; click < 6; click++) {
+    asks.push(operatorStat(file));
+    now += 3000;
+  }
+  expect(stats).toHaveBeenCalledTimes(2);
+  expect(asks[1]).not.toBe(asks[0]);
+  expect(asks.slice(2).every((ask) => ask === asks[1])).toBe(true);
+
+  // The first gives up: one of theirs is left, so the next click starts its own again.
+  answers[0]!(true);
+  await asks[0]!.catch(() => null);
+  const retry = operatorStat(file);
+  expect(stats).toHaveBeenCalledTimes(3);
+  expect(retry).not.toBe(asks[1]);
+  answers[1]!();
+  answers[2]!();
+  await Promise.all([...asks.slice(1), retry]);
+  // None left under way: the count fell back to nothing, so the next two clicks start one each again.
+  const later = operatorStat(file);
+  now += 3000;
+  const again = operatorStat(file);
+  expect(stats).toHaveBeenCalledTimes(5);
+  answers[3]!();
+  answers[4]!();
+  await Promise.all([later, again]);
+});
+
 test("the startup content hash stats with the background, never on a third thread beside its two", async () => {
   // A presentation on a share that went away held a thread of its own until the system gave up (review, RN2-8).
   const { started, running } = holdStats();

@@ -40,10 +40,12 @@ the same file (`background-files.ts`); a share that stopped answering held a syn
 with it, 21 s on Windows. A deck opened (`deck:ensure`) waits for that stat however long a disk takes to
 wake, and is `SOURCE_MISSING` only when the stat fails (2026-11-22 review, RN-2); a peek (`deck:get`)
 gives up after a second with `null`, which only sends the renderer on to `ensure`. An ask of the operator joins
-a stat of theirs only while it is under two seconds old: one that began while the share was down answers only
+a stat of theirs while it is under two seconds old: one that began while the share was down answers only
 when the system gives up (21 s on Windows, never on a mount that never answers), so «Reintentar» or a new GO LIVE
-starts its own and a share that came back answers at once (2026-11-22 review, RN2-1). The read-ahead's stats
-take one of the two threads background work may hold (`backgroundStat`), never one beside them, and
+starts its own and a share that came back answers at once (2026-11-22 review, RN2-1). Two of theirs at most on
+one file: with two under way, an ask joins the newest however old, since one per click on a share that never
+answers filled libuv's four threads, the projector's reads with them (2026-11-22 review, RN3-1). The read-ahead's
+stats take one of the two threads background work may hold (`backgroundStat`), never one beside them, and
 wait in a row of their own served before the sweep's: in one row a hymn read ahead waited behind a sweep's
 whole chunk of 200 rows, ~35 min with a dead share in the library (2026-11-22 review, RN2-3). The sniff
 (`containerKind`), the picture reader and `sniffUnreadableDeck` run on a second thread of
