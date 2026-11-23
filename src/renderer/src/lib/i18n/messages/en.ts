@@ -1214,6 +1214,7 @@ const en: Messages = {
     updates: "Updates",
     updatesCheck: "Check for updates",
     updatesNotes: "What's new",
+    updatesNotesFailed: "Couldn't open What's new in the browser.",
     updatesNew: "New version",
     updatesDownload: "Download",
     updatesInstallNow: "Restart and update",
@@ -1241,7 +1242,7 @@ const en: Messages = {
         "The Himnova Live {version} installer opens when the app closes: drag Himnova Live to Applications and choose “Replace”.",
     },
     updatesErrors: {
-      offline: "Couldn't check: there's no internet connection.",
+      offline: "There's no internet connection. Try again when it's back.",
       notPublished: "The published version can't be downloaded from the app yet. It's on the Himnova Live website.",
       checksum: "The download arrived damaged. Try again.",
       install: "Couldn't open the installer.",

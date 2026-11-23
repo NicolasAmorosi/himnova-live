@@ -1215,6 +1215,7 @@ const pt: Messages = {
     updates: "Atualizações",
     updatesCheck: "Procurar atualizações",
     updatesNotes: "Novidades",
+    updatesNotesFailed: "Não foi possível abrir as Novidades no navegador.",
     updatesNew: "Nova versão",
     updatesDownload: "Baixar",
     updatesInstallNow: "Reiniciar e atualizar",
@@ -1242,7 +1243,7 @@ const pt: Messages = {
         "O instalador do Himnova Live {version} abre ao fechar o app: arraste o Himnova Live para Aplicativos e escolha “Substituir”.",
     },
     updatesErrors: {
-      offline: "Não foi possível procurar: não há conexão com a internet.",
+      offline: "Não há conexão com a internet. Tente de novo quando ela voltar.",
       notPublished: "A versão publicada ainda não pode ser baixada pelo app. Ela está no site do Himnova Live.",
       checksum: "O download chegou danificado. Tente de novo.",
       install: "Não foi possível abrir o instalador.",

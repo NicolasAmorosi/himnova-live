@@ -162,7 +162,13 @@ export function AboutSection() {
           }
         >
           {offered ? (
-            <Button onClick={() => void api.updates.openReleaseNotes().catch(failed)} size="sm" variant="outline">
+            <Button
+              onClick={() =>
+                void api.updates.openReleaseNotes().catch(() => toast.danger(t("settings.updatesNotesFailed")))
+              }
+              size="sm"
+              variant="outline"
+            >
               {t("settings.updatesNotes")}
             </Button>
           ) : null}
