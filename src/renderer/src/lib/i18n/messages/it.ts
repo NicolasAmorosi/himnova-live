@@ -1455,7 +1455,7 @@ const it: Messages = {
       subtitle: "Quattro idee e sei pronto a usarla.",
       select: {
         title: "Scegli",
-        body: "Un clic su un versetto, un canto o un file lo mette in ANTEPRIMA. Lì lo vedi solo tu.",
+        body: "Un clic su un versetto, un canto o un file lo mette in Anteprima. Lì lo vedi solo tu.",
       },
       live: { title: "Proietta", body: "Invio, un doppio clic o IN ONDA lo manda al proiettore, e l'anteprima resta pronta per ciò che segue." },
       cover: {

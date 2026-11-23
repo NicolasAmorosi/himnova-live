@@ -191,7 +191,7 @@ const pt: Messages = {
   },
   preview: {
     placeholder: "Nada no preview",
-    clear: "Limpar a prévia",
+    clear: "Limpar o Preview",
     missing: "Mídia não encontrada",
     missingHint: "O arquivo original não está mais disponível no disco",
   },
@@ -824,7 +824,7 @@ const pt: Messages = {
   },
   footer: { black: "PRETO", logo: "LOGO", live: "NO AR" },
   /** The top bar's live buttons, in their tooltips beside their keys. */
-  footerHints: { goLive: "Mandar a prévia para o projetor", logo: "Mostrar o logo", black: "Tela preta", live: "Voltar a mostrar o conteúdo" },
+  footerHints: { goLive: "Mandar o Preview para o projetor", logo: "Mostrar o logo", black: "Tela preta", live: "Voltar a mostrar o conteúdo" },
   projector: {
     closedUnexpectedly: "A janela de projeção foi fechada",
     recovered: "A janela de projeção travou e reabriu sozinha",
