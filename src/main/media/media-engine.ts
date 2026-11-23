@@ -433,7 +433,13 @@ export class MediaEngine {
   }
 
   seek(toSeconds: number, exact = true): void {
-    this.write(`seek ${Math.max(0, toSeconds)} ${exact ? "exact" : "keyframes"}`);
+    const at = Math.max(0, toSeconds);
+    // Where it was told to go is where it stands from now on, and not ended: a session that takes it over
+    // (`retarget`) hears that, not the end PREVIEW was parked at. Replayed, that end finished the live video the moment
+    // GO LIVE took PREVIEW's engine, before the seek to 0:00 landed, and «Al terminar» put the LOGO up (2026-11-22,
+    // once the projector's push left before PREVIEW let its engine go: RR-01). The engine's next status confirms it.
+    if (this.lastStatus) this.lastStatus = { ...this.lastStatus, time: at, ended: false };
+    this.write(`seek ${at} ${exact ? "exact" : "keyframes"}`);
   }
 
   /** A paused engine sends no frames, so a window that starts showing it (a projector rebuilt, a
