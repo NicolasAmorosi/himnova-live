@@ -1011,6 +1011,7 @@ export class SlidesRepo {
       videos,
       autoAdvance: slides.some((slide) => slide.advanceAfterMs !== null),
       timingsSource: deckRow.timingsSource,
+      sourceSizeBytes: deckRow.sourceSizeBytes,
       sourceMtimeMs: deckRow.sourceMtimeMs,
       convertedAt: deckRow.updatedAt,
       error: deckRow.errorMessage,

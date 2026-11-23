@@ -115,17 +115,30 @@ async function explainDeckFailure(assetId: number): Promise<void> {
 }
 
 async function goLiveWithDeck(assetId: number, startSlideIndex: number, intent: number): Promise<boolean> {
+  // Its file looked at first, as a video's is: a deck read before its file went away or was edited went out with the
+  // slides of then, and the projector got a 410 for each one it had not drawn yet (2026-11-22 audit, RV-2).
+  const source = await api.library.check(assetId);
+  if (source && source.missingSince !== null) {
+    toast.warning(t("deck.liveFailed", { name: source.name, reason: t("preview.missingHint") }));
+    return false;
+  }
   const deckStore = useDeckStore.getState();
   const cached = deckStore.byAssetId[assetId];
   let deck: DeckDTO | null;
-  if (cached?.status === "ready" && cached.deck && cached.deck.slides.length > 0) {
-    // Already known ready in the store — go live with it immediately instead
-    // of waiting on an `ensure()` round-trip. For an already-prewarmed deck
-    // that round-trip is a pure cache hit on main's side anyway (same DTO,
-    // a beat later); waiting on it is exactly what made GO LIVE on a
-    // prepared deck feel slow. Still revalidate in the background (a
-    // relocate, a source file that changed on disk) so a real change is
-    // caught on the next go-live rather than never.
+  if (
+    cached?.status === "ready" &&
+    cached.deck &&
+    cached.deck.slides.length > 0 &&
+    cached.deck.sourceSizeBytes === source?.sizeBytes &&
+    cached.deck.sourceMtimeMs === source.mtimeMs
+  ) {
+    // Already known ready in the store, and read from the file as it is now:
+    // go live with it immediately instead of waiting on an `ensure()`
+    // round-trip. For an already-prewarmed deck that round-trip is a pure
+    // cache hit on main's side anyway (same DTO, a beat later); waiting on
+    // it is exactly what made GO LIVE on a prepared deck feel slow. Still
+    // revalidated in the background (a relocate) for the next go-live. A
+    // file edited since is read again below, before anything is cut.
     deck = cached.deck;
     void deckStore.ensure(assetId);
   } else {
@@ -579,10 +592,13 @@ function isAudioTarget(target: PreviewTarget, item: ProgramItemDTO | undefined):
 /** Whether PREVIEW names the deck, the song or the image already on the projector: its row re-selected, or it picked
  *  again from the library or the Songs tab. */
 function isAlreadyLive(target: PreviewTarget, item: ProgramItemDTO | undefined): boolean {
-  const { base } = useProjectionStore.getState();
+  const { base, liveDeck, mediaErrors } = useProjectionStore.getState();
   if (base?.kind === "deck") {
     const deck = target.kind === "asset" && target.assetKind === "ppt" ? target.assetId : item?.kind === "ppt" ? item.mediaAssetId : null;
-    return deck === survivingAssetId(base.assetId);
+    // One whose slides stopped drawing (its file edited or gone under it, 410) is sent again, as a failed image is:
+    // read again if it changed, refused with the missing-file notice if it went (2026-11-22 audit, RV-2).
+    const failed = mediaErrors[mediaErrorKey({ kind: "scene" })]?.url.startsWith(`worship://deck/${liveDeck?.deckId}/`) === true;
+    return !failed && deck === survivingAssetId(base.assetId);
   }
   if (base?.kind === "song") {
     const song = target.kind === "song" ? target.songId : item?.kind === "song" ? item.songId : null;
@@ -592,7 +608,7 @@ function isAlreadyLive(target: PreviewTarget, item: ProgramItemDTO | undefined):
   // that failed to load is sent again, the operator's retry, as a failed video is.
   if (base?.kind === "image") {
     const image = target.kind === "asset" && target.assetKind === "image" ? target.assetId : item?.kind === "media" ? item.mediaAssetId : null;
-    const failed = useProjectionStore.getState().mediaErrors[mediaErrorKey({ kind: "scene" })]?.url === assetUrl(base.assetId);
+    const failed = mediaErrors[mediaErrorKey({ kind: "scene" })]?.url === assetUrl(base.assetId);
     return !failed && image === survivingAssetId(base.assetId);
   }
   return false;
