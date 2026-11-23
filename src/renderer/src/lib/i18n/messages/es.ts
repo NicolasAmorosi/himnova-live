@@ -1639,6 +1639,21 @@ const es = {
     noResults: "Sin resultados",
     itemCount: "{count, plural, one {# elemento} other {# elementos}}",
   },
+  /** What the editors left unsaved when the app went down (`EditorDraftsNotice`, DU-1). */
+  editorDrafts: {
+    title: "¿Recuperar lo que estabas editando?",
+    body: "La app se cerró sin guardar los cambios de {items}. «Recuperar» abre cada editor como lo dejaste, uno por vez.",
+    recover: "Recuperar",
+    discard: "Descartar",
+    untitled: "sin nombre",
+    kinds: {
+      song: "la canción «{name}»",
+      songTheme: "el tema «{name}»",
+      plate: "la placa «{name}»",
+      scene: "la escena «{name}»",
+      program: "el programa «{name}»",
+    },
+  },
 };
 
 export default es;

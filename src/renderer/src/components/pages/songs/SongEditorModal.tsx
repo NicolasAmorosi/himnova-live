@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useI18n } from "@renderer/lib/i18n/i18n-provider";
 import { ConfirmModal } from "@renderer/components/shared/modal";
-import { EditorScreen } from "@renderer/components/shared/editor-screen";
+import { EditorScreen, useEditorDraft } from "@renderer/components/shared/editor-screen";
 import { OutputView } from "@renderer/components/shared/output-view";
 import { SongSlideGrid } from "@renderer/components/shared/song-slide-grid";
 import {
@@ -150,6 +150,15 @@ export function SongEditorModal({ onOpenChange, onSaved, open, songId }: SongEdi
   const dirty = JSON.stringify(upsert) !== JSON.stringify(toSongUpsert(baseline, baselineParsed, null));
   const problem = songDraftProblem(draft, parsed);
   const canSave = problem === null && (currentId === null || dirty);
+
+  // On disk while unsaved, back after a crash (DU-1). After the effect above that loads what it opens.
+  const form = useMemo(() => ({ currentId, draft, baseline }), [currentId, draft, baseline]);
+  useEditorDraft("song", open, dirty, { id: currentId, name: draft.title, state: form }, (recovered) => {
+    const state = recovered.state as typeof form;
+    setCurrentId(state.currentId);
+    setBaseline(state.baseline);
+    replaceDraft(state.draft);
+  });
 
   const missing = missingOrderKeys(parsed.sections, order);
   // What is really projected: an empty order, or one naming only sections

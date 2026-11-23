@@ -42,6 +42,7 @@ import type {
   ProgramSummary,
   ProgramUpsert,
 } from "../types/program";
+import type { EditorDraft, EditorKind } from "../types/editor-draft";
 import type { SettingsMap } from "../types/settings";
 import type { BibleStyle } from "../types/bible-style";
 import type { GpuStatus, InternalsPage, VideoDecoderReport } from "../types/system";
@@ -332,6 +333,11 @@ export type IpcContract = {
   /** Read once at launch. Already filtered to items whose media assets still
    *  exist (`DraftRepo.load`). */
   "program:loadDraft": { req: void; res: ProgramDraft | null };
+  /** An editor's unsaved form, every 600 ms while it has changes; `null` drops it (saved, discarded, closed clean,
+   *  or a quit the operator confirmed over it). See `use-editor-draft.ts`. */
+  "editors:saveDraft": { req: { editor: EditorKind; draft: EditorDraft | null }; res: void };
+  /** Read at launch: what the editors left unsaved, for the «Recuperar / Descartar» notice. */
+  "editors:loadDrafts": { req: void; res: EditorDraft[] };
 
   /** The control window's answer to `close-requested`. Main never decides on
    *  its own whether unsaved work may be discarded — `CLAUDE.md`: that

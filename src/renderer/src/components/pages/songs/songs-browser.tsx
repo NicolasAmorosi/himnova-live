@@ -15,6 +15,7 @@ import { PanelBody, PanelFooter } from "@renderer/components/shared/panel";
 import { FolderRefreshButton, LibraryFilterBar } from "@renderer/components/shared/library-filter-bar";
 import { ConfirmModal } from "@renderer/components/shared/modal";
 import { ModalBoundary } from "@renderer/components/shared/modal-boundary";
+import { useRecovering } from "@renderer/components/shared/editor-screen";
 import { api } from "@renderer/lib/api";
 import { toast } from "@renderer/lib/toast";
 import { setSongDrag } from "@renderer/lib/dnd";
@@ -98,6 +99,15 @@ export function SongsBrowser() {
     void importSongs().finally(() => setImporting(false));
   };
   const requestRef = useRef(0);
+  // «Recuperar» after a crash opens the song editor, or the themes', on what was left unsaved (DU-1).
+  const recoveredSong = useRecovering("song");
+  const recoveredTheme = useRecovering("songTheme");
+  useEffect(() => {
+    if (recoveredSong) setEditing({ songId: recoveredSong.id });
+  }, [recoveredSong]);
+  useEffect(() => {
+    if (recoveredTheme) setThemesOpen(true);
+  }, [recoveredTheme]);
 
   const previewed = findSong(songs, previewedId);
   // Only a library song: a folder's song is its file, and the app never

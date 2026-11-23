@@ -1620,6 +1620,20 @@ const pt: Messages = {
     noResults: "Nenhum resultado",
     itemCount: "{count, plural, =0 {# itens} one {# item} other {# itens}}",
   },
+  editorDrafts: {
+    title: "Recuperar o que você estava editando?",
+    body: "O app fechou sem salvar as alterações de {items}. “Recuperar” abre cada editor como você deixou, um de cada vez.",
+    recover: "Recuperar",
+    discard: "Descartar",
+    untitled: "sem nome",
+    kinds: {
+      song: "a música “{name}”",
+      songTheme: "o tema “{name}”",
+      plate: "o overlay “{name}”",
+      scene: "a cena “{name}”",
+      program: "o roteiro “{name}”",
+    },
+  },
 };
 
 export default pt;

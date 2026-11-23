@@ -604,3 +604,19 @@ export const songUses = sqliteTable(
   },
   (t) => [index("ix_song_uses_time").on(t.usedAt), index("ix_song_uses_song").on(t.songId)],
 );
+
+/**
+ * The unsaved form of each full-screen editor with «Guardar» (song, song theme, plate, scene, program): one row per
+ * editor, written every 600 ms while it has changes and deleted when it has none (saved, discarded, closed clean).
+ * What a crash, a killed process or a power cut leaves here is offered at the next launch (owner, 2026-11-23, DU-1),
+ * like `program_draft` is for the order of service.
+ *
+ * `draft` is the renderer's JSON (`EditorDraft`) as it comes: each editor's form is its own shape, and only that
+ * editor reads it back. No foreign key: like the schedule's draft, it must never be what blocks a delete.
+ */
+export const editorDrafts = sqliteTable("editor_drafts", {
+  /** `EditorKind`. */
+  editor: text("editor").primaryKey(),
+  draft: text("draft").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+});

@@ -66,6 +66,19 @@ able to reference an asset the operator is about to delete, which is exactly wha
 from the library, a timer scene deleted from the editor—, on main's side, which is the only one
 that can answer that without one IPC round-trip per item.
 
+`editor_drafts` (`0025`) is the same safety net for the five editors with «Guardar» (song, song theme, plate,
+scene, program): **one row per editor** (`editor` is the key), its form as the renderer's JSON (`EditorDraft`: which
+editor, what it edits or `null` for a new one, its name for the notice, the form, `v: 1`), written every 600 ms while
+it has unsaved changes and deleted the moment it has none (saved, discarded, closed clean) by the hook the five share
+(`components/shared/editor-screen/use-editor-draft.ts`; `EditorScreen` is only their shell). Channels
+`editors:saveDraft` (`null` deletes) and `editors:loadDrafts`, through `DraftRepo` like the schedule's. At launch,
+after the schedule and its row on air, also on a page started over what is live, `App` reads them once; any left
+means a crash, a killed process or a power cut, and the notice offers them («Recuperar» opens each editor on its form,
+one after the other, on its tab; «Descartar» deletes them; «Cancelar» keeps them, and opening one of those editors
+asks again before its own form replaces the row). A quit the operator confirmed over an open editor deletes that
+editor's row (`dropEditorDrafts`): what they chose to lose is not offered. Main never reads the form, and a row this
+build cannot read is skipped (owner, 2026-11-23, DU-1).
+
 ### The six item kinds, and why every `program_items` migration is written by hand
 
 `kind` is `media | ppt | bible | utility | plate | song`, and the table's `CHECK` requires each one to

@@ -1,7 +1,7 @@
 import { useEffect, useState, type DragEvent } from "react";
 import { useT } from "@renderer/lib/i18n/i18n-provider";
 import { ConfirmModal } from "@renderer/components/shared/modal";
-import { EditorScreen } from "@renderer/components/shared/editor-screen";
+import { EditorScreen, useEditorDraft } from "@renderer/components/shared/editor-screen";
 import { ProgramUsages } from "@renderer/components/shared/program-usages";
 import { Button, EmptyState, Icon, Inspector, ListRow, type MenuOption } from "@renderer/components/ui";
 import { useEditorLibrary } from "@renderer/lib/hooks/use-editor-library";
@@ -70,6 +70,15 @@ export function PlatesModal({ onOpenChange, open }: { onOpenChange: (open: boole
       return { plateId: null, draft, baseline: draft };
     });
   }, [open, plates, t]);
+
+  // On disk while unsaved, back after a crash (DU-1).
+  useEditorDraft(
+    "plate",
+    open,
+    dirty,
+    { id: editing?.plateId ?? null, name: editing?.draft.name ?? "", state: editing },
+    (recovered) => setEditing(recovered.state as Editing),
+  );
 
   function leaveEditing(go: () => void) {
     if (dirty) setPending({ kind: "discard", go });

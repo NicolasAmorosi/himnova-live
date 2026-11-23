@@ -1623,6 +1623,20 @@ const it: Messages = {
     noResults: "Nessun risultato",
     itemCount: "{count, plural, one {# elemento} other {# elementi}}",
   },
+  editorDrafts: {
+    title: "Recuperare ciò che stavi modificando?",
+    body: "L'app si è chiusa senza salvare le modifiche a {items}. «Recupera» apre ogni editor come l'hai lasciato, uno alla volta.",
+    recover: "Recupera",
+    discard: "Scarta",
+    untitled: "senza nome",
+    kinds: {
+      song: "il canto «{name}»",
+      songTheme: "il tema «{name}»",
+      plate: "la grafica «{name}»",
+      scene: "la scena «{name}»",
+      program: "la scaletta «{name}»",
+    },
+  },
 };
 
 export default it;

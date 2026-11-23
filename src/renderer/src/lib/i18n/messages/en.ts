@@ -1619,6 +1619,20 @@ const en: Messages = {
     noResults: "No results",
     itemCount: "{count, plural, one {# item} other {# items}}",
   },
+  editorDrafts: {
+    title: "Recover what you were editing?",
+    body: "The app closed without saving the changes to {items}. “Recover” opens each editor as you left it, one at a time.",
+    recover: "Recover",
+    discard: "Discard",
+    untitled: "untitled",
+    kinds: {
+      song: "the song “{name}”",
+      songTheme: "the theme “{name}”",
+      plate: "the overlay “{name}”",
+      scene: "the scene “{name}”",
+      program: "the schedule “{name}”",
+    },
+  },
 };
 
 export default en;

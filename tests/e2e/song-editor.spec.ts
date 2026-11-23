@@ -322,3 +322,26 @@ test("«Guardar» is off for a song main would refuse, and the editor says why �
   await field(app, "Título").fill("");
   await expect(missingTitle).toBeVisible();
 });
+
+test("a song typed and never saved comes back after a crash, with «Recuperar» (DU-1)", async ({ app }) => {
+  const lyrics = "[Estrofa 1]\nprimera línea\n\n[Coro]\nel coro";
+  await openNew(app);
+  await field(app, "Título").fill("Himno sin guardar");
+  await lyricsBox(app).fill(lyrics);
+  // The editor's draft goes 600 ms after the last key. Then main dies without a word (SIGKILL, never `close()`).
+  await app.control.waitForTimeout(1_000);
+  process.kill(app.mainPid, "SIGKILL");
+  await app.exited;
+
+  const again = await relaunch(app);
+  const notice = again.control.getByRole("dialog", { name: "¿Recuperar lo que estabas editando?" });
+  await expect(notice).toContainText("la canción «Himno sin guardar»");
+  await notice.getByRole("button", { name: "Recuperar" }).click();
+  // On its tab, the editor open on what was typed, still unsaved.
+  await expect(field(again, "Título")).toHaveValue("Himno sin guardar");
+  await expect(lyricsBox(again)).toHaveValue(lyrics);
+  await expect(editor(again).getByText("Editado")).toBeVisible();
+  await save(again, "Himno sin guardar");
+  await close(again);
+  await expect(songRows(again).filter({ hasText: "Himno sin guardar" })).toHaveCount(1);
+});

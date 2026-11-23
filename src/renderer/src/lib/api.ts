@@ -16,6 +16,7 @@ import type {
   ProgramUpsert,
 } from "@shared/types/program";
 import type { SettingsMap } from "@shared/types/settings";
+import type { EditorDraft, EditorKind } from "@shared/types/editor-draft";
 import type { AudioRoute } from "@shared/types/audio";
 import type { UtilitySceneUpsert } from "@shared/types/utility";
 import type { PlateUpsert } from "@shared/types/overlay";
@@ -140,6 +141,11 @@ export const api = {
   draft: {
     save: (draft: ProgramDraft | null) => invoke("program:saveDraft", draft),
     load: () => invoke("program:loadDraft", undefined),
+  },
+  /** The editors' unsaved forms: see `components/shared/editor-screen/use-editor-draft.ts`. */
+  editors: {
+    saveDraft: (editor: EditorKind, draft: EditorDraft | null) => invoke("editors:saveDraft", { editor, draft }),
+    loadDrafts: () => invoke("editors:loadDrafts", undefined),
   },
   window: {
     /** Answers main's `close-requested` — see `CloseDecision`. */
