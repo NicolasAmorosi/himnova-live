@@ -13,10 +13,10 @@ type Captions = Record<string, string>;
 export const CAPTIONS: Record<TutorialId, Record<Locale, Captions>> = {
   "how-it-works": {
     es: {
-      schedule: "A la izquierda, el programa del culto: lo que vas a proyectar, en orden.",
-      preview: "Un clic y queda en la vista previa. Por ahora solo lo ves vos.",
-      live: "Tocás {EN VIVO} y pasa al proyector.",
-      next: "Mientras tanto, ya podés elegir lo que sigue.",
+      schedule: "A la izquierda, el orden del culto: lo que vas a proyectar, de principio a fin.",
+      preview: "Un clic y queda en la vista previa. Por ahora solo lo ves tú.",
+      live: "Tocas {EN VIVO} y pasa al proyector.",
+      next: "Mientras tanto, ya puedes elegir lo que sigue.",
       arrows: "La flecha → pasa a la estrofa siguiente.",
       verse: "Lo mismo con la lectura.",
       black: "Si algo sale mal, {NEGRO} deja la pantalla en negro.",
@@ -55,12 +55,12 @@ export const CAPTIONS: Record<TutorialId, Record<Locale, Captions>> = {
   },
   song: {
     es: {
-      tab: "Abrí la pestaña {Canciones}.",
-      search: "Escribí parte del título o de la letra. No hace falta poner acentos.",
+      tab: "Abre la pestaña {Canciones}.",
+      search: "Escribe parte del título o de la letra. No hace falta poner acentos.",
       pick: "Clic en la canción: sus diapositivas aparecen en la vista previa.",
-      live: "Tocás {EN VIVO} y la letra sale en el proyector.",
-      arrows: "Con la flecha → pasás a la siguiente.",
-      jump: "O hacés clic en la diapositiva que quieras.",
+      live: "Tocas {EN VIVO} y la letra sale en el proyector.",
+      arrows: "Con la flecha → pasas a la siguiente.",
+      jump: "O haces clic en la diapositiva que quieras.",
     },
     en: {
       tab: "Open the {Canciones} tab.",
@@ -89,9 +89,9 @@ export const CAPTIONS: Record<TutorialId, Record<Locale, Captions>> = {
   },
   bible: {
     es: {
-      tab: "En la pestaña {Biblia}, escribí la cita. Por ejemplo, «{ref}».",
+      tab: "En la pestaña {Biblia}, escribe la cita. Por ejemplo, «{ref}».",
       enter: "Enter, y el versículo queda en la vista previa.",
-      live: "Tocás {EN VIVO} y lo ve toda la iglesia.",
+      live: "Tocas {EN VIVO} y lo ve toda la iglesia.",
       next: "La flecha → muestra el versículo siguiente.",
     },
     en: {
@@ -115,11 +115,11 @@ export const CAPTIONS: Record<TutorialId, Record<Locale, Captions>> = {
   },
   presentation: {
     es: {
-      tab: "En {Medios}, abrí {Presentaciones}.",
-      add: "Con + agregás tu archivo de PowerPoint, un PDF o una presentación de LibreOffice.",
+      tab: "En {Medios}, abre {Presentaciones}.",
+      add: "Con + agregas tu archivo de PowerPoint, un PDF o una presentación de LibreOffice.",
       pick: "Clic en la presentación: las diapositivas aparecen en la vista previa.",
-      live: "Tocás {EN VIVO} y sale la primera.",
-      arrows: "Avanzás con la flecha → o con el control remoto de presentaciones.",
+      live: "Tocas {EN VIVO} y sale la primera.",
+      arrows: "Avanzas con la flecha → o con el control remoto de presentaciones.",
     },
     en: {
       tab: "In {Medios}, open {Presentaciones}.",
@@ -145,9 +145,9 @@ export const CAPTIONS: Record<TutorialId, Record<Locale, Captions>> = {
   },
   video: {
     es: {
-      tab: "En {Medios}, abrí {Videos}. Con + agregás el archivo.",
+      tab: "En {Medios}, abre {Videos}. Con + agregas el archivo.",
       pick: "Un clic y se reproduce en la vista previa, para que lo revises.",
-      live: "Tocás {EN VIVO} y arranca en el proyector.",
+      live: "Tocas {EN VIVO} y arranca en el proyector.",
       black: "Para sacarlo de la pantalla antes del final, {NEGRO}.",
     },
     en: {
@@ -171,11 +171,11 @@ export const CAPTIONS: Record<TutorialId, Record<Locale, Captions>> = {
   },
   schedule: {
     es: {
-      song: "Armá el programa antes del culto. Elegí un himno en {Canciones} y tocá {Agregar}.",
+      song: "Arma el orden del culto con tiempo. Elige un himno en {Canciones} y toca {Agregar}.",
       verse: "Lo mismo con la lectura, desde {Biblia}.",
-      video: "Desde {Medios} también podés arrastrar un video o una imagen al programa.",
-      save: "Lo guardás con un nombre.",
-      reopen: "Cuando llega el culto, lo abrís y está todo en su lugar.",
+      video: "Desde {Medios} también puedes arrastrar un video o una imagen al orden del culto.",
+      save: "Lo guardas con un nombre.",
+      reopen: "Cuando llega el culto, lo abres y está todo en su lugar.",
       run: "En el culto, vas elemento por elemento con {EN VIVO}.",
     },
     en: {
