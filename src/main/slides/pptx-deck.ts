@@ -14,7 +14,12 @@ import type { UnreadableDeckReason } from "./ppt-binary";
 export type { DeckPart, NativeRead, PptxRead } from "./pptx-worker";
 
 function spawn(): ReturnType<typeof createPptxWorker> {
-  const started = createPptxWorker({ workerData: { ooxmlDir } });
+  const started = createPptxWorker({
+    workerData: { ooxmlDir },
+    // Each thread lives the whole session. At V8's default its young generation grew to 128 MB within ten or so model
+    // reads, nearly all of it empty and kept for good, idle or not; reads are as fast at 16 MB (2026-11-22 audit, ME-3).
+    resourceLimits: { maxYoungGenerationSizeMb: 16 },
+  });
   // Never what keeps the process alive: quitting doesn't wait for a read.
   started.unref();
   return started;

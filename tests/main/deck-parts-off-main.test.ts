@@ -24,6 +24,8 @@ const h = vi.hoisted(() => ({
   /** What the fake thread does with a part: answer it, never answer, or die on it. */
   mode: "answer",
   posted: [] as unknown[],
+  /** What each thread was started with. */
+  spawned: [] as unknown[],
 }));
 h.dir = fs.mkdtempSync(path.join(os.tmpdir(), "deck-parts-"));
 
@@ -58,7 +60,8 @@ vi.mock("../../src/main/slides/pptx/embedded-font", async (importOriginal) => {
   return { ...real, decodeEmbeddedFont: vi.fn(real.decodeEmbeddedFont) };
 });
 vi.mock("../../src/main/slides/pptx-worker?nodeWorker", () => ({
-  default: () => {
+  default: (options: unknown) => {
+    h.spawned.push(options);
     const worker = Object.assign(new EventEmitter(), {
       unref: () => undefined,
       terminate: () => undefined,
@@ -174,4 +177,10 @@ test("on its thread, the EMF of the audit is converted to an SVG whose bytes cro
   // Its own buffer, whole: moving it to main moves no more than the SVG.
   expect(found.body.buffer.byteLength).toBe(found.body.byteLength);
   expect(readDeckPart(h.decks.get(3)!.sourcePath, "part", "ppt/media/missing.png")).toBe(404);
+});
+
+test("a deck thread, which lives the whole session, starts with a small young generation (2026-11-22 audit, ME-3)", () => {
+  // At V8's default it grew to 128 MB within ten or so model reads, nearly all of it empty and kept for good.
+  expect(h.spawned.length).toBeGreaterThan(0);
+  for (const options of h.spawned) expect(options).toMatchObject({ resourceLimits: { maxYoungGenerationSizeMb: 16 } });
 });
