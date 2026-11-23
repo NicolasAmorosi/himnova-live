@@ -601,14 +601,20 @@ export const useProjectionStore = create<ProjectionStoreState>()(
       // back is a cut — correcting a mistake mid-service must be instant.
       set((state) => {
         const slideVideo = freshSlideVideo(state.slideVideoEpoch);
+        const errors = errorsAfter(state, slideVideo);
+        // Another slide is another picture: the one that failed is gone with it, as a clip's error goes with its
+        // clip. Kept, a slide that hiccuped once and drew when shown again still read as failed, and picking the
+        // hymn again sent it from PREVIEW's slide with its music at 0:00 (review of the night 2, RN2-2). Only the
+        // slide's own failure: under LOGO the slot holds the logo's, which stays up and is never reported again
+        // (review of the night 3, RN3-4).
+        const scene = mediaErrorKey({ kind: "scene" });
+        const leaving = liveDeck.slides[base.slideIndex - 1];
+        const slideFailed = leaving !== undefined && errors[scene]?.url === (leaving.modelUrl ?? leaving.url);
         return {
           base: { ...base, slideIndex: next },
           slideEntry: next > base.slideIndex ? (liveDeck.slides[next - 1]?.transition ?? null) : null,
           ...slideVideo,
-          // Another slide is another picture: the one that failed is gone with it, as a clip's error goes with its
-          // clip. Kept, a slide that hiccuped once and drew when shown again still read as failed, and picking the
-          // hymn again sent it from PREVIEW's slide with its music at 0:00 (review of the night 2, RN2-2).
-          mediaErrors: withoutErrors(errorsAfter(state, slideVideo), [mediaErrorKey({ kind: "scene" })]),
+          mediaErrors: slideFailed ? withoutErrors(errors, [scene]) : errors,
         };
       });
     },

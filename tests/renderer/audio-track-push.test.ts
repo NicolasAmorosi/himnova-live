@@ -6,10 +6,11 @@ import { clearLive } from "@renderer/lib/actions/playback";
 import { useAudioStore, type LiveAudioTrack } from "@renderer/stores/audio.store";
 import { useDisplayStore } from "@renderer/stores/display.store";
 import { useProgramStore } from "@renderer/stores/program.store";
-import { useProjectionStore } from "@renderer/stores/projection.store";
+import { buildCumulativeMs, useProjectionStore, type LiveDeck } from "@renderer/stores/projection.store";
+import { useToastStore } from "@renderer/stores/toast.store";
 import { useSettingsStore } from "@renderer/stores/settings.store";
 import type { IpcEventName, IpcEvents } from "@shared/ipc/contract";
-import type { AudioEndAction, AudioTrackPush } from "@shared/types/projection";
+import { mediaErrorKey, type AudioEndAction, type AudioTrackPush } from "@shared/types/projection";
 import { DEFAULT_SETTINGS } from "@shared/types/settings";
 
 const track = (source: LiveAudioTrack["source"], paused = false): LiveAudioTrack => ({
@@ -202,4 +203,53 @@ test("CLEAR silences every track, the standalone ones too", async () => {
   } finally {
     stop();
   }
+});
+
+/** A deck on air of three slides with no music. */
+function hymn(): LiveDeck {
+  const slides = [1, 2, 3].map((index) => ({ index, url: `worship://deck/9/${index}`, thumbUrl: "", modelUrl: null, advanceAfterMs: null, transition: null }));
+  return { assetId: 9, deckId: 9, slides, soundtrack: null, sounds: [], videos: [], cumulativeMs: buildCumulativeMs(slides), autoAdvance: false };
+}
+
+test("a broken slide gone back to, or looped over, is told once in its scene, and again in the next", () => {
+  const stop = startProjectionEffects();
+  useToastStore.setState({ toasts: [] });
+  try {
+    const store = useProjectionStore.getState();
+    store.setLiveDeck(hymn());
+    store.setBase({ kind: "deck", assetId: 9, slideIndex: 1 });
+    store.beginScene();
+    const broken = { target: { kind: "scene" as const }, url: "worship://deck/9/2", code: null };
+    store.setSlideIndex(2);
+    emit("media-error", broken);
+    // Its slot leaves with the slide (RN2-2): without a memory of its own, each return toasted again (RN3-3).
+    store.setSlideIndex(3);
+    store.setSlideIndex(2);
+    emit("media-error", broken);
+    store.setSlideIndex(1);
+    store.setSlideIndex(2);
+    emit("media-error", broken);
+    expect(useToastStore.getState().toasts).toHaveLength(1);
+    // GO LIVE on it again is a new attempt: told again.
+    useProjectionStore.getState().beginScene();
+    emit("media-error", broken);
+    expect(useToastStore.getState().toasts).toHaveLength(2);
+  } finally {
+    stop();
+  }
+});
+
+test("under LOGO, changing slides keeps the logo's failure: it stays up and is never told again", () => {
+  const store = useProjectionStore.getState();
+  store.setLiveDeck(hymn());
+  store.setBase({ kind: "deck", assetId: 9, slideIndex: 1 });
+  const logo = { target: { kind: "scene" as const }, url: "worship://logo/broken.png", code: null };
+  store.setMediaError(logo);
+  // Fails if the slot is cleared whatever it holds (review of the night 3, RN3-4).
+  store.setSlideIndex(2);
+  expect(useProjectionStore.getState().mediaErrors[mediaErrorKey({ kind: "scene" })]?.url).toBe(logo.url);
+  // The slide's own failure still leaves with it (RN2-2).
+  store.setMediaError({ ...logo, url: "worship://deck/9/2" });
+  store.setSlideIndex(3);
+  expect(useProjectionStore.getState().mediaErrors[mediaErrorKey({ kind: "scene" })]).toBeUndefined();
 });

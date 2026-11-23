@@ -111,6 +111,7 @@ export function queueProjectionPushesFirst(): void {
  * comparator is enough and no equalityFn workaround is needed.
  */
 export function startProjectionEffects(): () => void {
+  let sceneReported: { epoch: number; urls: Set<string> } = { epoch: -1, urls: new Set() };
   // Coalesced into a microtask rather than sent on every `set()`: a single
   // user action (e.g. `goLiveWithDeck` — `setLiveDeck` + `setBase` +
   // `setOverlay`, all synchronous) fires this listener once per call, and
@@ -244,11 +245,19 @@ export function startProjectionEffects(): () => void {
   // panel; the toast is for the operator who is looking anywhere else — which,
   // mid-service, is most of the time.
   const unsubscribeError = onIpc("media-error", (error) => {
-    const { mediaErrors, setMediaError } = useProjectionStore.getState();
+    const { mediaErrors, setMediaError, sceneEpoch } = useProjectionStore.getState();
     // Already reported for this exact element and file: a deck navigated over
     // several broken slides, or a reload retrying the same missing track,
     // would otherwise stack one toast per attempt on top of the operator.
-    const alreadyReported = mediaErrors[mediaErrorKey(error.target)]?.url === error.url;
+    // A slide's failure leaves its slot with the slide (RN2-2), so the scene
+    // keeps what it reported apart, until the next scene: going back to a
+    // broken slide, or a deck looping over it, toasts once (review 3, RN3-3).
+    let alreadyReported = mediaErrors[mediaErrorKey(error.target)]?.url === error.url;
+    if (error.target.kind === "scene") {
+      if (sceneReported.epoch !== sceneEpoch) sceneReported = { epoch: sceneEpoch, urls: new Set() };
+      alreadyReported = sceneReported.urls.has(error.url);
+      sceneReported.urls.add(error.url);
+    }
     setMediaError(error);
     if (alreadyReported) return;
 
