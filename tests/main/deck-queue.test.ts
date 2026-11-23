@@ -186,6 +186,31 @@ describe("deck queue", () => {
     expect(outcome.every((reply) => reply !== "pending")).toBe(true);
   });
 
+  it("hurrying a read-ahead with the operator's window never shortens a longer one it already had", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      const { started, spawn } = fakeWorkers();
+      const queue = createDeckQueue<Request, Reply>(spawn, 60_000);
+      const outcome = track([
+        queue.ask("busy.pptx", { id: 1, file: "busy.pptx" }, "now"),
+        queue.ask("clips.pptx", { id: 2, file: "clips.pptx" }, "later", 15 * 60_000),
+      ]);
+      // Hurried while it waits: a minute's window would cut the 15 min copy at 60 s (2026-11-22 review, RN3-6).
+      queue.hurry("clips.pptx", 60_000);
+      started[0]!.emit("message", { id: 1, read: "busy.pptx" });
+      await flush();
+      vi.advanceTimersByTime(61_000);
+      await flush();
+      expect(started[0]!.stopped).toBe(0);
+      expect(outcome).toEqual([{ id: 1, read: "busy.pptx" }, "pending"]);
+      vi.advanceTimersByTime(14 * 60_000);
+      await flush();
+      expect(outcome).toEqual([{ id: 1, read: "busy.pptx" }, TOO_SLOW]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("ignores a reply that is not for the request in flight", async () => {
     const { started, spawn } = fakeWorkers();
     const queue = createDeckQueue<Request, Reply>(spawn, 60_000);

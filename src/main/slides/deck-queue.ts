@@ -121,13 +121,15 @@ export function createDeckQueue<Req extends { id: number }, Reply extends { id: 
       });
     },
     /** The read-ahead of `file` still waiting goes to the `now` lane, in the order it was asked. With `windowMs`, the
-     *  operator's own window, it gets that window too, the read of `file` under way included (timed again from now). */
+     *  operator's own window, it gets at least that window too, the read of `file` under way included (timed again
+     *  from now). Never a shorter one: a copy of clips hurried with a minute's window would be cut at 60 s of its
+     *  15 min (2026-11-22 review, RN3-6). */
     hurry(file: string, windowMs?: number): void {
       const moving = lanes.later.filter((job) => job.file === file);
       lanes.later = lanes.later.filter((job) => job.file !== file);
       lanes.now.push(...moving);
       if (windowMs === undefined) return;
-      for (const job of moving) job.hangMs = windowMs;
+      for (const job of moving) job.hangMs = Math.max(job.hangMs, windowMs);
       if (running?.file === file && running.hangMs < windowMs) {
         running.hangMs = windowMs;
         arm();
