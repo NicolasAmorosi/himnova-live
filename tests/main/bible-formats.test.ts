@@ -16,7 +16,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { afterAll, beforeAll, describe, expect, test } from "vitest";
+import { afterAll, beforeAll, describe, expect, test, vi } from "vitest";
 import Database from "better-sqlite3";
 import { zipSync, strToU8 } from "fflate";
 import {
@@ -26,6 +26,8 @@ import {
 } from "../../src/main/db/seed/bible-formats";
 import { cleanModuleText } from "../../src/main/db/seed/bible-formats/mybible";
 import { toIpcError } from "../../src/shared/ipc/result";
+import { mt } from "../../src/main/i18n";
+import { bibleFileHash } from "../../src/main/db/seed/seed-bible";
 import {
   CANON,
   canonByAbbrev,
@@ -365,5 +367,43 @@ test("a file the readers refuse crosses to the control window with its code, so 
   expect(toIpcError(new BibleFormatError("No se reconoce el formato"))).toEqual({
     code: "BIBLE_UNREADABLE",
     message: "No se reconoce el formato",
+  });
+});
+
+describe("a file its reader cannot finish", () => {
+  /** What the operator reads for `file`: thrown as a `BibleFormatError`, never the parser's or the disk's English. */
+  function causeOf(file: string): string {
+    try {
+      parseBibleFile(file);
+    } catch (error) {
+      expect(error).toBeInstanceOf(BibleFormatError);
+      return (error as Error).message;
+    }
+    throw new Error("parsed");
+  }
+
+  test("says why, in the operator's words, by the format it was read as", () => {
+    // «Unexpected end of JSON input», «Not a zip file (no end-of-central-directory record)» and «SqliteError: file is
+    // not a database» reached the toast, or since EC-2 a bare «No se pudo importar esa Biblia» (2026-11-22, EC-2/EC-3).
+    expect(causeOf(write("cut.json", `{"books": [{"name": "Génesis", "chapters": [`))).toBe(
+      mt("bible.jsonBroken", { file: "cut.json" }),
+    );
+    expect(causeOf(write("cut.xml", `<?xml version="1.0"?><XMLBIBLE><BIBLEBOOK bnumber="1"><CHAPTER cnumber="1"><VERS`))).toBe(
+      mt("bible.xmlBroken", { file: "cut.xml" }),
+    );
+    const zip = path.join(dir, "cut.zip");
+    fs.writeFileSync(zip, Buffer.concat([Buffer.from("504b0304", "hex"), Buffer.alloc(64, 7)]));
+    expect(causeOf(zip)).toBe(mt("bible.zipUnreadable"));
+    const sqlite = path.join(dir, "cut.sqlite3");
+    fs.writeFileSync(sqlite, Buffer.concat([Buffer.from("SQLite format 3\0"), Buffer.alloc(200, 7)]));
+    expect(causeOf(sqlite)).toBe(mt("bible.sqliteUnreadable"));
+  });
+
+  test("gone from the disk is told as a file to look for, not as a damaged one", () => {
+    // `bibleFileHash` is an import's first read of the file, in the handler and on the Bible thread.
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    expect(() => bibleFileHash(path.join(dir, "gone.json"))).toThrow(mt("bible.fileUnreadable", { file: "gone.json" }));
+    warn.mockRestore();
+    expect(causeOf(path.join(dir, "gone.json"))).toBe(mt("bible.fileUnreadable", { file: "gone.json" }));
   });
 });

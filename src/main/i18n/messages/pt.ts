@@ -88,10 +88,13 @@ const pt: MainMessages = {
   bible: {
     unknownFormat:
       "O formato de “{file}” não foi reconhecido. São aceitos JSON, Zefania/USFX/OSIS XML e módulos SQLite (MyBible, MySword).",
-    zipUnreadable: "Não foi possível ler o arquivo .zip: {detail}",
+    zipUnreadable: "Não foi possível ler o arquivo .zip: ele pode estar incompleto ou corrompido. Baixe-o de novo.",
     zipEmpty: "O .zip não contém nenhum arquivo XML ou JSON.",
-    sqliteUnreadable: "Não foi possível abrir o módulo SQLite: {detail}",
+    sqliteUnreadable: "Não foi possível abrir o módulo SQLite: ele pode estar incompleto ou corrompido. Baixe-o de novo.",
     sqliteNoVerses: "O arquivo SQLite não é um módulo do MyBible nem do MySword: não tem versículos.",
+    jsonBroken: "Não foi possível ler “{file}”: o JSON dele está incompleto ou corrompido. Baixe-o de novo.",
+    xmlBroken: "Não foi possível ler “{file}”: o XML dele está incompleto ou corrompido. Baixe-o de novo.",
+    fileUnreadable: "Não foi possível ler “{file}”. Verifique se o arquivo continua no lugar e tente de novo.",
     jsonNoBooks: "O arquivo JSON não tem o formato de uma Bíblia: os livros não foram encontrados.",
     jsonNoChapters: "O arquivo JSON não tem o formato de uma Bíblia: os capítulos não foram encontrados.",
     notZefania: "O XML não é uma Bíblia Zefania: falta o elemento <XMLBIBLE>.",

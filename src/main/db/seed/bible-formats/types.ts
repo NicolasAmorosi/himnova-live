@@ -49,9 +49,11 @@ export function asPlainText(value: unknown): string {
  *  An `IpcError` with its code, so the control window tells its worded message
  *  apart from a parser's or the disk's raw text, which crosses as `UNKNOWN`. */
 export class BibleFormatError extends IpcError {
-  constructor(message: string) {
+  /** `cause`: what the parser or the disk said, for the log only. */
+  constructor(message: string, cause?: unknown) {
     super({ code: "BIBLE_UNREADABLE", message });
     this.name = "BibleFormatError";
+    if (cause !== undefined) this.cause = cause;
   }
 }
 

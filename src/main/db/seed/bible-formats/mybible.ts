@@ -163,7 +163,7 @@ export function parseMyBibleModule(filePath: string): ParsedBible {
   try {
     db = new Database(filePath, { readonly: true, fileMustExist: true });
   } catch (error) {
-    throw new BibleFormatError(mt("bible.sqliteUnreadable", { detail: String(error) }));
+    throw new BibleFormatError(mt("bible.sqliteUnreadable"), error);
   }
 
   try {

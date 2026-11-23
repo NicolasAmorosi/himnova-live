@@ -90,10 +90,13 @@ const es = {
   bible: {
     unknownFormat:
       "No se reconoce el formato de «{file}». Se aceptan JSON, Zefania/USFX/OSIS XML y módulos SQLite (MyBible, MySword).",
-    zipUnreadable: "El archivo .zip no se pudo leer: {detail}",
+    zipUnreadable: "El archivo .zip no se pudo leer: puede estar incompleto o dañado. Descargalo de nuevo.",
     zipEmpty: "El .zip no contiene ningún archivo XML o JSON.",
-    sqliteUnreadable: "No se pudo abrir el módulo SQLite: {detail}",
+    sqliteUnreadable: "No se pudo abrir el módulo SQLite: puede estar incompleto o dañado. Descargalo de nuevo.",
     sqliteNoVerses: "El archivo SQLite no es un módulo de MyBible ni de MySword: no tiene versículos.",
+    jsonBroken: "No se pudo leer «{file}»: su JSON está incompleto o dañado. Descargalo de nuevo.",
+    xmlBroken: "No se pudo leer «{file}»: su XML está incompleto o dañado. Descargalo de nuevo.",
+    fileUnreadable: "No se pudo leer «{file}». Revisá que el archivo siga en su lugar y probá de nuevo.",
     jsonNoBooks: "El archivo JSON no tiene la forma de una Biblia: no se encontraron sus libros.",
     jsonNoChapters: "El archivo JSON no tiene la forma de una Biblia: no se encontraron sus capítulos.",
     notZefania: "El XML no es una Biblia Zefania: falta el elemento <XMLBIBLE>.",

@@ -21,7 +21,8 @@ export type SeedBibleJob =
 export type SeedBibleReply =
   | { seeded: { versionId: number; verseCount: number } | null }
   | { deleted: number }
-  | { error: string; format: boolean };
+  /** `detail`: what the parser or the disk said under the operator's message, for main's log (EC-2). */
+  | { error: string; format: boolean; detail: string };
 
 const job = workerData as SeedBibleJob;
 // The reader's errors reach a toast: in the operator's language, like on main.
@@ -36,7 +37,11 @@ try {
     reply = { seeded: seedBibleFromFile(db, sqlite, job.filePath, job.options) };
   }
 } catch (error) {
-  reply = { error: error instanceof Error ? error.message : String(error), format: error instanceof BibleFormatError };
+  reply = {
+    error: error instanceof Error ? error.message : String(error),
+    format: error instanceof BibleFormatError,
+    detail: String(error instanceof Error && error.cause !== undefined ? error.cause : error),
+  };
 } finally {
   sqlite.close();
 }
