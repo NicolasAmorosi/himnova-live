@@ -149,8 +149,12 @@ describe("the song validator", () => {
   });
 });
 
-describe("the repo and its search", () => {
+// A story in steps (create, search, edit), so its tests keep their order; it starts from an empty library so the songs
+// other suites leave behind never count in its searches.
+describe("the repo and its search", { shuffle: false }, () => {
   let gracia: number;
+
+  beforeAll(() => sqlite.exec("DELETE FROM program_items WHERE song_id IS NOT NULL; DELETE FROM songs;"));
 
   test("create, read back, update and duplicate", () => {
     const created = repo.create(
@@ -224,11 +228,12 @@ describe("migration 0019", () => {
           "INSERT INTO program_items (program_id, position, kind, song_id, media_asset_id, created_at) VALUES (?, 0, ?, ?, ?, 0)",
         )
         .run(programId, kind, songId, mediaAssetId);
-    const someSong = repo.list()[0]!.id;
+    const someSong = repo.create(song("Para el CHECK", "a")).id;
     expect(() => insert("song", null, null)).toThrow(/CHECK/);
     expect(() => insert("utility", someSong, null)).toThrow(/CHECK/);
     expect(() => insert("song", someSong, null)).not.toThrow();
     programs.delete(programId);
+    repo.delete(someSong);
   });
 
   test("deleting a theme leaves its songs on the default one", () => {
@@ -240,7 +245,7 @@ describe("migration 0019", () => {
   });
 });
 
-describe("a song in the order of service", () => {
+describe("a song in the order of service", { shuffle: false }, () => {
   test("saved and read back by reference", () => {
     const songId = repo.create(song("En el programa", "a")).id;
     const saved = programs.save({ name: "Domingo", items: [{ kind: "song", songId, title: null }] });
@@ -497,9 +502,10 @@ describe("a song imported from a song file stays tied to it (owner, 2026-11-05)"
       "{title: Primera}\n{start_of_verse}\nUna línea primera\n{end_of_verse}\n{new_song}\n{title: Segunda}\n{start_of_verse}\nUna línea segunda\n{end_of_verse}\n",
     );
     expect((await importSongFiles([file])).imported).toBe(2);
-    const segunda = titled("Segunda");
-    expect(segunda.file).toBe(file);
-    await save(segunda.id, (song) => ({ ...song, title: "Segunda (editada)" }));
+    // Another suite links a folder with a «Segunda» too: this one is the song tied to this file.
+    const segunda = repo.listLibrary().find((song) => song.title === "Segunda" && song.file === file);
+    expect(segunda).toBeDefined();
+    await save(segunda!.id, (song) => ({ ...song, title: "Segunda (editada)" }));
     const text = fs.readFileSync(file, "utf8");
     expect(text).toContain("Primera");
     expect(text).toContain("Una línea primera");

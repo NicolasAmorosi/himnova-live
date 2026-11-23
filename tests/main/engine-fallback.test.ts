@@ -38,7 +38,17 @@ vi.mock("../../src/main/services/repos", () => ({
   getMediaRepo: () => ({ survivingId: (id: number) => id }),
 }));
 
-const { engineFailedOn, initEngineAssets, setDecoderSupport } = await import("../../src/main/media/engine-assets");
+/** `engine-assets` as a new session finds it: what a test before this one failed must not be remembered here. */
+async function freshSession(candidates: ConversionCandidate[]) {
+  vi.resetModules();
+  h.candidates = candidates;
+  h.broadcast.mockClear();
+  h.gaveUp = false;
+  h.listeners.length = 0;
+  const assets = await import("../../src/main/media/engine-assets");
+  assets.initEngineAssets();
+  return assets;
+}
 
 const probed = (id: number, ext: string, probe: MediaProbe): ConversionCandidate => ({
   id,
@@ -54,12 +64,11 @@ const MP4 = 1;
 const XVID = 2;
 const LATER = 3;
 
+const mp4 = (id: number) => probed(id, "mp4", { container: "mov,mp4,m4a,3gp,3g2,mj2", durationSec: 30, video: video("h264"), audio: null });
+const avi = (id: number) => probed(id, "avi", { container: "avi", durationSec: 30, video: video("mpeg4"), audio: null });
+
 test("an engine that fails under a file Chromium plays sends it back to Chromium; an AVI stays the engine's", async () => {
-  h.candidates = [
-    probed(MP4, "mp4", { container: "mov,mp4,m4a,3gp,3g2,mj2", durationSec: 30, video: video("h264"), audio: null }),
-    probed(XVID, "avi", { container: "avi", durationSec: 30, video: video("mpeg4"), audio: null }),
-  ];
-  initEngineAssets();
+  const { engineFailedOn, setDecoderSupport } = await freshSession([mp4(MP4), avi(XVID)]);
   setDecoderSupport({ hevc: false, hevcMain10: false });
   // Windows: every picture on the engine, the MP4 too.
   await vi.waitFor(() => expect(h.broadcast).toHaveBeenCalledWith("engine-asset-changed", { assetId: MP4, engine: true }));
@@ -78,7 +87,7 @@ test("an engine that fails under a file Chromium plays sends it back to Chromium
 });
 
 test("an engine that cannot start sends every picture Chromium plays to Chromium, and says so once", async () => {
-  h.candidates = [...h.candidates, probed(LATER, "mp4", { container: "mov,mp4,m4a,3gp,3g2,mj2", durationSec: 9, video: video("h264"), audio: null })];
+  const { setDecoderSupport } = await freshSession([avi(XVID), mp4(LATER)]);
   setDecoderSupport({ hevc: false, hevcMain10: false });
   await vi.waitFor(() => expect(h.broadcast).toHaveBeenCalledWith("engine-asset-changed", { assetId: LATER, engine: true }));
 

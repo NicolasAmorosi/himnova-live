@@ -78,9 +78,9 @@ vi.mock("../../src/main/services/repos", () => ({
 }));
 vi.mock("../../src/main/services/broadcast", () => ({ broadcast: h.broadcast, controlWindows: () => [] }));
 
-const { matchAudioOutputs, setAudioRoute } = await import("../../src/main/media/audio-route");
-const { setPreviewVideo, syncLiveEngine } = await import("../../src/main/media/engine-sessions");
-const { projectionState } = await import("../../src/main/services/projection-state");
+let { matchAudioOutputs, setAudioRoute } = await import("../../src/main/media/audio-route");
+let { setPreviewVideo, syncLiveEngine } = await import("../../src/main/media/engine-sessions");
+let { projectionState } = await import("../../src/main/services/projection-state");
 
 const ZOOM = "coreaudio/zoom.us.zoomaudiodevice.001";
 const SCARLETT = "coreaudio/AppleUSBAudioEngine:Focusrite:Scarlett 2i2";
@@ -98,8 +98,16 @@ function liveVideo(assetId: number, epoch: number, paused = false): ProjectionOu
   } as unknown as ProjectionOutput;
 }
 
-beforeEach(() => {
+// Each test starts from a fresh main: the sessions, the route and the projection state are module singletons, so a test
+// run after another found its engines and its route (`--sequence.shuffle`).
+beforeEach(async () => {
   vi.useFakeTimers();
+  vi.resetModules();
+  h.engines.length = 0;
+  for (const mock of [h.list, h.proto, h.ndi, h.broadcast]) mock.mockReset();
+  ({ matchAudioOutputs, setAudioRoute } = await import("../../src/main/media/audio-route"));
+  ({ setPreviewVideo, syncLiveEngine } = await import("../../src/main/media/engine-sessions"));
+  ({ projectionState } = await import("../../src/main/services/projection-state"));
 });
 
 afterAll(() => {
