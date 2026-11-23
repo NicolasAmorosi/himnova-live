@@ -1,9 +1,16 @@
-/** What the control window sends the projector for each live audio track (`projection-sync.ts`). */
-import { expect, test, vi } from "vitest";
+/** What the control window sends the projector for each live audio track (`projection-sync.ts`), and what the room
+ *  hears when the projector goes away, a track ends or CLEAR is pressed (2026-11-22 audit, TQ13). */
+import { beforeEach, expect, test, vi } from "vitest";
 import { startProjectionEffects, toAudioTrackPush } from "@renderer/effects/projection-sync";
+import { clearLive } from "@renderer/lib/actions/playback";
 import { useAudioStore, type LiveAudioTrack } from "@renderer/stores/audio.store";
+import { useDisplayStore } from "@renderer/stores/display.store";
+import { useProgramStore } from "@renderer/stores/program.store";
 import { useProjectionStore } from "@renderer/stores/projection.store";
-import type { AudioTrackPush } from "@shared/types/projection";
+import { useSettingsStore } from "@renderer/stores/settings.store";
+import type { IpcEventName, IpcEvents } from "@shared/ipc/contract";
+import type { AudioEndAction, AudioTrackPush } from "@shared/types/projection";
+import { DEFAULT_SETTINGS } from "@shared/types/settings";
 
 const track = (source: LiveAudioTrack["source"], paused = false): LiveAudioTrack => ({
   trackId: source,
@@ -58,6 +65,140 @@ test("with nothing playing, LIVE's fader does not send the empty list again on e
     useAudioStore.getState().clear();
     await settle();
     expect(pushes().map((list) => (list as AudioTrackPush[]).map((push) => push.volume))).toEqual([[], [0.35], [0.3], []]);
+  } finally {
+    stop();
+  }
+});
+
+/** Main's side of the bridge: what was sent on each channel, and the events it can fire at the control window. */
+const handlers = new Map<IpcEventName, (payload: unknown) => void>();
+const emit = <E extends IpcEventName>(event: E, payload: IpcEvents[E]): void => handlers.get(event)?.(payload);
+/** What main answers: an audio for every `library:get`, nothing for the rest. */
+const answer = (channel: string, req?: unknown) =>
+  Promise.resolve({
+    ok: true,
+    data: channel === "library:get" ? { ...(req as { id: number }), kind: "audio", name: "" } : null,
+  });
+let invoke = vi.fn(answer);
+const lastPush = (): AudioTrackPush[] | undefined =>
+  invoke.mock.calls.filter(([channel]) => channel === "projection:setAudioTracks").at(-1)?.[1] as AudioTrackPush[] | undefined;
+const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+const initialProjection = useProjectionStore.getState();
+const initialAudio = useAudioStore.getState();
+const initialProgram = useProgramStore.getState();
+const initialDisplay = useDisplayStore.getState();
+beforeEach(() => {
+  handlers.clear();
+  invoke = vi.fn(answer);
+  (window as unknown as { worship: unknown }).worship = {
+    invoke,
+    on: (event: IpcEventName, callback: (payload: unknown) => void) => {
+      handlers.set(event, callback);
+      return () => handlers.delete(event);
+    },
+  };
+  useProjectionStore.setState(initialProjection, true);
+  useAudioStore.setState(initialAudio, true);
+  useProgramStore.setState(initialProgram, true);
+  useDisplayStore.setState(initialDisplay, true);
+  useSettingsStore.setState({ settings: DEFAULT_SETTINGS });
+});
+
+const audioEnd = (action: AudioEndAction) =>
+  useSettingsStore.setState({ settings: { ...DEFAULT_SETTINGS, "projection.audioEnd": action } });
+
+test("NEGRO pauses the deck's music on the projector, and lifting it sends the music playing again", async () => {
+  const stop = startProjectionEffects();
+  try {
+    const music = { url: "worship://deck-audio/1", epoch: 1, paused: false, startAtSeconds: 0, label: "", volume: 1, loop: false };
+    useAudioStore.getState().setDeckTrack(music);
+    await settle();
+    // Fails if the cover is not folded into the push, or a cover alone sends nothing: the hymn sings behind NEGRO.
+    useProjectionStore.getState().setOverlay("black");
+    await settle();
+    expect(lastPush()?.map((push) => push.paused)).toEqual([true]);
+    useProjectionStore.getState().setOverlay("none");
+    await settle();
+    expect(lastPush()?.map((push) => push.paused)).toEqual([false]);
+  } finally {
+    stop();
+  }
+});
+
+test("a projector that closes keeps where each track was, so it resumes there and not from the start", () => {
+  const stop = startProjectionEffects();
+  try {
+    useAudioStore.getState().addTrack(track("asset"));
+    const target = { kind: "audio", trackId: "asset" } as const;
+    emit("media-status", { target, epoch: 1, currentTimeSeconds: 42, durationSeconds: 200, paused: false, ended: false });
+    emit("projection-closed", { reopen: false });
+    // Fails if the positions are not frozen: the prelude music starts over from 0:00 when the projector reopens.
+    expect(useAudioStore.getState().tracks[0]?.startAtSeconds).toBe(42);
+  } finally {
+    stop();
+  }
+});
+
+test("a projector whose renderer died opens again on its own; one closed by hand waits for the operator", () => {
+  const openIfNeeded = vi.fn(() => Promise.resolve());
+  useDisplayStore.setState({ openIfNeeded });
+  const stop = startProjectionEffects();
+  try {
+    emit("projection-closed", { reopen: false });
+    expect(openIfNeeded).not.toHaveBeenCalled();
+    // Fails if the dead projector is left down: the room sees the desktop until someone notices.
+    emit("projection-closed", { reopen: true });
+    expect(openIfNeeded).toHaveBeenCalledTimes(1);
+  } finally {
+    stop();
+  }
+});
+
+/** A standalone audio sent from schedule row 10, the projector reporting its end. */
+function endOfTrackFromRow10(): void {
+  useAudioStore.getState().addTrack({ ...track("asset"), trackId: "asset:1:1", assetId: 1, fromItemId: 10 });
+  const target = { kind: "audio", trackId: "asset:1:1" } as const;
+  emit("media-status", { target, epoch: 1, currentTimeSeconds: 90, durationSeconds: 90, paused: true, ended: true });
+}
+
+test("a standalone audio that plays to its end leaves the live list", () => {
+  audioEnd("stop");
+  const stop = startProjectionEffects();
+  try {
+    endOfTrackFromRow10();
+    // Fails if the ended track stays: the operator has to clean up a song that already finished.
+    expect(useAudioStore.getState().tracks).toEqual([]);
+  } finally {
+    stop();
+  }
+});
+
+test("with «Al terminar: siguiente», the audio row after the one that ended plays", async () => {
+  audioEnd("next");
+  useProgramStore.setState({
+    items: [10, 11].map((id) => ({ id, position: id, kind: "media" as const, mediaAssetId: id - 9, title: null })),
+  });
+  const stop = startProjectionEffects();
+  try {
+    endOfTrackFromRow10();
+    // Fails if the end does not chain: the background music stops after its first song.
+    await vi.waitFor(() => expect(useAudioStore.getState().tracks.map((t) => t.assetId)).toEqual([2]));
+  } finally {
+    stop();
+  }
+});
+
+test("CLEAR silences every track, the standalone ones too", async () => {
+  const stop = startProjectionEffects();
+  try {
+    useAudioStore.getState().addTrack(track("asset"));
+    await settle();
+    expect(lastPush()).toHaveLength(1);
+    clearLive();
+    await settle();
+    // Fails if CLEAR leaves the audio: «CLEAR means silence».
+    expect(lastPush()).toEqual([]);
   } finally {
     stop();
   }

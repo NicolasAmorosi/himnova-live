@@ -2,7 +2,9 @@
  * Guards of a deck with music that nothing else in the suite would see break (2026-11-22 audit, TQ1 to TQ3, TQ7 and
  * TQ8): each test fails on the mutant the audit named. Music longer than the slides keeps the deck up until it ends;
  * pausing and resuming move the music with the slides; music ending under a slide stepped back to leaves it up; a late
- * report from the previous deck's music, or the old slide's timer after «Reiniciar», moves nothing.
+ * report from the previous deck's music, or the old slide's timer after «Reiniciar», moves nothing. And what only the
+ * full E2E saw until TQ13: music that starts over mid-deck goes back to its slide, music that fails lets the slides go
+ * on, and «Reiniciar» under NEGRO never plays the music behind it.
  */
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { notifyManualNavigation, pauseAutoplay, restartDeck, resumeAutoplay, startDeckAutoplay } from "@renderer/effects/deck-autoplay";
@@ -42,9 +44,15 @@ const music = () => useAudioStore.getState().tracks.find((t) => t.trackId === "d
 const initial = useProjectionStore.getState();
 const initialAudio = useAudioStore.getState();
 let stops: (() => void)[] = [];
+const answer = (_channel: string, _req?: unknown) => Promise.resolve({ ok: true, data: undefined });
+let invoke = vi.fn(answer);
+/** The commands sent to the deck's music in the projector. */
+const musicCommands = () =>
+  invoke.mock.calls.filter(([channel]) => channel === "projection:mediaCommand").map(([, command]) => command);
 beforeEach(() => {
   vi.useFakeTimers();
-  (window as unknown as { worship: unknown }).worship = { invoke: () => Promise.resolve({ ok: true, data: undefined }), on: () => () => {} };
+  invoke = vi.fn(answer);
+  (window as unknown as { worship: unknown }).worship = { invoke, on: () => () => {} };
   useProjectionStore.setState(initial, true);
   useAudioStore.setState(initialAudio, true);
   useSettingsStore.setState({ settings: DEFAULT_SETTINGS });
@@ -109,4 +117,32 @@ test("«Reiniciar» after a manual step is not followed by the old slide's timer
   restartDeck();
   vi.advanceTimersByTime(1500);
   expect(slide()).toBe(1);
+});
+
+// TQ13 (deck-autoplay.ts, the first report of a play): a projector reopened mid-hymn gives a fresh music player at 0.
+test("music that starts over under the hymn's second slide is sent back to where that slide begins", () => {
+  sendLive(deck(12, 4000));
+  useProjectionStore.getState().setSlideIndex(2);
+  report(0.1);
+  expect(musicCommands()).toEqual([{ target: { kind: "audio", trackId: "deck-soundtrack" }, action: "seek", timeSeconds: 4 }]);
+  expect(slide()).toBe(2);
+});
+
+// TQ13 (deck-autoplay.ts, the music's error): a file the projector cannot play leaves a synced deck on a stopped clock.
+test("music that fails lets the slides go on with their own times", () => {
+  sendLive(deck(13, 4000));
+  const target = { kind: "audio", trackId: "deck-soundtrack" } as const;
+  useProjectionStore.getState().setMediaError({ target, url: "worship://deck-audio/13", code: null });
+  expect(useProjectionStore.getState().autoplayMode).toBe("detached");
+  vi.advanceTimersByTime(4100);
+  expect(slide()).toBe(2);
+});
+
+// TQ13 (restartDeck): «restart» is a `play()` in the projector, which beat the cover's pause.
+test("«Reiniciar» under NEGRO only rewinds the music, it never plays it behind the black", () => {
+  sendLive(deck(14, 4000));
+  report(0.1);
+  useProjectionStore.getState().setOverlay("black");
+  restartDeck();
+  expect(musicCommands()).toEqual([{ target: { kind: "audio", trackId: "deck-soundtrack" }, action: "seek", timeSeconds: 0 }]);
 });
