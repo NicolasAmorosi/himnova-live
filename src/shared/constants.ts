@@ -159,6 +159,10 @@ export const SLIDES_CLIP_COPY_TIMEOUT_MS = 15 * 60_000;
  *  convert. The heaviest real one measured, a 24.5 MB EMF, is 0.2 s on an M3; a window draws its slide without the
  *  part after 3 s anyway (`slide-models.ts`), and a part that hangs holds every other part behind it this long. */
 export const SLIDES_PART_READ_TIMEOUT_MS = 10_000;
+/** How long the hymnal's thread may take on one file (what it is, a legacy deck read as pictures, why a deck won't
+ *  open) before it is stopped. Each is a millisecond or two on the real hymnal; the decks' 60 s let a hymn on a share
+ *  that stopped answering hold every hymn behind it, the one the operator chose too (2026-11-22 review, RN-7). */
+export const SLIDES_HYMNAL_READ_TIMEOUT_MS = 5_000;
 
 /** The bundled bible's identity, NOT its edition: the text has always been the Reina-Valera
  *  1909 (public domain), shipped as «Reina-Valera 1960» through 2.2.0-beta.3. `bible_favorites`

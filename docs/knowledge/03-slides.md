@@ -45,7 +45,11 @@ take one of the two threads background work may hold (`backgroundStat`), never o
 `pptx-worker.ts` with its own queue (`pptx-deck.ts`, `hymnal`): in the model readers' queue a hymn
 waited behind a heavy `.pptx`, and on main a screen of 32 unread hymns was one turn of the thread
 every engine frame crosses. A file that stops that thread is refused whole and goes to the model
-reader's thread, never to main; one its clock stops fails as `DECK_TOO_SLOW`. A slide is still served
+reader's thread, never to main. Its clock is its own and short (`SLIDES_HYMNAL_READ_TIMEOUT_MS`, 5 s for
+a millisecond's work; a deck's 60 s let a hymn on a share that stopped answering hold every hymn behind
+it). A file it stops is far more often the disk's doing than the file's: the read-ahead does not ask it
+again until it changes, the operator's ask always does. A deck already read as a model or a PDF still
+answers from its row, and one not read yet fails as `DECK_TOO_SLOW` (2026-11-22 review, RN-7). A slide is still served
 on main (`renderNativeSlide`, ~1 ms). The one exception left: the linked song's first resolution
 (`ensureLinkedAudio` → `resolveLinkedAudio`: the folder's listing and the deck's external objects),
 ~1 ms a hymn, once.

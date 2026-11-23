@@ -229,12 +229,9 @@ async function nativeDeck(assetId: number, source: Source, force: boolean, lane:
   // deck passes through here on its way to the model reader or the cache. Read
   // as pictures in the same trip when it is a legacy binary.
   const sniffed = await source.sniff(true, lane);
-  if (sniffed === TOO_SLOW) {
-    // Remembered as any deck the clock stopped: the next pass of its tile goes on to say so, «Reintentar» reads it.
-    notNativeStamp.set(sourcePath, stampOf(stat));
-    unreadableStamp.set(sourcePath, { stamp: stampOf(stat), reason: "DECK_TOO_SLOW" });
-    return failUnreadable(assetId, "DECK_TOO_SLOW");
-  }
+  // The hymnal's clock stopped it (`sniffOf`): a deck already read as a model or a PDF still answers from its row
+  // below, and one not read yet fails as too slow there (2026-11-22 review, RN-7).
+  if (sniffed === TOO_SLOW) return null;
   // A thread that stopped on the file: refused whole, so the model reader's thread tries it, never main.
   if (!sniffed) {
     notNativeStamp.set(sourcePath, stampOf(stat));
@@ -357,6 +354,21 @@ function isUsableModel(row: DeckRow, stat: fs.Stats): boolean {
   );
 }
 
+/** Files whose sniff the hymnal's clock stopped, with the `(size, mtime)` it was asked at. The read-ahead does not
+ *  ask such a file again: one that always hangs would hold the hymnal's thread 5 s at every pass of its tile (owner,
+ *  2026-11-17). The operator's ask always does, since 5 s for a millisecond's work is far more often the disk or the
+ *  share than the file, and an answer forgets it (2026-11-22 review, RN-7). */
+const slowSniff = new Map<string, string>();
+
+function sniffOf(file: string, stat: fs.Stats, native: boolean, lane: RasterLane): ReturnType<typeof sniffDeck> {
+  if (lane === "later" && slowSniff.get(file) === stampOf(stat)) return Promise.resolve(TOO_SLOW);
+  return sniffDeck(file, native, lane).then((sniffed) => {
+    if (sniffed === TOO_SLOW) slowSniff.set(file, stampOf(stat));
+    else slowSniff.delete(file);
+    return sniffed;
+  });
+}
+
 /** The source as the three readers below see it: stat'ed once, and its container sniffed, on the hymnal's thread,
  *  only by the first reader that needs it, after its own cache check (a ready hymn never opens the file). 2026-11-15
  *  audit, X9. `kind` is `unknown` for a file the thread could not sniff, as for one it could not open. */
@@ -364,7 +376,7 @@ type Source = {
   path: string;
   stat: fs.Stats;
   sniff: (native: boolean, lane: RasterLane) => ReturnType<typeof sniffDeck>;
-  kind: (lane: RasterLane) => Promise<ContainerKind>;
+  kind: (lane: RasterLane) => Promise<ContainerKind | typeof TOO_SLOW>;
 };
 
 /** One read per asset at a time, and the lane its requests to the deck threads
@@ -392,11 +404,11 @@ async function sourceDeck(assetId: number, sourcePath: string, force: boolean, l
     return reading.promise;
   }
   let sniffed: ReturnType<typeof sniffDeck> | undefined;
-  const sniff: Source["sniff"] = (native, at) => (sniffed ??= sniffDeck(sourcePath, native, at));
+  const sniff: Source["sniff"] = (native, at) => (sniffed ??= sniffOf(sourcePath, stat, native, at));
   const kind: Source["kind"] = async (at) => {
     // The thread stopped on the file reading it as pictures: what it is, asked again without that read.
     const known = (await sniff(false, at)) ?? (await sniffDeck(sourcePath, false, at));
-    return known && known !== TOO_SLOW ? known.kind : "unknown";
+    return known === TOO_SLOW ? known : (known?.kind ?? "unknown");
   };
   const source: Source = { path: sourcePath, stat, sniff, kind };
   const job: { lane: RasterLane } = { lane };
@@ -427,7 +439,8 @@ async function modelDeck(assetId: number, source: Source, force: boolean, job: {
     if (unreadable?.stamp === stampOf(stat)) return failUnreadable(assetId, unreadable.reason);
   }
   const kind = await source.kind(job.lane);
-  if (kind === "pdf") return null;
+  // Not sniffed in time either goes on to `pdfDeck`, which answers from its own row or says so.
+  if (kind === "pdf" || kind === TOO_SLOW) return null;
 
   if (!force) {
     getMediaRepo().refreshStat(assetId, stat.size, mtimeMs);
@@ -442,6 +455,8 @@ async function modelDeck(assetId: number, source: Source, force: boolean, job: {
   if (read === TOO_SLOW || !read || read.slides.every((slide) => slide.hidden)) {
     // Cut by the clock is no damage: said as it is, never as a file to save again (owner, 2026-11-17).
     const reason = read === TOO_SLOW ? "DECK_TOO_SLOW" : await unreadableReason(sourcePath);
+    // The hymnal's clock on why says nothing of the file: told as too slow, and not remembered.
+    if (reason === TOO_SLOW) return failUnreadable(assetId, "DECK_TOO_SLOW");
     unreadableStamp.set(sourcePath, { stamp: stampOf(stat), reason });
     return failUnreadable(assetId, reason);
   }
@@ -674,7 +689,10 @@ function pdfDeck(assetId: number, source: Source, force: boolean, lane: RasterLa
     }
   }
 
-  return recordPdfDeck(assetId, sourcePath, stat, target, lane);
+  // Reached too by a file the hymnal's clock stopped before it said what it is: never read as a PDF on a guess.
+  return source.kind(lane).then((kind) =>
+    kind === TOO_SLOW ? failUnreadable(assetId, "DECK_TOO_SLOW") : recordPdfDeck(assetId, sourcePath, stat, target, lane),
+  );
 }
 
 async function recordPdfDeck(

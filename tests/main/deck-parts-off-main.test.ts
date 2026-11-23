@@ -14,7 +14,7 @@ import { expect, test, vi } from "vitest";
 import { decodeEmbeddedFont } from "../../src/main/slides/pptx/embedded-font";
 import { metafileToSvg } from "../../src/main/slides/pptx/metafile";
 
-/** The parts thread's clock, short for the test. */
+/** The parts and the hymnal threads' clocks, short for the test. */
 const CLOCK_MS = 300;
 
 const h = vi.hoisted(() => ({
@@ -49,6 +49,7 @@ vi.mock("../../src/main/media/thumbnail-service", () => ({}));
 vi.mock("../../src/shared/constants", async (importOriginal) => ({
   ...(await importOriginal<object>()),
   SLIDES_PART_READ_TIMEOUT_MS: CLOCK_MS,
+  SLIDES_HYMNAL_READ_TIMEOUT_MS: CLOCK_MS,
 }));
 // Spied: neither may run on this thread, which stands for main.
 vi.mock("../../src/main/slides/pptx/metafile", async (importOriginal) => {
@@ -165,6 +166,15 @@ test("a part whose thread never answers is missing within the clock, and one tha
   expect(h.posted).toHaveLength(3);
   expect(metafileToSvg).not.toHaveBeenCalled();
   expect(decodeEmbeddedFont).not.toHaveBeenCalled();
+});
+
+test("a hymn whose thread never answers is too slow within the hymnal's own clock, not a deck's minute", async () => {
+  // A hymn on a share that stopped answering held the hymnal's thread, and every hymn behind it, 60 s (review, RN-7).
+  h.mode = "hang";
+  const { sniffDeck } = await import("../../src/main/slides/pptx-deck");
+  const started = performance.now();
+  expect(await sniffDeck(path.join(h.dir, "hymn.pps"), true, "now")).toBe("too-slow");
+  expect(performance.now() - started).toBeLessThan(CLOCK_MS + 500);
 });
 
 test("on its thread, the EMF of the audit is converted to an SVG whose bytes cross to main moved, not copied", async () => {

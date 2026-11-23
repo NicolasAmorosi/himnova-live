@@ -1,6 +1,7 @@
 import {
   SLIDES_CLIP_COPY_TIMEOUT_MS,
   SLIDES_DECK_READ_TIMEOUT_MS,
+  SLIDES_HYMNAL_READ_TIMEOUT_MS,
   SLIDES_PART_READ_TIMEOUT_MS,
 } from "@shared/constants";
 import { ooxmlDir } from "../paths";
@@ -39,15 +40,16 @@ const queue = createDeckQueue<PptxRequest, PptxReply>(spawn, SLIDES_DECK_READ_TI
  * The hymnal's own thread and queue, of the same module: what a file is, a legacy deck read as pictures and why a
  * deck won't open, each a millisecond or two. In `queue` a hymn waited behind a heavy `.pptx` (5 to 11 s); on main,
  * 32 of them were one turn of the thread every engine frame crosses, and a share that stopped answering held it
- * whole (2026-11-22 audit, RM1). A file that kills this thread is never read on main either.
+ * whole (2026-11-22 audit, RM1). A file that kills this thread is never read on main either. Its own short clock: a
+ * hymn on a share that stopped answering held this thread, and every hymn behind it, a deck's 60 s (review, RN-7).
  */
-const hymnal = createDeckQueue<PptxRequest, PptxReply>(spawn, SLIDES_DECK_READ_TIMEOUT_MS);
+const hymnal = createDeckQueue<PptxRequest, PptxReply>(spawn, SLIDES_HYMNAL_READ_TIMEOUT_MS);
 
 /**
  * A model deck's pictures, metafiles and fonts, on a third thread with a short clock of its own: a slide on air asks
  * for its parts and waits on them, so they never queue behind a `.pptx` read (5 to 11 s) nor a hymn's file on a
- * share that stopped answering (the hymnal's 60 s). Converted on main, an EMF of 156 bytes froze it a minute and
- * then took the app down (2026-11-22 audit, SE1).
+ * share that stopped answering. Converted on main, an EMF of 156 bytes froze it a minute and then took the app down
+ * (2026-11-22 audit, SE1).
  */
 const parts = createDeckQueue<PptxRequest, PptxReply>(spawn, SLIDES_PART_READ_TIMEOUT_MS);
 let nextId = 0;
@@ -81,10 +83,12 @@ export async function sniffDeck(
   return "kind" in reply ? reply : null;
 }
 
-/** Why no reader opens `sourcePath` (`sniffUnreadableDeck`); a thread that stopped on it says it is not a presentation. */
-export async function unreadableReason(sourcePath: string): Promise<UnreadableDeckReason> {
+/** Why no reader opens `sourcePath` (`sniffUnreadableDeck`); a thread that stopped on it says it is not a presentation,
+ *  and `TOO_SLOW` when its clock did. */
+export async function unreadableReason(sourcePath: string): Promise<UnreadableDeckReason | typeof TOO_SLOW> {
   const reply = await hymnal.ask(sourcePath, { id: ++nextId, unreadable: sourcePath }, "now");
-  return reply !== null && reply !== TOO_SLOW && "reason" in reply ? reply.reason : "NOT_A_PRESENTATION";
+  if (reply === TOO_SLOW) return reply;
+  return reply !== null && "reason" in reply ? reply.reason : "NOT_A_PRESENTATION";
 }
 
 /** A part of a model deck's package, read and converted on `parts`' thread (`readDeckPart`), never on main. A part

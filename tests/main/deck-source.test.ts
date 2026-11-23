@@ -193,6 +193,34 @@ test("a hymn the picture reader refuses, or whose thread stops on it, goes whole
   }
 });
 
+test("a sniff the hymnal's clock stopped is asked again by the operator, and a deck already read opens from its row", async () => {
+  // Five seconds for a millisecond's work is mostly the disk or the share: a hymn kept as too slow stayed failed until
+  // «Reintentar», and a ready deck on air turned failed under GO LIVE's own ensure (2026-11-22 review, RN-7).
+  const slowOnce = () => sniffDeck.mockImplementationOnce(() => Promise.resolve("too-slow" as never));
+  h.file = path.join(dir, "slow-share.pps");
+  h.kind.value = "binary";
+  h.rows = {};
+  fs.writeFileSync(h.file, buildLegacyPpt());
+  const id = ++assetId;
+  slowOnce();
+  await expect(prepareDeck(id)).rejects.toMatchObject({ slideCode: "DECK_TOO_SLOW" });
+  expect(readPptx).not.toHaveBeenCalledWith(h.file, expect.anything());
+  // Read ahead it is not asked again, so a file that always hangs does not hold the thread at every pass of its tile;
+  // the operator's ask asks it again (owner, 2026-11-17).
+  sniffDeck.mockClear();
+  await expect(prepareDeck(id, { priority: "background" })).rejects.toMatchObject({ slideCode: "DECK_TOO_SLOW" });
+  expect(sniffDeck).not.toHaveBeenCalled();
+  expect(await prepareDeck(id)).toEqual({ format: "native" });
+
+  for (const [name, bytes, kind, format, dto] of [
+    ["ready.pptx", ZIP, "ooxml", "model", { format: "model" }],
+    ["ready.pdf", PDF, "pdf", "pdf", { format: "png" }],
+  ] as const) {
+    const slow = await open(name, bytes, kind, format, (next) => (slowOnce(), prepareDeck(next)));
+    expect(slow.dto).toEqual(dto);
+  }
+});
+
 test("reading ahead takes one of the background's two threads, never a third", async () => {
   // A dead share with the hymns on screen: the sweep's two stats, the read-ahead's and GO LIVE's held five of libuv's
   // four threads, and the projector's own reads waited behind them (2026-11-22 review, RN-6).
@@ -222,6 +250,7 @@ test("a source slow to answer its stat is waited for, and gone only when the sta
   vi.useFakeTimers();
   h.file = path.join(dir, "slow-to-wake.pps");
   fs.writeFileSync(h.file, OLE);
+  h.kind.value = "binary";
   h.rows = {};
   const real = fs.statSync(h.file);
   const answers: ((stat: fs.Stats | Error) => void)[] = [];
