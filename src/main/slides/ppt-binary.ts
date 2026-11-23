@@ -4,6 +4,7 @@ import {
   type SlideTransition,
   type SlideTransitionStyle,
 } from "@shared/types/transition";
+import { isBooleanProp, mergeFlags } from "./ppt/escher";
 
 /**
  * Reads a legacy binary `.ppt`/`.pps` (OLE2 + the PowerPoint 97 record
@@ -1011,7 +1012,7 @@ function slideLayers(
     const merged = new Map(inherited);
     for (const [opid, value] of shape.props) {
       const fromMaster = inherited.get(opid);
-      merged.set(opid, fromMaster !== undefined && isBooleanProperty(opid) ? mergeBooleans(value, fromMaster) : value);
+      merged.set(opid, fromMaster !== undefined && isBooleanProp(opid) ? mergeFlags(value, fromMaster) : value);
     }
     return merged;
   };
@@ -1074,22 +1075,6 @@ function slideLayers(
     layers.push(layer);
   }
   return layers;
-}
-
-/** Every property set ends in one of these: 16 flags, each meaningful only
- *  where its `fUse` twin in the high half is set (MS-ODRAW 2.3). */
-function isBooleanProperty(opid: number): boolean {
-  return (opid & 0x3f) === 0x3f;
-}
-
-/** A shape's booleans over the master shape's, flag by flag: a flag the shape
- *  does not `fUse` is the master's. Measured on the hymnal: 166 covers say
- *  nothing about their line, and the master's body placeholder they inherit
- *  from says «no line». */
-function mergeBooleans(own: number, inherited: number): number {
-  const ownUse = (own >>> 16) & 0xffff;
-  const values = (own & ownUse) | (inherited & ~ownUse & 0xffff);
-  return (((own | inherited) & 0xffff0000) | values) >>> 0;
 }
 
 /** `fHidden` with its `fUsefHidden`: the shape exists but is not shown. */
