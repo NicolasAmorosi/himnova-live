@@ -152,7 +152,7 @@ test("a second copy of the deck on air that fails mid-write leaves the copy that
   copyFile.mockRestore();
 });
 
-test("the music of the hymn on air plays on from its copy once its file is gone or changed (2026-11-22 audit, RV-4)", async () => {
+test("the music of the hymn on air plays on from its copy once its file is gone (2026-11-22 audit, RV-4)", async () => {
   const { keepLiveDeckSource, liveMusicFile, registerWorshipProtocolHandler } = await import(
     "../../src/main/protocol/worship-protocol"
   );
@@ -177,13 +177,45 @@ test("the music of the hymn on air plays on from its copy once its file is gone 
   fs.rmSync(music);
   expect(await play()).toEqual({ status: 206, body: "hymn's music" });
   expect(await liveMusicFile(music)).toBe(path.join(LIVE, "7.pptx.music.mp3"));
-  // Another file under its name: the copy, never bytes of two files in one song.
-  fs.writeFileSync(music, "another song altogether");
-  expect(await play()).toEqual({ status: 206, body: "hymn's music" });
+  // Its drive back with the file as it was: the file itself again.
+  fs.writeFileSync(music, "the hymn's music");
+  expect(await liveMusicFile(music)).toBe(music);
 
   // Another deck on air takes the music copy with it, and music that is not the deck on air's is never redirected.
   deck(8);
   keepLiveDeckSource(8);
   await vi.waitFor(() => expect(kept()).toEqual(["8.pptx"]));
   expect(await liveMusicFile(music)).toBe(music);
+});
+
+test("a hymn's music the operator replaced plays in its new version and is copied again (review of the night, RN-5)", async () => {
+  const { keepLiveDeckSource, registerWorshipProtocolHandler } = await import("../../src/main/protocol/worship-protocol");
+  const music = path.join(h.dir, "Himno 523.mp3");
+  fs.writeFileSync(music, "the wrong track");
+  fs.mkdirSync(LIVE, { recursive: true }); // so the wait below is for the clear at start, also when run alone
+  registerWorshipProtocolHandler({
+    survivingId: (id: number) => id,
+    linkedAudioPathById: (id: number) => (id === 523 ? music : null),
+  } as unknown as Parameters<typeof registerWorshipProtocolHandler>[0]);
+  await vi.waitFor(() => expect(fs.existsSync(LIVE)).toBe(false)); // the copies before, cleared at start
+  const play = async () => (await h.handler!(new Request("worship://linked-audio/523"))).text();
+  const copy = path.join(LIVE, "9.pptx.music.mp3");
+
+  deck(9);
+  keepLiveDeckSource(9, music);
+  await vi.waitFor(() => expect(fs.existsSync(copy) && fs.readFileSync(copy, "utf8")).toBe("the wrong track"));
+
+  // The operator puts the right one under the same name (another size) and shows the hymn again: PREVIEW and the
+  // projector play it, and its copy is taken again without copying the deck itself.
+  fs.writeFileSync(music, "the right track, at last");
+  expect(await play()).toBe("the right track, at last");
+  const copyFile = vi.spyOn(fs.promises, "copyFile");
+  keepLiveDeckSource(9, music);
+  await vi.waitFor(() => expect(fs.readFileSync(copy, "utf8")).toBe("the right track, at last"));
+  expect(copyFile.mock.calls.map(([from]) => from)).toEqual([music]);
+  copyFile.mockRestore();
+
+  // Then its pen drive pulled: the right one plays on.
+  fs.rmSync(music);
+  await vi.waitFor(async () => expect(await play()).toBe("the right track, at last"));
 });
