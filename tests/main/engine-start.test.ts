@@ -71,7 +71,9 @@ test.skipIf(process.platform !== "darwin")("an engine that cannot start answers 
   for (let round = 0; round < 3; round++) {
     const { answer, ms } = await timed();
     expect(answer).toBe("none");
-    expect(ms).toBeLessThan(100);
+    // At once, against the 6 s a round of before: the ceiling only tells the two apart, so a loaded Mac does not fail
+    // it (2026-11-22 audit, TQ16). What is firm is the count of engines launched, below.
+    expect(ms).toBeLessThan(1000);
   }
   expect(h.spawned).toBe(spawned);
 
