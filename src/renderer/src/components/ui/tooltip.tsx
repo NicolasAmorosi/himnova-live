@@ -11,6 +11,9 @@ type TooltipProps = {
   children: ReactNode;
   className?: string;
   content: ReactNode;
+  /** Waits this long under a resting pointer before opening (keyboard focus still opens at once): in a list where
+   *  every row has a bubble, the pointer crossing the rows flashed one per row. */
+  delayMs?: number;
   /** How the bubble sizes itself. "text" (the default) wraps prose at a
    *  readable measure; "path" keeps a filesystem path or a file name on ONE
    *  line at its natural width, breaking mid-token only when it runs out of
@@ -59,7 +62,7 @@ const DESCRIBED = "button, [href], input, select, textarea, [tabindex]:not([tabi
  * `hidden` copy that is always there): the shortcuts Enter, B and L were only
  * ever said in the bubble.
  */
-export function Tooltip({ children, className, content, fit = "text" }: TooltipProps) {
+export function Tooltip({ children, className, content, delayMs = 0, fit = "text" }: TooltipProps) {
   const descriptionId = useId();
   const [open, setOpen] = useState(false);
   const [position, setPosition] = useState<BubblePosition | null>(null);
@@ -70,6 +73,8 @@ export function Tooltip({ children, className, content, fit = "text" }: TooltipP
    *  over the menu, or stuck on screen once the picker took the pointer away
    *  without a `pointerleave` (owner, 2026-11-05). */
   const pressedRef = useRef(false);
+  const delayRef = useRef<number | undefined>(undefined);
+  useEffect(() => () => window.clearTimeout(delayRef.current), []);
 
   // Two-pass: the bubble mounts invisible first so its natural (unclamped)
   // size can be measured, then gets placed against the viewport.
@@ -140,11 +145,19 @@ export function Tooltip({ children, className, content, fit = "text" }: TooltipP
     setOpen(true);
   };
 
+  /** From the pointer, after `delayMs`. */
+  const showSoon = () => {
+    window.clearTimeout(delayRef.current);
+    if (delayMs <= 0) return show();
+    delayRef.current = window.setTimeout(show, delayMs);
+  };
+
   function close(e: { relatedTarget?: EventTarget | null }) {
     // Not always a Node: when the pointer leaves straight out of the document
     // (into the title bar, onto the projector's screen) React reports the
     // `window`, and `contains(window)` threw — an «unexpected error» toast.
     if (e.relatedTarget instanceof Node && triggerRef.current?.contains(e.relatedTarget)) return;
+    window.clearTimeout(delayRef.current);
     setOpen(false);
     setPosition(null);
   }
@@ -158,10 +171,11 @@ export function Tooltip({ children, className, content, fit = "text" }: TooltipP
       }}
       onPointerDown={() => {
         pressedRef.current = true;
+        window.clearTimeout(delayRef.current);
         setOpen(false);
         setPosition(null);
       }}
-      onPointerEnter={show}
+      onPointerEnter={showSoon}
       onPointerLeave={(e) => {
         pressedRef.current = false;
         close(e);

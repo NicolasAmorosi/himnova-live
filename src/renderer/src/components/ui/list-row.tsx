@@ -1,13 +1,14 @@
 import type { LiHTMLAttributes, MouseEvent, ReactNode, Ref } from "react";
 import { cn } from "@renderer/lib/utils";
 import { Icon } from "./icon";
+import { Tooltip } from "./tooltip";
 
 type ListRowProps = Omit<LiHTMLAttributes<HTMLLIElement>, "children"> & {
   /** On the projector right now — the on-air rail plus a heavier label. */
   active?: boolean;
   children: ReactNode;
-  /** A second, smaller line under the label: a file's path. Cut at its START, so the folder and the file it ends in
-   *  stay in view; the whole of it on hover. */
+  /** A file's path, in a bubble over the label after a short rest of the pointer. A second line under the name made
+   *  every row twice as tall (owner, 2026-11-22). */
   detail?: string | null | undefined;
   /** Drop indicator while a drag hovers just above this row. */
   dropBefore?: boolean;
@@ -100,13 +101,9 @@ export function ListRow({
       ) : null}
       {leading ? <span className="flex shrink-0 items-center">{leading}</span> : null}
       {detail ? (
-        <span className="flex min-w-0 flex-1 flex-col">
-          <span className="truncate">{children}</span>
-          {/* Right-to-left only to put the «…» at the start; the path itself stays a left-to-right run. */}
-          <span className="truncate text-left text-xs text-subtle" dir="rtl" title={detail}>
-            <bdi dir="ltr">{detail}</bdi>
-          </span>
-        </span>
+        <Tooltip className="min-w-0 flex-1" content={detail} delayMs={500} fit="path">
+          <span className="min-w-0 truncate">{children}</span>
+        </Tooltip>
       ) : (
         <span className="min-w-0 flex-1 truncate">{children}</span>
       )}

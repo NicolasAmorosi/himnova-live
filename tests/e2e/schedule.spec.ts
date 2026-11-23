@@ -230,17 +230,18 @@ test("with «Lo que sigue en PREVIEW» off, a row sent live leaves PREVIEW empty
   await expect(scheduleRows(app).and(app.control.locator('[aria-current="true"]'))).toHaveCount(0);
 });
 
-test("a file's row says where the file is, under its name; a verse has no file", async ({ app }) => {
+test("a file's row says where the file is, in a bubble over its name; a verse has no file", async ({ app }) => {
   await addAll(app, "clip.mp4", "photo.png");
   for (const name of ["clip.mp4", "photo.png"]) {
-    const path = row(app, name.split(".")[0]!).getByTitle(fixture(name), { exact: true });
-    await expect(path).toBeVisible();
-    await expect(path).toHaveText(fixture(name));
+    const label = row(app, name.split(".")[0]!).locator("[aria-describedby]");
+    await expect(label).toHaveAccessibleDescription(fixture(name));
+    await label.hover();
+    await expect(app.control.getByRole("tooltip")).toHaveText(fixture(name));
   }
   await app.openChapter("Juan 3");
   await app.control.getByRole("tabpanel", { name: "Biblia" }).getByRole("listitem").filter({ hasText: JUAN_3_16 }).click();
   await app.control.getByRole("tabpanel", { name: "Biblia" }).getByRole("button", { name: "Agregar al programa" }).click();
-  await expect(row(app, "Juan 3:16").locator("[dir=rtl]")).toHaveCount(0);
+  await expect(row(app, "Juan 3:16").locator("[aria-describedby]")).toHaveCount(0);
 });
 
 test("a saved program in use, never edited, is still the schedule after a restart mid-service", async ({ app }) => {
