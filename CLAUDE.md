@@ -761,8 +761,8 @@ npm run package:win|mac|linux  # build + electron-builder for that platform
 
 The vanilla JS version (Electron without a bundler, `main.js`/`preload.js`/`src/js/app.js`) lived in
 `legacy/` until 2026-10-22, when it was retired from the repo before publishing it: the two conditions
-for deleting it were already met (nothing drove PowerPoint over COM any more, and
-`src/main/services/migrate-legacy-data.ts` migrates its data on its own at first startup). To see how
+for deleting it were already met (nothing drove PowerPoint over COM any more, and an importer migrated its data on
+its own at first startup). The importer itself was removed on 2026-11-23, with no church left on the 1.0. To see how
 something behaved before: `git show 90d3821:legacy/src/js/app.js`.
 
 ## Operational notes

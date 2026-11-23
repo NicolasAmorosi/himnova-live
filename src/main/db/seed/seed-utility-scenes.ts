@@ -14,7 +14,7 @@ import type { UtilityRepo } from "../repositories/utility.repo";
  *
  * Never throws: a church that cannot seed its examples still has a working
  * app, and taking the launch down over four sample rows would be the worst
- * possible trade. Same rule the legacy-data migration follows.
+ * possible trade.
  */
 export function seedUtilityScenes(repo: UtilityRepo, settings: SettingsRepo): void {
   try {

@@ -25,11 +25,6 @@ import {
   getUtilityRepo,
   getOverlaysRepo,
 } from "./services/repos";
-import {
-  migrateLegacySettingsIfPresent,
-  migrateLegacyMediaIfPresent,
-} from "./services/migrate-legacy-data";
-import { importPaths } from "./services/library-import";
 import { quitWaitForSongSaves } from "./services/song-files";
 import { registerAllIpcHandlers } from "./ipc";
 import { isTrustedSender } from "./ipc/trusted-senders";
@@ -49,8 +44,6 @@ import {
   dbPath,
   backgroundsDir,
   biblesDir,
-  legacyMediaLibraryPath,
-  legacySettingsPath,
   migrationsDir,
   userDataDir,
   profileBackgroundsDir,
@@ -115,9 +108,8 @@ if (!gotSingleInstanceLock) {
 
 /** Says whether the database existed before this launch: one the launch creates has nothing to copy yet. */
 function initDatabase(): boolean {
-  // Asked before `openDatabase` creates the file. A profile holding the legacy
-  // app's data is not new either: that church has always run in Spanish.
-  const isNewProfile = ![dbPath, legacySettingsPath, legacyMediaLibraryPath].some((file) => fs.existsSync(file));
+  // Asked before `openDatabase` creates the file.
+  const isNewProfile = !fs.existsSync(dbPath);
   // Until the settings can be read, main speaks the OS's language — the
   // migration-failure dialog below is said before they can.
   setMainLocale(systemLocale());
@@ -164,12 +156,11 @@ function initDatabase(): boolean {
   // deleted across launches. After the locale too: a new profile gets the
   // bundled versions of its language. See `seedBuiltinBibles`.
   seedBuiltinBibles(db, sqlite, biblesDir, getSettingsRepo(), isNewProfile, app.getVersion());
-  migrateLegacySettingsIfPresent(getSettingsRepo(), legacySettingsPath);
   // After `initRepos`, unlike the Bible seed above: this one needs two
   // repositories rather than a raw handle, and the flag it reads lives in
   // `settings`.
   seedUtilityScenes(getUtilityRepo(), getSettingsRepo());
-  // After the legacy settings: the theme copies the verse's style.
+  // The theme copies the verse's style.
   seedSongThemes(getSongsRepo(), getSettingsRepo());
   // Before the look: version 2 finds «Noche» by its path in this profile.
   const reattached = reattachBackgrounds(getMediaRepo(), profileBackgroundsDir, backgroundsDir);
@@ -331,13 +322,6 @@ if (gotSingleInstanceLock) {
     // A media engine started ahead of time, so the first video it plays does not pay for the
     // process (150–650 ms), on the card the app draws with.
     if (engineAvailable()) startEngines();
-
-    // The other half of the legacy import (`media_library.json`). Off the
-    // startup path: it is a whole library's worth of files, and the rows it
-    // creates reach an open window through `library-changed`.
-    void migrateLegacyMediaIfPresent(legacyMediaLibraryPath, importPaths).catch((error: unknown) => {
-      console.warn("[legacy] media migration failed", error);
-    });
 
     // Teaches main which cached deck each presentation's BYTES belong to, so
     // "is this converted?" can be answered by content instead of by which

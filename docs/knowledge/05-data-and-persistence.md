@@ -419,14 +419,11 @@ extension doesn't belong to its `kind` (`importable` in `library-import.ts`).
 `pathKey` normalizes (`NFC` + lowercase on Windows) so that `C:\a.mp4` and `c:\A.MP4` don't get in
 twice — Windows is case-insensitive and the legacy version didn't account for it.
 
-## Legacy data migration
+## Legacy data migration (removed)
 
-`src/main/services/migrate-legacy-data.ts` runs only once, on first startup: if
-`settings.json`/`media_library.json` exist in `userData` (from an install of the vanilla version),
-it imports `logoPath` and every library entry into SQLite (the legacy file's `lastFolder`
-no longer has anywhere to go: the picker opens one folder per kind, not the last one used), and renames the original
-files to `*.migrated` so they aren't processed again. Best-effort: a corrupt JSON doesn't block
-startup.
+Until 2026-11-23 an importer brought a vanilla 1.0 install's `settings.json` and `media_library.json` (in `userData`)
+into SQLite at first startup. No church is left on the 1.0, so it is gone: those files are now ignored, and a profile
+that holds only them counts as new. To see it: `git show 4463750d:src/main/services/migrate-legacy-data.ts`.
 
 ## Bible seed — never written inside the bundle
 
