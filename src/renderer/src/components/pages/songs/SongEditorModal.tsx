@@ -102,12 +102,19 @@ export function SongEditorModal({ onOpenChange, onSaved, open, songId }: SongEdi
   /** The save in flight: ⌘S and a click — or the leave dialog's «Guardar y
    *  salir» — at once share it, never creating the song twice. */
   const savingRef = useRef<Promise<boolean> | null>(null);
+  /** The draft as it stands now: a save answers after whatever was typed during it. */
+  const draftRef = useRef(draft);
+  draftRef.current = draft;
+  /** Bumped when the editor opens a song or shows another (a duplicate): a save that answers after that is not the
+   *  song on screen's, and showing it put the copy's text under the original's id. */
+  const shownRef = useRef(0);
   const lyricsRef = useRef<HTMLTextAreaElement>(null);
   const nameRef = useRef<HTMLInputElement>(null);
 
   // Opening loads the song asked for, once — never again under the operator's typing.
   useEffect(() => {
     if (!open) return;
+    shownRef.current += 1;
     const song = findSong(useSongStore.getState().songs, songId);
     const loaded = song ? toSongDraft(song, locale) : emptySongDraft();
     setCurrentId(song?.id ?? null);
@@ -232,14 +239,20 @@ export function SongEditorModal({ onOpenChange, onSaved, open, songId }: SongEdi
     else go();
   }
 
-  function show(song: Song) {
+  /** `sent`/`before`: the draft a save sent and the baseline it left. Typed on while it saved (a file on a share or a
+   *  pen drive takes a moment), the edit stays, unsaved against what was saved; replacing it lost the keys and the
+   *  «Editado» that said so (QA 2026-11-06 §7.6). «Descartar» meanwhile (`before` back on screen) takes the save. */
+  function show(song: Song, sent?: SongDraft, before?: SongDraft) {
     const loaded = toSongDraft(song, locale);
+    if (!sent) shownRef.current += 1;
     setCurrentId(song.id);
+    setBaseline(loaded);
+    const current = draftRef.current;
+    if (sent && current !== sent && current !== before) return;
     // Saved as it was typed: the caret stays where it was. Written back
     // otherwise (numbered headers…), its offset means nothing any more.
-    if (loaded.lyrics === draft.lyrics) setDraft(loaded);
+    if (loaded.lyrics === current.lyrics) setDraft(loaded);
     else replaceDraft(loaded);
-    setBaseline(loaded);
   }
 
   function handleSave(): Promise<boolean> {
@@ -252,13 +265,18 @@ export function SongEditorModal({ onOpenChange, onSaved, open, songId }: SongEdi
   async function save(): Promise<boolean> {
     if (!canSave) return false;
     setSaving(true);
+    const sent = draft;
+    const before = baseline;
+    const shown = shownRef.current;
     try {
-      const saved = await saveSong(toSongUpsert(draft, parsed, currentId));
+      const saved = await saveSong(toSongUpsert(sent, parsed, currentId));
       if (!saved) return false;
-      show(saved);
-      onSaved(saved);
       toast.success(t("songs.saved", { title: saved.title }));
-      return true;
+      if (shownRef.current !== shown) return false;
+      show(saved, sent, before);
+      onSaved(saved);
+      // «Guardar y salir» joins a save already in flight: it leaves only if nothing typed meanwhile is left unsaved.
+      return draftRef.current === sent || draftRef.current === before;
     } finally {
       setSaving(false);
     }
