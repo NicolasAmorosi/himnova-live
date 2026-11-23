@@ -10,10 +10,9 @@ export type DeckEntry = {
   error: string | null;
 };
 
-/** One tracked "Prepare folder/view" batch — `null` when none is running.
- *  Mirrors `PrewarmProgress` from main; the terminal statuses stay in this
- *  store just long enough for the UI to render the wrap-up before the caller
- *  clears it (`clearPrewarmBatch`). */
+/** One tracked "Prepare folder/view" batch — `null` before the first one.
+ *  Mirrors `PrewarmProgress` from main; a finished batch keeps its terminal
+ *  status until the next one replaces it (the UI only shows a running one). */
 export type PrewarmBatchState = PrewarmProgress;
 
 type DeckStoreState = {
@@ -50,7 +49,6 @@ type DeckStoreState = {
   startBatchPrewarm: (assetIds: number[], label: string) => Promise<void>;
   cancelBatchPrewarm: () => Promise<void>;
   applyPrewarmProgress: (progress: PrewarmProgress) => void;
-  clearPrewarmBatch: () => void;
 };
 
 /** In-flight ensure() calls, so the preview effect and "GO LIVE" firing within
@@ -277,5 +275,4 @@ export const useDeckStore = create<DeckStoreState>((set, get) => ({
   },
 
   applyPrewarmProgress: (progress) => set({ prewarmBatch: progress }),
-  clearPrewarmBatch: () => set({ prewarmBatch: null }),
 }));
