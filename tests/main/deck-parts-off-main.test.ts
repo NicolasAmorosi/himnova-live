@@ -171,10 +171,14 @@ test("a part whose thread never answers is missing within the clock, and one tha
 test("a hymn whose thread never answers is too slow within the hymnal's own clock, not a deck's minute", async () => {
   // A hymn on a share that stopped answering held the hymnal's thread, and every hymn behind it, 60 s (review, RN-7).
   h.mode = "hang";
-  const { sniffDeck } = await import("../../src/main/slides/pptx-deck");
-  const started = performance.now();
-  expect(await sniffDeck(path.join(h.dir, "hymn.pps"), true, "now")).toBe("too-slow");
-  expect(performance.now() - started).toBeLessThan(CLOCK_MS + 500);
+  try {
+    const { sniffDeck } = await import("../../src/main/slides/pptx-deck");
+    const started = performance.now();
+    expect(await sniffDeck(path.join(h.dir, "hymn.pps"), true, "now")).toBe("too-slow");
+    expect(performance.now() - started).toBeLessThan(CLOCK_MS + 500);
+  } finally {
+    h.mode = "answer";
+  }
 });
 
 test("on its thread, the EMF of the audit is converted to an SVG whose bytes cross to main moved, not copied", async () => {
@@ -189,8 +193,12 @@ test("on its thread, the EMF of the audit is converted to an SVG whose bytes cro
   expect(readDeckPart(h.decks.get(3)!.sourcePath, "part", "ppt/media/missing.png")).toBe(404);
 });
 
-test("a deck thread, which lives the whole session, starts with a small young generation (2026-11-22 audit, ME-3)", () => {
+test("a deck thread, which lives the whole session, starts with a small young generation (2026-11-22 audit, ME-3)", async () => {
   // At V8's default it grew to 128 MB within ten or so model reads, nearly all of it empty and kept for good.
+  // A part of a deck never asked, so a thread is started even when this test runs alone.
+  h.mode = "answer";
+  deck(4);
+  expect((await ask(4, "part", "ppt/media/image1.emf")).status).toBe(200);
   expect(h.spawned.length).toBeGreaterThan(0);
   for (const options of h.spawned) expect(options).toMatchObject({ resourceLimits: { maxYoungGenerationSizeMb: 16 } });
 });

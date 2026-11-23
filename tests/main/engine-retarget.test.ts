@@ -7,10 +7,11 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { expect, test, vi } from "vitest";
+import { afterAll, expect, test, vi } from "vitest";
 
 const h = vi.hoisted(() => ({ dir: "" }));
 h.dir = fs.mkdtempSync(path.join(os.tmpdir(), "engine-retarget-"));
+afterAll(() => fs.rmSync(h.dir, { recursive: true, force: true }));
 
 vi.mock("electron", () => ({ app: { getGPUInfo: () => Promise.resolve({}), on: () => undefined }, sharedTexture: {} }));
 vi.mock("../../src/main/paths", () => ({

@@ -234,14 +234,18 @@ test("reading ahead takes one of the background's two threads, never a third", a
   );
   const sweep = [backgroundStat("sweep-1"), backgroundStat("sweep-2")];
   const ahead = prepareDeck(++assetId, { priority: "background" }).catch(() => undefined);
-  await new Promise((resolve) => setImmediate(resolve));
-  expect(stats.mock.calls.map(([file]) => file)).toEqual(["sweep-1", "sweep-2"]);
-  held.shift()!();
-  await ahead;
-  expect(stats.mock.calls.map(([file]) => file)).toContain(h.file);
-  held.shift()!();
-  await Promise.all(sweep);
-  vi.restoreAllMocks();
+  try {
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(stats.mock.calls.map(([file]) => file)).toEqual(["sweep-1", "sweep-2"]);
+    held.shift()!();
+    await ahead;
+    expect(stats.mock.calls.map(([file]) => file)).toContain(h.file);
+  } finally {
+    // Even after a failed assertion: a stat still held keeps a background thread taken for the rest of the file.
+    while (held.length) held.shift()!();
+    await Promise.all([...sweep, ahead]);
+    vi.restoreAllMocks();
+  }
 });
 
 test("a source slow to answer its stat is waited for, and gone only when the stat fails, asked once", async () => {
