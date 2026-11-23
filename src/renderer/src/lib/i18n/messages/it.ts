@@ -815,7 +815,7 @@ const it: Messages = {
       "Strisce accese: il volume iniziale ({level}%) diventa il volume generale in onda, e ciò che è già in onda suona più basso.",
   },
   live: {
-    takeOffAir: "Togli dalla diretta",
+    takeOffAir: "Togli dall'onda",
     title: "In onda",
     disconnected: "Nessuno schermo",
     screenLost: "Schermo scollegato",
