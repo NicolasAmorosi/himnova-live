@@ -68,6 +68,13 @@ describe("dictionaries", () => {
     expect(dashed.map(([key, value]) => `${key}: ${value}`)).toEqual([]);
   });
 
+  // en and pt quote with “ ”, es and it with « »; a straight quote is a typewriter's.
+  test.each(dictionaries)("%s quotes with its own marks", (name, dictionary) => {
+    const foreign = /(en|pt)$/i.test(name) ? /[«"]/ : /[“"]/;
+    const quoted = strings(dictionary).filter(([, value]) => foreign.test(value));
+    expect(quoted.map(([key, value]) => `${key}: ${value}`)).toEqual([]);
+  });
+
   // en, it and pt call the order of service a schedule, a scaletta and a roteiro: their word
   // for «program» is left to other software (OBS, vMix, an installer, a song file's editor).
   const software = /^(settings\.ndi\.|welcome\.stream\.|settings\.updatesErrors\.install$|songs\.file)/;

@@ -376,7 +376,7 @@ async function saveProgramAs(app: WorshipApp, name: string) {
   const programs = app.control.getByRole("dialog", { name: "Programas" });
   await programs.getByRole("textbox", { name: "Nombre" }).fill(name);
   await programs.getByRole("button", { name: "Guardar", exact: true }).last().click();
-  await expect(toast(app, `"${name}" guardado`)).toBeVisible();
+  await expect(toast(app, `Se guardó «${name}»`)).toBeVisible();
   await programs.getByRole("button", { name: "Cerrar" }).click();
 }
 
@@ -514,7 +514,7 @@ test("a saved program whose verse's version was deleted is named before, and can
   await bibleTab(app).getByRole("listitem").filter({ hasText: JUAN_3_16 }).click();
   await bibleTab(app).getByRole("button", { name: "Agregar al programa" }).click();
   await app.control.getByRole("button", { name: "Guardar", exact: true }).click();
-  await expect(toast(app, '"Culto" guardado').last()).toBeVisible();
+  await expect(toast(app, "Se guardó «Culto»").last()).toBeVisible();
   await expect(toast(app, "No se pudo guardar")).toHaveCount(0);
   const [saved] = await app.invoke<{ itemCount: number }[]>("programs:list");
   expect(saved?.itemCount).toBe(2);

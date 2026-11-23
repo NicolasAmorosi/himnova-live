@@ -377,7 +377,7 @@ test("Delete does nothing in a linked folder's view, and a folder's file in a pr
   const programs = app.control.getByRole("dialog", { name: "Programas" });
   await programs.getByRole("textbox", { name: "Nombre" }).fill("Con foto de carpeta");
   await programs.getByRole("button", { name: "Guardar", exact: true }).last().click();
-  await expect(toast(app, '"Con foto de carpeta" guardado')).toBeVisible();
+  await expect(toast(app, "Se guardó «Con foto de carpeta»")).toBeVisible();
 });
 
 test("a file copied into a linked folder shows up when the operator comes back, and «Actualizar carpeta» drops one taken away (owner, 2026-11-06)", async ({

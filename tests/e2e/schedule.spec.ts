@@ -29,7 +29,7 @@ test("an order of service is built, saved, cleared and opened again", async ({ a
   const dialog = control.getByRole("dialog", { name: "Programas" });
   await dialog.getByRole("textbox", { name: "Nombre" }).fill("Culto de prueba");
   await dialog.getByRole("button", { name: "Guardar", exact: true }).last().click();
-  await expect(control.getByText("\"Culto de prueba\" guardado")).toBeVisible();
+  await expect(control.getByText("Se guardó «Culto de prueba»")).toBeVisible();
   await dialog.getByRole("button", { name: "Cerrar" }).click();
   await expect(control.getByText("No guardado")).toHaveCount(0);
 
@@ -124,7 +124,7 @@ async function saveAs(app: WorshipApp, name: string) {
   const programs = app.control.getByRole("dialog", { name: "Programas" });
   await programs.getByRole("textbox", { name: "Nombre" }).fill(name);
   await programs.getByRole("button", { name: "Guardar", exact: true }).last().click();
-  await expect(app.control.getByRole("status").filter({ hasText: `"${name}" guardado` })).toBeVisible();
+  await expect(app.control.getByRole("status").filter({ hasText: `Se guardó «${name}»` })).toBeVisible();
   await programs.getByRole("button", { name: "Cerrar" }).click();
 }
 
