@@ -3,9 +3,18 @@ import { ooxmlDir } from "../paths";
 import { createDeckQueue, TOO_SLOW } from "./deck-queue";
 import type { RasterLane } from "./rasterizer";
 import createPptxWorker from "./pptx-worker?nodeWorker";
-import type { PptxClips, PptxExtract, PptxRead, PptxReply, PptxRequest } from "./pptx-worker";
+import type { NativeRead, PptxClips, PptxExtract, PptxRead, PptxReply, PptxRequest } from "./pptx-worker";
+import type { ContainerKind } from "./pptx-metadata";
+import type { UnreadableDeckReason } from "./ppt-binary";
 
-export type { PptxRead } from "./pptx-worker";
+export type { NativeRead, PptxRead } from "./pptx-worker";
+
+function spawn(): ReturnType<typeof createPptxWorker> {
+  const started = createPptxWorker({ workerData: { ooxmlDir } });
+  // Never what keeps the process alive: quitting doesn't wait for a read.
+  started.unref();
+  return started;
+}
 
 /**
  * Reads a deck into its model in `pptx-worker.ts`, one deck after another on
@@ -15,12 +24,15 @@ export type { PptxRead } from "./pptx-worker";
  * would take the whole app down instead of one thread. `TOO_SLOW` when the
  * queue's clock stopped it.
  */
-const queue = createDeckQueue<PptxRequest, PptxReply>(() => {
-  const started = createPptxWorker({ workerData: { ooxmlDir } });
-  // Never what keeps the process alive: quitting doesn't wait for a read.
-  started.unref();
-  return started;
-}, SLIDES_DECK_READ_TIMEOUT_MS);
+const queue = createDeckQueue<PptxRequest, PptxReply>(spawn, SLIDES_DECK_READ_TIMEOUT_MS);
+
+/**
+ * The hymnal's own thread and queue, of the same module: what a file is, a legacy deck read as pictures and why a
+ * deck won't open, each a millisecond or two. In `queue` a hymn waited behind a heavy `.pptx` (5 to 11 s); on main,
+ * 32 of them were one turn of the thread every engine frame crosses, and a share that stopped answering held it
+ * whole (2026-11-22 audit, RM1). A file that kills this thread is never read on main either.
+ */
+const hymnal = createDeckQueue<PptxRequest, PptxReply>(spawn, SLIDES_DECK_READ_TIMEOUT_MS);
 let nextId = 0;
 
 export async function readPptx(sourcePath: string, lane: RasterLane): Promise<PptxRead | null | typeof TOO_SLOW> {
@@ -40,7 +52,26 @@ export async function extractClips(extract: PptxExtract, lane: RasterLane): Prom
   return "clips" in reply ? reply.clips : { audio: [], video: [] };
 }
 
+/** What `sourcePath` is by its bytes and, when `native` and it is a legacy binary, its read as pictures. `null`
+ *  when the thread stopped on the file, `TOO_SLOW` when its clock did. */
+export async function sniffDeck(
+  sourcePath: string,
+  native: boolean,
+  lane: RasterLane,
+): Promise<{ kind: ContainerKind; native: NativeRead | undefined } | null | typeof TOO_SLOW> {
+  const reply = await hymnal.ask(sourcePath, { id: ++nextId, sniff: sourcePath, native }, lane);
+  if (reply === null || reply === TOO_SLOW) return reply;
+  return "kind" in reply ? reply : null;
+}
+
+/** Why no reader opens `sourcePath` (`sniffUnreadableDeck`); a thread that stopped on it says it is not a presentation. */
+export async function unreadableReason(sourcePath: string): Promise<UnreadableDeckReason> {
+  const reply = await hymnal.ask(sourcePath, { id: ++nextId, unreadable: sourcePath }, "now");
+  return reply !== null && reply !== TOO_SLOW && "reason" in reply ? reply.reason : "NOT_A_PRESENTATION";
+}
+
 /** The operator opened a deck that was being read ahead: what is still queued for it goes first. */
 export function hurryDeck(sourcePath: string): void {
+  hymnal.hurry(sourcePath);
   queue.hurry(sourcePath);
 }

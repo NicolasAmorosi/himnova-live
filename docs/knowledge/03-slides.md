@@ -22,7 +22,7 @@ cursor lives in the renderer's store and it is the only copy.
 ```
 source ──containerKind (magic bytes, never the extension)──┐
   binary (OLE2) ── readBinaryDeck: only pictures? ── yes ──► native deck   image_format 'native'
-       │ no                                                                 (ppt-binary.ts, on main, ~1 ms)
+       │ no                                                   (ppt-binary.ts, on the hymnal's thread, ~1 ms)
   ooxml │ binary │ odf ── pptx-worker.ts thread ──► SlideModel per slide ──► model deck   'model'
   pdf ── pdf.js in a hidden window: page sizes ──► PDF deck   'webp'|'png' with cache_dir '' (pages drawn on request)
   no reader opens it ── sniffUnreadableDeck ──► fails: DECK_PASSWORD | DECK_OLD_FORMAT | NOT_A_PRESENTATION
@@ -30,9 +30,23 @@ source ──containerKind (magic bytes, never the extension)──┐
 ```
 
 `prepareDeck` (`deck-service.ts`) asks in that order: `nativeDeck` → `modelDeck` → `pdfDeck`
-(together `sourceDeck`). There is no queue and nothing to cancel: until 2026-11-03 a PDF was
+(together `sourceDeck`). There is nothing to cancel: until 2026-11-03 a PDF was
 rasterized whole into the slide cache, one at a time behind a two-lane queue with preemption; that
 queue, `deck:cancel` and the `slides.preemptBackground` escape hatch are gone.
+
+**Main does not stat, sniff or read a deck's file to open it** (2026-11-22 audit, RM1). The source
+is stat'ed with `fs.promises.stat`, one question per file at a time; what the operator waits on
+(`deck:get`, `deck:ensure`) is answered within a second, and past it the source is not there, as a
+file that is gone (a share that stopped answering held a synchronous stat, and main with it, 21 s on
+Windows). The read-ahead stats its decks one at a time, in the order asked. The sniff
+(`containerKind`), the picture reader and `sniffUnreadableDeck` run on a second thread of
+`pptx-worker.ts` with its own queue (`pptx-deck.ts`, `hymnal`): in the model readers' queue a hymn
+waited behind a heavy `.pptx`, and on main a screen of 32 unread hymns was one turn of the thread
+every engine frame crosses. A file that stops that thread is refused whole and goes to the model
+reader's thread, never to main; one its clock stops fails as `DECK_TOO_SLOW`. A slide is still served
+on main (`renderNativeSlide`, ~1 ms). The one exception left: the linked song's first resolution
+(`ensureLinkedAudio` → `resolveLinkedAudio`: the folder's listing and the deck's external objects),
+~1 ms a hymn, once.
 
 ## Model decks: a deck is drawn, not converted (2026-10-26)
 

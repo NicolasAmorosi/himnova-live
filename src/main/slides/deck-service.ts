@@ -17,15 +17,10 @@ import { getMediaRepo, getSettingsRepo, getSlidesRepo } from "../services/repos"
 import { broadcast } from "../services/broadcast";
 import type { DeckRow, NewAudio, NewSlide, NewVideo } from "../db/repositories/slides.repo";
 import { SlideError, isSlideError } from "./errors";
-import {
-  containerKind,
-  placeAudio,
-  type ContainerKind,
-  type PresentationMeta,
-} from "./pptx-metadata";
-import { readBinaryDeck, sniffUnreadableDeck, type BinaryDeck, type UnreadableDeckReason } from "./ppt-binary";
+import { placeAudio, type ContainerKind, type PresentationMeta } from "./pptx-metadata";
+import type { BinaryDeck, UnreadableDeckReason } from "./ppt-binary";
 import { encodeSlideLayers } from "./native-deck";
-import { extractClips, hurryDeck, readPptx, type PptxRead } from "./pptx-deck";
+import { extractClips, hurryDeck, readPptx, sniffDeck, unreadableReason, type PptxRead } from "./pptx-deck";
 import { TOO_SLOW } from "./deck-queue";
 import { readPdfPages, shutdownRasterizer, type RasterLane } from "./rasterizer";
 import { hashFile } from "../media/content-hash";
@@ -83,6 +78,41 @@ function stampOf(stat: fs.Stats): string {
   return `${stat.size}-${Math.trunc(stat.mtimeMs)}`;
 }
 
+/** Sources being stat'ed, so a second ask waits on the same question (`isDirectory` in `ipc/handlers/files.ts`). */
+const statting = new Map<string, Promise<fs.Stats | null>>();
+
+/**
+ * A source's stat off main's thread, `null` when it can't be had: a hymn on a share that stopped answering held a
+ * synchronous stat, and main with it, 21 s on Windows (measured for A26, 2026-11-16), with the engine's video and NDI
+ * frozen (2026-11-22 audit, RM1). One question per file at a time: each one hung holds a thread of libuv's pool.
+ */
+function statOf(file: string): Promise<fs.Stats | null> {
+  let stat = statting.get(file);
+  if (!stat) {
+    stat = fs.promises
+      .stat(file)
+      .catch(() => null)
+      .finally(() => statting.delete(file));
+    statting.set(file, stat);
+  }
+  return stat;
+}
+
+/** What the operator waits on is answered within a second: past it, the source is not there, as a file that is gone. */
+function statWithin(file: string): Promise<fs.Stats | null> {
+  return Promise.race([statOf(file), new Promise<null>((resolve) => setTimeout(resolve, 1000, null))]);
+}
+
+/** The read-ahead stats its sources one at a time, in the order asked, each waited out whole: thirty-two at once on a
+ *  share that stopped answering would hold every thread of the pool the projector's own file reads wait on. */
+let readingAhead: Promise<unknown> = Promise.resolve();
+
+function statAhead(file: string): Promise<fs.Stats | null> {
+  const stat = readingAhead.then(() => statOf(file));
+  readingAhead = stat;
+  return stat;
+}
+
 // ---------------------------------------------------------------------------
 // Progress
 // ---------------------------------------------------------------------------
@@ -115,9 +145,8 @@ export function prepareDeck(assetId: number, opts: PrepareOptions = {}): Promise
   const sourcePath = getMediaRepo().getPathById(assetId);
   if (!sourcePath) return Promise.reject(new SlideError("SOURCE_MISSING", mt("slides.notInLibrary")));
   const lane: RasterLane = opts.priority === "background" ? "later" : "now";
-  return (
-    sourceDeck(assetId, sourcePath, opts.force ?? false, lane) ??
-    Promise.reject(new SlideError("SOURCE_MISSING", mt("slides.sourceGone", { path: sourcePath })))
+  return sourceDeck(assetId, sourcePath, opts.force ?? false, lane).then(
+    (deck) => deck ?? Promise.reject(new SlideError("SOURCE_MISSING", mt("slides.sourceGone", { path: sourcePath }))),
   );
 }
 
@@ -182,11 +211,6 @@ function toDeckDTO(row: DeckRow, assetId: number, opts?: { resolve?: boolean }):
  *  again. */
 const notNativeStamp = new Map<string, string>();
 
-/** One read per asset at a time. The preview effect and GO LIVE arrive within
- *  milliseconds of each other, and two inserts of the same deck replace each
- *  other's row — and the deck id in the urls the first caller already holds. */
-const nativeInFlight = new Map<number, Promise<DeckDTO>>();
-
 function isUsableNative(row: DeckRow, stat: fs.Stats): boolean {
   return (
     row.imageFormat === "native" &&
@@ -206,25 +230,35 @@ function readyNative(row: DeckRow, assetId: number): DeckDTO {
 
 /**
  * The deck read straight from its source, when it is a legacy deck made of
- * pictures: already on record (answered synchronously) or being read now.
+ * pictures: already on record or read now, on the hymnal's thread.
  * `null` sends the caller on to the model reader — a deck that is not a
  * legacy binary, or one `readBinaryDeck` refuses.
  */
-function nativeDeck(assetId: number, source: Source, force: boolean): Promise<DeckDTO> | null {
+async function nativeDeck(assetId: number, source: Source, force: boolean, lane: RasterLane): Promise<DeckDTO | null> {
   const { path: sourcePath, stat } = source;
-  const inFlightRead = nativeInFlight.get(assetId);
-  if (inFlightRead) return inFlightRead;
-
   const slidesRepo = getSlidesRepo();
   const mtimeMs = Math.trunc(stat.mtimeMs);
   if (!force) {
     const own = slidesRepo.findSourceDeckByAsset(assetId, "native");
-    if (own && isUsableNative(own, stat)) return Promise.resolve(readyNative(own, assetId));
+    if (own && isUsableNative(own, stat)) return readyNative(own, assetId);
     if (notNativeStamp.get(sourcePath) === stampOf(stat)) return null;
   }
   // By content, never by extension — and before anything that writes: every
-  // deck passes through here on its way to the model reader or the cache.
-  if (source.kind() !== "binary") return null;
+  // deck passes through here on its way to the model reader or the cache. Read
+  // as pictures in the same trip when it is a legacy binary.
+  const sniffed = await source.sniff(true, lane);
+  if (sniffed === TOO_SLOW) {
+    // Remembered as any deck the clock stopped: the next pass of its tile goes on to say so, «Reintentar» reads it.
+    notNativeStamp.set(sourcePath, stampOf(stat));
+    unreadableStamp.set(sourcePath, { stamp: stampOf(stat), reason: "DECK_TOO_SLOW" });
+    return failUnreadable(assetId, "DECK_TOO_SLOW");
+  }
+  // A thread that stopped on the file: refused whole, so the model reader's thread tries it, never main.
+  if (!sniffed) {
+    notNativeStamp.set(sourcePath, stampOf(stat));
+    return null;
+  }
+  if (sniffed.kind !== "binary") return null;
 
   if (!force) {
     // The same bytes through another library entry — the same hymn in two
@@ -240,17 +274,13 @@ function nativeDeck(assetId: number, source: Source, force: boolean): Promise<De
     }
   }
 
-  const read = readBinaryDeck(sourcePath);
+  const read = sniffed.native;
   if (!read || "unsupported" in read) {
     notNativeStamp.set(sourcePath, stampOf(stat));
     if (read) console.info(`[slides] drawn from its model, not read natively (${read.unsupported}): ${sourcePath}`);
     return null;
   }
-  const promise = recordNativeDeck(assetId, sourcePath, stat, read.deck).finally(() =>
-    nativeInFlight.delete(assetId),
-  );
-  nativeInFlight.set(assetId, promise);
-  return promise;
+  return recordNativeDeck(assetId, sourcePath, stat, read.deck);
 }
 
 async function recordNativeDeck(assetId: number, sourcePath: string, stat: fs.Stats, deck: BinaryDeck): Promise<DeckDTO> {
@@ -318,11 +348,6 @@ type FailedDeckReason = UnreadableDeckReason | "DECK_TOO_SLOW";
  *  hangs does not hold the reader at every pass of its tile (owner, 2026-11-17). */
 const unreadableStamp = new Map<string, { stamp: string; reason: FailedDeckReason }>();
 
-/** One read per asset at a time (see `nativeInFlight`), and the lane its
- *  requests to the deck worker go in: the operator opening a deck that is
- *  being read ahead moves it to `now` (2026-11-15 audit, R10). */
-const modelInFlight = new Map<number, { promise: Promise<DeckDTO>; lane: RasterLane }>();
-
 const UNREADABLE_MESSAGE = {
   DECK_PASSWORD: "slides.deckPassword",
   DECK_OLD_FORMAT: "slides.deckOldFormat",
@@ -350,21 +375,53 @@ function isUsableModel(row: DeckRow, stat: fs.Stats): boolean {
   );
 }
 
-/** The source as the three readers below see it: stat'ed once, and its container sniffed only by the first reader
- *  that needs it, after its own cache check (a ready hymn never opens the file). 2026-11-15 audit, X9. */
-type Source = { path: string; stat: fs.Stats; kind: () => ContainerKind };
+/** The source as the three readers below see it: stat'ed once, and its container sniffed, on the hymnal's thread,
+ *  only by the first reader that needs it, after its own cache check (a ready hymn never opens the file). 2026-11-15
+ *  audit, X9. `kind` is `unknown` for a file the thread could not sniff, as for one it could not open. */
+type Source = {
+  path: string;
+  stat: fs.Stats;
+  sniff: (native: boolean, lane: RasterLane) => ReturnType<typeof sniffDeck>;
+  kind: (lane: RasterLane) => Promise<ContainerKind>;
+};
+
+/** One read per asset at a time, and the lane its requests to the deck threads
+ *  go in. The preview effect and GO LIVE arrive within milliseconds of each
+ *  other, and two inserts of the same deck replace each other's row, and with
+ *  it the deck id in the urls the first caller already holds. The operator opening a
+ *  deck that is being read ahead moves it to `now` (2026-11-15 audit, R10). */
+const inFlight = new Map<number, { promise: Promise<DeckDTO | null>; lane: RasterLane }>();
 
 /** The deck read straight from its source: native, else its model, else a
  *  PDF, which is every deck. `null` only for a source that is gone. A deck no
  *  reader can open rejects with why. */
-function sourceDeck(assetId: number, sourcePath: string, force: boolean, lane: RasterLane): Promise<DeckDTO> | null {
-  const stat = fs.statSync(sourcePath, { throwIfNoEntry: false });
+async function sourceDeck(assetId: number, sourcePath: string, force: boolean, lane: RasterLane): Promise<DeckDTO | null> {
+  const stat = await (lane === "now" ? statWithin(sourcePath) : statAhead(sourcePath));
   if (!stat) return null;
-  let sniffed: ContainerKind | undefined;
-  const source: Source = { path: sourcePath, stat, kind: () => (sniffed ??= containerKind(sourcePath)) };
-  return (
-    nativeDeck(assetId, source, force) ?? modelDeck(assetId, source, force, lane) ?? pdfDeck(assetId, source, force, lane)
-  );
+  // Nothing awaited from here to the entry, so a second ask joins the first.
+  const reading = inFlight.get(assetId);
+  if (reading) {
+    if (lane === "now" && reading.lane === "later") {
+      reading.lane = "now";
+      hurryDeck(sourcePath);
+    }
+    return reading.promise;
+  }
+  let sniffed: ReturnType<typeof sniffDeck> | undefined;
+  const sniff: Source["sniff"] = (native, at) => (sniffed ??= sniffDeck(sourcePath, native, at));
+  const kind: Source["kind"] = async (at) => {
+    // The thread stopped on the file reading it as pictures: what it is, asked again without that read.
+    const known = (await sniff(false, at)) ?? (await sniffDeck(sourcePath, false, at));
+    return known && known !== TOO_SLOW ? known.kind : "unknown";
+  };
+  const source: Source = { path: sourcePath, stat, sniff, kind };
+  const job: { lane: RasterLane } = { lane };
+  const promise = (async () =>
+    (await nativeDeck(assetId, source, force, job.lane)) ??
+    (await modelDeck(assetId, source, force, job)) ??
+    pdfDeck(assetId, source, force, job.lane))().finally(() => inFlight.delete(assetId));
+  inFlight.set(assetId, Object.assign(job, { promise }));
+  return promise;
 }
 
 /**
@@ -375,26 +432,17 @@ function sourceDeck(assetId: number, sourcePath: string, force: boolean, lane: R
  * approximated, never refused; and on 2026-11-03: nothing is ever converted
  * by another program — a file no reader can open fails, saying why.
  */
-function modelDeck(assetId: number, source: Source, force: boolean, lane: RasterLane): Promise<DeckDTO> | null {
+async function modelDeck(assetId: number, source: Source, force: boolean, job: { lane: RasterLane }): Promise<DeckDTO | null> {
   const { path: sourcePath, stat } = source;
-  const inFlightRead = modelInFlight.get(assetId);
-  if (inFlightRead) {
-    if (lane === "now" && inFlightRead.lane === "later") {
-      inFlightRead.lane = "now";
-      hurryDeck(sourcePath);
-    }
-    return inFlightRead.promise;
-  }
-
   const slidesRepo = getSlidesRepo();
   const mtimeMs = Math.trunc(stat.mtimeMs);
   if (!force) {
     const own = slidesRepo.findSourceDeckByAsset(assetId, "model");
-    if (own && isUsableModel(own, stat)) return Promise.resolve(readyNative(own, assetId));
+    if (own && isUsableModel(own, stat)) return readyNative(own, assetId);
     const unreadable = unreadableStamp.get(sourcePath);
     if (unreadable?.stamp === stampOf(stat)) return failUnreadable(assetId, unreadable.reason);
   }
-  const kind = source.kind();
+  const kind = await source.kind(job.lane);
   if (kind === "pdf") return null;
 
   if (!force) {
@@ -402,26 +450,18 @@ function modelDeck(assetId: number, source: Source, force: boolean, lane: Raster
     const shared = slidesRepo.findDeckByAssetContent(assetId, 0, "model");
     if (shared && shared.status === "ready" && shared.converterVersion === SLIDES_MODEL_VERSION) {
       slidesRepo.relinkDeck(shared.id, assetId, sourcePath, stat.size, mtimeMs);
-      return Promise.resolve(
-        readyNative({ ...shared, mediaAssetId: assetId, sourcePath, sourceSizeBytes: stat.size, sourceMtimeMs: mtimeMs }, assetId),
-      );
+      return readyNative({ ...shared, mediaAssetId: assetId, sourcePath, sourceSizeBytes: stat.size, sourceMtimeMs: mtimeMs }, assetId);
     }
   }
 
-  const job: { lane: RasterLane } = { lane };
-  const promise = readPptx(sourcePath, lane)
-    .then((read) => {
-      if (read === TOO_SLOW || !read || read.slides.every((slide) => slide.hidden)) {
-        // Cut by the clock is no damage: said as it is, never as a file to save again (owner, 2026-11-17).
-        const reason = read === TOO_SLOW ? "DECK_TOO_SLOW" : sniffUnreadableDeck(sourcePath);
-        unreadableStamp.set(sourcePath, { stamp: stampOf(stat), reason });
-        return failUnreadable(assetId, reason);
-      }
-      return recordModelDeck(assetId, sourcePath, stat, read, kind, job, force);
-    })
-    .finally(() => modelInFlight.delete(assetId));
-  modelInFlight.set(assetId, Object.assign(job, { promise }));
-  return promise;
+  const read = await readPptx(sourcePath, job.lane);
+  if (read === TOO_SLOW || !read || read.slides.every((slide) => slide.hidden)) {
+    // Cut by the clock is no damage: said as it is, never as a file to save again (owner, 2026-11-17).
+    const reason = read === TOO_SLOW ? "DECK_TOO_SLOW" : await unreadableReason(sourcePath);
+    unreadableStamp.set(sourcePath, { stamp: stampOf(stat), reason });
+    return failUnreadable(assetId, reason);
+  }
+  return recordModelDeck(assetId, sourcePath, stat, read, kind, job, force);
 }
 
 async function recordModelDeck(
@@ -607,9 +647,6 @@ async function recordModelDeck(
 // PDF decks — each page drawn when a window asks for it, nothing on disk
 // ---------------------------------------------------------------------------
 
-/** One read per asset at a time — see `nativeInFlight`. */
-const pdfInFlight = new Map<number, Promise<DeckDTO>>();
-
 /** A PDF deck is its page sizes at a render width and format: what it is drawn
  *  at is part of its identity, so a new projector width (or a row drawn as
  *  WebP by an older build) opens the PDF again (~25 ms) under new urls, instead
@@ -630,11 +667,8 @@ function isUsablePdf(row: DeckRow, target: RenderTarget): boolean {
  * `pdfPageImage`). Decided by the owner on 2026-11-03: nothing converted and
  * nothing cached on disk.
  */
-function pdfDeck(assetId: number, source: Source, force: boolean, lane: RasterLane): Promise<DeckDTO> | null {
+function pdfDeck(assetId: number, source: Source, force: boolean, lane: RasterLane): Promise<DeckDTO> {
   const { path: sourcePath, stat } = source;
-  const inFlightRead = pdfInFlight.get(assetId);
-  if (inFlightRead) return inFlightRead;
-
   const slidesRepo = getSlidesRepo();
   const mtimeMs = Math.trunc(stat.mtimeMs);
   const target = resolveRenderTarget();
@@ -656,9 +690,7 @@ function pdfDeck(assetId: number, source: Source, force: boolean, lane: RasterLa
     }
   }
 
-  const promise = recordPdfDeck(assetId, sourcePath, stat, target, lane).finally(() => pdfInFlight.delete(assetId));
-  pdfInFlight.set(assetId, promise);
-  return promise;
+  return recordPdfDeck(assetId, sourcePath, stat, target, lane);
 }
 
 async function recordPdfDeck(
@@ -740,18 +772,19 @@ async function recordPdfDeck(
 // Public API
 // ---------------------------------------------------------------------------
 
-/** Cache-only read: safe to call while merely rendering a list. */
-export function getDeck(assetId: number): DeckDTO | null {
+/** Cache-only read: safe to call while merely rendering a list. The source is
+ *  stat'ed off main's thread and, past a second, is not there (`statWithin`). */
+export async function getDeck(assetId: number): Promise<DeckDTO | null> {
   const repo = getSlidesRepo();
   const sourcePath = getMediaRepo().getPathById(assetId);
-  const stat = sourcePath ? fs.statSync(sourcePath, { throwIfNoEntry: false }) : undefined;
+  const stat = sourcePath ? await statWithin(sourcePath) : null;
 
   const native = repo.findSourceDeckByAsset(assetId, "native");
   if (native && stat && isUsableNative(native, stat)) return toDeckDTO(native, assetId, { resolve: false });
   const model = repo.findSourceDeckByAsset(assetId, "model");
   if (model && stat && isUsableModel(model, stat)) return toDeckDTO(model, assetId, { resolve: false });
   // Every other deck is read from its source (`deck:ensure`).
-  if (!sourcePath || !stat || containerKind(sourcePath) !== "pdf") return null;
+  if (!sourcePath || !stat) return null;
 
   const row = repo.findDeckByAsset(assetId);
   if (!row || row.status !== "ready" || row.imageFormat === "native" || row.imageFormat === "model") return null;
@@ -765,6 +798,9 @@ export function getDeck(assetId: number): DeckDTO | null {
   // ensured at all: an announcements deck fixed during the week previewed AND
   // went live with last week's slides. Its pages are drawn from that file.
   if (row.sourceSizeBytes !== stat.size || row.sourceMtimeMs !== Math.trunc(stat.mtimeMs)) return null;
+  // Last, on the hymnal's thread: only a ready PDF row gets here, so an unread hymn is never sniffed to be peeked at.
+  const sniffed = await sniffDeck(sourcePath, false, "now");
+  if (!sniffed || sniffed === TOO_SLOW || sniffed.kind !== "pdf") return null;
   return toDeckDTO(row, assetId, { resolve: false });
 }
 

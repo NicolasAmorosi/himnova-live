@@ -11,6 +11,7 @@ import {
   extractVideoParts,
   readPresentationMeta,
   type AudioRef,
+  type ContainerKind,
   type ExtractedAudio,
   type ExtractedVideo,
   type PresentationMeta,
@@ -20,11 +21,15 @@ import { parseMsoShapes } from "./ppt/escher";
 import { readPptModelDeck } from "./ppt/model-reader";
 import type { PptResources } from "./ppt/reader";
 import { readOdpModel } from "./odp/entry";
+import { readBinaryDeck, sniffUnreadableDeck, type UnreadableDeckReason } from "./ppt-binary";
 
 /**
  * The deck readers, off the main thread: a `.pptx`, a legacy `.ppt`/`.pps` the
- * picture reader (`ppt-binary.ts`, on main: ~1 ms) refused, and an `.odp`, each
- * into a `SlideModel` per slide. Reading a `.pptx` parses every slide's XML
+ * picture reader refused, and an `.odp`, each into a `SlideModel` per slide.
+ * Another thread of this same module serves the hymnal (`pptx-deck.ts`): what a
+ * file is, the picture reader (`ppt-binary.ts`, ~1 ms a deck) and why a deck
+ * won't open, so main no longer sniffs or reads a deck's file to open it (a share
+ * that stopped answering held main 21 s on Windows; 2026-11-22 audit, RM1). Reading a `.pptx` parses every slide's XML
  * twice (the model, then the timings and media), and a template whose map
  * slide is 22 MB of shapes took 11 s — on the thread that answers every IPC
  * call and serves `worship://`. Here it costs main nothing but the copy of the
@@ -44,10 +49,20 @@ export type PptxRead = {
 export type PptxExtract = { file: string; audio: AudioRef[]; audioDir: string; video: VideoRef[]; videoDir: string };
 export type PptxClips = { audio: ExtractedAudio[]; video: ExtractedVideo[] };
 
-export type PptxRequest = { id: number; file: string; extract?: undefined } | { id: number; extract: PptxExtract };
+/** A legacy deck read as pictures, or why not (`readBinaryDeck`). */
+export type NativeRead = ReturnType<typeof readBinaryDeck>;
+
+export type PptxRequest =
+  | { id: number; file: string }
+  | { id: number; extract: PptxExtract }
+  /** What `sniff` is by its bytes, and read as pictures too when `native` and it is a legacy binary. */
+  | { id: number; sniff: string; native: boolean }
+  | { id: number; unreadable: string };
 export type PptxReply =
   | { id: number; read: PptxRead }
   | { id: number; clips: PptxClips }
+  | { id: number; kind: ContainerKind; native: NativeRead | undefined }
+  | { id: number; reason: UnreadableDeckReason }
   | { id: number; error: string }
   /** Still reading `id`: one per slide, which restarts the queue's timer (`deck-queue.ts`). */
   | { id: number; alive: true };
@@ -145,12 +160,17 @@ parentPort?.on("message", (request: PptxRequest) => {
   reading = id;
   let reply: PptxReply;
   try {
-    if (request.extract) {
+    if ("extract" in request) {
       const { audio, audioDir, file, video, videoDir } = request.extract;
       reply = {
         id,
         clips: { audio: extractAudioParts(file, audio, audioDir, beat), video: extractVideoParts(file, video, videoDir, beat) },
       };
+    } else if ("sniff" in request) {
+      const kind = containerKind(request.sniff);
+      reply = { id, kind, native: request.native && kind === "binary" ? readBinaryDeck(request.sniff) : undefined };
+    } else if ("unreadable" in request) {
+      reply = { id, reason: sniffUnreadableDeck(request.unreadable) };
     } else {
       reply = { id, read: read(request.file) };
     }
