@@ -3,6 +3,8 @@ import { t } from "@renderer/lib/i18n/i18n-provider";
 import { toast } from "@renderer/lib/toast";
 import { rememberSavedRowIds, useProgramStore } from "@renderer/stores/program.store";
 import { useSettingsStore } from "@renderer/stores/settings.store";
+import { previewScheduleItem } from "@renderer/lib/actions/preview";
+import type { LiveRowMark } from "@shared/types/settings";
 import type {
   ProgramDraft,
   ProgramDTO,
@@ -289,12 +291,46 @@ export async function reopenProgram(id: number): Promise<void> {
 }
 
 /** Keeps `programs.openId` on the program the schedule holds, for
- *  `reopenProgram` at the next launch. */
+ *  `reopenProgram` at the next launch, and `programs.liveRow` on the row on air, for `restoreLiveRow`. */
 export function startOpenProgramMemory(): () => void {
+  // Against what was last written, not the previous state: a save clears the cursor and sets it back
+  // (`adoptSaved`), and a reorder moves it without the row changing.
+  let written = JSON.stringify(liveRowOf());
   return useProgramStore.subscribe((state, previous) => {
+    const mark = liveRowOf();
+    if (JSON.stringify(mark) !== written) {
+      written = JSON.stringify(mark);
+      void useSettingsStore.getState().update({ "programs.liveRow": mark }).catch(() => undefined);
+    }
     if (state.currentProgramId === previous.currentProgramId) return;
     void useSettingsStore.getState().update({ "programs.openId": state.currentProgramId }).catch(() => undefined);
   });
+}
+
+/** The row each schedule row is, by what a save would send: provisional ids change at every restore and save. */
+const rowKeys = (): string[] => toUpsertItems(useProgramStore.getState().items).map((row) => JSON.stringify(row));
+
+/** Only the row on air is turned into its key: this runs on every change of the schedule store, a click included. */
+function liveRowOf(): LiveRowMark | null {
+  const { activeIndex, items } = useProgramStore.getState();
+  const item = activeIndex === null ? undefined : items[activeIndex];
+  return activeIndex === null || item === undefined
+    ? null
+    : { position: activeIndex, row: JSON.stringify(toUpsertItems([item])[0]) };
+}
+
+/**
+ * At launch, after the schedule is back: a row still marked on air means the app did not close (a crash, a killed
+ * process, a power cut; a clean close clears it, `forgetLiveCopy`). That row goes to PREVIEW exactly as a click on
+ * it puts it there, and a GO LIVE takes it back; nothing goes on air by itself (owner, 2026-11-23, DU-6). Found at
+ * its place, else as the only row of its kind and content; otherwise nothing is chosen.
+ */
+export function restoreLiveRow(mark: LiveRowMark | null): void {
+  if (mark === null) return;
+  const rows = rowKeys();
+  const at = rows[mark.position] === mark.row ? mark.position : rows.indexOf(mark.row);
+  if (at < 0 || (at !== mark.position && rows.lastIndexOf(mark.row) !== at)) return;
+  previewScheduleItem(at);
 }
 
 /** Starts a brand new, unsaved program. Callers must check

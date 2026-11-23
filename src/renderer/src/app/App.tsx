@@ -21,6 +21,7 @@ import { toast } from "@renderer/lib/toast";
 import {
   reopenProgram,
   restoreDraft,
+  restoreLiveRow,
   saveCurrentProgram,
   startOpenProgramMemory,
 } from "@renderer/lib/actions/programs";
@@ -169,6 +170,8 @@ export function App() {
         if (draft) await restoreDraft(draft);
         // No draft: nothing unsaved, but a saved program may have been open.
         else if (settings["programs.openId"] !== null) await reopenProgram(settings["programs.openId"]);
+        // The row that was on air when the app went down, in PREVIEW: never on air by itself (DU-6).
+        restoreLiveRow(settings["programs.liveRow"]);
       } catch (error) {
         console.warn("[draft] restore failed", error);
       }

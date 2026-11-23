@@ -89,6 +89,9 @@ export type SlideFallbackFont = (typeof SLIDE_FALLBACK_FONTS)[number];
  *  again (`recognizeDisplay`). */
 export type DisplayPrint = { label: string; x: number; y: number; width: number; height: number; unique: boolean };
 
+/** The schedule's row on air (`programs.liveRow`): its place, and the row itself as JSON. */
+export type LiveRowMark = { position: number; row: string };
+
 export type SettingsMap = {
   "logo.path": string | null;
   /** Which of the two LOGO shows; `null` until the operator picks — see
@@ -277,6 +280,11 @@ export type SettingsMap = {
    *  new, unsaved schedule. Not main's own current program: «programs:save»
    *  adopts a new program the list's «+» only creates. */
   "programs.openId": number | null;
+  /** The schedule's row on air, kept by the control window as it changes (`startOpenProgramMemory`) and cleared by
+   *  main when the control window closes cleanly (`forgetLiveCopy`). Still there at launch means the app did not
+   *  close: a crash, a killed process, a power cut. Then `App` puts that row in PREVIEW, never on air (owner,
+   *  2026-11-23, DU-6). `row` is the row as a save sends it (`toUpsertItems`), what tells it apart if the order moved. */
+  "programs.liveRow": LiveRowMark | null;
   /** The projector's picture as an NDI® source (`types/ndi.ts`), from launch on while true. */
   "ndi.output.enabled": boolean;
   /** What receivers list it as: «COMPUTER (name)». */
@@ -362,6 +370,7 @@ export const DEFAULT_SETTINGS: SettingsMap = {
   "updates.autoCheck": true,
   "updates.announcedVersion": null,
   "programs.openId": null,
+  "programs.liveRow": null,
   "ndi.output.enabled": false,
   "ndi.output.name": "Himnova Live",
   "ndi.output.resolution": "1080p",
@@ -528,6 +537,10 @@ export const SETTINGS_VALIDATORS: Record<keyof SettingsMap, (value: unknown) => 
   "updates.autoCheck": isBoolean,
   "updates.announcedVersion": isNullOr(isString),
   "programs.openId": (v) => v === null || (typeof v === "number" && Number.isInteger(v) && v > 0),
+  "programs.liveRow": (v) =>
+    v === null ||
+    (isRecord(v) && typeof v["position"] === "number" && Number.isInteger(v["position"]) && v["position"] >= 0 &&
+      typeof v["row"] === "string"),
   "ndi.output.enabled": isBoolean,
   // Not blank, and no control characters: it travels as a program argument and shows in every receiver.
   "ndi.output.name": (v) =>
