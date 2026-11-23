@@ -5,7 +5,7 @@ import { useT } from "@renderer/lib/i18n/i18n-provider";
 import { isPointerFocused } from "@renderer/lib/focus-modality";
 import { cn } from "@renderer/lib/utils";
 import { FieldLabelContext } from "./field-layout";
-import { computeMenuPosition, useFollowTrigger, type MenuPosition } from "./floating-menu";
+import { computeMenuPosition, useCloseOnPointerOutside, useFollowTrigger, type MenuPosition } from "./floating-menu";
 import { Icon } from "./icon";
 import { labelOverflows, watchLabelFit } from "./label-fit";
 import { filterOptions, groupHeaderAt, orderByGroup } from "./select.groups";
@@ -139,16 +139,7 @@ export function Select({
     () => closeMenu(searchable),
   );
 
-  useEffect(() => {
-    if (!open) return;
-    const onPointerDown = (e: PointerEvent) => {
-      const target = e.target as Node;
-      if (triggerRef.current?.contains(target) || menuRef.current?.contains(target)) return;
-      setOpen(false);
-    };
-    document.addEventListener("pointerdown", onPointerDown);
-    return () => document.removeEventListener("pointerdown", onPointerDown);
-  }, [open]);
+  useCloseOnPointerOutside(open, setOpen, triggerRef, menuRef);
 
   // The filter box is what takes the keyboard while the menu is open, so it
   // has to get focus by itself: the operator opened the menu with the mouse

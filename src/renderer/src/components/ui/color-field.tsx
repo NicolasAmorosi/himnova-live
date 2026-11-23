@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { createPortal } from "react-dom";
 import { cn } from "@renderer/lib/utils";
-import { computeMenuPosition, useFollowTrigger, type MenuPosition } from "./floating-menu";
+import { computeMenuPosition, useCloseOnPointerOutside, useFollowTrigger, type MenuPosition } from "./floating-menu";
 import { useT, type MessageKey } from "@renderer/lib/i18n/i18n-provider";
 
 /**
@@ -83,16 +83,7 @@ export function ColorField({ className, label, onChange, value }: ColorFieldProp
     () => close(true),
   );
 
-  useEffect(() => {
-    if (!open) return;
-    const onPointerDown = (e: PointerEvent) => {
-      const target = e.target as Node;
-      if (triggerRef.current?.contains(target) || popoverRef.current?.contains(target)) return;
-      setOpen(false);
-    };
-    document.addEventListener("pointerdown", onPointerDown);
-    return () => document.removeEventListener("pointerdown", onPointerDown);
-  }, [open]);
+  useCloseOnPointerOutside(open, setOpen, triggerRef, popoverRef);
 
   // Opened, the focus moves into the palette, onto the chosen swatch, as `Menu` does: left on the trigger, Esc went
   // past the palette to the dialog behind and closed the whole editor, and Tab never reached the portal at the end of
