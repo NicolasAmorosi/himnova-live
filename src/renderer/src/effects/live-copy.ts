@@ -129,11 +129,24 @@ export function finishRecovery(): void {
   toast.warning(t("app.controlRecovered"));
 }
 
-/** Keeps main's copy current: one send per synchronous batch of changes, like the projector's output. */
+/** At most this often for a batch that only moved where a playing file is (owner, 2026-11-22, RR-02). */
+const POSITIONS_EVERY_MS = 1000;
+
+/**
+ * Keeps main's copy current: one send per synchronous batch of changes, like the projector's output. A batch that only
+ * changed `mediaStatus` (each playing file reports ~4 times a second) waits until a second after the last send: every
+ * send clones the open chapter and the whole schedule into main's thread, 4 to 12 times a second for the whole service.
+ * A position recovered after a crash can be up to that second behind.
+ */
 export function startLiveCopy(): () => void {
   let queued = false;
+  let lastSent = Number.NEGATIVE_INFINITY;
+  let later: ReturnType<typeof setTimeout> | undefined;
   const send = () => {
     queued = false;
+    clearTimeout(later);
+    later = undefined;
+    lastSent = performance.now();
     api.window.keepLiveCopy(takeLiveCopy()).catch((error: unknown) => console.warn("[control] live copy not kept", error));
   };
   const schedule = () => {
@@ -141,13 +154,24 @@ export function startLiveCopy(): () => void {
     queued = true;
     queueMicrotask(send);
   };
+  const scheduleSoon = () => {
+    if (queued || later !== undefined) return;
+    later = setTimeout(send, Math.max(0, lastSent + POSITIONS_EVERY_MS - performance.now()));
+  };
   const unsubscribe = [
-    useProjectionStore.subscribe(schedule),
+    useProjectionStore.subscribe((state, before) => (onlyMediaStatus(state, before) ? scheduleSoon() : schedule())),
     useAudioStore.subscribe(schedule),
     useBibleStore.subscribe(schedule),
     useProgramStore.subscribe(schedule),
     useStageStore.subscribe(schedule),
   ];
   schedule();
-  return () => unsubscribe.forEach((off) => off());
+  return () => {
+    clearTimeout(later);
+    unsubscribe.forEach((off) => off());
+  };
+}
+
+function onlyMediaStatus<T extends object>(state: T, before: T): boolean {
+  return (Object.keys(state) as (keyof T)[]).every((key) => key === "mediaStatus" || state[key] === before[key]);
 }

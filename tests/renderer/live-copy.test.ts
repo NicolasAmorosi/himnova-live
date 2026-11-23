@@ -5,7 +5,7 @@
  * The copy crosses IPC, so it is cloned here as IPC clones it: an action left in it would throw.
  */
 import { beforeEach, expect, test, vi } from "vitest";
-import { recoverLiveState, restoreLiveCopy, takeLiveCopy } from "@renderer/effects/live-copy";
+import { recoverLiveState, restoreLiveCopy, startLiveCopy, takeLiveCopy } from "@renderer/effects/live-copy";
 import { operatorClosedProjector } from "@renderer/stores/display.store";
 import { startStageSync } from "@renderer/effects/stage-sync";
 import { useSettingsStore } from "@renderer/stores/settings.store";
@@ -184,4 +184,35 @@ test("a launch starts as a launch, a copy restores, and one that cannot be put b
   expect(await recoverLiveState()).toBe("failed");
   answer(structuredClone(takeLiveCopy()));
   expect(await recoverLiveState()).toBe("recovered");
+});
+
+test("a playing file's position reaches main's copy once a second at most; anything else goes at once (RR-02)", async () => {
+  vi.useFakeTimers();
+  const invoke = (window as unknown as { worship: { invoke: ReturnType<typeof vi.fn> } }).worship.invoke;
+  const sends = () => invoke.mock.calls.filter(([channel]) => channel === "window:keepLiveCopy").length;
+  const stop = startLiveCopy();
+  await vi.advanceTimersByTimeAsync(0);
+  expect(sends()).toBe(1);
+
+  for (let tick = 1; tick <= 8; tick++) {
+    useProjectionStore.getState().setMediaStatus({
+      target: { kind: "video" },
+      epoch: 1,
+      currentTimeSeconds: tick / 4,
+      durationSeconds: 60,
+      paused: false,
+      ended: false,
+    });
+    await vi.advanceTimersByTimeAsync(250);
+  }
+  expect(sends()).toBeLessThanOrEqual(3);
+  expect(sends()).toBeGreaterThanOrEqual(2);
+
+  const before = sends();
+  useProjectionStore.getState().setOverlay("black");
+  await vi.advanceTimersByTimeAsync(0);
+  expect(sends()).toBe(before + 1);
+
+  stop();
+  vi.useRealTimers();
 });
