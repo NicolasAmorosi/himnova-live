@@ -1,8 +1,12 @@
 import { useEffect, useState } from "react";
 import { useT } from "@renderer/lib/i18n/i18n-provider";
-import { Button, FieldGroup, FieldRow, Segmented, Select, Switch, Textarea } from "@renderer/components/ui";
+import { Button, FieldGroup, FieldRow, Segmented, Select, Slider, Switch, Textarea } from "@renderer/components/ui";
 import { ScreenGroup } from "@renderer/components/shared/settings-groups/screen-group";
+import { api } from "@renderer/lib/api";
+import { useDisplayStore } from "@renderer/stores/display.store";
+import { useProjectionStore } from "@renderer/stores/projection.store";
 import { useSettingsStore } from "@renderer/stores/settings.store";
+import { PROJECTOR_FIT_MAX_SCREENS, PROJECTOR_FIT_MIN } from "@shared/types/display";
 import { useCommitOnUnmount } from "@renderer/lib/hooks/use-commit-on-unmount";
 import {
   STAGE_ALERT_OPTIONS_MS,
@@ -105,6 +109,66 @@ function StageOptionsGroup({ mirror }: { mirror: boolean }) {
   );
 }
 
+/** «Ajuste del proyector» (owner, 2026-11-21): a projector or TV that overscans a 1920x1080 signal cuts ~5 % off
+ *  every edge, so the picture is drawn smaller and centred until the pattern's border shows whole on the wall. Kept
+ *  for the projector's screen (`projection.fit`); the pattern stays on until it is switched off or Settings closes. A
+ *  projector on the operator's own screen (one screen) is a movable window: nothing to fit. */
+function ProjectorFitGroup() {
+  const t = useT();
+  const displays = useDisplayStore((s) => s.displays);
+  const projectorId = useDisplayStore((s) => s.displayId);
+  const fits = useSettingsStore((s) => s.settings["projection.fit"]);
+  const update = useSettingsStore((s) => s.update);
+  const [pattern, setPattern] = useState(false);
+  useEffect(() => {
+    if (!pattern) return;
+    void api.projection.showPattern(true);
+    return () => void api.projection.showPattern(false);
+  }, [pattern]);
+  const index = displays.findIndex((d) => d.id === projectorId && !d.operator);
+  const projector = displays[index];
+  // Its switch goes with its screen: the pattern must not come back with a screen this page no longer names.
+  useEffect(() => {
+    if (!projector) setPattern(false);
+  }, [projector]);
+  if (!projector) return null;
+  return (
+    <FieldGroup
+      description={t("settings.screens.fitDesc", { screen: `${index + 1} · ${projector.label}` })}
+      title={t("settings.screens.fitTitle")}
+    >
+      <FieldRow description={t("settings.screens.fitSizeDesc")} label={t("settings.screens.fitSize")}>
+        <Slider
+          label={t("settings.screens.fitSize")}
+          max={100}
+          min={PROJECTOR_FIT_MIN}
+          onChange={(value) => {
+            // 100 is no fit: kept out of the map, which holds `PROJECTOR_FIT_MAX_SCREENS` screens at most; a new one
+            // past that forgets the screen set longest ago, or main refused the whole write.
+            const { [projector.fitKey]: _old, ...rest } = fits;
+            const kept = Object.fromEntries(Object.entries(rest).slice(1 - PROJECTOR_FIT_MAX_SCREENS));
+            void update({ "projection.fit": value === 100 ? rest : { ...kept, [projector.fitKey]: value } });
+          }}
+          step={1}
+          unit="%"
+          value={fits[projector.fitKey] ?? 100}
+        />
+      </FieldRow>
+      <FieldRow description={t("settings.screens.patternDesc")} label={t("settings.screens.pattern")}>
+        <Switch
+          checked={pattern}
+          onChange={(e) => {
+            setPattern(e.target.checked);
+            // On the wall, where it is looked at: a closed projector opens on BLACK, as Settings' «Abrir» does. Opening
+            // it as a GO LIVE replayed what was live when it closed, its music included, under the pattern.
+            if (e.target.checked && !useProjectionStore.getState().presentationOpen) void useDisplayStore.getState().open();
+          }}
+        />
+      </FieldRow>
+    </FieldGroup>
+  );
+}
+
 /** Settings ▸ Screens (owner, 2026-11-13): what each screen does, and how the stage is dressed. */
 export function ScreensSection() {
   // A copy of the projector shows nothing of the stage's own, but it can still play videos or not.
@@ -112,6 +176,7 @@ export function ScreensSection() {
   return (
     <div className="flex flex-col gap-8">
       <ScreenGroup />
+      <ProjectorFitGroup />
       <StageOptionsGroup mirror={mirror} />
     </div>
   );

@@ -956,6 +956,12 @@ const en: Messages = {
       phrases: "Ready phrases",
       phrasesDesc: "One per line. They show up in the «Stage» panel, ready to show with one click.",
       phrasesReset: "Use the built-in ones",
+      fitTitle: "Projector fit",
+      fitSizeDesc: "Make it smaller until the pattern's white border shows whole. Only the projector changes: not the monitors, NDI or the stage.",
+      fitDesc: "For a projector or TV that cuts off the edges of the picture. Kept for screen {screen}.",
+      fitSize: "Picture size",
+      pattern: "Test pattern",
+      patternDesc: "Covers what is projected with a border, arrows and a circle. It goes off when you leave Settings.",
     },
     songs: {
       title: "Theme and license",

@@ -22,6 +22,7 @@ const LAPTOP: DisplayInfo = {
   operator: true,
   bounds: { x: 0, y: 0, width: 1470, height: 956 },
   scaleFactor: 2,
+  fitKey: "Built-in|2940x1912",
 };
 const PROJECTOR: DisplayInfo = {
   id: 2,
@@ -29,6 +30,7 @@ const PROJECTOR: DisplayInfo = {
   operator: false,
   bounds: { x: 1470, y: 0, width: 1920, height: 1080 },
   scaleFactor: 1,
+  fitKey: "Proyector|1920x1080",
 };
 
 let screens: DisplayInfo[] = [];

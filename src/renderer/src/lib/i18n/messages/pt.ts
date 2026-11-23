@@ -957,6 +957,12 @@ const pt: Messages = {
       phrases: "Frases prontas",
       phrasesDesc: "Uma por linha. Aparecem no painel «Palco» para mostrar com um clique.",
       phrasesReset: "Usar as de fábrica",
+      fitTitle: "Ajuste do projetor",
+      fitDesc: "Para um projetor ou uma TV que corta as bordas da imagem. Fica salvo para a tela {screen}.",
+      fitSize: "Tamanho da imagem",
+      fitSizeDesc: "Diminua até ver inteira a borda branca do padrão. Só muda o projetor: não os monitores, nem o NDI, nem o palco.",
+      pattern: "Padrão de teste",
+      patternDesc: "Cobre o que está projetado com uma borda, setas e um círculo. Desliga ao sair das Configurações.",
     },
     songs: {
       title: "Tema e licença",

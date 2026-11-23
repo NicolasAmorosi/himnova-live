@@ -39,7 +39,7 @@ import { createControlWindow, operatorDisplay } from "./windows/control-window";
 import { installNavigationGuards } from "./windows/navigation-guards";
 import { installApplicationMenu } from "./windows/app-menu";
 import { holdQuitUntilAnswered, installCloseGuard } from "./windows/close-guard";
-import { reconcileDisplayRoles, watchDisplays } from "./windows/projector-screen";
+import { reconcileDisplayRoles, showProjectorPattern, watchDisplays } from "./windows/projector-screen";
 import { closeStageWindow, syncStageWindow } from "./windows/stage-window";
 import { showSheet } from "./windows/sheet";
 import { isNdiWindow, stopNdiOutput, syncNdiOutput } from "./ndi/ndi-output";
@@ -215,6 +215,8 @@ function wireMinimizeRestoreSync(controlWindow: BrowserWindow): void {
     projectionState.forget();
     forgetLiveCopy();
     syncLiveEngine();
+    // The Settings that turned the test pattern on are gone with it: on macOS the next window's projector pulled it on.
+    showProjectorPattern(false);
   });
 }
 
@@ -247,6 +249,8 @@ function openControlWindow(): BrowserWindow {
   // After the control window's page: Playwright takes the first window that loads as the control one, and
   // the NDI output's is a window too.
   win.webContents.once("did-finish-load", syncNdiOutput);
+  // The test pattern goes off with the Settings that turned it on: a control window that died never turns it off.
+  win.webContents.on("render-process-gone", () => showProjectorPattern(false));
   // Vetoes the first close and asks the control window instead — the unsaved
   // schedule is the renderer's to speak for. See `close-guard.ts`.
   installCloseGuard(win);

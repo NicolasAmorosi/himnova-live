@@ -960,6 +960,12 @@ const it: Messages = {
       phrases: "Frasi pronte",
       phrasesDesc: "Una per riga. Compaiono nel pannello «Palco» per mostrarle con un clic.",
       phrasesReset: "Usa quelle predefinite",
+      fitTitle: "Adattamento del proiettore",
+      fitDesc: "Per un proiettore o un televisore che taglia i bordi dell'immagine. Si salva per lo schermo {screen}.",
+      fitSize: "Dimensione dell'immagine",
+      fitSizeDesc: "Riducila finché non vedi intero il bordo bianco della griglia. Cambia solo il proiettore: non i monitor, né l'NDI, né il palco.",
+      pattern: "Griglia di prova",
+      patternDesc: "Copre ciò che è proiettato con un bordo, delle frecce e un cerchio. Si spegne quando esci dalle Impostazioni.",
     },
     songs: {
       title: "Tema e licenza",

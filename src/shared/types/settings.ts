@@ -28,9 +28,10 @@ import {
   type StageLayoutChoice,
   type StageTextSize,
 } from "./stage";
-import { isSceneBackground } from "../style-validators";
+import { isRecord, isSceneBackground } from "../style-validators";
 import { isAudioOutputChoice, type AudioOutputChoice } from "./audio";
 import { LOGO_URL } from "../urls";
+import { PROJECTOR_FIT_MAX_SCREENS, PROJECTOR_FIT_MIN } from "./display";
 import {
   NDI_AUDIO_DELAY_DEFAULT_MS,
   NDI_AUDIO_DELAY_MAX_MS,
@@ -173,6 +174,10 @@ export type SettingsMap = {
    *  only when that row (past plates) is an audio too, at the ended one's
    *  level. A deck's own music follows its deck. */
   "projection.audioEnd": AudioEndAction;
+  /** How big the projector draws the picture, in percent, per screen (`projectorFitKey`): a projector or TV that
+   *  overscans a 1920x1080 signal cuts ~5 % off every edge, and a smaller, centred picture brings them back (owner,
+   *  2026-11-21). A screen with no entry draws at 100. Only the projector window: the monitors, NDI and stage never. */
+  "projection.fit": Record<string, number>;
   /** Whether the LIVE monitor plays its own moving copy of a live video (the
    *  full-screen one and a slide's). Off, it shows the video's thumbnail and
    *  the control window decodes nothing — the projector is never affected. */
@@ -328,6 +333,7 @@ export const DEFAULT_SETTINGS: SettingsMap = {
   "projection.deckEnd": "logo",
   "projection.songEnd": "logo",
   "projection.audioEnd": "stop",
+  "projection.fit": {},
   "projection.transition.durationMs": 300,
   "slides.fallbackFont": null,
   "monitors.liveVideoMotion": true,
@@ -446,6 +452,12 @@ const isRecordOfKinds =
 
 const isStringArray = (v: unknown): boolean => Array.isArray(v) && v.every(isString);
 
+/** One screen's entry in `projection.fit`: a whole percent from 80 to 100 under a key `projectorFitKey` could make. */
+const isProjectorFitEntry = (entry: [string, unknown]): entry is [string, number] => {
+  const [key, percent] = entry;
+  return key.length <= 300 && Number.isInteger(percent) && (percent as number) >= PROJECTOR_FIT_MIN && (percent as number) <= 100;
+};
+
 export const SETTINGS_VALIDATORS: Record<keyof SettingsMap, (value: unknown) => boolean> = {
   "logo.path": isNullOr(isString),
   "logo.mode": isNullOr(isOneOf(LOGO_MODES)),
@@ -484,6 +496,8 @@ export const SETTINGS_VALIDATORS: Record<keyof SettingsMap, (value: unknown) => 
   "projection.deckEnd": isOneOf(VIDEO_END_ACTIONS),
   "projection.songEnd": isOneOf(VIDEO_END_ACTIONS),
   "projection.audioEnd": isOneOf(AUDIO_END_ACTIONS),
+  "projection.fit": (v) =>
+    isRecord(v) && Object.keys(v).length <= PROJECTOR_FIT_MAX_SCREENS && Object.entries(v).every(isProjectorFitEntry),
   "projection.transition.durationMs": isNumberIn(0, TRANSITION_MAX_DURATION_MS),
   "slides.fallbackFont": isNullOr(isOneOf(SLIDE_FALLBACK_FONTS)),
   "monitors.liveVideoMotion": isBoolean,
@@ -574,6 +588,10 @@ export const SETTINGS_NORMALIZERS: {
       : DEFAULT_SETTINGS["audio.live.volume"],
   "audio.output.live": normalizeAudioOutput,
   "audio.output.preview": normalizeAudioOutput,
+  // Screen by screen: an entry another build or a hand-edited row made unreadable costs that screen its size, never
+  // the projector a 0 % picture (a black wall) nor the others theirs (2026-11-22 audit).
+  "projection.fit": (v) =>
+    isRecord(v) ? Object.fromEntries(Object.entries(v).filter(isProjectorFitEntry).slice(-PROJECTOR_FIT_MAX_SCREENS)) : {},
   // A profile that stored the old factory name follows the product's new one; a name the church chose stays.
   "ndi.output.name": (v) =>
     v === FORMER_NDI_NAME || !SETTINGS_VALIDATORS["ndi.output.name"](v)

@@ -1,4 +1,4 @@
-import { BrowserWindow, screen } from "electron";
+import { BrowserWindow, screen, type Display, type Rectangle } from "electron";
 import path from "node:path";
 import { loadPage } from "./load-page";
 import { mt } from "../i18n";
@@ -84,6 +84,7 @@ export function createProjectionWindow(displayId?: number): BrowserWindow {
   // second display was verified with it (2026-10-14 rehearsal), and
   // `showInactive` there has not been.
   win.once("ready-to-show", () => (process.platform === "win32" ? win.showInactive() : win.show()));
+  logPlacement(win, target, windowed);
   // The projector has no keys of its own. Whatever reaches it — on macOS it
   // takes the keyboard when it opens, and a click on its screen gives it the
   // keyboard on any system — is the operator's shortcut, answered by the
@@ -95,6 +96,24 @@ export function createProjectionWindow(displayId?: number): BrowserWindow {
   }
 
   return win;
+}
+
+const box = (b: Rectangle): string => `${b.width}x${b.height} at ${b.x},${b.y}`;
+
+/** Where the projector went, in main.log: a church's «the picture is cut» starts there (2026-11-21). A full-screen
+ *  window that does not cover its screen exactly, once it has settled, is said too. */
+function logPlacement(win: BrowserWindow, target: Display, windowed: boolean): void {
+  const pixels = `${Math.round(target.bounds.width * target.scaleFactor)}x${Math.round(target.bounds.height * target.scaleFactor)}`;
+  const mode = windowed ? "a window on the control's screen" : "full screen";
+  console.info(`[projector] ${mode} on «${target.label}» ${box(target.bounds)}, ${pixels} px at ${Math.round(target.scaleFactor * 100)} %`);
+  if (windowed) return;
+  win.once("show", () =>
+    setTimeout(() => {
+      if (win.isDestroyed() || !win.isVisible()) return;
+      const got = win.getContentBounds();
+      if (box(got) !== box(target.bounds)) console.warn(`[projector] the window is ${box(got)}, its screen ${box(target.bounds)}`);
+    }, 3_000),
+  );
 }
 
 /** Every key that reaches `win` is the operator's shortcut, answered by the

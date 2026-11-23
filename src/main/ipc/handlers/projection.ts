@@ -12,6 +12,7 @@ import { keepLiveDeckSource } from "../../protocol/worship-protocol";
 import { reopenStageWindow, showOnStage, stageShown, stageSnapshot } from "../../windows/stage-window";
 import { crashLimit } from "../../windows/crash-limit";
 import { reportLevel } from "../../media/audio-levels";
+import { projectorFit, showProjectorPattern } from "../../windows/projector-screen";
 
 /** How long `projection:open` waits for the new window to mount: a renderer
  *  that never pulls its snapshot must not leave GO LIVE hanging. */
@@ -35,6 +36,8 @@ export const projectionHandlers: Pick<
   | "projection:reportMediaStatus"
   | "projection:reportMediaError"
   | "projection:getSnapshot"
+  | "projection:getFit"
+  | "projection:showPattern"
   | "projection:wantVideoFrame"
   | "projection:reportLevels"
   | "stage:show"
@@ -161,6 +164,12 @@ export const projectionHandlers: Pick<
       diedAt = null;
     }
     return projectionState.getSnapshot();
+  },
+
+  "projection:getFit": () => projectorFit(),
+  "projection:showPattern": (on) => {
+    if (typeof on !== "boolean") throw new IpcError({ code: "INVALID_ARGUMENT", message: "Invalid pattern flag." });
+    showProjectorPattern(on);
   },
 
   "projection:mediaCommand": (command) => {

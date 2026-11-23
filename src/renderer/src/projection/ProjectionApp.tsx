@@ -5,6 +5,7 @@ import { OutputView } from "@renderer/components/shared/output-view";
 import { useMediaStatusReporter } from "./use-media-status-reporter";
 import { useAudioSink } from "@renderer/lib/hooks/use-audio-sink";
 import { INSTANT_TRANSITION } from "@shared/types/projection";
+import type { ProjectorFit } from "@shared/types/display";
 import { isEngineUrl } from "@shared/urls";
 import { releaseMedia } from "@renderer/lib/release-media";
 import { startLevelTap } from "@renderer/lib/level-tap";
@@ -20,6 +21,64 @@ import type {
  *  window's job (see `projection-sync.ts`). */
 function reportMediaError(error: ProjectionMediaError): void {
   void api.projection.reportMediaError(error);
+}
+
+/** Settings ▸ Screens' fit for this screen: pulled once on mount, like the snapshot, then every push. `null` until
+ *  main answers: a projector reopened mid-service painted its picture whole for an instant, then shrank. */
+function useProjectorFit(): ProjectorFit | null {
+  const [fit, setFit] = useState<ProjectorFit | null>(null);
+  useEffect(() => {
+    let pushed = false;
+    const off = onIpc("projector-fit", (next) => {
+      pushed = true;
+      setFit(next);
+    });
+    // A pull that fails draws the picture whole, as before the fit existed, never a black wall.
+    void api.projection.getFit().then(
+      (pulled) => {
+        if (!pushed) setFit(pulled);
+      },
+      () => {
+        if (!pushed) setFit({ scale: 1, pattern: false });
+      },
+    );
+    return off;
+  }, []);
+  return fit;
+}
+
+/** Where an arrow of the test pattern sits, pointing at its edge: `[x, y, preserveAspectRatio, points]`. */
+const PATTERN_ARROWS = [
+  ["46%", "0", "xMidYMin meet", "5,0 10,8 0,8"],
+  ["46%", "92%", "xMidYMax meet", "5,10 10,2 0,2"],
+  ["0", "46%", "xMinYMid meet", "0,5 8,0 8,10"],
+  ["92%", "46%", "xMaxYMid meet", "10,5 2,0 2,10"],
+] as const;
+const PATTERN_LINES = [10, 20, 30, 40, 50, 60, 70, 80, 90];
+
+/** The test pattern Settings ▸ Screens puts over the picture while the operator fits it: a white border on the very
+ *  edge, an arrow at the middle of each side touching it, a grid and a circle. Every edge has to show whole on the
+ *  wall; a circle that comes out oval is a projector stretching the picture. No words: it speaks every language. */
+function FitPattern() {
+  return (
+    <div aria-hidden className="absolute inset-0 bg-black text-white" data-fit-pattern>
+      <svg className="absolute inset-0 size-full">
+        {PATTERN_LINES.map((at) => (
+          <g key={at} stroke="#5a5a5a" strokeWidth="1">
+            <line x1={`${at}%`} x2={`${at}%`} y1="0" y2="100%" />
+            <line x1="0" x2="100%" y1={`${at}%`} y2={`${at}%`} />
+          </g>
+        ))}
+        <circle cx="50%" cy="50%" fill="none" r="30%" stroke="currentColor" strokeWidth="3" />
+        {PATTERN_ARROWS.map(([x, y, align, points]) => (
+          <svg height="8%" key={align} preserveAspectRatio={align} viewBox="0 0 10 10" width="8%" x={x} y={y}>
+            <polygon fill="currentColor" points={points} />
+          </svg>
+        ))}
+      </svg>
+      <div className="absolute inset-0 border-[6px] border-white" />
+    </div>
+  );
 }
 
 type AudioTrackElementProps = {
@@ -241,19 +300,35 @@ export function ProjectionApp() {
     [meters],
   );
 
+  const fit = useProjectorFit();
+
   useMediaStatusReporter(videoRef, null, output.videoUnderlay?.epoch ?? 0);
   useMediaStatusReporter(slideVideoRef, null, output.slideVideo?.epoch ?? 0, "slideVideo");
 
   return (
-    <div className="h-screen w-screen bg-black">
-      <OutputView
-        key={hasRealOutput ? "live" : "placeholder"}
-        mode="live"
-        onMediaError={reportMediaError}
-        output={output}
-        slideVideoRef={slideVideoRef}
-        videoRef={videoRef}
-      />
+    <div className="flex h-screen w-screen items-center justify-center bg-black">
+      {/* Smaller than the window, centred, for a projector that overscans: the picture is laid out at this size, not
+          scaled down after, so text and slides are drawn sharp at it. */}
+      <div
+        className="relative"
+        style={{
+          height: `${(fit?.scale ?? 1) * 100}%`,
+          width: `${(fit?.scale ?? 1) * 100}%`,
+          visibility: fit ? undefined : "hidden",
+        }}
+      >
+        {/* Its own stacking context: its scene layers carry z-indexes, and painted the picture over the pattern. */}
+        <OutputView
+          className="isolate"
+          key={hasRealOutput ? "live" : "placeholder"}
+          mode="live"
+          onMediaError={reportMediaError}
+          output={output}
+          slideVideoRef={slideVideoRef}
+          videoRef={videoRef}
+        />
+        {fit?.pattern ? <FitPattern /> : null}
+      </div>
 
       {/* Outside the output view on purpose: keyed by trackId+epoch so a track
           restarts from the beginning only when it is truly a new play (a

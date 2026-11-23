@@ -4,6 +4,7 @@ import { getSettingsRepo } from "../services/repos";
 import { operatorDisplay } from "./control-window";
 import { chooseProjectorMove, printOf, recognizeDisplay } from "./projector-display-choice";
 import { refitStageWindow, syncStageWindow } from "./stage-window";
+import { projectorFitKey, type ProjectorFit } from "@shared/types/display";
 
 /**
  * What the projection window needs from the operating system while it exists,
@@ -35,6 +36,8 @@ type Attached = { win: BrowserWindow; displayId: number; blocker: number; hidden
 let attached: Attached | null = null;
 /** The screens of the last change, to tell the ones that just appeared (`chooseProjectorMove`). */
 let knownIds: number[] = [];
+/** Settings ▸ Screens' test pattern. In memory only: it must never come back with a restart. */
+let pattern = false;
 
 /** Called for every new projection window, with the screen it was put on. A
  *  replaced window's `closed` arrives after the new one is attached, so it is
@@ -109,6 +112,35 @@ function place(current: Attached, display: Display): void {
   win.setAlwaysOnTop(true, "screen-saver");
   current.displayId = display.id;
   current.hidden = false;
+  // Another screen may be another projector, with a fit of its own.
+  syncProjectorFit();
+}
+
+/** The projector's picture on the screen it is on now: `projection.fit`'s entry for that screen, 100 % without one. */
+export function projectorFit(): ProjectorFit {
+  const display = attached && screen.getAllDisplays().find((candidate) => candidate.id === attached?.displayId);
+  let percent = 100;
+  try {
+    if (display) {
+      const key = projectorFitKey(display.label, display.bounds.width, display.bounds.height, display.scaleFactor);
+      percent = getSettingsRepo().get("projection.fit")[key] ?? 100;
+    }
+  } catch {
+    // Settings not ready: the whole picture.
+  }
+  return { scale: percent / 100, pattern };
+}
+
+/** Sends the projector its fit: after `projection.fit` changes, the pattern toggles or the window changes screen. The
+ *  window pulls it once on mount (`projection:getFit`), so a send before its page listens is not lost. */
+export function syncProjectorFit(): void {
+  if (attached && !attached.win.isDestroyed()) attached.win.webContents.send("projector-fit", projectorFit());
+}
+
+export function showProjectorPattern(on: boolean): void {
+  if (pattern === on) return;
+  pattern = on;
+  syncProjectorFit();
 }
 
 function onDisplaysChanged(): void {
@@ -164,6 +196,8 @@ function onDisplayMetricsChanged(_event: unknown, display: Display, changed: str
     place(current, display);
   }
   refitStageWindow(display);
+  // Another mode can be another fit (macOS never re-places the window above).
+  if (current?.displayId === display.id) syncProjectorFit();
   broadcast("displays-changed", undefined);
 }
 

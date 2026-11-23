@@ -964,6 +964,12 @@ const es = {
       phrases: "Frases listas",
       phrasesDesc: "Una por línea. Aparecen en el panel «Escenario» para mostrarlas con un clic.",
       phrasesReset: "Usar las de fábrica",
+      fitTitle: "Ajuste del proyector",
+      fitDesc: "Para un proyector o una TV que corta los bordes de la imagen. Se guarda para la pantalla {screen}.",
+      fitSize: "Tamaño de la imagen",
+      fitSizeDesc: "Achicala hasta ver entero el borde blanco del patrón. Cambia solo el proyector: no los monitores, ni el NDI, ni el escenario.",
+      pattern: "Patrón de prueba",
+      patternDesc: "Tapa lo que se proyecta con un borde, flechas y un círculo. Se apaga al salir de Configuración.",
     },
     songs: {
       title: "Tema y licencia",

@@ -1,6 +1,6 @@
 import { screen } from "electron";
 import type { Handlers } from "../register";
-import type { DisplayInfo } from "@shared/types/display";
+import { projectorFitKey, resolutionLabel, type DisplayInfo } from "@shared/types/display";
 import { operatorDisplay } from "../../windows/control-window";
 import { identifyDisplays } from "../../windows/identify-displays";
 
@@ -15,7 +15,8 @@ import { identifyDisplays } from "../../windows/identify-displays";
  * only field that distinguishes them. It can come back empty (it regularly
  * does on Linux), so the resolution stays as the fallback and as the suffix —
  * "DELL U2718Q · 3840x2160" tells the operator both which box and which
- * picture. When even that collides, an ordinal is appended, because a Select
+ * picture (`resolutionLabel`: in pixels, with Windows' scale when it has
+ * one). When even that collides, an ordinal is appended, because a Select
  * with two identical options is a coin flip.
  */
 function composeLabels(labels: string[]): string[] {
@@ -37,7 +38,7 @@ export const displaysHandlers: Pick<Handlers, "displays:list" | "displays:identi
     const operatorId = operatorDisplay().id;
     const labels = composeLabels(
       displays.map((d) => {
-        const resolution = `${d.bounds.width}x${d.bounds.height}`;
+        const resolution = resolutionLabel(d.bounds.width, d.bounds.height, d.scaleFactor, process.platform);
         const name = d.label.trim();
         return name && name !== resolution ? `${name} · ${resolution}` : resolution;
       }),
@@ -48,6 +49,7 @@ export const displaysHandlers: Pick<Handlers, "displays:list" | "displays:identi
       operator: d.id === operatorId,
       bounds: d.bounds,
       scaleFactor: d.scaleFactor,
+      fitKey: projectorFitKey(d.label, d.bounds.width, d.bounds.height, d.scaleFactor),
     }));
   },
 };

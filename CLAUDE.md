@@ -533,6 +533,11 @@ npm run package:win|mac|linux  # build + electron-builder for that platform
   hymn again from its first slide and its music from 0:00. Only what really reached the projector or the
   speakers leaves, and only if PREVIEW still holds it; the «next» of «Al terminar» never touches PREVIEW. A
   deck or song already on air, picked again, is only uncovered, never sent again.
+- **The projector alone can draw the picture smaller** (owner, 2026-11-21): Settings ▸ Screens ▸ «Ajuste del
+  proyector» lays it out at 80–100 %, centred, per screen (`projection.fit`), for a projector or TV that overscans,
+  with a test pattern on top while that page is open. Main pushes it to the projector window only (`projector-fit`);
+  the monitors, the NDI copy and the stage never get it. Diagnosis in
+  [`.claude/knowledge/a-cut-picture-on-a-projector-is-overscan-and-a-windows-screen-reads-in-scaled-units.md`](.claude/knowledge/a-cut-picture-on-a-projector-is-overscan-and-a-windows-screen-reads-in-scaled-units.md).
 - **The monitors use the same renderer as the projector.**
   `components/shared/output-view.tsx` (`OutputView`) is what paints the projection window AND
   the LIVE and PREVIEW monitors. If the preview and what's projected paint differently, a monitor can

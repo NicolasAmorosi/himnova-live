@@ -5,7 +5,7 @@ import { SETTINGS_VALIDATORS, isSettingsKey, type SettingsMap } from "@shared/ty
 import { mainMessages, setMainLocale } from "../../i18n";
 import { installApplicationMenu } from "../../windows/app-menu";
 import { reopenStageWindow, syncStageWindow } from "../../windows/stage-window";
-import { reconcileDisplayRoles } from "../../windows/projector-screen";
+import { reconcileDisplayRoles, syncProjectorFit } from "../../windows/projector-screen";
 import { factoryVerseStyle } from "../../db/seed/seed-starter-look";
 import { profileBackgroundsDir } from "../../paths";
 import { syncNdiOutput } from "../../ndi/ndi-output";
@@ -60,6 +60,7 @@ export const settingsHandlers: Pick<Handlers, "settings:get" | "settings:set" | 
     if ("stage.displayId" in partial) reopenStageWindow();
     if ("stage.displayId" in partial || "projection.displayId" in partial) syncStageWindow();
     if (Object.keys(partial).some((key) => key.startsWith("ndi.output."))) syncNdiOutput();
+    if ("projection.fit" in partial) syncProjectorFit();
   },
   "settings:factoryVerseStyle": () => factoryVerseStyle(getMediaRepo(), profileBackgroundsDir, mainMessages().look),
 };
