@@ -52,12 +52,14 @@ restart mid-service left the schedule empty).
 Neither says which row was on air, and the draft cannot: it is `null` for the usual case, a saved program used
 unedited. That row is its own setting, `settings["programs.liveRow"]` (its position and the row as a save sends it,
 since ids change at every launch), written by the same `startOpenProgramMemory` whenever the row on air changes and
-`null` when nothing of the schedule is. Main clears it when the control window closes (`forgetLiveCopy`, from its
-`closed`: by then the close was answered, or it was the update's or a restore's quit), so a mark found at launch means
-a crash, a killed process or a power cut. `App` then puts that row in PREVIEW, as a click on it would, after the
-draft or the program is back (`restoreLiveRow`: at its place, else the only row like it, else nothing); never on air
-(owner, 2026-11-23, DU-6). A setting and not a table: settings are never exported, and a copy of the database
-(`backups/`) carries it like it carries the draft, so restoring one made mid-service may open with a row in PREVIEW.
+`null` when nothing of the schedule is. Main clears it on a clean close only (`forgetLiveRow`): the control window's
+page answering «close», or the update's or a restore's quit, which the page asked about first. Never from the window's
+`closed`, which a hung page's window also reaches when the close guard's grace shuts it. So a mark found at launch means
+a crash, a killed process, a power cut, a hung or dead page closed anyway. `App` then puts that row in PREVIEW, as a
+click on it would, after the draft or the program is back (`restoreLiveRow`: at its place, else the only row like it,
+else nothing); never on air (owner, 2026-11-23, DU-6). A setting and not a table: settings are never exported, and a
+copy of the database (`backups/`) carries it like it carries the draft, so restoring one made mid-service may open with
+a row in PREVIEW.
 
 Its items are a **JSON blob**, not `program_items` rows, and that's deliberate: a draft has to be
 able to reference an asset the operator is about to delete, which is exactly what that table's FK

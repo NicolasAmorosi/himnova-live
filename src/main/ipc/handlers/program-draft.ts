@@ -16,9 +16,10 @@ export function forgetLiveCopy(): void {
 
 /** A clean close: the control window's page answered «close» (`window:closeDecision`), or the update or the restore
  *  quit after the page asked (`releaseForUpdate`). The projector goes with the window, so no row is on air and the
- *  next launch puts none in PREVIEW (`programs.liveRow`, DU-6). Not from the window's `closed`: a hung page's window
- *  closed by the grace gets there too, and that end is the crash the mark is for. A crash, a killed process or a power
- *  cut never call this either. */
+ *  next launch puts none in PREVIEW (`programs.liveRow`, DU-6); a restored copy swapped in at that launch brings its own
+ *  mark. Not from the window's `closed`: a hung page's window closed by the grace gets there too, and that end is the
+ *  crash the mark is for. A crash, a killed process or a power cut never call this either, nor a dead page's box
+ *  (`askWithoutPage`): that page could not say what was on air. */
 export function forgetLiveRow(): void {
   try {
     getSettingsRepo().setMany({ "programs.liveRow": null });
