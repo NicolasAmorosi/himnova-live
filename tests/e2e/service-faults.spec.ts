@@ -63,15 +63,17 @@ for (const [label, name] of [
   ["video", "clip.mp4"],
   ["picture", "photo.png"],
 ] as const) {
-  test(`a ${label} PREVIEW marks «Media no encontrada» never takes the verse off the projector`, async ({ app }) => {
+  test(`a ${label} gone since the last sweep never takes the verse off the projector, and Enter marks it`, async ({ app }) => {
     const projector = await verseLive(app);
     const file = copyIn(app, name);
     await addToSchedule(app, file);
-    fs.renameSync(file, `${file}.gone`); // moved, deleted, a pendrive not plugged in on Sunday
+    fs.renameSync(file, `${file}.gone`); // moved, deleted, a pendrive pulled
     await scheduleRows(app).first().click();
-    await expect(app.previewColumn().getByText("Media no encontrada").first()).toBeVisible();
+    // No sweep is waited for: it runs on a window's focus, 30 s apart, and this test failed whenever none came after
+    // the rename (2026-11-22 audit, TQ11). Enter looks at the file itself.
     await app.control.keyboard.press("Enter");
     await expect(app.control.getByRole("status").filter({ hasText: "no se puede proyectar" })).toBeVisible();
+    await expect(app.previewColumn().getByText("Media no encontrada").first()).toBeVisible();
     await app.control.waitForTimeout(1000);
     await expect(projector.getByText(JUAN_3_16, { exact: false })).toBeVisible();
   });
