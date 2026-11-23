@@ -285,7 +285,7 @@ export const useBibleStore = create<BibleStoreState>((set, get) => ({
     if (target?.kind === "verse") {
       const index = follow(target.verseIndex);
       if (index === null) usePreviewStore.getState().clear();
-      else usePreviewStore.getState().setTarget({ kind: "verse", verseIndex: index });
+      else usePreviewStore.getState().setTarget({ ...target, verseIndex: index });
     }
     set({
       versionId,

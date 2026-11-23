@@ -69,6 +69,19 @@ describe("goLive with a plate", () => {
     expect(useProgramStore.getState().activeIndex).toBe(0);
   });
 
+  test("a plate row with a row under it leaves that row in PREVIEW (`previewNext`)", async () => {
+    const { addItem } = useProgramStore.getState();
+    addItem({ kind: "plate", overlayPlateId: bug.id, title: null });
+    addItem({ kind: "media", mediaAssetId: 12, title: null });
+    useProgramStore.getState().select(0);
+    usePreviewStore.getState().setTarget({ kind: "scheduleItem" });
+    await goLive();
+
+    expect(useProjectionStore.getState().livePlates.map((p) => p.id)).toEqual([bug.id]);
+    expect(useProgramStore.getState().selectedIndex).toBe(1);
+    expect(usePreviewStore.getState().target).toMatchObject({ kind: "scheduleItem" });
+  });
+
   test("does not lift BLACK: the plate goes up covered", async () => {
     useProjectionStore.getState().setOverlay("black");
     usePreviewStore.getState().setTarget({ kind: "plate", plateId: pastor.id });

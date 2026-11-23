@@ -1,5 +1,5 @@
 import { useT } from "@renderer/lib/i18n/i18n-provider";
-import { Button, FieldGroup, FieldRow, Icon, Select } from "@renderer/components/ui";
+import { Button, FieldGroup, FieldRow, Icon, Select, Switch } from "@renderer/components/ui";
 import { LogoGroup } from "@renderer/components/shared/settings-groups/logo-group";
 import { NdiOutputGroup } from "@renderer/components/shared/settings-groups/ndi-output-group";
 import { transitionDurationOptions, transitionStyleOptions } from "@renderer/lib/transition";
@@ -25,6 +25,7 @@ export function ProjectionSection() {
   const deckEnd = useSettingsStore((s) => s.settings["projection.deckEnd"]);
   const songEnd = useSettingsStore((s) => s.settings["projection.songEnd"]);
   const audioEnd = useSettingsStore((s) => s.settings["projection.audioEnd"]);
+  const previewNext = useSettingsStore((s) => s.settings["projection.previewNext"]);
   const updateSettings = useSettingsStore((s) => s.update);
 
   return (
@@ -38,6 +39,12 @@ export function ProjectionSection() {
           <Button disabled={base === null} onClick={clearLive} variant="outline">
             <Icon name="offAir" /> {t("live.takeOffAir")}
           </Button>
+        </FieldRow>
+        <FieldRow description={t("settings.previewNextDesc")} label={t("settings.previewNext")}>
+          <Switch
+            checked={previewNext}
+            onChange={(e) => void updateSettings({ "projection.previewNext": e.target.checked })}
+          />
         </FieldRow>
         <FieldRow
           description={t("settings.videoEndDesc")}

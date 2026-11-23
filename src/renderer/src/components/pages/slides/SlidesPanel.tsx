@@ -76,6 +76,8 @@ export function SlidesPanel() {
     // can walk the passage without going back to the resource tab.
     if (content.kind === "bible" && target?.kind === "verse" && verses.length > 0) {
       const previewedVerseIndex = target.verseIndex;
+      // A verse walked out of a Bible row: another one of this chapter is still that row's.
+      const { row } = target;
       return (
         <VirtualGrid
           aria-label={t("bible.title")}
@@ -88,9 +90,9 @@ export function SlidesPanel() {
             <ThumbTile
               index={verse.verse}
               live={liveVerseIndex === index && base?.kind === "bible"}
-              onClick={() => previewVerse(index)}
+              onClick={() => previewVerse(index, row)}
               onDoubleClick={() => {
-                previewVerse(index);
+                previewVerse(index, row);
                 void goLive();
               }}
               selected={previewedVerseIndex === index}

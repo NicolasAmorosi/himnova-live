@@ -1291,6 +1291,8 @@ const es = {
     songEndHelp: "«Pasar al siguiente del programa» manda en vivo el próximo ítem; si la canción no está en el programa o es la última, muestra el logo. Con NEGRO o LOGO arriba, solo la saca del aire.",
     audioEnd: "Al terminar un audio",
     audioEndDesc: "Qué hace un audio mandado en vivo cuando termina. La música de una presentación sigue a su presentación.",
+    previewNext: "Lo que sigue en PREVIEW",
+    previewNextDesc: "Al mandar EN VIVO una fila del programa, PREVIEW muestra la de abajo. Apagado, PREVIEW queda vacía.",
     audioEndHelp: "«Pasar al siguiente audio del programa» hace sonar la fila que sigue, si también es un audio (las placas se saltan), al mismo volumen que el que terminó; si no, se detiene. Un audio mandado desde la biblioteca, fuera del programa, se detiene.",
     audioEndOptions: { stop: "Detenerse", loop: "Repetir en bucle", next: "Pasar al siguiente audio del programa" },
     startVolume: "Volumen inicial",
@@ -1471,7 +1473,7 @@ const es = {
         title: "Elegí",
         body: "Un clic en un versículo, una canción o un archivo lo pone en la vista previa (Preview). Ahí lo ves solo vos.",
       },
-      live: { title: "Proyectá", body: "Enter, doble clic o EN VIVO lo manda al proyector, y la vista previa queda libre para lo que sigue." },
+      live: { title: "Proyectá", body: "Enter, doble clic o EN VIVO lo manda al proyector, y la vista previa queda lista para lo que sigue." },
       cover: {
         title: "Tapá",
         body: "NEGRO deja la pantalla en negro y LOGO muestra tu iglesia. Con VIVO vuelve lo que estaba.",
@@ -1526,10 +1528,10 @@ const es = {
     },
     preview: {
       title: "Lo que sale al aire se va de PREVIEW",
-      subtitle: "Cuando mandás algo al proyector, PREVIEW queda vacía y lista para lo que sigue. Así un Enter de más ya no reinicia el himno que está sonando.",
+      subtitle: "Cuando mandás algo al proyector, sale de PREVIEW y PREVIEW queda lista para lo que sigue. Así un Enter de más ya no reinicia el himno que está sonando.",
       demo: "PREVIEW y EN VIVO mientras se mandan dos versículos",
-      free: { title: "PREVIEW queda libre", body: "Lo que mandaste se ve en EN VIVO. En el programa, la fila se desmarca y conserva su marca de al aire." },
-      enter: { title: "Un Enter de más no hace nada", body: "Con PREVIEW vacía, Enter y EN VIVO no tocan lo que está al aire." },
+      free: { title: "PREVIEW pasa a lo que sigue", body: "Lo que mandaste se ve en EN VIVO y conserva su marca de al aire en el programa. Un versículo deja PREVIEW vacía; una fila del programa deja la de abajo." },
+      enter: { title: "Un Enter de más no repite nada", body: "Con PREVIEW vacía, Enter y EN VIVO no tocan lo que está al aire. Si muestra la fila siguiente, Enter manda esa." },
       back: { title: "Volver a lo que está al aire", body: "Si lo elegís otra vez, EN VIVO solo lo destapa y nunca lo reinicia. Para empezar de cero está «Reiniciar»." },
       beats: {
         pick: "Elegís un versículo: lo ves en PREVIEW.",

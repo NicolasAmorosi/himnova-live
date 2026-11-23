@@ -63,6 +63,15 @@ export function useItemLabel(item: ProgramItemDTO): string {
   return item.reference;
 }
 
+/** The file behind a program item, whole path: a video's, an image's, an audio's or a presentation's, and a song's
+ *  when it is tied to one (a linked folder's, or imported from a file). Nothing else has a file. */
+export function useItemPath(item: ProgramItemDTO): string | null {
+  const asset = useMediaAsset(item.kind === "media" || item.kind === "ppt" ? item.mediaAssetId : null);
+  const songs = useSongStore((s) => s.songs);
+  if (item.kind === "song") return findSong(songs, item.songId)?.file ?? null;
+  return item.kind === "media" || item.kind === "ppt" ? (asset?.path ?? null) : null;
+}
+
 /** Icon + badge tone for a program item — a media item refines its generic
  *  kind icon into the asset's actual video/image/audio icon once the asset
  *  loads, and a utility item into its tool's. Shared by the schedule and the

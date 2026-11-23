@@ -1,7 +1,7 @@
 import { api } from "@renderer/lib/api";
 import { t } from "@renderer/lib/i18n/i18n-provider";
 import { toast } from "@renderer/lib/toast";
-import { useProgramStore } from "@renderer/stores/program.store";
+import { rememberSavedRowIds, useProgramStore } from "@renderer/stores/program.store";
 import { useSettingsStore } from "@renderer/stores/settings.store";
 import type {
   ProgramDraft,
@@ -103,6 +103,7 @@ function adoptSaved(full: ProgramDTO, sent: ProgramItemDTO[], savedFrom: number 
   }
   useProgramStore.getState().loadProgram(full);
   useProgramStore.setState({ selectedIndex, activeIndex });
+  rememberSavedRowIds(sent, useProgramStore.getState().items);
 }
 
 /** Overwrites the currently loaded program with the schedule as it stands —

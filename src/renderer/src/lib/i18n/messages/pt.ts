@@ -1279,6 +1279,8 @@ const pt: Messages = {
     songEndHelp: "“Passar ao próximo do roteiro” manda ao vivo o próximo item; se a música não estiver no roteiro ou for a última, mostra o logo. Com PRETO ou LOGO por cima, só a tira do ar.",
     audioEnd: "Quando um áudio termina",
     audioEndDesc: "O que um áudio mandado ao vivo faz quando termina. A música de uma apresentação segue a sua apresentação.",
+    previewNext: "O que vem depois no Preview",
+    previewNextDesc: "Ao mandar AO VIVO uma linha do roteiro, o Preview mostra a de baixo. Desligado, o Preview fica vazio.",
     audioEndHelp: "“Passar ao próximo áudio do roteiro” toca a linha seguinte, se também for um áudio (os overlays são pulados), no mesmo volume do que terminou; se não, para. Um áudio mandado da biblioteca, fora do roteiro, para.",
     audioEndOptions: { stop: "Parar", loop: "Repetir em loop", next: "Passar ao próximo áudio do roteiro" },
     startVolume: "Volume inicial",
@@ -1452,7 +1454,7 @@ const pt: Messages = {
         title: "Escolha",
         body: "Um clique num versículo, numa música ou num arquivo coloca no Preview. Ali só você vê.",
       },
-      live: { title: "Projete", body: "Enter, um clique duplo ou AO VIVO manda para o projetor, e o preview fica livre para o que vem depois." },
+      live: { title: "Projete", body: "Enter, um clique duplo ou AO VIVO manda para o projetor, e o preview fica pronto para o que vem depois." },
       cover: {
         title: "Cubra",
         body: "PRETO deixa a tela preta e LOGO mostra sua igreja. Com NO AR volta o que estava.",
@@ -1507,10 +1509,10 @@ const pt: Messages = {
     },
     preview: {
       title: "O que vai ao ar sai do Preview",
-      subtitle: "Quando você manda algo para o projetor, o Preview fica vazio, pronto para o que vem depois. Assim um Enter a mais não recomeça o hino que está tocando.",
+      subtitle: "Quando você manda algo para o projetor, ele sai do Preview, pronto para o que vem depois. Assim um Enter a mais não recomeça o hino que está tocando.",
       demo: "Preview e Ao vivo enquanto dois versículos são mandados",
-      free: { title: "O Preview fica livre", body: "O que você mandou aparece em Ao vivo. No programa, a linha é desmarcada e mantém sua marca de no ar." },
-      enter: { title: "Um Enter a mais não faz nada", body: "Com o Preview vazio, Enter e AO VIVO não mexem no que está no ar." },
+      free: { title: "O Preview passa para o que vem depois", body: "O que você mandou aparece em Ao vivo e mantém sua marca de no ar no roteiro. Um versículo deixa o Preview vazio; uma linha do roteiro deixa a de baixo." },
+      enter: { title: "Um Enter a mais não repete nada", body: "Com o Preview vazio, Enter e AO VIVO não mexem no que está no ar. Se ele mostra a linha seguinte, Enter manda essa." },
       back: { title: "Voltar ao que está no ar", body: "Se você escolher de novo, AO VIVO só descobre e nunca recomeça. Para começar do zero, use «Reiniciar»." },
       beats: {
         pick: "Você escolhe um versículo: ele aparece no Preview.",

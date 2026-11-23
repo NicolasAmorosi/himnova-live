@@ -199,7 +199,7 @@ export async function previewItemVerse(item: BibleScheduleItem, verse: number): 
   if (!verses.some((v) => v.verse === verse) || !stillHere()) return;
   if (!(await openItemChapter(item, stillHere))) return;
   const index = useBibleStore.getState().verses.findIndex((v) => v.verse === verse);
-  if (index >= 0) previewVerse(index);
+  if (index >= 0) previewVerse(index, item);
 }
 
 /**

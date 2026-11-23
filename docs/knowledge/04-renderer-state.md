@@ -273,9 +273,15 @@ EasyWorship's two-stage flow:
   deck that won't open, a missing file or a superseded press keep it) and only if PREVIEW still holds
   what was pressed. Not `clearPreview()`, which also drops the live verse's cursor. Everything PREVIEW
   names (the row by identity, the chapter a verse indexes into) is pinned before the first `await`,
-  so a click during the projector's opening is never what goes out. A deck or a song already on air,
-  picked again, is only uncovered (`isAlreadyLive`), as a video or a countdown already was. The «next»
-  of «Al terminar» (`goLiveWithNextScheduleItem`) never touches PREVIEW. Also `clearLive()` (CLEAR), `advanceSlide`/`gotoSlide` and `toggleOverlay`. It orders
+  so a click during the projector's opening is never what goes out. **A schedule row leaves the row under
+  it in PREVIEW instead** (owner, 2026-11-21; `projection.previewNext`, on by default), found by id when the
+  commit lands: the next Enter is the next part of the service; past the last row PREVIEW is empty. A verse
+  walked out of a Bible row with ↓ carries that row (`row` on the `verse` target): sent, it takes the row's rail and
+  leaves the row under it (owner, 2026-11-22). «Al terminar: siguiente» (`goLiveWithNextScheduleItem`,
+  `goLiveWithNextScheduleAudio`) moves PREVIEW only when PREVIEW holds a row from the one that ended down to the one
+  it sent (`followChain`): Enter sent that row again over the live one (owner, 2026-11-22). A row above where the chain
+  started, or further down, stays. A deck, a song or an image already
+  on air, picked again, is only uncovered (`isAlreadyLive`), as a video or a countdown already was. Also `clearLive()` (CLEAR), `advanceSlide`/`gotoSlide` and `toggleOverlay`. It orders
   things so that a deck is **ready before** `base` changes: hitting GO LIVE on a deck not read yet
   leaves the projector as it is instead of cutting to black while it is read; one that won't open
   changes nothing there and says why in a toast (`explainDeckFailure`).

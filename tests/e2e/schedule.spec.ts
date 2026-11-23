@@ -188,6 +188,61 @@ test("Enter pressed twice on a video row keeps one video on the projector", asyn
   expect((await videoStates(projector)).filter((video) => video.opacity > 0)).toHaveLength(1);
 });
 
+/** Feedback from a service (owner, 2026-11-21): the next Enter is the next part of the service. */
+test("a row sent live leaves the one under it in PREVIEW, so Enter walks the order of service", async ({ app }) => {
+  await addAll(app, "clip.mp4", "photo.png", "song.mp3");
+  await expect(scheduleRows(app)).toHaveText([/clip/, /photo/, /song/]);
+  await row(app, "clip").click();
+  await app.control.keyboard.press("Enter");
+  const projector = await app.projector();
+  await expect.poll(async () => (await videoStates(projector)).length).toBe(1);
+  await expect(row(app, "photo")).toHaveAttribute("aria-current", "true");
+  await expect(rail(row(app, "clip"))).toHaveCount(1);
+
+  await app.control.keyboard.press("Enter");
+  await expect(projector.locator('img[src^="worship://asset/"]')).toBeVisible();
+  await expect(row(app, "song")).toHaveAttribute("aria-current", "true");
+
+  // The last row: it plays, and PREVIEW is left empty, so one more Enter sends nothing.
+  await app.control.keyboard.press("Enter");
+  await expect.poll(async () => (await audioStates(projector)).length).toBe(1);
+  await expect(scheduleRows(app).and(app.control.locator('[aria-current="true"]'))).toHaveCount(0);
+  await app.control.keyboard.press("Enter");
+  await app.control.waitForTimeout(500);
+  expect(await audioStates(projector)).toHaveLength(1);
+});
+
+test("with «Lo que sigue en PREVIEW» off, a row sent live leaves PREVIEW empty", async ({ app }) => {
+  await app.control.getByRole("button", { name: "Configuración" }).click();
+  const settings = app.control.getByRole("dialog", { name: "Configuración" });
+  await settings.getByRole("tab", { name: "Proyección" }).click();
+  const toggle = settings.getByRole("group", { name: "Lo que sigue en PREVIEW" }).getByRole("switch");
+  await expect(toggle).toBeChecked();
+  await toggle.click();
+  await expect(toggle).not.toBeChecked();
+  await app.control.keyboard.press("Escape");
+  await expect(settings).toHaveCount(0);
+
+  await addAll(app, "clip.mp4", "photo.png");
+  await row(app, "clip").dblclick();
+  const projector = await app.projector();
+  await expect.poll(async () => (await videoStates(projector)).length).toBe(1);
+  await expect(scheduleRows(app).and(app.control.locator('[aria-current="true"]'))).toHaveCount(0);
+});
+
+test("a file's row says where the file is, under its name; a verse has no file", async ({ app }) => {
+  await addAll(app, "clip.mp4", "photo.png");
+  for (const name of ["clip.mp4", "photo.png"]) {
+    const path = row(app, name.split(".")[0]!).getByTitle(fixture(name), { exact: true });
+    await expect(path).toBeVisible();
+    await expect(path).toHaveText(fixture(name));
+  }
+  await app.openChapter("Juan 3");
+  await app.control.getByRole("tabpanel", { name: "Biblia" }).getByRole("listitem").filter({ hasText: JUAN_3_16 }).click();
+  await app.control.getByRole("tabpanel", { name: "Biblia" }).getByRole("button", { name: "Agregar al programa" }).click();
+  await expect(row(app, "Juan 3:16").locator("[dir=rtl]")).toHaveCount(0);
+});
+
 test("a saved program in use, never edited, is still the schedule after a restart mid-service", async ({ app }) => {
   await addAll(app, "clip.mp4", "photo.png");
   await saveAs(app, "Culto A");

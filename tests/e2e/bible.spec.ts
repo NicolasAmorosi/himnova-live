@@ -520,7 +520,7 @@ test("a saved program whose verse's version was deleted is named before, and can
   expect(saved?.itemCount).toBe(2);
 });
 
-test("a program's verse sent live: → and a remote's PageDown walk on through its chapter, and a verse sent from PREVIEW takes the rail", async ({
+test("a program's verse sent live: → and a remote's PageDown walk on through its chapter, and a verse walked from it in PREVIEW keeps its rail", async ({
   app,
 }) => {
   const { control } = app;
@@ -545,16 +545,30 @@ test("a program's verse sent live: → and a remote's PageDown walk on through i
   await control.keyboard.press("PageDown");
   await expect(projector.getByText(JUAN_3_17, { exact: false })).toBeVisible();
 
-  // Another verse of the row's chapter, double-clicked in PREVIEW: live, and no longer the row's. The row sent left
-  // PREVIEW (owner, 2026-11-15): picked again to walk its chapter there.
+  // Another verse of the row's chapter, double-clicked in PREVIEW: live, and still the row's (owner, 2026-11-22). The
+  // row sent left PREVIEW (owner, 2026-11-15): picked again to walk its chapter there. ← walks the tab's chapter, which
+  // is no row.
   await row.dblclick();
   await expect(rail).toHaveCount(1);
   await row.click();
   await app.previewColumn().getByRole("list", { name: "Biblia" }).getByRole("button", { name: / 17$/ }).dblclick();
   await expect(projector.getByText(JUAN_3_17, { exact: false })).toBeVisible();
-  await expect(rail).toHaveCount(0);
+  await expect(rail).toHaveCount(1);
   await control.keyboard.press("ArrowLeft");
   await expect(projector.getByText(JUAN_3_16, { exact: false })).toBeVisible();
+  await expect(rail).toHaveCount(0);
+
+  // Walked to 3:17 in PREVIEW, whose grid is then the chapter's: 3:16 picked there and sent is still the row's.
+  await row.click();
+  const grid = app.previewColumn().getByRole("list", { name: "Biblia" });
+  await grid.getByRole("button", { name: / 17$/ }).click();
+  await expect(grid.getByRole("button", { name: / 17$/ })).toHaveAttribute("aria-current", "true");
+  await control.keyboard.press("ArrowRight");
+  await expect(projector.getByText(JUAN_3_17, { exact: false })).toBeVisible();
+  await expect(rail).toHaveCount(0);
+  await grid.getByRole("button", { name: / 16$/ }).dblclick();
+  await expect(projector.getByText(JUAN_3_16, { exact: false })).toBeVisible();
+  await expect(rail).toHaveCount(1);
 });
 
 test("a colour picked for the verse reaches the live verse at once and is kept after a restart; «Restaurar» undoes it", async ({

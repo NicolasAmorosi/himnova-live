@@ -47,3 +47,8 @@ test("a stored projection.fit is read screen by screen, and what it gives always
   }
   expect(Object.keys(normalize(Object.fromEntries(Array.from({ length: 70 }, (_, i) => [`s${i}`, 90]))))).toHaveLength(64);
 });
+
+test("«Lo que sigue en PREVIEW» is on by default", () => {
+  expect(DEFAULT_SETTINGS["projection.previewNext"]).toBe(true);
+  expect(SETTINGS_VALIDATORS["projection.previewNext"]("yes")).toBe(false);
+});

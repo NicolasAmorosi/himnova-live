@@ -6,6 +6,9 @@ type ListRowProps = Omit<LiHTMLAttributes<HTMLLIElement>, "children"> & {
   /** On the projector right now — the on-air rail plus a heavier label. */
   active?: boolean;
   children: ReactNode;
+  /** A second, smaller line under the label: a file's path. Cut at its START, so the folder and the file it ends in
+   *  stay in view; the whole of it on hover. */
+  detail?: string | null | undefined;
   /** Drop indicator while a drag hovers just above this row. */
   dropBefore?: boolean;
   /** Shows the grip icon. By default it's purely visual — the row itself
@@ -41,6 +44,7 @@ export function ListRow({
   active = false,
   children,
   className,
+  detail,
   dropBefore = false,
   grip = false,
   gripDisabled = false,
@@ -95,7 +99,17 @@ export function ListRow({
         <span className="w-4 shrink-0 text-right text-xs tabular-nums text-subtle">{index}</span>
       ) : null}
       {leading ? <span className="flex shrink-0 items-center">{leading}</span> : null}
-      <span className="min-w-0 flex-1 truncate">{children}</span>
+      {detail ? (
+        <span className="flex min-w-0 flex-1 flex-col">
+          <span className="truncate">{children}</span>
+          {/* Right-to-left only to put the «…» at the start; the path itself stays a left-to-right run. */}
+          <span className="truncate text-left text-xs text-subtle" dir="rtl" title={detail}>
+            <bdi dir="ltr">{detail}</bdi>
+          </span>
+        </span>
+      ) : (
+        <span className="min-w-0 flex-1 truncate">{children}</span>
+      )}
       {trailing ? <span className="flex shrink-0 items-center gap-1">{trailing}</span> : null}
     </li>
   );

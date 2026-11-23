@@ -174,6 +174,9 @@ export type SettingsMap = {
    *  only when that row (past plates) is an audio too, at the ended one's
    *  level. A deck's own music follows its deck. */
   "projection.audioEnd": AudioEndAction;
+  /** A schedule row that went live leaves the row under it in PREVIEW, instead of an empty PREVIEW (owner,
+   *  2026-11-21). The last row, or anything not sent from the schedule, still leaves PREVIEW empty. */
+  "projection.previewNext": boolean;
   /** How big the projector draws the picture, in percent, per screen (`projectorFitKey`): a projector or TV that
    *  overscans a 1920x1080 signal cuts ~5 % off every edge, and a smaller, centred picture brings them back (owner,
    *  2026-11-21). A screen with no entry draws at 100. Only the projector window: the monitors, NDI and stage never. */
@@ -333,6 +336,7 @@ export const DEFAULT_SETTINGS: SettingsMap = {
   "projection.deckEnd": "logo",
   "projection.songEnd": "logo",
   "projection.audioEnd": "stop",
+  "projection.previewNext": true,
   "projection.fit": {},
   "projection.transition.durationMs": 300,
   "slides.fallbackFont": null,
@@ -496,6 +500,7 @@ export const SETTINGS_VALIDATORS: Record<keyof SettingsMap, (value: unknown) => 
   "projection.deckEnd": isOneOf(VIDEO_END_ACTIONS),
   "projection.songEnd": isOneOf(VIDEO_END_ACTIONS),
   "projection.audioEnd": isOneOf(AUDIO_END_ACTIONS),
+  "projection.previewNext": isBoolean,
   "projection.fit": (v) =>
     isRecord(v) && Object.keys(v).length <= PROJECTOR_FIT_MAX_SCREENS && Object.entries(v).every(isProjectorFitEntry),
   "projection.transition.durationMs": isNumberIn(0, TRANSITION_MAX_DURATION_MS),

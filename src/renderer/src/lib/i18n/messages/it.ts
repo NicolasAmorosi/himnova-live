@@ -1282,6 +1282,8 @@ const it: Messages = {
     songEndHelp: "«Passa al prossimo della scaletta» manda in onda l'elemento successivo; se il canto non è in scaletta o è l'ultimo, mostra il logo. Con NERO o LOGO sopra, lo toglie solo dall'onda.",
     audioEnd: "Alla fine di un audio",
     audioEndDesc: "Cosa fa un audio mandato in onda quando finisce. La musica di una presentazione segue la sua presentazione.",
+    previewNext: "Ciò che segue in Anteprima",
+    previewNextDesc: "Quando una riga della scaletta va IN ONDA, l'Anteprima mostra quella sotto. Spento, l'Anteprima resta vuota.",
     audioEndHelp: "«Passa al prossimo audio della scaletta» fa suonare la riga che segue, se è anch'essa un audio (le grafiche si saltano), allo stesso volume di quello finito; altrimenti si ferma. Un audio mandato dalla libreria, fuori dalla scaletta, si ferma.",
     audioEndOptions: { stop: "Fermati", loop: "Ripeti in loop", next: "Passa al prossimo audio della scaletta" },
     startVolume: "Volume iniziale",
@@ -1455,7 +1457,7 @@ const it: Messages = {
         title: "Scegli",
         body: "Un clic su un versetto, un canto o un file lo mette in ANTEPRIMA. Lì lo vedi solo tu.",
       },
-      live: { title: "Proietta", body: "Invio, un doppio clic o IN ONDA lo manda al proiettore, e l'anteprima resta libera per ciò che segue." },
+      live: { title: "Proietta", body: "Invio, un doppio clic o IN ONDA lo manda al proiettore, e l'anteprima resta pronta per ciò che segue." },
       cover: {
         title: "Copri",
         body: "NERO oscura lo schermo e LOGO mostra la tua chiesa. Con LIVE torna quello che c'era.",
@@ -1510,10 +1512,10 @@ const it: Messages = {
     },
     preview: {
       title: "Ciò che va in onda lascia l'Anteprima",
-      subtitle: "Quando mandi qualcosa al proiettore, l'Anteprima si svuota, pronta per ciò che segue. Così un Invio di troppo non fa più ricominciare l'inno che sta suonando.",
+      subtitle: "Quando mandi qualcosa al proiettore, lascia l'Anteprima, pronta per ciò che segue. Così un Invio di troppo non fa più ricominciare l'inno che sta suonando.",
       demo: "Anteprima e In onda mentre si mandano due versetti",
-      free: { title: "L'Anteprima resta libera", body: "Ciò che hai mandato si vede in In onda. Nel programma, la riga si deseleziona e conserva il suo segno di in onda." },
-      enter: { title: "Un Invio di troppo non fa nulla", body: "Con l'Anteprima vuota, Invio e IN ONDA non toccano ciò che è in onda." },
+      free: { title: "L'Anteprima passa a ciò che segue", body: "Ciò che hai mandato si vede in In onda e nella scaletta conserva il suo segno di in onda. Un versetto lascia l'Anteprima vuota; una riga della scaletta lascia quella sotto." },
+      enter: { title: "Un Invio di troppo non ripete nulla", body: "Con l'Anteprima vuota, Invio e IN ONDA non toccano ciò che è in onda. Se mostra la riga seguente, Invio manda quella." },
       back: { title: "Tornare a ciò che è in onda", body: "Se lo scegli di nuovo, IN ONDA lo scopre soltanto e non lo fa mai ricominciare. Per ripartire da capo c'è «Ricomincia»." },
       beats: {
         pick: "Scegli un versetto: lo vedi in Anteprima.",

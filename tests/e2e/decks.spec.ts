@@ -454,6 +454,49 @@ test("one more step on the last slide takes the deck off to the logo", async ({ 
   await expect(app.liveColumn().getByRole("button", { name: "Siguiente" })).toHaveCount(0);
 });
 
+test("«Al terminar: siguiente» chains the schedule's decks and PREVIEW follows: EN VIVO sends what comes after, never one again", async ({
+  app,
+}) => {
+  await app.invoke("settings:set", { "projection.deckEnd": "next" });
+  await app.control.reload();
+  await expect(app.control.getByRole("button", { name: "EN VIVO", exact: true })).toBeVisible();
+  const names = ["uno", "dos", "tres", "cuatro"];
+  const files = names.map((name) => path.join(app.profile, `${name}.pdf`));
+  for (const file of files) fs.writeFileSync(file, buildPdf(["#1f4e9c", "#c0392b"]));
+  await app.invoke<MediaAsset[]>("library:add", { kind: "ppt", paths: files });
+  for (const name of names) {
+    await app.previewFile("Presentaciones", name);
+    await app.control.getByRole("tabpanel", { name: "Presentaciones" }).getByRole("button", { name: "Agregar al programa" }).click();
+  }
+  const list = app.control.getByRole("main").getByRole("list").first();
+  const rows = list.getByRole("listitem");
+  await expect(rows).toHaveCount(4);
+  const onAir = rows.filter({ has: app.control.locator("span.bg-on-air") });
+  const inPreview = list.locator('[aria-current="true"]');
+  /** Steps the live deck past its last slide: «Al terminar» sends the next row. */
+  const endLiveDeck = async () => {
+    await liveSlideTile(app, 2).click();
+    await app.control.keyboard.press("ArrowRight");
+  };
+
+  await rows.nth(0).click();
+  await app.goLive();
+  await expect(onAir).toContainText("uno");
+  await expect(inPreview).toContainText("dos");
+
+  // Twice on its own: PREVIEW was left at or above the row it sent, so it goes to the row under that one.
+  await endLiveDeck();
+  await expect(onAir).toContainText("dos");
+  await expect(inPreview).toContainText("tres");
+  await endLiveDeck();
+  await expect(onAir).toContainText("tres");
+  await expect(inPreview).toContainText("cuatro");
+
+  await app.goLive();
+  await expect(onAir).toContainText("cuatro");
+  await expect(inPreview).toHaveCount(0);
+});
+
 test("Space freezes a deck that advances by itself, and resumes it", async ({ app }) => {
   await app.addMedia("ppt", "hymn.pptx");
   await app.previewFile("Presentaciones", "hymn");

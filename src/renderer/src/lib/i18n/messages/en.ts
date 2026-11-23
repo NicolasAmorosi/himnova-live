@@ -1278,6 +1278,8 @@ const en: Messages = {
     songEndHelp: "“Go to the next schedule item” sends the next item live; if the song isn't in the schedule or is the last one, it shows the logo. With BLACK or LOGO up, it only takes it off the air.",
     audioEnd: "When an audio ends",
     audioEndDesc: "What an audio sent live does when it ends. A presentation's music follows its presentation.",
+    previewNext: "What comes next in Preview",
+    previewNextDesc: "When a schedule row goes live, Preview shows the one below it. Off, Preview is left empty.",
     audioEndHelp: "“Go to the next schedule audio” plays the row that follows, if it is an audio too (overlays are skipped), at the same volume as the one that ended; otherwise it stops. An audio sent from the library, outside the schedule, stops.",
     audioEndOptions: { stop: "Stop", loop: "Loop", next: "Go to the next schedule audio" },
     startVolume: "Starting volume",
@@ -1451,7 +1453,7 @@ const en: Messages = {
         title: "Choose",
         body: "One click on a verse, a song or a file puts it in PREVIEW. Only you see it there.",
       },
-      live: { title: "Project", body: "Enter, a double click or GO LIVE sends it to the projector, and the preview is free for what comes next." },
+      live: { title: "Project", body: "Enter, a double click or GO LIVE sends it to the projector, and the preview is ready for what comes next." },
       cover: {
         title: "Cover",
         body: "BLACK blacks the screen out and LOGO shows your church. LIVE brings back what was there.",
@@ -1506,10 +1508,10 @@ const en: Messages = {
     },
     preview: {
       title: "What goes live leaves Preview",
-      subtitle: "When you send something to the projector, Preview empties, ready for what comes next. An extra Enter no longer restarts the hymn that is playing.",
+      subtitle: "When you send something to the projector, it leaves Preview, ready for what comes next. An extra Enter no longer restarts the hymn that is playing.",
       demo: "Preview and Live while two verses are sent",
-      free: { title: "Preview is free again", body: "What you sent shows in Live. In the order of service, the row is unselected and keeps its on-air mark." },
-      enter: { title: "An extra Enter does nothing", body: "With Preview empty, Enter and GO LIVE leave what is live alone." },
+      free: { title: "Preview moves on", body: "What you sent shows in Live and keeps its on-air mark in the schedule. A verse leaves Preview empty; a schedule row leaves the one below it." },
+      enter: { title: "An extra Enter repeats nothing", body: "With Preview empty, Enter and GO LIVE leave what is live alone. If it shows the next row, Enter sends that one." },
       back: { title: "Back to what is live", body: "Pick it again and GO LIVE only uncovers it, never restarts it. To start over, use «Restart»." },
       beats: {
         pick: "You pick a verse: it shows in Preview.",

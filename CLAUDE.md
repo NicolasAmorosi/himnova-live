@@ -531,8 +531,12 @@ npm run package:win|mac|linux  # build + electron-builder for that platform
   button, Enter and double-click. Don't add a second path to `projection.store`. **What went live leaves
   PREVIEW** (owner, 2026-11-15; `dropSentPreview`): an extra Enter has nothing to send, instead of sending the
   hymn again from its first slide and its music from 0:00. Only what really reached the projector or the
-  speakers leaves, and only if PREVIEW still holds it; the «next» of «Al terminar» never touches PREVIEW. A
-  deck or song already on air, picked again, is only uncovered, never sent again.
+  speakers leaves, and only if PREVIEW still holds it. **A schedule row leaves the row under it instead** (owner,
+  2026-11-21; `projection.previewNext`, on by default): the next Enter is the next part of the service, whatever that
+  row is; past the last row PREVIEW is empty as before. A verse walked out of a Bible row with ↓ is still that row's
+  (owner, 2026-11-22). The «next» of «Al terminar» moves PREVIEW only when it left it behind, on a row from the one that
+  ended down to the one it sent (`followChain`, owner 2026-11-22). A deck, song or image already on air, picked again, is only uncovered, never
+  sent again.
 - **The projector alone can draw the picture smaller** (owner, 2026-11-21): Settings ▸ Screens ▸ «Ajuste del
   proyector» lays it out at 80–100 %, centred, per screen (`projection.fit`), for a projector or TV that overscans,
   with a test pattern on top while that page is open. Main pushes it to the projector window only (`projector-fit`);
