@@ -667,6 +667,33 @@ Letra de la tercera
     expect(fs.readFileSync(path.join(folder, "libro.cho"), "utf8")).toContain("{title: Uno (2)}");
   });
 
+  // A power cut seconds after a save: NTFS can keep the rename and lose the bytes, the church's file all zeros (DU-5).
+  test("a song file's new bytes are flushed to the disk before they take its place", async () => {
+    const folder = fresh("flushed-save");
+    fs.writeFileSync(path.join(folder, "libro.cho"), TWO);
+    const [uno] = await listSongFolder(folder);
+    const steps: string[] = [];
+    const open = fs.promises.open;
+    const rename = fs.promises.rename;
+    const opened = vi.spyOn(fs.promises, "open").mockImplementation(async (...args: Parameters<typeof open>) => {
+      const handle = await open(...args);
+      const sync = handle.sync.bind(handle);
+      handle.sync = () => (steps.push("sync"), sync());
+      return handle;
+    });
+    const renamed = vi
+      .spyOn(fs.promises, "rename")
+      .mockImplementation((...args: Parameters<typeof rename>) => (steps.push("rename"), rename(...args)));
+    try {
+      await writeBack(uno!.id, (s) => ({ ...s, title: "Uno (2)" }));
+    } finally {
+      opened.mockRestore();
+      renamed.mockRestore();
+    }
+    expect(steps).toEqual(["sync", "rename"]);
+    expect(fs.readFileSync(path.join(folder, "libro.cho"), "utf8")).toContain("{title: Uno (2)}");
+  });
+
   test("two quick saves of two songs of one songbook keep both edits: one save at a time", async () => {
     const { inSaveOrder } = await import("../../src/main/services/song-files");
     const folder = fresh("save-order");

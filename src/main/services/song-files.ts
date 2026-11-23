@@ -248,7 +248,16 @@ export async function writeSongFile(id: number, song: ReadSong): Promise<void> {
   if (format === "openlyrics") text = withXmlEncoding(text, encoding);
   const temporary = `${real}.himnova-tmp`;
   try {
-    await fs.promises.writeFile(temporary, encodeText(text, encoding, bom)!);
+    const handle = await fs.promises.open(temporary, "w");
+    try {
+      await handle.writeFile(encodeText(text, encoding, bom)!);
+      // On the disk before the rename puts it in place: NTFS journals the rename, not the bytes, so a power cut
+      // seconds after a save could leave the church's own file at its size and all zeros (2026-11-22 audit, DU-5).
+      // Best-effort, as the permissions below: a share that cannot flush still gets the song.
+      await handle.sync().catch((error: unknown) => console.warn("[songs] could not flush the song file", file, error));
+    } finally {
+      await handle.close();
+    }
     try {
       await fs.promises.chmod(temporary, stat.mode & 0o7777);
     } catch (error) {
