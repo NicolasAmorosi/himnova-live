@@ -315,7 +315,9 @@ function readBullet(chain: XmlElement[], runs: TextRun[], ctx: TextContext, coun
   // Numbered: counted per level over consecutive paragraphs numbered with the
   // same scheme — a different scheme (or startAt) starts again.
   const scheme = attr(kind, "type") ?? "arabicPeriod";
-  const startAt = numAttr(kind, "startAt", 1);
+  // The schema's range (`ST_TextBulletStartAtNum`): a startAt of 1e10 made a 10-million-character roman numeral
+  // and a 10 MB slide model (2026-11-22 audit, SC1). Nothing PowerPoint writes changes.
+  const startAt = Math.min(Math.max(numAttr(kind, "startAt", 1), 1), 32767);
   const key = `${level}:${scheme}:${startAt}`;
   for (const k of [...counters.keys()]) if (k.startsWith(`${level}:`) && k !== key) counters.delete(k);
   const next = (counters.get(key) ?? startAt - 1) + 1;
