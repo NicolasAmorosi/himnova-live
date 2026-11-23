@@ -572,6 +572,23 @@ stranger. So `SettingsRepo.load()` applies a per-key normalizer when there is on
 **validate on write, normalize field by field on read**— applied for the first time to a
 `settings` row.
 
+## Durability: `synchronous = NORMAL`, and FULL for the five explicit saves
+
+`openDatabase` (`src/main/db/client.ts`) opens the file in `journal_mode = WAL` with `synchronous = NORMAL`: a commit
+is not synced, so the database always comes back sound, but a power cut or a system crash seconds after a write can undo
+it (a killed app loses nothing: the OS cache survives it). The operator's explicit «Guardar» is the exception
+(2026-11-22 review, DU-2; owner, 2026-11-23): saving a program (`programs:save`, `programs:updateMeta`), a song
+(`song:create`, `song:update` through `saveSong`), a song theme, a plate (`overlay:*`) and a scene (`utility:*`) runs
+its write inside `writeDurably`, which sets `synchronous = FULL` before it and puts NORMAL back in a `finally`. Before,
+because SQLite throws «Safety level may not be changed inside a transaction». Around the synchronous write only: a
+linked song's file is written first and awaited outside it. The `*:duplicate` channels, the order of service's draft
+(`program:saveDraft`, every 600 ms), settings and everything else stay NORMAL: one sync per write in main costs ~24 ms
+on a spinning disk (measured on `emi-win`), ~0.4 ms on an SSD. A FULL commit syncs the whole `-wal`, so the NORMAL
+writes before it reach the disk too. `fullfsync = ON` on every connection, because macOS's plain `fsync` stops in the
+drive's cache (other systems ignore the pragma): on an M3 it costs ~3 ms per explicit save and ~6.5 ms per WAL
+checkpoint (one every few hundred draft writes), and the draft's median stays at 0.01 ms.
+`tests/main/durable-saves.test.ts` records, with a TEMP trigger, the level each write sees through the real handlers.
+
 ## Migrations and backup
 
 `src/main/db/migrate.ts` makes a copy of `worship.db` in `userData/backups/` before running

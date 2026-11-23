@@ -11,7 +11,8 @@ import { mt } from "../i18n";
 import { isOpenLyrics, readOpenLyrics } from "../songs/openlp";
 import { chordProSongs, isChordPro, isSongText, readSongTextBlocks } from "../songs/text-files";
 import { rewriteChordPro, rewriteOpenLyrics, rewriteSongSelect, withXmlEncoding } from "../songs/song-writers";
-import { getSettingsRepo, getSongsRepo } from "./repos";
+import { getDbHandle, getSettingsRepo, getSongsRepo } from "./repos";
+import { writeDurably } from "../db/client";
 
 /**
  * A Songs tab's linked folder (owner, 2026-11-05: «las carpetas de la
@@ -329,10 +330,12 @@ export function quitWaitForSongSaves(quit: () => void, capMs: number): (prevent:
  *  for: in the line, one save stuck on a share that does not answer held every song's (review of A25). */
 export function saveSong(id: number, song: ReadSong): Song | Promise<Song> {
   const repo = getSongsRepo();
-  if (repo.source(id) === null) return repo.update(id, song);
+  // The explicit «Guardar» syncs to disk (DU-2): only the database write, after the file, never across the await.
+  const update = () => writeDurably(getDbHandle().sqlite, () => repo.update(id, song));
+  if (repo.source(id) === null) return update();
   return inSaveOrder(async () => {
     await writeSongFile(id, song);
-    return repo.update(id, song);
+    return update();
   });
 }
 

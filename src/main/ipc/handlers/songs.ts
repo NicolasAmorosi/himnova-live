@@ -1,5 +1,6 @@
 import type { Handlers } from "../register";
-import { getProgramsRepo, getSettingsRepo, getSongsRepo } from "../../services/repos";
+import { getDbHandle, getProgramsRepo, getSettingsRepo, getSongsRepo } from "../../services/repos";
+import { writeDurably } from "../../db/client";
 import { removeSong } from "../../services/removal";
 import { importSongFiles } from "../../services/song-import";
 import { listSongFolder, saveSong } from "../../services/song-files";
@@ -69,7 +70,7 @@ export const songsHandlers: Pick<
     getSongsRepo().forgetFolders(getSettingsRepo().get("songs.linkedFolders"));
     return getSongsRepo().list();
   },
-  "song:create": (input) => getSongsRepo().create(assertValid(input)),
+  "song:create": (input) => writeDurably(getDbHandle().sqlite, () => getSongsRepo().create(assertValid(input))),
   // A song tied to a file writes the file first: refused there, nothing changes.
   "song:update": (input) => {
     const song = assertValid(input);
@@ -107,11 +108,11 @@ export const songsHandlers: Pick<
   "songTheme:list": () => getSongsRepo().listThemes(),
   "songTheme:create": (input) => {
     const { name, style } = assertValidTheme(input);
-    return getSongsRepo().createTheme(name, style);
+    return writeDurably(getDbHandle().sqlite, () => getSongsRepo().createTheme(name, style));
   },
   "songTheme:update": (input) => {
     const { name, style } = assertValidTheme(input);
-    return getSongsRepo().updateTheme(input.id, name, style);
+    return writeDurably(getDbHandle().sqlite, () => getSongsRepo().updateTheme(input.id, name, style));
   },
   "songTheme:delete": ({ id }) => {
     getSongsRepo().deleteTheme(id);

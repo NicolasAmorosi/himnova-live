@@ -1,5 +1,6 @@
 import type { Handlers } from "../register";
-import { getProgramsRepo, getSlidesRepo } from "../../services/repos";
+import { getDbHandle, getProgramsRepo, getSlidesRepo } from "../../services/repos";
+import { writeDurably } from "../../db/client";
 import { pinDecks } from "../../slides/deck-service";
 import type { ProgramDTO } from "@shared/types/program";
 
@@ -58,7 +59,7 @@ export const programsHandlers: Pick<
   // which program is open.
   "programs:peek": ({ id }) => getProgramsRepo().peek(id),
   "programs:save": (input) => {
-    const summary = getProgramsRepo().save(input);
+    const summary = writeDurably(getDbHandle().sqlite, () => getProgramsRepo().save(input));
     // Saving is also how an unsaved service first gets an id, and its decks their pin.
     adoptProgram(getProgramsRepo().load(summary.id));
     return summary;
@@ -73,7 +74,7 @@ export const programsHandlers: Pick<
   "programs:releaseCurrent": () => {
     releaseCurrentProgram();
   },
-  "programs:updateMeta": (input) => getProgramsRepo().updateMeta(input),
+  "programs:updateMeta": (input) => writeDurably(getDbHandle().sqlite, () => getProgramsRepo().updateMeta(input)),
   "programs:duplicate": (input) => getProgramsRepo().duplicate(input),
   "programs:setFavorite": ({ id, favorite }) => getProgramsRepo().setFavorite(id, favorite),
   "programs:reorder": ({ ids }) => getProgramsRepo().reorder(ids),
