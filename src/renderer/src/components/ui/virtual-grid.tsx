@@ -4,7 +4,7 @@ import { isPointerFocused } from "@renderer/lib/focus-modality";
 
 /** Rows kept mounted above and below the viewport, so a fast scroll shows
  *  tiles rather than blank space while the next frame is computed. */
-const DEFAULT_OVERSCAN_ROWS = 2;
+const OVERSCAN_ROWS = 2;
 
 /**
  * How the column count is decided — the two are mutually exclusive on purpose.
@@ -38,7 +38,6 @@ type VirtualGridBaseProps<T> = {
    *  library grid feeds this to `deck:prewarm` so only what is actually on
    *  screen gets pre-converted. `end` is exclusive. */
   onVisibleRangeChange?: (range: { start: number; end: number }) => void;
-  overscanRows?: number;
   /** `tabIndex` implements the roving tabindex: exactly one item in the whole
    *  grid is 0, every other is -1. Spread it onto the item's focusable
    *  element (`ThumbTile` takes a `tabIndex` prop for this). */
@@ -89,7 +88,6 @@ export function VirtualGrid<T>({
   items,
   minItemWidth,
   onVisibleRangeChange,
-  overscanRows = DEFAULT_OVERSCAN_ROWS,
   renderItem,
   scrollToIndex = null,
 }: VirtualGridProps<T>) {
@@ -177,15 +175,15 @@ export function VirtualGrid<T>({
     const offsetTop = element.getBoundingClientRect().top - scroller.getBoundingClientRect().top;
     const firstVisibleRow = Math.floor(Math.max(0, -offsetTop) / rowHeight);
     const visibleRows = Math.ceil(scroller.clientHeight / rowHeight) + 1;
-    const startRow = Math.max(0, firstVisibleRow - overscanRows);
-    const endRow = Math.min(rowCount, firstVisibleRow + visibleRows + overscanRows);
+    const startRow = Math.max(0, firstVisibleRow - OVERSCAN_ROWS);
+    const endRow = Math.min(rowCount, firstVisibleRow + visibleRows + OVERSCAN_ROWS);
 
     // Only a row boundary is a real change — scrolling within one row must not
     // re-render several hundred tiles' worth of React work.
     setRowWindow((current) =>
       current.startRow === startRow && current.endRow === endRow ? current : { startRow, endRow },
     );
-  }, [overscanRows, rowCount, rowHeight, syncWidth]);
+  }, [rowCount, rowHeight, syncWidth]);
 
   useLayoutEffect(() => {
     recomputeWindow();

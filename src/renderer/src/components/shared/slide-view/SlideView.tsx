@@ -31,7 +31,7 @@ import "./slide-fonts.css";
  * it is handed out (`loadSlideModel`), and one that arrives later anyway (past
  * that wait) draws every slide again (`useFontsLoaded`, A41).
  */
-export const SlideView = memo(function SlideView({ model, resolve, style, text = NO_TEXT_SETTINGS }: SlideViewProps): ReactNode {
+export const SlideView = memo(function SlideView({ model, resolve, text = NO_TEXT_SETTINGS }: SlideViewProps): ReactNode {
   // A face that finishes loading after the first draw draws it again, the memo notwithstanding (A41).
   useFontsLoaded();
   const id = useId().replace(/:/g, "");
@@ -48,7 +48,6 @@ export const SlideView = memo(function SlideView({ model, resolve, style, text =
         containerType: "size",
         overflow: "hidden",
         backgroundColor: "white",
-        ...style,
       }}
     >
       <svg viewBox={`0 0 ${model.width} ${model.height}`} preserveAspectRatio="none" width="100%" height="100%" style={{ position: "absolute", inset: 0 }}>
@@ -67,7 +66,6 @@ export const SlideView = memo(function SlideView({ model, resolve, style, text =
 type SlideViewProps = {
   model: SlideModel;
   resolve: ResolvePart;
-  style?: CSSProperties | undefined;
   /** The face for a font this machine lacks and the language of chart numbers. */
   text?: SlideTextSettings | undefined;
 };
@@ -75,7 +73,7 @@ type SlideViewProps = {
 function sameSlide(a: SlideViewProps, b: SlideViewProps): boolean {
   const ta = a.text ?? NO_TEXT_SETTINGS;
   const tb = b.text ?? NO_TEXT_SETTINGS;
-  return a.model === b.model && a.resolve === b.resolve && a.style === b.style && ta.fallbackFont === tb.fallbackFont && ta.locale === tb.locale;
+  return a.model === b.model && a.resolve === b.resolve && ta.fallbackFont === tb.fallbackFont && ta.locale === tb.locale;
 }
 
 const NO_TEXT_SETTINGS: SlideTextSettings = { fallbackFont: null, locale: "" };
