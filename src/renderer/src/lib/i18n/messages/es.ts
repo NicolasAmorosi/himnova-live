@@ -1519,7 +1519,7 @@ const es = {
     captionSince: "Lo nuevo desde la {version}",
     skip: "Cerrar las novedades",
     finish: "Listo",
-    steps: { stage: "Escenario", sound: "Sonido", preview: "Vista previa", done: "Resumen" },
+    steps: { stage: "Escenario", sound: "Sonido", preview: "PREVIEW", done: "Resumen" },
     stage: {
       title: "Una pantalla para el escenario",
       subtitle: "Si tienen una pantalla que mira a la plataforma, Himnova Live le muestra al pastor cuánto tiempo le queda y a los músicos lo que viene. Lo manejás desde el panel Escenario, abajo a la izquierda.",

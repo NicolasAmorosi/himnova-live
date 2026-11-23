@@ -64,7 +64,7 @@ test("a profile from an older build sees «Novedades» once, and turning the str
   await expect(sample).toHaveCount(0);
   await expect(shown.getByRole("slider", { name: "Volumen de muestra: EN VIVO" })).toBeVisible();
 
-  await shown.getByRole("button", { name: "Siguiente: Vista previa" }).click();
+  await shown.getByRole("button", { name: "Siguiente: PREVIEW" }).click();
   await expect(shown.getByRole("heading", { name: "Lo que sale al aire se va de PREVIEW" })).toBeVisible();
   await shown.getByRole("button", { name: "Siguiente: Resumen" }).click();
   await expect(shown.getByText("Sin tiras · Salidas: predeterminada del sistema")).toBeVisible();
