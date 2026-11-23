@@ -120,12 +120,18 @@ export function createDeckQueue<Req extends { id: number }, Reply extends { id: 
         pump();
       });
     },
-    /** The read-ahead of `file` still waiting goes to the `now` lane, in the order it was asked. */
-    hurry(file: string): void {
+    /** The read-ahead of `file` still waiting goes to the `now` lane, in the order it was asked. With `windowMs`, the
+     *  operator's own window, it gets that window too, the read of `file` under way included (timed again from now). */
+    hurry(file: string, windowMs?: number): void {
       const moving = lanes.later.filter((job) => job.file === file);
-      if (moving.length === 0) return;
       lanes.later = lanes.later.filter((job) => job.file !== file);
       lanes.now.push(...moving);
+      if (windowMs === undefined) return;
+      for (const job of moving) job.hangMs = windowMs;
+      if (running?.file === file && running.hangMs < windowMs) {
+        running.hangMs = windowMs;
+        arm();
+      }
     },
   };
 }

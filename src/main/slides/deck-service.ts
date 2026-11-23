@@ -454,7 +454,7 @@ async function modelDeck(assetId: number, source: Source, force: boolean, job: {
   const read = await readPptx(sourcePath, job.lane);
   if (read === TOO_SLOW || !read || read.slides.every((slide) => slide.hidden)) {
     // Cut by the clock is no damage: said as it is, never as a file to save again (owner, 2026-11-17).
-    const reason = read === TOO_SLOW ? "DECK_TOO_SLOW" : await unreadableReason(sourcePath);
+    const reason = read === TOO_SLOW ? "DECK_TOO_SLOW" : await unreadableReason(sourcePath, job.lane);
     // The hymnal's clock on why says nothing of the file: told as too slow, and not remembered.
     if (reason === TOO_SLOW) return failUnreadable(assetId, "DECK_TOO_SLOW");
     unreadableStamp.set(sourcePath, { stamp: stampOf(stat), reason });
