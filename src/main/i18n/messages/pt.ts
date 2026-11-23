@@ -82,6 +82,8 @@ const pt: MainMessages = {
       "O disco ou a pasta da apresentação não está respondendo. Verifique o disco ou a rede e tente de novo com “Tentar de novo”.",
     pdfUnreadable:
       "Não foi possível abrir o PDF. Tente de novo com “Tentar de novo”; se acontecer outra vez, ele pode estar corrompido: abra-o no seu leitor de PDF e exporte-o de novo.",
+    pdfNotRecorded:
+      "Não foi possível preparar o PDF. Tente de novo com “Tentar de novo”; se acontecer outra vez, verifique se o arquivo continua no lugar e se há espaço no disco.",
   },
   bible: {
     unknownFormat:

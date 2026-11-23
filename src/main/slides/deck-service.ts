@@ -724,7 +724,15 @@ async function recordPdfDeck(
   try {
     const [contentHash, pages] = await Promise.all([
       hashFile(sourcePath),
-      readPdfPages({ sourcePath, sourceSizeBytes: stat.size, sourceMtimeMs: mtimeMs }, target.width, lane),
+      // What pdf.js said of the file («Invalid PDF structure.») is no text for the operator: their own words reach the
+      // panel, the PREVIEW monitor and the GO LIVE toast (EC-1).
+      readPdfPages({ sourcePath, sourceSizeBytes: stat.size, sourceMtimeMs: mtimeMs }, target.width, lane).catch(
+        (error: unknown) => {
+          if (isSlideError(error)) throw error;
+          console.warn(`[slides] could not read the PDF ${sourcePath}`, error);
+          throw new SlideError("RASTER_FAILED", mt("slides.pdfUnreadable"), error);
+        },
+      ),
     ]);
     if (pages.length === 0) throw new SlideError("RASTER_FAILED", mt("slides.noSlides"));
     // The identity every status question is answered by (`statusesByAsset`).
@@ -776,10 +784,10 @@ async function recordPdfDeck(
     emitProgress({ assetId, status: "ready", done: dto.slideCount, total: dto.slideCount, error: null });
     return dto;
   } catch (error) {
-    // What pdf.js or the disk said ("Invalid PDF structure.", ENOENT) is no text for the operator: their own words
-    // reach the panel, the PREVIEW monitor and the GO LIVE toast.
-    const failure = isSlideError(error) ? error : new SlideError("RASTER_FAILED", mt("slides.pdfUnreadable"), error);
-    if (failure !== error) console.warn(`[slides] could not read the PDF ${sourcePath}`, error);
+    // The rest (the file gone while it was hashed, a full disk under SQLite) says nothing of the PDF itself: it is not
+    // told as a damaged file to export again (2026-11-22 review, RN3-5).
+    const failure = isSlideError(error) ? error : new SlideError("RASTER_FAILED", mt("slides.pdfNotRecorded"), error);
+    if (failure !== error) console.warn(`[slides] could not record the PDF ${sourcePath}`, error);
     emitProgress({
       assetId,
       status: failure.slideCode === "CANCELED" ? "stale" : "failed",

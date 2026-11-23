@@ -82,6 +82,8 @@ const it: MainMessages = {
       "Il disco o la cartella della presentazione non risponde. Controlla il disco o la rete e prova di nuovo con «Riprova».",
     pdfUnreadable:
       "Impossibile aprire il PDF. Prova di nuovo con «Riprova»; se succede ancora, potrebbe essere danneggiato: aprilo nel tuo lettore PDF ed esportalo di nuovo.",
+    pdfNotRecorded:
+      "Impossibile preparare il PDF. Prova di nuovo con «Riprova»; se succede ancora, controlla che il file sia ancora al suo posto e che ci sia spazio sul disco.",
   },
   bible: {
     unknownFormat:

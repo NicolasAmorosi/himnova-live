@@ -28,7 +28,9 @@ const h = vi.hoisted(() => {
   const kind = { value: "binary" };
   /** Every `deck-progress` main pushed. */
   const progress: { status: string }[] = [];
-  return { file: "", rows, kind, inserted: 0, progress };
+  /** What the next `insertDeck` throws, once. */
+  const insert = { error: null as Error | null };
+  return { file: "", rows, kind, inserted: 0, progress, insert };
 });
 
 vi.mock("electron", () => ({
@@ -50,7 +52,12 @@ vi.mock("../../src/main/services/repos", () => ({
     findDeckByAsset: () => h.rows["pdf"] ?? null,
     findDeckByAssetContent: () => null,
     touchDeck: () => undefined,
-    insertDeck: () => ++h.inserted,
+    insertDeck: () => {
+      const error = h.insert.error;
+      h.insert.error = null;
+      if (error) throw error;
+      return ++h.inserted;
+    },
     getDeckById: (id: number) => ({ id, imageFormat: "native" }),
     toDTO: (row: { imageFormat: string }) => ({ format: row.imageFormat }),
   }),
@@ -393,6 +400,17 @@ test("a PDF pdf.js cannot open is told in the operator's words, never in pdf.js'
   vi.mocked(readPdfPages).mockRejectedValueOnce(new Error("Invalid PDF structure."));
   const { dto } = await open("damaged.pdf", PDF, "pdf", null, (id) => prepareDeck(id).catch((error: unknown) => error));
   expect(dto).toMatchObject({ code: "RASTER_FAILED", slideCode: "RASTER_FAILED", message: mainEs.slides.pdfUnreadable });
+});
+
+test("a PDF that fails to be recorded for another cause is not told as a damaged file", async () => {
+  // A full disk under SQLite, or the file gone while it was hashed, asked the operator to export a sound PDF again
+  // (2026-11-22 review, RN3-5).
+  vi.mocked(readPdfPages).mockResolvedValueOnce([{ widthPx: 1920, heightPx: 1080 }]);
+  h.insert.error = Object.assign(new Error("database or disk is full"), { code: "SQLITE_FULL" });
+  const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+  const { dto } = await open("full-disk.pdf", PDF, "pdf", null, (id) => prepareDeck(id).catch((error: unknown) => error));
+  warn.mockRestore();
+  expect(dto).toMatchObject({ slideCode: "RASTER_FAILED", message: mainEs.slides.pdfNotRecorded });
 });
 
 test("what the rasterizer window says of a PDF reaches the operator in their words, a password apart", () => {

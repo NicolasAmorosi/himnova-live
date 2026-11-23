@@ -82,6 +82,8 @@ const en: MainMessages = {
       "The drive or folder holding the presentation isn't responding. Check the drive or the network and try again with “Retry”.",
     pdfUnreadable:
       "The PDF couldn't be opened. Try again with “Retry”; if it happens again, it may be damaged: open it in your PDF reader and export it again.",
+    pdfNotRecorded:
+      "The PDF couldn't be prepared. Try again with “Retry”; if it happens again, check that the file is still there and that the disk has free space.",
   },
   bible: {
     unknownFormat:

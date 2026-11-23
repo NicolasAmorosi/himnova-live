@@ -84,6 +84,8 @@ const es = {
       "El disco o la carpeta de la presentación no responde. Revisá el disco o la red y probá de nuevo con «Reintentar».",
     pdfUnreadable:
       "No se pudo abrir el PDF. Probá de nuevo con «Reintentar»; si vuelve a pasar, puede estar dañado: abrilo en tu lector de PDF y exportalo de nuevo.",
+    pdfNotRecorded:
+      "No se pudo preparar el PDF. Probá de nuevo con «Reintentar»; si vuelve a pasar, revisá que el archivo siga en su lugar y que quede espacio en el disco.",
   },
   bible: {
     unknownFormat:
