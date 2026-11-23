@@ -9,12 +9,17 @@ import { resolveClose } from "../../windows/close-guard";
 /** The control window's copy of what is live (`window:keepLiveCopy`), for a page of it that starts again. */
 let liveCopy: unknown = null;
 
-/** The control window closed: a window opened after it (macOS keeps the app) starts from nothing. A close is clean by
- *  the time this runs (the operator answered, or the update and the restore quit the same way), and the projector
- *  went with the window: no row is on air, so the next launch puts none in PREVIEW (`programs.liveRow`, DU-6). A
- *  crash, a killed process or a power cut never gets here and leaves the mark. */
+/** The control window closed: a window opened after it (macOS keeps the app) starts from nothing. */
 export function forgetLiveCopy(): void {
   liveCopy = null;
+}
+
+/** A clean close: the control window's page answered «close» (`window:closeDecision`), or the update or the restore
+ *  quit after the page asked (`releaseForUpdate`). The projector goes with the window, so no row is on air and the
+ *  next launch puts none in PREVIEW (`programs.liveRow`, DU-6). Not from the window's `closed`: a hung page's window
+ *  closed by the grace gets there too, and that end is the crash the mark is for. A crash, a killed process or a power
+ *  cut never call this either. */
+export function forgetLiveRow(): void {
   try {
     getSettingsRepo().setMany({ "programs.liveRow": null });
   } catch (error) {
@@ -47,6 +52,8 @@ export const programDraftHandlers: Pick<
   // definition the window that was asked.
   "window:closeDecision": ({ decision }, ev) => {
     const win = BrowserWindow.fromWebContents(ev.sender);
-    if (win) resolveClose(win, decision);
+    if (!win) return;
+    if (decision === "close") forgetLiveRow();
+    resolveClose(win, decision);
   },
 };

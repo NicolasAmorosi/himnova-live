@@ -321,9 +321,9 @@ function liveRowOf(): LiveRowMark | null {
 
 /**
  * At launch, after the schedule is back: a row still marked on air means the app did not close (a crash, a killed
- * process, a power cut; a clean close clears it, `forgetLiveCopy`). That row goes to PREVIEW exactly as a click on
- * it puts it there, and a GO LIVE takes it back; nothing goes on air by itself (owner, 2026-11-23, DU-6). Found at
- * its place, else as the only row of its kind and content; otherwise nothing is chosen.
+ * process, a power cut, a hung window closed by the grace; a clean close clears it, `forgetLiveRow`). That row goes to
+ * PREVIEW exactly as a click on it puts it there, and a GO LIVE takes it back; nothing goes on air by itself (owner,
+ * 2026-11-23, DU-6). Found at its place, else as the only row of its kind and content; otherwise nothing is chosen.
  */
 export function restoreLiveRow(mark: LiveRowMark | null): void {
   if (mark === null) return;

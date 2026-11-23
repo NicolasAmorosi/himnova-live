@@ -281,8 +281,8 @@ export type SettingsMap = {
    *  adopts a new program the list's «+» only creates. */
   "programs.openId": number | null;
   /** The schedule's row on air, kept by the control window as it changes (`startOpenProgramMemory`) and cleared by
-   *  main when the control window closes cleanly (`forgetLiveCopy`). Still there at launch means the app did not
-   *  close: a crash, a killed process, a power cut. Then `App` puts that row in PREVIEW, never on air (owner,
+   *  main when the control window closes cleanly (`forgetLiveRow`). Still there at launch means the app did not
+   *  close: a crash, a killed process, a power cut, a hung window closed by the grace. Then `App` puts that row in PREVIEW, never on air (owner,
    *  2026-11-23, DU-6). `row` is the row as a save sends it (`toUpsertItems`), what tells it apart if the order moved. */
   "programs.liveRow": LiveRowMark | null;
   /** The projector's picture as an NDI® source (`types/ndi.ts`), from launch on while true. */

@@ -9,6 +9,7 @@ import { relaunchOnQuit } from "../ipc/handlers/backups";
 import { broadcast } from "../services/broadcast";
 import { getSettingsRepo } from "../services/repos";
 import { releaseForUpdate } from "../windows/close-guard";
+import { forgetLiveRow } from "../ipc/handlers/program-draft";
 import { clearDownloadedDmg, downloadDmg, openDmg } from "./mac-dmg";
 import { installerFile, loopbackFeedUrl, shouldCheckOnLaunch, statusForError } from "./update-status";
 
@@ -140,6 +141,7 @@ export function installUpdate(when: "now" | "onQuit"): void {
   if (!launchInstaller(true)) return;
   // After the installer is running, never before: if it could not start, the
   // app stays open and the close guard still asks on the next quit.
+  forgetLiveRow();
   releaseForUpdate();
   app.quit();
 }
