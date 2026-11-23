@@ -18,7 +18,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { afterAll, beforeAll, describe, expect, test } from "vitest";
+import { afterAll, beforeAll, describe, expect, test, vi } from "vitest";
 import { eq } from "drizzle-orm";
 import Database from "better-sqlite3";
 import { openDatabase } from "../../src/main/db/client";
@@ -420,6 +420,46 @@ describe("Media library", { shuffle: false }, () => {
     assert(row.mtimeMs === Math.trunc(stat.mtimeMs), "the row must carry the new mtime");
     const again = await mediaRepo.sweep();
     assert(!again.has("ppt"), "a file that did not change since must not be reported again");
+  });
+
+  test("GO LIVE's check marks a file gone since the last sweep at once, and refreshes one edited", async () => {
+    // The sweep runs on focus and every 5 minutes: a video gone in between went live and cut the stage to black.
+    const { id } = inserted[1]!;
+    fs.writeFileSync(filePaths[1]!, "fake pptx 1, edited in place");
+    const stat = fs.statSync(filePaths[1]!);
+    expect(await mediaRepo.check(id)).toMatchObject({
+      changed: true,
+      asset: { sizeBytes: stat.size, mtimeMs: Math.trunc(stat.mtimeMs), missingSince: null },
+    });
+    expect((await mediaRepo.check(id)).changed).toBe(false);
+
+    fs.rmSync(filePaths[1]!);
+    const gone = await mediaRepo.check(id);
+    expect(gone.changed).toBe(true);
+    expect(gone.asset?.missingSince).not.toBeNull();
+    expect(mediaRepo.getById(id)?.missingSince).toBe(gone.asset?.missingSince);
+
+    fs.writeFileSync(filePaths[1]!, "fake pptx 1, back");
+    expect((await mediaRepo.check(id)).asset?.missingSince).toBeNull();
+  });
+
+  test("GO LIVE's check on a file that does not answer within a second gives the row as the sweep left it", async () => {
+    // A disk slow to wake, or a share that went away: neither is refused nor marked on a guess.
+    const { id } = inserted[1]!;
+    const before = mediaRepo.getById(id);
+    let settle = (): void => {};
+    const stat = vi.spyOn(fs.promises, "stat").mockImplementation(() => new Promise((_, reject) => (settle = () => reject(new Error("EIO")))));
+    vi.useFakeTimers();
+    try {
+      const checked = mediaRepo.check(id);
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(await checked).toEqual({ asset: before, changed: false });
+      expect(mediaRepo.getById(id)).toEqual(before);
+    } finally {
+      settle();
+      vi.useRealTimers();
+      stat.mockRestore();
+    }
   });
 
   test("hasPath answers the worship://raster guard, and only for real rows", () => {

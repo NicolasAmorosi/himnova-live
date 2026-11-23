@@ -30,12 +30,20 @@ export const libraryHandlers: Pick<
 > = {
   // A pure read: the "is this file still there?" sweep no longer runs inline
   // on every list — see `services/library-sweeper.ts`. `missingSince` can lag
-  // a sweep's debounce/throttle window, which is fine: dragging a truly gone
-  // file to GO LIVE is still caught downstream (`SOURCE_MISSING` in
-  // `deck-service.ts`, the 410 from `worship-protocol.ts`).
+  // a sweep's debounce/throttle window, which is fine for a list.
   "library:list": ({ kind }) => getMediaRepo().list(kind),
 
-  "library:get": ({ id }) => getMediaRepo().getById(id),
+  // Not for GO LIVE, which asks with `check`: the 410 of a file gone since the last sweep came only once what was on
+  // air had been cut to black (2026-11-22 audit, RV-3). What it marks reaches every window, as the sweep's does.
+  "library:get": async ({ id, check }) => {
+    if (!check) return getMediaRepo().getById(id);
+    const { asset, changed } = await getMediaRepo().check(id);
+    if (asset && changed) {
+      broadcast("library-changed", { kind: asset.kind });
+      if (asset.kind === "video" || asset.kind === "audio") notifyMediaChanged();
+    }
+    return asset;
+  },
 
   "library:add": ({ paths, kind }) => importPaths(paths, kind, { inLibrary: true }),
 

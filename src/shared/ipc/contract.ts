@@ -248,7 +248,8 @@ export type IpcContract = {
   };
 
   "library:list": { req: { kind: AssetKind }; res: MediaAsset[] };
-  "library:get": { req: { id: number }; res: MediaAsset | null };
+  /** `check: true` looks at the file first (`MediaRepo.check`): one gone since the last sweep comes back missing. */
+  "library:get": { req: { id: number; check?: boolean }; res: MediaAsset | null };
   "library:add": { req: { paths: string[]; kind: AssetKind }; res: MediaAsset[] };
   /** `force: true` bypasses the "in use by a saved program" guard: it also
    *  deletes the referencing `program_items` rows, in the same transaction as

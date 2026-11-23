@@ -110,6 +110,8 @@ export const api = {
   library: {
     list: (kind: AssetKind) => invoke("library:list", { kind }),
     get: (id: number) => invoke("library:get", { id }),
+    /** `get`, after a look at the file: what GO LIVE asks before it cuts what is on air. */
+    check: (id: number) => invoke("library:get", { id, check: true }),
     add: (paths: string[], kind: AssetKind) => invoke("library:add", { paths, kind }),
     remove: (id: number, force?: boolean) =>
       invoke("library:remove", { id, ...(force !== undefined ? { force } : {}) }),

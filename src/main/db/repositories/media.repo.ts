@@ -465,6 +465,48 @@ export class MediaRepo {
     return changedKinds;
   }
 
+  /** `check()`'s stats still under way, one per path, as `isDirectory` (`files.ts`): each one hung on a share that
+   *  went away holds a thread of the pool the projector's own file reads share. */
+  private readonly checking = new Map<string, Promise<fs.Stats | null>>();
+
+  /**
+   * One row of `sweep()`, now: what GO LIVE asks before it cuts what is on air, since the sweep runs on focus and
+   * every 5 minutes and a file gone in between cut the stage to black. A file that does not answer within a second
+   * (a share that went away held a stat 21 s on Windows, `isDirectory` in `files.ts`) comes back as the last sweep
+   * left it, so GO LIVE goes on as it did before this check: a disk slow to wake is not refused. Only an answer is
+   * written. `changed`: the row was written, so the windows are to be told.
+   */
+  async check(id: number): Promise<{ asset: MediaAsset | null; changed: boolean }> {
+    const asset = this.getById(id);
+    if (!asset) return { asset, changed: false };
+    let pending = this.checking.get(asset.path);
+    if (!pending) {
+      pending = fs.promises
+        .stat(asset.path)
+        .catch(() => null)
+        .finally(() => this.checking.delete(asset.path));
+      this.checking.set(asset.path, pending);
+    }
+    const stat = await Promise.race([pending, new Promise<"slow">((resolve) => setTimeout(resolve, 1000, "slow"))]);
+    if (stat === "slow") return { asset, changed: false };
+
+    let changed = false;
+    if ((stat === null) !== (asset.missingSince !== null)) {
+      const now = Date.now();
+      this.db
+        .update(mediaAssets)
+        .set(stat === null ? { missingSince: now } : { missingSince: null, lastSeenAt: now })
+        .where(eq(mediaAssets.id, id))
+        .run();
+      changed = true;
+    }
+    if (stat && (stat.size !== asset.sizeBytes || Math.trunc(stat.mtimeMs) !== asset.mtimeMs)) {
+      this.refreshStat(id, stat.size, Math.trunc(stat.mtimeMs));
+      changed = true;
+    }
+    return { asset: changed ? this.getById(id) : asset, changed };
+  }
+
   /** A linked folder was just listed: its rows (`inLibrary = 0`, this folder only, not a subfolder's) that did not
    *  come back are marked missing, never deleted. The sweep leaves those rows out, so a file deleted from the folder
    *  kept a row that every reconcile probed again (2026-11-15 audit, D10). The next listing that finds it clears it.

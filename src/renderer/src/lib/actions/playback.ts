@@ -194,7 +194,8 @@ async function goLiveWithMediaAsset(
   intent: number,
   fromItemId?: number,
 ): Promise<MediaLiveResult> {
-  const asset = await api.library.get(assetId);
+  // Its file looked at now, not at the last sweep (up to 5 minutes ago): one gone since cut what was on air to black.
+  const asset = await api.library.check(assetId);
   if (!asset) return "failed";
   // A file PREVIEW already calls missing never reaches the projector: sending
   // it anyway cut what was live to a black, silent stage. Said the way a deck
