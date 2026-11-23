@@ -11,12 +11,15 @@ import { fontsLoadedCount } from "@renderer/components/shared/slide-view/slide-m
 let releaseFont!: () => void;
 const fontLoaded = new Promise<void>((resolve) => (releaseFont = resolve));
 const added: unknown[] = [];
+const constructed: string[] = [];
 
 class FakeFontFace {
-  constructor(private readonly family: string) {}
+  constructor(private readonly family: string) {
+    constructed.push(family);
+  }
   load(): Promise<FakeFontFace> {
-    // «Stuck Sans»: a font whose request never ends (a protocol read that never answers).
-    return this.family === "Stuck Sans" ? new Promise(() => undefined) : fontLoaded.then(() => this);
+    // «Stuck Sans» and «Unused Sans»: a font whose request never ends (a protocol read that never answers).
+    return this.family === "Stuck Sans" || this.family === "Unused Sans" ? new Promise(() => undefined) : fontLoaded.then(() => this);
   }
 }
 
@@ -24,17 +27,14 @@ vi.stubGlobal("FontFace", FakeFontFace);
 Object.defineProperty(document, "fonts", { configurable: true, value: { add: (face: unknown) => added.push(face) } });
 vi.stubGlobal(
   "fetch",
-  vi.fn((url: string) =>
-    Promise.resolve({
-      ok: true,
-      json: () =>
-        Promise.resolve({
-          fonts: [{ family: url.includes("/10/") ? "Stuck Sans" : "Deck Sans", part: "ppt/fonts/font1.fntdata", style: "regular" }],
-          elements: [],
-          background: null,
-        }),
-    }),
-  ),
+  vi.fn((url: string) => {
+    // Deck 11 embeds two faces and its text names one of them.
+    const family = url.includes("/10/") ? "Stuck Sans" : url.includes("/11/") ? "Used Sans" : "Deck Sans";
+    const fonts = [{ family, part: "ppt/fonts/font1.fntdata", style: "regular" }];
+    if (url.includes("/11/")) fonts.push({ family: "Unused Sans", part: "ppt/fonts/font2.fntdata", style: "regular" });
+    const elements = [{ runs: [{ font: `"${family}", "Carlito", sans-serif` }] }];
+    return Promise.resolve({ ok: true, json: () => Promise.resolve({ fonts, elements, background: null }) });
+  }),
 );
 
 afterAll(() => {
@@ -78,4 +78,17 @@ test("a font whose load never ends holds a slide a few seconds at most, not for 
   } finally {
     vi.useRealTimers();
   }
+});
+
+test("a slide waits only for the embedded fonts its own text names, not for the whole deck's", async () => {
+  // Every model carries the deck's whole list: a first slide that named 5 of 24 faces waited for all 24 to be decoded
+  // and loaded, and an .odp whose text names none of its 11 waited for them all (2026-11-23).
+  releaseFont();
+  const model = await Promise.race([
+    loadSlideModel(slideModelUrl(11, 0)),
+    new Promise<"held">((resolve) => setTimeout(() => resolve("held"), 200)),
+  ]);
+  expect(model).not.toBe("held");
+  expect(constructed).toContain("Used Sans");
+  expect(constructed).not.toContain("Unused Sans");
 });
