@@ -1191,10 +1191,12 @@ describe("writing over the file", () => {
     expect(fs.statSync(file).mode & 0o777).toBe(0o640);
   });
 
-  test("a symbolic link to a song file: listed in its folder, and saving writes the file it points at, the link kept", async () => {
-    const real = path.join(fresh("symlink-target"), "real.cho");
-    fs.writeFileSync(real, "{title: Enlazada}\n{start_of_verse}\nLetra enlazada\n{end_of_verse}\n");
+  test("a symbolic link to a song file inside its folder: listed there, and saving writes the file it points at, the link kept", async () => {
+    // Inside: a link out of a linked folder is not one of its songs (owner, 2026-11-22; the test above).
     const folder = fresh("symlink-folder");
+    const real = path.join(folder, "originales", "real.cho");
+    fs.mkdirSync(path.dirname(real));
+    fs.writeFileSync(real, "{title: Enlazada}\n{start_of_verse}\nLetra enlazada\n{end_of_verse}\n");
     const link = path.join(folder, "enlace.cho");
     fs.symlinkSync(real, link);
     const [enlazada] = await listSongFolder(folder);
