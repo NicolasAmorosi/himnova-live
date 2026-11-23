@@ -114,12 +114,12 @@ export function OverlaysPanel() {
       {/* The footer every resource tab has: the editor on the left as an icon,
           «Add to schedule» pinned right with its word. */}
       <PanelFooter>
-        <Tooltip content={t("overlays.manageHint")} floating>
+        <Tooltip content={t("overlays.manageHint")}>
           <IconButton aria-label={t("overlays.manage")} onClick={() => setEditorOpen(true)} size="sm" variant="ghost">
             <Icon name="overlay" />
           </IconButton>
         </Tooltip>
-        <Tooltip className="ml-auto" content={t("resources.addToScheduleHint")} placement="top">
+        <Tooltip className="ml-auto" content={t("resources.addToScheduleHint")}>
           <Button
             aria-label={t("resources.addToSchedule")}
             disabled={previewedId === null}

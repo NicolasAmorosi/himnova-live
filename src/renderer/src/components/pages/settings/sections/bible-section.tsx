@@ -505,7 +505,7 @@ function VersionRow({
           // more, and none saying «Included» either: neither was something the
           // operator could act on, and between them they pushed the name off
           // its own column on exactly the rows that had them.
-          <Tooltip content={defaultLabel} floating>
+          <Tooltip content={defaultLabel}>
             <IconButton
               aria-label={defaultLabel}
               aria-pressed={isDefault}
@@ -544,12 +544,12 @@ function VersionRow({
                 />
               </div>
             )}
-            <Tooltip content={t("settings.bible.rename")} floating>
+            <Tooltip content={t("settings.bible.rename")}>
               <IconButton aria-label={t("settings.bible.rename")} disabled={busy} onClick={onRenameStart} variant="ghost">
                 <Icon name="pencil" />
               </IconButton>
             </Tooltip>
-            <Tooltip content={t("common.delete")} floating>
+            <Tooltip content={t("common.delete")}>
               <IconButton aria-label={t("common.delete")} disabled={busy} onClick={onDelete} variant="ghost">
                 <Icon name="remove" />
               </IconButton>

@@ -92,7 +92,7 @@ export function StatusToken({ children, className, icon, iconClassName, onRemove
       )}
       {...props}
     >
-      <Tooltip content={removeLabel} floating>
+      <Tooltip content={removeLabel}>
         <button
           aria-label={removeLabel}
           className="focus-ring-inset grid size-[1.375rem] shrink-0 cursor-pointer place-items-center rounded-sm transition-colors hover:bg-hover"

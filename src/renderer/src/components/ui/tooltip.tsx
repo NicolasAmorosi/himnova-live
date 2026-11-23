@@ -4,10 +4,6 @@ import { createPortal } from "react-dom";
 import { cn } from "@renderer/lib/utils";
 
 type TooltipProps = {
-  /** Unused: the bubble is placed against the viewport and flips by itself.
-   *  Kept so the call sites written for the retired in-flow bubble still
-   *  compile. */
-  align?: "start" | "end";
   children: ReactNode;
   className?: string;
   content: ReactNode;
@@ -21,10 +17,6 @@ type TooltipProps = {
    *  screen, which is how this bubble looked everywhere before the two cases
    *  were told apart. */
   fit?: "text" | "path";
-  /** Unused, see `align`: every tooltip floats now. */
-  floating?: boolean;
-  /** Unused, see `align`. */
-  placement?: "top" | "bottom";
 };
 
 // Kept clear of the viewport edge, and of the trigger itself.

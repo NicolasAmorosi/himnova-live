@@ -158,7 +158,7 @@ export function SongsBrowser() {
         activeView={view}
         addFolder={{ hint: t("songs.linkFolderHint"), label: t("resources.addFolder"), onClick: () => void linkSongFolder() }}
         folderActions={
-          <Tooltip content={t("resources.removeFolderHint")} floating>
+          <Tooltip content={t("resources.removeFolderHint")}>
             <IconButton
               aria-label={t("resources.removeFolder")}
               onClick={() => setConfirmUnlink(view)}
@@ -271,7 +271,7 @@ export function SongsBrowser() {
         {/* A new or imported song goes into the library: in a folder's view,
             where it would not show, neither is offered (Media's add, too). */}
         {folder === null ? (
-          <Tooltip content={t("songs.newHint")} floating>
+          <Tooltip content={t("songs.newHint")}>
             <IconButton aria-label={t("songs.new")} onClick={() => setEditing({ songId: null })} size="sm" variant="ghost">
               <Icon name="add" />
             </IconButton>
@@ -280,7 +280,7 @@ export function SongsBrowser() {
         {/* Like Media's ✕ (owner, 2026-11-05) — but a song lives only here, so
             this deletes it, asked first. Not in a folder's view, like Media's. */}
         {folder === null ? (
-          <Tooltip content={t("songs.removeHint")} floating>
+          <Tooltip content={t("songs.removeHint")}>
             <IconButton
               aria-label={t("songs.remove")}
               disabled={!deletable}
@@ -292,7 +292,7 @@ export function SongsBrowser() {
             </IconButton>
           </Tooltip>
         ) : null}
-        <Tooltip content={t("songs.editHint")} floating>
+        <Tooltip content={t("songs.editHint")}>
           <IconButton
             aria-label={t("songs.edit")}
             disabled={!previewed}
@@ -308,18 +308,18 @@ export function SongsBrowser() {
             2026-11-04 redesign's P2: «me gustan solo los íconos»). */}
         {/* One picker for every format (owner, 2026-11-05: no menu of programs). */}
         {folder === null ? (
-          <Tooltip content={t("songs.importHint")} floating>
+          <Tooltip content={t("songs.importHint")}>
             <IconButton aria-label={t("songs.import")} disabled={importing} onClick={runImport} size="sm" variant="ghost">
               <Icon name="import" />
             </IconButton>
           </Tooltip>
         ) : null}
-        <Tooltip content={t("songThemes.manageHint")} floating>
+        <Tooltip content={t("songThemes.manageHint")}>
           <IconButton aria-label={t("songThemes.title")} onClick={() => setThemesOpen(true)} size="sm" variant="ghost">
             <Icon name="palette" />
           </IconButton>
         </Tooltip>
-        <Tooltip className="ml-auto" content={t("resources.addToScheduleHint")} placement="top">
+        <Tooltip className="ml-auto" content={t("resources.addToScheduleHint")}>
           <Button
             aria-label={t("resources.addToSchedule")}
             disabled={!previewed}

@@ -93,7 +93,7 @@ function DeckPreviewTransport({ deck, title }: { deck: DeckDTO; title: string })
   // name keeps its room on the line (2026-11-05).
   const audioActions =
     deck.soundtrack === null ? (
-      <Tooltip content={t("deck.audio.help")} floating>
+      <Tooltip content={t("deck.audio.help")}>
         <Button onClick={() => void assign()} size="xs" variant="ghost">
           <Icon name="audio" />
           {t("deck.audio.assign")}

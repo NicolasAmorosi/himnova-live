@@ -212,7 +212,7 @@ export function SchedulePanel() {
       <PanelHeader
         actions={
           dirty ? (
-            <Tooltip content={t("schedule.notSavedHint")} floating>
+            <Tooltip content={t("schedule.notSavedHint")}>
               <Badge variant="neutral">{t("schedule.notSaved")}</Badge>
             </Tooltip>
           ) : null
@@ -269,12 +269,12 @@ export function SchedulePanel() {
           role="toolbar"
           aria-orientation="vertical"
         >
-          <Tooltip content={t("schedule.addAllHint")} floating>
+          <Tooltip content={t("schedule.addAllHint")}>
             <IconButton aria-label={t("schedule.addAll")} onClick={() => void handleAddAll()} size="sm" variant="ghost">
               <Icon name="add" />
             </IconButton>
           </Tooltip>
-          <Tooltip content={t("schedule.moveUpHint")} floating>
+          <Tooltip content={t("schedule.moveUpHint")}>
             <IconButton
               aria-label={t("schedule.moveUp")}
               disabled={selectedIndex === null || selectedIndex === 0}
@@ -285,7 +285,7 @@ export function SchedulePanel() {
               <Icon name="arrowUp" />
             </IconButton>
           </Tooltip>
-          <Tooltip content={t("schedule.moveDownHint")} floating>
+          <Tooltip content={t("schedule.moveDownHint")}>
             <IconButton
               aria-label={t("schedule.moveDown")}
               disabled={selectedIndex === null || selectedIndex === items.length - 1}
@@ -296,7 +296,7 @@ export function SchedulePanel() {
               <Icon name="arrowDown" />
             </IconButton>
           </Tooltip>
-          <Tooltip content={t("schedule.removeHint")} floating>
+          <Tooltip content={t("schedule.removeHint")}>
             <IconButton
               aria-label={t("schedule.remove")}
               disabled={selectedIndex === null}
@@ -309,7 +309,7 @@ export function SchedulePanel() {
           </Tooltip>
           {/* At the foot, away from the others; destructive, so it asks
               first. A «⋯» holding this one command was a menu of one. */}
-          <Tooltip content={t("schedule.clear")} floating>
+          <Tooltip content={t("schedule.clear")}>
             <IconButton
               aria-label={t("schedule.clear")}
               className="mt-auto"

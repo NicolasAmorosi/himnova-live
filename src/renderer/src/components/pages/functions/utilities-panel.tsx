@@ -139,12 +139,12 @@ export function UtilitiesPanel() {
           «Scenes…» on the left like the tab's own tools, «Add to
           schedule» pinned right like the media browser's. */}
       <PanelFooter>
-        <Tooltip content={t("utilities.manageHint")} floating>
+        <Tooltip content={t("utilities.manageHint")}>
           <IconButton aria-label={t("utilities.manage")} onClick={() => setEditorOpen(true)} size="sm" variant="ghost">
             <Icon name="timer" />
           </IconButton>
         </Tooltip>
-        <Tooltip className="ml-auto" content={t("resources.addToScheduleHint")} placement="top">
+        <Tooltip className="ml-auto" content={t("resources.addToScheduleHint")}>
           <Button
             aria-label={t("resources.addToSchedule")}
             disabled={previewedId === null}

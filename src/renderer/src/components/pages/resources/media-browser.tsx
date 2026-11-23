@@ -330,7 +330,7 @@ export function MediaBrowser({ active, kind }: { active: boolean; kind: AssetKin
         activeView={activeView}
         addFolder={{ hint: t("resources.addFolderHint"), label: t("resources.addFolder"), onClick: () => void addLinkedFolder(kind) }}
         folderActions={
-          <Tooltip content={t("resources.removeFolderHint")} floating>
+          <Tooltip content={t("resources.removeFolderHint")}>
             {/* Its own icon: a bare ✕ after a dropdown read as «clear the
                 choice». Asked first: the view the operator had open
                 disappearing looks exactly like data loss even though no file
@@ -475,14 +475,14 @@ export function MediaBrowser({ active, kind }: { active: boolean; kind: AssetKin
             linked folder mirrors what is on disk, so there is nothing an
             in-app picker could add to the view being browsed. */}
         {!isFolderView ? (
-          <Tooltip align="start" content={t("library.addHint")} placement="top">
+          <Tooltip content={t("library.addHint")}>
             <IconButton aria-label={t("library.add")} onClick={() => void handleAdd()} size="sm" variant="ghost">
               <Icon name="add" />
             </IconButton>
           </Tooltip>
         ) : null}
         {!isFolderView ? (
-          <Tooltip align="start" content={t("library.removeHint")} placement="top">
+          <Tooltip content={t("library.removeHint")}>
             <IconButton
               aria-label={t("library.remove")}
               disabled={selectedId === null}
@@ -495,7 +495,7 @@ export function MediaBrowser({ active, kind }: { active: boolean; kind: AssetKin
           </Tooltip>
         ) : null}
         {kind === "ppt" && pendingDeckCount > 0 && (!prewarmBatch || prewarmBatch.status !== "running") ? (
-          <Tooltip align="start" content={t("prewarm.actionHint")} placement="top">
+          <Tooltip content={t("prewarm.actionHint")}>
             <IconButton
               aria-label={t("prewarm.action")}
               onClick={() => setConfirmPrewarmOpen(true)}
@@ -506,7 +506,7 @@ export function MediaBrowser({ active, kind }: { active: boolean; kind: AssetKin
             </IconButton>
           </Tooltip>
         ) : null}
-        <Tooltip className="ml-auto" content={t("resources.addToScheduleHint")} placement="top">
+        <Tooltip className="ml-auto" content={t("resources.addToScheduleHint")}>
           <Button
             aria-label={t("resources.addToSchedule")}
             disabled={selectedId === null}

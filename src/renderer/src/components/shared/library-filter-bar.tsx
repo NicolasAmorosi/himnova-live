@@ -59,7 +59,7 @@ export function LibraryFilterBar<S extends string>({
     // 32 px controls in a strip, like the Bible tab's rows: the box does not
     // change size from one tab to the next (2026-11-05 review).
     <div className="flex h-strip shrink-0 items-center gap-1.5 border-b border-border px-1.5">
-      <Tooltip align="start" content={sortHint} placement="bottom">
+      <Tooltip content={sortHint}>
         <Menu icon="sort" label={t("resources.sort")} onSelect={onSortChange} options={sortOptions} size="sm" value={sort} />
       </Tooltip>
 
@@ -95,7 +95,7 @@ export function LibraryFilterBar<S extends string>({
       </div>
 
       {query !== "" ? (
-        <Tooltip align="end" content={t("resources.clearSearch")} placement="bottom">
+        <Tooltip content={t("resources.clearSearch")}>
           <IconButton aria-label={t("resources.clearSearch")} onClick={() => onQueryChange("")} size="sm" variant="ghost">
             <Icon name="close" />
           </IconButton>
@@ -103,7 +103,7 @@ export function LibraryFilterBar<S extends string>({
       ) : null}
 
       {addFolder ? (
-        <Tooltip content={addFolder.hint} floating>
+        <Tooltip content={addFolder.hint}>
           <IconButton aria-label={addFolder.label} onClick={addFolder.onClick} size="sm" variant="ghost">
             <Icon name="folderPlus" />
           </IconButton>
@@ -137,7 +137,7 @@ export function FolderRefreshButton({ onRefresh }: { onRefresh: () => void }) {
     return () => window.removeEventListener("focus", onFocus);
   }, [onRefresh]);
   return (
-    <Tooltip content={t("resources.refreshFolderHint")} floating>
+    <Tooltip content={t("resources.refreshFolderHint")}>
       <IconButton aria-label={t("resources.refreshFolder")} onClick={onRefresh} ref={ref} size="sm" variant="ghost">
         <Icon name="refresh" />
       </IconButton>

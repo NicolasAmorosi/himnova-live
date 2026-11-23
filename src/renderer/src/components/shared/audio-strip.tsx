@@ -85,7 +85,6 @@ export function AudioStrip({ bus }: { bus: AudioBus }) {
               {notice ? <span className="mt-1 block text-warning-ink">{notice}</span> : null}
             </>
           }
-          floating
         >
           <Menu
             align="end"

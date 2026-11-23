@@ -232,7 +232,7 @@ export function ChannelStrip({
           value={position}
         />
       </div>
-      <Tooltip content={muteLabel} floating>
+      <Tooltip content={muteLabel}>
         <IconButton aria-label={muteLabel} aria-pressed={muted} onClick={onToggleMute} size="xs" variant="ghost">
           <Icon
             className={cn(muted && (alarmWhenMuted ? "text-danger-ink" : "text-subtle"))}

@@ -61,7 +61,7 @@ export function ProgramRow({
       onGripMouseDown={draggable ? () => setDragReady(true) : undefined}
       onGripMouseUp={draggable ? () => setDragReady(false) : undefined}
       leading={
-        <Tooltip content={program.favorite ? t("programs.favoriteRemove") : t("programs.favoriteAdd")} floating>
+        <Tooltip content={program.favorite ? t("programs.favoriteRemove") : t("programs.favoriteAdd")}>
           <IconButton
             aria-label={program.favorite ? t("programs.favoriteRemove") : t("programs.favoriteAdd")}
             aria-pressed={program.favorite}
