@@ -1255,7 +1255,7 @@ const pt: Messages = {
     logoRemove: "Remover",
     logoRemoveTitle: "Remover o logo?",
     logoRemoveLiveBody:
-      "O projetor está mostrando o logo agora mesmo: ao removê-lo, a tela fica preta até você mandar algo AO VIVO. Nenhum arquivo é apagado — o logo sai das configurações e você pode escolhê-lo de novo quando quiser.",
+      "O projetor está mostrando o logo agora mesmo: ao removê-lo, a tela fica preta até você mandar algo AO VIVO. Nenhum arquivo é apagado. O logo sai das configurações e você pode escolhê-lo de novo quando quiser.",
     chooseFile: "Escolher arquivo…",
     clearLive: "O que está sendo projetado agora",
     logoMode: "Mostrar",

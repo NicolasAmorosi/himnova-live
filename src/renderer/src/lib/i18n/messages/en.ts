@@ -1254,7 +1254,7 @@ const en: Messages = {
     logoRemove: "Remove",
     logoRemoveTitle: "Remove the logo?",
     logoRemoveLiveBody:
-      "The projector is showing the logo right now: if you remove it, the screen stays black until you GO LIVE with something. No file is deleted — the logo just leaves the settings, and you can choose it again whenever you like.",
+      "The projector is showing the logo right now: if you remove it, the screen stays black until you GO LIVE with something. No file is deleted. The logo just leaves the settings, and you can choose it again whenever you like.",
     chooseFile: "Choose file…",
     clearLive: "What is on the projector now",
     logoMode: "Show",

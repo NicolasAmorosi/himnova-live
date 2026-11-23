@@ -1258,7 +1258,7 @@ const it: Messages = {
     logoRemove: "Rimuovi",
     logoRemoveTitle: "Rimuovere il logo?",
     logoRemoveLiveBody:
-      "Il proiettore sta mostrando il logo in questo momento: se lo rimuovi, lo schermo resta nero finché non mandi qualcosa IN ONDA. Nessun file viene eliminato — il logo esce dalle impostazioni e puoi sceglierlo di nuovo quando vuoi.",
+      "Il proiettore sta mostrando il logo in questo momento: se lo rimuovi, lo schermo resta nero finché non mandi qualcosa IN ONDA. Nessun file viene eliminato. Il logo esce dalle impostazioni e puoi sceglierlo di nuovo quando vuoi.",
     chooseFile: "Scegli file…",
     clearLive: "Ciò che è proiettato ora",
     logoMode: "Mostra",

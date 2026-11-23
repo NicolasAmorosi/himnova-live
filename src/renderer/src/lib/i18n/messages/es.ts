@@ -1267,7 +1267,7 @@ const es = {
     logoRemove: "Quitar",
     logoRemoveTitle: "¿Quitar el logo?",
     logoRemoveLiveBody:
-      "El proyector está mostrando el logo ahora mismo: al quitarlo, la pantalla queda en negro hasta que mandes algo EN VIVO. No se borra ningún archivo — el logo sale de la configuración y podés volver a elegirlo cuando quieras.",
+      "El proyector está mostrando el logo ahora mismo: al quitarlo, la pantalla queda en negro hasta que mandes algo EN VIVO. No se borra ningún archivo. El logo sale de la configuración y podés volver a elegirlo cuando quieras.",
     chooseFile: "Elegir archivo…",
     clearLive: "Lo que se proyecta ahora",
     logoMode: "Mostrar",
