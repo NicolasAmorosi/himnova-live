@@ -831,6 +831,8 @@ const es = {
   footer: { black: "NEGRO", logo: "LOGO", live: "VIVO" },
   /** The top bar's live buttons, in their tooltips beside their keys. */
   footerHints: { goLive: "Mandar la vista previa al proyector", logo: "Mostrar el logo", black: "Pantalla en negro", live: "Volver a mostrar el contenido" },
+  /** A keycap's name where the locale has its own (Italian says «Invio»). */
+  keys: { enter: "Enter" },
   projector: {
     closedUnexpectedly: "Se cerró la ventana de proyección",
     recovered: "La ventana de proyección se cayó y se volvió a abrir sola",

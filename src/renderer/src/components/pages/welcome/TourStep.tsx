@@ -31,7 +31,7 @@ export function TourStep({ firstSteps, onFirstStepsChange }: { firstSteps: boole
                   <span className="mt-1 flex flex-wrap gap-1">
                     {keys.map((key) => (
                       <Kbd className="ml-0" key={key}>
-                        {key}
+                        {key === "Enter" ? t("keys.enter") : key}
                       </Kbd>
                     ))}
                   </span>

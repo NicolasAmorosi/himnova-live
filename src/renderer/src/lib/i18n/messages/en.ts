@@ -824,6 +824,8 @@ const en: Messages = {
   footer: { black: "BLACK", logo: "LOGO", live: "LIVE" },
   /** The top bar's live buttons, in their tooltips beside their keys. */
   footerHints: { goLive: "Send the preview to the projector", logo: "Show the logo", black: "Black screen", live: "Show the content again" },
+  /** A keycap's name where the locale has its own (Italian says «Invio»). */
+  keys: { enter: "Enter" },
   projector: {
     closedUnexpectedly: "The projector window closed",
     recovered: "The projector window crashed and reopened on its own",

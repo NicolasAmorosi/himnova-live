@@ -120,7 +120,7 @@ export function TopBar({ onOpenPrograms, onOpenSettings }: TopBarProps) {
             during a service: the bar is a strip tall like all the others
             (owner, 2026-11-06). They keep their width and their words. */}
         <div className="flex items-center justify-end px-3">
-          <Tooltip content={<>{t("footerHints.goLive")}<Kbd>Enter</Kbd></>} floating>
+          <Tooltip content={<>{t("footerHints.goLive")}<Kbd>{t("keys.enter")}</Kbd></>} floating>
             <Button disabled={previewContent === null} onClick={() => void goLive()} size="sm" variant="live">
               <Icon name="play" /> {t("actions.goLive")}
             </Button>

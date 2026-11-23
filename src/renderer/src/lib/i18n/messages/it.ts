@@ -828,6 +828,8 @@ const it: Messages = {
   footer: { black: "NERO", logo: "LOGO", live: "LIVE" },
   /** The top bar's live buttons, in their tooltips beside their keys. */
   footerHints: { goLive: "Manda l'anteprima al proiettore", logo: "Mostra il logo", black: "Schermo nero", live: "Mostra di nuovo il contenuto" },
+  /** A keycap's name where the locale has its own (Italian says «Invio»). */
+  keys: { enter: "Invio" },
   projector: {
     closedUnexpectedly: "La finestra di proiezione si è chiusa",
     recovered: "La finestra di proiezione si è bloccata e si è riaperta da sola",
@@ -1125,7 +1127,7 @@ const it: Messages = {
         off: "Spenta",
         starting: "Avvio…",
         sending:
-          "{count, plural, =0 {Invio · nessun programma la riceve} one {Invio · # programma la riceve} other {Invio · # programmi la ricevono}}",
+          "{count, plural, =0 {In trasmissione · nessun programma la riceve} one {In trasmissione · # programma la riceve} other {In trasmissione · # programmi la ricevono}}",
         runtimeMissing: "Manca NDI, che è gratuito. Installalo, poi chiudi e riapri Himnova Live.",
       },
       errors: {
