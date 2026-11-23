@@ -33,6 +33,7 @@ const { EditorDraftsNotice, offerEditorDrafts, useEditorRecovery } = await impor
   "@renderer/components/shared/editor-screen"
 );
 const { useSongStore } = await import("@renderer/stores/song.store");
+const { ModalBoundary } = await import("@renderer/components/shared/modal-boundary");
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -185,6 +186,25 @@ test("the editor opened by «Recuperar» has the form as it was left, and closin
   expect(document.body.textContent).toContain("Editado");
   await render(editor(false));
   expect(useEditorRecovery.getState().queue.map((draft) => draft.editor)).toEqual(["plate"]);
+});
+
+test("an editor that breaks on the form it took back lets it go: the next opening is the saved song", async () => {
+  const broken: EditorDraft = { ...recovered, state: { currentId: 1, draft: null, baseline: null } };
+  useEditorRecovery.setState({ queue: [broken, { ...recovered, editor: "plate" }] });
+  const crashed = vi.fn();
+  const quiet = vi.spyOn(console, "error").mockImplementation(() => undefined);
+  const guarded = (open: boolean) => createElement(ModalBoundary, { onCrash: crashed, open, children: editor(open) });
+  try {
+    await render(guarded(true));
+    expect(crashed).toHaveBeenCalled();
+    // Fails if the broken form stays first: every opening of the song editor this session would break on it again.
+    expect(useEditorRecovery.getState().queue.map((draft) => draft.editor)).toEqual(["plate"]);
+    await render(guarded(false));
+    await render(guarded(true));
+    expect(nameField().value).toBe("Uno");
+  } finally {
+    quiet.mockRestore();
+  }
 });
 
 test("the notice waits behind the welcome and «Novedades»", async () => {

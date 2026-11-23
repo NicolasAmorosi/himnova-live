@@ -74,6 +74,15 @@ export function dropEditorDrafts(): void {
   }
 }
 
+/** A recovered draft the editor took back leaves «Recuperar»'s queue: the next one opens. By identity, so a second
+ *  call is a no-op. */
+function releaseRecovered(applied: { current: EditorDraft | null }): void {
+  const draft = applied.current;
+  if (draft === null) return;
+  applied.current = null;
+  useEditorRecovery.setState((s) => ({ queue: s.queue.filter((queued) => queued !== draft) }));
+}
+
 /** What an editor hands over: what it edits (`null`: something new), its name for the notice, and its form. */
 export type EditorSnapshot = { id: number | null; name: string; state: unknown };
 
@@ -96,23 +105,22 @@ export function useEditorDraft(
   const unsaved = open && dirty;
   /** This editor's row is on disk: written here, or recovered. */
   const held = useRef(false);
-  const applied = useRef(false);
+  /** The recovered draft this editor took back, until it closes or goes. */
+  const applied = useRef<EditorDraft | null>(null);
   const restoreRef = useRef(restore);
   restoreRef.current = restore;
   const recovering = useRecovering(editor);
 
   useEffect(() => {
     if (!open || recovering === null || applied.current) return;
-    applied.current = true;
+    applied.current = recovering;
     held.current = true;
     restoreRef.current(recovering);
   }, [open, recovering]);
 
   // Closed after a recovery: the next one opens.
   useEffect(() => {
-    if (open || !applied.current) return;
-    applied.current = false;
-    useEditorRecovery.setState((s) => ({ queue: s.queue.slice(1) }));
+    if (!open) releaseRecovered(applied);
   }, [open]);
 
   // Opened by hand with this editor's row put off: asked again, before its own form replaces it.
@@ -145,6 +153,14 @@ export function useEditorDraft(
     return () => window.clearTimeout(timer);
   }, [editor, unsaved, id, name, state]);
 
-  // Gone with its changes (its boundary caught a throw): the row stays, but a later quit no longer drops it.
-  useEffect(() => () => void unsavedNow.delete(editor), [editor]);
+  // Gone with its changes (its boundary caught a throw): the row stays, but a later quit no longer drops it. A
+  // recovered form leaves the queue too: maybe it was what threw, and still first there it broke the editor again at
+  // every opening for the rest of the session. The row stays on disk, offered at the next launch.
+  useEffect(
+    () => () => {
+      unsavedNow.delete(editor);
+      releaseRecovered(applied);
+    },
+    [editor],
+  );
 }
