@@ -409,6 +409,19 @@ describe("a linked folder of song files (owner, 2026-11-05)", () => {
     expect(again.find((song) => song.id === roca.id)?.title).toBe("Roca de los siglos");
   });
 
+  test("a link out of the folder is not one of its songs; a link that stays inside is (owner, 2026-11-22)", async () => {
+    const { listSongFolder } = await import("../../src/main/services/song-files");
+    const folder = fs.mkdtempSync(path.join(tmpDir, "linked-"));
+    const outside = fs.mkdtempSync(path.join(tmpDir, "outside-"));
+    fs.writeFileSync(path.join(outside, "afuera.cho"), "{title: Afuera}\n{start_of_verse}\nNo es de la carpeta\n{end_of_verse}\n");
+    fs.writeFileSync(path.join(folder, "uno.cho"), "{title: Roca eterna}\n{start_of_verse}\nRoca de la eternidad\n{end_of_verse}\n");
+    fs.symlinkSync(path.join(outside, "afuera.cho"), path.join(folder, "afuera.cho"));
+    fs.symlinkSync(path.join(folder, "uno.cho"), path.join(folder, "otra.cho"));
+
+    const titles = (await listSongFolder(folder)).map((song) => song.title).sort();
+    expect(titles).toEqual(["Roca eterna", "Roca eterna"]);
+  });
+
   test("a song of a file is saved into its file, and a file changed since is not overwritten", async () => {
     const { listSongFolder, writeSongFile } = await import("../../src/main/services/song-files");
     const folder = fs.mkdtempSync(path.join(tmpDir, "linked-"));

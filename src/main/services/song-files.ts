@@ -68,11 +68,15 @@ export async function listSongFolder(folder: string): Promise<Song[]> {
   const known = repo.fromFolder(folder);
   const songs: Song[] = [];
   const present = new Set<string>();
+  const root = await fs.promises.realpath(folder).catch(() => folder);
   for (const entry of entries) {
     if (!isSongFile(entry.name)) continue;
+    const file = path.join(folder, entry.name);
+    // A link out of the folder is not one of its songs: saving the song wrote through it, onto a file anywhere on the
+    // computer (owner, 2026-11-22: only links that stay inside). A broken link goes on, and fails below as before.
+    if (entry.isSymbolicLink() && !(await staysInside(file, root))) continue;
     // There, whatever reading it says: a share that fails a moment keeps its rows.
     present.add(entry.name);
-    const file = path.join(folder, entry.name);
     try {
       const stat = await fs.promises.stat(file);
       if (!stat.isFile()) continue;
@@ -91,6 +95,14 @@ export async function listSongFolder(folder: string): Promise<Song[]> {
   }
   repo.forgetFiles(folder, present);
   return songs;
+}
+
+/** Where the link `file` leads is inside `root`, or nowhere (a broken link). */
+async function staysInside(file: string, root: string): Promise<boolean> {
+  const target = await fs.promises.realpath(file).catch(() => null);
+  if (target === null) return true;
+  const relative = path.relative(root, target);
+  return relative !== "" && !relative.startsWith("..") && !path.isAbsolute(relative);
 }
 
 /** What `format`'s file holds of a song's words: what the song can lose
