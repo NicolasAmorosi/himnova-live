@@ -3,6 +3,13 @@
 import fs from "node:fs";
 import { afterEach, expect, test, vi } from "vitest";
 import { backgroundStat, operatorStat } from "../../src/main/services/background-files";
+import { backfillContentHashes } from "../../src/main/media/content-hash";
+
+const hashed = vi.hoisted(() => ({ pending: [] as { id: number; path: string }[] }));
+vi.mock("../../src/main/services/repos", () => ({
+  getMediaRepo: () => ({ assetsNeedingContentHash: () => hashed.pending.splice(0), setContentHash: () => undefined }),
+}));
+vi.mock("../../src/main/services/broadcast", () => ({ broadcast: () => undefined }));
 
 afterEach(() => vi.restoreAllMocks());
 
@@ -102,4 +109,20 @@ test("the operator never joins a stat the background started, which may answer o
   expect(stats).toHaveBeenCalledTimes(2);
   answers[1]!();
   await Promise.all([operator, ...joined]);
+});
+
+test("the startup content hash stats with the background, never on a third thread beside its two", async () => {
+  // A presentation on a share that went away held a thread of its own until the system gave up (review, RN2-8).
+  const { started, running } = holdStats();
+  const sweep = [backgroundStat("s1"), backgroundStat("s2")];
+  hashed.pending = [{ id: 1, path: "hymn.pps" }];
+  const backfill = backfillContentHashes();
+  await flush();
+  expect(started).toEqual(["s1", "s2"]);
+  running.get("s1")!();
+  await vi.waitFor(() => expect(started).toEqual(["s1", "s2", "hymn.pps"]));
+  // Its stat answers and its read fails (no such file): skipped, as before.
+  running.get("hymn.pps")!();
+  running.get("s2")!();
+  await Promise.all([backfill, ...sweep]);
 });
