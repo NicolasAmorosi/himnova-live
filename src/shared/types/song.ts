@@ -318,7 +318,7 @@ export function songThemeFromBibleStyle(style: BibleStyle): SongTheme {
   };
 }
 
-/** The footer's lines for a song: «Title — Authors», then «© … · CCLI n.º … ·
+/** The footer's lines for a song: «Title · Authors», then «© … · CCLI n.º … ·
  *  Licence …», each piece only when it is on and the song has it. `labels`
  *  are the interface's words for the two CCLI numbers. */
 export function songFooterLines(
@@ -333,5 +333,5 @@ export function songFooterLines(
     fields.ccli && song.ccliNumber ? `${labels.ccli} ${song.ccliNumber}` : null,
     fields.license && license ? `${labels.license} ${license}` : null,
   ].filter(Boolean);
-  return [first.join(" — "), second.join(" · ")].filter((line) => line !== "");
+  return [first.join(" · "), second.join(" · ")].filter((line) => line !== "");
 }

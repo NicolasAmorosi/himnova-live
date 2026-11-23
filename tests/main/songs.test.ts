@@ -352,7 +352,7 @@ describe("themes (F3)", () => {
     const all = DEFAULT_SONG_THEME.footer.fields;
     expect(
       songFooterLines({ title: "Sublime gracia", authors: "John Newton", copyright: "© Dominio público", ccliNumber: "22025" }, all, "123", labels),
-    ).toEqual(["Sublime gracia — John Newton", "© Dominio público · CCLI n.º 22025 · Licencia CCLI n.º 123"]);
+    ).toEqual(["Sublime gracia · John Newton", "© Dominio público · CCLI n.º 22025 · Licencia CCLI n.º 123"]);
     expect(songFooterLines({ title: "Sin datos", authors: null, copyright: null, ccliNumber: null }, all, null, labels)).toEqual([
       "Sin datos",
     ]);
