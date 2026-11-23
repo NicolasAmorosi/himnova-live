@@ -69,7 +69,12 @@ export function resolvePart(fromDir: string, target: string): string {
   return path.posix.normalize(joined).replace(/^\.\//, "");
 }
 
-function safeDecode(value: string): string {
+/** A link with a stray `%`, or a Latin-1 escape such as `%F1` («ñ» the way old
+ *  Office wrote it), is not valid UTF-8 percent-encoding and makes
+ *  `decodeURIComponent` throw, which, uncaught on the deck's open path, made
+ *  that presentation impossible to open again. The raw text is the better
+ *  guess. */
+export function safeDecode(value: string): string {
   try {
     return decodeURIComponent(value);
   } catch {

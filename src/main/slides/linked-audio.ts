@@ -6,6 +6,7 @@ import { AUDIO_EXT, containerKind } from "./pptx-metadata";
  *  `.mid` named like the hymn left it mute and stuck on slide 1 (2026-11-10 review, A13). */
 const LINKED_AUDIO_EXT = new Set([...AUDIO_EXT].filter((ext) => ext !== "mid" && ext !== "midi"));
 import { readZipEntries } from "./zip-reader";
+import { safeDecode } from "./pptx/package";
 import { readBinaryExternalPaths } from "./ppt-binary";
 
 /**
@@ -250,17 +251,4 @@ function extractHintFromOoxml(filePath: string): string | null {
     }
   }
   return null;
-}
-
-/** A link with a stray `%`, or a Latin-1 escape such as `%F1` («ñ» the way old
- *  Office wrote it), is not valid UTF-8 percent-encoding and makes
- *  `decodeURIComponent` throw — which, uncaught on the deck's open path, made
- *  that presentation impossible to open again. The raw text is the better
- *  guess. */
-function safeDecode(target: string): string {
-  try {
-    return decodeURIComponent(target);
-  } catch {
-    return target;
-  }
 }
