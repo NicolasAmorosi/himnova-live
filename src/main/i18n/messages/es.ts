@@ -106,6 +106,7 @@ const es = {
     invalidName: "El nombre de la versión no es válido.",
     alreadyInstalled: "Ese archivo ya está instalado: es «{name}».",
     bundledNotFound: "Esa versión no viene incluida en esta instalación.",
+    versionNotFound: "Esa versión de la Biblia ya no está instalada.",
     invalidLanguage: "El idioma de la versión no es válido.",
   },
   library: {

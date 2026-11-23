@@ -104,6 +104,7 @@ const en: MainMessages = {
     invalidName: "The version name isn't valid.",
     alreadyInstalled: "That file is already installed: it's “{name}”.",
     bundledNotFound: "That version is not included in this installation.",
+    versionNotFound: "That Bible version is no longer installed.",
     invalidLanguage: "The version's language is not valid.",
   },
   library: {

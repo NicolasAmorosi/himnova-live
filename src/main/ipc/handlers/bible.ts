@@ -122,7 +122,7 @@ export const bibleHandlers: Pick<
     const { filePath, options } = bundledSeedFor(biblesDir, code);
     const seeded = await seedBibleOffThread(filePath, options);
     const version = seeded ? getBibleRepo().getVersion(seeded.versionId) : null;
-    if (!version) throw new IpcError({ code: "BIBLE_VERSION_NOT_FOUND", message: `Bible version ${code} not found` });
+    if (!version) throw new IpcError({ code: "BIBLE_VERSION_NOT_FOUND", message: mt("bible.versionNotFound") });
     return version;
   },
 
@@ -131,7 +131,7 @@ export const bibleHandlers: Pick<
       throw new IpcError({ code: "INVALID_BIBLE_LANGUAGE", message: mt("bible.invalidLanguage") });
     }
     const updated = getBibleRepo().setLanguage(id, language);
-    if (!updated) throw new IpcError({ code: "BIBLE_VERSION_NOT_FOUND", message: `Bible version ${id} not found` });
+    if (!updated) throw new IpcError({ code: "BIBLE_VERSION_NOT_FOUND", message: mt("bible.versionNotFound") });
     return updated;
   },
 };
