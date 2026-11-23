@@ -37,8 +37,10 @@ queue, `deck:cancel` and the `slides.preemptBackground` escape hatch are gone.
 **Main does not stat, sniff or read a deck's file to open it** (2026-11-22 audit, RM1). The source
 is stat'ed with `fs.promises.stat`, one question per file at a time, shared with GO LIVE's check of
 the same file (`background-files.ts`); a share that stopped answering held a synchronous stat, and main
-with it, 21 s on Windows. A deck opened (`deck:ensure`) waits for that stat however long a disk takes to
-wake, and is `SOURCE_MISSING` only when the stat fails (2026-11-22 review, RN-2); a peek (`deck:get`)
+with it, 21 s on Windows. A deck opened (`deck:ensure`) waits for that stat while a disk wakes, up to
+`SLIDES_SOURCE_STAT_TIMEOUT_MS` (20 s), and is `SOURCE_MISSING` only when the stat fails (2026-11-22 review, RN-2);
+past the cap it fails as `SOURCE_NOT_RESPONDING` («the disk or folder is not responding»), nothing remembered of the
+file, and a deck already read stays ready in the control window (review, RN2-1). The read ahead waits it out; a peek (`deck:get`)
 gives up after a second with `null`, which only sends the renderer on to `ensure`. An ask of the operator joins
 a stat of theirs while it is under two seconds old: one that began while the share was down answers only
 when the system gives up (21 s on Windows, never on a mount that never answers), so «Reintentar» or a new GO LIVE

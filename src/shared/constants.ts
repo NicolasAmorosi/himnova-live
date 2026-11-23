@@ -165,6 +165,11 @@ export const SLIDES_PART_READ_TIMEOUT_MS = 10_000;
  *  operator waits on keeps `SLIDES_DECK_READ_TIMEOUT_MS`: a large legacy deck on a slow PC or a share over WiFi, never
  *  measured, must not fail at every ask, «Reintentar» included (review, RN2-4). */
 export const SLIDES_HYMNAL_READ_TIMEOUT_MS = 5_000;
+/** How long opening a deck the operator asked for (PREVIEW, GO LIVE, «Reintentar») waits for its file's `stat`. A disk
+ *  slow to wake is waited for, never told as a file that is gone (2026-11-22 review, RN-2), but a share that never
+ *  answers (an NFS `hard` mount) left the deck «Convirtiendo» until a restart. Windows gives up on a dead share by
+ *  itself at ~21 s (review, RN2-1). The read ahead waits it out. */
+export const SLIDES_SOURCE_STAT_TIMEOUT_MS = 20_000;
 
 /** The bundled bible's identity, NOT its edition: the text has always been the Reina-Valera
  *  1909 (public domain), shipped as «Reina-Valera 1960» through 2.2.0-beta.3. `bible_favorites`

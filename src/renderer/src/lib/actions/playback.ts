@@ -109,7 +109,8 @@ function toLiveDeck(deck: DeckDTO): LiveDeck {
  */
 async function explainDeckFailure(assetId: number): Promise<void> {
   const entry = useDeckStore.getState().byAssetId[assetId];
-  if (entry?.status !== "failed") return;
+  // A deck still ready says why only when its source did not answer (`ensure`).
+  if (entry?.status !== "failed" && !(entry?.status === "ready" && entry.error)) return;
   const asset = await api.library.get(assetId);
   toast.warning(t("deck.liveFailed", { name: asset?.name ?? "", reason: entry.error ?? t("deck.failed") }));
 }

@@ -10,6 +10,7 @@ import {
   SLIDES_MIN_RENDER_WIDTH,
   SLIDES_NATIVE_VERSION,
   SLIDES_MODEL_VERSION,
+  SLIDES_SOURCE_STAT_TIMEOUT_MS,
 } from "@shared/constants";
 import type { DeckDTO, DeckProgress } from "@shared/types/deck";
 import { deckCacheDir, slidesCacheDir, userDataDir } from "../paths";
@@ -89,8 +90,23 @@ function statOf(file: string, lane: RasterLane): Promise<fs.Stats | null> {
   return (lane === "now" ? operatorStat(file) : backgroundStat(file, true)).catch(() => null);
 }
 
+/** The source's stat a deck is opened from. The operator's waits for a disk slow to wake, up to
+ *  `SLIDES_SOURCE_STAT_TIMEOUT_MS`: past it the deck fails as a source that does not answer, never as a file that is
+ *  gone, and nothing is remembered of the file, so «Reintentar» asks again (2026-11-22 review, RN2-1). */
+function sourceStat(file: string, lane: RasterLane): Promise<fs.Stats | null> {
+  if (lane !== "now") return statOf(file, lane);
+  let timer: NodeJS.Timeout | undefined;
+  const silent = new Promise<never>((_resolve, reject) => {
+    timer = setTimeout(
+      () => reject(new SlideError("SOURCE_NOT_RESPONDING", mt("slides.sourceNotResponding"))),
+      SLIDES_SOURCE_STAT_TIMEOUT_MS,
+    );
+  });
+  return Promise.race([statOf(file, lane), silent]).finally(() => clearTimeout(timer));
+}
+
 /** A peek (`getDeck`) is answered within a second. Its `null` past it only sends the renderer on to `deck:ensure`, which
- *  waits for a stat of its own however long it takes: a disk slow to wake is never a file that is gone (2026-11-22
+ *  waits for a stat of its own up to `sourceStat`'s cap: a disk slow to wake is never a file that is gone (2026-11-22
  *  review, RN-2), and a share back since the peek answers at once (RN2-1). */
 function statWithin(file: string): Promise<fs.Stats | null> {
   return Promise.race([statOf(file, "now"), new Promise<null>((resolve) => setTimeout(resolve, 1000, null))]);
@@ -391,9 +407,9 @@ const inFlight = new Map<number, { promise: Promise<DeckDTO | null>; lane: Raste
  *  PDF, which is every deck. `null` only for a source that is gone. A deck no
  *  reader can open rejects with why. */
 async function sourceDeck(assetId: number, sourcePath: string, force: boolean, lane: RasterLane): Promise<DeckDTO | null> {
-  // Waited out whole, the operator's too: off main it holds nothing, and a disk slow to wake that lost a race of a
-  // second was told to the operator as a file that is gone (2026-11-22 review, RN-2).
-  const stat = await statOf(sourcePath, lane);
+  // Waited for, the operator's too: off main it holds nothing, and a disk slow to wake that lost a race of a second was
+  // told to the operator as a file that is gone (2026-11-22 review, RN-2). The operator's up to its cap (RN2-1).
+  const stat = await sourceStat(sourcePath, lane);
   if (!stat) return null;
   // Nothing awaited from here to the entry, so a second ask joins the first.
   const reading = inFlight.get(assetId);

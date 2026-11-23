@@ -11,6 +11,8 @@ export type SlideErrorCode =
   | "PDF_PASSWORD"
   | "RASTER_FAILED"
   | "SOURCE_MISSING"
+  /** The file's disk or share did not answer its `stat` in time: nothing is said of the file. */
+  | "SOURCE_NOT_RESPONDING"
   /** No reader could open it, and it is no deck we know: `sniffUnreadableDeck`. */
   | "NOT_A_PRESENTATION"
   /** A deck saved with a password to open it. */

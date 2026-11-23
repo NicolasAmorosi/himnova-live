@@ -78,6 +78,8 @@ const it: MainMessages = {
       "Impossibile aprire il file come presentazione: potrebbe essere danneggiato o non essere una presentazione. Prova ad aprirlo in PowerPoint e a salvarlo di nuovo come .pptx.",
     deckTooSlow:
       "La lettura della presentazione ha richiesto troppo tempo. Prova di nuovo con «Riprova».",
+    sourceNotResponding:
+      "Il disco o la cartella della presentazione non risponde. Controlla il disco o la rete e prova di nuovo con «Riprova».",
     pdfUnreadable:
       "Impossibile aprire il PDF. Prova di nuovo con «Riprova»; se succede ancora, potrebbe essere danneggiato: aprilo nel tuo lettore PDF ed esportalo di nuovo.",
   },

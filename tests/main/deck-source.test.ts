@@ -18,6 +18,7 @@ import {
   SLIDES_FALLBACK_RENDER_WIDTH,
   SLIDES_MODEL_VERSION,
   SLIDES_NATIVE_VERSION,
+  SLIDES_SOURCE_STAT_TIMEOUT_MS,
 } from "../../src/shared/constants";
 
 const h = vi.hoisted(() => {
@@ -25,7 +26,9 @@ const h = vi.hoisted(() => {
   const rows: Record<string, unknown> = {};
   /** What the hymnal's thread says the file is. */
   const kind = { value: "binary" };
-  return { file: "", rows, kind, inserted: 0 };
+  /** Every `deck-progress` main pushed. */
+  const progress: { status: string }[] = [];
+  return { file: "", rows, kind, inserted: 0, progress };
 });
 
 vi.mock("electron", () => ({
@@ -53,7 +56,9 @@ vi.mock("../../src/main/services/repos", () => ({
   }),
   getSettingsRepo: () => ({ get: () => null }),
 }));
-vi.mock("../../src/main/services/broadcast", () => ({ broadcast: () => undefined }));
+vi.mock("../../src/main/services/broadcast", () => ({
+  broadcast: (_channel: string, payload: { status: string }) => void h.progress.push(payload),
+}));
 vi.mock("../../src/main/media/deck-clips", () => ({
   healDeckClips: () => undefined,
   isEngineClip: () => false,
@@ -334,13 +339,49 @@ test("a stat of the operator's that never answers does not hold «Reintentar» o
     let first: unknown = "pending";
     void prepareDeck(id).then((dto) => (first = dto), (error: unknown) => (first = error));
     await vi.advanceTimersByTimeAsync(120_000);
-    expect(first).toBe("pending");
+    expect(first).toMatchObject({ slideCode: "SOURCE_NOT_RESPONDING" });
     down = false;
     let retried: unknown = "pending";
     void prepareDeck(id, { force: true }).then((dto) => (retried = dto), (error: unknown) => (retried = error));
     await vi.waitFor(() => expect(retried).toEqual({ format: "native" }));
-    expect(first).toBe("pending");
     expect(stats.mock.calls.filter(([file]) => file === h.file)).toHaveLength(2);
+  } finally {
+    vi.restoreAllMocks();
+    vi.useRealTimers();
+  }
+});
+
+test("a source that never answers fails at its cap as one that does not answer, and nothing is kept of the file", async () => {
+  // Waited for without end since RN-2: a mount that never answers left the deck «Convirtiendo» until a restart. Past
+  // the cap it is neither a file that is gone nor a deck that won't open (2026-11-22 review, RN2-1).
+  vi.useFakeTimers();
+  h.file = path.join(dir, "silent-share.pps");
+  fs.writeFileSync(h.file, OLE);
+  h.kind.value = "binary";
+  h.rows = {};
+  h.progress.length = 0;
+  const real = fs.promises.stat;
+  let down = true;
+  vi.spyOn(fs.promises, "stat").mockImplementation((file) => (down && file === h.file ? new Promise(() => undefined) : real(file)));
+  try {
+    const id = ++assetId;
+    let opened: unknown = "pending";
+    void prepareDeck(id).then((dto) => (opened = dto), (error: unknown) => (opened = error));
+    await vi.advanceTimersByTimeAsync(SLIDES_SOURCE_STAT_TIMEOUT_MS - 100);
+    expect(opened).toBe("pending");
+    await vi.advanceTimersByTimeAsync(100);
+    expect(opened).toMatchObject({ slideCode: "SOURCE_NOT_RESPONDING", message: mainEs.slides.sourceNotResponding });
+    expect(h.progress.filter((p) => p.status === "failed")).toEqual([]);
+    // The read ahead is not capped: it waits the stat out, as the sweep does.
+    let ahead: unknown = "pending";
+    void prepareDeck(++assetId, { priority: "background" }).then((dto) => (ahead = dto), (error: unknown) => (ahead = error));
+    await vi.advanceTimersByTimeAsync(120_000);
+    expect(ahead).toBe("pending");
+    // Back: the same deck opens, no «Reintentar» needed.
+    down = false;
+    let again: unknown = "pending";
+    void prepareDeck(id).then((dto) => (again = dto), (error: unknown) => (again = error));
+    await vi.waitFor(() => expect(again).toEqual({ format: "native" }));
   } finally {
     vi.restoreAllMocks();
     vi.useRealTimers();

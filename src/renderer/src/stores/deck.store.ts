@@ -147,6 +147,13 @@ export const useDeckStore = create<DeckStoreState>((set, get) => ({
       })
       .catch((error: unknown) => {
         if (!isCurrent(assetId, gen)) return null;
+        // A source that did not answer says nothing of a deck already read: it stays ready, its slides in PREVIEW and
+        // LIVE, and keeps why for a GO LIVE that waited on it (`explainDeckFailure`). 2026-11-22 review, RN2-1.
+        const ready = get().byAssetId[assetId];
+        if (error instanceof IpcError && error.code === "SOURCE_NOT_RESPONDING" && ready?.status === "ready" && ready.deck) {
+          set((s) => ({ byAssetId: { ...s.byAssetId, [assetId]: { ...ready, error: error.message } } }));
+          return null;
+        }
         // A cancellation is not a failure: main only cancels a read because
         // the app is quitting, so surfacing it as "couldn't convert" would be
         // a wrong error message.

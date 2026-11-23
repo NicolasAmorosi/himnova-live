@@ -78,6 +78,8 @@ const pt: MainMessages = {
       "Não foi possível abrir o arquivo como apresentação: ele pode estar corrompido ou não ser uma apresentação. Tente abri-lo no PowerPoint e salvá-lo de novo como .pptx.",
     deckTooSlow:
       "A apresentação demorou demais para ser lida. Tente de novo com “Tentar de novo”.",
+    sourceNotResponding:
+      "O disco ou a pasta da apresentação não está respondendo. Verifique o disco ou a rede e tente de novo com “Tentar de novo”.",
     pdfUnreadable:
       "Não foi possível abrir o PDF. Tente de novo com “Tentar de novo”; se acontecer outra vez, ele pode estar corrompido: abra-o no seu leitor de PDF e exporte-o de novo.",
   },

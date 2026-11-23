@@ -78,6 +78,8 @@ const en: MainMessages = {
       "The file couldn't be opened as a presentation: it may be damaged, or not be a presentation. Try opening it in PowerPoint and saving it again as .pptx.",
     deckTooSlow:
       "The presentation took too long to read. Try again with “Retry”.",
+    sourceNotResponding:
+      "The drive or folder holding the presentation isn't responding. Check the drive or the network and try again with “Retry”.",
     pdfUnreadable:
       "The PDF couldn't be opened. Try again with “Retry”; if it happens again, it may be damaged: open it in your PDF reader and export it again.",
   },
