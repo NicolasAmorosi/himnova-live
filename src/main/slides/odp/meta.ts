@@ -21,6 +21,8 @@ export function readOdpMeta(file: string): PresentationMeta {
   const audio: AudioRef[] = [];
   const video: VideoRef[] = [];
   const skippedVideoParts: string[] = [];
+  // Slide Show ▸ «Change slides manually»: Impress ignores every page's own duration.
+  const manual = attr(child(pkg.presentation, "presentation:settings"), "presentation:force-manual") === "true";
 
   pages.forEach((page, i) => {
     const slideIndex = i + 1;
@@ -32,7 +34,7 @@ export function readOdpMeta(file: string): PresentationMeta {
     const transitionPar = children(root, "anim:par").find((p) => /\.begin$/.test(attr(p, "smil:begin") ?? "")) ?? null;
     const filter = child(transitionPar, "anim:transitionFilter");
 
-    const automatic = pp["presentation:transition-type"] === "automatic";
+    const automatic = !manual && pp["presentation:transition-type"] === "automatic";
     const duration = isoDurationMs(pp["presentation:duration"]);
     const autoAdvanceMs = automatic && duration !== null ? Math.max(SLIDES_MIN_ADVANCE_MS, duration) : null;
 

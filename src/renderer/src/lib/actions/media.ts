@@ -1,6 +1,6 @@
 import { useProjectionStore } from "@renderer/stores/projection.store";
 import { useAudioStore, DECK_SOUNDTRACK_TRACK_ID } from "@renderer/stores/audio.store";
-import { toggleAutoplay } from "@renderer/effects/deck-autoplay";
+import { musicIsOver, toggleAutoplay } from "@renderer/effects/deck-autoplay";
 import { api } from "@renderer/lib/api";
 import { VIDEO_STATUS_KEY, type MediaTarget } from "@shared/types/projection";
 
@@ -66,7 +66,11 @@ export function toggleAudioTrackPause(trackId: string): void {
   // manual deck's autoplay stays "off" for good, so routing its music here too
   // made the pause button on that row a no-op: the only ways left to silence
   // it were BLACK/LOGO or taking the deck off the air.
-  if (trackId === DECK_SOUNDTRACK_TRACK_ID && useProjectionStore.getState().liveDeck?.autoAdvance) {
+  // Once the slides are done and the music plays on (the outro), the deck's clock has nothing left to pause: the row
+  // pauses the music itself. Over, its ▶ plays the deck again (`resumeAutoplay`).
+  const projection = useProjectionStore.getState();
+  const outro = projection.autoplay === "finished" && !musicIsOver(projection);
+  if (trackId === DECK_SOUNDTRACK_TRACK_ID && projection.liveDeck?.autoAdvance && !outro) {
     toggleAutoplay();
     return;
   }

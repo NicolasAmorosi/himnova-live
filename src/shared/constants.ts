@@ -57,8 +57,9 @@ export const SLIDES_CONVERTER_VERSION = 4;
 /** The same role for a deck read straight from its source (`image_format =
  *  'native'`, `ppt-binary.ts`): bump when the rules for which pictures make up
  *  a slide change, so every native deck is read again. Reading one costs
- *  milliseconds and writes nothing to disk, so a bump is free. */
-export const SLIDES_NATIVE_VERSION = 1;
+ *  milliseconds and writes nothing to disk, so a bump is free. 2: a show set
+ *  to advance on clicks keeps no slide's timing (2026-11-21). */
+export const SLIDES_NATIVE_VERSION = 2;
 
 /** The same for a deck drawn from its model (`image_format = 'model'`, a
  *  `.pptx` read by `src/main/slides/pptx/`): bump when the reader changes what
@@ -69,8 +70,9 @@ export const SLIDES_NATIVE_VERSION = 1;
  *  charts that were refused. 4: a slide with two `mc:AlternateContent` keeps
  *  its transition and timing, a slide marked `show="false"` is hidden in the
  *  model too, and the bounds on SmartArt sizes, chart points and `.odp` list
- *  numbers (2026-11-15 audit A31, A45, S4, S5, S6). */
-export const SLIDES_MODEL_VERSION = 4;
+ *  numbers (2026-11-15 audit A31, A45, S4, S5, S6). 5: a show set to advance
+ *  on clicks keeps no slide's timing (2026-11-21). */
+export const SLIDES_MODEL_VERSION = 5;
 
 /** Bump to force every non-manual `media_assets` row to re-run
  *  `resolveLinkedAudio` once, next time its deck is opened, even though a

@@ -569,6 +569,10 @@ npm run package:win|mac|linux  # build + electron-builder for that platform
   round-trip through LibreOffice silently lost the timing of every slide without a transition
   effect (222 of 1226 files of the real hymnal) — diagnosis in
   [`.claude/knowledge/libreoffice-pptx-export-drops-advtm-without-a-transition-effect.md`](.claude/knowledge/libreoffice-pptx-export-drops-advtm-without-a-transition-effect.md).
+  **Every deck's timings run as PowerPoint runs them** (measured, 2026-11-21): a show set to «Manually» keeps none, and a
+  slide's «After» clock starts when its transition ends (`slideHoldMs`); counting the times alone put a hymn 17 s ahead
+  of its music. See
+  [`.claude/knowledge/a-slide-s-after-time-starts-when-its-transition-ends-and-a-manual-show-ignores-every-time.md`](.claude/knowledge/a-slide-s-after-time-starts-when-its-transition-ends-and-a-manual-show-ignores-every-time.md).
 - **A PDF is a deck, and its pages are drawn when asked for** (owner, 2026-11-03: nothing
   converted, nothing cached on disk). Opening one reads its page sizes (~25 ms); each page is drawn
   by pdf.js in a hidden window when a window requests `worship://deck/<id>/<n>`, and kept only in

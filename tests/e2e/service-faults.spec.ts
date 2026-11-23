@@ -249,21 +249,26 @@ test("a looping deck without music keeps each slide's own time across the loop",
   await projector.evaluate(() => {
     const w = window as unknown as { qa: { t: number; s: string }[] };
     w.qa = [];
-    let last = "";
+    const onAir = () => [...(document.body.innerText.match(/Aviso \d/g) ?? [])].at(-1) ?? "";
+    // From the slide already up: the first mutation seen is not a change, and logging it put a mid-slide time first.
+    let last = onAir();
     new MutationObserver(() => {
-      const s = [...(document.body.innerText.match(/Aviso \d/g) ?? [])].at(-1) ?? "";
+      const s = onAir();
       if (s && s !== last) w.qa.push({ t: Date.now(), s: (last = s) });
     }).observe(document.body, { subtree: true, childList: true, characterData: true });
   });
-  await app.control.waitForTimeout(11_000); // 2, 3, 1, 2, 3: past the loop twice
+  // Changes at 2, 4.5, 7, 9 and 11.5 s after GO LIVE: 13 s from here sees all five, past the loop twice.
+  await app.control.waitForTimeout(13_000);
   const log = await projector.evaluate(() => (window as unknown as { qa: { t: number; s: string }[] }).qa);
   const gaps = log.slice(1).map((x, i) => x.t - log[i]!.t);
   expect(gaps.length).toBeGreaterThanOrEqual(4);
-  // Each slide 2 s, both ways: in 2.7.1 the first slide after the loop stayed 4 s.
-  for (const gap of gaps) {
-    expect(gap, JSON.stringify(gaps)).toBeGreaterThan(1600);
-    expect(gap, JSON.stringify(gaps)).toBeLessThan(2500);
-  }
+  // Each slide its own time, both ways: in 2.7.1 the first slide after the loop stayed 4 s. Slide 1 is 2 s (it comes
+  // back by a cut); slides 2 and 3 their half-second fade and then their 2 s, as in PowerPoint.
+  gaps.forEach((gap, i) => {
+    const expected = log[i]!.s === "Aviso 1" ? 2000 : 2500;
+    expect(gap, JSON.stringify(log)).toBeGreaterThan(expected - 300);
+    expect(gap, JSON.stringify(log)).toBeLessThan(expected + 400);
+  });
 });
 
 test("«Achicar si no entra» turned off with a verse live keeps the verse at its size", async ({ app }) => {

@@ -1,5 +1,6 @@
 import { api } from "@renderer/lib/api";
 import {
+  slideHoldMs,
   useProjectionStore,
   type LiveDeck,
   type ProjectionStoreState,
@@ -58,6 +59,9 @@ let restartGuard: { epoch: number; boundaryMs: number; until: number } | null = 
 /** ponytail: a fixed bound, so a slide 1 shorter than a report's period cannot hold the deck forever; raise it if the
  *  engine's seek ever takes longer than this to report. */
 const RESTART_GUARD_MS = 1000;
+/** What was left of a detached slide's time when BLACK/LOGO froze it: uncovering gives it that. Building on the old
+ *  deadline gave it a whole time more (2026-11-22 audit). Only for the same slide and navigation. */
+let frozenLeft: { epoch: number; slide: number; ms: number } | null = null;
 
 function clearTimer(): void {
   if (timer !== null) {
@@ -77,11 +81,13 @@ function isFrozenByCover(state: Pick<ProjectionStoreState, "overlay" | "liveDeck
   return state.overlay !== "none" && !!state.liveDeck?.soundtrack;
 }
 
-function advanceMsFor(deck: LiveDeck, slideIndex: number): number | null {
-  const advance = deck.slides[slideIndex - 1]?.advanceAfterMs;
-  return advance === null || advance === undefined
-    ? null
-    : Math.max(SLIDES_MIN_ADVANCE_MS, advance);
+/** The slide on air's time on the wall clock: its «After» plus the transition it came in with, which PowerPoint plays
+ *  before that time starts. A slide reached by a cut (a step back, a GO LIVE past slide 1) waits its time alone; the
+ *  synced boundaries (`cumulativeMs`) are the music's and always count it. */
+function advanceMsFor(state: Pick<ProjectionStoreState, "slideEntry">, deck: LiveDeck, slideIndex: number): number | null {
+  const after = deck.slides[slideIndex - 1]?.advanceAfterMs;
+  if (after == null) return null;
+  return Math.max(SLIDES_MIN_ADVANCE_MS, after + (state.slideEntry?.durationMs ?? 0));
 }
 
 /** Last slide whose boundary is at or before `timeMs`. */
@@ -95,19 +101,21 @@ function slideAtAudioTime(deck: LiveDeck, timeMs: number): number {
   return index;
 }
 
-function scheduleDetached(): void {
+/** `leftMs`: what is left of the slide's time when part of it already ran (the music ended mid-slide, BLACK/LOGO
+ *  froze it); without it the slide gets its whole time. */
+function scheduleDetached(leftMs?: number): void {
   clearTimer();
   const state = useProjectionStore.getState();
   const { liveDeck, base, autoplay } = state;
   if (autoplay !== "playing" || !liveDeck || base?.kind !== "deck") return;
   if (isFrozenByCover(state)) return;
 
-  const advance = advanceMsFor(liveDeck, base.slideIndex);
+  const advance = advanceMsFor(state, liveDeck, base.slideIndex);
   if (advance === null) return;
 
   const epochAtSchedule = navEpoch;
   // Monotonic chain: a late timeout must not push every later boundary out.
-  deadline = Math.max(deadline, performance.now()) + advance;
+  deadline = leftMs === undefined ? Math.max(deadline, performance.now()) + advance : performance.now() + leftMs;
   const delay = Math.max(0, deadline - performance.now());
 
   timer = setTimeout(() => {
@@ -152,6 +160,33 @@ function scheduleSynced(audioTimeMs: number): void {
   }, delay);
 }
 
+/** The soundtrack's own `ended` for the deck on air: past its end there is no music clock to follow or rejoin. */
+export function musicIsOver(state: Pick<ProjectionStoreState, "mediaStatus" | "soundtrackEpoch">): boolean {
+  const status = state.mediaStatus[DECK_AUDIO_STATUS_KEY];
+  return status?.ended === true && status.epoch === state.soundtrackEpoch;
+}
+
+/** The music of a synced deck ended while its slides still had time, as half the hymnal's last slides do once the
+ *  transitions count: PowerPoint keeps them up on their own times, and so does this. The slide the music left runs
+ *  out what remains of its time, the rest go on detached, and the deck finishes with its last slide's. */
+function runPastMusic(deck: LiveDeck, endedAtMs: number): void {
+  const state = useProjectionStore.getState();
+  if (state.base?.kind !== "deck") return;
+  // Never back: a report that lost its position must not return the deck to slide 1.
+  const endMs = Math.max(endedAtMs, deck.cumulativeMs[state.base.slideIndex] ?? 0);
+  const slide = slideAtAudioTime(deck, endMs);
+  const leftMs = (deck.cumulativeMs[slide + 1] ?? 0) - endMs;
+  if (slideHoldMs(deck.slides, slide) === null || (slide >= deck.slides.length && leftMs <= 0)) {
+    state.setAutoplay("finished");
+    return;
+  }
+  if (slide !== state.base.slideIndex) state.setSlideIndex(slide);
+  navEpoch += 1;
+  // Arms the chain with the slide's whole time (the subscription), replaced at once by what is left of it.
+  state.setAutoplayMode("detached");
+  scheduleDetached(Math.max(0, leftMs));
+}
+
 /** Called by playback actions when the operator drives the deck by hand. */
 export function notifyManualNavigation(): void {
   navEpoch += 1;
@@ -169,6 +204,7 @@ export function pauseAutoplay(): void {
   const state = useProjectionStore.getState();
   if (state.autoplay !== "playing") return;
   clearTimer();
+  frozenLeft = null;
   state.setAutoplay("paused");
   // Declarative now — see `AudioTrackPush.paused` — instead of a play/pause
   // command, so the pause survives a projection-window reload the same way
@@ -179,9 +215,17 @@ export function pauseAutoplay(): void {
 export function resumeAutoplay(): void {
   const state = useProjectionStore.getState();
   if (state.autoplay !== "paused" && state.autoplay !== "finished") return;
+  frozenLeft = null;
+  // A deck that finished with its music plays again from the top, slides and music together: unpausing an ended
+  // `<audio>` restarted the music alone, under a deck no longer following it.
+  if (state.autoplay === "finished" && state.liveDeck?.soundtrack && musicIsOver(state)) {
+    restartDeck();
+    return;
+  }
   state.setAutoplay("playing");
   deadline = performance.now();
-  if (state.liveDeck?.soundtrack) useAudioStore.getState().setPaused(DECK_SOUNDTRACK_TRACK_ID, false);
+  // Past the music's end (`runPastMusic`) there is nothing to unpause: playing an ended track starts it over.
+  if (state.liveDeck?.soundtrack && !musicIsOver(state)) useAudioStore.getState().setPaused(DECK_SOUNDTRACK_TRACK_ID, false);
   if (state.autoplayMode === "detached" || !state.liveDeck?.soundtrack) scheduleDetached();
 }
 
@@ -230,6 +274,8 @@ export function restartDeck(): void {
 export function resyncDeck(): void {
   const state = useProjectionStore.getState();
   if (state.base?.kind !== "deck" || !state.liveDeck || state.autoplayMode !== "detached") return;
+  // Ended music has no clock to rejoin: its last report would hold the deck on one slide for good.
+  if (musicIsOver(state)) return;
   navEpoch += 1;
   deadline = performance.now();
 
@@ -308,14 +354,16 @@ export function startDeckAutoplay(): () => void {
       }
 
       if (status.ended) {
-        // Only the synced deck ends with its music. A detached one — the
-        // operator stepped back to repeat a chorus — still has slides on its
-        // own clock, and whichever of the two ends LAST decides
-        // (`end-of-playback.ts`): finishing here cut it to the logo with
-        // slides still unshown.
+        // Held paused: an ended `<audio>` told to play again starts over from 0, as uncovering BLACK/LOGO did under the
+        // tail's slides or a finished deck (the push folds the cover into `paused`). `restartDeck` plays it again.
+        const track = useAudioStore.getState().tracks.find((t) => t.trackId === DECK_SOUNDTRACK_TRACK_ID);
+        if (track && !track.paused) useAudioStore.getState().setPaused(DECK_SOUNDTRACK_TRACK_ID, true);
+        // A detached deck (the operator stepped back to repeat a chorus) still has slides on its own clock, and
+        // whichever of the two ends LAST decides (`end-of-playback.ts`): finishing here cut it to the logo with
+        // slides still unshown. A synced one whose slides outlast the music goes on without it (`runPastMusic`).
         if (state.autoplayMode !== "synced") return;
         clearTimer();
-        if (state.autoplay === "playing") state.setAutoplay("finished");
+        if (state.autoplay === "playing") runPastMusic(deck, status.currentTimeSeconds * 1000);
         return;
       }
       if (state.autoplay !== "playing" || state.autoplayMode !== "synced") return;
@@ -348,12 +396,21 @@ export function startDeckAutoplay(): () => void {
     (state) => state.overlay,
     (overlay) => {
       const state = useProjectionStore.getState();
+      // What a cover froze is good for that cover only, whatever went live under it: a GO LIVE of a picture uncovers
+      // over the picture, and a value kept from there gave a later deck's slide its time left plus a whole time.
+      const held = frozenLeft;
+      if (overlay === "none") frozenLeft = null;
       if (!state.liveDeck?.soundtrack || state.base?.kind !== "deck") return;
       if (overlay !== "none") {
+        // BLACK to LOGO finds no timer (the first cover cleared it) and keeps what BLACK froze.
+        if (timer !== null) {
+          frozenLeft = { epoch: navEpoch, slide: state.base.slideIndex, ms: Math.max(0, deadline - performance.now()) };
+        }
         clearTimer();
         return;
       }
-      if (state.autoplay === "playing" && state.autoplayMode === "detached") scheduleDetached();
+      const left = held?.epoch === navEpoch && held.slide === state.base.slideIndex ? held.ms : undefined;
+      if (state.autoplay === "playing" && state.autoplayMode === "detached") scheduleDetached(left);
     },
   );
 
@@ -390,5 +447,6 @@ export function startDeckAutoplay(): () => void {
     deadline = 0;
     seededEpoch = -1;
     restartGuard = null;
+    frozenLeft = null;
   };
 }

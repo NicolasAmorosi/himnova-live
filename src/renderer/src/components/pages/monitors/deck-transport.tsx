@@ -32,6 +32,7 @@ export function DeckTransport() {
   // Filtered by target: the shared slot also carries the video's or other
   // audio tracks' clocks, which must never be read as this deck's.
   const mediaStatus = useProjectionStore((s) => s.mediaStatus[DECK_AUDIO_STATUS_KEY]);
+  const soundtrackEpoch = useProjectionStore((s) => s.soundtrackEpoch);
 
   if (base?.kind !== "deck" || !liveDeck) return null;
 
@@ -44,7 +45,10 @@ export function DeckTransport() {
   // the audio clock this bar reads — showing its old countdown would just be
   // a wrong number. It's shown grayed out instead, with the same-slot button
   // that's the only way back to the synced flow (`resyncDeck`).
-  const isDesynced = autoplayMode === "detached" && liveDeck.autoAdvance && autoplayActive;
+  // Past the music's end the last slides run on their own times (`deck-autoplay`'s `runPastMusic`): there is no clock
+  // to rejoin, nor one to count down from.
+  const musicOver = mediaStatus?.ended === true && mediaStatus.epoch === soundtrackEpoch;
+  const isDesynced = autoplayMode === "detached" && liveDeck.autoAdvance && autoplayActive && !musicOver;
 
   // Time-to-next-slide, only meaningful while synced to the soundtrack clock.
   // Kept visible while paused too — `mediaStatus` freezes at the paused
@@ -53,7 +57,7 @@ export function DeckTransport() {
   let elapsedRatio: number | null = null;
   let elapsedSeconds: number | null = null;
   let secondsLeft: number | null = null;
-  if (!isDesynced && advanceMs !== null && autoplayActive) {
+  if (!isDesynced && !musicOver && advanceMs !== null && autoplayActive) {
     const boundary = liveDeck.cumulativeMs[current + 1];
     const start = liveDeck.cumulativeMs[current];
     if (boundary !== undefined && start !== undefined && mediaStatus) {

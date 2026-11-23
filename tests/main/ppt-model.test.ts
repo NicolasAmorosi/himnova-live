@@ -15,7 +15,7 @@ import { color, parseMsoShapes, shapeGeometry, emptyProps, P } from "../../src/m
 import { readPptModelDeck } from "../../src/main/slides/ppt/model-reader";
 import { decodePart, encodePart, readBinaryPart } from "../../src/main/slides/ppt/parts";
 import { textBody, type TextData } from "../../src/main/slides/ppt/text";
-import { buildLegacyPpt, compoundFile, jpegHeader, rec, u32s, type LegacyDeck } from "../fixtures/legacy-ppt";
+import { buildLegacyPpt, compoundFile, jpegHeader, rec, showInfo, u32s, type LegacyDeck } from "../fixtures/legacy-ppt";
 
 const msoShapes = parseMsoShapes(fs.readFileSync(path.join(__dirname, "../../resources/ooxml/mso-shapes.json"), "utf8"));
 let dir = "";
@@ -231,6 +231,8 @@ describe("drawing", () => {
     // `buildLegacyPpt`'s default: 12 345 ms with fAutoAdvance, then a stale 999 ms with only fManualAdvance.
     const { meta } = read({});
     expect(meta.slides.map((s) => s.autoAdvanceMs)).toEqual([12_345, null]);
+    // The show set to advance on clicks: PowerPoint ignores every slide's time.
+    expect(read({ documentRecords: [showInfo(0)] }).meta.slides.map((s) => s.autoAdvanceMs)).toEqual([null, null]);
   });
 
   test("a damaged slide costs only itself", () => {

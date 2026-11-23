@@ -21,7 +21,7 @@ let dir: string;
 
 /** One slide per entry, the entry written after `p:cSld`. With `sound`, each slide also carries a sound
  *  (`p:pic` id 4) for a `p:timing` in the entry to play. */
-function writeDeck(transitions: string[], sound = false): string {
+function writeDeck(transitions: string[], sound = false, presProps?: string): string {
   const files: Record<string, Uint8Array> = {
     "ppt/presentation.xml": strToU8(
       `<p:presentation ${NS}><p:sldIdLst>${transitions
@@ -37,6 +37,7 @@ function writeDeck(transitions: string[], sound = false): string {
         .join("")}</Relationships>`,
     ),
   };
+  if (presProps) files["ppt/presProps.xml"] = strToU8(`<p:presentationPr ${NS}>${presProps}</p:presentationPr>`);
   const pic = `<p:pic><p:nvPicPr><p:cNvPr id="4" name="Audio"/><p:cNvPicPr/><p:nvPr><a:audioFile r:link="rId2"/></p:nvPr></p:nvPicPr><p:blipFill/><p:spPr/></p:pic>`;
   transitions.forEach((transition, i) => {
     files[`ppt/slides/slide${i + 1}.xml`] = strToU8(
@@ -88,6 +89,17 @@ test("each slide's transition, as PowerPoint and LibreOffice write it", () => {
     null,
     null,
   ]);
+});
+
+test("a show set to advance manually keeps no slide's timing, as PowerPoint plays it", () => {
+  const timings = (presProps?: string) =>
+    readPresentationMeta(writeDeck([`<p:transition advTm="10000"><p:fade/></p:transition>`], false, presProps)).slides.map(
+      (slide) => slide.autoAdvanceMs,
+    );
+  expect(timings(`<p:showPr useTimings="0"/>`)).toEqual([null]);
+  expect(timings(`<p:showPr useTimings="false"/>`)).toEqual([null]);
+  expect(timings(`<p:showPr showNarration="1"/>`)).toEqual([10_000]);
+  expect(timings()).toEqual([10_000]);
 });
 
 // 2026-11-15 audit, A31: PowerPoint wraps the timing too when an animation needs 2010 or later, and two wrappers at

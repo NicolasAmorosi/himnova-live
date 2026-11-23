@@ -95,6 +95,7 @@ type Doc = {
   buf: Buffer;
   persist: Map<number, number>;
   documentRec: Rec;
+  usesTimings: boolean;
 };
 
 type ShapeInfo = {
@@ -131,8 +132,8 @@ export function readPptModel(file: string, resources: PptResources): PptModelRea
 function open(fd: number): Doc {
   const document = openDocument(fd);
   if (!document) throw new Error("not a PowerPoint 97+ document");
-  const { ole, doc, persistOffsets, documentContainer } = document;
-  return { ole, buf: doc, persist: persistOffsets, documentRec: { ...documentContainer, container: true } };
+  const { ole, doc, persistOffsets, documentContainer, usesTimings } = document;
+  return { ole, buf: doc, persist: persistOffsets, documentRec: { ...documentContainer, container: true }, usesTimings };
 }
 
 function persisted(doc: Doc, id: number | undefined): Rec | null {
@@ -211,7 +212,7 @@ function readDeck(doc: Doc, resources: PptResources): PptModelRead {
     const unsupported = new Map<string, number>();
     const miss = (what: string): void => void unsupported.set(what, (unsupported.get(what) ?? 0) + 1);
     const slide = persisted(doc, persistId);
-    const info = slide ? readSlideInfo(buf, slide) : null;
+    const info = slide ? readSlideInfo(buf, slide, doc.usesTimings) : null;
     const slideTexts = texts.get(persistId) ?? [];
     let model: SlideModel;
     let damaged = false;

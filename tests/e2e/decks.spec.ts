@@ -200,12 +200,13 @@ test("a .pptx with timings advances by itself", async ({ app }) => {
   await app.goLive();
   const projector = await app.projector();
   await expect.poll(() => projectedSlide(projector)).toBe(1);
-  // Two seconds a slide, from the deck's own timings: slide 2's whole time, measured (slide 1's began before we looked).
+  // From the deck's own timings, as PowerPoint plays them: its half-second fade in, then its two seconds (2026-11-21).
+  // Slide 2's whole time, measured (slide 1's began before we looked).
   expect((await msUntilChange(() => projectedSlide(projector), 1, 8_000)).value).toBe(2);
   const second = await msUntilChange(() => projectedSlide(projector), 2, 8_000);
   expect(second.value).toBe(3);
-  expect(second.ms).toBeGreaterThan(1_700);
-  expect(second.ms).toBeLessThan(2_400);
+  expect(second.ms).toBeGreaterThan(2_200);
+  expect(second.ms).toBeLessThan(2_900);
 });
 
 test("the EN VIVO that opens the projector still gives slide 1 its whole time", async ({ app }) => {
@@ -521,12 +522,13 @@ test("a deck that advances by itself leaves the projector after its last slide",
   await expect(slideTile(app, 3)).toBeVisible({ timeout: 90_000 });
   await app.goLive();
   const projector = await app.projector();
-  await expect.poll(() => projectedSlide(projector), { timeout: 10_000 }).toBe(3);
-  // After the last slide's own two seconds, not «some time»; the ~100 ms of a poll's lag on the first read.
+  await expect.poll(() => projectedSlide(projector), { timeout: 10_000 }).toBe(2);
+  expect((await msUntilChange(() => projectedSlide(projector), 2, 8_000)).value).toBe(3);
+  // After the last slide's own fade and two seconds, not «some time», timed from the moment it came in.
   const off = await msUntilChange(() => projectedSlide(projector), 3, 10_000);
   expect(off.value).toBeNull();
-  expect(off.ms).toBeGreaterThan(1_200);
-  expect(off.ms).toBeLessThan(2_400);
+  expect(off.ms).toBeGreaterThan(2_200);
+  expect(off.ms).toBeLessThan(2_900);
   await expect(app.liveColumn().getByRole("button", { name: "Siguiente" })).toHaveCount(0);
 });
 

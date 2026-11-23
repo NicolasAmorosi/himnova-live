@@ -21,7 +21,7 @@ import {
   type BinaryDeck,
 } from "../../src/main/slides/ppt-binary";
 import { encodeSlideLayers, imagePixelSize, renderNativeSlide } from "../../src/main/slides/native-deck";
-import { buildLegacyPpt, jpegHeader, oleHeader, pngHeader, type LegacyDeck, type LegacyShape } from "../fixtures/legacy-ppt";
+import { buildLegacyPpt, jpegHeader, oleHeader, pngHeader, showInfo, type LegacyDeck, type LegacyShape } from "../fixtures/legacy-ppt";
 
 const W = 5760;
 const H = 4320;
@@ -118,6 +118,13 @@ describe("a deck made of pictures is read as its pictures", () => {
       [10_515, { style: "crossfade", durationMs: 1000 }],
       [11_297, { style: "random-bars-vertical", durationMs: 750 }],
     ]);
+  });
+
+  test("a show set to advance on clicks keeps no timing, as PowerPoint plays it", () => {
+    // A church's «Sin secuencia» hymn (2026-11-21): the hymnal's timings, with the show's «Manually».
+    const timings = (flags: number) => deckOf(write({ ...hymn(), documentRecords: [showInfo(flags)] })).slides.map((s) => s.autoAdvanceMs);
+    expect(timings(0x0000)).toEqual([null, null]);
+    expect(timings(0x0001)).toEqual([10_515, 11_297]);
   });
 
   test("the pictures read back are the exact bytes in the file", () => {

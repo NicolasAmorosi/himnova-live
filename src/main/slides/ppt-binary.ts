@@ -49,6 +49,7 @@ const RT_SLIDE_ATOM = 0x03ef;
 const RT_SLIDE_PERSIST_ATOM = 0x03f3;
 const RT_MAIN_MASTER = 0x03f8;
 const RT_SS_SLIDE_INFO_ATOM = 0x03f9;
+const RT_SS_DOC_INFO_ATOM = 0x0401;
 const RT_DRAWING_GROUP = 0x040b;
 const RT_DRAWING = 0x040c;
 const RT_SOUND_COLLECTION = 0x07e4;
@@ -76,6 +77,12 @@ const SLIDE_LIST_INSTANCE_MASTERS = 1;
 const FLAG_MANUAL_ADVANCE = 0x0001;
 const FLAG_HIDDEN = 0x0004;
 const FLAG_AUTO_ADVANCE = 0x0400;
+
+/** `SlideShowDocInfoAtom`: its flags after pen colour, restart time, slide range and named show (76 bytes); bit 0 is
+ *  `fAutoAdvance`, Set Up Slide Show ▸ «Using timings, if present». Off, PowerPoint advances on clicks alone whatever
+ *  each slide's timing says (a church's «Sin secuencia» hymn, 2026-11-21). */
+const SS_DOC_INFO_FLAGS = 76;
+const SS_DOC_FLAG_AUTO_ADVANCE = 0x0001;
 
 /** `SlideAtom.slideFlags`. */
 const SLIDE_FLAG_MASTER_OBJECTS = 0x0001;
@@ -527,6 +534,9 @@ export type PptDocument = {
   /** A master's persist id by its `slideId` — what `SlideAtom.masterIdRef`
    *  names. It is NOT a persist id: read as one, it finds nothing. */
   masterPersistIds: Map<number, number>;
+  /** The show advances by its slides' timings (`SS_DOC_FLAG_AUTO_ADVANCE`); a file without the atom does, PowerPoint's
+   *  default. */
+  usesTimings: boolean;
 };
 
 /** Everything both readers start from, or `null` when this is not a parseable
@@ -584,7 +594,11 @@ export function openDocument(fd: number): PptDocument | null {
   }
 
   if (slidePersistIds.length === 0) return null;
-  return { ole, doc, persistOffsets, documentContainer, slidePersistIds, masterPersistIds };
+  const showInfo = childrenOf(doc, documentContainer).find(
+    (child) => child.recType === RT_SS_DOC_INFO_ATOM && child.len >= SS_DOC_INFO_FLAGS + 2,
+  );
+  const usesTimings = !showInfo || (doc.readUInt16LE(showInfo.body + SS_DOC_INFO_FLAGS) & SS_DOC_FLAG_AUTO_ADVANCE) !== 0;
+  return { ole, doc, persistOffsets, documentContainer, slidePersistIds, masterPersistIds, usesTimings };
 }
 
 /** Opens the file, hands the parsed document to `read`, and closes the file
@@ -638,7 +652,7 @@ export type SlideInfo = {
   transition: SlideTransition | null;
 };
 
-export function readSlideInfo(doc: Buffer, slide: { body: number; len: number }): SlideInfo | null {
+export function readSlideInfo(doc: Buffer, slide: { body: number; len: number }, usesTimings: boolean): SlideInfo | null {
   const atom = childrenOf(doc, slide).find(
     (child) => child.recType === RT_SS_SLIDE_INFO_ATOM && child.len >= SS_SLIDE_INFO_MIN_LEN,
   );
@@ -648,7 +662,7 @@ export function readSlideInfo(doc: Buffer, slide: { body: number; len: number })
   return {
     // `slideTime` is only meaningful when the deck actually auto-advances;
     // PowerPoint leaves the last value behind when the box is unticked.
-    autoAdvanceMs: (flags & FLAG_AUTO_ADVANCE) !== 0 && slideTime > 0 ? slideTime : null,
+    autoAdvanceMs: usesTimings && (flags & FLAG_AUTO_ADVANCE) !== 0 && slideTime > 0 ? slideTime : null,
     hidden: (flags & FLAG_HIDDEN) !== 0,
     advanceOnClick: (flags & FLAG_MANUAL_ADVANCE) !== 0,
     transition: binaryTransition(doc[atom.body + 9]!, doc[atom.body + 8]!, doc[atom.body + 12]),
@@ -761,6 +775,7 @@ function buildDeck({
   documentContainer,
   slidePersistIds,
   masterPersistIds,
+  usesTimings,
 }: PptDocument): BinaryDeck {
   const children = childrenOf(doc, documentContainer);
   const documentAtom = children.find((child) => child.recType === RT_DOCUMENT_ATOM && child.len >= 8);
@@ -820,7 +835,7 @@ function buildDeck({
     const offset = persistOffsets.get(persistId);
     const slide = offset === undefined ? null : recordAt(doc, offset);
     if (!slide || slide.recType !== RT_SLIDE) throw new Unsupported(`slide ${index + 1} has no container`);
-    const info = readSlideInfo(doc, slide);
+    const info = readSlideInfo(doc, slide, usesTimings);
     if (info?.hidden) return;
 
     const atom = childrenOf(doc, slide).find((child) => child.recType === RT_SLIDE_ATOM && child.len >= 22);

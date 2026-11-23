@@ -1023,14 +1023,23 @@ export function selectOutputMemo(state: ProjectionStoreState): ProjectionOutput 
   return lastOutput;
 }
 
+/** How long slide `n` (1-based) stays before the next one starts coming in, as PowerPoint plays it: its «After» clock
+ *  starts once its own transition has finished, so a hymn whose every slide fades in slowly ran a second behind per
+ *  slide there, and here, counting the times alone, ran ahead of its music (2026-11-21). The first slide's way in
+ *  plays before the music starts, so only its time counts. `null`: it does not advance by itself. */
+export function slideHoldMs(slides: readonly DeckSlide[], n: number): number | null {
+  const slide = slides[n - 1];
+  if (slide?.advanceAfterMs == null) return null;
+  return slide.advanceAfterMs + (n > 1 ? (slide.transition?.durationMs ?? 0) : 0);
+}
+
 /** Cumulative audio timestamps for a deck's slides, used by the autoplay
  *  scheduler. `cumulativeMs[1] === 0`; `cumulativeMs[n+1]` is when slide n
  *  should hand over. */
 export function buildCumulativeMs(slides: DeckSlide[]): number[] {
   const cumulative: number[] = [0, 0];
   for (let i = 0; i < slides.length; i += 1) {
-    const advance = slides[i]?.advanceAfterMs ?? 0;
-    cumulative[i + 2] = (cumulative[i + 1] ?? 0) + advance;
+    cumulative[i + 2] = (cumulative[i + 1] ?? 0) + (slideHoldMs(slides, i + 1) ?? 0);
   }
   return cumulative;
 }

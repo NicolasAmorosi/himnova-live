@@ -162,8 +162,12 @@ auto-advancing deck that finished playing by itself, leaving the logo scene
 (`clearBaseContent()`) — the congregation is never left staring at the last frame or the last
 slide because the operator forgot to clear. A deck counts as finished when it has reached
 `autoplay: "finished"` **and**, if it has a soundtrack, that track has also reported `ended` —
-whichever ends last wins; music longer than the sum of the timings is not cut off midway.
-No manual deck (without `advanceAfterMs`) ever ends by itself.
+whichever ends last wins; music longer than the sum of the timings is not cut off midway, and slides that outlast
+their music stay up on their own times, as PowerPoint keeps them (`runPastMusic` in `deck-autoplay.ts`: the slide the
+music left runs out the rest of its time and the others go on detached; the transport hides «Resincronizar» and its
+countdown then, with no clock left to follow). An ended soundtrack is held `paused` in `audio.store`: an ended
+`<audio>` told to `play()` starts over from 0, which is what lifting BLACK/LOGO did (the push folds the cover into
+`paused`); only `restartDeck` plays it again. No manual deck (without `advanceAfterMs`) ever ends by itself.
 
 A deck's end is the operator's choice since 2026-11-09 (`projection.deckEnd`, Settings ▸ Projection, the
 same five values as a video's, read straight from `settings.store`): `endLiveContent()` (`lib/actions/playback.ts`)

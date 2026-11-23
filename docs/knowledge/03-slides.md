@@ -445,6 +445,14 @@ aren't consecutive; `PP97_DUALSTORAGE`) are in
 which also records why these timings were never taken from a converted copy: a `.pps → .pptx`
 round-trip through LibreOffice silently lost the auto-advance of 222 of 1226 hymnal decks.
 
+Every format's timings play as PowerPoint plays them (measured 2026-11-21): a show set to advance
+manually keeps none (`SlideShowDocInfoAtom.fAutoAdvance`, OOXML `showPr/@useTimings`, ODF
+`presentation:force-manual`), and a slide's «After» clock starts once its own transition has finished,
+so `slideHoldMs` adds that transition to every slide but the first (in the music's boundaries; the detached chain adds
+it only to a slide that came in with it). PowerPoint was measured; an `.odp` follows the same rule unmeasured in
+Impress. See
+[`.claude/knowledge/a-slide-s-after-time-starts-when-its-transition-ends-and-a-manual-show-ignores-every-time.md`](../../.claude/knowledge/a-slide-s-after-time-starts-when-its-transition-ends-and-a-manual-show-ignores-every-time.md).
+
 ## What older builds left behind
 
 Until 2026-11-03 a deck no reader could open was converted by LibreOffice (→ PDF → WebP), and a
