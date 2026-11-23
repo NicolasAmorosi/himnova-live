@@ -132,7 +132,9 @@ export async function importSongFiles(files: readonly string[]): Promise<SongImp
     unsupported: reads.reduce((sum, r) => sum + (r.unsupported ?? 0), 0),
   };
   if (failure && read.songs.length === 0) throw failure;
-  return writeSongs(read);
+  const result = await writeSongs(read);
+  // Among songs that came in, an EasyWorship 2009 database is still told as one (2026-11-22 review, EC-11).
+  return failure ? { ...result, reason: failure.message } : result;
 }
 
 /**

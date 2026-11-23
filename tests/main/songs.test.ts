@@ -18,6 +18,7 @@ import { DraftRepo } from "../../src/main/db/repositories/draft.repo";
 import { SettingsRepo } from "../../src/main/db/repositories/settings.repo";
 import { seedSongThemes } from "../../src/main/db/seed/seed-song-themes";
 import { decodeText } from "../../src/main/decode-text";
+import mainEs from "../../src/main/i18n/messages/es";
 import { getSongsRepo, initRepos } from "../../src/main/services/repos";
 import { listSongFolder, writeSongFile } from "../../src/main/services/song-files";
 import { importSongFiles } from "../../src/main/services/song-import";
@@ -461,6 +462,21 @@ describe("a linked folder of song files (owner, 2026-11-05)", () => {
     await expect(writeSongFile(id, edited)).rejects.toThrow(expect.objectContaining({ code: "SONG_FILE_TOO_LONG" }));
     // Verse 61 is still in the church's file.
     expect(fs.readFileSync(file, "utf8")).toBe(original);
+  });
+});
+
+test("a database that cannot be read among songs that came in keeps its reason", async () => {
+  // An EasyWorship 2009 Songs.DB picked with a song file: the toast said only «1 archivo no se pudo leer como canción»,
+  // and «EasyWorship 2009 or older» was lost (2026-11-22 review, EC-11).
+  const folder = fs.mkdtempSync(path.join(tmpDir, "ew2009-and-a-song-"));
+  fs.writeFileSync(path.join(folder, "Songs.DB"), "Paradox, not SQLite");
+  fs.writeFileSync(path.join(folder, "nueva.cho"), "{title: Nueva canción}\n{start_of_verse}\nUna línea\n{end_of_verse}\n");
+  expect(await importSongFiles([path.join(folder, "Songs.DB"), path.join(folder, "nueva.cho")])).toEqual({
+    imported: 1,
+    repeated: 0,
+    problems: 0,
+    unsupported: 1,
+    reason: mainEs.songs.ewOld,
   });
 });
 

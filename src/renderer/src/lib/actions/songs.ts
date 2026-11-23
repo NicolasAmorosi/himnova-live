@@ -297,6 +297,7 @@ export async function importSongs(): Promise<void> {
     if (!result) return;
     await loadSongs();
     toast.success(t("songs.importDone", result));
+    if (result.reason) toast.warning(result.reason);
   } catch (error) {
     console.warn("[songs] import failed", error);
     toast.danger(describeError(error, t("songs.importError")));

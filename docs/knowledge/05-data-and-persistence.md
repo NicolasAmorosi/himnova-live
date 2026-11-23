@@ -330,6 +330,9 @@ CCLI…), or its next save would write them out of the file (owner, 2026-11-06);
 and what the file does not hold — its format has no place for it, or this file simply has none (a number, notes,
 an order, a translation, chords: review 2026-11-06). The result counts apart the songs without a title or words (`problems`) and the files
 that were no song file at all — another program's, broken or unreadable (`unsupported`).
+A song database that could not be read among files that did come in (an EasyWorship 2009 `Songs.DB` picked with a
+song file) keeps its worded reason in `reason`, which the control window shows in a warning beside the counts
+(review 2026-11-22, EC-11).
 
 `song_uses` (`0021`) is what the CCLI usage report counts (owner, 2026-11-05): `projection:show` writes a
 row when a song goes live, ONE per song per local day (`SongsRepo.recordUse`), never pruned: a report covers six
