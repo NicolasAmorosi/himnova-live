@@ -36,9 +36,10 @@ queue, `deck:cancel` and the `slides.preemptBackground` escape hatch are gone.
 
 **Main does not stat, sniff or read a deck's file to open it** (2026-11-22 audit, RM1). The source
 is stat'ed with `fs.promises.stat`, one question per file at a time, shared with GO LIVE's check of
-the same file (`background-files.ts`); what the operator waits on (`deck:get`, `deck:ensure`) is
-answered within a second, and past it the source is not there, as a file that is gone (a share that
-stopped answering held a synchronous stat, and main with it, 21 s on Windows). The read-ahead's stats
+the same file (`background-files.ts`); a share that stopped answering held a synchronous stat, and main
+with it, 21 s on Windows. A deck opened (`deck:ensure`) waits for that stat however long a disk takes to
+wake, and is `SOURCE_MISSING` only when the stat fails (2026-11-22 review, RN-2); a peek (`deck:get`)
+gives up after a second with `null`, which only sends the renderer on to `ensure`. The read-ahead's stats
 take one of the two threads background work may hold (`backgroundStat`), never one beside them. The sniff
 (`containerKind`), the picture reader and `sniffUnreadableDeck` run on a second thread of
 `pptx-worker.ts` with its own queue (`pptx-deck.ts`, `hymnal`): in the model readers' queue a hymn

@@ -216,22 +216,35 @@ test("reading ahead takes one of the background's two threads, never a third", a
   vi.restoreAllMocks();
 });
 
-test("a source whose stat never answers is a source that is gone after a second, asked once", async () => {
+test("a source slow to answer its stat is waited for, and gone only when the stat fails, asked once", async () => {
+  // A disk slow to wake that lost a race of a second was a file that is gone: «El archivo ya no está disponible»,
+  // and GO LIVE refused (2026-11-22 review, RN-2). A peek still gives up after a second: its `null` means «ensure it».
   vi.useFakeTimers();
-  h.file = path.join(dir, "on-a-dead-share.pps");
-  const stats = vi.spyOn(fs.promises, "stat").mockImplementation(() => new Promise(() => undefined));
-  const peek = getDeck(++assetId);
-  const ensure = prepareDeck(assetId);
-  const failed = expect(ensure).rejects.toMatchObject({ slideCode: "SOURCE_MISSING" });
-  await vi.advanceTimersByTimeAsync(999);
-  let peeked: unknown = "pending";
-  void peek.then((dto) => (peeked = dto));
-  await Promise.resolve();
-  expect(peeked).toBe("pending");
-  await vi.advanceTimersByTimeAsync(1);
-  expect(await peek).toBeNull();
-  await failed;
-  expect(stats.mock.calls.filter(([file]) => file === h.file)).toHaveLength(1);
-  vi.restoreAllMocks();
-  vi.useRealTimers();
+  h.file = path.join(dir, "slow-to-wake.pps");
+  fs.writeFileSync(h.file, OLE);
+  h.rows = {};
+  const real = fs.statSync(h.file);
+  const answers: ((stat: fs.Stats | Error) => void)[] = [];
+  const stats = vi.spyOn(fs.promises, "stat").mockImplementation(
+    () => new Promise((resolve, reject) => answers.push((stat) => (stat instanceof Error ? reject(stat) : resolve(stat)))),
+  );
+  try {
+    const peek = getDeck(++assetId);
+    let ensured: unknown = "pending";
+    const ensure = prepareDeck(assetId).then((dto) => (ensured = dto));
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(await peek).toBeNull();
+    expect(ensured).toBe("pending");
+    answers[0]!(real);
+    expect(await ensure).toEqual({ format: "native" });
+    expect(stats.mock.calls.filter(([file]) => file === h.file)).toHaveLength(1);
+
+    const gone = expect(prepareDeck(++assetId)).rejects.toMatchObject({ slideCode: "SOURCE_MISSING" });
+    await vi.advanceTimersByTimeAsync(5000);
+    answers[1]!(new Error("ENOENT"));
+    await gone;
+  } finally {
+    vi.restoreAllMocks();
+    vi.useRealTimers();
+  }
 });

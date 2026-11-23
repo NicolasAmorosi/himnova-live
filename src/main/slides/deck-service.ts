@@ -89,7 +89,8 @@ function statOf(file: string, lane: RasterLane): Promise<fs.Stats | null> {
   return (lane === "now" ? operatorStat(file) : backgroundStat(file)).catch(() => null);
 }
 
-/** What the operator waits on is answered within a second: past it, the source is not there, as a file that is gone. */
+/** A peek (`getDeck`) is answered within a second. Its `null` past it only sends the renderer on to `deck:ensure`, which
+ *  waits for the same stat: a disk slow to wake is never a file that is gone (2026-11-22 review, RN-2). */
 function statWithin(file: string): Promise<fs.Stats | null> {
   return Promise.race([statOf(file, "now"), new Promise<null>((resolve) => setTimeout(resolve, 1000, null))]);
 }
@@ -377,7 +378,9 @@ const inFlight = new Map<number, { promise: Promise<DeckDTO | null>; lane: Raste
  *  PDF, which is every deck. `null` only for a source that is gone. A deck no
  *  reader can open rejects with why. */
 async function sourceDeck(assetId: number, sourcePath: string, force: boolean, lane: RasterLane): Promise<DeckDTO | null> {
-  const stat = await (lane === "now" ? statWithin(sourcePath) : statOf(sourcePath, lane));
+  // Waited out whole, the operator's too: off main it holds nothing, and a disk slow to wake that lost a race of a
+  // second was told to the operator as a file that is gone (2026-11-22 review, RN-2).
+  const stat = await statOf(sourcePath, lane);
   if (!stat) return null;
   // Nothing awaited from here to the entry, so a second ask joins the first.
   const reading = inFlight.get(assetId);
@@ -754,7 +757,8 @@ async function recordPdfDeck(
 // ---------------------------------------------------------------------------
 
 /** Cache-only read: safe to call while merely rendering a list. The source is
- *  stat'ed off main's thread and, past a second, is not there (`statWithin`). */
+ *  stat'ed off main's thread and, past a second, `null`: not read yet, as far as
+ *  this peek knows (`statWithin`). */
 export async function getDeck(assetId: number): Promise<DeckDTO | null> {
   const repo = getSlidesRepo();
   const sourcePath = getMediaRepo().getPathById(assetId);
