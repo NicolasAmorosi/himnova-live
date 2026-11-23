@@ -71,8 +71,8 @@ const en: MainMessages = {
     sourceGone: "The file is no longer available: {path}",
     noSlides: "The presentation didn't produce any slides.",
     deckUnreadable: "Couldn't read the presentation that was just prepared.",
-    rasterCrashed: "The slide rendering process quit unexpectedly.",
-    rasterHung: "Rendering one of the pages got stuck.",
+    rasterCrashed: "Preparing the PDF was interrupted. Try again with “Retry”.",
+    rasterHung: "The PDF took too long to prepare. Try again with “Retry”.",
     pdfPassword: "The PDF is password-protected and can't be opened.",
     deckPassword:
       "The presentation has a password to open it. Open it in PowerPoint, remove the password (File ▸ Info ▸ Protect Presentation) and save it again.",

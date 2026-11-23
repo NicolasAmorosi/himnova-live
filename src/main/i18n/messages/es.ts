@@ -73,8 +73,8 @@ const es = {
     sourceGone: "El archivo ya no está disponible: {path}",
     noSlides: "La presentación no produjo ninguna diapositiva.",
     deckUnreadable: "No se pudo leer la presentación recién preparada.",
-    rasterCrashed: "El proceso de rasterizado se cerró inesperadamente.",
-    rasterHung: "El rasterizado de una página se colgó.",
+    rasterCrashed: "La preparación del PDF se interrumpió. Probá de nuevo con «Reintentar».",
+    rasterHung: "El PDF tardó demasiado en prepararse. Probá de nuevo con «Reintentar».",
     pdfPassword: "El PDF está protegido con contraseña y no se puede abrir.",
     deckPassword:
       "La presentación tiene contraseña para abrirla. Abrila en PowerPoint, quitale la contraseña (Archivo ▸ Información ▸ Proteger presentación) y guardala de nuevo.",

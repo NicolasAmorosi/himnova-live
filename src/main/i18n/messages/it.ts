@@ -71,8 +71,8 @@ const it: MainMessages = {
     sourceGone: "Il file non è più disponibile: {path}",
     noSlides: "La presentazione non ha prodotto nessuna diapositiva.",
     deckUnreadable: "Impossibile leggere la presentazione appena preparata.",
-    rasterCrashed: "Il processo di rasterizzazione si è chiuso inaspettatamente.",
-    rasterHung: "La rasterizzazione di una pagina si è bloccata.",
+    rasterCrashed: "La preparazione del PDF si è interrotta. Prova di nuovo con «Riprova».",
+    rasterHung: "Il PDF ha richiesto troppo tempo per essere preparato. Prova di nuovo con «Riprova».",
     pdfPassword: "Il PDF è protetto da password e non può essere aperto.",
     deckPassword:
       "La presentazione ha una password di apertura. Aprila in PowerPoint, rimuovi la password (File ▸ Informazioni ▸ Proteggi presentazione) e salvala di nuovo.",
