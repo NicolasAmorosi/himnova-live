@@ -110,6 +110,9 @@ export type SettingsMap = {
    *  path instead would freeze both. A non-null value is an explicit override
    *  the operator chose in Settings. */
   "files.defaultFolders": Record<AssetKind, string | null>;
+  /** The folder the schedule's own «+» last added from, where it opens next time (owner, 2026-11-24): the operator
+   *  adds a service's files from the same folder week after week. `null` until the first pick; written by main. */
+  "files.scheduleFolder": string | null;
   "projection.displayId": number | null;
   /** Kept by main for `projection.displayId` while that screen is connected (`reconcileDisplayRoles`). */
   "projection.displayPrint": DisplayPrint | null;
@@ -313,6 +316,7 @@ export const DEFAULT_SETTINGS: SettingsMap = {
   "logo.name": null,
   "logo.background": { kind: "solid", color: "#000000" },
   "files.defaultFolders": { video: null, image: null, audio: null, ppt: null },
+  "files.scheduleFolder": null,
   "projection.displayId": null,
   "projection.displayPrint": null,
   "stage.displayId": null,
@@ -477,6 +481,7 @@ export const SETTINGS_VALIDATORS: Record<keyof SettingsMap, (value: unknown) => 
   "logo.name": (v) => v === null || (typeof v === "string" && v.length <= LOGO_NAME_MAX_LENGTH),
   "logo.background": isSceneBackground,
   "files.defaultFolders": isRecordOfKinds(isNullOr(isString)),
+  "files.scheduleFolder": isNullOr(isString),
   "projection.displayId": isDisplayId,
   "projection.displayPrint": isNullOr(isDisplayPrint),
   "stage.displayId": isDisplayId,

@@ -60,7 +60,15 @@ const WHATS_NEW: Record<
   },
   "2.14": {
     steps: [],
-    also: ["nextInPreview", "pathBubble", "projectorFit", "deckTimings", "crashRecovery", "hymnMusic"],
+    also: [
+      "nextInPreview",
+      "pathBubble",
+      "projectorFit",
+      "deckTimings",
+      "crashRecovery",
+      "hymnMusic",
+      "scheduleFolder",
+    ],
   },
 };
 const DONE_STEP = { icon: "circleCheck", id: "done" } as const;

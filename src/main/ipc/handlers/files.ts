@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import path from "node:path";
 import type { Handlers } from "../register";
 import { ASSET_EXTENSIONS, ASSET_KINDS, type AssetKind } from "@shared/constants";
 import { IpcError } from "@shared/ipc/result";
@@ -72,20 +73,26 @@ export const filesHandlers: Pick<
   "files:pick" | "files:setLogo" | "files:pickFolder" | "files:systemFolders"
 > = {
   "files:pick": async ({ kind, multiple, startIn }, ev) => {
-    // `"all"` accepts video, image, audio and presentations at once (the
-    // order of service's own "+"), so there is no one folder it belongs in:
-    // it opens wherever the OS decides rather than anchoring five kinds to
-    // whichever one happened to win — unless the caller names one: a Media
-    // tab's «Agregar» takes every kind (each file goes to its own tab) but
-    // still opens where that tab's files live.
+    // `"all"` accepts video, image, audio and presentations at once, so there
+    // is no one kind's folder it belongs in. The order of service's own "+"
+    // (no `startIn`) is the one exception to `defaultFolderFor`'s rule: it
+    // opens where it last added from (`files.scheduleFolder`, owner,
+    // 2026-11-24), because a service's files live in one folder the operator
+    // goes back to every week; until then, or once that folder is gone, the
+    // OS decides. A Media tab's «Agregar» also takes every kind but still
+    // opens where that tab's files live.
+    const forSchedule = kind === "all" && !startIn;
     const folderKind = kind === "all" ? startIn : kind;
-    const defaultPath = folderKind ? await defaultFolderFor(folderKind) : undefined;
+    const last = forSchedule ? getSettingsRepo().get("files.scheduleFolder") : null;
+    const defaultPath =
+      last && (await isDirectory(last)) ? last : folderKind ? await defaultFolderFor(folderKind) : undefined;
     const result = await showOpenDialogFor(ev.sender, {
       properties: multiple ? ["openFile", "multiSelections"] : ["openFile"],
       filters: filtersFor(kind),
       ...(defaultPath ? { defaultPath } : {}),
     });
     if (result.canceled || result.filePaths.length === 0) return [];
+    if (forSchedule) getSettingsRepo().setMany({ "files.scheduleFolder": path.dirname(result.filePaths[0]!) });
     return result.filePaths;
   },
 

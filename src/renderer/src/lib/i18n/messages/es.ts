@@ -1587,6 +1587,7 @@ const es = {
         deckTimings: "Las presentaciones con tiempos avanzan como en PowerPoint: una que se pasa a mano ya no avanza sola, y cada diapositiva suma su transición a su tiempo.",
         crashRecovery: "Si la app se cierra de golpe, al volver la fila que estaba al aire queda en PREVIEW y los editores ofrecen recuperar lo que estabas editando.",
         hymnMusic: "La música de un himno al aire sigue sonando aunque saques el pendrive.",
+        scheduleFolder: "El «+» del programa abre en la carpeta de donde agregaste la última vez, también al volver a abrir la app.",
       },
     },
   },

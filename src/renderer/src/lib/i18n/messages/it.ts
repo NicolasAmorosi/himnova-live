@@ -1571,6 +1571,7 @@ const it: Messages = {
         deckTimings: "Le presentazioni con tempi avanzano come in PowerPoint: una impostata per avanzare a mano non va più avanti da sola, e ogni diapositiva somma la sua transizione al suo tempo.",
         crashRecovery: "Se l'app si chiude all'improvviso, alla riapertura la riga che era in onda torna in Anteprima e gli editor propongono di recuperare ciò che stavi modificando.",
         hymnMusic: "La musica di un inno in onda continua anche se togli la chiavetta USB.",
+        scheduleFolder: "Il «+» della scaletta si apre nella cartella da cui hai aggiunto l'ultima volta, anche dopo aver riaperto l'app.",
       },
     },
   },

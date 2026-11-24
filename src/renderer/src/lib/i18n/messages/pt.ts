@@ -1568,6 +1568,7 @@ const pt: Messages = {
         deckTimings: "As apresentações com tempos avançam como no PowerPoint: uma configurada para avançar manualmente não avança mais sozinha, e cada slide soma a sua transição ao seu tempo.",
         crashRecovery: "Se o app fecha de repente, ao voltar a linha que estava ao vivo fica no Preview e os editores oferecem recuperar o que você estava editando.",
         hymnMusic: "A música de um hino ao vivo continua tocando mesmo se você tirar o pendrive.",
+        scheduleFolder: "O “+” do roteiro abre na pasta de onde você adicionou da última vez, mesmo depois de reabrir o app.",
       },
     },
   },

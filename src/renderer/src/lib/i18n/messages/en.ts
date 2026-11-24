@@ -1567,6 +1567,7 @@ const en: Messages = {
         deckTimings: "Presentations with timings advance as PowerPoint runs them: one set to advance by hand no longer moves on by itself, and each slide adds its transition to its time.",
         crashRecovery: "If the app closes unexpectedly, the row that was live comes back in Preview, and the editors offer to recover what you were editing.",
         hymnMusic: "A live hymn's music keeps playing even if you pull out its USB drive.",
+        scheduleFolder: "The schedule's “+” opens in the folder you last added from, even after the app is reopened.",
       },
     },
   },
