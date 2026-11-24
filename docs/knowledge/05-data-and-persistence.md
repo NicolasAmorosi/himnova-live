@@ -611,7 +611,7 @@ its write inside `writeDurably`, which sets `synchronous = FULL` before it and p
 because SQLite throws «Safety level may not be changed inside a transaction». Around the synchronous write only: a
 linked song's file is written first and awaited outside it. The `*:duplicate` channels, the order of service's draft
 (`program:saveDraft`, every 600 ms), settings and everything else stay NORMAL: one sync per write in main costs ~24 ms
-on a spinning disk (measured on `emi-win`), ~0.4 ms on an SSD. A FULL commit syncs the whole `-wal`, so the NORMAL
+on a spinning disk (measured on a Windows test PC), ~0.4 ms on an SSD. A FULL commit syncs the whole `-wal`, so the NORMAL
 writes before it reach the disk too. `fullfsync = ON` on every connection, because macOS's plain `fsync` stops in the
 drive's cache (other systems ignore the pragma): on an M3 it costs ~3 ms per explicit save and ~6.5 ms per WAL
 checkpoint (one every few hundred draft writes), and the draft's median stays at 0.01 ms.
