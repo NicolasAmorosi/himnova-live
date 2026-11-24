@@ -5,9 +5,11 @@ import type { SongFileFormat } from "@shared/song-file-limits";
 import { translationByLine } from "@shared/song-text";
 import type { Song, SongImportResult, SongSection, SongUpsert } from "@shared/types/song";
 import { mt } from "../i18n";
-import { findEasyWorshipData, readEasyWorship, songIdentity, type SongsRead } from "../songs/easyworship";
-import { readOpenLpDatabase, readOpenLyricsFiles } from "../songs/openlp";
+import { findEasyWorshipData, songIdentity, type SongsRead } from "../songs/easyworship";
+import { readOpenLyricsFiles } from "../songs/openlp";
 import { readSongTextFiles } from "../songs/text-files";
+import createSongDbWorker from "../songs/song-db-worker?nodeWorker";
+import type { SongDbJob, SongDbReply } from "../songs/song-db-worker";
 import { fromFile } from "../db/repositories/songs.repo";
 import { getDbHandle, getSettingsRepo, getSongsRepo } from "./repos";
 
@@ -28,34 +30,66 @@ function isSqlite(file: string): boolean {
   }
 }
 
+/** How long a song database may take on its thread before the import gives up on it. A real OpenLP songbook of
+ *  2 565 songs (8 MB) reads in 0.13 s on an M-series Mac, twice that (5 130 songs, 16 MB) in 0.22 s, and 5 000
+ *  EasyWorship songs in 0.16 s: this leaves a slow church PC reading from a pen drive or a share over a hundred times
+ *  that. Main is free meanwhile; only the import waits. */
+export const SONG_DB_READ_TIMEOUT_MS = 30_000;
+
+/**
+ * One song database read on `song-db-worker.ts`, answered with its songs. Its errors, a thread that died and the
+ * clock all reject: the caller tells the operator the database could not be read. At the clock the thread is asked
+ * to stop and never waited for: one stuck inside SQLite's own loop does not stop (better-sqlite3 has no interrupt).
+ */
+function readSongDatabase(job: SongDbJob): Promise<SongsRead> {
+  return new Promise((resolve, reject) => {
+    const worker = createSongDbWorker({ workerData: job });
+    const clock = setTimeout(() => {
+      reject(new Error(`The song database thread did not answer in ${SONG_DB_READ_TIMEOUT_MS / 1000} s`));
+      void worker.terminate();
+    }, SONG_DB_READ_TIMEOUT_MS);
+    worker.once("message", (reply: SongDbReply) => {
+      clearTimeout(clock);
+      if ("error" in reply) reject(new Error(reply.error));
+      else resolve(reply.read);
+    });
+    worker.once("error", (error) => {
+      clearTimeout(clock);
+      reject(error);
+    });
+    // After a reply this settles nothing; without one, the worker died.
+    worker.once("exit", (code) => {
+      clearTimeout(clock);
+      reject(new Error(`The song database thread stopped (exit ${code})`));
+    });
+  });
+}
+
 /** EasyWorship's songs from its `Databases/Data` folder (or a folder above
  *  it); `picked`, the database the operator chose in it. */
-function readEasyWorshipFolder(folder: string, picked?: string): SongsRead {
+function readEasyWorshipFolder(folder: string, picked?: string): Promise<SongsRead> {
   if (picked && !isSqlite(picked)) throw new IpcError({ code: "EW_OLD", message: mt("songs.ewOld") });
   const data = findEasyWorshipData(folder);
   if (!data) throw new IpcError({ code: "EW_NOT_FOUND", message: mt("songs.ewNotFound") });
-  try {
-    return readEasyWorship(data, getSettingsRepo().get("ui.locale"));
-  } catch (error) {
+  return readSongDatabase({ easyWorship: data, locale: getSettingsRepo().get("ui.locale") }).catch((error: unknown) => {
     console.warn("[songs] EasyWorship database unreadable", error);
     throw new IpcError({ code: "EW_UNREADABLE", message: mt("songs.ewUnreadable") });
-  }
+  });
 }
 
 /** OpenLP's `songs.sqlite`. */
-function readOpenLp(file: string): SongsRead {
-  try {
-    return readOpenLpDatabase(file);
-  } catch (error) {
+function readOpenLp(file: string): Promise<SongsRead> {
+  return readSongDatabase({ openLp: file }).catch((error: unknown) => {
     console.warn("[songs] OpenLP database unreadable", error);
     throw new IpcError({ code: "OPENLP_UNREADABLE", message: mt("songs.openLpUnreadable") });
-  }
+  });
 }
 
 const WRITE_CHUNK = 100;
 
-export const importEasyWorshipFolder = (folder: string): Promise<SongImportResult> => writeSongs(readEasyWorshipFolder(folder));
-export const importOpenLpDatabase = (file: string): Promise<SongImportResult> => writeSongs(readOpenLp(file));
+export const importEasyWorshipFolder = (folder: string): Promise<SongImportResult> =>
+  readEasyWorshipFolder(folder).then(writeSongs);
+export const importOpenLpDatabase = (file: string): Promise<SongImportResult> => readOpenLp(file).then(writeSongs);
 export const importOpenLyricsFiles = async (files: readonly string[]): Promise<SongImportResult> =>
   writeSongs(await readOpenLyricsFiles(files));
 
@@ -77,13 +111,13 @@ export async function importSongFiles(files: readonly string[]): Promise<SongImp
   const easyWorship = new Map(
     databases.filter((file) => EASYWORSHIP_FILE.test(path.basename(file))).map((file) => [path.dirname(file), file]),
   );
-  const sources: (() => SongsRead)[] = [
+  const sources: (() => Promise<SongsRead>)[] = [
     ...[...easyWorship].map(([folder, picked]) => () => readEasyWorshipFolder(folder, picked)),
     ...databases.filter((file) => !EASYWORSHIP_FILE.test(path.basename(file))).map((file) => () => readOpenLp(file)),
   ];
   for (const read of sources) {
     try {
-      reads.push(read());
+      reads.push(await read());
     } catch (error) {
       if (error instanceof IpcError) failure ??= error;
       reads.push({ songs: [], problems: 0, unsupported: 1 });
@@ -98,7 +132,9 @@ export async function importSongFiles(files: readonly string[]): Promise<SongImp
     unsupported: reads.reduce((sum, r) => sum + (r.unsupported ?? 0), 0),
   };
   if (failure && read.songs.length === 0) throw failure;
-  return writeSongs(read);
+  const result = await writeSongs(read);
+  // Among songs that came in, an EasyWorship 2009 database is still told as one (2026-11-22 review, EC-11).
+  return failure ? { ...result, reason: failure.message } : result;
 }
 
 /**

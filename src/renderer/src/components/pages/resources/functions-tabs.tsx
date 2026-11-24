@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useEditorRecovery } from "@renderer/components/shared/editor-screen";
 import { useT, type MessageKey } from "@renderer/lib/i18n/i18n-provider";
 import { Badge, EmptyState, TabPanel, TabPanels, Tabs, type IconName, type TabItem } from "@renderer/components/ui";
 import { PanelBody } from "@renderer/components/shared/panel";
@@ -48,6 +49,12 @@ const TAB_ID_BASE = "resources-functions";
 export function FunctionsTabs() {
   const t = useT();
   const [tab, setTab] = useState<FunctionTab>("utilities");
+  // «Recuperar» after a crash: the tab whose panel holds the editor it opens (DU-1).
+  const recovering = useEditorRecovery((s) => s.queue[0]?.editor ?? null);
+  useEffect(() => {
+    if (recovering === "scene") setTab("utilities");
+    else if (recovering === "plate") setTab("overlays");
+  }, [recovering]);
 
   const tabs: TabItem<FunctionTab>[] = TAB_ORDER.map((value) => ({
     icon: ICON[value],

@@ -1,4 +1,5 @@
 import { IpcError } from "@shared/ipc/result";
+import { mt } from "../i18n";
 
 /**
  * A closed set of failure reasons for the slides pipeline. `toIpcError`
@@ -10,6 +11,8 @@ export type SlideErrorCode =
   | "PDF_PASSWORD"
   | "RASTER_FAILED"
   | "SOURCE_MISSING"
+  /** The file's disk or share did not answer its `stat` in time: nothing is said of the file. */
+  | "SOURCE_NOT_RESPONDING"
   /** No reader could open it, and it is no deck we know: `sniffUnreadableDeck`. */
   | "NOT_A_PRESENTATION"
   /** A deck saved with a password to open it. */
@@ -33,4 +36,12 @@ export class SlideError extends IpcError {
 
 export function isSlideError(error: unknown): error is SlideError {
   return error instanceof SlideError;
+}
+
+/** The rasterizer window's failure, in the operator's words: pdf.js's own message («Invalid PDF structure.», a fetch's
+ *  status) is English prose, kept for the log only (2026-11-22, EC-1). */
+export function rasterReplyError(error: { kind: "password" | "unknown"; message: string }): SlideError {
+  if (error.kind === "password") return new SlideError("PDF_PASSWORD", mt("slides.pdfPassword"));
+  console.warn("[slides] the PDF could not be drawn:", error.message);
+  return new SlideError("RASTER_FAILED", mt("slides.pdfUnreadable"));
 }

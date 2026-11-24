@@ -31,6 +31,14 @@ function seekPreviewTo(seconds: number): void {
   else if (previewEngineUrl) void api.preview.seekVideo(seconds);
 }
 
+/** PREVIEW's video or sound was played to its end: what plays it next, its own play button or GO LIVE, starts it from
+ *  0:00. From its end GO LIVE ended it on air at once, and «Al terminar» put the LOGO or the next row up (2026-11-22
+ *  review, RN2-5). */
+export function previewReachedEnd(): boolean {
+  const { durationSeconds, positionSeconds } = usePreviewStore.getState();
+  return durationSeconds > 0 && positionSeconds >= durationSeconds;
+}
+
 /**
  * Play/pause is declarative — flipping `playing` here is read by
  * `use-preview.ts`'s `videoUnderlay.paused` and applied by `LiveVideo`'s own
@@ -39,9 +47,8 @@ function seekPreviewTo(seconds: number): void {
  * watch-through doesn't look like a no-op.
  */
 export function togglePreviewPlayback(): void {
-  const { durationSeconds, playing, positionSeconds, setPlaying, setPositionSeconds } =
-    usePreviewStore.getState();
-  if (!playing && durationSeconds > 0 && positionSeconds >= durationSeconds) {
+  const { playing, setPlaying, setPositionSeconds } = usePreviewStore.getState();
+  if (!playing && previewReachedEnd()) {
     setPositionSeconds(0);
     seekPreviewTo(0);
   }

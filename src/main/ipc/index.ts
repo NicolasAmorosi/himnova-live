@@ -8,6 +8,7 @@ import { libraryHandlers } from "./handlers/library";
 import { programsHandlers } from "./handlers/programs";
 import { settingsHandlers } from "./handlers/settings";
 import { programDraftHandlers } from "./handlers/program-draft";
+import { editorDraftsHandlers } from "./handlers/editor-drafts";
 import { utilityHandlers } from "./handlers/utility";
 import { overlaysHandlers } from "./handlers/overlays";
 import { songsHandlers } from "./handlers/songs";
@@ -35,6 +36,7 @@ export function registerAllIpcHandlers(): void {
     ...programsHandlers,
     ...settingsHandlers,
     ...programDraftHandlers,
+    ...editorDraftsHandlers,
     ...utilityHandlers,
     ...overlaysHandlers,
     ...songsHandlers,

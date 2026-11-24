@@ -2,7 +2,7 @@
 
 **Area:** slides
 **Trigger:** a picture with `hspMaster` (opid 0x0301) in a legacy deck; deciding whether a shape's
-line, fill or visibility is on in `src/main/slides/ppt-binary.ts` (`mergeBooleans`, `lineIsOff`,
+line, fill or visibility is on in `src/main/slides/ppt-binary.ts` (`mergeFlags` from `ppt/escher.ts`, `lineIsOff`,
 `fillIsOff`, `isHidden`).
 
 - Every property id ending in `0x3F` (`0x01BF` fill, `0x01FF` line, `0x03BF` group/visibility…) is

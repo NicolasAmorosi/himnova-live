@@ -7,7 +7,7 @@ import { parseOsis } from "./osis";
 import { parseUsfx } from "./usfx";
 import { parseZefania } from "./zefania";
 import { BibleFormatError, type ParsedBible } from "./types";
-import { mt } from "../../../i18n";
+import { mt, type MainMessageKey } from "../../../i18n";
 import { decodeText } from "../../../decode-text";
 
 export { BibleFormatError };
@@ -96,7 +96,7 @@ function extractFromZip(filePath: string): Buffer {
   try {
     entries = readZipEntries(filePath, (name) => /\.(xml|json|usfx|osis)$/i.test(name));
   } catch (error) {
-    if (error instanceof ZipFormatError) throw new BibleFormatError(mt("bible.zipUnreadable", { detail: error.message }));
+    if (error instanceof ZipFormatError) throw new BibleFormatError(mt("bible.zipUnreadable"), error);
     throw error;
   }
   // Largest wins: a module zip regularly carries a readme or a licence
@@ -105,6 +105,15 @@ function extractFromZip(filePath: string): Buffer {
   if (!best) throw new BibleFormatError(mt("bible.zipEmpty"));
   return Buffer.from(best);
 }
+
+/** A file that fails inside its reader, by the format it was read as. */
+const BROKEN = {
+  json: "bible.jsonBroken",
+  zefania: "bible.xmlBroken",
+  usfx: "bible.xmlBroken",
+  osis: "bible.xmlBroken",
+  sqlite: "bible.sqliteUnreadable",
+} as const satisfies Record<BibleFormat, MainMessageKey>;
 
 /**
  * Reads a bible file of any supported format.
@@ -118,23 +127,33 @@ function extractFromZip(filePath: string): Buffer {
  * unzip it is a smaller cost than a temp file with a bible in it.
  */
 export function parseBibleFile(filePath: string): ParsedBible {
-  const format = detectBibleFormat(filePath);
-  if (format === "sqlite") return parseMyBibleModule(filePath);
+  let format: BibleFormat | null = null;
+  try {
+    format = detectBibleFormat(filePath);
+    if (format === "sqlite") return parseMyBibleModule(filePath);
 
-  const head = readHead(filePath);
-  const raw = head.subarray(0, ZIP_MAGIC.length).equals(ZIP_MAGIC)
-    ? extractFromZip(filePath)
-    : fs.readFileSync(filePath);
-  const text = decodeText(raw);
+    const head = readHead(filePath);
+    const raw = head.subarray(0, ZIP_MAGIC.length).equals(ZIP_MAGIC)
+      ? extractFromZip(filePath)
+      : fs.readFileSync(filePath);
+    const text = decodeText(raw);
 
-  switch (format) {
-    case "json":
-      return parseBibleJson(JSON.parse(text));
-    case "zefania":
-      return parseZefania(text);
-    case "usfx":
-      return parseUsfx(text);
-    case "osis":
-      return parseOsis(text);
+    switch (format) {
+      case "json":
+        return parseBibleJson(JSON.parse(text));
+      case "zefania":
+        return parseZefania(text);
+      case "usfx":
+        return parseUsfx(text);
+      case "osis":
+        return parseOsis(text);
+    }
+  } catch (error) {
+    if (error instanceof BibleFormatError) throw error;
+    // What the parser or the disk said («Unexpected end of JSON input», «ENOENT…») is English for the log: the
+    // operator reads the cause in their own words, by the format the file was read as (2026-11-22 review, EC-2).
+    const disk = typeof (error as NodeJS.ErrnoException | null)?.syscall === "string";
+    const key = disk ? "bible.fileUnreadable" : format ? BROKEN[format] : "bible.zipUnreadable";
+    throw new BibleFormatError(mt(key, { file: path.basename(filePath) }), error);
   }
 }

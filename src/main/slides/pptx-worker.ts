@@ -2,7 +2,9 @@ import fs from "node:fs";
 import path from "node:path";
 import { parentPort, workerData } from "node:worker_threads";
 import type { SlideModel } from "@shared/types/slide-model";
+import { decodeEmbeddedFont } from "./pptx/embedded-font";
 import { parsePresetDefinitions } from "./pptx/geometry";
+import { metafileToSvg } from "./pptx/metafile";
 import { readPptxDeck, type PptxDeck, type PptxResources } from "./pptx/reader";
 import { parseTableStyles } from "./pptx/table-style";
 import {
@@ -11,6 +13,7 @@ import {
   extractVideoParts,
   readPresentationMeta,
   type AudioRef,
+  type ContainerKind,
   type ExtractedAudio,
   type ExtractedVideo,
   type PresentationMeta,
@@ -18,13 +21,20 @@ import {
 } from "./pptx-metadata";
 import { parseMsoShapes } from "./ppt/escher";
 import { readPptModelDeck } from "./ppt/model-reader";
+import { readBinaryPart } from "./ppt/parts";
 import type { PptResources } from "./ppt/reader";
 import { readOdpModel } from "./odp/entry";
+import { readBinaryDeck, sniffUnreadableDeck, type UnreadableDeckReason } from "./ppt-binary";
+import { readZipEntries } from "./zip-reader";
 
 /**
  * The deck readers, off the main thread: a `.pptx`, a legacy `.ppt`/`.pps` the
- * picture reader (`ppt-binary.ts`, on main: ~1 ms) refused, and an `.odp`, each
- * into a `SlideModel` per slide. Reading a `.pptx` parses every slide's XML
+ * picture reader refused, and an `.odp`, each into a `SlideModel` per slide.
+ * Another thread of this same module serves the hymnal (`pptx-deck.ts`): what a
+ * file is, the picture reader (`ppt-binary.ts`, ~1 ms a deck) and why a deck
+ * won't open, so main no longer sniffs or reads a deck's file to open it (a share
+ * that stopped answering held main 21 s on Windows; 2026-11-22 audit, RM1). A third one serves a model deck's
+ * pictures, metafiles and fonts (`readDeckPart`). Reading a `.pptx` parses every slide's XML
  * twice (the model, then the timings and media), and a template whose map
  * slide is 22 MB of shapes took 11 s — on the thread that answers every IPC
  * call and serves `worship://`. Here it costs main nothing but the copy of the
@@ -44,12 +54,25 @@ export type PptxRead = {
 export type PptxExtract = { file: string; audio: AudioRef[]; audioDir: string; video: VideoRef[]; videoDir: string };
 export type PptxClips = { audio: ExtractedAudio[]; video: ExtractedVideo[] };
 
-export type PptxRequest = { id: number; file: string; extract?: undefined } | { id: number; extract: PptxExtract };
+/** A legacy deck read as pictures, or why not (`readBinaryDeck`). */
+export type NativeRead = ReturnType<typeof readBinaryDeck>;
+
+export type PptxRequest =
+  | { id: number; file: string }
+  | { id: number; extract: PptxExtract }
+  /** What `sniff` is by its bytes, and read as pictures too when `native` and it is a legacy binary. */
+  | { id: number; sniff: string; native: boolean }
+  | { id: number; unreadable: string }
+  | { id: number; deckPart: { file: string; kind: "part" | "font"; part: string } };
 export type PptxReply =
   | { id: number; read: PptxRead }
   | { id: number; clips: PptxClips }
+  | { id: number; kind: ContainerKind; native: NativeRead | undefined }
+  | { id: number; reason: UnreadableDeckReason }
+  | { id: number; deckPart: DeckPart }
   | { id: number; error: string }
-  /** Still reading `id`: one per slide, which restarts the queue's timer (`deck-queue.ts`). */
+  /** Still reading `id`: one per slide (the hymnal's thread: per read of the file, `paced`), which restarts the queue's
+   *  timer (`deck-queue.ts`). */
   | { id: number; alive: true };
 
 type Resources = PptxResources & PptResources;
@@ -59,6 +82,25 @@ let resources: Resources | null = null;
  *  limit without one, so a long deck on a slow PC is read to the end (2026-11-15 audit, S4, review). */
 let reading = 0;
 const beat = (): void => parentPort?.postMessage({ id: reading, alive: true } satisfies PptxReply);
+
+/** How often, at most, a hymn being read says so: the hymnal's clock is 5 s without a beat, and a read of a sector is
+ *  milliseconds even at 100 KB/s, so a deck that is still reading beats well inside it. */
+const READ_BEAT_MS = 500;
+
+/**
+ * `send` from a read that finished, at most once every `everyMs` since it was made (one per request): the hymnal's
+ * beat comes from bytes read, never from a timer, so a read that hangs on a share sends none and the queue's clock
+ * stops it. A hymn read off a disk (a millisecond or two) sends none either (2026-11-22 review, RN3-2).
+ */
+export function paced(send: () => void, everyMs = READ_BEAT_MS, now = (): number => performance.now()): () => void {
+  let last = now();
+  return () => {
+    const at = now();
+    if (at - last < everyMs) return;
+    last = at;
+    send();
+  };
+}
 
 /** By what the bytes are, never by the extension. */
 function readModel(file: string, loaded: Resources): { deck: PptxDeck; meta: PresentationMeta | null } {
@@ -140,22 +182,69 @@ function read(file: string): PptxRead {
   };
 }
 
+const PART_TYPES: Record<string, string> = {
+  png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", jpe: "image/jpeg", gif: "image/gif", bmp: "image/bmp",
+  svg: "image/svg+xml", webp: "image/webp", tif: "image/tiff", tiff: "image/tiff", ico: "image/x-icon",
+};
+
+/** A part as served: its bytes and type, or why not (404 not in the file, 415 won't convert). */
+export type DeckPart = { body: Uint8Array<ArrayBuffer>; type: string } | 404 | 415;
+
+/**
+ * A part of a model deck's package as `worship://deck/<id>/part|font/` serves it, read and converted from
+ * `sourcePath`: a picture as is, a metafile (EMF/WMF, which Chromium can't decode) as the SVG `metafileToSvg`
+ * makes of it, a font as the TrueType `decodeEmbeddedFont` rebuilds. Here, not on main: an EMF of 156 bytes
+ * held main a minute and then took the app down, and a real one of 24 MB is a turn of 200 ms (2026-11-22
+ * audit, SE1). The body is its own buffer, so it crosses to main moved, not copied.
+ */
+export function readDeckPart(sourcePath: string, kind: "part" | "font", part: string): DeckPart {
+  // A legacy binary's parts are ranges of its OLE streams (`ppt/parts.ts`);
+  // a `.pptx`'s and an `.odp`'s, zip entries.
+  const raw =
+    containerKind(sourcePath) === "binary"
+      ? (readBinaryPart(sourcePath, part) ?? undefined)
+      : readZipEntries(sourcePath, (name) => name === part)[part];
+  if (!raw) return 404;
+  const ext = part.slice(part.lastIndexOf(".") + 1).toLowerCase();
+  let body: Uint8Array | string | null = raw;
+  let type = PART_TYPES[ext] ?? "application/octet-stream";
+  if (kind === "font") {
+    body = decodeEmbeddedFont(raw);
+    type = "font/ttf";
+  } else if (ext === "emf" || ext === "wmf" || ext === "emz" || ext === "wmz") {
+    body = metafileToSvg(raw, ext.startsWith("w") ? "wmf" : "emf");
+    type = "image/svg+xml";
+  }
+  if (body === null) return 415;
+  return { body: typeof body === "string" ? new TextEncoder().encode(body) : new Uint8Array(body), type };
+}
+
 parentPort?.on("message", (request: PptxRequest) => {
   const { id } = request;
   reading = id;
   let reply: PptxReply;
   try {
-    if (request.extract) {
+    if ("extract" in request) {
       const { audio, audioDir, file, video, videoDir } = request.extract;
       reply = {
         id,
         clips: { audio: extractAudioParts(file, audio, audioDir, beat), video: extractVideoParts(file, video, videoDir, beat) },
       };
+    } else if ("sniff" in request) {
+      const kind = containerKind(request.sniff);
+      const native = request.native && kind === "binary" ? readBinaryDeck(request.sniff, paced(beat)) : undefined;
+      reply = { id, kind, native };
+    } else if ("unreadable" in request) {
+      reply = { id, reason: sniffUnreadableDeck(request.unreadable, paced(beat)) };
+    } else if ("deckPart" in request) {
+      const { file, kind, part } = request.deckPart;
+      reply = { id, deckPart: readDeckPart(file, kind, part) };
     } else {
       reply = { id, read: read(request.file) };
     }
   } catch (error) {
     reply = { id, error: String(error) };
   }
-  parentPort?.postMessage(reply);
+  const moved = "deckPart" in reply && typeof reply.deckPart === "object" ? [reply.deckPart.body.buffer] : [];
+  parentPort?.postMessage(reply, moved);
 });

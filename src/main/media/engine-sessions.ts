@@ -8,6 +8,7 @@ import { takeEngine, type EngineError, type EngineEvents, type MediaEngine } fro
 import { engineFailedOn } from "./engine-assets";
 import { clipEngineFailed } from "./deck-clips";
 import { heardAt, reportLevel } from "./audio-levels";
+import { liveMusicFile } from "../protocol/worship-protocol";
 import {
   applyToSession,
   keepsSession,
@@ -105,7 +106,8 @@ function start(
   session.engine = takeEngine();
   session.engine.load(
     {
-      file,
+      // The music of the deck on air, from its copy when there is one (`liveMusicFile`, 2026-11-22 audit, RV-4).
+      file: linked !== null ? liveMusicFile(file) : file,
       startAtSeconds: opts.startAtSeconds,
       paused: session.paused,
       volume: session.volume,

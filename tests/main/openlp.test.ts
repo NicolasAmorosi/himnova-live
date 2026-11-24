@@ -8,13 +8,16 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import Database from "better-sqlite3";
-import { afterAll, beforeAll, describe, expect, test } from "vitest";
+import { afterAll, beforeAll, describe, expect, test, vi } from "vitest";
 import { openDatabase } from "../../src/main/db/client";
 import { runMigrations } from "../../src/main/db/migrate";
 import { initRepos } from "../../src/main/services/repos";
 import { importOpenLpDatabase, importOpenLyricsFiles } from "../../src/main/services/song-import";
 import { readOpenLpDatabase, readOpenLpLyrics, readOpenLyrics, readOpenLyricsFiles } from "../../src/main/songs/openlp";
 import { IpcError } from "../../src/shared/ipc/result";
+
+// The databases are read on a thread (`song-db-worker.ts`); here, in this process.
+vi.mock("../../src/main/songs/song-db-worker?nodeWorker", () => import("./support/song-db-worker-in-process"));
 
 const drizzleDir = path.join(process.cwd(), "drizzle");
 
@@ -365,4 +368,16 @@ describe("OpenLyrics: languages and text kept as written (2026-11-06)", () => {
     const read = readOpenLyrics(xml(`<verse name="v1"><lines>いつくしみ深き\u3000友なるイエスは<br/>Všemoh[Ami]úci [G]Boh</lines></verse>`));
     expect(read?.sections[0]?.slides[0]?.lines).toEqual(["いつくしみ深き　友なるイエスは", "Všemohúci Boh"]);
   });
+});
+
+test("a database whose songs table is a view that never ends is refused at once, not run on main (2026-11-22 audit, SE3)", () => {
+  const file = path.join(tmpDir, "hostile.sqlite");
+  const db = new Database(file);
+  db.exec(
+    "CREATE VIEW songs AS WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x + 1 FROM c) SELECT 1 AS id, 't' AS title, '' AS lyrics, NULL AS verse_order, NULL AS copyright, NULL AS comments, NULL AS ccli_number FROM c WHERE x < 0",
+  );
+  db.close();
+  const started = performance.now();
+  expect(() => readOpenLpDatabase(file)).toThrow(/not a plain table/);
+  expect(performance.now() - started).toBeLessThan(1000);
 });

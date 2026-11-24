@@ -12,7 +12,7 @@ import {
 import { createPortal } from "react-dom";
 import { useI18n } from "@renderer/lib/i18n/i18n-provider";
 import { ConfirmModal } from "@renderer/components/shared/modal";
-import { EditorScreen } from "@renderer/components/shared/editor-screen";
+import { EditorScreen, useEditorDraft } from "@renderer/components/shared/editor-screen";
 import {
   Box,
   Button,
@@ -287,6 +287,16 @@ export function ProgramsModal({ initialMode, onOpenChange, open }: ProgramsModal
   const dirty = editing !== null && !sameDraft(editing.draft, editing.baseline);
   const named = editing !== null && editing.draft.name.trim() !== "";
   const canSave = editing !== null && named && (editing.kind !== "saved" || dirty);
+
+  // On disk while unsaved, back after a crash (DU-1). After the effect above that picks what it opens: the list it
+  // reads later keeps a recovered form (`current ?? …`).
+  useEditorDraft(
+    "program",
+    open,
+    dirty,
+    { id: editing?.kind === "saved" ? editing.program.id : null, name: editing?.draft.name ?? "", state: editing },
+    (recovered) => setEditing(recovered.state as Editing),
+  );
 
   // Nothing saved, nothing to search or filter: both hide (owner, 2026-11-17), and what was typed goes with them, or
   // the first program saved after would come back under a search nobody can see.

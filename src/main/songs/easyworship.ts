@@ -82,12 +82,31 @@ export function ccliNumber(value: string | number | null | undefined): string | 
  *  1), so a column that is not digits is not taken for one. */
 const ccliOf = (row: SongRow): string | null => ccliNumber(row.reference_number) ?? ccliNumber(row.vendor_id);
 
+/**
+ * Throws unless each of `tables` that the file has is a plain table. A view, a virtual table or a generated column is
+ * a query the file brings along, run by our SELECT on main's thread: a recursive view that never ends held main, and
+ * the projector with it, forever (2026-11-22 audit, SE3). Names compare as SQLite resolves them, ignoring case.
+ */
+export function onlyPlainTables(db: Database.Database, ...tables: string[]): void {
+  const rows = db
+    .prepare(`SELECT name, type, sql FROM sqlite_master WHERE lower(name) IN (${tables.map(() => "?").join(", ")})`)
+    .all(...tables.map((table) => table.toLowerCase())) as { name: string; type: string; sql: string | null }[];
+  for (const { name, type, sql } of rows) {
+    if (type === "index" || type === "trigger") continue;
+    if (type !== "table" || /^\s*CREATE\s+VIRTUAL\b|\bGENERATED\b|\bAS\s*\(/i.test(sql ?? "")) {
+      throw new Error(`${name} is not a plain table`);
+    }
+  }
+}
+
 export function readEasyWorship(dataFolder: string, locale: Locale): SongsRead {
   const songsDb = new Database(path.join(dataFolder, "Songs.db"), { readonly: true, fileMustExist: true });
   // Opened inside the `try`: one that fails no longer leaves `Songs.db` open until the app quits.
   let wordsDb: Database.Database | undefined;
   try {
     wordsDb = new Database(path.join(dataFolder, "SongWords.db"), { readonly: true, fileMustExist: true });
+    onlyPlainTables(songsDb, "song");
+    onlyPlainTables(wordsDb, "word");
     const rows = songsDb
       .prepare("SELECT rowid, title, author, copyright, administrator, reference_number, vendor_id FROM song")
       .all() as SongRow[];

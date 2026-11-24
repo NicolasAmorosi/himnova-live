@@ -16,6 +16,7 @@ import type {
   ProgramUpsert,
 } from "@shared/types/program";
 import type { SettingsMap } from "@shared/types/settings";
+import type { EditorDraft, EditorKind } from "@shared/types/editor-draft";
 import type { AudioRoute } from "@shared/types/audio";
 import type { UtilitySceneUpsert } from "@shared/types/utility";
 import type { PlateUpsert } from "@shared/types/overlay";
@@ -39,6 +40,8 @@ export const api = {
     mediaCommand: (command: MediaCommand) => invoke("projection:mediaCommand", command),
     setAudioTracks: (tracks: AudioTrackPush[]) => invoke("projection:setAudioTracks", tracks),
     getSnapshot: () => invoke("projection:getSnapshot", undefined),
+    getFit: () => invoke("projection:getFit", undefined),
+    showPattern: (on: boolean) => invoke("projection:showPattern", on),
     reportMediaError: (error: ProjectionMediaError) => invoke("projection:reportMediaError", error),
     wantVideoFrame: (key: string) => invoke("projection:wantVideoFrame", { key }),
     reportLevels: (level: [number, number]) => invoke("projection:reportLevels", level),
@@ -108,6 +111,8 @@ export const api = {
   library: {
     list: (kind: AssetKind) => invoke("library:list", { kind }),
     get: (id: number) => invoke("library:get", { id }),
+    /** `get`, after a look at the file: what GO LIVE asks before it cuts what is on air. */
+    check: (id: number) => invoke("library:get", { id, check: true }),
     add: (paths: string[], kind: AssetKind) => invoke("library:add", { paths, kind }),
     remove: (id: number, force?: boolean) =>
       invoke("library:remove", { id, ...(force !== undefined ? { force } : {}) }),
@@ -136,6 +141,11 @@ export const api = {
   draft: {
     save: (draft: ProgramDraft | null) => invoke("program:saveDraft", draft),
     load: () => invoke("program:loadDraft", undefined),
+  },
+  /** The editors' unsaved forms: see `components/shared/editor-screen/use-editor-draft.ts`. */
+  editors: {
+    saveDraft: (editor: EditorKind, draft: EditorDraft | null) => invoke("editors:saveDraft", { editor, draft }),
+    loadDrafts: () => invoke("editors:loadDrafts", undefined),
   },
   window: {
     /** Answers main's `close-requested` — see `CloseDecision`. */

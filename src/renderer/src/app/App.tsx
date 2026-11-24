@@ -12,6 +12,13 @@ import {
   useAnyModalOpen,
 } from "@renderer/components/shared/modal";
 import { ErrorBoundary } from "@renderer/components/shared/error-boundary";
+import {
+  dropEditorDrafts,
+  EditorDraftsNotice,
+  offerEditorDrafts,
+  useEditorRecovery,
+  useRecovering,
+} from "@renderer/components/shared/editor-screen";
 import { ModalBoundary } from "@renderer/components/shared/modal-boundary";
 import { Button, LoadingState, ToastHost } from "@renderer/components/ui";
 import { useT } from "@renderer/lib/i18n/i18n-provider";
@@ -21,6 +28,7 @@ import { toast } from "@renderer/lib/toast";
 import {
   reopenProgram,
   restoreDraft,
+  restoreLiveRow,
   saveCurrentProgram,
   startOpenProgramMemory,
 } from "@renderer/lib/actions/programs";
@@ -75,6 +83,7 @@ export function App() {
   const settingsOpen = useUiStore((s) => s.settingsSection !== null);
   const welcomeOpen = useUiStore((s) => s.welcomeOpen);
   const whatsNewOpen = useUiStore((s) => s.whatsNewOpen);
+  const editorDraftsAsked = useEditorRecovery((s) => s.asking);
   const openSettings = useUiStore((s) => s.openSettings);
   const closeSettings = useUiStore((s) => s.closeSettings);
   // Same reasoning, and one more: mounted here it exists ONCE. Rendered by
@@ -97,6 +106,14 @@ export function App() {
   useAudioSink(useAudioRouteStore((s) => s.preview.out.sinkId));
 
   useEffect(() => installGlobalErrorHandlers(), []);
+
+  // «Recuperar» after a crash opens the programs' editor on what was left unsaved (DU-1).
+  const recoveredProgram = useRecovering("program");
+  useEffect(() => {
+    if (!recoveredProgram) return;
+    setProgramsInitialMode(undefined);
+    setProgramsOpen(true);
+  }, [recoveredProgram]);
 
   // A song is measured at the projector's proportion: another screen chosen,
   // or a projector plugged in, re-measures the live one in place.
@@ -169,8 +186,14 @@ export function App() {
         if (draft) await restoreDraft(draft);
         // No draft: nothing unsaved, but a saved program may have been open.
         else if (settings["programs.openId"] !== null) await reopenProgram(settings["programs.openId"]);
+        // The row that was on air when the app went down, in PREVIEW: never on air by itself (DU-6).
+        restoreLiveRow(settings["programs.liveRow"]);
       } catch (error) {
         console.warn("[draft] restore failed", error);
+      } finally {
+        // Then what the editors left unsaved (DU-1), on a page started over what is live too: its editors died with
+        // it. Once, whatever mounts twice; the notice waits for the welcome and «Novedades».
+        void offerEditorDrafts();
       }
     })();
     const stopProjectionEffects = startProjectionEffects();
@@ -333,6 +356,9 @@ export function App() {
           description={quitRiskText(closeGuard)}
           onConfirm={async () => {
             closeConfirmedRef.current = true;
+            // What the operator just chose to lose is not offered at the next launch (DU-1). Sent first: main writes
+            // it before the close.
+            if (closeGuard?.editor) dropEditorDrafts();
             await api.window.closeDecision("close");
           }}
           // «Guardar y salir» only for a program that already has its row: a
@@ -353,6 +379,15 @@ export function App() {
               : t("schedule.closeConfirmTitle")
           }
         />
+      </ModalBoundary>
+      <ModalBoundary
+        onCrash={() => {
+          useEditorRecovery.setState({ asking: false });
+          toast.danger(t("app.modalCrashed"));
+        }}
+        open={editorDraftsAsked}
+      >
+        <EditorDraftsNotice blocked={welcomeOpen || whatsNewOpen} />
       </ModalBoundary>
       <ToastHost />
     </>

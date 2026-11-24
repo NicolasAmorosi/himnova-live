@@ -59,6 +59,12 @@ export function LiveMediaPanel() {
   const mediaStatus = useProjectionStore((s) => s.mediaStatus);
   const mediaErrors = useProjectionStore((s) => s.mediaErrors);
   const audioTracks = useAudioStore((s) => s.tracks);
+  // A deck that advances by itself shares one clock with its music: the music row's button is the deck's play/pause
+  // (`toggleAudioTrackPause`), so it shows the deck's; it said «play» while slides outlasting their music still ran.
+  // Finished, the slides are done and the row is the music's own: playing on (the outro) or over (held paused).
+  const deckClockPaused = useProjectionStore((s) =>
+    s.liveDeck?.autoAdvance && s.autoplay !== "finished" ? s.autoplay !== "playing" : null,
+  );
   const livePlates = useProjectionStore((s) => s.livePlates);
   const heading = useLiveHeading();
 
@@ -171,7 +177,7 @@ export function LiveMediaPanel() {
         onStop={isDeck ? undefined : () => stopAudioTrack(track.trackId)}
         onTogglePause={() => toggleAudioTrackPause(track.trackId)}
         onVolumeChange={(volume) => setMediaVolume({ kind: "audio", trackId: track.trackId }, volume)}
-        paused={track.paused}
+        paused={isDeck && deckClockPaused !== null ? deckClockPaused : track.paused}
         volume={track.volume}
       />,
     );

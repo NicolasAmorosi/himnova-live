@@ -22,7 +22,7 @@ cursor lives in the renderer's store and it is the only copy.
 ```
 source ──containerKind (magic bytes, never the extension)──┐
   binary (OLE2) ── readBinaryDeck: only pictures? ── yes ──► native deck   image_format 'native'
-       │ no                                                                 (ppt-binary.ts, on main, ~1 ms)
+       │ no                                                   (ppt-binary.ts, on the hymnal's thread, ~1 ms)
   ooxml │ binary │ odf ── pptx-worker.ts thread ──► SlideModel per slide ──► model deck   'model'
   pdf ── pdf.js in a hidden window: page sizes ──► PDF deck   'webp'|'png' with cache_dir '' (pages drawn on request)
   no reader opens it ── sniffUnreadableDeck ──► fails: DECK_PASSWORD | DECK_OLD_FORMAT | NOT_A_PRESENTATION
@@ -30,9 +30,45 @@ source ──containerKind (magic bytes, never the extension)──┐
 ```
 
 `prepareDeck` (`deck-service.ts`) asks in that order: `nativeDeck` → `modelDeck` → `pdfDeck`
-(together `sourceDeck`). There is no queue and nothing to cancel: until 2026-11-03 a PDF was
+(together `sourceDeck`). There is nothing to cancel: until 2026-11-03 a PDF was
 rasterized whole into the slide cache, one at a time behind a two-lane queue with preemption; that
 queue, `deck:cancel` and the `slides.preemptBackground` escape hatch are gone.
+
+**Main does not stat, sniff or read a deck's file to open it** (2026-11-22 audit, RM1). The source
+is stat'ed with `fs.promises.stat`, one question per file at a time, shared with GO LIVE's check of
+the same file (`background-files.ts`); a share that stopped answering held a synchronous stat, and main
+with it, 21 s on Windows. A deck opened (`deck:ensure`) waits for that stat while a disk wakes, up to
+`SLIDES_SOURCE_STAT_TIMEOUT_MS` (20 s), and is `SOURCE_MISSING` only when the stat fails (2026-11-22 review, RN-2);
+past the cap it fails as `SOURCE_NOT_RESPONDING` («the disk or folder is not responding»), nothing remembered of the
+file, and a deck already read stays ready in the control window (review, RN2-1). The read ahead waits it out; a peek (`deck:get`)
+gives up after a second with `null`, which only sends the renderer on to `ensure`. An ask of the operator joins
+a stat of theirs while it is under two seconds old: one that began while the share was down answers only
+when the system gives up (21 s on Windows, never on a mount that never answers), so «Reintentar» or a new GO LIVE
+starts its own and a share that came back answers at once (2026-11-22 review, RN2-1). Two of theirs at most on
+one file: with two under way, an ask joins the newest however old, since one per click on a share that never
+answers filled libuv's four threads, the projector's reads with them (2026-11-22 review, RN3-1). The read-ahead's
+stats take one of the two threads background work may hold (`backgroundStat`), never one beside them, and
+wait in a row of their own served before the sweep's: in one row a hymn read ahead waited behind a sweep's
+whole chunk of 200 rows, ~35 min with a dead share in the library (2026-11-22 review, RN2-3). The sniff
+(`containerKind`), the picture reader and `sniffUnreadableDeck` run on a second thread of
+`pptx-worker.ts` with its own queue (`pptx-deck.ts`, `hymnal`): in the model readers' queue a hymn
+waited behind a heavy `.pptx`, and on main a screen of 32 unread hymns was one turn of the thread
+every engine frame crosses. A file that stops that thread is refused whole and goes to the model
+reader's thread, never to main. Its clock is its own, short and one for both lanes
+(`SLIDES_HYMNAL_READ_TIMEOUT_MS`, 5 s without a beat for a millisecond's work), and the thread beats as it
+reads the file, as the model readers beat per slide: every read of the OLE file is a sector (512 B or
+4 KB) or a picture's 8-byte header, and each one that finishes may beat, at most every 500 ms (`paced` in
+`pptx-worker.ts`, fed by `openOle`'s `onRead`). Never a timer: a read that hangs sends nothing. A large hymn
+on a slow share is never cut while it reads, and one whose read hangs is cut at 5 s, whoever waits on it.
+A deck's 60 s for the operator (RN2-4) let a hung hymn hold this thread and the next hymn the operator
+chose 55 s, measured on Windows (2026-11-22 review, RN3-2). The known cost: a share that hands over the
+whole file at open (Windows' WebDAV client) gives no beat, so a hymn that takes over 5 s to download
+there fails as too slow and is retried; SMB reads by parts, so it should beat (not measured yet). A file it stops is far more often the disk's doing than the file's: the read-ahead does not ask it
+again until it changes, the operator's ask always does. A deck already read as a model or a PDF still
+answers from its row, and one not read yet fails as `DECK_TOO_SLOW` (2026-11-22 review, RN-7). A slide is still served
+on main (`renderNativeSlide`, ~1 ms). The one exception left: the linked song's first resolution
+(`ensureLinkedAudio` → `resolveLinkedAudio`: the folder's listing and the deck's external objects),
+~1 ms a hymn, once.
 
 ## Model decks: a deck is drawn, not converted (2026-10-26)
 
@@ -97,7 +133,17 @@ SlideView (React, components/shared/slide-view/) ◄── worship://deck/<id>/<
   EMF/WMF (or its gzipped `.emz`/`.wmz`) as the SVG `metafileToSvg` makes of it — Chromium decodes
   neither; `…/font/<part>` is an embedded font (EOT / MicroType Express) rebuilt as TrueType by
   `decodeEmbeddedFont`. All `immutable`, and all 410 once the source is no longer the file the model
-  was read from. A model slide's `url`/`thumbUrl` serve no image: `modelUrl` (on `DeckSlide`, the
+  was read from (unless the copy of the deck on air has it: «The copy of the deck on air», below).
+  Read and converted on a third thread of `pptx-worker.ts` (`pptx-deck.ts`, `parts`,
+  `readDeckPart`), never on main: an EMF of 156 bytes froze main a minute and then took the app down,
+  and a real one of 24.5 MB was a turn of 200 ms (2026-11-22 audit, SE1). Its own thread because a
+  slide on air waits on its parts: they never queue behind a `.pptx` read nor a hymn's file on a dead
+  share. Its clock is `SLIDES_PART_READ_TIMEOUT_MS` (10 s); a part whose thread dies on it is served as
+  one that won't convert (415), kept, and never tried again on main; one that runs out of the clock
+  says nothing about the file and answers 404, never kept, so the next ask reads it again. A byte-budgeted
+  cache on main (`byte-lru.ts`) stays in front: a part already read is answered at once, and the
+  windows asking for one still being read wait for that same read. A model slide's `url`/`thumbUrl`
+  serve no image: `modelUrl` (on `DeckSlide`, the
   `slide` output and `DeckStatusSummary`) is what draws it, and every consumer — `OutputView`, the
   two slide grids, the library tile — checks it first.
 - **In the renderer**: `lib/slide-models.ts` fetches a model once per window and hands it out only
@@ -268,7 +314,8 @@ worship://deck/<id>/<n> ◄── native-deck.ts: the JPEG as is, or an SVG ◄�
 - **What is served**: a slide that is one picture edge to edge in its own proportions is that JPEG,
   byte for byte (~4 of 5 hymnal slides); otherwise an SVG placing each picture where PowerPoint does,
   pictures as `data:` URIs (an SVG used as an image fetches nothing). The source must still be the
-  file the layers were read from — same `(size, mtime)` — or the answer is 410. `/thumb` is the base
+  file the layers were read from (same `(size, mtime)`), or the answer is 410; the copy of the deck
+  on air, once landed, is read first («The copy of the deck on air»). `/thumb` is the base
   picture alone: composing the SVG for every tile of a library grid cost ~800 KB of base64 each.
 - **The linked song** is found from the record that names it (`ExObjList` → `CString`,
   `readBinaryExternalPaths`), not by scanning the file: the scan was most of a second per hymn
@@ -445,6 +492,14 @@ aren't consecutive; `PP97_DUALSTORAGE`) are in
 which also records why these timings were never taken from a converted copy: a `.pps → .pptx`
 round-trip through LibreOffice silently lost the auto-advance of 222 of 1226 hymnal decks.
 
+Every format's timings play as PowerPoint plays them (measured 2026-11-21): a show set to advance
+manually keeps none (`SlideShowDocInfoAtom.fAutoAdvance`, OOXML `showPr/@useTimings`, ODF
+`presentation:force-manual`), and a slide's «After» clock starts once its own transition has finished,
+so `slideHoldMs` adds that transition to every slide but the first (in the music's boundaries; the detached chain adds
+it only to a slide that came in with it). PowerPoint was measured; an `.odp` follows the same rule unmeasured in
+Impress. See
+[`.claude/knowledge/a-slide-s-after-time-starts-when-its-transition-ends-and-a-manual-show-ignores-every-time.md`](../../.claude/knowledge/a-slide-s-after-time-starts-when-its-transition-ends-and-a-manual-show-ignores-every-time.md).
+
 ## What older builds left behind
 
 Until 2026-11-03 a deck no reader could open was converted by LibreOffice (→ PDF → WebP), and a
@@ -488,6 +543,29 @@ semantics** (206 + `Content-Range`, `Accept-Ranges: bytes`, 416, streaming with
 forwarding the headers, which left all video/audio **without seek** and broke playback with
 `PIPELINE_ERROR_DECODE (-12909)` from misaligned data — see
 [`.claude/knowledge/worship-protocol-range-and-video-lifecycle.md`](../../.claude/knowledge/worship-protocol-range-and-video-lifecycle.md).
+
+### The copy of the deck on air
+
+A slide, a page or a part is read from the deck's source when asked for, so a pen drive pulled or a
+network folder down took the next slide away. `projection:show` takes a copy of the deck on air in
+the profile (`keepLiveDeckSource`, `liveDeckDir`, one deck at a time, `.partial` then a rename), and
+its linked music after it (up to 200 MB). Once landed, the copy is **read first**: a slide is served
+from it whenever its stamp is the one the deck was read with, without a `stat` of the file (a share
+that stopped answering held every slide 21 s on Windows: 2026-11-22 audit, RM3); without a copy, or
+while it is still being written, the file is read as before, and 410 once it is no longer the file
+the deck was read from. The cost: a PDF's pages are cached by the file they were drawn from, so the
+pages drawn before the copy landed are drawn once more from it.
+
+The music (`worship://linked-audio`, and the engine for a `.wma`) reads its copy first too
+(`liveMusicFile`), and that copy changes only as a playback begins: a new epoch of its audio track
+in `projection:setAudioTracks` (the hymn sent live again, `goLiveWithDeck`; the projector keys its
+`<audio>` by that epoch) looks at the file (`liveMusicPlays`), and that playback's bytes wait for the
+look, a second at most (`MUSIC_LOOK_MS`). As copied, unreadable or not answering by then, it reads the
+copy, whatever a late answer says; changed, it reads the file until a copy of it as it is now lands. A slide change, BLACK, a restart or a seek and a reopened projector are the same
+playback, so its `Range` reads never mix two files (RN2-6), and an MP3 replaced mid-hymn plays new
+from the next time the hymn goes live. PREVIEW of the
+hymn on air reads the same copy. The engine opens its file once per playback and keeps it open: a
+`.wma` playing from the pen drive does not move to the copy if the drive is pulled (RN-4, debt).
 
 ## Verification
 

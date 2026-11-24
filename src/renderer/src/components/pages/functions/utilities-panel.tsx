@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useI18n } from "@renderer/lib/i18n/i18n-provider";
 import { Button, EmptyState, Icon, IconButton, ListRow, Tooltip } from "@renderer/components/ui";
 import { PanelBody, PanelFooter } from "@renderer/components/shared/panel";
@@ -7,6 +7,7 @@ import { viewNamed } from "@renderer/lib/named-list";
 import { useSettingsStore } from "@renderer/stores/settings.store";
 import { NAMED_SORT_ORDERS, type NamedSortOrder } from "@shared/types/settings";
 import { ModalBoundary } from "@renderer/components/shared/modal-boundary";
+import { useRecovering } from "@renderer/components/shared/editor-screen";
 import { toast } from "@renderer/lib/toast";
 import { useUtilityStore } from "@renderer/stores/utility.store";
 import { usePreviewStore } from "@renderer/stores/preview.store";
@@ -46,6 +47,11 @@ import { TOOL_ICON, TOOL_LABEL } from "./tool-display";
 export function UtilitiesPanel() {
   const { locale, t } = useI18n();
   const [editorOpen, setEditorOpen] = useState(false);
+  // «Recuperar» after a crash opens the editor on what was left unsaved (DU-1).
+  const recovered = useRecovering("scene");
+  useEffect(() => {
+    if (recovered) setEditorOpen(true);
+  }, [recovered]);
   const scenes = useUtilityStore((s) => s.scenes);
   const sort = useSettingsStore((s) => s.settings["functions.scenesSort"]);
   const [query, setQuery] = useState("");
@@ -139,12 +145,12 @@ export function UtilitiesPanel() {
           «Scenes…» on the left like the tab's own tools, «Add to
           schedule» pinned right like the media browser's. */}
       <PanelFooter>
-        <Tooltip content={t("utilities.manageHint")} floating>
+        <Tooltip content={t("utilities.manageHint")}>
           <IconButton aria-label={t("utilities.manage")} onClick={() => setEditorOpen(true)} size="sm" variant="ghost">
             <Icon name="timer" />
           </IconButton>
         </Tooltip>
-        <Tooltip className="ml-auto" content={t("resources.addToScheduleHint")} placement="top">
+        <Tooltip className="ml-auto" content={t("resources.addToScheduleHint")}>
           <Button
             aria-label={t("resources.addToSchedule")}
             disabled={previewedId === null}

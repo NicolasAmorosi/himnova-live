@@ -7,7 +7,7 @@ import type { BaseContent } from "@shared/types/projection";
 import type { ProgramItemDTO } from "@shared/types/program";
 import { api } from "@renderer/lib/api";
 import { removeAsset } from "./remove-asset";
-import { previewScheduleItem } from "./preview";
+import { previewScheduleItem, previewTookItself } from "./preview";
 import { newProgram } from "./programs";
 
 /** Whether `base` is what `item` puts on the projector. A plate never is: it
@@ -116,5 +116,7 @@ export function removeSelected(): void {
     return;
   }
   const program = useProgramStore.getState();
-  if (program.selectedIndex !== null) removeScheduleItem(program.selectedIndex);
+  // Not the row PREVIEW took on its own after GO LIVE: a key pressed believing a text field had focus deleted the next
+  // part of the service (owner, 2026-11-22, RV-5). Its button and its menu still remove it.
+  if (program.selectedIndex !== null && !previewTookItself()) removeScheduleItem(program.selectedIndex);
 }

@@ -1,4 +1,5 @@
-import { memo, useState } from "react";
+import { memo, useEffect, useState } from "react";
+import { useEditorRecovery } from "@renderer/components/shared/editor-screen";
 import { useT, type MessageKey } from "@renderer/lib/i18n/i18n-provider";
 import { TabPanel, TabPanels, Tabs, type IconName, type TabItem } from "@renderer/components/ui";
 import { markFirstStep } from "@renderer/effects/first-steps";
@@ -67,22 +68,32 @@ export function ResourcePanel() {
     value,
   }));
 
+  function show(value: ResourceTab) {
+    setTab(value);
+    setVisited((current) => (current.includes(value) ? current : [...current, value]));
+    // Leaving the file libraries drops the library selection, so
+    // Delete/Backspace stops targeting a grid that is no longer on
+    // screen: `removeSelected()` prefers the library over the schedule,
+    // and the next Delete used to silently remove a video the operator
+    // was not even looking at. Coming BACK is `MediaTabs`' own job: it
+    // is the one that knows which kind is open.
+    if (value !== "media") selectAsset(null);
+    if (value === "songs") markFirstStep("song");
+  }
+
+  // «Recuperar» after a crash: the tab whose panel holds the editor it opens, mounted if never visited (DU-1).
+  const recovering = useEditorRecovery((s) => s.queue[0]?.editor ?? null);
+  useEffect(() => {
+    if (recovering === "song" || recovering === "songTheme") show("songs");
+    else if (recovering === "plate" || recovering === "scene") show("functions");
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once per editor to open
+  }, [recovering]);
+
   return (
     <>
       <Tabs
         idBase={TAB_ID_BASE}
-        onChange={(value) => {
-          setTab(value);
-          setVisited((current) => (current.includes(value) ? current : [...current, value]));
-          // Leaving the file libraries drops the library selection, so
-          // Delete/Backspace stops targeting a grid that is no longer on
-          // screen: `removeSelected()` prefers the library over the schedule,
-          // and the next Delete used to silently remove a video the operator
-          // was not even looking at. Coming BACK is `MediaTabs`' own job — it
-          // is the one that knows which kind is open.
-          if (value !== "media") selectAsset(null);
-          if (value === "songs") markFirstStep("song");
-        }}
+        onChange={show}
         tabs={tabs}
         value={tab}
         variant="underline"

@@ -310,7 +310,6 @@ export function BibleBrowser() {
               did not fit the strip at the column's narrow widths. */}
           <Tooltip
             content={parallelName ? t("bible.parallelOn", { name: parallelName }) : t("bible.parallelHint")}
-            floating
           >
             <Menu
               active={parallelId !== null}
@@ -379,7 +378,7 @@ export function BibleBrowser() {
             ]}
             value={searchMode}
           />
-          <Tooltip content={t("bible.bookmarks")} floating>
+          <Tooltip content={t("bible.bookmarks")}>
             <IconButton aria-label={t("bible.bookmarks")} onClick={toggleBookmarks} size="sm" toggled={showBookmarks} variant="ghost">
               {/* Not the star: the star in the footer MARKS a verse, this shows the
                   marked ones (2026-11-05 review: one icon, two verbs). */}
@@ -491,7 +490,7 @@ export function BibleBrowser() {
       <PanelFooter>
         {/* Bottom left, like the Songs tab's «Themes»: the tab's own tools, an
             icon with a tooltip (owner, 2026-11-05). */}
-        <Tooltip content={t("bible.styleHint")} floating>
+        <Tooltip content={t("bible.styleHint")}>
           <IconButton aria-label={t("bible.styleTitle")} onClick={() => setStyleOpen(true)} size="sm" variant="ghost">
             <Icon name="palette" />
           </IconButton>
@@ -499,7 +498,6 @@ export function BibleBrowser() {
         <Tooltip
           className="ml-auto"
           content={previewedIsFavorite ? t("bible.favoriteRemove") : t("bible.favoriteAdd")}
-          placement="top"
         >
           <IconButton
             aria-label={previewedIsFavorite ? t("bible.favoriteRemove") : t("bible.favoriteAdd")}
@@ -512,7 +510,7 @@ export function BibleBrowser() {
             <Icon name="favorite" />
           </IconButton>
         </Tooltip>
-        <Tooltip content={t("resources.addToScheduleHint")} placement="top">
+        <Tooltip content={t("resources.addToScheduleHint")}>
           <Button
             aria-label={t("resources.addToSchedule")}
             disabled={previewIndex === null}

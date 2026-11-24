@@ -262,7 +262,15 @@ of the things of that kind · the canvas · the inspector.
   «Save» off says WHICH limit (`songProblem` → `songs.limits.*`), never a generic «title and lyrics».
 - **An editor with unsaved changes counts itself in** (`EditorScreen` → `holdUnsavedEditor`, `ui.store`'s
   `unsavedEditors`), so ⌘Q or closing the window asks first like the schedule does (`quitRisks`'s `editor`) — one
-  place for the song, theme, scene, plate and program editors, none wiring it on its own.
+  place for the song, theme, scene, plate and program editors, none wiring it on its own. «Cerrar igualmente» there
+  also drops those editors' drafts (`dropEditorDrafts`).
+- **Each of those five keeps a draft while it has unsaved changes** (`useEditorDraft`, owner 2026-11-23, DU-1): the
+  modal hands over a snapshot of its form and takes one back, since `EditorScreen` holds none. A crash, a killed
+  process or a power cut leaves it, and the next launch asks with the small `ConfirmModal` (`EditorDraftsNotice`, after
+  the welcome or «Novedades» when they open): «Recuperar» takes the operator to the tab whose panel holds that editor
+  (`ResourcePanel`, `FunctionsTabs`; Programas from `App`) and opens it on the recovered form, one editor after the
+  other; «Descartar» deletes them. Its first button is «Cancelar», so an Enter meant for the schedule keeps them.
+  The hook is called after the modal's own opening effect: the recovered form has to be the last word.
 - **`onNew`** puts «+ New …» at the top of the list column, one look in every editor; a new, unsaved thing is a
   plain selected row at the end of the list. «Duplicate» always saves a copy of what is SAVED and chooses it (it
   copied the draft in two editors, discarded changes included).

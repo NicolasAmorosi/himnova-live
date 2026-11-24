@@ -142,7 +142,7 @@ src/
 │   ├── logging.ts                 # main.log and crash.log, rotated
 │   ├── songs/                     # song-writers.ts (OpenLyrics, ChordPro, SongSelect written back: a linked folder's
 │   │                              #   song saved into its own file — services/song-files.ts), rtf.ts (RTF → text), easyworship.ts (EasyWorship 6's song database),
-│   │                              #   openlp.ts (OpenLP's songs.sqlite and OpenLyrics files), text-files.ts (SongSelect .txt and
+│   │                              #   openlp.ts (OpenLP's songs.sqlite and OpenLyrics files; both databases read on song-db-worker.ts), text-files.ts (SongSelect .txt and
 │   │                              #   ChordPro, told apart by their words), usage-report.ts (CCLI CSV)
 │   └── services/                  # what crosses repos and windows: repos.ts (registry), projection-state.ts,
 │                                  #   broadcast.ts, library-import/-sweeper, song-files/-import, the removals…
@@ -289,7 +289,7 @@ drew a white halo around every focused control.
 | [`docs/knowledge/02-ipc-contract.md`](docs/knowledge/02-ipc-contract.md) | `IpcContract`, how to add a channel, why the preload never changes |
 | [`docs/knowledge/03-slides.md`](docs/knowledge/03-slides.md) | which reader opens a deck, model/native/PDF decks, OOXML parsing (timings/audio), a deck that won't open, deck cache |
 | [`docs/knowledge/04-renderer-state.md`](docs/knowledge/04-renderer-state.md) | Zustand, `selectOutput`, the effects layer |
-| [`docs/knowledge/05-data-and-persistence.md`](docs/knowledge/05-data-and-persistence.md) | SQLite schema, FTS5, legacy data migration, missing files |
+| [`docs/knowledge/05-data-and-persistence.md`](docs/knowledge/05-data-and-persistence.md) | SQLite schema, FTS5, missing files |
 | [`docs/knowledge/06-ui-and-theme.md`](docs/knowledge/06-ui-and-theme.md) | design system, tokens, panel layout |
 | [`docs/knowledge/07-roadmap-and-debt.md`](docs/knowledge/07-roadmap-and-debt.md) | what's missing, what was left out of scope, known debt |
 
@@ -380,7 +380,7 @@ npm run test                 # vitest run — two projects: `main` (Node: migrat
                               #   dragging a countdown, timer scenes as an order-of-service item,
                               #   video embedded in a slide: geometry, external rels and node by `spid`,
                               #   verse style, the update errors and launch check, the .dmg's sha512 check,
-                              #   backup-before-migrate at launch, the close guard's veto and 4 s grace, the 1.0 app's data,
+                              #   backup-before-migrate at launch, the close guard's veto and 4 s grace,
                               #   the engine's volume curve and stdout events, which engine sessions are kept, paused or
                               #   report their end, `worship://`'s Range contract, NDI frame pacing, and the Bible format
                               #   readers against real files written on the fly: Zefania, USFX, OSIS,
@@ -531,8 +531,17 @@ npm run package:win|mac|linux  # build + electron-builder for that platform
   button, Enter and double-click. Don't add a second path to `projection.store`. **What went live leaves
   PREVIEW** (owner, 2026-11-15; `dropSentPreview`): an extra Enter has nothing to send, instead of sending the
   hymn again from its first slide and its music from 0:00. Only what really reached the projector or the
-  speakers leaves, and only if PREVIEW still holds it; the «next» of «Al terminar» never touches PREVIEW. A
-  deck or song already on air, picked again, is only uncovered, never sent again.
+  speakers leaves, and only if PREVIEW still holds it. **A schedule row leaves the row under it instead** (owner,
+  2026-11-21; `projection.previewNext`, on by default): the next Enter is the next part of the service, whatever that
+  row is; past the last row PREVIEW is empty as before. A verse walked out of a Bible row with ↓ is still that row's
+  (owner, 2026-11-22). The «next» of «Al terminar» moves PREVIEW only when it left it behind, on a row from the one that
+  ended down to the one it sent (`followChain`, owner 2026-11-22). A deck, song or image already on air, picked again, is only uncovered, never
+  sent again.
+- **The projector alone can draw the picture smaller** (owner, 2026-11-21): Settings ▸ Screens ▸ «Ajuste del
+  proyector» lays it out at 80–100 %, centred, per screen (`projection.fit`), for a projector or TV that overscans,
+  with a test pattern on top while that page is open. Main pushes it to the projector window only (`projector-fit`);
+  the monitors, the NDI copy and the stage never get it. Diagnosis in
+  [`.claude/knowledge/a-cut-picture-on-a-projector-is-overscan-and-a-windows-screen-reads-in-scaled-units.md`](.claude/knowledge/a-cut-picture-on-a-projector-is-overscan-and-a-windows-screen-reads-in-scaled-units.md).
 - **The monitors use the same renderer as the projector.**
   `components/shared/output-view.tsx` (`OutputView`) is what paints the projection window AND
   the LIVE and PREVIEW monitors. If the preview and what's projected paint differently, a monitor can
@@ -560,6 +569,10 @@ npm run package:win|mac|linux  # build + electron-builder for that platform
   round-trip through LibreOffice silently lost the timing of every slide without a transition
   effect (222 of 1226 files of the real hymnal) — diagnosis in
   [`.claude/knowledge/libreoffice-pptx-export-drops-advtm-without-a-transition-effect.md`](.claude/knowledge/libreoffice-pptx-export-drops-advtm-without-a-transition-effect.md).
+  **Every deck's timings run as PowerPoint runs them** (measured, 2026-11-21): a show set to «Manually» keeps none, and a
+  slide's «After» clock starts when its transition ends (`slideHoldMs`); counting the times alone put a hymn 17 s ahead
+  of its music. See
+  [`.claude/knowledge/a-slide-s-after-time-starts-when-its-transition-ends-and-a-manual-show-ignores-every-time.md`](.claude/knowledge/a-slide-s-after-time-starts-when-its-transition-ends-and-a-manual-show-ignores-every-time.md).
 - **A PDF is a deck, and its pages are drawn when asked for** (owner, 2026-11-03: nothing
   converted, nothing cached on disk). Opening one reads its page sizes (~25 ms); each page is drawn
   by pdf.js in a hidden window when a window requests `worship://deck/<id>/<n>`, and kept only in
@@ -748,8 +761,8 @@ npm run package:win|mac|linux  # build + electron-builder for that platform
 
 The vanilla JS version (Electron without a bundler, `main.js`/`preload.js`/`src/js/app.js`) lived in
 `legacy/` until 2026-10-22, when it was retired from the repo before publishing it: the two conditions
-for deleting it were already met (nothing drove PowerPoint over COM any more, and
-`src/main/services/migrate-legacy-data.ts` migrates its data on its own at first startup). To see how
+for deleting it were already met (nothing drove PowerPoint over COM any more, and an importer migrated its data on
+its own at first startup). The importer itself was removed on 2026-11-23, with no church left on the 1.0. To see how
 something behaved before: `git show 90d3821:legacy/src/js/app.js`.
 
 ## Operational notes

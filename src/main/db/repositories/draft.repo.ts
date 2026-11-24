@@ -4,6 +4,7 @@ import type { Db } from "../client";
 import {
   bibleBooks,
   bibleVersions,
+  editorDrafts,
   mediaAssets,
   overlayPlates,
   programDraft,
@@ -13,6 +14,21 @@ import {
 } from "../schema";
 import type { ProgramDraft, ProgramItemUpsert } from "@shared/types/program";
 import { PROGRAM_ITEM_KINDS } from "@shared/constants";
+import { isEditorKind, type EditorDraft, type EditorKind } from "@shared/types/editor-draft";
+
+/** A row as this build writes it. Its `state` is the editor's to read. */
+export function isEditorDraft(value: unknown): value is EditorDraft {
+  if (typeof value !== "object" || value === null) return false;
+  const draft = value as Partial<EditorDraft>;
+  return (
+    draft.v === 1 &&
+    isEditorKind(draft.editor) &&
+    (draft.id === null || (typeof draft.id === "number" && Number.isInteger(draft.id))) &&
+    typeof draft.name === "string" &&
+    typeof draft.updatedAt === "number" &&
+    "state" in draft
+  );
+}
 
 const KNOWN_KINDS = new Set<string>(PROGRAM_ITEM_KINDS);
 
@@ -55,6 +71,34 @@ export class DraftRepo {
 
   clear(): void {
     this.db.delete(programDraft).where(eq(programDraft.id, ROW_ID)).run();
+  }
+
+  /** An editor's unsaved form (`editor_drafts`), or `null` to drop it: saved, discarded or closed clean. */
+  saveEditor(editor: EditorKind, draft: EditorDraft | null): void {
+    if (draft === null) {
+      this.db.delete(editorDrafts).where(eq(editorDrafts.editor, editor)).run();
+      return;
+    }
+    const values = { editor, draft: JSON.stringify(draft), updatedAt: draft.updatedAt };
+    this.db.insert(editorDrafts).values(values).onConflictDoUpdate({ target: editorDrafts.editor, set: values }).run();
+  }
+
+  /** What the editors left unsaved, oldest first. A row this build cannot read (another build's, hand-edited) is
+   *  skipped, never a failed launch. */
+  editors(): EditorDraft[] {
+    return this.db
+      .select()
+      .from(editorDrafts)
+      .orderBy(editorDrafts.updatedAt)
+      .all()
+      .flatMap((row) => {
+        try {
+          const draft: unknown = JSON.parse(row.draft);
+          return isEditorDraft(draft) && draft.editor === row.editor ? [draft] : [];
+        } catch {
+          return [];
+        }
+      });
   }
 
   /** The songs the draft sings, as stored — what a linked folder's song must

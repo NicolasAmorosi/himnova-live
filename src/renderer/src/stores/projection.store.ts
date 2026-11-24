@@ -601,11 +601,20 @@ export const useProjectionStore = create<ProjectionStoreState>()(
       // back is a cut — correcting a mistake mid-service must be instant.
       set((state) => {
         const slideVideo = freshSlideVideo(state.slideVideoEpoch);
+        const errors = errorsAfter(state, slideVideo);
+        // Another slide is another picture: the one that failed is gone with it, as a clip's error goes with its
+        // clip. Kept, a slide that hiccuped once and drew when shown again still read as failed, and picking the
+        // hymn again sent it from PREVIEW's slide with its music at 0:00 (review of the night 2, RN2-2). Only the
+        // slide's own failure: under LOGO the slot holds the logo's, which stays up and is never reported again
+        // (review of the night 3, RN3-4).
+        const scene = mediaErrorKey({ kind: "scene" });
+        const leaving = liveDeck.slides[base.slideIndex - 1];
+        const slideFailed = leaving !== undefined && errors[scene]?.url === (leaving.modelUrl ?? leaving.url);
         return {
           base: { ...base, slideIndex: next },
           slideEntry: next > base.slideIndex ? (liveDeck.slides[next - 1]?.transition ?? null) : null,
           ...slideVideo,
-          mediaErrors: errorsAfter(state, slideVideo),
+          mediaErrors: slideFailed ? withoutErrors(errors, [scene]) : errors,
         };
       });
     },
@@ -1023,14 +1032,23 @@ export function selectOutputMemo(state: ProjectionStoreState): ProjectionOutput 
   return lastOutput;
 }
 
+/** How long slide `n` (1-based) stays before the next one starts coming in, as PowerPoint plays it: its «After» clock
+ *  starts once its own transition has finished, so a hymn whose every slide fades in slowly ran a second behind per
+ *  slide there, and here, counting the times alone, ran ahead of its music (2026-11-21). The first slide's way in
+ *  plays before the music starts, so only its time counts. `null`: it does not advance by itself. */
+export function slideHoldMs(slides: readonly DeckSlide[], n: number): number | null {
+  const slide = slides[n - 1];
+  if (slide?.advanceAfterMs == null) return null;
+  return slide.advanceAfterMs + (n > 1 ? (slide.transition?.durationMs ?? 0) : 0);
+}
+
 /** Cumulative audio timestamps for a deck's slides, used by the autoplay
  *  scheduler. `cumulativeMs[1] === 0`; `cumulativeMs[n+1]` is when slide n
  *  should hand over. */
 export function buildCumulativeMs(slides: DeckSlide[]): number[] {
   const cumulative: number[] = [0, 0];
   for (let i = 0; i < slides.length; i += 1) {
-    const advance = slides[i]?.advanceAfterMs ?? 0;
-    cumulative[i + 2] = (cumulative[i + 1] ?? 0) + advance;
+    cumulative[i + 2] = (cumulative[i + 1] ?? 0) + (slideHoldMs(slides, i + 1) ?? 0);
   }
   return cumulative;
 }

@@ -439,3 +439,76 @@ test("the stage's ready phrases are kept when Settings is left with Esc, without
     .poll(async () => (await app.invoke<Record<string, unknown>>("settings:get"))["stage.phrases"])
     .toEqual(["Uno", "Dos"]);
 });
+
+/** The picture's box in the projector, as a share of its window: Settings ▸ Screens' «Tamaño de la imagen». */
+function projectorPicture(page: Awaited<ReturnType<WorshipApp["projector"]>>) {
+  return page.evaluate(() => {
+    const box = document.querySelector("#root > div > div")!.getBoundingClientRect();
+    return {
+      width: Math.round((box.width / innerWidth) * 100),
+      height: Math.round((box.height / innerHeight) * 100),
+      left: Math.round((box.left / innerWidth) * 1000),
+      top: Math.round((box.top / innerHeight) * 1000),
+    };
+  });
+}
+
+// A church's projector cut ~5 % off every edge of a 1920x1080 signal, the Windows desktop's too (owner, 2026-11-21).
+test("a projector that cuts the edges gets a smaller, centred picture and a test pattern, kept for its screen", async ({ app }) => {
+  test.skip((await app.invoke<unknown[]>("displays:list")).length < 2, "needs two screens: on one, the projector is the operator's window, with nothing to fit");
+  const projector = await verseLive(app);
+  expect(await projectorPicture(projector)).toEqual({ width: 100, height: 100, left: 0, top: 0 });
+  const settings = await screensSettings(app);
+  const fitGroup = settings.getByRole("group", { name: "Tamaño de la imagen" });
+  await fitGroup.getByRole("slider", { name: "Tamaño de la imagen" }).fill("90");
+  await expect(fitGroup).toContainText("90%");
+  await expect.poll(() => projectorPicture(projector)).toEqual({ width: 90, height: 90, left: 50, top: 50 });
+  // Laid out at that size: the verse is still whole inside it.
+  await expect(projector.getByText(JUAN_3_16, { exact: false })).toBeVisible();
+  // The LIVE monitor shows the picture, not the projector's margins.
+  const monitor = app.liveColumn().locator(".\\@container").first();
+  const [stage, parent] = await monitor.evaluate((el) => [el.getBoundingClientRect().width, el.parentElement!.getBoundingClientRect().width]);
+  expect(Math.abs(stage - parent)).toBeLessThan(2);
+
+  const pattern = settings.getByRole("group", { name: "Patrón de prueba" }).getByRole("switch");
+  await pattern.click();
+  await expect(projector.locator("[data-fit-pattern]")).toBeVisible();
+  // Over the picture, at the picture's size: its border is where the picture ends.
+  const patternBox = await projector.locator("[data-fit-pattern]").evaluate((el) => {
+    const box = el.getBoundingClientRect();
+    return Math.round((box.width / innerWidth) * 100);
+  });
+  expect(patternBox).toBe(90);
+  // On top of the picture, not merely in the page: the scene layers' z-indexes once painted the picture over it.
+  const onTop = () =>
+    projector.evaluate(() => !!document.elementFromPoint(innerWidth / 2, innerHeight / 2)?.closest("[data-fit-pattern]"));
+  expect(await onTop()).toBe(true);
+  await expect(app.liveColumn().locator("[data-fit-pattern]")).toHaveCount(0);
+  // Off with Settings: the room never keeps a pattern nobody is looking at.
+  await app.control.keyboard.press("Escape");
+  await expect(settings).toBeHidden();
+  await expect(projector.locator("[data-fit-pattern]")).toHaveCount(0);
+
+  await app.quit("close");
+  const again = await relaunch(app);
+  const reopened = await verseLive(again);
+  await expect.poll(() => projectorPicture(reopened)).toEqual({ width: 90, height: 90, left: 50, top: 50 });
+});
+
+test("the test pattern opens the projector when it is closed, and goes off when the control window dies", async ({ app }) => {
+  test.skip((await app.invoke<unknown[]>("displays:list")).length < 2, "needs two screens: on one, the projector is the operator's window, with nothing to fit");
+  app.crashLogExpected = true;
+  expect(app.hasProjector()).toBe(false);
+  const settings = await screensSettings(app);
+  await settings.getByRole("group", { name: "Patrón de prueba" }).getByRole("switch").click();
+  const projector = await app.projector();
+  await expect(projector.locator("[data-fit-pattern]")).toBeVisible();
+  await expect
+    .poll(() => projector.evaluate(() => !!document.elementFromPoint(innerWidth / 2, innerHeight / 2)?.closest("[data-fit-pattern]")))
+    .toBe(true);
+  await app.electron.evaluate(({ BrowserWindow }) => {
+    const control = BrowserWindow.getAllWindows().find((w) => !w.isDestroyed() && w.webContents.getURL().endsWith("/index.html"))!;
+    control.webContents.forcefullyCrashRenderer();
+  });
+  await expect(projector.locator("[data-fit-pattern]")).toHaveCount(0);
+});

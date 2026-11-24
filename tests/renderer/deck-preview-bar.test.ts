@@ -25,6 +25,7 @@ test("the deck's bar in PREVIEW reads nothing the grid already read, and reads a
     videos: [],
     autoAdvance: false,
     timingsSource: "none",
+    sourceSizeBytes: 0,
     sourceMtimeMs: 0,
   } as unknown as DeckDTO;
   const invoke = vi.fn((channel: string) =>

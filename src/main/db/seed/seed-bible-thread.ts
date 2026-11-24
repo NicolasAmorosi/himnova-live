@@ -11,8 +11,11 @@ function runBibleJob(job: SeedBibleJob): Promise<Exclude<SeedBibleReply, { error
   return new Promise((resolve, reject) => {
     const worker = createSeedBibleWorker({ workerData: job });
     worker.once("message", (reply: SeedBibleReply) => {
-      if ("error" in reply) reject(reply.format ? new BibleFormatError(reply.error) : new Error(reply.error));
-      else resolve(reply);
+      if ("error" in reply) {
+        // A worker's console never reaches main.log: the raw cause is logged here.
+        console.warn("[bible] the Bible thread failed:", reply.detail);
+        reject(reply.format ? new BibleFormatError(reply.error) : new Error(reply.error));
+      } else resolve(reply);
     });
     worker.once("error", reject);
     // After a reply this settles nothing; without one, the worker died.

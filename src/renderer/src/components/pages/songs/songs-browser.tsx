@@ -15,6 +15,7 @@ import { PanelBody, PanelFooter } from "@renderer/components/shared/panel";
 import { FolderRefreshButton, LibraryFilterBar } from "@renderer/components/shared/library-filter-bar";
 import { ConfirmModal } from "@renderer/components/shared/modal";
 import { ModalBoundary } from "@renderer/components/shared/modal-boundary";
+import { useRecovering } from "@renderer/components/shared/editor-screen";
 import { api } from "@renderer/lib/api";
 import { toast } from "@renderer/lib/toast";
 import { setSongDrag } from "@renderer/lib/dnd";
@@ -98,6 +99,15 @@ export function SongsBrowser() {
     void importSongs().finally(() => setImporting(false));
   };
   const requestRef = useRef(0);
+  // «Recuperar» after a crash opens the song editor, or the themes', on what was left unsaved (DU-1).
+  const recoveredSong = useRecovering("song");
+  const recoveredTheme = useRecovering("songTheme");
+  useEffect(() => {
+    if (recoveredSong) setEditing({ songId: recoveredSong.id });
+  }, [recoveredSong]);
+  useEffect(() => {
+    if (recoveredTheme) setThemesOpen(true);
+  }, [recoveredTheme]);
 
   const previewed = findSong(songs, previewedId);
   // Only a library song: a folder's song is its file, and the app never
@@ -158,7 +168,7 @@ export function SongsBrowser() {
         activeView={view}
         addFolder={{ hint: t("songs.linkFolderHint"), label: t("resources.addFolder"), onClick: () => void linkSongFolder() }}
         folderActions={
-          <Tooltip content={t("resources.removeFolderHint")} floating>
+          <Tooltip content={t("resources.removeFolderHint")}>
             <IconButton
               aria-label={t("resources.removeFolder")}
               onClick={() => setConfirmUnlink(view)}
@@ -271,7 +281,7 @@ export function SongsBrowser() {
         {/* A new or imported song goes into the library: in a folder's view,
             where it would not show, neither is offered (Media's add, too). */}
         {folder === null ? (
-          <Tooltip content={t("songs.newHint")} floating>
+          <Tooltip content={t("songs.newHint")}>
             <IconButton aria-label={t("songs.new")} onClick={() => setEditing({ songId: null })} size="sm" variant="ghost">
               <Icon name="add" />
             </IconButton>
@@ -280,7 +290,7 @@ export function SongsBrowser() {
         {/* Like Media's ✕ (owner, 2026-11-05) — but a song lives only here, so
             this deletes it, asked first. Not in a folder's view, like Media's. */}
         {folder === null ? (
-          <Tooltip content={t("songs.removeHint")} floating>
+          <Tooltip content={t("songs.removeHint")}>
             <IconButton
               aria-label={t("songs.remove")}
               disabled={!deletable}
@@ -292,7 +302,7 @@ export function SongsBrowser() {
             </IconButton>
           </Tooltip>
         ) : null}
-        <Tooltip content={t("songs.editHint")} floating>
+        <Tooltip content={t("songs.editHint")}>
           <IconButton
             aria-label={t("songs.edit")}
             disabled={!previewed}
@@ -308,18 +318,18 @@ export function SongsBrowser() {
             2026-11-04 redesign's P2: «me gustan solo los íconos»). */}
         {/* One picker for every format (owner, 2026-11-05: no menu of programs). */}
         {folder === null ? (
-          <Tooltip content={t("songs.importHint")} floating>
+          <Tooltip content={t("songs.importHint")}>
             <IconButton aria-label={t("songs.import")} disabled={importing} onClick={runImport} size="sm" variant="ghost">
               <Icon name="import" />
             </IconButton>
           </Tooltip>
         ) : null}
-        <Tooltip content={t("songThemes.manageHint")} floating>
+        <Tooltip content={t("songThemes.manageHint")}>
           <IconButton aria-label={t("songThemes.title")} onClick={() => setThemesOpen(true)} size="sm" variant="ghost">
             <Icon name="palette" />
           </IconButton>
         </Tooltip>
-        <Tooltip className="ml-auto" content={t("resources.addToScheduleHint")} placement="top">
+        <Tooltip className="ml-auto" content={t("resources.addToScheduleHint")}>
           <Button
             aria-label={t("resources.addToSchedule")}
             disabled={!previewed}

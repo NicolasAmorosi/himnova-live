@@ -193,7 +193,7 @@ test("deleting a plate that is up takes it off the projector first", async ({ ap
   await editor.getByRole("button", { name: "Más acciones" }).click();
   await control.getByRole("menuitem", { name: "Eliminar", exact: true }).click();
   const confirm = control.getByRole("dialog", { name: "¿Eliminar esta placa?" });
-  await expect(confirm).toContainText("La placa está en el aire");
+  await expect(confirm).toContainText("La placa está al aire");
   await confirm.getByRole("button", { name: "Eliminar", exact: true }).click();
   await expect(projector.getByText("Pr. Juan Pérez")).toHaveCount(0);
 });

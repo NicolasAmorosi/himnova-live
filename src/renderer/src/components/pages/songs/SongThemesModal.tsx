@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useI18n, type MessageKey } from "@renderer/lib/i18n/i18n-provider";
 import { ConfirmModal } from "@renderer/components/shared/modal";
-import { EditorScreen, EditorStage } from "@renderer/components/shared/editor-screen";
+import { EditorScreen, EditorStage, useEditorDraft } from "@renderer/components/shared/editor-screen";
 import { OutputView } from "@renderer/components/shared/output-view";
 import {
   BackgroundFields,
@@ -170,6 +170,15 @@ export function SongThemesModal({ onOpenChange, open }: { onOpenChange: (open: b
   const dirty = editing !== null && JSON.stringify(editing.draft) !== JSON.stringify(editing.baseline);
   const savable = editing !== null && isSongThemeUpsert(editing.draft);
   const canSave = savable && (editing.themeId === null || dirty);
+
+  // On disk while unsaved, back after a crash (DU-1). After the effect above that picks what it opens.
+  useEditorDraft(
+    "songTheme",
+    open,
+    dirty,
+    { id: editing?.themeId ?? null, name: editing?.draft.name ?? "", state: editing },
+    (recovered) => setEditing(recovered.state as Editing),
+  );
 
   // The song in PREVIEW, else the one live (it left PREVIEW when it went out), else a sample.
   const previewed =

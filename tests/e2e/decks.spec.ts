@@ -200,12 +200,13 @@ test("a .pptx with timings advances by itself", async ({ app }) => {
   await app.goLive();
   const projector = await app.projector();
   await expect.poll(() => projectedSlide(projector)).toBe(1);
-  // Two seconds a slide, from the deck's own timings: slide 2's whole time, measured (slide 1's began before we looked).
+  // From the deck's own timings, as PowerPoint plays them: its half-second fade in, then its two seconds (2026-11-21).
+  // Slide 2's whole time, measured (slide 1's began before we looked).
   expect((await msUntilChange(() => projectedSlide(projector), 1, 8_000)).value).toBe(2);
   const second = await msUntilChange(() => projectedSlide(projector), 2, 8_000);
   expect(second.value).toBe(3);
-  expect(second.ms).toBeGreaterThan(1_700);
-  expect(second.ms).toBeLessThan(2_400);
+  expect(second.ms).toBeGreaterThan(2_200);
+  expect(second.ms).toBeLessThan(2_900);
 });
 
 test("the EN VIVO that opens the projector still gives slide 1 its whole time", async ({ app }) => {
@@ -454,6 +455,50 @@ test("one more step on the last slide takes the deck off to the logo", async ({ 
   await expect(app.liveColumn().getByRole("button", { name: "Siguiente" })).toHaveCount(0);
 });
 
+test("«Al terminar: siguiente» chains the schedule's decks and PREVIEW follows: EN VIVO sends what comes after, never one again", async ({
+  app,
+}) => {
+  await app.invoke("settings:set", { "projection.deckEnd": "next" });
+  await app.control.reload();
+  await expect(app.control.getByRole("button", { name: "EN VIVO", exact: true })).toBeVisible();
+  const names = ["uno", "dos", "tres", "cuatro"];
+  const files = names.map((name) => path.join(app.profile, `${name}.pdf`));
+  for (const file of files) fs.writeFileSync(file, buildPdf(["#1f4e9c", "#c0392b"]));
+  await app.invoke<MediaAsset[]>("library:add", { kind: "ppt", paths: files });
+  for (const name of names) {
+    await app.previewFile("Presentaciones", name);
+    await app.control.getByRole("tabpanel", { name: "Presentaciones" }).getByRole("button", { name: "Agregar al programa" }).click();
+  }
+  const list = app.control.getByRole("main").getByRole("list").first();
+  const rows = list.getByRole("listitem");
+  await expect(rows).toHaveCount(4);
+  const onAir = rows.filter({ has: app.control.locator("span.bg-on-air") });
+  const inPreview = list.locator('[aria-current="true"]');
+  /** Steps the live deck past its last slide: «Al terminar» sends the next row. */
+  const endLiveDeck = async () => {
+    await liveSlideTile(app, 2).click();
+    await app.control.keyboard.press("ArrowRight");
+  };
+
+  await rows.nth(0).click();
+  await app.goLive();
+  await expect(onAir).toContainText("uno");
+  await expect(inPreview).toContainText("dos");
+
+  // Twice on its own: PREVIEW was left at or above the row it sent, so it goes to the row under that one.
+  await endLiveDeck();
+  await expect(onAir).toContainText("dos");
+  await expect(inPreview).toContainText("tres");
+  await endLiveDeck();
+  await expect(onAir).toContainText("tres");
+  await expect(inPreview).toContainText("cuatro");
+
+  await app.pastAutoPreviewHold();
+  await app.goLive();
+  await expect(onAir).toContainText("cuatro");
+  await expect(inPreview).toHaveCount(0);
+});
+
 test("Space freezes a deck that advances by itself, and resumes it", async ({ app }) => {
   await app.addMedia("ppt", "hymn.pptx");
   await app.previewFile("Presentaciones", "hymn");
@@ -478,12 +523,13 @@ test("a deck that advances by itself leaves the projector after its last slide",
   await expect(slideTile(app, 3)).toBeVisible({ timeout: 90_000 });
   await app.goLive();
   const projector = await app.projector();
-  await expect.poll(() => projectedSlide(projector), { timeout: 10_000 }).toBe(3);
-  // After the last slide's own two seconds, not «some time»; the ~100 ms of a poll's lag on the first read.
+  await expect.poll(() => projectedSlide(projector), { timeout: 10_000 }).toBe(2);
+  expect((await msUntilChange(() => projectedSlide(projector), 2, 8_000)).value).toBe(3);
+  // After the last slide's own fade and two seconds, not «some time», timed from the moment it came in.
   const off = await msUntilChange(() => projectedSlide(projector), 3, 10_000);
   expect(off.value).toBeNull();
-  expect(off.ms).toBeGreaterThan(1_200);
-  expect(off.ms).toBeLessThan(2_400);
+  expect(off.ms).toBeGreaterThan(2_200);
+  expect(off.ms).toBeLessThan(2_900);
   await expect(app.liveColumn().getByRole("button", { name: "Siguiente" })).toHaveCount(0);
 });
 

@@ -11,7 +11,7 @@ import {
 } from "@shared/song-validators";
 import { SONG_SECTION_NUMBER_MAX, type SongSection, type SongSectionType, type SongUpsert } from "@shared/types/song";
 import { walkXml } from "../db/seed/bible-formats/xml-ordered";
-import { ccliNumber, clip, type SongsRead } from "./easyworship";
+import { ccliNumber, clip, onlyPlainTables, type SongsRead } from "./easyworship";
 import { decodeText } from "../decode-text";
 
 /**
@@ -185,6 +185,7 @@ function tableColumns(db: Database.Database, table: string): Set<string> {
 export function readOpenLpDatabase(file: string): SongsRead {
   const db = new Database(file, { readonly: true, fileMustExist: true });
   try {
+    onlyPlainTables(db, "songs", "authors_songs", "authors", "songs_songbooks");
     const columns = tableColumns(db, "songs");
     if (!columns.has("title") || !columns.has("lyrics")) throw new Error("not an OpenLP song database");
     const extra = columns.has("song_number") ? ", song_number" : "";

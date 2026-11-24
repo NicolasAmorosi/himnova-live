@@ -1,7 +1,7 @@
 import { useEffect, useState, type DragEvent } from "react";
 import { useT } from "@renderer/lib/i18n/i18n-provider";
 import { ConfirmModal } from "@renderer/components/shared/modal";
-import { EditorScreen, EditorStage } from "@renderer/components/shared/editor-screen";
+import { EditorScreen, EditorStage, useEditorDraft } from "@renderer/components/shared/editor-screen";
 import { ProgramUsages } from "@renderer/components/shared/program-usages";
 import {
   Button,
@@ -100,6 +100,15 @@ export function ScenesModal({ onOpenChange, open }: { onOpenChange: (open: boole
       return { sceneId: null, draft, baseline: draft };
     });
   }, [open, scenes, t]);
+
+  // On disk while unsaved, back after a crash (DU-1).
+  useEditorDraft(
+    "scene",
+    open,
+    dirty,
+    { id: editing?.sceneId ?? null, name: editing?.draft.name ?? "", state: editing },
+    (recovered) => setEditing(recovered.state as Editing),
+  );
 
   /** Every way of leaving the current form goes through here, so unsaved work
    *  can only ever be lost through the confirmation. */

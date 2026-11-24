@@ -52,8 +52,6 @@ export const dbPath = path.join(userDataDir, "worship.db");
 export const dbBackupDir = path.join(userDataDir, "backups");
 /** Where `seedStarterLook` copies the shipped backgrounds, under the language's names. */
 export const profileBackgroundsDir = path.join(userDataDir, "backgrounds");
-export const legacySettingsPath = path.join(userDataDir, "settings.json");
-export const legacyMediaLibraryPath = path.join(userDataDir, "media_library.json");
 
 /** Persistent, content-addressed cache of what a deck carries that is played
  *  from a file: the sound and video extracted from a `.pptx` — see

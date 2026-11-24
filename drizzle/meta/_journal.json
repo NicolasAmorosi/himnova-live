@@ -176,6 +176,13 @@
       "when": 1794950724035,
       "tag": "0024_drop_projection_history",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "6",
+      "when": 1795440860224,
+      "tag": "0025_editor_drafts",
+      "breakpoints": true
     }
   ]
 }

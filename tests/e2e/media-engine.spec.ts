@@ -385,9 +385,12 @@ test("a WMA plays through the media engine: background music NEGRO leaves alone,
 test("a file that already plays stays off the engine", async ({ app }) => {
   await app.addMedia("video", "clip.mp4");
   await app.addMedia("audio", "song.mp3");
-  // Give the background check time to probe both.
-  await app.control.waitForTimeout(3000);
-  expect(await engineAssets(app)).toEqual([]);
+  // The probes run one after another, in the order the files came: one that needs the engine, added last, is the sign
+  // that the two before it were probed. A fixed wait passed whenever the probe came late (2026-11-22 audit, TQ15).
+  const [last] = await app.addMedia("video", "sound-over-black.mp4");
+  if (!last) throw new Error("import failed");
+  await waitEngine(app, last);
+  expect(await engineAssets(app)).toEqual([last.id]);
 });
 
 test("a video replaced in place is probed again, and plays as it now is", async ({ app }) => {

@@ -2,7 +2,7 @@
  *  the errors that reach a toast or a panel. Spanish is the reference locale,
  *  as in the renderer: `MainMessages` is this file's type. */
 const es = {
-  window: { projectionTitle: "Himnova Live — Proyección", stageTitle: "Himnova Live — Escenario" },
+  window: { projectionTitle: "Himnova Live · Proyección", stageTitle: "Himnova Live · Escenario" },
   menu: {
     about: "Acerca de {app}",
     services: "Servicios",
@@ -41,6 +41,10 @@ const es = {
     dbRestoreOffer: "Está dañada. Hay una copia verificada del {date}: restaurarla deja todo como estaba ese día y vuelve a abrir la app. La base dañada queda guardada aparte, en backups/before-restore.",
     dbRestoreButton: "Restaurar la copia del {date}",
     crashTitle: "Error inesperado",
+    crashRunning:
+      "Himnova Live sigue funcionando, pero algo falló por dentro. Reiniciá la app cuando puedas. Si vuelve a pasar, el detalle de abajo ayuda a encontrar la causa.",
+    crashStartup:
+      "Himnova Live no pudo abrirse y se va a cerrar. Volvé a abrirla; si vuelve a pasar, el detalle de abajo ayuda a encontrar la causa.",
     formerAppTitle: "La versión anterior, «Lumina Live», se movió a la Papelera",
     formerAppDetail: "Ahora la app se llama Himnova Live: abrila desde Aplicaciones. Tus programas, la biblioteca y la configuración siguen como estaban.",
     controlDownTitle: "La ventana de control no volvió",
@@ -64,13 +68,13 @@ const es = {
     sqliteModules: "Módulos SQLite (MyBible, MySword)",
   },
   slides: {
-    shuttingDown: "La aplicación se está cerrando.",
+    shuttingDown: "La app se está cerrando.",
     notInLibrary: "No se encontró el archivo en la biblioteca.",
     sourceGone: "El archivo ya no está disponible: {path}",
     noSlides: "La presentación no produjo ninguna diapositiva.",
     deckUnreadable: "No se pudo leer la presentación recién preparada.",
-    rasterCrashed: "El proceso de rasterizado se cerró inesperadamente.",
-    rasterHung: "El rasterizado de una página se colgó.",
+    rasterCrashed: "La preparación del PDF se interrumpió. Probá de nuevo con «Reintentar».",
+    rasterHung: "El PDF tardó demasiado en prepararse. Probá de nuevo con «Reintentar».",
     pdfPassword: "El PDF está protegido con contraseña y no se puede abrir.",
     deckPassword:
       "La presentación tiene contraseña para abrirla. Abrila en PowerPoint, quitale la contraseña (Archivo ▸ Información ▸ Proteger presentación) y guardala de nuevo.",
@@ -80,14 +84,23 @@ const es = {
       "No se pudo abrir el archivo como presentación: puede estar dañado o no ser una presentación. Probá abrirlo en PowerPoint y guardarlo de nuevo como .pptx.",
     deckTooSlow:
       "La presentación tardó demasiado en leerse. Probá de nuevo con «Reintentar».",
+    sourceNotResponding:
+      "El disco o la carpeta de la presentación no responde. Revisá el disco o la red y probá de nuevo con «Reintentar».",
+    pdfUnreadable:
+      "No se pudo abrir el PDF. Probá de nuevo con «Reintentar»; si vuelve a pasar, puede estar dañado: abrilo en tu lector de PDF y exportalo de nuevo.",
+    pdfNotRecorded:
+      "No se pudo preparar el PDF. Probá de nuevo con «Reintentar»; si vuelve a pasar, revisá que el archivo siga en su lugar y que quede espacio en el disco.",
   },
   bible: {
     unknownFormat:
       "No se reconoce el formato de «{file}». Se aceptan JSON, Zefania/USFX/OSIS XML y módulos SQLite (MyBible, MySword).",
-    zipUnreadable: "El archivo .zip no se pudo leer: {detail}",
+    zipUnreadable: "El archivo .zip no se pudo leer: puede estar incompleto o dañado. Descargalo de nuevo.",
     zipEmpty: "El .zip no contiene ningún archivo XML o JSON.",
-    sqliteUnreadable: "No se pudo abrir el módulo SQLite: {detail}",
+    sqliteUnreadable: "No se pudo abrir el módulo SQLite: puede estar incompleto o dañado. Descargalo de nuevo.",
     sqliteNoVerses: "El archivo SQLite no es un módulo de MyBible ni de MySword: no tiene versículos.",
+    jsonBroken: "No se pudo leer «{file}»: su JSON está incompleto o dañado. Descargalo de nuevo.",
+    xmlBroken: "No se pudo leer «{file}»: su XML está incompleto o dañado. Descargalo de nuevo.",
+    fileUnreadable: "No se pudo leer «{file}». Revisá que el archivo siga en su lugar y probá de nuevo.",
     jsonNoBooks: "El archivo JSON no tiene la forma de una Biblia: no se encontraron sus libros.",
     jsonNoChapters: "El archivo JSON no tiene la forma de una Biblia: no se encontraron sus capítulos.",
     notZefania: "El XML no es una Biblia Zefania: falta el elemento <XMLBIBLE>.",
@@ -97,6 +110,7 @@ const es = {
     invalidName: "El nombre de la versión no es válido.",
     alreadyInstalled: "Ese archivo ya está instalado: es «{name}».",
     bundledNotFound: "Esa versión no viene incluida en esta instalación.",
+    versionNotFound: "Esa versión de la Biblia ya no está instalada.",
     invalidLanguage: "El idioma de la versión no es válido.",
   },
   library: {
@@ -135,8 +149,8 @@ const es = {
     importFilter: "Canciones (OpenLyrics, SongSelect, ChordPro, OpenLP, EasyWorship)",
     fileMissing: "No se encuentra el archivo de esta canción: se movió o se borró.",
     fileChanged: "El archivo de esta canción cambió fuera de Himnova. Si guardás de nuevo, lo reemplaza lo que estás editando; si cerrás sin guardar, queda el del disco.",
-    fileTooLong: "Esta canción es más larga de lo que la app guarda y se ve recortada: su archivo no se reescribe, para no perder lo que no entró. Editala en el programa del archivo.",
-    fileUnwritable: "No se pudo escribir el archivo de esta canción: ¿está abierto en otro programa, es de solo lectura o falta permiso? Lo editado sigue acá: cerralo y guardá de nuevo.",
+    fileTooLong: "Esta canción es más larga de lo que la app guarda y se ve recortada: su archivo no se reescribe, para no perder lo que no entró. Editala en la app del archivo.",
+    fileUnwritable: "No se pudo escribir el archivo de esta canción: ¿está abierto en otra app, es de solo lectura o falta permiso? Lo editado sigue acá: cerralo y guardá de nuevo.",
     openLpUnreadable: "Ese archivo no es una base de canciones de OpenLP (songs.sqlite) o no se pudo abrir.",
     usageSaveTitle: "Guardar el informe CCLI",
     usageFileName: "Informe CCLI",

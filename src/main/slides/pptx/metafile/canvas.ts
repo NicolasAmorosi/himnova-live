@@ -84,6 +84,8 @@ const R2_NOTCOPYPEN = 4;
 const R2_NOP = 11;
 const R2_WHITE = 16;
 
+/** How deep SaveDC nests before one more is dropped. */
+const MAX_SAVED_DCS = 1024;
 const TA_UPDATECP = 1;
 const TA_RIGHT = 2;
 const TA_CENTER = 6;
@@ -408,7 +410,9 @@ export class Canvas {
   // -- state ----------------------------------------------------------------------------------------
 
   save(): void {
-    this.saved.push({ ...this.dc });
+    // A real picture nests a few levels; a file of a million SaveDC records held main for seconds (2026-11-22 audit,
+    // SE1). One past the cap is dropped, as GDI drops one it cannot keep.
+    if (this.saved.length < MAX_SAVED_DCS) this.saved.push({ ...this.dc });
   }
 
   /** `n` < 0 is relative (-1 = the last save), > 0 the n-th save counting from 1. */
@@ -583,6 +587,10 @@ export class Canvas {
   /** An elliptical arc from angle `a0` sweeping `sweep` radians (y down: positive is clockwise
    *  on screen), as Bézier segments of at most 90°, no leading M. */
   private arcSegments(m: Matrix, cx: number, cy: number, rx: number, ry: number, a0: number, sweep: number): string {
+    // More than a turn draws the same as a turn and what is left (and ends where it ends): a sweep of 3.4e38 degrees
+    // was a Bézier per quarter turn, main frozen for a minute and then out of memory (2026-11-22 audit, SE1).
+    if (!Number.isFinite(sweep)) return "";
+    if (Math.abs(sweep) > 2 * Math.PI) sweep = Math.sign(sweep) * (2 * Math.PI + (Math.abs(sweep) % (2 * Math.PI)));
     const steps = Math.max(1, Math.ceil(Math.abs(sweep) / (Math.PI / 2) - 1e-9));
     const step = sweep / steps;
     const k = (4 / 3) * Math.tan(step / 4);
@@ -736,6 +744,7 @@ export class Canvas {
 
   /** AngleArc: degrees, counter-clockwise on screen, whatever the arc direction. */
   angleArc(cx: number, cy: number, radius: number, startDeg: number, sweepDeg: number): void {
+    if (!Number.isFinite(startDeg) || !Number.isFinite(sweepDeg)) return;
     const m = this.matrix();
     const a0 = (-startDeg * Math.PI) / 180;
     const sweep = (-sweepDeg * Math.PI) / 180;

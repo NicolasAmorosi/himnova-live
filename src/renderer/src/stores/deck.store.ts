@@ -10,10 +10,9 @@ export type DeckEntry = {
   error: string | null;
 };
 
-/** One tracked "Prepare folder/view" batch — `null` when none is running.
- *  Mirrors `PrewarmProgress` from main; the terminal statuses stay in this
- *  store just long enough for the UI to render the wrap-up before the caller
- *  clears it (`clearPrewarmBatch`). */
+/** One tracked "Prepare folder/view" batch — `null` before the first one.
+ *  Mirrors `PrewarmProgress` from main; a finished batch keeps its terminal
+ *  status until the next one replaces it (the UI only shows a running one). */
 export type PrewarmBatchState = PrewarmProgress;
 
 type DeckStoreState = {
@@ -50,7 +49,6 @@ type DeckStoreState = {
   startBatchPrewarm: (assetIds: number[], label: string) => Promise<void>;
   cancelBatchPrewarm: () => Promise<void>;
   applyPrewarmProgress: (progress: PrewarmProgress) => void;
-  clearPrewarmBatch: () => void;
 };
 
 /** In-flight ensure() calls, so the preview effect and "GO LIVE" firing within
@@ -149,7 +147,13 @@ export const useDeckStore = create<DeckStoreState>((set, get) => ({
       })
       .catch((error: unknown) => {
         if (!isCurrent(assetId, gen)) return null;
-        const message = error instanceof Error ? error.message : String(error);
+        // A source that did not answer says nothing of a deck already read: it stays ready, its slides in PREVIEW and
+        // LIVE, and keeps why for a GO LIVE that waited on it (`explainDeckFailure`). 2026-11-22 review, RN2-1.
+        const ready = get().byAssetId[assetId];
+        if (error instanceof IpcError && error.code === "SOURCE_NOT_RESPONDING" && ready?.status === "ready" && ready.deck) {
+          set((s) => ({ byAssetId: { ...s.byAssetId, [assetId]: { ...ready, error: error.message } } }));
+          return null;
+        }
         // A cancellation is not a failure: main only cancels a read because
         // the app is quitting, so surfacing it as "couldn't convert" would be
         // a wrong error message.
@@ -161,7 +165,9 @@ export const useDeckStore = create<DeckStoreState>((set, get) => ({
               status: canceled ? "stale" : "failed",
               progress: { done: 0, total: 0 },
               deck: s.byAssetId[assetId]?.deck ?? null,
-              error: canceled ? null : message,
+              // Main's worded reason, or none: an UNKNOWN is Node's or SQLite's English, and the panel, PREVIEW and
+              // the GO LIVE toast already say «deck.failed» without one (2026-11-22, EC-2).
+              error: canceled || !(error instanceof IpcError) || error.code === "UNKNOWN" ? null : error.message,
             },
           },
         }));
@@ -277,5 +283,4 @@ export const useDeckStore = create<DeckStoreState>((set, get) => ({
   },
 
   applyPrewarmProgress: (progress) => set({ prewarmBatch: progress }),
-  clearPrewarmBatch: () => set({ prewarmBatch: null }),
 }));

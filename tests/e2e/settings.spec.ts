@@ -49,9 +49,9 @@ test("the transition chosen in Ajustes is kept after a restart", async ({ app })
 test("a switch alone in a Settings row is named by the row and flips with a click on its name", async ({ app }) => {
   // Four of them had no accessible name, and a click on the row's words did nothing (2026-11-15 audit, U10).
   const settings = await openSettings(app, "Sistema");
-  const motion = settings.getByRole("switch", { name: "Video en movimiento en el monitor En Vivo" });
+  const motion = settings.getByRole("switch", { name: "Video en movimiento en el monitor EN VIVO" });
   await expect(motion).toBeChecked();
-  await settings.getByText("Video en movimiento en el monitor En Vivo", { exact: true }).click();
+  await settings.getByText("Video en movimiento en el monitor EN VIVO", { exact: true }).click();
   await expect(motion).not.toBeChecked();
   await motion.click();
   await expect(motion).toBeChecked();
@@ -60,7 +60,7 @@ test("a switch alone in a Settings row is named by the row and flips with a clic
 test("with the LIVE monitor's video turned off, the projector still plays it", async ({ app }) => {
   await app.addMedia("video", "clip.mp4");
   const settings = await openSettings(app, "Sistema");
-  await settings.getByRole("group", { name: "Video en movimiento en el monitor En Vivo" }).getByRole("switch").click();
+  await settings.getByRole("group", { name: "Video en movimiento en el monitor EN VIVO" }).getByRole("switch").click();
   await closeSettings(settings);
 
   await app.previewFile("Videos", "clip");
@@ -198,7 +198,7 @@ test("every choice in Proyección, Sonido, Diapositivas and Sistema is kept afte
   await settings.getByRole("tab", { name: "Diapositivas" }).click();
   await pick("Fuente de reemplazo", "Liberation Sans");
   await settings.getByRole("tab", { name: "Sistema" }).click();
-  await settings.getByRole("group", { name: "Video en movimiento en el monitor En Vivo" }).getByRole("switch").click();
+  await settings.getByRole("group", { name: "Video en movimiento en el monitor EN VIVO" }).getByRole("switch").click();
   const videos = settings.getByRole("group", { name: "Videos", exact: true });
   await app.answerOpenDialog(folder);
   await videos.getByRole("button", { name: "Elegir carpeta…" }).click();

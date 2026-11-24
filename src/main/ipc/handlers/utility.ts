@@ -1,5 +1,6 @@
 import type { Handlers } from "../register";
-import { getProgramsRepo, getUtilityRepo } from "../../services/repos";
+import { getDbHandle, getProgramsRepo, getUtilityRepo } from "../../services/repos";
+import { writeDurably } from "../../db/client";
 import { removeUtilityScene } from "../../services/removal";
 import { IpcError } from "@shared/ipc/result";
 import { isSceneName, isUtilitySceneUpsert } from "@shared/scene-validators";
@@ -37,8 +38,9 @@ export const utilityHandlers: Pick<
   | "utility:reorder"
 > = {
   "utility:list": () => getUtilityRepo().list(),
-  "utility:create": (input) => getUtilityRepo().create(assertValid(input)),
-  "utility:update": (input) => getUtilityRepo().update(input.id, assertValid(input)),
+  "utility:create": (input) => writeDurably(getDbHandle().sqlite, () => getUtilityRepo().create(assertValid(input))),
+  "utility:update": (input) =>
+    writeDurably(getDbHandle().sqlite, () => getUtilityRepo().update(input.id, assertValid(input))),
   "utility:duplicate": ({ id, name }) => {
     if (!isSceneName(name)) {
       throw new IpcError({ code: "INVALID_UTILITY_SCENE", message: mt("scenes.invalidName") });

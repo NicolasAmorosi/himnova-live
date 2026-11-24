@@ -201,6 +201,15 @@ test("timings, the transition, the page sound, the clip, the title and the notes
   expect(meta.video).toEqual([{ partName: "Media/clip.mp4", slideIndex: 1, rect: { x: 0.5, y: 0.5, width: 0.5, height: 0.5 }, loop: true, volume: null }]);
 });
 
+test("a show set to change slides manually keeps no page's duration", () => {
+  const manual = writeOdp("manual.odp", {
+    mimetype: "application/vnd.oasis.opendocument.presentation",
+    "content.xml": content(`${PAGE1}<presentation:settings presentation:force-manual="true"/>`),
+    "styles.xml": STYLES,
+  });
+  expect(readOdpMeta(manual).slides[0]).toMatchObject({ autoAdvanceMs: null });
+});
+
 test("a broken shape costs that shape, not the page", () => {
   const second = readOdpDeck(deckFile(), resources).slides[1]!;
   expect(shapes(second.model.elements)).toHaveLength(2);

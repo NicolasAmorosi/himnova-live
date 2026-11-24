@@ -31,6 +31,7 @@ export type DeckWorker = EventEmitter & { postMessage(request: unknown): void; t
  * timed whole failed on a slow PC that was still reading it (2026-11-15 audit,
  * S4, review). Copying its clips beats once per clip and gets its own, longer
  * window (`ask`'s `hangMs`): untimed, a share that went away held the worker.
+ * The hymnal's thread beats per read of the file (`paced` in `pptx-worker.ts`).
  */
 export function createDeckQueue<Req extends { id: number }, Reply extends { id: number }>(
   spawn: () => DeckWorker,
@@ -120,10 +121,10 @@ export function createDeckQueue<Req extends { id: number }, Reply extends { id: 
         pump();
       });
     },
-    /** The read-ahead of `file` still waiting goes to the `now` lane, in the order it was asked. */
+    /** The read-ahead of `file` still waiting goes to the `now` lane, in the order it was asked, with the window it
+     *  was asked with: a lane is an order, never a clock (2026-11-22 review, RN3-2). */
     hurry(file: string): void {
       const moving = lanes.later.filter((job) => job.file === file);
-      if (moving.length === 0) return;
       lanes.later = lanes.later.filter((job) => job.file !== file);
       lanes.now.push(...moving);
     },

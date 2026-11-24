@@ -29,7 +29,7 @@ async function saveAs(app: WorshipApp, name: string) {
   await app.control.getByRole("button", { name: "Guardar", exact: true }).click();
   await manager(app).getByRole("textbox", { name: "Nombre" }).fill(name);
   await manager(app).getByRole("button", { name: "Guardar", exact: true }).click();
-  await expect(toast(app, `"${name}" guardado`)).toBeVisible();
+  await expect(toast(app, `Se guardó «${name}»`)).toBeVisible();
   await manager(app).getByRole("button", { name: "Cerrar" }).click();
 }
 
@@ -125,13 +125,13 @@ test("a saved program is duplicated, renamed, made a favourite and found by sear
   await manager(app).getByRole("button", { name: "Más acciones" }).click();
   await app.control.getByRole("menuitem", { name: "Duplicar" }).click();
   // Like every editor's «Duplicar»: a copy of what is saved, saved at once and chosen.
-  await expect(toast(app, '"Culto A (copia)" guardado')).toBeVisible();
+  await expect(toast(app, "Se guardó «Culto A (copia)»")).toBeVisible();
   await expect(programRow(app, "Culto A (copia)")).toBeVisible();
   await expect(manager(app).getByRole("textbox", { name: "Nombre" })).toHaveValue("Culto A (copia)");
 
   await manager(app).getByRole("textbox", { name: "Nombre" }).fill("Culto B");
   await manager(app).getByRole("button", { name: "Guardar", exact: true }).click();
-  await expect(toast(app, '"Culto B" actualizado')).toBeVisible();
+  await expect(toast(app, "Se actualizó «Culto B»")).toBeVisible();
   // The copy carries the items, not just the name.
   await expect(manager(app).getByText("2 elementos")).toBeVisible();
 
@@ -168,7 +168,7 @@ test("with no program saved there is nothing to search or filter; the first one 
   await manager(app).getByRole("group", { name: "Crear y abrir" }).getByRole("switch").uncheck();
   await manager(app).getByRole("textbox", { name: "Nombre" }).fill("Vacío");
   await app.control.keyboard.press("Enter");
-  await expect(toast(app, '"Vacío" guardado')).toBeVisible();
+  await expect(toast(app, "Se guardó «Vacío»")).toBeVisible();
   await expect(search).toHaveValue("");
   await expect(programRow(app, "Vacío")).toBeVisible();
 });
@@ -183,7 +183,7 @@ test("deleting the program in use empties the schedule with it, after saying so"
   await manager(app).getByRole("button", { name: "Más acciones" }).click();
   await app.control.getByRole("menuitem", { name: "Eliminar", exact: true }).click();
   const confirm = app.control.getByRole("dialog", { name: "Eliminar programa" });
-  await expect(confirm).toContainText('Se va a eliminar "Culto A" y todos sus elementos.');
+  await expect(confirm).toContainText("Se va a eliminar «Culto A» y todos sus elementos.");
   await confirm.getByRole("button", { name: "Eliminar", exact: true }).click();
   await expect(toast(app, "Programa eliminado")).toBeVisible();
   await expect(manager(app).getByText("No hay programas guardados").or(manager(app).getByText("Sin título"))).toBeVisible();
@@ -228,7 +228,7 @@ test("«Nuevo programa» in the manager makes an empty program, and opens it onl
   await manager(app).getByRole("textbox", { name: "Nombre" }).fill("Vacío");
   // Enter in the name saves.
   await app.control.keyboard.press("Enter");
-  await expect(toast(app, '"Vacío" guardado')).toBeVisible();
+  await expect(toast(app, "Se guardó «Vacío»")).toBeVisible();
   await expect(manager(app).getByText("0 elementos")).toBeVisible();
   await manager(app).getByRole("button", { name: "Cerrar" }).click();
   await expect(rows(app)).toHaveText([/clip/]);
@@ -297,7 +297,7 @@ test("the «No guardado» mark: selecting, going live and renaming never make it
   await manager(app).getByRole("textbox", { name: "Nombre" }).fill("Culto B");
   await manager(app).getByPlaceholder("Notas opcionales").fill("Traer el control remoto");
   await manager(app).getByRole("button", { name: "Guardar", exact: true }).click();
-  await expect(toast(app, '"Culto B" actualizado')).toBeVisible();
+  await expect(toast(app, "Se actualizó «Culto B»")).toBeVisible();
   await manager(app).getByRole("button", { name: "Cerrar" }).click();
   await expect(notSaved).toHaveCount(0);
   await expect(app.control.locator('span[title="Culto B"]')).toBeVisible();
@@ -306,7 +306,7 @@ test("the «No guardado» mark: selecting, going live and renaming never make it
   await expect(rows(app)).toHaveText([/photo/, /clip/]);
   await expect(notSaved).toBeVisible();
   await app.control.getByRole("button", { name: "Guardar", exact: true }).click();
-  await expect(toast(app, '"Culto B" guardado')).toBeVisible();
+  await expect(toast(app, "Se guardó «Culto B»")).toBeVisible();
   await expect(notSaved).toHaveCount(0);
   // Still on air after the save.
   await expect(row(app, "photo").locator("span.bg-on-air")).toHaveCount(1);

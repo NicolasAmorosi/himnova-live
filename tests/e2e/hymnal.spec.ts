@@ -62,3 +62,52 @@ test("hymn 522 finds its song, keeps its timings and advances with the music", a
   expect(await projectedSlide(projector)).toBe(2);
   expect((await audioStates(projector))[0]?.currentTime).toBeGreaterThanOrEqual(coveredAt);
 });
+
+// Counting the transitions, half the sung hymnal's last slides outlast their song, as they do in PowerPoint
+// (2026-11-22): the deck no longer ends with its music, its last slide keeps its own time. Hymn 101's song ends 0.9 s
+// into slide 8, which then has 11.1 s left.
+test("a hymn whose last slide outlasts its song keeps it up for its own time, then ends", async ({ app }) => {
+  test.setTimeout(240_000);
+  const hymn = path.join(HYMNAL, "101.pps");
+  test.skip(realMissing(hymn), `no ${hymn}`);
+  await app.invoke<MediaAsset[]>("library:add", { kind: "ppt", paths: [hymn] });
+  await app.previewFile("Presentaciones", "101");
+  await expect(app.previewColumn().getByText("1/8", { exact: true })).toBeVisible({ timeout: 120_000 });
+  await app.goLive();
+  const projector = await app.projector();
+  await expect.poll(async () => (await audioStates(projector))[0]?.currentTime ?? 0).toBeGreaterThan(0.5);
+  // To the last seconds of the song: the slides follow the music there.
+  await app.invoke("projection:mediaCommand", {
+    target: { kind: "audio", trackId: "deck-soundtrack" },
+    action: "seek",
+    timeSeconds: 150,
+  });
+  await expect.poll(() => projectedSlide(projector), { timeout: 5_000 }).toBe(7);
+  await expect.poll(() => projectedSlide(projector), { timeout: 15_000 }).toBe(8);
+  // An ended element reads paused.
+  await expect.poll(async () => (await audioStates(projector))[0]?.paused, { timeout: 10_000 }).toBe(true);
+  const ended = performance.now();
+  // No clock left to rejoin or count down from.
+  await expect(app.liveColumn().getByRole("button", { name: "Resincronizar" })).toHaveCount(0);
+  await expect(app.liveColumn().getByText(/Próxima en/)).toHaveCount(0);
+  // LOGO and back over the slide left: the music stays over. Lifting the cover was a `play()` of the ended <audio>,
+  // which started the hymn again from 0:00 under it.
+  const logo = app.control.getByRole("button", { name: "LOGO", exact: true }).first();
+  const covering = performance.now();
+  await logo.click();
+  await expect.poll(() => projectedSlide(projector)).toBeNull();
+  await logo.click();
+  await expect.poll(() => projectedSlide(projector)).toBe(8);
+  const coveredMs = performance.now() - covering;
+  await projector.waitForTimeout(1_000);
+  const [music] = await audioStates(projector);
+  expect(music?.paused).toBe(true);
+  expect(music?.currentTime ?? 0).toBeGreaterThan(140);
+  const off = await msUntilChange(() => projectedSlide(projector), 8, 20_000);
+  // Taken off to the logo (`projection.deckEnd`) after the rest of slide 8's time, the cover not counted; it used to
+  // go with the music.
+  expect(off.value).toBeNull();
+  const tail = performance.now() - ended - coveredMs;
+  expect(tail).toBeGreaterThan(9_500);
+  expect(tail).toBeLessThan(12_500);
+});

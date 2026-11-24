@@ -24,5 +24,12 @@
   refreshes the row of a file edited in place»), `tests/e2e/decks.spec.ts` (two «edited» tests) and
   `tests/e2e/conversion.spec.ts` («a video replaced in place…»). The sweep runs ~2 s after launch,
   on focus (30 s throttle) and every 5 min, so an edit made with the app open is caught there.
+- 2026-11-22 (audit RV-2, RV-3): between sweeps GO LIVE still trusted the row, so a video, an image
+  or an already-read deck whose file went away cut what was on air to black, and a deck edited since
+  went out with its old slides. GO LIVE now asks `library:get` with `check: true` (`MediaRepo.check`:
+  one async stat per path, a second at most; an answer is written as the sweep would, a file that
+  does not answer goes on as before), and `goLiveWithDeck` sends the cached deck only while its
+  `sourceSizeBytes`/`sourceMtimeMs` match that check. Tests: `tests/renderer/live-file-gone.test.ts`
+  and «GO LIVE's check…» in `tests/main/data-layer.test.ts`.
 
-**Last updated:** 2026-10-18
+**Last updated:** 2026-11-22

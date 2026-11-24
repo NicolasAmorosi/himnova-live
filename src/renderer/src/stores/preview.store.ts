@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import type { AssetKind } from "@shared/constants";
+import type { ProgramItemDTO } from "@shared/types/program";
 
 /**
  * What the operator is *looking at*, which in the EasyWorship two-stage flow is
@@ -16,7 +17,9 @@ export type PreviewTarget =
    *  different one in PREVIEW, which is what Enter then sent to the projector
    *  (2026-10-14 rehearsal). `previewedScheduleItem()` resolves it. */
   | { kind: "scheduleItem" }
-  | { kind: "verse"; verseIndex: number }
+  /** A verse of the loaded chapter. `row`: the schedule's Bible row it was walked out of with ↓ (`previewItemVerse`),
+   *  whose verse it still is (owner, 2026-11-22): sent, it takes that row's rail and leaves the row under it. */
+  | { kind: "verse"; verseIndex: number; row?: ProgramItemDTO }
   | { kind: "asset"; assetId: number; assetKind: AssetKind }
   /** A saved utility scene (a countdown, the clock, a stopwatch). Only its id
    *  — unlike the live `base`, a preview target is re-resolved on every render

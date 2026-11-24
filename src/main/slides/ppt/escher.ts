@@ -52,7 +52,9 @@ export function readPropTable(buf: Buffer, rec: Rec, into: Props): void {
  *  under its `fUse` twin in the high half (MS-ODRAW 2.3). */
 export const isBooleanProp = (id: number): boolean => (id & 0x3f) === 0x3f;
 
-/** A flag word over the one it inherits from, flag by flag. */
+/** A flag word over the one it inherits from, flag by flag: a flag the shape does not `fUse` is the inherited one.
+ *  Measured on the hymnal: 166 covers say nothing about their line, and the master's body placeholder they inherit
+ *  from says «no line». */
 export function mergeFlags(own: number, inherited: number): number {
   const ownUse = (own >>> 16) & 0xffff;
   const values = (own & ownUse) | (inherited & ~ownUse & 0xffff);

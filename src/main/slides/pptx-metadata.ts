@@ -479,6 +479,7 @@ export function readPresentationMeta(filePath: string): PresentationMeta {
     (name) =>
       name === "ppt/presentation.xml" ||
       name === "ppt/_rels/presentation.xml.rels" ||
+      name === "ppt/presProps.xml" ||
       (name.startsWith("ppt/slides/") && name.endsWith(".xml")) ||
       (name.startsWith("ppt/slides/_rels/") && name.endsWith(".rels")) ||
       (name.startsWith("ppt/notesSlides/") && name.endsWith(".xml")),
@@ -498,6 +499,11 @@ export function readPresentationMeta(filePath: string): PresentationMeta {
   const slideSizeEmu = cx && cy ? { cx: Number(cx), cy: Number(cy) } : null;
 
   const presentationRels = parseRels(decode(entries["ppt/_rels/presentation.xml.rels"]), "ppt");
+
+  // Set Up Slide Show ▸ «Manually»: PowerPoint ignores every slide's `advTm` (`useTimings` defaults to true).
+  const showPr = asNode(asNode(asNode(parser.parse(decode(entries["ppt/presProps.xml"]) ?? ""))?.["p:presentationPr"])?.["p:showPr"]);
+  const useTimingsAttr = attr(showPr, "@useTimings");
+  const usesTimings = !(useTimingsAttr === "0" || useTimingsAttr === "false");
 
   // p:sldIdLst is the PRESENTATION order. slide1.xml/slide2.xml is the creation
   // order and diverges the moment someone reorders — using it would desync
@@ -533,7 +539,7 @@ export function readPresentationMeta(filePath: string): PresentationMeta {
     const transition = findTransition(sld);
     const advTm = attr(transition, "@advTm");
     const rawAdvance = advTm !== undefined ? Number(advTm) : NaN;
-    const autoAdvanceMs = Number.isFinite(rawAdvance)
+    const autoAdvanceMs = usesTimings && Number.isFinite(rawAdvance)
       ? Math.max(SLIDES_MIN_ADVANCE_MS, rawAdvance)
       : null;
 

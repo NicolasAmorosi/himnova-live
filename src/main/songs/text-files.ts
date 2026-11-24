@@ -113,8 +113,11 @@ export function readSongSelect(text: string, locale: Locale): ReadSong | null {
  * ------------------------------------------------------------------------ */
 
 /** `{title: X}`, `{title X}`, `{soc}`, a setting (`{+settings.transcode: roman}`);
- *  a selector (`{title-es: …}`) is dropped. */
-const DIRECTIVE = /^\{\s*\+?([a-z][\w.]*)(?:-[\w-]+)?(?:\s*[:\s]\s*(.*?))?\s*\}$/i;
+ *  a selector (`{title-es: …}`) is dropped. Matched on the line without its closing brace, so a line that never
+ *  closes has nothing to backtrack into: `{c`, a thousand spaces and a letter held main for minutes, with the
+ *  projector frozen, as soon as the Songs tab listed a linked folder holding it (2026-11-22 audit, SE2). */
+const DIRECTIVE = /^\{\s*\+?([a-z][\w.]*)(?:-[\w-]+)?(?:\s*[:\s]([^]*))?$/i;
+const matchDirective = (line: string) => (line.endsWith("}") ? DIRECTIVE.exec(line.slice(0, -1)) : null);
 
 const SHORT_NAMES: Record<string, string> = {
   t: "title",
@@ -141,7 +144,7 @@ const SHORT_NAMES: Record<string, string> = {
 /** A directive line → its full name (`soc` is `start_of_chorus`) and its
  *  value; `null` for any other line. */
 export function directiveOf(line: string): { name: string; value: string } | null {
-  const match = DIRECTIVE.exec(line.trim());
+  const match = matchDirective(line.trim());
   if (!match) return null;
   const raw = match[1]!.toLowerCase();
   return { name: SHORT_NAMES[raw] ?? raw, value: match[2]?.trim() ?? "" };
@@ -156,7 +159,7 @@ const DEFAULT_LABEL: Record<string, string> = { chorus: "Chorus", verse: "Verse"
  *  («{bis}»). */
 export const isChordPro = (text: string): boolean => {
   const all = lines(text);
-  if (!all.some((line) => DIRECTIVE.test(line))) return false;
+  if (!all.some((line) => matchDirective(line))) return false;
   const first = all.find(Boolean) ?? "";
   return /^[{#]/.test(first) || songSelectShape(all) === null;
 };

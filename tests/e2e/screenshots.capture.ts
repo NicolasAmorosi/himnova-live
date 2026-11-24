@@ -119,6 +119,13 @@ for (const locale of LOCALES) {
       await slides.getByRole("button", { name: "3", exact: true }).click();
       await app.openResources("Medios", "Videos");
       await shoot("control");
+      // The same moment at the window's minimum size (its minWidth × minHeight): the whole window as a map that a
+      // phone-width page shows at a third of its size, 1.6 times what the 1600-wide capture would be.
+      const resize = (width: number, height: number) =>
+        screen.send("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 2, mobile: false });
+      await resize(1000, 700);
+      await shootThemes(app, screen, out, "control-compact");
+      await resize(1600, 1000);
 
       // Decks as they were made: a hymn that advances by itself, with its music.
       await app.invoke("library:add", {

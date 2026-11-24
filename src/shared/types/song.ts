@@ -117,8 +117,15 @@ export type SongUse = { title: string; authors: string | null; ccliNumber: strin
 /** What an import did: written, skipped as already there (same title, same
  *  words), not written because the song had no title or no lyrics, and files
  *  that were no song file the app reads (another program's, broken, or
- *  unreadable). */
-export type SongImportResult = { imported: number; repeated: number; problems: number; unsupported: number };
+ *  unreadable). `reason`: why a song database among them could not be read
+ *  (the first one), worded for the operator, when other files did come in. */
+export type SongImportResult = {
+  imported: number;
+  repeated: number;
+  problems: number;
+  unsupported: number;
+  reason?: string;
+};
 
 export type SongSearchHit = {
   songId: number;
@@ -318,7 +325,7 @@ export function songThemeFromBibleStyle(style: BibleStyle): SongTheme {
   };
 }
 
-/** The footer's lines for a song: «Title — Authors», then «© … · CCLI n.º … ·
+/** The footer's lines for a song: «Title · Authors», then «© … · CCLI n.º … ·
  *  Licence …», each piece only when it is on and the song has it. `labels`
  *  are the interface's words for the two CCLI numbers. */
 export function songFooterLines(
@@ -333,5 +340,5 @@ export function songFooterLines(
     fields.ccli && song.ccliNumber ? `${labels.ccli} ${song.ccliNumber}` : null,
     fields.license && license ? `${labels.license} ${license}` : null,
   ].filter(Boolean);
-  return [first.join(" — "), second.join(" · ")].filter((line) => line !== "");
+  return [first.join(" · "), second.join(" · ")].filter((line) => line !== "");
 }

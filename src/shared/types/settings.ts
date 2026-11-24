@@ -28,9 +28,10 @@ import {
   type StageLayoutChoice,
   type StageTextSize,
 } from "./stage";
-import { isSceneBackground } from "../style-validators";
+import { isRecord, isSceneBackground } from "../style-validators";
 import { isAudioOutputChoice, type AudioOutputChoice } from "./audio";
 import { LOGO_URL } from "../urls";
+import { PROJECTOR_FIT_MAX_SCREENS, PROJECTOR_FIT_MIN } from "./display";
 import {
   NDI_AUDIO_DELAY_DEFAULT_MS,
   NDI_AUDIO_DELAY_MAX_MS,
@@ -88,6 +89,9 @@ export type SlideFallbackFont = (typeof SLIDE_FALLBACK_FONTS)[number];
  *  again (`recognizeDisplay`). */
 export type DisplayPrint = { label: string; x: number; y: number; width: number; height: number; unique: boolean };
 
+/** The schedule's row on air (`programs.liveRow`): its place, and the row itself as JSON. */
+export type LiveRowMark = { position: number; row: string };
+
 export type SettingsMap = {
   "logo.path": string | null;
   /** Which of the two LOGO shows; `null` until the operator picks — see
@@ -106,6 +110,9 @@ export type SettingsMap = {
    *  path instead would freeze both. A non-null value is an explicit override
    *  the operator chose in Settings. */
   "files.defaultFolders": Record<AssetKind, string | null>;
+  /** The folder the schedule's own «+» last added from, where it opens next time (owner, 2026-11-24): the operator
+   *  adds a service's files from the same folder week after week. `null` until the first pick; written by main. */
+  "files.scheduleFolder": string | null;
   "projection.displayId": number | null;
   /** Kept by main for `projection.displayId` while that screen is connected (`reconcileDisplayRoles`). */
   "projection.displayPrint": DisplayPrint | null;
@@ -173,6 +180,13 @@ export type SettingsMap = {
    *  only when that row (past plates) is an audio too, at the ended one's
    *  level. A deck's own music follows its deck. */
   "projection.audioEnd": AudioEndAction;
+  /** A schedule row that went live leaves the row under it in PREVIEW, instead of an empty PREVIEW (owner,
+   *  2026-11-21). The last row, or anything not sent from the schedule, still leaves PREVIEW empty. */
+  "projection.previewNext": boolean;
+  /** How big the projector draws the picture, in percent, per screen (`projectorFitKey`): a projector or TV that
+   *  overscans a 1920x1080 signal cuts ~5 % off every edge, and a smaller, centred picture brings them back (owner,
+   *  2026-11-21). A screen with no entry draws at 100. Only the projector window: the monitors, NDI and stage never. */
+  "projection.fit": Record<string, number>;
   /** Whether the LIVE monitor plays its own moving copy of a live video (the
    *  full-screen one and a slide's). Off, it shows the video's thumbnail and
    *  the control window decodes nothing — the projector is never affected. */
@@ -269,6 +283,11 @@ export type SettingsMap = {
    *  new, unsaved schedule. Not main's own current program: «programs:save»
    *  adopts a new program the list's «+» only creates. */
   "programs.openId": number | null;
+  /** The schedule's row on air, kept by the control window as it changes (`startOpenProgramMemory`) and cleared by
+   *  main when the control window closes cleanly (`forgetLiveRow`). Still there at launch means the app did not
+   *  close: a crash, a killed process, a power cut, a hung window closed by the grace. Then `App` puts that row in PREVIEW, never on air (owner,
+   *  2026-11-23, DU-6). `row` is the row as a save sends it (`toUpsertItems`), what tells it apart if the order moved. */
+  "programs.liveRow": LiveRowMark | null;
   /** The projector's picture as an NDI® source (`types/ndi.ts`), from launch on while true. */
   "ndi.output.enabled": boolean;
   /** What receivers list it as: «COMPUTER (name)». */
@@ -297,6 +316,7 @@ export const DEFAULT_SETTINGS: SettingsMap = {
   "logo.name": null,
   "logo.background": { kind: "solid", color: "#000000" },
   "files.defaultFolders": { video: null, image: null, audio: null, ppt: null },
+  "files.scheduleFolder": null,
   "projection.displayId": null,
   "projection.displayPrint": null,
   "stage.displayId": null,
@@ -328,6 +348,8 @@ export const DEFAULT_SETTINGS: SettingsMap = {
   "projection.deckEnd": "logo",
   "projection.songEnd": "logo",
   "projection.audioEnd": "stop",
+  "projection.previewNext": true,
+  "projection.fit": {},
   "projection.transition.durationMs": 300,
   "slides.fallbackFont": null,
   "monitors.liveVideoMotion": true,
@@ -352,6 +374,7 @@ export const DEFAULT_SETTINGS: SettingsMap = {
   "updates.autoCheck": true,
   "updates.announcedVersion": null,
   "programs.openId": null,
+  "programs.liveRow": null,
   "ndi.output.enabled": false,
   "ndi.output.name": "Himnova Live",
   "ndi.output.resolution": "1080p",
@@ -446,12 +469,19 @@ const isRecordOfKinds =
 
 const isStringArray = (v: unknown): boolean => Array.isArray(v) && v.every(isString);
 
+/** One screen's entry in `projection.fit`: a whole percent from 80 to 100 under a key `projectorFitKey` could make. */
+const isProjectorFitEntry = (entry: [string, unknown]): entry is [string, number] => {
+  const [key, percent] = entry;
+  return key.length <= 300 && Number.isInteger(percent) && (percent as number) >= PROJECTOR_FIT_MIN && (percent as number) <= 100;
+};
+
 export const SETTINGS_VALIDATORS: Record<keyof SettingsMap, (value: unknown) => boolean> = {
   "logo.path": isNullOr(isString),
   "logo.mode": isNullOr(isOneOf(LOGO_MODES)),
   "logo.name": (v) => v === null || (typeof v === "string" && v.length <= LOGO_NAME_MAX_LENGTH),
   "logo.background": isSceneBackground,
   "files.defaultFolders": isRecordOfKinds(isNullOr(isString)),
+  "files.scheduleFolder": isNullOr(isString),
   "projection.displayId": isDisplayId,
   "projection.displayPrint": isNullOr(isDisplayPrint),
   "stage.displayId": isDisplayId,
@@ -484,6 +514,9 @@ export const SETTINGS_VALIDATORS: Record<keyof SettingsMap, (value: unknown) => 
   "projection.deckEnd": isOneOf(VIDEO_END_ACTIONS),
   "projection.songEnd": isOneOf(VIDEO_END_ACTIONS),
   "projection.audioEnd": isOneOf(AUDIO_END_ACTIONS),
+  "projection.previewNext": isBoolean,
+  "projection.fit": (v) =>
+    isRecord(v) && Object.keys(v).length <= PROJECTOR_FIT_MAX_SCREENS && Object.entries(v).every(isProjectorFitEntry),
   "projection.transition.durationMs": isNumberIn(0, TRANSITION_MAX_DURATION_MS),
   "slides.fallbackFont": isNullOr(isOneOf(SLIDE_FALLBACK_FONTS)),
   "monitors.liveVideoMotion": isBoolean,
@@ -509,6 +542,10 @@ export const SETTINGS_VALIDATORS: Record<keyof SettingsMap, (value: unknown) => 
   "updates.autoCheck": isBoolean,
   "updates.announcedVersion": isNullOr(isString),
   "programs.openId": (v) => v === null || (typeof v === "number" && Number.isInteger(v) && v > 0),
+  "programs.liveRow": (v) =>
+    v === null ||
+    (isRecord(v) && typeof v["position"] === "number" && Number.isInteger(v["position"]) && v["position"] >= 0 &&
+      typeof v["row"] === "string"),
   "ndi.output.enabled": isBoolean,
   // Not blank, and no control characters: it travels as a program argument and shows in every receiver.
   "ndi.output.name": (v) =>
@@ -574,6 +611,10 @@ export const SETTINGS_NORMALIZERS: {
       : DEFAULT_SETTINGS["audio.live.volume"],
   "audio.output.live": normalizeAudioOutput,
   "audio.output.preview": normalizeAudioOutput,
+  // Screen by screen: an entry another build or a hand-edited row made unreadable costs that screen its size, never
+  // the projector a 0 % picture (a black wall) nor the others theirs (2026-11-22 audit).
+  "projection.fit": (v) =>
+    isRecord(v) ? Object.fromEntries(Object.entries(v).filter(isProjectorFitEntry).slice(-PROJECTOR_FIT_MAX_SCREENS)) : {},
   // A profile that stored the old factory name follows the product's new one; a name the church chose stays.
   "ndi.output.name": (v) =>
     v === FORMER_NDI_NAME || !SETTINGS_VALIDATORS["ndi.output.name"](v)

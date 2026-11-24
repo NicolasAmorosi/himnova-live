@@ -57,8 +57,9 @@ export const SLIDES_CONVERTER_VERSION = 4;
 /** The same role for a deck read straight from its source (`image_format =
  *  'native'`, `ppt-binary.ts`): bump when the rules for which pictures make up
  *  a slide change, so every native deck is read again. Reading one costs
- *  milliseconds and writes nothing to disk, so a bump is free. */
-export const SLIDES_NATIVE_VERSION = 1;
+ *  milliseconds and writes nothing to disk, so a bump is free. 2: a show set
+ *  to advance on clicks keeps no slide's timing (2026-11-21). */
+export const SLIDES_NATIVE_VERSION = 2;
 
 /** The same for a deck drawn from its model (`image_format = 'model'`, a
  *  `.pptx` read by `src/main/slides/pptx/`): bump when the reader changes what
@@ -69,8 +70,9 @@ export const SLIDES_NATIVE_VERSION = 1;
  *  charts that were refused. 4: a slide with two `mc:AlternateContent` keeps
  *  its transition and timing, a slide marked `show="false"` is hidden in the
  *  model too, and the bounds on SmartArt sizes, chart points and `.odp` list
- *  numbers (2026-11-15 audit A31, A45, S4, S5, S6). */
-export const SLIDES_MODEL_VERSION = 4;
+ *  numbers (2026-11-15 audit A31, A45, S4, S5, S6). 5: a show set to advance
+ *  on clicks keeps no slide's timing (2026-11-21). */
+export const SLIDES_MODEL_VERSION = 5;
 
 /** Bump to force every non-manual `media_assets` row to re-run
  *  `resolveLinkedAudio` once, next time its deck is opened, even though a
@@ -153,6 +155,21 @@ export const SLIDES_DECK_READ_TIMEOUT_MS = 60_000;
  *  drive takes minutes, and untimed, a network share that went away mid-copy held the only deck worker for good
  *  (review of the 2026-11-15 audit, S4). */
 export const SLIDES_CLIP_COPY_TIMEOUT_MS = 15 * 60_000;
+/** How long a model deck's picture, metafile or font may take on its thread before it is served as one that won't
+ *  convert. The heaviest real one measured, a 24.5 MB EMF, is 0.2 s on an M3; a window draws its slide without the
+ *  part after 3 s anyway (`slide-models.ts`), and a part that hangs holds every other part behind it this long. */
+export const SLIDES_PART_READ_TIMEOUT_MS = 10_000;
+/** How long the hymnal's thread may go without a beat on one file (what it is, a legacy deck read as pictures, why a
+ *  deck won't open) before it is stopped, read ahead or waited on by the operator. Each is a millisecond or two on the
+ *  real hymnal (M3, local disk), and the thread beats as it reads the file, so a large deck on a slow share is never
+ *  cut while it reads. A deck's 60 s let a hymn on a share that stopped answering hold every hymn behind it, and the
+ *  operator's next one 55 s (2026-11-22 review, RN-7, RN3-2). */
+export const SLIDES_HYMNAL_READ_TIMEOUT_MS = 5_000;
+/** How long opening a deck the operator asked for (PREVIEW, GO LIVE, «Reintentar») waits for its file's `stat`. A disk
+ *  slow to wake is waited for, never told as a file that is gone (2026-11-22 review, RN-2), but a share that never
+ *  answers (an NFS `hard` mount) left the deck «Convirtiendo» until a restart. Windows gives up on a dead share by
+ *  itself at ~21 s (review, RN2-1). The read ahead waits it out. */
+export const SLIDES_SOURCE_STAT_TIMEOUT_MS = 20_000;
 
 /** The bundled bible's identity, NOT its edition: the text has always been the Reina-Valera
  *  1909 (public domain), shipped as «Reina-Valera 1960» through 2.2.0-beta.3. `bible_favorites`

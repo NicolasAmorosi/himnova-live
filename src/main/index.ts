@@ -25,11 +25,6 @@ import {
   getUtilityRepo,
   getOverlaysRepo,
 } from "./services/repos";
-import {
-  migrateLegacySettingsIfPresent,
-  migrateLegacyMediaIfPresent,
-} from "./services/migrate-legacy-data";
-import { importPaths } from "./services/library-import";
 import { quitWaitForSongSaves } from "./services/song-files";
 import { registerAllIpcHandlers } from "./ipc";
 import { isTrustedSender } from "./ipc/trusted-senders";
@@ -39,7 +34,7 @@ import { createControlWindow, operatorDisplay } from "./windows/control-window";
 import { installNavigationGuards } from "./windows/navigation-guards";
 import { installApplicationMenu } from "./windows/app-menu";
 import { holdQuitUntilAnswered, installCloseGuard } from "./windows/close-guard";
-import { reconcileDisplayRoles, watchDisplays } from "./windows/projector-screen";
+import { reconcileDisplayRoles, showProjectorPattern, watchDisplays } from "./windows/projector-screen";
 import { closeStageWindow, syncStageWindow } from "./windows/stage-window";
 import { showSheet } from "./windows/sheet";
 import { isNdiWindow, stopNdiOutput, syncNdiOutput } from "./ndi/ndi-output";
@@ -49,8 +44,6 @@ import {
   dbPath,
   backgroundsDir,
   biblesDir,
-  legacyMediaLibraryPath,
-  legacySettingsPath,
   migrationsDir,
   userDataDir,
   profileBackgroundsDir,
@@ -68,7 +61,7 @@ import { initEngineAssets, shutdownEngineAssets } from "./media/engine-assets";
 import { engineAvailable, killAllEngines, startEngines } from "./media/media-engine";
 import { stopDeckClips } from "./media/deck-clips";
 import { stopPreviewEngine, syncLiveEngine } from "./media/engine-sessions";
-import { appendLogLine, installMainLog } from "./logging";
+import { appendLogLine, crashDialogText, installMainLog } from "./logging";
 import { initUpdates } from "./updates/updater";
 import { retireFormerMacApp } from "./updates/former-mac-app";
 import { LATEST_WHATS_NEW } from "@shared/whats-new";
@@ -115,9 +108,8 @@ if (!gotSingleInstanceLock) {
 
 /** Says whether the database existed before this launch: one the launch creates has nothing to copy yet. */
 function initDatabase(): boolean {
-  // Asked before `openDatabase` creates the file. A profile holding the legacy
-  // app's data is not new either: that church has always run in Spanish.
-  const isNewProfile = ![dbPath, legacySettingsPath, legacyMediaLibraryPath].some((file) => fs.existsSync(file));
+  // Asked before `openDatabase` creates the file.
+  const isNewProfile = !fs.existsSync(dbPath);
   // Until the settings can be read, main speaks the OS's language — the
   // migration-failure dialog below is said before they can.
   setMainLocale(systemLocale());
@@ -164,12 +156,11 @@ function initDatabase(): boolean {
   // deleted across launches. After the locale too: a new profile gets the
   // bundled versions of its language. See `seedBuiltinBibles`.
   seedBuiltinBibles(db, sqlite, biblesDir, getSettingsRepo(), isNewProfile, app.getVersion());
-  migrateLegacySettingsIfPresent(getSettingsRepo(), legacySettingsPath);
   // After `initRepos`, unlike the Bible seed above: this one needs two
   // repositories rather than a raw handle, and the flag it reads lives in
   // `settings`.
   seedUtilityScenes(getUtilityRepo(), getSettingsRepo());
-  // After the legacy settings: the theme copies the verse's style.
+  // The theme copies the verse's style.
   seedSongThemes(getSongsRepo(), getSettingsRepo());
   // Before the look: version 2 finds «Noche» by its path in this profile.
   const reattached = reattachBackgrounds(getMediaRepo(), profileBackgroundsDir, backgroundsDir);
@@ -215,6 +206,8 @@ function wireMinimizeRestoreSync(controlWindow: BrowserWindow): void {
     projectionState.forget();
     forgetLiveCopy();
     syncLiveEngine();
+    // The Settings that turned the test pattern on are gone with it: on macOS the next window's projector pulled it on.
+    showProjectorPattern(false);
   });
 }
 
@@ -247,6 +240,8 @@ function openControlWindow(): BrowserWindow {
   // After the control window's page: Playwright takes the first window that loads as the control one, and
   // the NDI output's is a window too.
   win.webContents.once("did-finish-load", syncNdiOutput);
+  // The test pattern goes off with the Settings that turned it on: a control window that died never turns it off.
+  win.webContents.on("render-process-gone", () => showProjectorPattern(false));
   // Vetoes the first close and asks the control window instead — the unsaved
   // schedule is the renderer's to speak for. See `close-guard.ts`.
   installCloseGuard(win);
@@ -327,13 +322,6 @@ if (gotSingleInstanceLock) {
     // A media engine started ahead of time, so the first video it plays does not pay for the
     // process (150–650 ms), on the card the app draws with.
     if (engineAvailable()) startEngines();
-
-    // The other half of the legacy import (`media_library.json`). Off the
-    // startup path: it is a whole library's worth of files, and the rows it
-    // creates reach an open window through `library-changed`.
-    void migrateLegacyMediaIfPresent(legacyMediaLibraryPath, importPaths).catch((error: unknown) => {
-      console.warn("[legacy] media migration failed", error);
-    });
 
     // Teaches main which cached deck each presentation's BYTES belong to, so
     // "is this converted?" can be answered by content instead of by which
@@ -482,14 +470,16 @@ function reportCrash(label: string, error: unknown): void {
     return;
   }
   crashDialogShown = true;
+  const text = crashDialogText(label, detail);
   // A sheet on the visible control window keeps main serving until the click (`showSheet`). Before there is a window,
   // the blocking box is all there is.
   const parent = mainControlWindow && !mainControlWindow.isDestroyed() ? mainControlWindow : null;
   if (!parent) {
-    dialog.showErrorBox(mt("dialogs.crashTitle"), detail);
+    dialog.showErrorBox(mt("dialogs.crashTitle"), text);
     return;
   }
-  void showSheet(parent, { type: "error", title: mt("dialogs.crashTitle"), message: mt("dialogs.crashTitle"), detail });
+  const title = mt("dialogs.crashTitle");
+  void showSheet(parent, { type: "error", title, message: title, detail: text });
 }
 
 // Surface crashes as a dialog instead of a silent blank window — the health

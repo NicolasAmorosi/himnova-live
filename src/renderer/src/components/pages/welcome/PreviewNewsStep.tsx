@@ -86,7 +86,7 @@ function PreviewDemo() {
           </div>
         </div>
         <p className="flex min-h-6 items-center gap-2 text-sm text-muted-foreground">
-          {sent ? <Kbd className="ml-0">Enter</Kbd> : null}
+          {sent ? <Kbd className="ml-0">{t("keys.enter")}</Kbd> : null}
           <span>{t(`whatsNew.preview.beats.${step}`)}</span>
         </p>
       </div>

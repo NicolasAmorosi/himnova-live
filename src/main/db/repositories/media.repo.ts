@@ -8,6 +8,7 @@ import { LINKED_AUDIO_RESOLVER_VERSION, type AssetKind } from "@shared/constants
 import type { MediaAsset, MergedAsset } from "@shared/types/media";
 import { resolveLinkedAudio } from "../../slides/linked-audio";
 import { IpcError } from "@shared/ipc/result";
+import { backgroundStat, operatorStat } from "../../services/background-files";
 
 /** One `IN (...)` binds one parameter per id, and SQLite refuses the
  *  statement past `SQLITE_MAX_VARIABLE_NUMBER`. Every query here that takes
@@ -410,7 +411,8 @@ export class MediaRepo {
     // milliseconds-to-seconds, and a synchronous loop over a large library
     // then blocks the main process — and therefore the projection — for as
     // long as that takes. The `setImmediate` yield only limited how long each
-    // BATCH blocked, not the calls themselves.
+    // BATCH blocked, not the calls themselves. Two in flight at most
+    // (`backgroundStat`): a chunk is one transaction, not 200 threads.
     const PROBE_CHUNK = 200;
     for (let i = 0; i < rows.length; i += PROBE_CHUNK) {
       const slice = rows.slice(i, i + PROBE_CHUNK);
@@ -420,7 +422,7 @@ export class MediaRepo {
       // content hash, a video's probe, a thumbnail — is
       // checked against the row's `(size, mtime)`, so a row nobody refreshed
       // kept last week's announcements "current" forever.
-      const stats = await Promise.all(slice.map((row) => fs.promises.stat(row.path).catch(() => null)));
+      const stats = await Promise.all(slice.map((row) => backgroundStat(row.path).catch(() => null)));
       slice.forEach((row, index) => {
         const stat = stats[index];
         if (stat && row.missingSince !== null) {
@@ -465,6 +467,39 @@ export class MediaRepo {
     return changedKinds;
   }
 
+  /**
+   * One row of `sweep()`, now: what GO LIVE asks before it cuts what is on air, since the sweep runs on focus and
+   * every 5 minutes and a file gone in between cut the stage to black. A file that does not answer within a second
+   * (a share that went away held a stat 21 s on Windows, `isDirectory` in `files.ts`) comes back as the last sweep
+   * left it, so GO LIVE goes on as it did before this check: a disk slow to wake is not refused. Only an answer is
+   * written. `changed`: the row was written, so the windows are to be told.
+   */
+  async check(id: number): Promise<{ asset: MediaAsset | null; changed: boolean }> {
+    const asset = this.getById(id);
+    if (!asset) return { asset, changed: false };
+    // The one stat of this path under way, shared with the deck read after it while it is young (`operatorStat`): each
+    // one hung on a share that went away holds a thread of the pool the projector's own file reads share.
+    const pending = operatorStat(asset.path).catch(() => null);
+    const stat = await Promise.race([pending, new Promise<"slow">((resolve) => setTimeout(resolve, 1000, "slow"))]);
+    if (stat === "slow") return { asset, changed: false };
+
+    let changed = false;
+    if ((stat === null) !== (asset.missingSince !== null)) {
+      const now = Date.now();
+      this.db
+        .update(mediaAssets)
+        .set(stat === null ? { missingSince: now } : { missingSince: null, lastSeenAt: now })
+        .where(eq(mediaAssets.id, id))
+        .run();
+      changed = true;
+    }
+    if (stat && (stat.size !== asset.sizeBytes || Math.trunc(stat.mtimeMs) !== asset.mtimeMs)) {
+      this.refreshStat(id, stat.size, Math.trunc(stat.mtimeMs));
+      changed = true;
+    }
+    return { asset: changed ? this.getById(id) : asset, changed };
+  }
+
   /** A linked folder was just listed: its rows (`inLibrary = 0`, this folder only, not a subfolder's) that did not
    *  come back are marked missing, never deleted. The sweep leaves those rows out, so a file deleted from the folder
    *  kept a row that every reconcile probed again (2026-11-15 audit, D10). The next listing that finds it clears it.
@@ -479,7 +514,7 @@ export class MediaRepo {
       .where(and(eq(mediaAssets.kind, kind), eq(mediaAssets.inLibrary, 0), sql`${mediaAssets.missingSince} IS NULL`))
       .all()
       .filter((row) => path.dirname(row.pathKey) === folderKey && !presentKeys.has(row.pathKey));
-    const opens = await Promise.all(absent.map((row) => fs.promises.stat(row.path).then(() => true, () => false)));
+    const opens = await Promise.all(absent.map((row) => backgroundStat(row.path).then(() => true, () => false)));
     const gone = absent.filter((_, i) => !opens[i]).map((row) => row.id);
     const now = Date.now();
     for (let i = 0; i < gone.length; i += ID_CHUNK) {

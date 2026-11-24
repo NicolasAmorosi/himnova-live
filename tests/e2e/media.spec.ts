@@ -121,7 +121,7 @@ test("an audio file in PREVIEW plays through PREVIEW's engine, its clock moving"
 async function firstRow(column: Locator) {
   const box = await column.boundingBox();
   const close = await column
-    .getByRole("button", { name: /^(Quitar|Detener|Sacar del aire|Limpiar vista previa)$/ })
+    .getByRole("button", { name: /^(Quitar|Detener|Sacar del aire|Vaciar PREVIEW)$/ })
     .first()
     .boundingBox();
   const bar = column.getByRole("slider", { name: /^Posición de / }).first();

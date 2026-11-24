@@ -95,6 +95,14 @@ export function rec(recVer: number, recInstance: number, recType: number, body: 
   return Buffer.concat([head, content]);
 }
 
+/** A `SlideShowDocInfoAtom` (Set Up Slide Show) for `LegacyDeck.documentRecords`: its flags at +76, bit 0
+ *  `fAutoAdvance` («Using timings, if present»). */
+export function showInfo(flags: number): Buffer {
+  const body = Buffer.alloc(80);
+  body.writeUInt16LE(flags, 76);
+  return rec(0x1, 0, 0x0401, body);
+}
+
 export function u32s(...values: number[]): Buffer {
   const buf = Buffer.alloc(values.length * 4);
   values.forEach((value, i) => buf.writeUInt32LE(value >>> 0, i * 4));

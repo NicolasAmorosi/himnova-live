@@ -7,7 +7,6 @@ type MediaScrubberTone = "accent" | "audio";
 type MediaScrubberProps = {
   className?: string;
   currentSeconds: number;
-  disabled?: boolean;
   durationSeconds: number;
   /** The position this bar is painting while it is ahead of `currentSeconds`
    *  (dragging, or waiting for a committed seek to be confirmed), and `null`
@@ -85,7 +84,6 @@ function clamp(value: number, min: number, max: number): number {
 export function MediaScrubber({
   className,
   currentSeconds,
-  disabled = false,
   durationSeconds,
   label,
   onPositionChange,
@@ -98,7 +96,7 @@ export function MediaScrubber({
   const [pendingSeconds, setPendingSeconds] = useState<number | null>(null);
 
   const duration = Math.max(0, durationSeconds);
-  const seekable = duration > 0 && !disabled;
+  const seekable = duration > 0;
   /** What this bar is painting instead of the reported position, if anything. */
   const localSeconds = dragSeconds ?? pendingSeconds;
   const seconds = localSeconds ?? currentSeconds;

@@ -129,6 +129,8 @@ export type DeckDTO = {
    *  drawn — auto-advance was disabled on purpose, not lost by accident — or
    *  that it has none (a PDF). */
   timingsSource: "ooxml" | "binary" | "odf" | "none";
+  /** The file as it was read: GO LIVE sends this deck only while the file is still that one (`goLiveWithDeck`). */
+  sourceSizeBytes: number;
   sourceMtimeMs: number;
   convertedAt: number;
   error: string | null;

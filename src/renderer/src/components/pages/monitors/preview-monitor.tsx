@@ -36,7 +36,7 @@ export function PreviewMonitor() {
     (content?.kind === "deck" && content.missingSince !== null);
 
   // With nothing in preview the stage stays black, like the LIVE one: the
-  // column's empty state right below already says «Nada en vista previa» and
+  // column's empty state right below already says «Nada en PREVIEW» and
   // what to do — the same words twice was one of four empty messages at launch
   // (2026-11-04 review).
   const empty = missing

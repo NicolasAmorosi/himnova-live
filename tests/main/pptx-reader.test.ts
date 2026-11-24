@@ -108,6 +108,14 @@ test("a paragraph carries its tab stops in order, its default tab size, and the 
   expect(plain.kind === "shape" ? plain.text!.paragraphs[0] : null).toMatchObject({ tabs: [], defaultTab: 914400 });
 });
 
+test("a numbered list starting past the schema's range numbers from its end, not a 10-million-character numeral", () => {
+  const pPr = '<a:pPr marL="342900" indent="-342900"><a:buAutoNum type="romanUcPeriod" startAt="10000000000"/></a:pPr>';
+  const el = readPptxDeck(writeDeck("huge-start.pptx", textBox(pPr)), resources).slides[0]!.model.elements[0]!;
+  const bullet = el.kind === "shape" ? el.text!.paragraphs[0]!.bullet : null;
+  expect(bullet?.kind === "char" ? bullet.char.length : 0).toBeGreaterThan(0);
+  expect(bullet?.kind === "char" ? bullet.char.length : Infinity).toBeLessThan(64);
+});
+
 test("a fill overlay is read with its blend, and an unknown blend paints over", () => {
   const spPr = (blend: string) =>
     `<a:solidFill><a:srgbClr val="FF0000"/></a:solidFill><a:effectLst><a:fillOverlay blend="${blend}"><a:solidFill><a:srgbClr val="00FF00"/></a:solidFill></a:fillOverlay></a:effectLst>`;

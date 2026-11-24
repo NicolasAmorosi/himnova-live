@@ -12,7 +12,7 @@ import { LogoSceneFields } from "./logo-scene-fields";
 
 /** «Logo»: what LOGO shows — an image, or the church's name over a background. Settings ▸ Projection's,
  *  and the welcome's «Tu iglesia» step, which draws the preview bigger beside it (`preview={false}`). */
-export function LogoGroup({ description, preview = true }: { description?: string; preview?: boolean }) {
+export function LogoGroup({ preview = true }: { preview?: boolean }) {
   const t = useT();
   const presentationOpen = useProjectionStore((s) => s.presentationOpen);
   // What the projector is showing right now, read the same way the LIVE
@@ -60,7 +60,7 @@ export function LogoGroup({ description, preview = true }: { description?: strin
 
   return (
     <>
-      <FieldGroup description={description} title={t("settings.groups.logo")}>
+      <FieldGroup title={t("settings.groups.logo")}>
         {/* One of two, chosen (owner, 2026-11-05): before, a loaded image
             silently won and the name rows below it stopped applying. */}
         <FieldRow description={t("settings.logoModeDesc")} label={t("settings.logoMode")}>

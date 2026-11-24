@@ -3,7 +3,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { isPointerFocused } from "@renderer/lib/focus-modality";
 import { cn } from "@renderer/lib/utils";
-import { computeMenuPosition, useFollowTrigger, type MenuPosition } from "./floating-menu";
+import { computeMenuPosition, useCloseOnPointerOutside, useFollowTrigger, type MenuPosition } from "./floating-menu";
 import { Icon, type IconName } from "./icon";
 import { IconButton, TOGGLED_CLASS } from "./icon-button";
 
@@ -104,16 +104,7 @@ export function Menu<T extends string>({
     () => close(true),
   );
 
-  useEffect(() => {
-    if (!open) return;
-    const onPointerDown = (e: PointerEvent) => {
-      const target = e.target as Node;
-      if (triggerRef.current?.contains(target) || menuRef.current?.contains(target)) return;
-      setOpen(false);
-    };
-    document.addEventListener("pointerdown", onPointerDown);
-    return () => document.removeEventListener("pointerdown", onPointerDown);
-  }, [open]);
+  useCloseOnPointerOutside(open, setOpen, triggerRef, menuRef);
 
   // Focus follows the index while the menu is open — including on the frame it
   // opens, which is what makes the keyboard path work at all.

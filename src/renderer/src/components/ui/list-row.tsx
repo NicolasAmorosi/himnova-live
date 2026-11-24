@@ -1,11 +1,15 @@
 import type { LiHTMLAttributes, MouseEvent, ReactNode, Ref } from "react";
 import { cn } from "@renderer/lib/utils";
 import { Icon } from "./icon";
+import { Tooltip } from "./tooltip";
 
 type ListRowProps = Omit<LiHTMLAttributes<HTMLLIElement>, "children"> & {
   /** On the projector right now — the on-air rail plus a heavier label. */
   active?: boolean;
   children: ReactNode;
+  /** A file's path, in a bubble over the label after a short rest of the pointer. A second line under the name made
+   *  every row twice as tall (owner, 2026-11-22). */
+  detail?: string | null | undefined;
   /** Drop indicator while a drag hovers just above this row. */
   dropBefore?: boolean;
   /** Shows the grip icon. By default it's purely visual — the row itself
@@ -41,6 +45,7 @@ export function ListRow({
   active = false,
   children,
   className,
+  detail,
   dropBefore = false,
   grip = false,
   gripDisabled = false,
@@ -95,7 +100,13 @@ export function ListRow({
         <span className="w-4 shrink-0 text-right text-xs tabular-nums text-subtle">{index}</span>
       ) : null}
       {leading ? <span className="flex shrink-0 items-center">{leading}</span> : null}
-      <span className="min-w-0 flex-1 truncate">{children}</span>
+      {detail ? (
+        <Tooltip className="min-w-0 flex-1" content={detail} delayMs={500} fit="path">
+          <span className="min-w-0 truncate">{children}</span>
+        </Tooltip>
+      ) : (
+        <span className="min-w-0 flex-1 truncate">{children}</span>
+      )}
       {trailing ? <span className="flex shrink-0 items-center gap-1">{trailing}</span> : null}
     </li>
   );

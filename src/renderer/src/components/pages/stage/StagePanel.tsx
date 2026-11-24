@@ -95,7 +95,7 @@ function StatusDot() {
       ? t("stagePanel.closedByOperator")
       : t("stagePanel.notShown");
   return (
-    <Tooltip content={label} floating>
+    <Tooltip content={label}>
       <span aria-label={label} className={cn("size-2 shrink-0 rounded-full", shown ? "bg-success" : "bg-danger")} role="img" />
     </Tooltip>
   );
@@ -125,7 +125,7 @@ function CountdownToken() {
       removeLabel={t("stagePanel.clearCountdown")}
       role="group"
     >
-      <Tooltip content={state} floating>
+      <Tooltip content={state}>
         <span className={cn("tabular-nums", running ? TONE_INK[tone] : "text-muted-foreground")} role="timer">
           {text}
         </span>
@@ -147,7 +147,7 @@ function MessageToken() {
       onRemove={only(() => useStageStore.getState().clearMessage())}
       removeLabel={t("stagePanel.removeMessage")}
     >
-      <Tooltip className="min-w-0" content={message.text} floating>
+      <Tooltip className="min-w-0" content={message.text}>
         <span className="min-w-0 truncate @max-[24rem]/head:hidden">{message.text}</span>
       </Tooltip>
     </StatusToken>
@@ -184,12 +184,12 @@ function StageHead({ open }: { open: boolean }) {
         <CountdownToken />
         <MessageToken />
       </div>
-      <Tooltip align="end" content={pinned ? t("stagePanel.unpin") : t("stagePanel.pin")} floating>
+      <Tooltip content={pinned ? t("stagePanel.unpin") : t("stagePanel.pin")}>
         <IconButton aria-label={pinned ? t("stagePanel.unpin") : t("stagePanel.pin")} onClick={only(pin)} toggled={pinned} variant="ghost">
           <Icon name="pin" />
         </IconButton>
       </Tooltip>
-      <Tooltip align="end" content={open ? t("stagePanel.close") : t("stagePanel.open")} floating>
+      <Tooltip content={open ? t("stagePanel.close") : t("stagePanel.open")}>
         <IconButton
           aria-expanded={open}
           aria-label={open ? t("stagePanel.close") : t("stagePanel.open")}
@@ -361,12 +361,12 @@ function CountdownSection() {
           <Readout className={cn("min-w-0 flex-1 truncate", running ? TONE_INK[tone] : "text-muted-foreground")} role="timer">
             {text}
           </Readout>
-          <Tooltip floating content={t("stagePanel.minus")}>
+          <Tooltip content={t("stagePanel.minus")}>
             <Button aria-label={t("stagePanel.minus")} onClick={() => nudgeCountdown(-MINUTE)} variant="outline">
               −1
             </Button>
           </Tooltip>
-          <Tooltip floating content={t("stagePanel.plus")}>
+          <Tooltip content={t("stagePanel.plus")}>
             <Button aria-label={t("stagePanel.plus")} onClick={() => nudgeCountdown(MINUTE)} variant="outline">
               +1
             </Button>
@@ -433,7 +433,7 @@ function MessageSection() {
             <Caption className="font-normal">
               <MessageAge since={message.since} />
             </Caption>
-            <Tooltip align="end" content={t("stagePanel.urgentHint")} floating>
+            <Tooltip content={t("stagePanel.urgentHint")}>
               <Button onClick={() => setUrgent(!message.urgent)} size="xs" toggled={message.urgent} variant="ghost">
                 <Icon name="flash" />
                 {t("stagePanel.urgent")}
@@ -477,7 +477,7 @@ function MessageSection() {
           value={draft}
         />
         <span className="absolute inset-y-0 right-1 flex items-center">
-          <Tooltip align="end" content={t("stagePanel.show")} floating>
+          <Tooltip content={t("stagePanel.show")}>
             <IconButton aria-label={t("stagePanel.show")} disabled={!draft.trim()} onClick={send} size="xs" variant="ghost">
               <Icon name="enter" />
             </IconButton>

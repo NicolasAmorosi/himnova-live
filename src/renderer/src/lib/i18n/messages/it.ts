@@ -186,6 +186,7 @@ const it: Messages = {
     importing: "Importazione {done} di {total}…",
     loading: "Lettura della cartella…",
     loadFailed: "Impossibile leggere la libreria",
+    loadFailedHint: "Prova di nuovo con «Riprova». Se succede ancora, riavvia l’app.",
     folderMissing:
       "La cartella non è disponibile. Se è una chiavetta USB o un disco esterno, collegalo; se l'hai spostata o ha cambiato lettera, trovala con «Individua cartella…».",
   },
@@ -605,8 +606,8 @@ const it: Messages = {
     deleteKeepsFile: "Il suo file resta sul disco: Himnova non elimina mai un file.",
     deleteLiveBody: "Il canto è in onda: resta sul proiettore finché non passi ad altro, e viene tolto dalla libreria.",
     deleteInUseIntro: "Questo canto è usato in:",
-    deleteInUseWarning: "Verrà tolto anche da quei programmi salvati.",
-    deleteInUseLiveWarning: "Verrà tolto anche da quei programmi salvati. È in onda: resta sul proiettore finché non passi ad altro.",
+    deleteInUseWarning: "Verrà tolto anche da quelle scalette salvate.",
+    deleteInUseLiveWarning: "Verrà tolto anche da quelle scalette salvate. È in onda: resta sul proiettore finché non passi ad altro.",
     deleteInScheduleWarning: "Verrà tolto anche dalla scaletta che stai preparando.",
     deleteAnyway: "Elimina comunque",
   },
@@ -815,7 +816,7 @@ const it: Messages = {
       "Strisce accese: il volume iniziale ({level}%) diventa il volume generale in onda, e ciò che è già in onda suona più basso.",
   },
   live: {
-    takeOffAir: "Togli dalla diretta",
+    takeOffAir: "Togli dall'onda",
     title: "In onda",
     disconnected: "Nessuno schermo",
     screenLost: "Schermo scollegato",
@@ -828,6 +829,8 @@ const it: Messages = {
   footer: { black: "NERO", logo: "LOGO", live: "LIVE" },
   /** The top bar's live buttons, in their tooltips beside their keys. */
   footerHints: { goLive: "Manda l'anteprima al proiettore", logo: "Mostra il logo", black: "Schermo nero", live: "Mostra di nuovo il contenuto" },
+  /** A keycap's name where the locale has its own (Italian says «Invio»). */
+  keys: { enter: "Invio" },
   projector: {
     closedUnexpectedly: "La finestra di proiezione si è chiusa",
     recovered: "La finestra di proiezione si è bloccata e si è riaperta da sola",
@@ -846,9 +849,9 @@ const it: Messages = {
     saveHint: "Salva le modifiche a questa scaletta",
     saveNoChanges: "Nessuna modifica",
     duplicateName: "{name} (copia)",
-    sameNameTitle: "C'è già un programma «{name}»",
-    sameNameReplaceBody: "Puoi sostituirlo con il programma che hai aperto, o tenerli entrambi con lo stesso nome.",
-    sameNameKeepBody: "Nell'elenco ci saranno due programmi con lo stesso nome.",
+    sameNameTitle: "C'è già una scaletta «{name}»",
+    sameNameReplaceBody: "Puoi sostituirla con la scaletta che hai aperto, o tenerle entrambe con lo stesso nome.",
+    sameNameKeepBody: "Nell'elenco ci saranno due scalette con lo stesso nome.",
     sameNameReplace: "Sostituisci",
     sameNameKeepBoth: "Tienili entrambi",
     new: "Nuova scaletta",
@@ -960,6 +963,12 @@ const it: Messages = {
       phrases: "Frasi pronte",
       phrasesDesc: "Una per riga. Compaiono nel pannello «Palco» per mostrarle con un clic.",
       phrasesReset: "Usa quelle predefinite",
+      fitTitle: "Adattamento del proiettore",
+      fitDesc: "Per un proiettore o un televisore che taglia i bordi dell'immagine. Si salva per lo schermo {screen}.",
+      fitSize: "Dimensione dell'immagine",
+      fitSizeDesc: "Riducila finché non vedi intero il bordo bianco della griglia. Cambia solo il proiettore: non i monitor, né l'NDI, né il palco.",
+      pattern: "Griglia di prova",
+      patternDesc: "Copre ciò che è proiettato con un bordo, delle frecce e un cerchio. Si spegne quando esci dalle Impostazioni.",
     },
     songs: {
       title: "Tema e licenza",
@@ -1119,7 +1128,7 @@ const it: Messages = {
         off: "Spenta",
         starting: "Avvio…",
         sending:
-          "{count, plural, =0 {Invio · nessun programma la riceve} one {Invio · # programma la riceve} other {Invio · # programmi la ricevono}}",
+          "{count, plural, =0 {In trasmissione · nessun programma la riceve} one {In trasmissione · # programma la riceve} other {In trasmissione · # programmi la ricevono}}",
         runtimeMissing: "Manca NDI, che è gratuito. Installalo, poi chiudi e riapri Himnova Live.",
       },
       errors: {
@@ -1209,6 +1218,7 @@ const it: Messages = {
     updates: "Aggiornamenti",
     updatesCheck: "Cerca aggiornamenti",
     updatesNotes: "Novità",
+    updatesNotesFailed: "Impossibile aprire le Novità nel browser.",
     updatesNew: "Nuova versione",
     updatesDownload: "Scarica",
     updatesInstallNow: "Riavvia e aggiorna",
@@ -1236,7 +1246,7 @@ const it: Messages = {
         "L'installer di Himnova Live {version} si apre alla chiusura dell'app: trascina Himnova Live in Applicazioni e scegli «Sostituisci».",
     },
     updatesErrors: {
-      offline: "Impossibile cercare: non c'è connessione a internet.",
+      offline: "Non c'è connessione a internet. Riprova quando torna.",
       notPublished: "La versione pubblicata non si può ancora scaricare dall'app. È sul sito di Himnova Live.",
       checksum: "Il download è arrivato danneggiato. Riprova.",
       install: "Impossibile aprire il programma di installazione.",
@@ -1252,7 +1262,7 @@ const it: Messages = {
     logoRemove: "Rimuovi",
     logoRemoveTitle: "Rimuovere il logo?",
     logoRemoveLiveBody:
-      "Il proiettore sta mostrando il logo in questo momento: se lo rimuovi, lo schermo resta nero finché non mandi qualcosa IN ONDA. Nessun file viene eliminato — il logo esce dalle impostazioni e puoi sceglierlo di nuovo quando vuoi.",
+      "Il proiettore sta mostrando il logo in questo momento: se lo rimuovi, lo schermo resta nero finché non mandi qualcosa IN ONDA. Nessun file viene eliminato. Il logo esce dalle impostazioni e puoi sceglierlo di nuovo quando vuoi.",
     chooseFile: "Scegli file…",
     clearLive: "Ciò che è proiettato ora",
     logoMode: "Mostra",
@@ -1276,6 +1286,8 @@ const it: Messages = {
     songEndHelp: "«Passa al prossimo della scaletta» manda in onda l'elemento successivo; se il canto non è in scaletta o è l'ultimo, mostra il logo. Con NERO o LOGO sopra, lo toglie solo dall'onda.",
     audioEnd: "Alla fine di un audio",
     audioEndDesc: "Cosa fa un audio mandato in onda quando finisce. La musica di una presentazione segue la sua presentazione.",
+    previewNext: "Ciò che segue in Anteprima",
+    previewNextDesc: "Quando una riga della scaletta va IN ONDA, l'Anteprima mostra quella sotto. Spento, l'Anteprima resta vuota.",
     audioEndHelp: "«Passa al prossimo audio della scaletta» fa suonare la riga che segue, se è anch'essa un audio (le grafiche si saltano), allo stesso volume di quello finito; altrimenti si ferma. Un audio mandato dalla libreria, fuori dalla scaletta, si ferma.",
     audioEndOptions: { stop: "Fermati", loop: "Ripeti in loop", next: "Passa al prossimo audio della scaletta" },
     startVolume: "Volume iniziale",
@@ -1447,9 +1459,9 @@ const it: Messages = {
       subtitle: "Quattro idee e sei pronto a usarla.",
       select: {
         title: "Scegli",
-        body: "Un clic su un versetto, un canto o un file lo mette in ANTEPRIMA. Lì lo vedi solo tu.",
+        body: "Un clic su un versetto, un canto o un file lo mette in Anteprima. Lì lo vedi solo tu.",
       },
-      live: { title: "Proietta", body: "Invio, un doppio clic o IN ONDA lo manda al proiettore, e l'anteprima resta libera per ciò che segue." },
+      live: { title: "Proietta", body: "Invio, un doppio clic o IN ONDA lo manda al proiettore, e l'anteprima resta pronta per ciò che segue." },
       cover: {
         title: "Copri",
         body: "NERO oscura lo schermo e LOGO mostra la tua chiesa. Con LIVE torna quello che c'era.",
@@ -1504,10 +1516,10 @@ const it: Messages = {
     },
     preview: {
       title: "Ciò che va in onda lascia l'Anteprima",
-      subtitle: "Quando mandi qualcosa al proiettore, l'Anteprima si svuota, pronta per ciò che segue. Così un Invio di troppo non fa più ricominciare l'inno che sta suonando.",
+      subtitle: "Quando mandi qualcosa al proiettore, lascia l'Anteprima, pronta per ciò che segue. Così un Invio di troppo non fa più ricominciare l'inno che sta suonando.",
       demo: "Anteprima e In onda mentre si mandano due versetti",
-      free: { title: "L'Anteprima resta libera", body: "Ciò che hai mandato si vede in In onda. Nel programma, la riga si deseleziona e conserva il suo segno di in onda." },
-      enter: { title: "Un Invio di troppo non fa nulla", body: "Con l'Anteprima vuota, Invio e IN ONDA non toccano ciò che è in onda." },
+      free: { title: "L'Anteprima passa a ciò che segue", body: "Ciò che hai mandato si vede in In onda e nella scaletta conserva il suo segno di in onda. Un versetto lascia l'Anteprima vuota; una riga della scaletta lascia quella sotto." },
+      enter: { title: "Un Invio di troppo non ripete nulla", body: "Con l'Anteprima vuota, Invio e IN ONDA non toccano ciò che è in onda. Se mostra la riga seguente, Invio manda quella." },
       back: { title: "Tornare a ciò che è in onda", body: "Se lo scegli di nuovo, IN ONDA lo scopre soltanto e non lo fa mai ricominciare. Per ripartire da capo c'è «Ricomincia»." },
       beats: {
         pick: "Scegli un versetto: lo vedi in Anteprima.",
@@ -1553,6 +1565,13 @@ const it: Messages = {
         lighterFader: "Il fader di In onda e i controlli dello stile del versetto sono più leggeri: non ridisegnano più tutta la finestra a ogni passo.",
         tooltips: "I suggerimenti che compaiono passando il mouse non vengono più tagliati dai pannelli, si chiudono con Esc e il lettore di schermo li legge insieme al loro pulsante.",
         deckVideoMemory: "Una presentazione con dentro un video pesante si apre senza caricare tutto il video in memoria.",
+        nextInPreview: "Quando una riga della scaletta va IN ONDA, l'Anteprima mostra già quella sotto. Per lasciare l'Anteprima vuota, si spegne in Impostazioni ▸ Proiezione.",
+        pathBubble: "Se lasci il puntatore su una riga della scaletta, un fumetto mostra dove si trova il suo file.",
+        projectorFit: "Se il proiettore taglia i bordi, Impostazioni ▸ Schermi ha «Adattamento del proiettore», con una griglia di prova, e ogni schermo mostra la sua risoluzione reale.",
+        deckTimings: "Le presentazioni con tempi avanzano come in PowerPoint: una impostata per avanzare a mano non va più avanti da sola, e ogni diapositiva somma la sua transizione al suo tempo.",
+        crashRecovery: "Se l'app si chiude all'improvviso, alla riapertura la riga che era in onda torna in Anteprima e gli editor propongono di recuperare ciò che stavi modificando.",
+        hymnMusic: "La musica di un inno in onda continua anche se togli la chiavetta USB.",
+        scheduleFolder: "Il «+» della scaletta si apre nella cartella da cui hai aggiunto l'ultima volta, anche dopo aver riaperto l'app.",
       },
     },
   },
@@ -1610,6 +1629,20 @@ const it: Messages = {
     search: "Cerca…",
     noResults: "Nessun risultato",
     itemCount: "{count, plural, one {# elemento} other {# elementi}}",
+  },
+  editorDrafts: {
+    title: "Recuperare ciò che stavi modificando?",
+    body: "L'app si è chiusa senza salvare le modifiche a {items}. «Recupera» apre ogni editor come l'hai lasciato, uno alla volta.",
+    recover: "Recupera",
+    discard: "Scarta",
+    untitled: "senza nome",
+    kinds: {
+      song: "il canto «{name}»",
+      songTheme: "il tema «{name}»",
+      plate: "la grafica «{name}»",
+      scene: "la scena «{name}»",
+      program: "la scaletta «{name}»",
+    },
   },
 };
 

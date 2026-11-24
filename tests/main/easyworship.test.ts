@@ -7,7 +7,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import Database from "better-sqlite3";
-import { afterAll, beforeAll, describe, expect, test } from "vitest";
+import { afterAll, beforeAll, describe, expect, test, vi } from "vitest";
 import { openDatabase } from "../../src/main/db/client";
 import { runMigrations } from "../../src/main/db/migrate";
 import { getSongsRepo, initRepos } from "../../src/main/services/repos";
@@ -15,6 +15,9 @@ import { importEasyWorshipFolder } from "../../src/main/services/song-import";
 import { findEasyWorshipData, readEasyWorship } from "../../src/main/songs/easyworship";
 import { rtfToText } from "../../src/main/songs/rtf";
 import { IpcError } from "../../src/shared/ipc/result";
+
+// The databases are read on a thread (`song-db-worker.ts`); here, in this process.
+vi.mock("../../src/main/songs/song-db-worker?nodeWorker", () => import("./support/song-db-worker-in-process"));
 
 const drizzleDir = path.join(process.cwd(), "drizzle");
 
@@ -146,4 +149,20 @@ describe("the EasyWorship database", () => {
       expect((error as IpcError).code).toBe("EW_UNREADABLE");
     }
   });
+});
+
+test("a Songs.db whose song table is a view that never ends is refused at once, not run on main (2026-11-22 audit, SE3)", () => {
+  const folder = path.join(tmpDir, "hostile");
+  fs.mkdirSync(folder, { recursive: true });
+  const songs = new Database(path.join(folder, "Songs.db"));
+  songs.exec(
+    "CREATE VIEW song AS WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x + 1 FROM c) SELECT 1 AS rowid, 't' AS title, NULL AS author, NULL AS copyright, NULL AS administrator, NULL AS reference_number, NULL AS vendor_id FROM c WHERE x < 0",
+  );
+  songs.close();
+  const words = new Database(path.join(folder, "SongWords.db"));
+  words.exec("CREATE TABLE word (song_id integer, words rtf)");
+  words.close();
+  const started = performance.now();
+  expect(() => readEasyWorship(folder, "es")).toThrow(/not a plain table/);
+  expect(performance.now() - started).toBeLessThan(1000);
 });

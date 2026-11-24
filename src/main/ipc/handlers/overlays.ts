@@ -1,5 +1,6 @@
 import type { Handlers } from "../register";
-import { getOverlaysRepo, getProgramsRepo } from "../../services/repos";
+import { getDbHandle, getOverlaysRepo, getProgramsRepo } from "../../services/repos";
+import { writeDurably } from "../../db/client";
 import { removeOverlayPlate } from "../../services/removal";
 import { IpcError } from "@shared/ipc/result";
 import { isPlateName, isPlateUpsert } from "@shared/overlay-validators";
@@ -27,8 +28,9 @@ export const overlaysHandlers: Pick<
   | "overlay:reorder"
 > = {
   "overlay:list": () => getOverlaysRepo().list(),
-  "overlay:create": (input) => getOverlaysRepo().create(assertValid(input)),
-  "overlay:update": (input) => getOverlaysRepo().update(input.id, assertValid(input)),
+  "overlay:create": (input) => writeDurably(getDbHandle().sqlite, () => getOverlaysRepo().create(assertValid(input))),
+  "overlay:update": (input) =>
+    writeDurably(getDbHandle().sqlite, () => getOverlaysRepo().update(input.id, assertValid(input))),
   "overlay:duplicate": ({ id, name }) => {
     if (!isPlateName(name)) {
       throw new IpcError({ code: "INVALID_OVERLAY_PLATE", message: mt("plates.invalidName") });

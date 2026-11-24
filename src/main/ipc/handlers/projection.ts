@@ -7,11 +7,12 @@ import { broadcast } from "../../services/broadcast";
 import { pinDecks } from "../../slides/deck-service";
 import { commandLiveEngine, redrawEngineFrame, syncLiveEngine, syncLiveEngineIntoNewProjector } from "../../media/engine-sessions";
 import { IpcError } from "@shared/ipc/result";
-import { deckIdOfUrl } from "@shared/urls";
-import { keepLiveDeckSource } from "../../protocol/worship-protocol";
+import { deckIdOfUrl, linkedAudioAssetIdOfUrl } from "@shared/urls";
+import { keepLiveDeckSource, liveMusicPlays } from "../../protocol/worship-protocol";
 import { reopenStageWindow, showOnStage, stageShown, stageSnapshot } from "../../windows/stage-window";
 import { crashLimit } from "../../windows/crash-limit";
 import { reportLevel } from "../../media/audio-levels";
+import { projectorFit, showProjectorPattern } from "../../windows/projector-screen";
 
 /** How long `projection:open` waits for the new window to mount: a renderer
  *  that never pulls its snapshot must not leave GO LIVE hanging. */
@@ -35,6 +36,8 @@ export const projectionHandlers: Pick<
   | "projection:reportMediaStatus"
   | "projection:reportMediaError"
   | "projection:getSnapshot"
+  | "projection:getFit"
+  | "projection:showPattern"
   | "projection:wantVideoFrame"
   | "projection:reportLevels"
   | "stage:show"
@@ -112,9 +115,11 @@ export const projectionHandlers: Pick<
 
   "projection:show": (output) => {
     projectionState.send(output);
-    // The output names the deck the projector shows; its bytes must outlive its file.
+    // The output names the deck the projector shows; its bytes, and its music's, must outlive their files.
     const deckId = output.kind === "slide" ? deckIdOfUrl(output.url) : null;
-    if (deckId !== null) keepLiveDeckSource(deckId);
+    if (deckId !== null && output.kind === "slide") {
+      keepLiveDeckSource(deckId, getMediaRepo().linkedAudioPathById(getMediaRepo().survivingId(output.deckAssetId)));
+    }
     syncLiveEngine();
     // A deck on air under a row a relocate merged away is pinned as the row it lives on as: under the dead id the
     // next slide unpinned it (2026-11-15 audit, D4). The projector got the output as it is.
@@ -163,6 +168,12 @@ export const projectionHandlers: Pick<
     return projectionState.getSnapshot();
   },
 
+  "projection:getFit": () => projectorFit(),
+  "projection:showPattern": (on) => {
+    if (typeof on !== "boolean") throw new IpcError({ code: "INVALID_ARGUMENT", message: "Invalid pattern flag." });
+    showProjectorPattern(on);
+  },
+
   "projection:mediaCommand": (command) => {
     if (commandLiveEngine(command)) return;
     // The NDI output's copy of a Chromium video seeks with the projector's.
@@ -170,6 +181,12 @@ export const projectionHandlers: Pick<
   },
 
   "projection:setAudioTracks": (tracks) => {
+    // A new epoch of a deck's music is a new playback of it (the projector keys its `<audio>` by it): the file it
+    // reads is settled before its first byte. A push without it ends the one there was.
+    const track = tracks.find((candidate) => linkedAudioAssetIdOfUrl(candidate.url) !== null);
+    const assetId = track ? linkedAudioAssetIdOfUrl(track.url) : null;
+    const music = assetId === null ? null : getMediaRepo().linkedAudioPathById(getMediaRepo().survivingId(assetId));
+    liveMusicPlays(music, track?.epoch ?? null);
     projectionState.setAudioTracks(tracks);
     syncLiveEngine();
   },

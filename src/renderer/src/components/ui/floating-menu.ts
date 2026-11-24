@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, type RefObject } from "react";
+import { useEffect, useLayoutEffect, useRef, type RefObject } from "react";
 
 /**
  * Where a portalled list goes, for the two primitives that open one: `Select`
@@ -97,4 +97,23 @@ export function useFollowTrigger(
       observer.disconnect();
     };
   }, [open, triggerRef]);
+}
+
+/** Closes an open popup when the pointer goes down outside both its trigger and the popup itself. */
+export function useCloseOnPointerOutside(
+  open: boolean,
+  setOpen: (open: boolean) => void,
+  triggerRef: RefObject<HTMLElement | null>,
+  popupRef: RefObject<HTMLElement | null>,
+): void {
+  useEffect(() => {
+    if (!open) return;
+    const onPointerDown = (e: PointerEvent) => {
+      const target = e.target as Node;
+      if (triggerRef.current?.contains(target) || popupRef.current?.contains(target)) return;
+      setOpen(false);
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    return () => document.removeEventListener("pointerdown", onPointerDown);
+  }, [open, setOpen, triggerRef, popupRef]);
 }

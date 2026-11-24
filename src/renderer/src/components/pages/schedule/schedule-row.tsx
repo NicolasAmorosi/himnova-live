@@ -1,6 +1,6 @@
-import type { DragEvent } from "react";
+import { useEffect, useRef, type DragEvent } from "react";
 import { Icon, ListRow } from "@renderer/components/ui";
-import { useItemLabel } from "@renderer/lib/hooks/use-program-item-display";
+import { useItemLabel, useItemPath } from "@renderer/lib/hooks/use-program-item-display";
 import { useAudioStore } from "@renderer/stores/audio.store";
 import { survivingAssetId } from "@renderer/stores/program.store";
 import { PlateAirStatus } from "@renderer/components/shared/plate-air-status";
@@ -37,6 +37,16 @@ export function ScheduleRow({
   selected,
 }: ScheduleRowProps) {
   const label = useItemLabel(item);
+  // Where the file is (owner, 2026-11-21): two «558» from two hymnals, or a copy on another drive, told apart.
+  const path = useItemPath(item);
+  const ref = useRef<HTMLLIElement>(null);
+  // PREVIEW moves to the next row on its own after GO LIVE (`dropSentPreview`): that row is brought into view. Only on
+  // a change: a save gives every row a new id and remounts them, and the list jumped back to the selected one.
+  const wasSelected = useRef(selected);
+  useEffect(() => {
+    if (selected && !wasSelected.current) ref.current?.scrollIntoView({ block: "nearest" });
+    wasSelected.current = selected;
+  }, [selected]);
   // Audio never claims the on-air rail (`active`) — that means "this is what
   // the projector shows", and audio never is. Its own indicator here is what
   // tells the operator it's sounding without implying it's on screen. A sound on air keeps the id it went out with,
@@ -53,6 +63,7 @@ export function ScheduleRow({
     <ListRow
       active={active}
       data-index={index}
+      detail={path}
       draggable
       dropBefore={dragOver}
       grip
@@ -62,6 +73,7 @@ export function ScheduleRow({
       onClick={onClick}
       onDoubleClick={onDoubleClick}
       onDragStart={onDragStart}
+      ref={ref}
       selected={selected}
       trailing={
         sounding ? (

@@ -1,4 +1,4 @@
-import { survivingAssetId, useProgramStore } from "@renderer/stores/program.store";
+import { rowIndexOf, survivingAssetId, useProgramStore } from "@renderer/stores/program.store";
 import { buildCumulativeMs, useProjectionStore } from "@renderer/stores/projection.store";
 import { useDeckStore } from "@renderer/stores/deck.store";
 import { useDisplayStore } from "@renderer/stores/display.store";
@@ -9,8 +9,13 @@ import { useAudioStore, nextAssetTrack, type LiveAudioTrack } from "@renderer/st
 import { findScene, useUtilityStore } from "@renderer/stores/utility.store";
 import { notifyManualNavigation, restartDeck } from "@renderer/effects/deck-autoplay";
 import { handLiveItemToTab, projectVerse, recordLiveVerse, scheduleItemParallel } from "@renderer/lib/actions/bible";
-import { stopPreviewPlayback } from "@renderer/lib/actions/preview-playback";
-import { dropSentPreview, previewedScheduleItem } from "@renderer/lib/actions/preview";
+import { previewReachedEnd, stopPreviewPlayback } from "@renderer/lib/actions/preview-playback";
+import {
+  dropSentPreview,
+  followChain,
+  previewedScheduleItem,
+  previewJustTookItself,
+} from "@renderer/lib/actions/preview";
 import type { ProgramItemDTO } from "@shared/types/program";
 import { defaultMediaVolume, useSettingsStore } from "@renderer/stores/settings.store";
 import { api } from "@renderer/lib/api";
@@ -19,11 +24,12 @@ import { toast } from "@renderer/lib/toast";
 import type { MediaAsset } from "@shared/types/media";
 import type { DeckDTO } from "@shared/types/deck";
 import type { LiveDeck } from "@renderer/stores/projection.store";
-import type { OverlayState } from "@shared/types/projection";
+import { mediaErrorKey, type OverlayState } from "@shared/types/projection";
 import { claimLiveIntent, currentLiveIntent, isCurrentLiveIntent } from "@renderer/lib/actions/live-intent";
 import { playableAssetUrl } from "@renderer/stores/engine-assets.store";
 import { getCachedMediaAsset } from "@renderer/lib/hooks/use-media-asset";
 import type { AssetKind } from "@shared/constants";
+import { assetUrl } from "@shared/urls";
 import { prepareSong } from "@renderer/lib/actions/songs";
 import { songBackgroundVideo } from "@renderer/lib/song-output";
 import { jumpTo, stepSong, type SongJumpTarget } from "@shared/song-jump";
@@ -103,23 +109,37 @@ function toLiveDeck(deck: DeckDTO): LiveDeck {
  */
 async function explainDeckFailure(assetId: number): Promise<void> {
   const entry = useDeckStore.getState().byAssetId[assetId];
-  if (entry?.status !== "failed") return;
+  // A deck still ready says why only when its source did not answer (`ensure`).
+  if (entry?.status !== "failed" && !(entry?.status === "ready" && entry.error)) return;
   const asset = await api.library.get(assetId);
   toast.warning(t("deck.liveFailed", { name: asset?.name ?? "", reason: entry.error ?? t("deck.failed") }));
 }
 
 async function goLiveWithDeck(assetId: number, startSlideIndex: number, intent: number): Promise<boolean> {
+  // Its file looked at first, as a video's is: a deck read before its file went away or was edited went out with the
+  // slides of then, and the projector got a 410 for each one it had not drawn yet (2026-11-22 audit, RV-2).
+  const source = await api.library.check(assetId);
+  if (source && source.missingSince !== null) {
+    toast.warning(t("deck.liveFailed", { name: source.name, reason: t("preview.missingHint") }));
+    return false;
+  }
   const deckStore = useDeckStore.getState();
   const cached = deckStore.byAssetId[assetId];
   let deck: DeckDTO | null;
-  if (cached?.status === "ready" && cached.deck && cached.deck.slides.length > 0) {
-    // Already known ready in the store — go live with it immediately instead
-    // of waiting on an `ensure()` round-trip. For an already-prewarmed deck
-    // that round-trip is a pure cache hit on main's side anyway (same DTO,
-    // a beat later); waiting on it is exactly what made GO LIVE on a
-    // prepared deck feel slow. Still revalidate in the background (a
-    // relocate, a source file that changed on disk) so a real change is
-    // caught on the next go-live rather than never.
+  if (
+    cached?.status === "ready" &&
+    cached.deck &&
+    cached.deck.slides.length > 0 &&
+    cached.deck.sourceSizeBytes === source?.sizeBytes &&
+    cached.deck.sourceMtimeMs === source.mtimeMs
+  ) {
+    // Already known ready in the store, and read from the file as it is now:
+    // go live with it immediately instead of waiting on an `ensure()`
+    // round-trip. For an already-prewarmed deck that round-trip is a pure
+    // cache hit on main's side anyway (same DTO, a beat later); waiting on
+    // it is exactly what made GO LIVE on a prepared deck feel slow. Still
+    // revalidated in the background (a relocate) for the next go-live. A
+    // file edited since is read again below, before anything is cut.
     deck = cached.deck;
     void deckStore.ensure(assetId);
   } else {
@@ -188,7 +208,8 @@ async function goLiveWithMediaAsset(
   intent: number,
   fromItemId?: number,
 ): Promise<MediaLiveResult> {
-  const asset = await api.library.get(assetId);
+  // Its file looked at now, not at the last sweep (up to 5 minutes ago): one gone since cut what was on air to black.
+  const asset = await api.library.check(assetId);
   if (!asset) return "failed";
   // A file PREVIEW already calls missing never reaches the projector: sending
   // it anyway cut what was live to a black, silent stage. Said the way a deck
@@ -400,12 +421,6 @@ function previewedPlateId(target: PreviewTarget, item: ProgramItemDTO | undefine
  *  goes up over it, `goLive()`'s own branch). */
 type RowLiveResult = "base" | "audio" | "failed";
 
-/** Where a schedule row is now, by id: every edit of the schedule copies all of its rows (`reindex`), so the object
- *  held across an `await` is never in `items` again (2026-11-15 audit, A16). ponytail: a save landing meanwhile gives
- *  every row a new id (`adoptSaved`) and the rail stays off; match by position if that ever shows up. */
-function rowIndexNow(item: ProgramItemDTO): number {
-  return useProgramStore.getState().items.findIndex((row) => row.id === item.id);
-}
 
 async function goLiveWithScheduleItem(
   index: number,
@@ -420,7 +435,7 @@ async function goLiveWithScheduleItem(
    *  dropped above it or deleted meanwhile used to put the on-air rail on
    *  whatever row ended up at the old position. */
   const settleRail = () => {
-    const at = rowIndexNow(item);
+    const at = rowIndexOf(item);
     useProgramStore.getState().setActive(at >= 0 ? at : null);
   };
 
@@ -516,7 +531,7 @@ async function goLiveWithAsset(
  * the rail), nothing after it shows anything, or that row could not go live
  * (a deck that won't open): the caller's logo, rather than the ended video
  * frozen under a rail. True as well when the operator acted meanwhile — what
- * they did wins over the logo too. PREVIEW stays where the operator left it.
+ * they did wins over the logo too. PREVIEW moves only when it was left behind (`followChain`).
  */
 export async function goLiveWithNextScheduleItem(): Promise<boolean> {
   const { activeIndex, items } = useProgramStore.getState();
@@ -527,9 +542,13 @@ export async function goLiveWithNextScheduleItem(): Promise<boolean> {
       item.kind !== "plate" &&
       !(item.kind === "media" && getCachedMediaAsset(item.mediaAssetId)?.kind === "audio"),
   );
-  if (next < 0) return false;
+  const row = items[next];
+  if (!row) return false;
+  const ended = items[activeIndex];
   const intent = claimLiveIntent();
-  return (await goLiveWithScheduleItem(next, 1, 0, intent)) === "base" || !isCurrentLiveIntent(intent);
+  const live = (await goLiveWithScheduleItem(next, 1, 0, intent)) === "base";
+  if (live) followChain(ended, row);
+  return live || !isCurrentLiveIntent(intent);
 }
 
 /**
@@ -539,7 +558,7 @@ export async function goLiveWithNextScheduleItem(): Promise<boolean> {
  * ended one had, so a list of background music keeps the operator's volume.
  * Only when that row is an audio too: the offertory's music further down
  * never starts on its own mid-service. Nothing when it was not sent from the
- * schedule, or its row is gone.
+ * schedule, or its row is gone. PREVIEW moves only when it was left behind (`followChain`).
  */
 export async function goLiveWithNextScheduleAudio(ended: LiveAudioTrack): Promise<void> {
   if (ended.fromItemId === undefined) return;
@@ -560,6 +579,7 @@ export async function goLiveWithNextScheduleAudio(ended: LiveAudioTrack): Promis
   const asset = await api.library.get(next.mediaAssetId);
   if (asset?.kind !== "audio" || !isCurrentLiveIntent(intent)) return;
   goLiveWithAudioAsset(asset, 0, next.id, ended.volume);
+  followChain(items[from], next);
 }
 
 /** Whether a preview target is a standalone audio, which goes live without
@@ -570,17 +590,33 @@ function isAudioTarget(target: PreviewTarget, item: ProgramItemDTO | undefined):
   return item?.kind === "media" && getCachedMediaAsset(item.mediaAssetId)?.kind === "audio";
 }
 
-/** Whether PREVIEW names the deck or the song already on the projector — its row re-selected, or it picked again
- *  from the library or the Songs tab. */
+/** Whether PREVIEW names the deck, the song or the image already on the projector: its row re-selected, or it picked
+ *  again from the library or the Songs tab. */
 function isAlreadyLive(target: PreviewTarget, item: ProgramItemDTO | undefined): boolean {
-  const { base } = useProjectionStore.getState();
+  const { base, liveDeck, mediaErrors } = useProjectionStore.getState();
   if (base?.kind === "deck") {
     const deck = target.kind === "asset" && target.assetKind === "ppt" ? target.assetId : item?.kind === "ppt" ? item.mediaAssetId : null;
-    return deck === survivingAssetId(base.assetId);
+    // One whose slides stopped drawing (its file edited or gone under it, 410) is sent again, as a failed image is:
+    // read again if it changed, refused with the missing-file notice if it went (2026-11-22 audit, RV-2). The slide on
+    // air, not the deck: the slot keeps a slide that failed once and was left behind, and with it a hymn picked again
+    // went back to PREVIEW's slide with its music at 0:00 (review of the night, RN-1). Its url is the one the projector
+    // reports (`output-view.tsx`), a model slide's included: `/<n>/model`.
+    const slides = liveDeck?.slides ?? [];
+    const onAir = slides[Math.min(Math.max(base.slideIndex, 1), slides.length) - 1];
+    const failed =
+      onAir !== undefined && mediaErrors[mediaErrorKey({ kind: "scene" })]?.url === (onAir.modelUrl ?? onAir.url);
+    return !failed && deck === survivingAssetId(base.assetId);
   }
   if (base?.kind === "song") {
     const song = target.kind === "song" ? target.songId : item?.kind === "song" ? item.songId : null;
     return song === base.songId;
+  }
+  // An image sent again faded into itself: the same file in a later row, or picked again from the library. One
+  // that failed to load is sent again, the operator's retry, as a failed video is.
+  if (base?.kind === "image") {
+    const image = target.kind === "asset" && target.assetKind === "image" ? target.assetId : item?.kind === "media" ? item.mediaAssetId : null;
+    const failed = mediaErrors[mediaErrorKey({ kind: "scene" })]?.url === assetUrl(base.assetId);
+    return !failed && image === survivingAssetId(base.assetId);
   }
   return false;
 }
@@ -589,11 +625,13 @@ function isAlreadyLive(target: PreviewTarget, item: ProgramItemDTO | undefined):
  * Stage two: send whatever is in the preview pane to the projector. The single
  * implementation behind the GO LIVE button, the Enter shortcut and
  * double-clicking a row, a tile or a verse — so all four can never diverge.
- * What reached the projector (or the speakers) leaves PREVIEW (`dropSentPreview`).
+ * What reached the projector (or the speakers) leaves PREVIEW (`dropSentPreview`), or a schedule row leaves the next
+ * one there.
  */
 export async function goLive(): Promise<void> {
-  const { slideIndex, positionSeconds, target } = usePreviewStore.getState();
-  if (!target) return;
+  const { slideIndex, target } = usePreviewStore.getState();
+  if (!target || previewJustTookItself()) return;
+  const positionSeconds = previewReachedEnd() ? 0 : usePreviewStore.getState().positionSeconds;
   // Everything PREVIEW names is pinned here, before the first `await`: the operator keeps working while the
   // projector opens (up to 5 s), and the row clicked meanwhile used to be what went out (2026-11-15 audit, A5).
   const item = target.kind === "scheduleItem" ? previewedScheduleItem() : undefined;
@@ -602,7 +640,7 @@ export async function goLive(): Promise<void> {
 
   const plateId = previewedPlateId(target, item);
   if (plateId !== null) {
-    if (await goLiveWithPlate(plateId)) dropSentPreview(target);
+    if (await goLiveWithPlate(plateId)) dropSentPreview(target, item);
     return;
   }
 
@@ -640,7 +678,8 @@ export async function goLive(): Promise<void> {
   // than inside each branch.
   if (!isCurrentLiveIntent(intent)) return;
 
-  if (await sendPreviewed(target, item, verses, slideIndex, positionSeconds, intent)) dropSentPreview(target);
+  const row = target.kind === "verse" ? target.row : item;
+  if (await sendPreviewed(target, item, verses, slideIndex, positionSeconds, intent)) dropSentPreview(target, row);
 }
 
 /** GO LIVE on what is already live under NEGRO or LOGO: uncovered with a fade, as B, L and VIVO do; it was a cut
@@ -662,30 +701,35 @@ async function sendPreviewed(
   positionSeconds: number,
   intent: number,
 ): Promise<boolean> {
-  // The deck or the song already on air, picked again: only uncovered, never sent again — that took the hymn back to
-  // its first slide and its music to 0:00 (2026-11-15 audit, A3), as a video's own check does. «Reiniciar» starts it
-  // over and both grids jump.
+  // The deck, the song or the image already on air, picked again: only uncovered, never sent again. That took the hymn
+  // back to its first slide and its music to 0:00 (2026-11-15 audit, A3), as a video's own check does. «Reiniciar»
+  // starts it over and both grids jump. Sent from another row of the same file, that row takes the rail.
   if (isAlreadyLive(target, item)) {
+    const at = item ? rowIndexOf(item) : -1;
+    if (at >= 0) useProgramStore.getState().setActive(at);
     uncoverLive();
     return true;
   }
   switch (target.kind) {
     case "scheduleItem": {
       // Where that row is NOW: rows moved or added during the wait shifted its index.
-      const index = item ? rowIndexNow(item) : -1;
+      const index = item ? rowIndexOf(item) : -1;
       return index >= 0 && (await goLiveWithScheduleItem(index, slideIndex, positionSeconds, intent)) !== "failed";
     }
     case "asset":
       return goLiveWithAsset(target.assetId, target.assetKind, slideIndex, positionSeconds, intent);
-    case "verse":
+    case "verse": {
       // An index into the chapter loaded when it was pressed: another chapter browsed meanwhile makes it another verse.
       if (useBibleStore.getState().verses !== verses) return false;
-      useProgramStore.getState().setActive(null);
       useAudioStore.getState().setDeckTrack(null);
       useProjectionStore.getState().beginScene();
       projectVerse(target.verseIndex);
+      // After `projectVerse`, which takes the rail down: a verse walked out of a Bible row is still that row's.
+      const at = target.row ? rowIndexOf(target.row) : -1;
+      useProgramStore.getState().setActive(at >= 0 ? at : null);
       useProjectionStore.getState().setOverlay("none");
       return true;
+    }
     case "utility":
       return goLiveWithUtilityScene(target.sceneId, null);
     case "song": {

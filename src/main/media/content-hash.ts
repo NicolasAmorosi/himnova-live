@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import fsp from "node:fs/promises";
+import { backgroundStat } from "../services/background-files";
 import { getMediaRepo } from "../services/repos";
 import { broadcast } from "../services/broadcast";
 import type { AssetKind } from "@shared/constants";
@@ -103,8 +104,9 @@ export async function backfillContentHashes(): Promise<void> {
             // actually taken over is what keeps the stamp self-consistent. A
             // stale row then simply fails to match and gets re-hashed on the
             // next launch, instead of carrying a digest that describes bytes
-            // nobody has.
-            const stat = await fsp.stat(asset.path);
+            // nobody has. One of the background's two threads: on a share that went away, a third beside them
+            // (2026-11-22 review, RN2-8).
+            const stat = await backgroundStat(asset.path);
             const hash = await hashFile(asset.path);
             mediaRepo.setContentHash(asset.id, hash, stat.size, Math.trunc(stat.mtimeMs));
             stamped += 1;

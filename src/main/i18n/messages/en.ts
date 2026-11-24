@@ -1,7 +1,7 @@
 import type { MainMessages } from "./es";
 
 const en: MainMessages = {
-  window: { projectionTitle: "Himnova Live — Projection", stageTitle: "Himnova Live — Stage" },
+  window: { projectionTitle: "Himnova Live · Projection", stageTitle: "Himnova Live · Stage" },
   menu: {
     about: "About {app}",
     services: "Services",
@@ -40,8 +40,12 @@ const en: MainMessages = {
     dbRestoreOffer: "It is damaged. There is a verified copy from {date}: restoring it brings everything back to how it was that day and opens the app again. The damaged database is kept aside, in backups/before-restore.",
     dbRestoreButton: "Restore the copy from {date}",
     crashTitle: "Unexpected error",
+    crashRunning:
+      "Himnova Live is still running, but something failed inside it. Restart the app when you can. If it happens again, the details below help find the cause.",
+    crashStartup:
+      "Himnova Live couldn't start and will close. Open it again; if it happens again, the details below help find the cause.",
     formerAppTitle: "The previous version, “Lumina Live”, was moved to the Trash",
-    formerAppDetail: "The app is now called Himnova Live: open it from Applications. Your programs, library and settings are as they were.",
+    formerAppDetail: "The app is now called Himnova Live: open it from Applications. Your schedules, library and settings are as they were.",
     controlDownTitle: "The control window did not come back",
     controlDownMessage: "The control window closed because of an error several times in a row and did not come back on its own.",
     controlDownDetail: "What is live goes on as it is. “Retry” opens it again over what is live; if it closes again, this notice comes back.",
@@ -67,8 +71,8 @@ const en: MainMessages = {
     sourceGone: "The file is no longer available: {path}",
     noSlides: "The presentation didn't produce any slides.",
     deckUnreadable: "Couldn't read the presentation that was just prepared.",
-    rasterCrashed: "The slide rendering process quit unexpectedly.",
-    rasterHung: "Rendering one of the pages got stuck.",
+    rasterCrashed: "Preparing the PDF was interrupted. Try again with “Retry”.",
+    rasterHung: "The PDF took too long to prepare. Try again with “Retry”.",
     pdfPassword: "The PDF is password-protected and can't be opened.",
     deckPassword:
       "The presentation has a password to open it. Open it in PowerPoint, remove the password (File ▸ Info ▸ Protect Presentation) and save it again.",
@@ -78,14 +82,23 @@ const en: MainMessages = {
       "The file couldn't be opened as a presentation: it may be damaged, or not be a presentation. Try opening it in PowerPoint and saving it again as .pptx.",
     deckTooSlow:
       "The presentation took too long to read. Try again with “Retry”.",
+    sourceNotResponding:
+      "The drive or folder holding the presentation isn't responding. Check the drive or the network and try again with “Retry”.",
+    pdfUnreadable:
+      "The PDF couldn't be opened. Try again with “Retry”; if it happens again, it may be damaged: open it in your PDF reader and export it again.",
+    pdfNotRecorded:
+      "The PDF couldn't be prepared. Try again with “Retry”; if it happens again, check that the file is still there and that the disk has free space.",
   },
   bible: {
     unknownFormat:
       "The format of “{file}” isn't recognized. Accepted: JSON, Zefania/USFX/OSIS XML and SQLite modules (MyBible, MySword).",
-    zipUnreadable: "Couldn't read the .zip file: {detail}",
+    zipUnreadable: "Couldn't read the .zip file: it may be incomplete or damaged. Download it again.",
     zipEmpty: "The .zip doesn't contain any XML or JSON file.",
-    sqliteUnreadable: "Couldn't open the SQLite module: {detail}",
+    sqliteUnreadable: "Couldn't open the SQLite module: it may be incomplete or damaged. Download it again.",
     sqliteNoVerses: "The SQLite file isn't a MyBible or MySword module: it has no verses.",
+    jsonBroken: "Couldn't read “{file}”: its JSON is incomplete or damaged. Download it again.",
+    xmlBroken: "Couldn't read “{file}”: its XML is incomplete or damaged. Download it again.",
+    fileUnreadable: "Couldn't read “{file}”. Check that the file is still there and try again.",
     jsonNoBooks: "The JSON file isn't shaped like a Bible: no books were found in it.",
     jsonNoChapters: "The JSON file isn't shaped like a Bible: no chapters were found in it.",
     notZefania: "The XML isn't a Zefania Bible: the <XMLBIBLE> element is missing.",
@@ -95,6 +108,7 @@ const en: MainMessages = {
     invalidName: "The version name isn't valid.",
     alreadyInstalled: "That file is already installed: it's “{name}”.",
     bundledNotFound: "That version is not included in this installation.",
+    versionNotFound: "That Bible version is no longer installed.",
     invalidLanguage: "The version's language is not valid.",
   },
   library: {

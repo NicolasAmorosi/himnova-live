@@ -18,6 +18,7 @@ import { DraftRepo } from "../../src/main/db/repositories/draft.repo";
 import { SettingsRepo } from "../../src/main/db/repositories/settings.repo";
 import { seedSongThemes } from "../../src/main/db/seed/seed-song-themes";
 import { decodeText } from "../../src/main/decode-text";
+import mainEs from "../../src/main/i18n/messages/es";
 import { getSongsRepo, initRepos } from "../../src/main/services/repos";
 import { listSongFolder, writeSongFile } from "../../src/main/services/song-files";
 import { importSongFiles } from "../../src/main/services/song-import";
@@ -43,6 +44,9 @@ import {
 import { isSongThemeUpsert } from "../../src/shared/song-validators";
 import { DEFAULT_BIBLE_STYLE } from "../../src/shared/types/bible-style";
 import { IpcError } from "../../src/shared/ipc/result";
+
+// The databases are read on a thread (`song-db-worker.ts`); here, in this process.
+vi.mock("../../src/main/songs/song-db-worker?nodeWorker", () => import("./support/song-db-worker-in-process"));
 
 const drizzleDir = path.join(process.cwd(), "drizzle");
 
@@ -149,8 +153,12 @@ describe("the song validator", () => {
   });
 });
 
-describe("the repo and its search", () => {
+// A story in steps (create, search, edit), so its tests keep their order; it starts from an empty library so the songs
+// other suites leave behind never count in its searches.
+describe("the repo and its search", { shuffle: false }, () => {
   let gracia: number;
+
+  beforeAll(() => sqlite.exec("DELETE FROM program_items WHERE song_id IS NOT NULL; DELETE FROM songs;"));
 
   test("create, read back, update and duplicate", () => {
     const created = repo.create(
@@ -224,11 +232,12 @@ describe("migration 0019", () => {
           "INSERT INTO program_items (program_id, position, kind, song_id, media_asset_id, created_at) VALUES (?, 0, ?, ?, ?, 0)",
         )
         .run(programId, kind, songId, mediaAssetId);
-    const someSong = repo.list()[0]!.id;
+    const someSong = repo.create(song("Para el CHECK", "a")).id;
     expect(() => insert("song", null, null)).toThrow(/CHECK/);
     expect(() => insert("utility", someSong, null)).toThrow(/CHECK/);
     expect(() => insert("song", someSong, null)).not.toThrow();
     programs.delete(programId);
+    repo.delete(someSong);
   });
 
   test("deleting a theme leaves its songs on the default one", () => {
@@ -240,7 +249,7 @@ describe("migration 0019", () => {
   });
 });
 
-describe("a song in the order of service", () => {
+describe("a song in the order of service", { shuffle: false }, () => {
   test("saved and read back by reference", () => {
     const songId = repo.create(song("En el programa", "a")).id;
     const saved = programs.save({ name: "Domingo", items: [{ kind: "song", songId, title: null }] });
@@ -347,7 +356,7 @@ describe("themes (F3)", () => {
     const all = DEFAULT_SONG_THEME.footer.fields;
     expect(
       songFooterLines({ title: "Sublime gracia", authors: "John Newton", copyright: "© Dominio público", ccliNumber: "22025" }, all, "123", labels),
-    ).toEqual(["Sublime gracia — John Newton", "© Dominio público · CCLI n.º 22025 · Licencia CCLI n.º 123"]);
+    ).toEqual(["Sublime gracia · John Newton", "© Dominio público · CCLI n.º 22025 · Licencia CCLI n.º 123"]);
     expect(songFooterLines({ title: "Sin datos", authors: null, copyright: null, ccliNumber: null }, all, null, labels)).toEqual([
       "Sin datos",
     ]);
@@ -404,6 +413,19 @@ describe("a linked folder of song files (owner, 2026-11-05)", () => {
     expect(again.find((song) => song.id === roca.id)?.title).toBe("Roca de los siglos");
   });
 
+  test("a link out of the folder is not one of its songs; a link that stays inside is (owner, 2026-11-22)", async () => {
+    const { listSongFolder } = await import("../../src/main/services/song-files");
+    const folder = fs.mkdtempSync(path.join(tmpDir, "linked-"));
+    const outside = fs.mkdtempSync(path.join(tmpDir, "outside-"));
+    fs.writeFileSync(path.join(outside, "afuera.cho"), "{title: Afuera}\n{start_of_verse}\nNo es de la carpeta\n{end_of_verse}\n");
+    fs.writeFileSync(path.join(folder, "uno.cho"), "{title: Roca eterna}\n{start_of_verse}\nRoca de la eternidad\n{end_of_verse}\n");
+    fs.symlinkSync(path.join(outside, "afuera.cho"), path.join(folder, "afuera.cho"));
+    fs.symlinkSync(path.join(folder, "uno.cho"), path.join(folder, "otra.cho"));
+
+    const titles = (await listSongFolder(folder)).map((song) => song.title).sort();
+    expect(titles).toEqual(["Roca eterna", "Roca eterna"]);
+  });
+
   test("a song of a file is saved into its file, and a file changed since is not overwritten", async () => {
     const { listSongFolder, writeSongFile } = await import("../../src/main/services/song-files");
     const folder = fs.mkdtempSync(path.join(tmpDir, "linked-"));
@@ -440,6 +462,21 @@ describe("a linked folder of song files (owner, 2026-11-05)", () => {
     await expect(writeSongFile(id, edited)).rejects.toThrow(expect.objectContaining({ code: "SONG_FILE_TOO_LONG" }));
     // Verse 61 is still in the church's file.
     expect(fs.readFileSync(file, "utf8")).toBe(original);
+  });
+});
+
+test("a database that cannot be read among songs that came in keeps its reason", async () => {
+  // An EasyWorship 2009 Songs.DB picked with a song file: the toast said only «1 archivo no se pudo leer como canción»,
+  // and «EasyWorship 2009 or older» was lost (2026-11-22 review, EC-11).
+  const folder = fs.mkdtempSync(path.join(tmpDir, "ew2009-and-a-song-"));
+  fs.writeFileSync(path.join(folder, "Songs.DB"), "Paradox, not SQLite");
+  fs.writeFileSync(path.join(folder, "nueva.cho"), "{title: Nueva canción}\n{start_of_verse}\nUna línea\n{end_of_verse}\n");
+  expect(await importSongFiles([path.join(folder, "Songs.DB"), path.join(folder, "nueva.cho")])).toEqual({
+    imported: 1,
+    repeated: 0,
+    problems: 0,
+    unsupported: 1,
+    reason: mainEs.songs.ewOld,
   });
 });
 
@@ -497,9 +534,10 @@ describe("a song imported from a song file stays tied to it (owner, 2026-11-05)"
       "{title: Primera}\n{start_of_verse}\nUna línea primera\n{end_of_verse}\n{new_song}\n{title: Segunda}\n{start_of_verse}\nUna línea segunda\n{end_of_verse}\n",
     );
     expect((await importSongFiles([file])).imported).toBe(2);
-    const segunda = titled("Segunda");
-    expect(segunda.file).toBe(file);
-    await save(segunda.id, (song) => ({ ...song, title: "Segunda (editada)" }));
+    // Another suite links a folder with a «Segunda» too: this one is the song tied to this file.
+    const segunda = repo.listLibrary().find((song) => song.title === "Segunda" && song.file === file);
+    expect(segunda).toBeDefined();
+    await save(segunda!.id, (song) => ({ ...song, title: "Segunda (editada)" }));
     const text = fs.readFileSync(file, "utf8");
     expect(text).toContain("Primera");
     expect(text).toContain("Una línea primera");
@@ -642,6 +680,33 @@ Letra de la tercera
     } finally {
       for (const spy of spies) spy.mockRestore();
     }
+    expect(fs.readFileSync(path.join(folder, "libro.cho"), "utf8")).toContain("{title: Uno (2)}");
+  });
+
+  // A power cut seconds after a save: NTFS can keep the rename and lose the bytes, the church's file all zeros (DU-5).
+  test("a song file's new bytes are flushed to the disk before they take its place", async () => {
+    const folder = fresh("flushed-save");
+    fs.writeFileSync(path.join(folder, "libro.cho"), TWO);
+    const [uno] = await listSongFolder(folder);
+    const steps: string[] = [];
+    const open = fs.promises.open;
+    const rename = fs.promises.rename;
+    const opened = vi.spyOn(fs.promises, "open").mockImplementation(async (...args: Parameters<typeof open>) => {
+      const handle = await open(...args);
+      const sync = handle.sync.bind(handle);
+      handle.sync = () => (steps.push("sync"), sync());
+      return handle;
+    });
+    const renamed = vi
+      .spyOn(fs.promises, "rename")
+      .mockImplementation((...args: Parameters<typeof rename>) => (steps.push("rename"), rename(...args)));
+    try {
+      await writeBack(uno!.id, (s) => ({ ...s, title: "Uno (2)" }));
+    } finally {
+      opened.mockRestore();
+      renamed.mockRestore();
+    }
+    expect(steps).toEqual(["sync", "rename"]);
     expect(fs.readFileSync(path.join(folder, "libro.cho"), "utf8")).toContain("{title: Uno (2)}");
   });
 
@@ -1172,10 +1237,12 @@ describe("writing over the file", () => {
     expect(fs.statSync(file).mode & 0o777).toBe(0o640);
   });
 
-  test("a symbolic link to a song file: listed in its folder, and saving writes the file it points at, the link kept", async () => {
-    const real = path.join(fresh("symlink-target"), "real.cho");
-    fs.writeFileSync(real, "{title: Enlazada}\n{start_of_verse}\nLetra enlazada\n{end_of_verse}\n");
+  test("a symbolic link to a song file inside its folder: listed there, and saving writes the file it points at, the link kept", async () => {
+    // Inside: a link out of a linked folder is not one of its songs (owner, 2026-11-22; the test above).
     const folder = fresh("symlink-folder");
+    const real = path.join(folder, "originales", "real.cho");
+    fs.mkdirSync(path.dirname(real));
+    fs.writeFileSync(real, "{title: Enlazada}\n{start_of_verse}\nLetra enlazada\n{end_of_verse}\n");
     const link = path.join(folder, "enlace.cho");
     fs.symlinkSync(real, link);
     const [enlazada] = await listSongFolder(folder);

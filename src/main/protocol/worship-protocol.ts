@@ -6,11 +6,7 @@ import { getSettingsRepo, getSlidesRepo, isDatabaseOpen } from "../services/repo
 import { liveDeckDir, pdfjsWasmDir, slidesCacheDir } from "../paths";
 import { pdfPageImage, resolveRasterPdf } from "../slides/rasterizer";
 import { renderNativeSlide } from "../slides/native-deck";
-import { decodeEmbeddedFont } from "../slides/pptx/embedded-font";
-import { metafileToSvg } from "../slides/pptx/metafile";
-import { readBinaryPart } from "../slides/ppt/parts";
-import { containerKind } from "../slides/pptx-metadata";
-import { readZipEntries } from "../slides/zip-reader";
+import { readDeckPart, type DeckPart } from "../slides/pptx-deck";
 import { ensureThumbnail } from "../media/thumbnail-service";
 import { byteLru } from "./byte-lru";
 import { serveFile } from "./serve-file";
@@ -191,7 +187,8 @@ export function registerWorshipProtocolHandler(mediaRepo: MediaRepo): void {
           // arbitrary library location.
           const assetId = Number(segments[0]);
           if (!Number.isFinite(assetId)) return new Response("Not found", { status: 404 });
-          return serveFile(request, mediaRepo.linkedAudioPathById(mediaRepo.survivingId(assetId)));
+          const music = mediaRepo.linkedAudioPathById(mediaRepo.survivingId(assetId));
+          return serveFile(request, music && (await liveMusicFile(music)));
         }
         case "raster": {
           // Short-lived capability handed to the offscreen rasterizer window so
@@ -246,35 +243,121 @@ async function sourceUnchanged(source: DeckSource): Promise<boolean> {
   return !!stat && stat.size === source.sourceSizeBytes && Math.trunc(stat.mtimeMs) === source.sourceMtimeMs;
 }
 
+const sameStamp = (a: DeckSource, b: DeckSource): boolean =>
+  a.sourcePath === b.sourcePath && a.sourceSizeBytes === b.sourceSizeBytes && a.sourceMtimeMs === b.sourceMtimeMs;
+
 /**
- * The deck on air goes on if its file goes — a USB stick pulled out, a network folder down, a synced
+ * The deck on air goes on if its file goes: a USB stick pulled out, a network folder down, a synced
  * folder that moves it. Every slide of a native deck (the hymnal), every page of a PDF and every
  * picture of a model deck is read from the source when asked for, so the next slide came back 410
  * and the projector went black with the hymn still singing (2026-11-10 review, agent5-02). A copy is
  * taken in the profile as the deck goes live (`keepLiveDeckSource`, from `projection:show`), in the
- * background, and read only once the original is gone or changed. One deck at a time.
+ * background, and read first once it has landed: its file is not looked at again, so a network folder that stopped
+ * answering no longer holds each slide until the system gives up (2026-11-22 audit, RM3). One deck at a time.
  */
-let liveCopy: { deckId: number; path: string; source: DeckSource } | null = null;
+type LiveCopy = { deckId: number; path: string; source: DeckSource; music: { path: string; source: DeckSource } | null };
+let liveCopy: LiveCopy | null = null;
 let copyingDeckId: number | null = null;
+/** The kept deck whose music is being copied: one copy at a time. */
+let keepingMusicOf: LiveCopy | null = null;
 /** The deck asked for last: the one on air. A copy that lands for another one is dropped. */
 let wantedDeckId: number | null = null;
 let liveCopySeq = 0;
+/** The epoch of the last playback of a deck's music (`liveMusicPlays`), and the look at its file that settles where
+ *  that playback reads from: its bytes wait for it. */
+let musicEpoch: number | null = null;
+let musicLook: Promise<void> = Promise.resolve();
+/** How long a playback's bytes wait for that look: a share that stopped answering held the `stat` 21 s on Windows,
+ *  and for good on a `hard` NFS mount. Past it the playback reads the copy it has, as GO LIVE of a video waits for its
+ *  file (2026-11-22 audit, RV-3). */
+const MUSIC_LOOK_MS = 1000;
 
-/** Where to read the deck's bytes from: its own file while it is still the one read, else the copy
- *  of it taken when it went live, else nowhere (410). */
+/** Where to read the deck's bytes from: the copy taken when it went live, when it is a copy of the file the deck was
+ *  read from (by the stamp the deck was read with, without asking the file); else its own file while it is still the
+ *  one read; else nowhere (410). A copy still being written is not `liveCopy`: it is kept once renamed into place. */
 async function readableSource(source: DeckSource): Promise<string | null> {
-  if (await sourceUnchanged(source)) return source.sourcePath;
   const copy = liveCopy;
-  const same =
-    copy !== null &&
-    copy.source.sourcePath === source.sourcePath &&
-    copy.source.sourceSizeBytes === source.sourceSizeBytes &&
-    copy.source.sourceMtimeMs === source.sourceMtimeMs;
-  return same ? copy.path : null;
+  if (copy !== null && sameStamp(copy.source, source)) return copy.path;
+  return (await sourceUnchanged(source)) ? source.sourcePath : null;
 }
 
-/** The deck `deckId` is on air: copies its source aside unless it already is. Never blocks main. */
-export function keepLiveDeckSource(deckId: number): void {
+/** A hymn's music file (`linked-audio.ts`) taken aside with its deck goes up to this size. Real ones are an MP3 or
+ *  a WMA of 2 to 10 MB, and 200 MB is still an hour of MP3 at 320 kbps or 20 minutes of WAV; a bigger file is not a
+ *  hymn's music, and copying it off a pen drive would hold the drive for a minute while the room reads from it. */
+const LIVE_MUSIC_MAX_BYTES = 200 * 1024 * 1024;
+
+/** Where to read the music of a deck on air from (`worship://linked-audio`, and the engine for a `.wma`): the copy
+ *  taken with the deck, first, as its slides; the file itself while there is none. A hymn whose pen drive was pulled
+ *  went silent as soon as the player asked for more bytes, or at once when anything mounted it again (2026-11-22
+ *  audit, RV-4). The copy changes only as a playback begins (`liveMusicPlays`), so the `Range` reads of one playback
+ *  never get bytes of two files: an MP3 replaced mid-hymn played on in its new bytes at the old one's offsets (review
+ *  of the night 2, RN2-6), and plays new from the next playback of the hymn. */
+export async function liveMusicFile(file: string): Promise<string> {
+  if (liveCopy?.music?.source.sourcePath === file) await musicLook;
+  const music = liveCopy?.music;
+  return music && music.source.sourcePath === file ? music.path : file;
+}
+
+/** The deck music `file` plays under the epoch of its track (`projection:setAudioTracks`), or none does (`null`).
+ *  Another epoch is another playback: the hymn sent live again (`goLiveWithDeck`). If it is the kept deck's and the
+ *  file changed since its copy, that playback reads the file itself until a copy of it as it is now lands; unreadable
+ *  (its pen drive pulled), it reads the copy it has. A push of the same epoch (a slide, a volume, BLACK, a restart or a
+ *  seek, a reopened projector) is the same playback. */
+export function liveMusicPlays(file: string | null, epoch: number | null): void {
+  if (epoch === musicEpoch) return;
+  musicEpoch = epoch;
+  const kept = liveCopy;
+  if (file === null || kept?.music?.source.sourcePath !== file) return;
+  // A look past its time is dropped whatever it finds: this playback is reading the copy by then, and the file
+  // changed would send its next `Range` reads to another file. The next playback looks again.
+  const look = { late: false };
+  let timer: NodeJS.Timeout | undefined;
+  musicLook = Promise.race([
+    keepLiveMusic(kept, file, look),
+    new Promise<void>((resolve) => (timer = setTimeout(() => ((look.late = true), resolve()), MUSIC_LOOK_MS))),
+  ]).finally(() => clearTimeout(timer));
+}
+
+/** Copies the music of the kept deck `kept` aside, unless the copy it has is of this file as it is now. Resolves once
+ *  where its playback reads from is settled; the copy runs on. Unreadable, the copy it has stays: it is what the room
+ *  hears now. Changed, the file itself is read until the new copy lands (none past the size cap). */
+async function keepLiveMusic(kept: LiveCopy, musicPath: string, look: { late: boolean }): Promise<void> {
+  const stat = await fs.promises.stat(musicPath).catch(() => null);
+  if (look.late || !stat || liveCopy !== kept || keepingMusicOf === kept) return;
+  const music = { sourcePath: musicPath, sourceSizeBytes: stat.size, sourceMtimeMs: Math.trunc(stat.mtimeMs) };
+  const old = kept.music;
+  if (old && sameStamp(old.source, music)) return;
+  kept.music = null;
+  if (stat.size > LIVE_MUSIC_MAX_BYTES) return;
+  keepingMusicOf = kept;
+  void (async () => {
+    const musicDest = `${kept.path}.music${path.extname(musicPath)}`;
+    const musicPartial = `${musicDest}.${++liveCopySeq}.partial`;
+    try {
+      await fs.promises.copyFile(musicPath, musicPartial);
+      if ((await fs.promises.stat(musicPartial)).size !== stat.size || liveCopy !== kept) {
+        await fs.promises.rm(musicPartial, { force: true });
+        return;
+      }
+      await renameWithRetry(musicPartial, musicDest);
+      // Kept again meanwhile (D, E, D), the copy under way for it lands in this same place.
+      if (liveCopy === kept) {
+        kept.music = { path: musicDest, source: music };
+        if (old && old.path !== musicDest) await fs.promises.rm(old.path, { force: true });
+      } else if (liveCopy?.deckId !== kept.deckId) await fs.promises.rm(musicDest, { force: true });
+    } catch (error) {
+      await fs.promises.rm(musicPartial, { force: true }).catch(() => undefined);
+      console.warn(`[slides] could not keep a copy of the music on air (${musicPath})`, error);
+    } finally {
+      if (keepingMusicOf === kept) keepingMusicOf = null;
+    }
+  })();
+}
+
+/** The deck `deckId` is on air, `musicPath` its linked music if it has one: copies them aside unless they already
+ *  are. Never blocks main. A deck shown again (every slide is a show) leaves its music copy as it is: a playback reads
+ *  one file from start to end (`liveMusicPlays`). */
+export function keepLiveDeckSource(deckId: number, musicPath: string | null = null): void {
   // Asked even when it returns here: back to the deck already kept, a copy of another one still under way is no
   // longer the deck on air, and landing it replaced this one's copy and deleted it (2026-11-15 audit, A47).
   wantedDeckId = deckId;
@@ -303,8 +386,12 @@ export function keepLiveDeckSource(deckId: number): void {
         throw error;
       }
       const previous = liveCopy;
-      liveCopy = { deckId, path: dest, source };
+      const kept = { deckId, path: dest, source, music: previous?.deckId === deckId ? previous.music : null };
+      liveCopy = kept;
       if (previous && previous.path !== dest) await fs.promises.rm(previous.path, { force: true });
+      if (previous?.music && previous.music !== kept.music) await fs.promises.rm(previous.music.path, { force: true });
+      // Its music after its slides, which matter first; dropped like the deck's if another deck is kept meanwhile.
+      if (musicPath) await keepLiveMusic(kept, musicPath, { late: false });
     } catch (error) {
       console.warn(`[slides] could not keep a copy of the deck on air (${source.sourcePath})`, error);
     } finally {
@@ -313,42 +400,12 @@ export function keepLiveDeckSource(deckId: number): void {
   })();
 }
 
-const PART_TYPES: Record<string, string> = {
-  png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", jpe: "image/jpeg", gif: "image/gif", bmp: "image/bmp",
-  svg: "image/svg+xml", webp: "image/webp", tif: "image/tiff", tiff: "image/tiff", ico: "image/x-icon",
-};
-
-/** A part as served: its bytes and type, or why not (404 not in the file, 415 won't convert). */
-type DeckPart = { body: Uint8Array; type: string } | 404 | 415;
-
-/** A part of a model deck's package as `serveDeckPart` serves it, read and converted from `sourcePath`. */
-function readDeckPart(sourcePath: string, kind: "part" | "font", part: string): DeckPart {
-  // A legacy binary's parts are ranges of its OLE streams (`ppt/parts.ts`);
-  // a `.pptx`'s and an `.odp`'s, zip entries.
-  const raw =
-    containerKind(sourcePath) === "binary"
-      ? (readBinaryPart(sourcePath, part) ?? undefined)
-      : readZipEntries(sourcePath, (name) => name === part)[part];
-  if (!raw) return 404;
-  const ext = part.slice(part.lastIndexOf(".") + 1).toLowerCase();
-  let body: Uint8Array | string | null = raw;
-  let type = PART_TYPES[ext] ?? "application/octet-stream";
-  if (kind === "font") {
-    body = decodeEmbeddedFont(raw);
-    type = "font/ttf";
-  } else if (ext === "emf" || ext === "wmf" || ext === "emz" || ext === "wmz") {
-    body = metafileToSvg(raw, ext.startsWith("w") ? "wmf" : "emf");
-    type = "image/svg+xml";
-  }
-  if (body === null) return 415;
-  return { body: typeof body === "string" ? Buffer.from(body) : body, type };
-}
-
 /** Parts already read, by the file's stamp: every window drawing a deck (control, projector, stage, NDI) asks for
  *  the same fonts and pictures, and each was read and converted on main again, 70 to 104 ms a font and up to 460 ms
- *  a metafile, over a video of the engine on air (2026-11-15 audit, A11). A 415 is kept (the same bytes never
- *  convert); a 404 never is, sized past the budget: the readers answer a read error (a pen drive that hiccups) as a
- *  missing part, and kept it was a missing picture for the session (review follow-up). */
+ *  a metafile, over a video of the engine on air (2026-11-15 audit, A11). Read on their own thread now (SE1), a part
+ *  already read is still answered from here at once. A 415 is kept (the same bytes never convert, or killed the
+ *  parts' thread). A 404 never is, sized past the budget (a part that ran out of its thread's clock answers 404 too): the readers answer a read error (a pen drive that
+ *  hiccups) as a missing part, and kept it was a missing picture for the session (review follow-up). */
 const deckParts = byteLru<DeckPart>(64 * 1024 * 1024, (found) =>
   found === 404 ? Number.POSITIVE_INFINITY : found === 415 ? 0 : found.body.byteLength,
 );
@@ -356,16 +413,16 @@ const deckParts = byteLru<DeckPart>(64 * 1024 * 1024, (found) =>
 /**
  * A part of a model deck's package: a picture as is, a metafile (EMF/WMF,
  * which Chromium can't decode) as the SVG `metafileToSvg` makes of it, a font
- * as the TrueType `decodeEmbeddedFont` rebuilds. Immutable like everything
- * under a deck id.
+ * as the TrueType `decodeEmbeddedFont` rebuilds, all read on the parts' thread
+ * (`readDeckPart`), never on main. Immutable like everything under a deck id.
  */
 async function serveDeckPart(request: Request, deckId: number, kind: "part" | "font", part: string): Promise<Response> {
   const source = Number.isFinite(deckId) ? getSlidesRepo().getDeckSource(deckId) : null;
   const sourcePath = source && (await readableSource(source));
   if (!source || !sourcePath) return new Response("Gone", { status: 410 });
-  // Synchronous from here: the four windows' asks, awaiting above together, meet in the cache.
+  // The four windows' asks meet in the cache, or in the one read still under way.
   const key = [source.sourcePath, source.sourceSizeBytes, source.sourceMtimeMs, kind, part].join("\n");
-  const found = deckParts(key, () => readDeckPart(sourcePath, kind, part));
+  const found = await deckParts(key, () => readDeckPart(sourcePath, kind, part));
   if (found === 404) return new Response("Not found", { status: 404 });
   if (found === 415) return new Response("Unreadable", { status: 415 });
   return new Response(request.method === "HEAD" ? null : new Uint8Array(found.body), {

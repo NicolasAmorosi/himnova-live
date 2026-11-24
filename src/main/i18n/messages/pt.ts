@@ -1,7 +1,7 @@
 import type { MainMessages } from "./es";
 
 const pt: MainMessages = {
-  window: { projectionTitle: "Himnova Live — Projeção", stageTitle: "Himnova Live — Palco" },
+  window: { projectionTitle: "Himnova Live · Projeção", stageTitle: "Himnova Live · Palco" },
   menu: {
     about: "Sobre o {app}",
     services: "Serviços",
@@ -40,8 +40,12 @@ const pt: MainMessages = {
     dbRestoreOffer: "Ele está danificado. Há uma cópia verificada de {date}: restaurá-la deixa tudo como estava naquele dia e abre o app de novo. O banco danificado fica guardado à parte, em backups/before-restore.",
     dbRestoreButton: "Restaurar a cópia de {date}",
     crashTitle: "Erro inesperado",
+    crashRunning:
+      "O Himnova Live continua funcionando, mas algo falhou por dentro. Reinicie o app quando puder. Se acontecer outra vez, os detalhes abaixo ajudam a encontrar a causa.",
+    crashStartup:
+      "O Himnova Live não conseguiu abrir e vai fechar. Abra-o de novo; se acontecer outra vez, os detalhes abaixo ajudam a encontrar a causa.",
     formerAppTitle: "A versão anterior, “Lumina Live”, foi movida para a Lixeira",
-    formerAppDetail: "Agora o app se chama Himnova Live: abra-o em Aplicativos. Seus programas, a biblioteca e as configurações continuam como estavam.",
+    formerAppDetail: "Agora o app se chama Himnova Live: abra-o em Aplicativos. Seus roteiros, a biblioteca e as configurações continuam como estavam.",
     controlDownTitle: "A janela de controle não voltou",
     controlDownMessage: "A janela de controle fechou por um erro várias vezes seguidas e não voltou sozinha.",
     controlDownDetail: "O que está no ar continua como está. “Tentar de novo” a abre outra vez sobre o que está no ar; se fechar de novo, este aviso volta.",
@@ -67,8 +71,8 @@ const pt: MainMessages = {
     sourceGone: "O arquivo não está mais disponível: {path}",
     noSlides: "A apresentação não gerou nenhum slide.",
     deckUnreadable: "Não foi possível ler a apresentação recém-preparada.",
-    rasterCrashed: "O processo de rasterização foi fechado inesperadamente.",
-    rasterHung: "A rasterização de uma página travou.",
+    rasterCrashed: "A preparação do PDF foi interrompida. Tente de novo com “Tentar de novo”.",
+    rasterHung: "O PDF demorou demais para ser preparado. Tente de novo com “Tentar de novo”.",
     pdfPassword: "O PDF é protegido por senha e não pode ser aberto.",
     deckPassword:
       "A apresentação tem senha para abrir. Abra-a no PowerPoint, remova a senha (Arquivo ▸ Informações ▸ Proteger Apresentação) e salve de novo.",
@@ -78,14 +82,23 @@ const pt: MainMessages = {
       "Não foi possível abrir o arquivo como apresentação: ele pode estar corrompido ou não ser uma apresentação. Tente abri-lo no PowerPoint e salvá-lo de novo como .pptx.",
     deckTooSlow:
       "A apresentação demorou demais para ser lida. Tente de novo com “Tentar de novo”.",
+    sourceNotResponding:
+      "O disco ou a pasta da apresentação não está respondendo. Verifique o disco ou a rede e tente de novo com “Tentar de novo”.",
+    pdfUnreadable:
+      "Não foi possível abrir o PDF. Tente de novo com “Tentar de novo”; se acontecer outra vez, ele pode estar corrompido: abra-o no seu leitor de PDF e exporte-o de novo.",
+    pdfNotRecorded:
+      "Não foi possível preparar o PDF. Tente de novo com “Tentar de novo”; se acontecer outra vez, verifique se o arquivo continua no lugar e se há espaço no disco.",
   },
   bible: {
     unknownFormat:
       "O formato de “{file}” não foi reconhecido. São aceitos JSON, Zefania/USFX/OSIS XML e módulos SQLite (MyBible, MySword).",
-    zipUnreadable: "Não foi possível ler o arquivo .zip: {detail}",
+    zipUnreadable: "Não foi possível ler o arquivo .zip: ele pode estar incompleto ou corrompido. Baixe-o de novo.",
     zipEmpty: "O .zip não contém nenhum arquivo XML ou JSON.",
-    sqliteUnreadable: "Não foi possível abrir o módulo SQLite: {detail}",
+    sqliteUnreadable: "Não foi possível abrir o módulo SQLite: ele pode estar incompleto ou corrompido. Baixe-o de novo.",
     sqliteNoVerses: "O arquivo SQLite não é um módulo do MyBible nem do MySword: não tem versículos.",
+    jsonBroken: "Não foi possível ler “{file}”: o JSON dele está incompleto ou corrompido. Baixe-o de novo.",
+    xmlBroken: "Não foi possível ler “{file}”: o XML dele está incompleto ou corrompido. Baixe-o de novo.",
+    fileUnreadable: "Não foi possível ler “{file}”. Verifique se o arquivo continua no lugar e tente de novo.",
     jsonNoBooks: "O arquivo JSON não tem o formato de uma Bíblia: os livros não foram encontrados.",
     jsonNoChapters: "O arquivo JSON não tem o formato de uma Bíblia: os capítulos não foram encontrados.",
     notZefania: "O XML não é uma Bíblia Zefania: falta o elemento <XMLBIBLE>.",
@@ -95,6 +108,7 @@ const pt: MainMessages = {
     invalidName: "O nome da versão não é válido.",
     alreadyInstalled: "Esse arquivo já está instalado: é “{name}”.",
     bundledNotFound: "Essa versão não vem incluída nesta instalação.",
+    versionNotFound: "Essa versão da Bíblia não está mais instalada.",
     invalidLanguage: "O idioma da versão não é válido.",
   },
   library: {

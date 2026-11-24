@@ -11,7 +11,7 @@ import { useProgramStore } from "@renderer/stores/program.store";
 import { useDeckStore } from "@renderer/stores/deck.store";
 import { buildCumulativeMs, selectOutput, useProjectionStore } from "@renderer/stores/projection.store";
 import { useSettingsStore } from "@renderer/stores/settings.store";
-import { advanceSlide, advanceSong, goLiveWithNextScheduleAudio } from "@renderer/lib/actions/playback";
+import { advanceSlide, advanceSong, clearLive, goLiveWithNextScheduleAudio } from "@renderer/lib/actions/playback";
 import { useAudioStore, type LiveAudioTrack } from "@renderer/stores/audio.store";
 import type { MediaAsset } from "@shared/types/media";
 import { resolveSong } from "@renderer/stores/song.store";
@@ -305,5 +305,19 @@ test("an audio's «next» stops when the next row is not an audio, or it was not
 
   await goLiveWithNextScheduleAudio(endedTrack(useProgramStore.getState().items[0]!.id));
   await goLiveWithNextScheduleAudio(endedTrack(undefined));
+  expect(useAudioStore.getState().tracks).toEqual([]);
+});
+
+test("CLEAR pressed while the next audio row is read keeps the silence", async () => {
+  libraryOf({ 1: "audio", 2: "audio" });
+  useAudioStore.getState().clear();
+  const program = useProgramStore.getState();
+  program.clear();
+  program.addItem({ kind: "media", mediaAssetId: 1, title: "Intro" });
+  program.addItem({ kind: "media", mediaAssetId: 2, title: "Fondo" });
+  const chained = goLiveWithNextScheduleAudio(endedTrack(useProgramStore.getState().items[0]!.id));
+  // The next row's asset is still on its way from main.
+  clearLive();
+  await chained;
   expect(useAudioStore.getState().tracks).toEqual([]);
 });

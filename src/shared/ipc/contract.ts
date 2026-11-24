@@ -1,5 +1,5 @@
 import type { AssetKind } from "../constants";
-import type { DisplayInfo } from "../types/display";
+import type { DisplayInfo, ProjectorFit } from "../types/display";
 import type {
   DecoderSupport,
   EngineAssetUpdate,
@@ -42,6 +42,7 @@ import type {
   ProgramSummary,
   ProgramUpsert,
 } from "../types/program";
+import type { EditorDraft, EditorKind } from "../types/editor-draft";
 import type { SettingsMap } from "../types/settings";
 import type { BibleStyle } from "../types/bible-style";
 import type { GpuStatus, InternalsPage, VideoDecoderReport } from "../types/system";
@@ -94,6 +95,10 @@ export type IpcContract = {
     req: void;
     res: { output: ProjectionOutput | null; audioTracks: AudioTrackPush[]; mediaStatus: MediaStatus[] };
   };
+  /** Pulled once by the projector on mount, like the snapshot: `projector-fit` pushes every change after. */
+  "projection:getFit": { req: void; res: ProjectorFit };
+  /** Settings ▸ Screens' test pattern, on the projector until it is turned off (or the control window goes). */
+  "projection:showPattern": { req: boolean; res: void };
   /** Projection window -> main -> control window. The projection window is
    *  describing its own <video>/<audio> element, not making a decision. */
   "projection:reportMediaStatus": { req: MediaStatus; res: void };
@@ -244,7 +249,8 @@ export type IpcContract = {
   };
 
   "library:list": { req: { kind: AssetKind }; res: MediaAsset[] };
-  "library:get": { req: { id: number }; res: MediaAsset | null };
+  /** `check: true` looks at the file first (`MediaRepo.check`): one gone since the last sweep comes back missing. */
+  "library:get": { req: { id: number; check?: boolean }; res: MediaAsset | null };
   "library:add": { req: { paths: string[]; kind: AssetKind }; res: MediaAsset[] };
   /** `force: true` bypasses the "in use by a saved program" guard: it also
    *  deletes the referencing `program_items` rows, in the same transaction as
@@ -327,6 +333,11 @@ export type IpcContract = {
   /** Read once at launch. Already filtered to items whose media assets still
    *  exist (`DraftRepo.load`). */
   "program:loadDraft": { req: void; res: ProgramDraft | null };
+  /** An editor's unsaved form, every 600 ms while it has changes; `null` drops it (saved, discarded, closed clean,
+   *  or a quit the operator confirmed over it). See `use-editor-draft.ts`. */
+  "editors:saveDraft": { req: { editor: EditorKind; draft: EditorDraft | null }; res: void };
+  /** Read at launch: what the editors left unsaved, for the «Recuperar / Descartar» notice. */
+  "editors:loadDrafts": { req: void; res: EditorDraft[] };
 
   /** The control window's answer to `close-requested`. Main never decides on
    *  its own whether unsaved work may be discarded — `CLAUDE.md`: that
@@ -503,6 +514,8 @@ export type IpcEvents = {
   /** The projection window's screen went away (it is hidden, still playing)
    *  or came back (it is fullscreen on it again). */
   "projector-screen": { connected: boolean };
+  /** To the projector window only: its picture's size on its screen and the test pattern (`projection.fit`). */
+  "projector-fit": ProjectorFit;
   /** The stage window appeared or went away (`windows/stage-window.ts`); `byScreens` when a screen coming or
    *  going is why, which is what the control window says in a toast; `closed` while the operator's closing it
    *  keeps it away. */

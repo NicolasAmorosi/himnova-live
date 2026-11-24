@@ -14,6 +14,7 @@ import {
 import { runBackupJob } from "../../db/backup-thread";
 import { journalNewest } from "../../db/migrate";
 import { releaseForUpdate } from "../../windows/close-guard";
+import { forgetLiveRow } from "./program-draft";
 import { showOpenDialogFor } from "../open-dialog";
 import { mt } from "../../i18n";
 
@@ -60,6 +61,7 @@ export const backupsHandlers: Pick<
     if (refused) throw new IpcError({ code: "BACKUP_REFUSED", message: mt(`backups.${refused}`) });
     // The control window already asked what a quit puts at risk (`quitRisks`): asked again here, a
     // «Cancel» would leave the copy staged for whatever launch came next.
+    forgetLiveRow();
     releaseForUpdate();
     relaunchOnQuit();
     app.quit();

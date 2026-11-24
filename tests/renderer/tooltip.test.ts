@@ -70,3 +70,35 @@ test("one Esc closes the bubble and the modal under it, as it closed the modal b
   expect(onOpenChange).toHaveBeenCalledWith(false);
   unmount();
 });
+
+test("with a delay, the bubble waits for the pointer to rest, and a pointer that moves on never opens it", () => {
+  vi.useFakeTimers();
+  const host = document.createElement("div");
+  document.body.append(host);
+  const root = createRoot(host);
+  act(() =>
+    root.render(
+      createElement(Tooltip, { content: "D:\\Hymnals\\558.pps", delayMs: 500, fit: "path", children: createElement("span", null, "558") }),
+    ),
+  );
+  const label = host.querySelector("span span")!;
+  const bubble = () => document.querySelector('[role="tooltip"]');
+  const over = () => act(() => void label.dispatchEvent(new MouseEvent("pointerover", { bubbles: true })));
+  const out = () =>
+    act(() => void label.dispatchEvent(new MouseEvent("pointerout", { bubbles: true, relatedTarget: document.body })));
+
+  over();
+  act(() => void vi.advanceTimersByTime(300));
+  expect(bubble()).toBeNull();
+  out();
+  act(() => void vi.advanceTimersByTime(500));
+  expect(bubble()).toBeNull();
+
+  over();
+  act(() => void vi.advanceTimersByTime(500));
+  expect(bubble()?.textContent).toBe("D:\\Hymnals\\558.pps");
+
+  act(() => root.unmount());
+  host.remove();
+  vi.useRealTimers();
+});

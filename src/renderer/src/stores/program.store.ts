@@ -89,6 +89,33 @@ export function survivingAssetId(id: number): number {
   return id;
 }
 
+/** Row ids each save replaced (`adoptSaved`: the same rows, now with their saved ids), followed as a chain like
+ *  `mergedInto`: a row held across two saves finds itself through both. The ids are `AUTOINCREMENT`, so never a loop.
+ *  ponytail: grows by the schedule's rows on each save, a few KB in a day; prune if saves ever run on their own. */
+const savedRowIds = new Map<number, number>();
+
+/** Called by `adoptSaved` with the rows it sent and the same rows as saved. */
+export function rememberSavedRowIds(sent: readonly ProgramItemDTO[], saved: readonly ProgramItemDTO[]): void {
+  sent.forEach((row, index) => {
+    const now = saved[index];
+    if (now && now.id !== row.id) savedRowIds.set(row.id, now.id); // an id kept would loop `rowIndexOf`
+  });
+}
+
+/** Where a schedule row is now, by id: every edit copies all the rows (`reindex`), so a row held across an `await` is
+ *  never in `items` again (2026-11-15 audit, A16), and a save landing meanwhile gives each its saved id: GO LIVE then
+ *  sent nothing (2026-11-22 audit). -1 when it is gone. */
+export function rowIndexOf(row: ProgramItemDTO): number {
+  const { items } = useProgramStore.getState();
+  // The first id along the chain that is on the schedule, its own first: one gone is no stop. Bounded by the map.
+  let id: number | undefined = row.id;
+  for (let step = 0; id !== undefined && step <= savedRowIds.size; step += 1, id = savedRowIds.get(id)) {
+    const at = items.findIndex((item) => item.id === id);
+    if (at >= 0) return at;
+  }
+  return -1;
+}
+
 /** `dirty` after an edit that left `items`: a never-saved schedule emptied
  *  again is back to what «Nuevo programa» starts from, with nothing to save. */
 function editedDirty(currentProgramId: number | null, items: readonly ProgramItemDTO[]): boolean {

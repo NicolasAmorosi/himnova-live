@@ -4,6 +4,7 @@ import type { Locator } from "@playwright/test";
 import { parseLyrics } from "../../src/shared/song-text";
 import { LOCALES, type Locale } from "../../src/shared/types/settings";
 import { expect, relaunch, test, type WorshipApp } from "./support/app";
+import { textAt } from "./support/locale";
 import { generateDemoMedia, lyrics, prepare } from "./support/demo";
 import { Recorder } from "./support/recorder";
 import { CONTENT, type Content } from "./screenshots.content";
@@ -63,7 +64,7 @@ const ui = (app: WorshipApp) => {
     songRows: songs.getByRole("list", { name: tr("Canciones") }).getByRole("listitem"),
     bible,
     bibleFinder: bible.getByRole("textbox", { name: tr("Libro, capítulo y versículo…") }),
-    goLive: control.getByRole("button", { name: tr("EN VIVO"), exact: true }).first(),
+    goLive: control.getByRole("button", { name: textAt("actions.goLive", app.locale), exact: true }).first(),
     black: control.getByRole("button", { name: tr("NEGRO"), exact: true }).first(),
     backToLive: control.getByRole("button", { name: tr("VIVO"), exact: true }).first(),
     addToSchedule: (panel: Locator) => panel.getByRole("button", { name: tr("Agregar al programa") }),

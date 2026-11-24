@@ -342,6 +342,7 @@ describe("measuring", () => {
       operator: false,
       bounds: { x: 0, y: 0, width, height },
       scaleFactor: 1,
+      fitKey: `|${width}x${height}`,
     });
     expect(measureAspect([display(1920, 1080)], 1)).toBeCloseTo(16 / 9);
     expect(measureAspect([display(2560, 1080)], 1)).toBeCloseTo(2560 / 1080);

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useI18n } from "@renderer/lib/i18n/i18n-provider";
 import { Button, EmptyState, Icon, IconButton, ListRow, Tooltip } from "@renderer/components/ui";
 import { PanelBody, PanelFooter } from "@renderer/components/shared/panel";
@@ -7,6 +7,7 @@ import { viewNamed } from "@renderer/lib/named-list";
 import { useSettingsStore } from "@renderer/stores/settings.store";
 import { NAMED_SORT_ORDERS, type NamedSortOrder } from "@shared/types/settings";
 import { ModalBoundary } from "@renderer/components/shared/modal-boundary";
+import { useRecovering } from "@renderer/components/shared/editor-screen";
 import { PlateAirStatus } from "@renderer/components/shared/plate-air-status";
 import { toast } from "@renderer/lib/toast";
 import { setOverlayPlateDrag } from "@renderer/lib/dnd";
@@ -35,6 +36,11 @@ import { PLATE_KIND_ICON, PLATE_KIND_LABEL } from "./plate-display";
 export function OverlaysPanel() {
   const { locale, t } = useI18n();
   const [editorOpen, setEditorOpen] = useState(false);
+  // «Recuperar» after a crash opens the editor on what was left unsaved (DU-1).
+  const recovered = useRecovering("plate");
+  useEffect(() => {
+    if (recovered) setEditorOpen(true);
+  }, [recovered]);
   const plates = useOverlayStore((s) => s.plates);
   const sort = useSettingsStore((s) => s.settings["functions.platesSort"]);
   const [query, setQuery] = useState("");
@@ -114,12 +120,12 @@ export function OverlaysPanel() {
       {/* The footer every resource tab has: the editor on the left as an icon,
           «Add to schedule» pinned right with its word. */}
       <PanelFooter>
-        <Tooltip content={t("overlays.manageHint")} floating>
+        <Tooltip content={t("overlays.manageHint")}>
           <IconButton aria-label={t("overlays.manage")} onClick={() => setEditorOpen(true)} size="sm" variant="ghost">
             <Icon name="overlay" />
           </IconButton>
         </Tooltip>
-        <Tooltip className="ml-auto" content={t("resources.addToScheduleHint")} placement="top">
+        <Tooltip className="ml-auto" content={t("resources.addToScheduleHint")}>
           <Button
             aria-label={t("resources.addToSchedule")}
             disabled={previewedId === null}

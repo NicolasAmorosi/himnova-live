@@ -376,3 +376,19 @@ describe("what is not a metafile", () => {
     expect(metafileToSvg(cut, "emf")).toContain("<svg");
   });
 });
+
+describe("a metafile built to hang main (2026-11-22 audit, SE1)", () => {
+  const f32 = (value: number): Buffer => {
+    const b = Buffer.alloc(4);
+    b.writeFloatLE(value);
+    return b;
+  };
+
+  test("an AngleArc sweeping 3.4e38 degrees draws a turn, at once", () => {
+    const started = performance.now();
+    const svg = metafileToSvg(emf(emr(41, 50, 50, 20, f32(0), f32(3.4e38))), "emf");
+    expect(performance.now() - started).toBeLessThan(200);
+    expect(svg).not.toBeNull();
+    expect(metafileToSvg(emf(emr(41, 50, 50, 20, f32(0), f32(Number.NaN))), "emf")).not.toBeNull();
+  });
+});

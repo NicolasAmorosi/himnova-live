@@ -39,7 +39,9 @@ function usePreviewEngine(url: string | null, paused: boolean, picture: boolean)
     const { setDurationSeconds, setPlaying, setPositionSeconds } = usePreviewStore.getState();
     const offStatus = onIpc("preview-video-status", (status) => {
       if (status.url !== url) return;
-      setPositionSeconds(status.currentTimeSeconds);
+      // Ended is at its duration, as a `<video>`'s `currentTime` is: mpv keeps its last frame (`keep-open`), which may
+      // stand a frame short of it, and «played to its end» (`previewReachedEnd`) would never hold.
+      setPositionSeconds(status.ended && status.durationSeconds > 0 ? status.durationSeconds : status.currentTimeSeconds);
       if (status.durationSeconds > 0) setDurationSeconds(status.durationSeconds);
       if (status.ended) setPlaying(false);
     });

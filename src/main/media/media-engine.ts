@@ -32,7 +32,8 @@ import {
  */
 
 export type EngineLoad = {
-  file: string;
+  /** Or the file it will be once main has looked (a deck's music on air: `liveMusicFile`). */
+  file: string | Promise<string>;
   startAtSeconds: number;
   paused: boolean;
   /** 0..1 */
@@ -119,6 +120,10 @@ const running = new Set<MediaEngine>();
 let spare: MediaEngine | null = null;
 
 const STDERR_TAIL_BYTES = 4096;
+/** A report within this of where a seek sent the engine says it got there (`seek`). */
+const SEEK_LANDED_SECONDS = 1;
+/** The longest a seek's earlier reports are ignored, for one that never lands where it was sent. */
+const SEEK_LANDS_WITHIN_MS = 2000;
 
 let available: boolean | null = null;
 /** Whether this build carries an engine for this machine. Asked once: the binary does not come and go. */
@@ -284,6 +289,8 @@ export class MediaEngine {
   private loadedOnce = false;
   private loadedInfo: EngineLoaded | null = null;
   private lastStatus: EngineStatus | null = null;
+  /** Where the last seek sent it, until a report says it got there: the reports before that are stale (`seek`). */
+  private seeking: { at: number; until: number } | null = null;
   private failed = false;
   private ready = false;
   private killed = false;
@@ -338,25 +345,28 @@ export class MediaEngine {
     /** `target` is what the renderer listens for (`window.worship.onVideoFrame`): one engine, one key. */
   load(opts: EngineLoad, target: string, events: EngineEvents): void {
     if (this.loadedOnce) throw new Error("an engine plays one file");
-    if (/[\r\n]/.test(opts.file)) throw new Error("a path with a line break");
+    if (typeof opts.file === "string" && /[\r\n]/.test(opts.file)) throw new Error("a path with a line break");
     this.loadedOnce = true;
     this.targetKey = target;
     this.events = events;
     const volume = mpvVolume(opts.volume);
     const flag = (b: boolean) => (b ? "1" : "0");
-    const line = `load ${Math.max(0, opts.startAtSeconds)} ${flag(opts.paused)} ${volume} ${flag(opts.loop)} ${flag(opts.audio)} ${longPathSafe(opts.file)}`;
+    const line = (file: string) =>
+      `load ${Math.max(0, opts.startAtSeconds)} ${flag(opts.paused)} ${volume} ${flag(opts.loop)} ${flag(opts.audio)} ${longPathSafe(file)}`;
     // The output opens where it is told before the file: the device goes first, to an engine that knows it.
     if (opts.device !== undefined) this.setDevice(opts.device);
     // Every file the engine plays comes through here (library, PREVIEW, a deck's clips and music, a song's video), and
     // a playlist with a video's extension made it project another file and fetch URLs (2026-11-15 audit, S1). A file
     // main cannot read goes on to the engine, which says so itself.
-    this.sent = readHead(opts.file)
-      .then((head) => {
+    this.sent = Promise.resolve(opts.file)
+      .then(async (file) => {
+        if (/[\r\n]/.test(file)) throw new Error("a path with a line break");
+        const head = await readHead(file);
         if (head && textInsteadOfMedia(head)) {
           this.refused = true;
-          console.warn(`[engine] refused, text and not audio or video: ${opts.file}`);
+          console.warn(`[engine] refused, text and not audio or video: ${file}`);
           this.fail({ code: "engine-open", detail: "a text file (a playlist?), not audio or video" });
-        } else this.gate.send(line);
+        } else this.gate.send(line(file));
       })
       .catch((error: unknown) => console.warn("[engine] load", error));
   }
@@ -429,7 +439,20 @@ export class MediaEngine {
   }
 
   seek(toSeconds: number, exact = true): void {
-    this.write(`seek ${Math.max(0, toSeconds)} ${exact ? "exact" : "keyframes"}`);
+    const at = Math.max(0, toSeconds);
+    // Where it was told to go is where it stands from now on, and not ended: a session that takes it over
+    // (`retarget`) hears that, not the end PREVIEW was parked at. Replayed, that end finished the live video the moment
+    // GO LIVE took PREVIEW's engine, before the seek to 0:00 landed, and «Al terminar» put the LOGO up (2026-11-22,
+    // once the projector's push left before PREVIEW let its engine go: RR-01). The engine's next status confirms it.
+    if (this.lastStatus) this.lastStatus = { ...this.lastStatus, time: at, ended: false };
+    // And no report the engine wrote before it took the seek undoes that. One came after GO LIVE took PREVIEW's
+    // engine (paused at 30 s, «ended» or not): back at 30 s, the next `redraw` sought the live video there and it ended
+    // at once (Linux E2E `settings.spec.ts:269`, 2026-11-24). A seek past the end lands at the end.
+    // ponytail: told apart by position, so a seek that lands more than a second from its target (a keyframe one, none
+    // today) is believed only after SEEK_LANDS_WITHIN_MS; a seek id echoed by the engine would make it exact.
+    const duration = this.lastStatus?.duration ?? 0;
+    this.seeking = { at: duration > 0 ? Math.min(at, duration) : at, until: Date.now() + SEEK_LANDS_WITHIN_MS };
+    this.write(`seek ${at} ${exact ? "exact" : "keyframes"}`);
   }
 
   /** A paused engine sends no frames, so a window that starts showing it (a projector rebuilt, a
@@ -488,6 +511,8 @@ export class MediaEngine {
       case "frame":
         return this.onFrame(event.slot);
       case "status":
+        if (this.seeking && Math.abs(event.time - this.seeking.at) > SEEK_LANDED_SECONDS && Date.now() < this.seeking.until) return;
+        this.seeking = null;
         this.lastStatus = event;
         return this.events.status?.(event);
       case "error":

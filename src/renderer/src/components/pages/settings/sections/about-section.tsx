@@ -12,6 +12,7 @@ import {
   Wordmark,
 } from "@renderer/components/ui";
 import { ConfirmModal } from "@renderer/components/shared/modal";
+import { dropEditorDrafts } from "@renderer/components/shared/editor-screen";
 import { quitRiskText, quitRisks } from "@renderer/effects/draft-autosave";
 import { api } from "@renderer/lib/api";
 import { onIpc } from "@renderer/lib/ipc";
@@ -162,7 +163,13 @@ export function AboutSection() {
           }
         >
           {offered ? (
-            <Button onClick={() => void api.updates.openReleaseNotes().catch(failed)} size="sm" variant="outline">
+            <Button
+              onClick={() =>
+                void api.updates.openReleaseNotes().catch(() => toast.danger(t("settings.updatesNotesFailed")))
+              }
+              size="sm"
+              variant="outline"
+            >
               {t("settings.updatesNotes")}
             </Button>
           ) : null}
@@ -271,7 +278,11 @@ export function AboutSection() {
         confirmLabel={installLabel}
         danger
         description={quitRiskText(risks)}
-        onConfirm={() => quitToInstall()}
+        onConfirm={() => {
+          // A quit the operator confirmed over an editor's changes: not offered at the next launch (DU-1).
+          if (risks?.editor) dropEditorDrafts();
+          return quitToInstall();
+        }}
         onOpenChange={(open) => {
           if (!open) setRisks(null);
         }}

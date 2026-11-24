@@ -46,8 +46,9 @@ export function loadSlideModel(url: string): Promise<SlideModel | null> {
       if (!response.ok) return null;
       const model = (await response.json()) as SlideModel;
       const deckId = deckIdOfUrl(url) ?? 0;
+      const named = namedFonts(model);
       await Promise.race([
-        Promise.all([registerFonts(deckId, model), loadFaces(model), warmPictures(model, partResolver(url))]),
+        Promise.all([registerFonts(deckId, model, named.families), loadFaces(named.shorthands), warmPictures(model, partResolver(url))]),
         new Promise((resolve) => setTimeout(resolve, MODEL_WARM_CAP_MS)),
       ]);
       ready.set(url, model);
@@ -105,13 +106,15 @@ export function useSlideModel(
   return url && cached ? { url, model: cached } : shown;
 }
 
-/** A deck's embedded fonts, registered once per window. They beat an installed
+/** The deck's embedded fonts this slide's text names, registered once per window. They beat an installed
  *  face of the same name, as they do in PowerPoint. A font another slide is
  *  still loading is waited for: taking «asked for» as «loaded» let a neighbour
- *  preloaded right after GO LIVE paint in the fallback face (2026-11-15 audit, A42). */
-async function registerFonts(deckId: number, model: SlideModel): Promise<void> {
+ *  preloaded right after GO LIVE paint in the fallback face (2026-11-15 audit, A42). Every model carries the whole
+ *  deck's list, and a slide waited for all of it: 24 faces decoded and loaded for a first slide that names 5, and 11
+ *  for an `.odp` whose text names none of them (2026-11-23). A face no family list of the slide names can't draw it. */
+async function registerFonts(deckId: number, model: SlideModel, families: ReadonlySet<string>): Promise<void> {
   await Promise.all(
-    model.fonts.map((font) => {
+    model.fonts.filter((font) => families.has(font.family.toLowerCase())).map((font) => {
       const url = deckFontUrl(deckId, font.part);
       let load = fontLoads.get(url);
       if (!load) {
@@ -138,24 +141,39 @@ async function registerFonts(deckId: number, model: SlideModel): Promise<void> {
   );
 }
 
-/** Every face the model's text and charts name (a bundled twin like Carlito, Open Sans, Montserrat), loaded before
- *  the model is handed out. Measured before it arrived, a baseline (`metricsOf`) or a chart's widths were the
- *  fallback's, and a slide memoized since (`SlideView`) never measures again (2026-11-15 audit, A41). */
-async function loadFaces(model: SlideModel): Promise<void> {
-  if (typeof document === "undefined" || !document.fonts) return;
-  const fonts = new Set<string>();
+/** Every face the model's text and charts name: as the CSS `font` shorthands `document.fonts.load` takes, and as
+ *  bare family names in lower case, what an embedded font is matched by. */
+function namedFonts(model: SlideModel): { shorthands: Set<string>; families: Set<string> } {
+  const shorthands = new Set<string>();
+  const families = new Set<string>();
   const visit = (value: unknown): void => {
     if (Array.isArray(value)) value.forEach(visit);
     else if (value && typeof value === "object") {
       const record = value as Record<string, unknown>;
       const style = `${record["italic"] === true ? "italic " : ""}${record["bold"] === true ? 700 : 400} 16px `;
       // A text run's or a bullet's CSS family list; a chart's single face.
-      if (typeof record["font"] === "string") fonts.add(style + record["font"]);
-      if (typeof record["face"] === "string") fonts.add(`${style}"${record["face"].replace(/"/g, "")}"`);
+      const font = record["font"];
+      if (typeof font === "string") {
+        shorthands.add(style + font);
+        for (const name of font.split(",")) families.add(name.trim().replace(/^["']|["']$/g, "").toLowerCase());
+      }
+      const face = record["face"];
+      if (typeof face === "string") {
+        shorthands.add(`${style}"${face.replace(/"/g, "")}"`);
+        families.add(face.replace(/"/g, "").trim().toLowerCase());
+      }
       Object.values(record).forEach(visit);
     }
   };
   visit(model.elements);
+  return { shorthands, families };
+}
+
+/** Every face the model's text and charts name (a bundled twin like Carlito, Open Sans, Montserrat), loaded before
+ *  the model is handed out. Measured before it arrived, a baseline (`metricsOf`) or a chart's widths were the
+ *  fallback's, and a slide memoized since (`SlideView`) never measures again (2026-11-15 audit, A41). */
+async function loadFaces(fonts: ReadonlySet<string>): Promise<void> {
+  if (typeof document === "undefined" || !document.fonts) return;
   await Promise.all(
     [...fonts].map(async (font) => {
       try {

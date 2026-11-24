@@ -1,5 +1,6 @@
 import { metricTwin } from "@shared/font-twins";
 import type { Bullet, Fill, Paragraph, TextBody, TextRun } from "@shared/types/slide-model";
+import { alpha, roman } from "../list-number";
 import { colorIn, css, schemeColor } from "./color";
 import { fillIn, miss, NO_EFFECTS, readEffects, readImage, readLine, type StyleContext } from "./style";
 import { attr, child, children, isTrue, numAttr, type XmlElement } from "./xml";
@@ -315,7 +316,9 @@ function readBullet(chain: XmlElement[], runs: TextRun[], ctx: TextContext, coun
   // Numbered: counted per level over consecutive paragraphs numbered with the
   // same scheme — a different scheme (or startAt) starts again.
   const scheme = attr(kind, "type") ?? "arabicPeriod";
-  const startAt = numAttr(kind, "startAt", 1);
+  // The schema's range (`ST_TextBulletStartAtNum`): a startAt of 1e10 made a 10-million-character roman numeral
+  // and a 10 MB slide model (2026-11-22 audit, SC1). Nothing PowerPoint writes changes.
+  const startAt = Math.min(Math.max(numAttr(kind, "startAt", 1), 1), 32767);
   const key = `${level}:${scheme}:${startAt}`;
   for (const k of [...counters.keys()]) if (k.startsWith(`${level}:`) && k !== key) counters.delete(k);
   const next = (counters.get(key) ?? startAt - 1) + 1;
@@ -324,17 +327,6 @@ function readBullet(chain: XmlElement[], runs: TextRun[], ctx: TextContext, coun
 }
 
 function autoNumber(scheme: string, n: number): string {
-  const roman = (v: number): string => {
-    const table: [number, string][] = [[1000, "m"], [900, "cm"], [500, "d"], [400, "cd"], [100, "c"], [90, "xc"], [50, "l"], [40, "xl"], [10, "x"], [9, "ix"], [5, "v"], [4, "iv"], [1, "i"]];
-    let out = "";
-    for (const [value, letters] of table) while (v >= value) { out += letters; v -= value; }
-    return out;
-  };
-  const alpha = (v: number): string => {
-    let out = "";
-    while (v > 0) { v -= 1; out = String.fromCharCode(97 + (v % 26)) + out; v = Math.floor(v / 26); }
-    return out;
-  };
   const body = scheme.startsWith("romanUc") ? roman(n).toUpperCase()
     : scheme.startsWith("romanLc") ? roman(n)
     : scheme.startsWith("alphaUc") ? alpha(n).toUpperCase()

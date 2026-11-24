@@ -36,7 +36,15 @@ function nextSortOrder(db: Db): number {
 /** A Bible file's identity, `bible_versions.source_hash`: what a re-seed
  *  compares, and how an import knows the file is already installed. */
 export function bibleFileHash(filePath: string): string {
-  return crypto.createHash("sha256").update(fs.readFileSync(filePath)).digest("hex");
+  let bytes: Buffer;
+  try {
+    bytes = fs.readFileSync(filePath);
+  } catch (error) {
+    // The first read of an import: a file gone or locked is told as one, never in Node's English (EC-2).
+    console.warn(`[bible] could not read ${filePath}`, error);
+    throw new BibleFormatError(mt("bible.fileUnreadable", { file: path.basename(filePath) }), error);
+  }
+  return crypto.createHash("sha256").update(bytes).digest("hex");
 }
 
 /**

@@ -49,12 +49,37 @@ the control window keeps which one is open in `settings["programs.openId"]` (`st
 main's current program, which a «+» in the programs list moves too) and `App`, finding no draft, opens it again (`reopenProgram`; owner, 2026-11-06: a
 restart mid-service left the schedule empty).
 
+Neither says which row was on air, and the draft cannot: it is `null` for the usual case, a saved program used
+unedited. That row is its own setting, `settings["programs.liveRow"]` (its position and the row as a save sends it,
+since ids change at every launch), written by the same `startOpenProgramMemory` whenever the row on air changes and
+`null` when nothing of the schedule is. Main clears it on a clean close only (`forgetLiveRow`): the control window's
+page answering «close», or the update's or a restore's quit, which the page asked about first. Never from the window's
+`closed`, which a hung page's window also reaches when the close guard's grace shuts it. So a mark found at launch means
+a crash, a killed process, a power cut, a hung or dead page closed anyway. `App` then puts that row in PREVIEW, as a
+click on it would, after the draft or the program is back (`restoreLiveRow`: at its place, else the only row like it,
+else nothing); never on air (owner, 2026-11-23, DU-6). A setting and not a table: settings are never exported, and a
+copy of the database (`backups/`) carries it like it carries the draft, so restoring one made mid-service may open with
+a row in PREVIEW.
+
 Its items are a **JSON blob**, not `program_items` rows, and that's deliberate: a draft has to be
 able to reference an asset the operator is about to delete, which is exactly what that table's FK
 `onDelete: "restrict"` exists to forbid — a draft can never be what blocks a delete.
 `DraftRepo.load()` filters out on read the items whose target no longer exists —an asset deleted
 from the library, a timer scene deleted from the editor—, on main's side, which is the only one
 that can answer that without one IPC round-trip per item.
+
+`editor_drafts` (`0025`) is the same safety net for the five editors with «Guardar» (song, song theme, plate,
+scene, program): **one row per editor** (`editor` is the key), its form as the renderer's JSON (`EditorDraft`: which
+editor, what it edits or `null` for a new one, its name for the notice, the form, `v: 1`), written every 600 ms while
+it has unsaved changes and deleted the moment it has none (saved, discarded, closed clean) by the hook the five share
+(`components/shared/editor-screen/use-editor-draft.ts`; `EditorScreen` is only their shell). Channels
+`editors:saveDraft` (`null` deletes) and `editors:loadDrafts`, through `DraftRepo` like the schedule's. At launch,
+after the schedule and its row on air, also on a page started over what is live, `App` reads them once; any left
+means a crash, a killed process or a power cut, and the notice offers them («Recuperar» opens each editor on its form,
+one after the other, on its tab; «Descartar» deletes them; «Cancelar» keeps them, and opening one of those editors
+asks again before its own form replaces the row). A quit the operator confirmed over an open editor deletes that
+editor's row (`dropEditorDrafts`): what they chose to lose is not offered. Main never reads the form, and a row this
+build cannot read is skipped (owner, 2026-11-23, DU-1).
 
 ### The six item kinds, and why every `program_items` migration is written by hand
 
@@ -281,7 +306,12 @@ The lyrics text format (`shared/song-text.ts`) is shared by the editor and the E
 (`main/songs/`): EasyWorship's RTF (`SongWords.db`) becomes plain text whose blocks start with a label
 («Verse 1», «Chorus») — exactly what `parseLyrics` reads, in any of the four languages. Its databases
 are opened read-only and never queried with `ORDER BY`/`WHERE` on text: EasyWorship 7 declares a
-collation SQLite lacks.
+collation SQLite lacks. Both programs' databases (EasyWorship's two, OpenLP's `songs.sqlite`) are SQL from a file
+of anywhere: only plain tables are read (`onlyPlainTables`: a view, a virtual table or a generated column is
+refused), and the read runs on a thread of its own (`songs/song-db-worker.ts`), one per database, with a 30 s clock
+(`SONG_DB_READ_TIMEOUT_MS` in `services/song-import.ts`); main gets the songs back and writes them. A read past the
+clock is the same «could not be read» as a broken file. The thread itself cannot be stopped while SQLite is inside
+its own loop (better-sqlite3 has no interrupt): it is asked to stop and never waited for (2026-11-22 audit, SE3).
 
 OpenLP (`songs.sqlite`, 2.0 on) and OpenLyrics (its export, one `.xml` per song) need no text format:
 both name each verse (`v1`, `c`, `v1a` a part of verse 1) and `main/songs/openlp.ts` builds the sections
@@ -325,6 +355,9 @@ CCLI…), or its next save would write them out of the file (owner, 2026-11-06);
 and what the file does not hold — its format has no place for it, or this file simply has none (a number, notes,
 an order, a translation, chords: review 2026-11-06). The result counts apart the songs without a title or words (`problems`) and the files
 that were no song file at all — another program's, broken or unreadable (`unsupported`).
+A song database that could not be read among files that did come in (an EasyWorship 2009 `Songs.DB` picked with a
+song file) keeps its worded reason in `reason`, which the control window shows in a warning beside the counts
+(review 2026-11-22, EC-11).
 
 `song_uses` (`0021`) is what the CCLI usage report counts (owner, 2026-11-05): `projection:show` writes a
 row when a song goes live, ONE per song per local day (`SongsRepo.recordUse`), never pruned: a report covers six
@@ -414,14 +447,11 @@ extension doesn't belong to its `kind` (`importable` in `library-import.ts`).
 `pathKey` normalizes (`NFC` + lowercase on Windows) so that `C:\a.mp4` and `c:\A.MP4` don't get in
 twice — Windows is case-insensitive and the legacy version didn't account for it.
 
-## Legacy data migration
+## Legacy data migration (removed)
 
-`src/main/services/migrate-legacy-data.ts` runs only once, on first startup: if
-`settings.json`/`media_library.json` exist in `userData` (from an install of the vanilla version),
-it imports `logoPath` and every library entry into SQLite (the legacy file's `lastFolder`
-no longer has anywhere to go: the picker opens one folder per kind, not the last one used), and renames the original
-files to `*.migrated` so they aren't processed again. Best-effort: a corrupt JSON doesn't block
-startup.
+Until 2026-11-23 an importer brought a vanilla 1.0 install's `settings.json` and `media_library.json` (in `userData`)
+into SQLite at first startup. No church is left on the 1.0, so it is gone: those files are now ignored, and a profile
+that holds only them counts as new. To see it: `git show 4463750d:src/main/services/migrate-legacy-data.ts`.
 
 ## Bible seed — never written inside the bundle
 
@@ -569,6 +599,23 @@ stranger. So `SettingsRepo.load()` applies a per-key normalizer when there is on
 (`shared/types/settings.ts`), which is the same discipline as `utility_scenes.style_json` —
 **validate on write, normalize field by field on read**— applied for the first time to a
 `settings` row.
+
+## Durability: `synchronous = NORMAL`, and FULL for the five explicit saves
+
+`openDatabase` (`src/main/db/client.ts`) opens the file in `journal_mode = WAL` with `synchronous = NORMAL`: a commit
+is not synced, so the database always comes back sound, but a power cut or a system crash seconds after a write can undo
+it (a killed app loses nothing: the OS cache survives it). The operator's explicit «Guardar» is the exception
+(2026-11-22 review, DU-2; owner, 2026-11-23): saving a program (`programs:save`, `programs:updateMeta`), a song
+(`song:create`, `song:update` through `saveSong`), a song theme, a plate (`overlay:*`) and a scene (`utility:*`) runs
+its write inside `writeDurably`, which sets `synchronous = FULL` before it and puts NORMAL back in a `finally`. Before,
+because SQLite throws «Safety level may not be changed inside a transaction». Around the synchronous write only: a
+linked song's file is written first and awaited outside it. The `*:duplicate` channels, the order of service's draft
+(`program:saveDraft`, every 600 ms), settings and everything else stay NORMAL: one sync per write in main costs ~24 ms
+on a spinning disk (measured on a Windows test PC), ~0.4 ms on an SSD. A FULL commit syncs the whole `-wal`, so the NORMAL
+writes before it reach the disk too. `fullfsync = ON` on every connection, because macOS's plain `fsync` stops in the
+drive's cache (other systems ignore the pragma): on an M3 it costs ~3 ms per explicit save and ~6.5 ms per WAL
+checkpoint (one every few hundred draft writes), and the draft's median stays at 0.01 ms.
+`tests/main/durable-saves.test.ts` records, with a TEMP trigger, the level each write sees through the real handlers.
 
 ## Migrations and backup
 

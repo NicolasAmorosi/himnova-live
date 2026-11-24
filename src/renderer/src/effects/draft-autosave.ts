@@ -75,8 +75,8 @@ function soundOnAir(): string | null {
 
 /** Why quitting right now needs the operator's OK, or `null` when nothing is
  *  at risk. Whatever is still debounced goes to disk first, so "close anyway"
- *  really does mean "it will be there next time" — for the schedule; an open
- *  editor's unsaved changes (`unsavedEditors`) have no draft and are lost.
+ *  really does mean "it will be there next time" for the schedule; an open
+ *  editor's unsaved changes (`unsavedEditors`) are lost, their drafts dropped with the close (`dropEditorDrafts`).
  *  Asked by main's `close-requested` and by «Restart and update», which quits
  *  the same way. */
 export function quitRisks(): CloseGuardReasons | null {

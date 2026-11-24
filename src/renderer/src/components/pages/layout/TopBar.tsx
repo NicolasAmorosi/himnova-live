@@ -77,7 +77,7 @@ export function TopBar({ onOpenPrograms, onOpenSettings }: TopBarProps) {
             icon, and the name floated in a capsule. */}
         <div className="@container/program flex min-w-0 items-center gap-1.5 px-3">
           <BrandMark className="mr-1" />
-          <Tooltip content={t("settings.title")} floating>
+          <Tooltip content={t("settings.title")}>
             <IconButton aria-label={t("settings.title")} onClick={onOpenSettings} variant="ghost">
               <Icon name="settings" />
             </IconButton>
@@ -89,7 +89,7 @@ export function TopBar({ onOpenPrograms, onOpenSettings }: TopBarProps) {
             {currentProgramName || t("header.untitled")}
           </span>
 
-          <Tooltip content={dirty ? t("programs.saveHint") : t("programs.saveNoChanges")} floating>
+          <Tooltip content={dirty ? t("programs.saveHint") : t("programs.saveNoChanges")}>
             <Button
               aria-busy={saving || undefined}
               disabled={!dirty || saving}
@@ -104,12 +104,12 @@ export function TopBar({ onOpenPrograms, onOpenSettings }: TopBarProps) {
               <span className="@max-[23rem]/program:sr-only">{t("programs.save")}</span>
             </Button>
           </Tooltip>
-          <Tooltip content={t("programs.newHint")} floating>
+          <Tooltip content={t("programs.newHint")}>
             <IconButton aria-label={t("programs.new")} onClick={handleNewProgram} variant="ghost">
               <Icon name="filePlus" />
             </IconButton>
           </Tooltip>
-          <Tooltip content={t("programs.manage")} floating>
+          <Tooltip content={t("programs.manage")}>
             <IconButton aria-label={t("programs.manage")} onClick={() => onOpenPrograms()} variant="ghost">
               <Icon name="folderOpen" />
             </IconButton>
@@ -120,7 +120,7 @@ export function TopBar({ onOpenPrograms, onOpenSettings }: TopBarProps) {
             during a service: the bar is a strip tall like all the others
             (owner, 2026-11-06). They keep their width and their words. */}
         <div className="flex items-center justify-end px-3">
-          <Tooltip content={<>{t("footerHints.goLive")}<Kbd>Enter</Kbd></>} floating>
+          <Tooltip content={<>{t("footerHints.goLive")}<Kbd>{t("keys.enter")}</Kbd></>}>
             <Button disabled={previewContent === null} onClick={() => void goLive()} size="sm" variant="live">
               <Icon name="play" /> {t("actions.goLive")}
             </Button>
@@ -128,7 +128,7 @@ export function TopBar({ onOpenPrograms, onOpenSettings }: TopBarProps) {
         </div>
 
         <div className="flex items-center justify-end gap-1.5 px-3">
-          <Tooltip content={<>{t("footerHints.logo")}<Kbd>L</Kbd></>} floating>
+          <Tooltip content={<>{t("footerHints.logo")}<Kbd>L</Kbd></>}>
             <Button
               className="w-24 px-2"
               // Pressed again it uncovers, like its key (owner, 2026-11-16).
@@ -141,7 +141,7 @@ export function TopBar({ onOpenPrograms, onOpenSettings }: TopBarProps) {
               <Icon name="image" /> {t("footer.logo")}
             </Button>
           </Tooltip>
-          <Tooltip content={<>{t("footerHints.black")}<Kbd>B</Kbd></>} floating>
+          <Tooltip content={<>{t("footerHints.black")}<Kbd>B</Kbd></>}>
             <Button
               className="w-24 px-2"
               // Pressed again it uncovers, like its key (owner, 2026-11-16).
@@ -154,7 +154,7 @@ export function TopBar({ onOpenPrograms, onOpenSettings }: TopBarProps) {
               <Icon name="stop" /> {t("footer.black")}
             </Button>
           </Tooltip>
-          <Tooltip content={t("footerHints.live")} floating>
+          <Tooltip content={t("footerHints.live")}>
             <Button
               className="w-24 px-2"
               disabled={base === null}

@@ -11,7 +11,8 @@ import { mt } from "../i18n";
 import { isOpenLyrics, readOpenLyrics } from "../songs/openlp";
 import { chordProSongs, isChordPro, isSongText, readSongTextBlocks } from "../songs/text-files";
 import { rewriteChordPro, rewriteOpenLyrics, rewriteSongSelect, withXmlEncoding } from "../songs/song-writers";
-import { getSettingsRepo, getSongsRepo } from "./repos";
+import { getDbHandle, getSettingsRepo, getSongsRepo } from "./repos";
+import { writeDurably } from "../db/client";
 
 /**
  * A Songs tab's linked folder (owner, 2026-11-05: «las carpetas de la
@@ -68,11 +69,15 @@ export async function listSongFolder(folder: string): Promise<Song[]> {
   const known = repo.fromFolder(folder);
   const songs: Song[] = [];
   const present = new Set<string>();
+  const root = await fs.promises.realpath(folder).catch(() => folder);
   for (const entry of entries) {
     if (!isSongFile(entry.name)) continue;
+    const file = path.join(folder, entry.name);
+    // A link out of the folder is not one of its songs: saving the song wrote through it, onto a file anywhere on the
+    // computer (owner, 2026-11-22: only links that stay inside). A broken link goes on, and fails below as before.
+    if (entry.isSymbolicLink() && !(await staysInside(file, root))) continue;
     // There, whatever reading it says: a share that fails a moment keeps its rows.
     present.add(entry.name);
-    const file = path.join(folder, entry.name);
     try {
       const stat = await fs.promises.stat(file);
       if (!stat.isFile()) continue;
@@ -91,6 +96,14 @@ export async function listSongFolder(folder: string): Promise<Song[]> {
   }
   repo.forgetFiles(folder, present);
   return songs;
+}
+
+/** Where the link `file` leads is inside `root`, or nowhere (a broken link). */
+async function staysInside(file: string, root: string): Promise<boolean> {
+  const target = await fs.promises.realpath(file).catch(() => null);
+  if (target === null) return true;
+  const relative = path.relative(root, target);
+  return relative !== "" && !relative.startsWith("..") && !path.isAbsolute(relative);
 }
 
 /** What `format`'s file holds of a song's words: what the song can lose
@@ -236,7 +249,16 @@ export async function writeSongFile(id: number, song: ReadSong): Promise<void> {
   if (format === "openlyrics") text = withXmlEncoding(text, encoding);
   const temporary = `${real}.himnova-tmp`;
   try {
-    await fs.promises.writeFile(temporary, encodeText(text, encoding, bom)!);
+    const handle = await fs.promises.open(temporary, "w");
+    try {
+      await handle.writeFile(encodeText(text, encoding, bom)!);
+      // On the disk before the rename puts it in place: NTFS journals the rename, not the bytes, so a power cut
+      // seconds after a save could leave the church's own file at its size and all zeros (2026-11-22 audit, DU-5).
+      // Best-effort, as the permissions below: a share that cannot flush still gets the song.
+      await handle.sync().catch((error: unknown) => console.warn("[songs] could not flush the song file", file, error));
+    } finally {
+      await handle.close();
+    }
     try {
       await fs.promises.chmod(temporary, stat.mode & 0o7777);
     } catch (error) {
@@ -308,10 +330,12 @@ export function quitWaitForSongSaves(quit: () => void, capMs: number): (prevent:
  *  for: in the line, one save stuck on a share that does not answer held every song's (review of A25). */
 export function saveSong(id: number, song: ReadSong): Song | Promise<Song> {
   const repo = getSongsRepo();
-  if (repo.source(id) === null) return repo.update(id, song);
+  // The explicit «Guardar» syncs to disk (DU-2): only the database write, after the file, never across the await.
+  const update = () => writeDurably(getDbHandle().sqlite, () => repo.update(id, song));
+  if (repo.source(id) === null) return update();
   return inSaveOrder(async () => {
     await writeSongFile(id, song);
-    return repo.update(id, song);
+    return update();
   });
 }
 
