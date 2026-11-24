@@ -58,6 +58,10 @@ const WHATS_NEW: Record<
     steps: [],
     also: ["lighterFader", "tooltips", "deckVideoMemory"],
   },
+  "2.14": {
+    steps: [],
+    also: ["nextInPreview", "pathBubble", "projectorFit", "deckTimings", "crashRecovery", "hymnMusic"],
+  },
 };
 const DONE_STEP = { icon: "circleCheck", id: "done" } as const;
 
