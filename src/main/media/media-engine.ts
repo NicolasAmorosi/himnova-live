@@ -120,6 +120,10 @@ const running = new Set<MediaEngine>();
 let spare: MediaEngine | null = null;
 
 const STDERR_TAIL_BYTES = 4096;
+/** A report within this of where a seek sent the engine says it got there (`seek`). */
+const SEEK_LANDED_SECONDS = 1;
+/** The longest a seek's earlier reports are ignored, for one that never lands where it was sent. */
+const SEEK_LANDS_WITHIN_MS = 2000;
 
 let available: boolean | null = null;
 /** Whether this build carries an engine for this machine. Asked once: the binary does not come and go. */
@@ -285,6 +289,8 @@ export class MediaEngine {
   private loadedOnce = false;
   private loadedInfo: EngineLoaded | null = null;
   private lastStatus: EngineStatus | null = null;
+  /** Where the last seek sent it, until a report says it got there: the reports before that are stale (`seek`). */
+  private seeking: { at: number; until: number } | null = null;
   private failed = false;
   private ready = false;
   private killed = false;
@@ -439,6 +445,13 @@ export class MediaEngine {
     // GO LIVE took PREVIEW's engine, before the seek to 0:00 landed, and «Al terminar» put the LOGO up (2026-11-22,
     // once the projector's push left before PREVIEW let its engine go: RR-01). The engine's next status confirms it.
     if (this.lastStatus) this.lastStatus = { ...this.lastStatus, time: at, ended: false };
+    // And no report the engine wrote before it took the seek undoes that. One came after GO LIVE took PREVIEW's
+    // engine (paused at 30 s, «ended» or not): back at 30 s, the next `redraw` sought the live video there and it ended
+    // at once (Linux E2E `settings.spec.ts:269`, 2026-11-24). A seek past the end lands at the end.
+    // ponytail: told apart by position, so a seek that lands more than a second from its target (a keyframe one, none
+    // today) is believed only after SEEK_LANDS_WITHIN_MS; a seek id echoed by the engine would make it exact.
+    const duration = this.lastStatus?.duration ?? 0;
+    this.seeking = { at: duration > 0 ? Math.min(at, duration) : at, until: Date.now() + SEEK_LANDS_WITHIN_MS };
     this.write(`seek ${at} ${exact ? "exact" : "keyframes"}`);
   }
 
@@ -498,6 +511,8 @@ export class MediaEngine {
       case "frame":
         return this.onFrame(event.slot);
       case "status":
+        if (this.seeking && Math.abs(event.time - this.seeking.at) > SEEK_LANDED_SECONDS && Date.now() < this.seeking.until) return;
+        this.seeking = null;
         this.lastStatus = event;
         return this.events.status?.(event);
       case "error":

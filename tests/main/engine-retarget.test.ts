@@ -43,3 +43,29 @@ test.skipIf(process.platform !== "darwin")("an engine sought away from its end i
     killAllEngines();
   }
 });
+
+test.skipIf(process.platform !== "darwin")("a report the engine wrote before it took the seek does not undo it", async () => {
+  // PREVIEW's engine parked at 30 s; the report it had already written when the seek to 0:00 reached it; then the seek.
+  const AT_END = `{"ev":"status","time":30,"duration":30,"paused":true,"ended":false}`;
+  const LANDED = `{"ev":"status","time":0,"duration":30,"paused":false,"ended":false}`;
+  fs.writeFileSync(
+    path.join(h.dir, "media-engine"),
+    `#!/bin/sh\necho '{"ev":"hello","proto":8}'\necho '{"ev":"ready","gpu":"fake"}'\necho '${AT_END}'\n` +
+      `read -r seek\necho '${AT_END}'\necho '${LANDED}'\nexec sleep 30\n`,
+  );
+  fs.chmodSync(path.join(h.dir, "media-engine"), 0o755);
+  const { killAllEngines, takeEngine } = await import("../../src/main/media/media-engine");
+  const engine = takeEngine();
+  try {
+    await expect.poll(() => engine.position, { timeout: 3000 }).toBe(30);
+    engine.seek(0);
+    const status = vi.fn<(status: { time: number; paused: boolean }) => void>();
+    engine.retarget("live", { status });
+    await expect.poll(() => status.mock.calls.some(([s]) => s.paused === false), { timeout: 3000 }).toBe(true);
+    // Heard, the live session's next `redraw` sought the video back to 30 s, and it ended at once (Linux E2E, 2026-11-24).
+    expect(status).not.toHaveBeenCalledWith(expect.objectContaining({ time: 30 }));
+    expect(engine.position).toBe(0);
+  } finally {
+    killAllEngines();
+  }
+});

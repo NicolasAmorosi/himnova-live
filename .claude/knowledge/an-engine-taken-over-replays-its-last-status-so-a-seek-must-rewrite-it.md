@@ -15,7 +15,14 @@ one session to another; a video that goes live and ends at once, with «Al termi
 - Fixed in `seek` (`52311bad`): the last status moves to where the engine was sent, without «ended», before the command
   goes out. Every caller of `seek` wants that; a later real report overwrites it. `tests/main/engine-retarget.test.ts`
   drives a fake engine that reports «ended» and fails without it (darwin only, a shell script plays the engine).
+- Rewriting it was half the fix (2026-11-24, Linux E2E, `settings.spec.ts:269` failing ~1 run in 10): the engine's
+  reports are not ordered with main's commands, so a report it wrote BEFORE it read the seek (PREVIEW's 30 s, paused)
+  arrived a few ms after `retarget` and overwrote `lastStatus`. Then a window asked for a frame after the hold had
+  ended (the LIVE monitor, read from the code), `redraw` sought to that stale 30 s, and the video ended (LOGO). Now
+  `seek` remembers its target and drops every report more than 1 s from it until one lands (2 s cap). Logged proof: in
+  the failing runs the stale report came before that `redraw` every time, and never in a passing one.
+  `tests/main/engine-retarget.test.ts` has a fake engine that writes it after reading the seek.
 - Left open (owner, 2026-11-22 night): a video PREVIEW played to its end goes live with `startAtSeconds` at its
   duration, so there is no seek at all and it still ends at once (RN2-5); the fix would start it from 0:00.
 
-**Last updated:** 2026-11-22
+**Last updated:** 2026-11-24
