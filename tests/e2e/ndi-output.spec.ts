@@ -1,4 +1,4 @@
-// Settings ▸ Proyección ▸ «Salida NDI®». Runs on any machine: with an NDI runtime (installed, or
+// Settings ▸ Transmisión ▸ «Salida NDI®» (its own tab since 2026-11-25). Runs on any machine: with an NDI runtime (installed, or
 // HIMNOVA_NDI_LIB=<path to it>) the output reports «Enviando»; without one it says what is missing and offers
 // the download. Either way the projector is not touched. What reaches a receiver is checked by hand with a
 // real one (OBS), on the three systems.
@@ -14,7 +14,7 @@ test("the NDI output turns on and off from Settings and never touches the projec
 
   await app.control.getByRole("button", { name: "Configuración" }).click();
   const settings = app.control.getByRole("dialog", { name: "Configuración" });
-  await settings.getByRole("tab", { name: "Proyección" }).click();
+  await settings.getByRole("tab", { name: "Transmisión" }).click();
   const toggle = settings.getByRole("group", { name: "Enviar por NDI®" }).getByRole("switch");
   const status = settings.getByRole("group", { name: "Estado", exact: true });
   await expect(status).toContainText("Apagada");
@@ -36,17 +36,17 @@ test("the NDI output turns on and off from Settings and never touches the projec
     await expect(settings.getByRole("group", { name: "Sonido", exact: true }).getByRole("switch")).toBeChecked();
     // Its own window: closing the projector and opening it again (Ajustes ▸ Pantallas) never stops it.
     const screensTab = settings.getByRole("tab", { name: "Pantallas" });
-    const projectionTab = settings.getByRole("tab", { name: "Proyección" });
+    const streamTab = settings.getByRole("tab", { name: "Transmisión" });
     await screensTab.click();
     await settings.getByRole("button", { name: "Cerrar pantalla" }).click();
     await expect.poll(() => app.hasProjector()).toBe(false);
-    await projectionTab.click();
+    await streamTab.click();
     await expect(status).toContainText("Enviando");
     // (A reopened projector starts under NEGRO, and the NDI output with it: it draws what the projector does.)
     await screensTab.click();
     await settings.getByRole("button", { name: "Abrir pantalla" }).click();
     await app.projector();
-    await projectionTab.click();
+    await streamTab.click();
     await expect(status).toContainText("Enviando");
   }
 
@@ -58,7 +58,7 @@ test("the NDI output turns on and off from Settings and never touches the projec
 test("dragging the sound's sync saves it on release, and the NDI page and its sender stay: the delay moves in place", async ({ app }) => {
   await app.control.getByRole("button", { name: "Configuración" }).click();
   const settings = app.control.getByRole("dialog", { name: "Configuración" });
-  await settings.getByRole("tab", { name: "Proyección" }).click();
+  await settings.getByRole("tab", { name: "Transmisión" }).click();
   await settings.getByRole("group", { name: "Enviar por NDI®" }).getByRole("switch").click();
   // With its sound (on by default), at 0 ms.
   await expect(settings.getByRole("group", { name: "Sonido", exact: true }).getByRole("switch")).toBeChecked();

@@ -1,6 +1,8 @@
 export type DisplayInfo = {
   id: number;
-  label: string;
+  /** The device name the OS reports, «» when it gives none (often on Linux), with «#2» when two screens would
+   *  otherwise read the same. The renderer says it with its resolution (`resolutionLabel`), in its own language. */
+  name: string;
   /** The operator's own screen: the one hosting the control window, not the OS's «primary» (a
    *  church may have made the projector its primary display). */
   operator: boolean;
@@ -19,23 +21,44 @@ export const PROJECTOR_FIT_MIN = 80;
 /** Screens `projection.fit` remembers: a laptop that visits many rooms, not an unbounded list. */
 export const PROJECTOR_FIT_MAX_SCREENS = 64;
 
+/** A screen's mode in device pixels: Electron's `Display.bounds` are scaled units (DIPs), Chromium draws at pixels. */
+export function pixelSize(width: number, height: number, scaleFactor: number): { width: number; height: number } {
+  return { width: Math.round(width * scaleFactor), height: Math.round(height * scaleFactor) };
+}
+
 /**
  * Which screen a projector fit belongs to: its name and its mode in pixels, never its id or its place (Windows
  * renumbers screens across restarts and a projector moves between ports). Two projectors of the same model share
  * one, and overscan is the model's. The mode is in device pixels, so changing Windows' scale keeps the fit.
  */
 export function projectorFitKey(label: string, width: number, height: number, scaleFactor: number): string {
-  return `${label.trim()}|${Math.round(width * scaleFactor)}x${Math.round(height * scaleFactor)}`;
+  const pixels = pixelSize(width, height, scaleFactor);
+  return `${label.trim()}|${pixels.width}x${pixels.height}`;
 }
 
+/** The words a resolution is said with, in the interface's language. */
+export type ResolutionWords = { looksLike: (size: string) => string; pictureTakes: (size: string) => string };
+
 /**
- * A screen's size as its own system's display settings say it, so the number in Settings matches the one the church
- * sees there. Windows and Linux report screens in scaled units: a 1920x1080 projector at Windows' 125 % came out as
- * «1536x864», a size no screen has (2026-11-21, a church's projector). There it is the mode in pixels, with the scale
- * when it is not 100 %. macOS's settings speak in those same units («looks like 1512 × 982»), so there they stay.
+ * A screen's resolution, the one formatter for every place that shows it (owner, 2026-11-25): its real size in
+ * device pixels first. Windows and Linux report screens in scaled units (a 1920x1080 projector at Windows' 125 % came
+ * out as «1536x864», 2026-11-21), so a scaled screen adds its scale, as their settings say it. macOS's settings speak
+ * in points («looks like 1470 × 956»), so a Retina screen adds those. With the projector's fit below 100 % (`fit`, in
+ * percent), it adds the pixels the picture takes.
  */
-export function resolutionLabel(width: number, height: number, scaleFactor: number, platform: string): string {
-  if (platform === "darwin" || scaleFactor === 1) return `${width}x${height}`;
-  const size = `${Math.round(width * scaleFactor)}x${Math.round(height * scaleFactor)}`;
-  return `${size} · ${Math.round(scaleFactor * 100)} %`;
+export function resolutionLabel(
+  width: number,
+  height: number,
+  scaleFactor: number,
+  mac: boolean,
+  words: ResolutionWords,
+  fit = 100,
+): string {
+  const pixels = pixelSize(width, height, scaleFactor);
+  const parts = [`${pixels.width}x${pixels.height}`];
+  if (scaleFactor !== 1) parts.push(mac ? words.looksLike(`${width}x${height}`) : `${Math.round(scaleFactor * 100)} %`);
+  if (fit < 100) {
+    parts.push(words.pictureTakes(`${Math.round((pixels.width * fit) / 100)}x${Math.round((pixels.height * fit) / 100)}`));
+  }
+  return parts.join(" · ");
 }

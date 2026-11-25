@@ -10,8 +10,9 @@
   1920x1080 «TV timing», and the owner confirmed the Windows desktop was cut too. The app drew the whole picture:
   every image is `object-contain` in `OutputView`.
 - **1536x864 was 1920x1080 at Windows' 125 %.** Electron's `Display.bounds` are DIPs. The label now says the mode in
-  pixels plus the scale on Windows and Linux (`resolutionLabel`, «1920x1080 · 125 %»); macOS keeps points, which is
-  what its own settings show («looks like 1512 × 982»). Rendering was never affected: Chromium draws at device pixels.
+  pixels plus the scale on Windows and Linux (`resolutionLabel`, «1920x1080 · 125 %»); on macOS, since 2026-11-25
+  (owner), the pixels plus the points its own settings show («2940x1912 · se ve como 1470x956»); it kept the points
+  alone until then. Rendering was never affected: Chromium draws at device pixels.
 - **The app cannot fix it at the source.** Electron has no API to set a display mode (it would be native code per
   OS, changing the church's PC), and 1920x1080 overscans on that projector anyway. The fix that always works is the
   projector's own «overscan» menu; the app's is Settings ▸ Screens ▸ «Ajuste del proyector»: the picture laid out
@@ -25,4 +26,4 @@
   DIP size is fractional (2560 at 150 % is 1706.67) can read one pixel off («2561x1440») and key its fit apart per
   scale. On Windows `screen.dipToScreenRect` might give it exactly; unverified, since only the Mac was at hand.
 
-**Last updated:** 2026-11-21
+**Last updated:** 2026-11-25

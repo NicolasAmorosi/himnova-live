@@ -338,7 +338,7 @@ describe("measuring", () => {
   test("at the projector's proportion, unless the 16:9 monitors are shorter", () => {
     const display = (width: number, height: number) => ({
       id: 1,
-      label: "",
+      name: "",
       operator: false,
       bounds: { x: 0, y: 0, width, height },
       scaleFactor: 1,

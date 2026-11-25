@@ -922,6 +922,7 @@ const en: Messages = {
       about: "About",
       screens: "Screens",
       sound: "Sound",
+      stream: "Streaming",
     },
     screens: {
       title: "Your screens",
@@ -962,6 +963,11 @@ const en: Messages = {
       phrasesDesc: "One per line. They show up in the “Stage” panel, ready to show with one click.",
       phrasesReset: "Use the built-in ones",
       fitTitle: "Projector fit",
+      resolution: "Resolution",
+      looksLike: "looks like {size}",
+      pictureTakes: "the picture takes {size}",
+      projectorScreen: "Screen",
+      goToScreens: "Go to Screens",
       fitSizeDesc: "Make it smaller until the pattern's white border shows whole. Only the projector changes: not the monitors, NDI or the stage.",
       fitDesc: "For a projector or TV that cuts off the edges of the picture. Kept for screen {screen}.",
       fitSize: "Picture size",
@@ -998,6 +1004,7 @@ const en: Messages = {
     groups: {
       logo: "Logo",
       liveContent: "Live content",
+      projector: "Projector",
       transition: "Transition",
       versions: "Add a version",
       versionsInstalled: "Installed versions",
@@ -1113,7 +1120,7 @@ const en: Messages = {
       languageLabel: "Language of {name}",
       languageFailed: "Couldn't change the language",
     },
-    /** Settings ▸ Projection ▸ «Salida NDI®» (`ndi-output-group.tsx`). */
+    /** Settings ▸ Streaming ▸ «Salida NDI®» (`ndi-output-group.tsx`). */
     ndi: {
       groupDesc: "The projection as a video source on the network, for OBS, vMix or any other program.",
       enabled: "Send over NDI®",

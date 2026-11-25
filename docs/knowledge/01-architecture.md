@@ -109,7 +109,7 @@ from the control window, so the map and the walls cannot disagree.
 
 ## The NDI® output
 
-Settings ▸ Projection «Salida NDI®» (`ndi.output.*`, off by default; name, 720p/1080p, 30/60) puts the projector's
+Settings ▸ Streaming «Salida NDI®» (its own tab since 2026-11-25, Projection before) (`ndi.output.*`, off by default; name, 720p/1080p, 30/60) puts the projector's
 picture on the network as an NDI source for OBS, vMix or Studio Monitor, **with the app's own sound** since 2026-11-10
 (`ndi.output.audio`, on by default; it was video only, owner 2026-11-09, until he asked for the sound). The NDI runtime is **the user's own**, installed for free from
 ndi.video and loaded at run time; nothing of NDI ships but the SDK's MIT headers (`native/ndi/include/`). The SDK

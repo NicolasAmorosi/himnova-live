@@ -929,6 +929,7 @@ const es = {
       about: "Acerca de",
       screens: "Pantallas",
       sound: "Sonido",
+      stream: "Transmisión",
     },
     /** Settings ▸ Screens (`sections/screens-section.tsx`). */
     screens: {
@@ -970,6 +971,11 @@ const es = {
       phrasesDesc: "Una por línea. Aparecen en el panel «Escenario» para mostrarlas con un clic.",
       phrasesReset: "Usar las de fábrica",
       fitTitle: "Ajuste del proyector",
+      resolution: "Resolución",
+      looksLike: "se ve como {size}",
+      pictureTakes: "la imagen ocupa {size}",
+      projectorScreen: "Pantalla",
+      goToScreens: "Ir a Pantallas",
       fitDesc: "Para un proyector o una TV que corta los bordes de la imagen. Se guarda para la pantalla {screen}.",
       fitSize: "Tamaño de la imagen",
       fitSizeDesc: "Achicala hasta ver entero el borde blanco del patrón. Cambia solo el proyector: no los monitores, ni el NDI, ni el escenario.",
@@ -1006,6 +1012,7 @@ const es = {
     groups: {
       logo: "Logo",
       liveContent: "Contenido en vivo",
+      projector: "Proyector",
       transition: "Transición",
       versions: "Agregar una versión",
       versionsInstalled: "Versiones instaladas",
@@ -1126,7 +1133,7 @@ const es = {
       languageLabel: "Idioma de {name}",
       languageFailed: "No se pudo cambiar el idioma",
     },
-    /** Settings ▸ Projection ▸ «Salida NDI®» (`ndi-output-group.tsx`). */
+    /** Settings ▸ Streaming ▸ «Salida NDI®» (`ndi-output-group.tsx`). */
     ndi: {
       groupDesc: "La proyección como fuente de video en la red, para OBS, vMix u otra app.",
       enabled: "Enviar por NDI®",

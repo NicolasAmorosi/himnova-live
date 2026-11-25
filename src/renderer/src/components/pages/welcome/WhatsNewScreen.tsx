@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useT } from "@renderer/lib/i18n/i18n-provider";
+import { screenLabel } from "@renderer/lib/screen-label";
 import { Button, FieldGroup, FieldRow, Icon, type IconName } from "@renderer/components/ui";
 import { useDisplayStore } from "@renderer/stores/display.store";
 import { useSettingsStore } from "@renderer/stores/settings.store";
@@ -150,7 +151,7 @@ function DoneStep({ go, keys }: { go: (step: WhatsNewStepId) => void; keys: read
         <FieldGroup title={t("welcome.done.group")}>
           <FieldRow
             description={
-              stage ? t(mirror ? "welcome.done.mirror" : "welcome.done.stage", { name: stage.label }) : t("whatsNew.done.noStage")
+              stage ? t(mirror ? "welcome.done.mirror" : "welcome.done.stage", { name: screenLabel(stage, t) }) : t("whatsNew.done.noStage")
             }
             label={t("whatsNew.steps.stage")}
           >

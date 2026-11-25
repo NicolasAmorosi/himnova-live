@@ -34,7 +34,7 @@ function useNdiStatus(): NdiOutputStatus | null {
 }
 
 /**
- * Settings ▸ Projection ▸ «Salida NDI®»: the projector's picture as a source on the network
+ * Settings ▸ Streaming ▸ «Salida NDI®»: the projector's picture as a source on the network
  * (`main/ndi/ndi-output.ts`). Applied as it changes, like everything in Settings; the name on blur, Enter
  * or leaving Settings. The runtime is the user's own: missing, the status row offers where to get it.
  *

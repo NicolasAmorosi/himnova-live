@@ -8,6 +8,7 @@ import { useProjectionStore } from "@renderer/stores/projection.store";
 import { useSettingsStore } from "@renderer/stores/settings.store";
 import { PROJECTOR_FIT_MAX_SCREENS, PROJECTOR_FIT_MIN } from "@shared/types/display";
 import { useCommitOnUnmount } from "@renderer/lib/hooks/use-commit-on-unmount";
+import { screenResolution } from "@renderer/lib/screen-label";
 import {
   STAGE_ALERT_OPTIONS_MS,
   STAGE_CLOCK_FORMATS,
@@ -132,11 +133,16 @@ function ProjectorFitGroup() {
     if (!projector) setPattern(false);
   }, [projector]);
   if (!projector) return null;
+  const fit = fits[projector.fitKey] ?? 100;
   return (
     <FieldGroup
-      description={t("settings.screens.fitDesc", { screen: `${index + 1} · ${projector.label}` })}
+      description={t("settings.screens.fitDesc", { screen: projector.name ? `${index + 1} · ${projector.name}` : `${index + 1}` })}
       title={t("settings.screens.fitTitle")}
     >
+      {/* Its own row, in pixels, and what the picture takes once it is fitted (owner, 2026-11-25). */}
+      <FieldRow description={screenResolution(projector, t, fit)} label={t("settings.screens.resolution")}>
+        {null}
+      </FieldRow>
       <FieldRow description={t("settings.screens.fitSizeDesc")} label={t("settings.screens.fitSize")}>
         <Slider
           label={t("settings.screens.fitSize")}
@@ -151,7 +157,7 @@ function ProjectorFitGroup() {
           }}
           step={1}
           unit="%"
-          value={fits[projector.fitKey] ?? 100}
+          value={fit}
         />
       </FieldRow>
       <FieldRow description={t("settings.screens.patternDesc")} label={t("settings.screens.pattern")}>
