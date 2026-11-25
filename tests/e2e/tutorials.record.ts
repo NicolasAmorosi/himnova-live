@@ -103,8 +103,8 @@ const SCRIPTS: Record<TutorialId, { setup?: (ctx: Omit<Ctx, "rec" | "say">) => P
       await say("preview", 1600);
       await rec.click(u.goLive);
       await say("live", 1800);
-      await rec.click(u.rows.filter({ hasText: content.fortress.title }));
-      await say("next", 1200);
+      // Since 2.14.0 PREVIEW takes the row under the one sent on its own: nothing to click for what comes next.
+      await say("next", 1800);
       await rec.click(u.goLive);
       await rec.hold(1200);
       await say("arrows", 300);
@@ -112,8 +112,7 @@ const SCRIPTS: Record<TutorialId, { setup?: (ctx: Omit<Ctx, "rec" | "say">) => P
       await rec.hold(1300);
       await rec.press("ArrowRight", "→");
       await rec.hold(1300);
-      await rec.click(u.rows.filter({ hasText: "3:16" }));
-      await say("verse", 600);
+      await say("verse", 1200);
       await rec.click(u.goLive);
       await rec.hold(1800);
       await say("black", 400);
@@ -302,7 +301,9 @@ for (const locale of pick(LOCALES, process.env["TUTORIAL_LOCALES"])) {
         const say = (key: string, extraMs = 0) => {
           const text = CAPTIONS[id][locale][key];
           if (!text) throw new Error(`no caption «${key}» for ${id} in ${locale}`);
-          return rec.say(text.replace(/\{([^}]+)\}/g, (_, label: string) => (label === "ref" ? REFERENCE[locale] : `**${app.tr(label)}**`)), extraMs);
+          // «EN VIVO» is also the LIVE monitor's title in Spanish: a caption's {EN VIVO} is the button.
+          const label = (name: string) => (name === "EN VIVO" ? textAt("actions.goLive", locale) : app.tr(name));
+          return rec.say(text.replace(/\{([^}]+)\}/g, (_, name: string) => (name === "ref" ? REFERENCE[locale] : `**${label(name)}**`)), extraMs);
         };
         await script.run({ app, rec, content, locale, media, say });
         await Promise.race([opened, Promise.resolve()]);
