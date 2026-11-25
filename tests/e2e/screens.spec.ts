@@ -515,7 +515,11 @@ test("Proyección says which screen the projector is on, as Pantallas lists it, 
     return;
   }
   const { row: listed } = await projectorScreenRow(settings);
-  await expect(listed).toHaveAccessibleName(said);
+  // Pantallas says it in two lines: the number and name on the row, the resolution on the grey line under it.
+  const text = async (id: string | null) => (id ? await settings.locator(`[id="${id}"]`).innerText() : "");
+  const name = await text(await listed.getAttribute("aria-labelledby"));
+  const resolution = await text(await listed.getAttribute("aria-describedby"));
+  expect([name, resolution].filter(Boolean).join(" · ")).toBe(said);
 });
 
 test("the test pattern opens the projector when it is closed, and goes off when the control window dies", async ({ app }) => {

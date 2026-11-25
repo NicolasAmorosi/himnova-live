@@ -98,11 +98,17 @@ function RoleRows() {
             ? []
             : [{ label: d.operator ? t("settings.screens.roles.control") : t("settings.screens.roles.none"), value: "none" as const }]),
         ];
+        // The resolution on the grey line, not after the name: «Built-in Retina Display · 2940x1912 · se ve como
+        // 1470x956» took two lines (owner, 2026-11-25).
+        const resolution = screenResolution(d, t);
+        const description = [d.name ? resolution : null, d.operator ? t("settings.screens.thisComputer") : null]
+          .filter(Boolean)
+          .join(" · ");
         return (
           <FieldRow
-            description={d.operator ? t("settings.screens.thisComputer") : undefined}
+            description={description || undefined}
             key={d.id}
-            label={`${index + 1} · ${screenLabel(d, t)}`}
+            label={`${index + 1} · ${d.name || resolution}`}
           >
             <Select
               onChange={(value) => void assignScreenRole(d.id, value as ScreenRole)}
