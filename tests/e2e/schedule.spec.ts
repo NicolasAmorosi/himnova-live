@@ -232,18 +232,33 @@ test("with «Lo que sigue en PREVIEW» off, a row sent live leaves PREVIEW empty
   await expect(scheduleRows(app).and(app.control.locator('[aria-current="true"]'))).toHaveCount(0);
 });
 
-test("a file's row says where the file is, in a bubble over its name; a verse has no file", async ({ app }) => {
+test("a file's row says where the file is, in a bubble anywhere past its thumbnail; a verse has no file", async ({ app }) => {
   await addAll(app, "clip.mp4", "photo.png");
   for (const name of ["clip.mp4", "photo.png"]) {
-    const label = row(app, name.split(".")[0]!).locator("[aria-describedby]");
-    await expect(label).toHaveAccessibleDescription(fixture(name));
-    await label.hover();
+    const line = row(app, name.split(".")[0]!);
+    await expect(line.locator("[aria-describedby]")).toHaveAccessibleDescription(fixture(name));
+    // Not just over the letters: the far right of the row, low, well off the text line (owner, 2026-11-25).
+    const box = await line.boundingBox();
+    await line.hover({ position: { x: box!.width - 40, y: box!.height - 8 } });
     await expect(app.control.getByRole("tooltip")).toHaveText(fixture(name));
   }
   await app.openChapter("Juan 3");
   await app.control.getByRole("tabpanel", { name: "Biblia" }).getByRole("listitem").filter({ hasText: JUAN_3_16 }).click();
   await app.control.getByRole("tabpanel", { name: "Biblia" }).getByRole("button", { name: "Agregar al programa" }).click();
   await expect(row(app, "Juan 3:16").locator("[aria-describedby]")).toHaveCount(0);
+});
+
+test("the ✕ takes a row out of the program and leaves its file in the library", async ({ app }) => {
+  await addAll(app, "clip.mp4", "photo.png");
+  await app.openResources("Medios", "Videos");
+  const tile = app.control.getByRole("tabpanel", { name: "Videos" }).getByRole("list").getByRole("button").filter({ hasText: "clip" });
+  await expect(tile).toBeVisible();
+
+  await row(app, "clip").click();
+  await app.control.getByRole("toolbar", { name: "Programa" }).getByRole("button", { name: "Quitar", exact: true }).click();
+  await expect(scheduleRows(app)).toHaveText([/photo/]);
+  await app.control.waitForTimeout(1_000);
+  await expect(tile).toBeVisible();
 });
 
 test("a saved program in use, never edited, is still the schedule after a restart mid-service", async ({ app }) => {

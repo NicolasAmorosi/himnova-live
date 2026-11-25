@@ -101,7 +101,9 @@ export function ListRow({
       ) : null}
       {leading ? <span className="flex shrink-0 items-center">{leading}</span> : null}
       {detail ? (
-        <Tooltip className="min-w-0 flex-1" content={detail} delayMs={500} fit="path">
+        // The row's full height, not the text line's: the bubble answered only over the letters, never over the rest of
+        // a row as tall as its thumbnail (owner, 2026-11-25).
+        <Tooltip className="min-w-0 flex-1 items-center self-stretch" content={detail} delayMs={500} fit="path">
           <span className="min-w-0 truncate">{children}</span>
         </Tooltip>
       ) : (
