@@ -8,8 +8,9 @@ import type { ProjectionOutput } from "@shared/types/projection";
 
 /**
  * PREVIEW's one engine session (`preview:setVideo`): main plays `url` at
- * PREVIEW's own volume — 0 to start, owner's 2026-11-05 «todo como en vivo pero
- * con el volumen a 0» — drawing its frames in the PREVIEW monitor when it has a
+ * PREVIEW's own volume (0 to start, owner's 2026-11-05 «todo como en vivo pero
+ * con el volumen a 0»; kept between items only on an output of its own),
+ * drawing its frames in the PREVIEW monitor when it has a
  * `picture`, and its status lands in the same preview store a `<video>`'s does
  * (`usePreviewMediaStatus`).
  *

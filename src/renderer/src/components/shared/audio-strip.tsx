@@ -26,7 +26,7 @@ const OUTPUT_MENU_WIDTH_PX = 288;
  * - LIVE's fader is the master (`audio.live.volume`, remembered): everything that sounds live plays at its own level
  *   times this one (`busVolume`). Its mute is remembered too (`audio.live.muted`): an app left silent opens silent;
  *   dragging the fader to 0 is that mute, and the remembered level stays. PREVIEW's IS PREVIEW's volume
- *   (`preview.store`), 0 with every new item.
+ *   (`preview.store`), 0 with every new item unless PREVIEW plays through another device than LIVE (then it keeps it).
  * - The output menu writes `audio.output.<bus>`. It turns amber when the chosen output is not used (not plugged in,
  *   one either side cannot open, or not yet named by the media engine: the bus plays through the default,
  *   `effects/audio-route.ts`), and PREVIEW's

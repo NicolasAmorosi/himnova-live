@@ -85,6 +85,28 @@ export function sameAudioOutput(
   return defaultGroupId !== null && device.groupId === defaultGroupId;
 }
 
+/** Whether PREVIEW keeps the level the operator left it at when its target changes (owner, 2026-11-25): only while it
+ *  plays through another device than LIVE. Shared, or a default the app could not identify (no entry, and no listed
+ *  output of its device: `sameAudioOutput` then says «apart», harmless for the NDI® capture but not for a level that
+ *  stays up), and every new item starts at 0. */
+export function previewKeepsLevel({
+  live,
+  preview,
+  shared,
+  outputs,
+}: {
+  live: Pick<AudioBusRoute, "device">;
+  preview: Pick<AudioBusRoute, "device">;
+  shared: boolean;
+  outputs: AudioOutputs;
+}): boolean {
+  if (shared) return false;
+  if (live.device !== null && preview.device !== null) return true;
+  const { devices, defaultDeviceId, defaultGroupId } = outputs;
+  if (defaultDeviceId !== null) return true;
+  return defaultGroupId !== null && devices.some((device) => device.groupId === defaultGroupId);
+}
+
 const SYSTEM_DEFAULT = "";
 /** The chosen device while it is not plugged in: still listed, so the operator sees what was chosen. */
 const UNPLUGGED = "unplugged";
