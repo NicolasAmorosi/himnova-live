@@ -11,9 +11,10 @@ import type { AudioRoute, EngineOutputNames } from "@shared/types/audio";
 const h = vi.hoisted(() => ({
   match: vi.fn<(outputs: { deviceId: string; label: string }[]) => Promise<EngineOutputNames>>(),
   set: vi.fn<(route: AudioRoute) => Promise<void>>(() => Promise.resolve()),
+  systemDefault: vi.fn<() => Promise<{ label: string | null }>>(),
   listeners: new Map<string, ((payload: never) => void)[]>(),
 }));
-vi.mock("@renderer/lib/api", () => ({ api: { audioRoute: { matchOutputs: h.match, set: h.set } } }));
+vi.mock("@renderer/lib/api", () => ({ api: { audioRoute: { matchOutputs: h.match, set: h.set, systemDefault: h.systemDefault } } }));
 vi.mock("@renderer/lib/ipc", () => ({
   onIpc: (event: string, listener: (payload: never) => void) => {
     const list = h.listeners.get(event) ?? [];
@@ -35,7 +36,7 @@ const { useProjectionStore } = await import("@renderer/stores/projection.store")
 const { useSettingsStore } = await import("@renderer/stores/settings.store");
 const { useToastStore } = await import("@renderer/stores/toast.store");
 const { usePreviewStore } = await import("@renderer/stores/preview.store");
-const { DEFAULT_ROUTE, previewKeepsLevel } = await import("@renderer/lib/hooks/use-audio-outputs");
+const { DEFAULT_ROUTE, audioOutputsOf, previewKeepsLevel } = await import("@renderer/lib/hooks/use-audio-outputs");
 
 const SCARLETT = "pulse/alsa_output.usb-Focusrite_Scarlett_2i2";
 const device = (deviceId: string, label: string, groupId: string) =>
@@ -54,6 +55,7 @@ let stop: () => void = () => undefined;
 
 beforeEach(() => {
   h.set.mockImplementation(() => Promise.resolve());
+  h.systemDefault.mockResolvedValue({ label: null });
   h.match.mockImplementation((outputs) => Promise.resolve(outputs.map((o) => (o.label === "Scarlett 2i2" ? SCARLETT : null))));
   useSettingsStore.setState({
     loaded: true,
@@ -386,4 +388,58 @@ test("a default nobody can identify is not «apart» for PREVIEW's level, though
   usePreviewStore.getState().setVolume(0.6);
   usePreviewStore.getState().setTarget({ kind: "asset", assetId: 7, assetKind: "video" });
   expect(usePreviewStore.getState().volume).toBe(0);
+});
+
+/** Linux's Chromium (2026-11-25): its «default» entry is just «Default», in a group of its own. */
+const linuxList = [
+  device("default", "Default", "g-default"),
+  device("a1", "Raptor Lake-P/U/H cAVS Speaker", "g-a1"),
+  device("h3", "Raptor Lake-P/U/H cAVS HDMI / DisplayPort 3 Output (Stereo)", "g-h3"),
+];
+
+test("where Chromium does not say which output the default is, the sound server's name for it does, if one alone has it", () => {
+  expect(audioOutputsOf(linuxList).defaultDeviceId).toBeNull();
+  expect(audioOutputsOf(linuxList, "Raptor Lake-P/U/H cAVS Speaker").defaultDeviceId).toBe("a1");
+  // A name no listed output has (a sink Chromium does not list), or two outputs with that name: still unknown.
+  expect(audioOutputsOf(linuxList, "Easy Effects Sink").defaultDeviceId).toBeNull();
+  const twins = [...linuxList, device("a2", "Raptor Lake-P/U/H cAVS Speaker", "g-a2")];
+  expect(audioOutputsOf(twins, "Raptor Lake-P/U/H cAVS Speaker").defaultDeviceId).toBeNull();
+  // Chromium's own word wins: the Mac's «Default - <label>».
+  expect(audioOutputsOf([...speakers, scarlett], "Scarlett 2i2").defaultDeviceId).toBe("a1");
+});
+
+test("on Linux, PREVIEW on its own output beside LIVE on the default keeps its level, and goes silent once both are one", async () => {
+  h.systemDefault.mockResolvedValue({ label: "Raptor Lake-P/U/H cAVS Speaker" });
+  h.match.mockImplementation((outputs) => Promise.resolve(outputs.map((o) => `pipewire/${o.deviceId}`)));
+  useSettingsStore.setState({
+    settings: {
+      ...useSettingsStore.getState().settings,
+      "audio.output.live": null,
+      "audio.output.preview": { label: "Raptor Lake-P/U/H cAVS HDMI / DisplayPort 3 Output (Stereo)", deviceId: "h3" },
+    },
+  });
+  plugged = linuxList;
+  stop = startAudioRouteEffects();
+  await settle();
+  expect(useAudioRouteStore.getState().outputs.defaultDeviceId).toBe("a1");
+  expect(useAudioRouteStore.getState().shared).toBe(false);
+  usePreviewStore.getState().setVolume(0.6);
+  usePreviewStore.getState().setTarget({ kind: "asset", assetId: 7, assetKind: "video" });
+  expect(usePreviewStore.getState().volume).toBe(0.6);
+
+  // The system's default moved to that same output: PREVIEW is heard in the room now.
+  h.systemDefault.mockResolvedValue({ label: "Raptor Lake-P/U/H cAVS HDMI / DisplayPort 3 Output (Stereo)" });
+  devices.dispatchEvent(new Event("devicechange"));
+  await settle();
+  expect(useAudioRouteStore.getState().shared).toBe(true);
+  expect(usePreviewStore.getState().volume).toBe(0);
+});
+
+test("a sound server that does not answer leaves the default unknown, as before", async () => {
+  h.systemDefault.mockRejectedValue(new Error("no pactl"));
+  plugged = linuxList;
+  stop = startAudioRouteEffects();
+  await settle();
+  expect(useAudioRouteStore.getState().outputs.devices).toHaveLength(2);
+  expect(useAudioRouteStore.getState().outputs.defaultDeviceId).toBeNull();
 });

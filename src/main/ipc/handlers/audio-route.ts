@@ -2,6 +2,7 @@ import type { Handlers } from "../register";
 import { IpcError } from "@shared/ipc/result";
 import { broadcast } from "../../services/broadcast";
 import { matchAudioOutputs, setAudioRoute } from "../../media/audio-route";
+import { systemDefaultOutputLabel } from "../../media/system-default-output";
 
 const MAX_NAME = 512;
 /** A name that goes to the engine on a line of its own. */
@@ -12,7 +13,7 @@ function invalid(message: string): IpcError {
   return new IpcError({ code: "INVALID_ARGUMENT", message });
 }
 
-type AudioRouteChannel = "audioRoute:matchOutputs" | "audioRoute:set" | "audioRoute:sinkFailed";
+type AudioRouteChannel = "audioRoute:matchOutputs" | "audioRoute:set" | "audioRoute:sinkFailed" | "audioRoute:systemDefault";
 
 export const audioRouteHandlers: Pick<Handlers, AudioRouteChannel> = {
   "audioRoute:matchOutputs": (req) => {
@@ -32,4 +33,5 @@ export const audioRouteHandlers: Pick<Handlers, AudioRouteChannel> = {
     if (!isName(req?.sinkId)) throw invalid("Invalid output.");
     broadcast("audio-sink-failed", { sinkId: req.sinkId });
   },
+  "audioRoute:systemDefault": async () => ({ label: await systemDefaultOutputLabel() }),
 };

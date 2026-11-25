@@ -27,19 +27,17 @@ function outputsOf(app: WorshipApp): Promise<Output[]> {
   });
 }
 
-/** Whether the app can tell which device the system's default is (`audioOutputsOf` + `previewKeepsLevel`): Chromium's
- *  «default» entry names a listed one («Default - <label>», measured on a Mac), or shares a listed one's `groupId`. Not
- *  on the Linux PC (2026-11-25): there PREVIEW beside a LIVE on the default starts every item at 0, the safe side. */
-async function defaultIsKnown(app: WorshipApp): Promise<boolean> {
-  const { label, known } = await app.control.evaluate(async () => {
-    const list = (await navigator.mediaDevices.enumerateDevices()).filter((device) => device.kind === "audiooutput");
-    const fallback = list.find((device) => device.deviceId === "default");
-    const real = list.filter((device) => device.deviceId !== "default" && device.deviceId !== "communications" && device.label !== "");
-    const known = real.some((device) => fallback?.label.endsWith(` - ${device.label}`) || device.groupId === fallback?.groupId);
-    return { label: fallback?.label ?? null, known };
-  });
-  console.log(`[audio-outputs] Chromium's default entry: ${JSON.stringify(label)}, its device told: ${known}`);
-  return known;
+/** The device the app says the system's default is, by LIVE's output menu on the default («Del sistema: <name>»,
+ *  `useAudioOutputPicker`): Chromium's «Default - <label>» on a Mac, the sound server's name for it on Linux (`pactl`),
+ *  null when it cannot tell, and then PREVIEW beside a LIVE on the default starts every item at 0, the safe side. */
+async function defaultTold(app: WorshipApp): Promise<string | null> {
+  const label = async () => (await outputButton(app, "live").getAttribute("aria-label")) ?? "";
+  // The first route is resolved a moment after the window shows.
+  await expect.poll(label, { timeout: 3_000 }).toMatch(/Del sistema: /).catch(() => undefined);
+  const name = await label();
+  const told = /^Salida de EN VIVO: Del sistema: (.+?)(\. |$)/.exec(name)?.[1] ?? null;
+  console.log(`[audio-outputs] LIVE's output: ${JSON.stringify(name)}, the default told: ${JSON.stringify(told)}`);
+  return told;
 }
 
 function outputButton(app: WorshipApp, bus: "live" | "preview") {
@@ -177,7 +175,10 @@ test("LIVE on another output: the projector's elements play there, and so does t
 
 test("PREVIEW on another output: this window's elements play there, the projector's stay on LIVE's", async ({ app }) => {
   await expect.poll(async () => (await outputsOf(app)).length, { timeout: 5_000 }).toBeGreaterThan(0);
-  const output = (await outputsOf(app)).find((candidate) => !candidate.isDefault && !/teams/i.test(candidate.label));
+  const told = await defaultTold(app);
+  const output = (await outputsOf(app)).find(
+    (candidate) => !candidate.isDefault && candidate.label !== told && !/teams/i.test(candidate.label),
+  );
   test.skip(!output, "this computer has no second output");
   await choose(app, "preview", output!.label);
   await expect.poll(() => engineRoute(app) ?? "", { timeout: 5_000 }).toMatch(/PREVIEW (?!default)\S+ \(apart\)/);
@@ -198,7 +199,7 @@ test("PREVIEW on another output: this window's elements play there, the projecto
   // What went live left PREVIEW empty, and PREVIEW, on an output of its own, kept the level it had (owner, 2026-11-25),
   // when the app can tell that LIVE's default is another device; when it cannot, back to 0 as before.
   await expect(app.previewColumn().getByRole("slider", { name: "Posición de clip" })).toHaveCount(0);
-  await expect(fader).toHaveValue((await defaultIsKnown(app)) ? level : "0");
+  await expect(fader).toHaveValue(told === null ? "0" : level);
 });
 
 test("an output the engine cannot open is not used: LIVE stays whole on the default and its strip says why", async ({ app }) => {

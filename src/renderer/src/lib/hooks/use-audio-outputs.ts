@@ -11,7 +11,10 @@ export type AudioOutputs = { devices: AudioOutputDevice[]; defaultDeviceId: stri
 /** Chromium's pseudo-entries: they name another device of the list, never one of their own. */
 const PSEUDO_IDS = new Set(["default", "communications"]);
 
-export function audioOutputsOf(list: readonly MediaDeviceInfo[]): AudioOutputs {
+/** `systemDefault`: the name of the device the system's default output is, from the sound server, where Chromium's
+ *  «default» entry does not say it (Linux: just «Default»). Used only when that entry names none, and only when one
+ *  listed output alone has that name. */
+export function audioOutputsOf(list: readonly MediaDeviceInfo[], systemDefault: string | null = null): AudioOutputs {
   const outputs = list.filter((device) => device.kind === "audiooutput");
   const devices = outputs
     .filter((device) => !PSEUDO_IDS.has(device.deviceId) && device.label !== "")
@@ -22,7 +25,9 @@ export function audioOutputsOf(list: readonly MediaDeviceInfo[]): AudioOutputs {
   const real = devices
     .filter((device) => fallback?.label.endsWith(` - ${device.label}`))
     .sort((a, b) => b.label.length - a.label.length)[0];
-  return { devices, defaultDeviceId: real?.deviceId ?? null, defaultGroupId: fallback?.groupId ?? null };
+  const named = devices.filter((device) => device.label === systemDefault);
+  const told = real ?? (named.length === 1 ? named[0] : undefined);
+  return { devices, defaultDeviceId: told?.deviceId ?? null, defaultGroupId: fallback?.groupId ?? null };
 }
 
 /** The chosen device in the list: by its name (what the media engine can match too), its id breaking a tie. */

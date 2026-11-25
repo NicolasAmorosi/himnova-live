@@ -73,7 +73,12 @@ export function startAudioRouteEffects(): () => void {
     clearTimeout(retry);
     const mine = ++request;
     const next = { live: settings[OUTPUT_KEY.live], preview: settings[OUTPUT_KEY.preview] };
-    const outputs = audioOutputsOf(await media.enumerateDevices());
+    // Where Chromium does not say which output the system's default is (Linux), the sound server does.
+    const [list, system] = await Promise.all([
+      media.enumerateDevices(),
+      api.audioRoute.systemDefault().catch(() => ({ label: null })),
+    ]);
+    const outputs = audioOutputsOf(list, system.label);
     if (stopped || mine !== request) return;
     // The pickers' list at once, without waiting for the engine below (it can take seconds to name the outputs).
     useAudioRouteStore.setState({ outputs });
