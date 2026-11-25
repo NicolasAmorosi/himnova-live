@@ -27,8 +27,9 @@ touching `slideHoldMs`/`buildCumulativeMs` (`projection.store.ts`), `deck-autopl
 - **Counting the transitions makes half the hymnal's last slides outlast their song** (328 of 611 decks end after their
   music, 2026-11-22 audit): a synced deck no longer ends with its music then, its last slides run out their own times
   (`runPastMusic`). The ended music is then held paused in the store, or lifting BLACK/LOGO `play()`s the ended
-  `<audio>` from 0:00 under the slides left. And the detached chain adds a slide's transition only when it came in with it (`slideEntry`): a step
-  back or a GO LIVE past slide 1 is a cut. **Impress was never measured**: an `.odp` gets the same rule by analogy.
+  `<audio>` from 0:00 under the slides left. And the detached chain adds a slide's transition only when the deck moved forward onto it (`slideEntryMs`): a step
+  back or a GO LIVE past slide 1 is a cut. It counts even when the slide cut in because «Transiciones de las
+  presentaciones» (`slides.transitions`) is off: `slideEntry` is only how it is drawn (2026-11-25). **Impress was never measured**: an `.odp` gets the same rule by analogy.
 - **«Sin secuencia» was the show's own setting.** That copy of hymn 001 has the hymnal's per-slide times, but its
   `SlideShowDocInfoAtom` (0x0401, a child of the `DocumentContainer`, 80 bytes) has bit 0 of the u16 at +76
   (`fAutoAdvance`, Set Up Slide Show ▸ «Using timings, if present») clear: PowerPoint said «manual advance» and stayed on
@@ -42,4 +43,4 @@ touching `slideHoldMs`/`buildCumulativeMs` (`projection.store.ts`), `deck-autopl
   variable named so fails with «Access not allowed». Script: `entry effect`, `advance time`, `transition duration` of
   `slide show transition`, and `advance mode` of `slide show settings`.
 
-**Last updated:** 2026-11-22
+**Last updated:** 2026-11-25

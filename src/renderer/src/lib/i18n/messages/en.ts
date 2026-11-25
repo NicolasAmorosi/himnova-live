@@ -910,6 +910,8 @@ const en: Messages = {
     slidesFallbackFontDesc: "For a PowerPoint whose font this computer doesn't have.",
     slidesFallbackFontHelp: "A font with the same measurements is tried first (Calibri → Carlito, Arial → Liberation Sans); if there is none, this one is used.",
     slidesFallbackFontSystem: "The system's",
+    slidesTransitions: "Presentation transitions",
+    slidesTransitionsDesc: "The ones each file carries from one slide to the next. Off, each slide cuts straight in; timings and music stay the same.",
     sections: {
       projection: "Projection",
       slides: "Slides",
@@ -1002,6 +1004,7 @@ const en: Messages = {
       versionsBundled: "Included with Himnova Live",
       slidesCache: "Slide cache",
       slidesText: "Text",
+      slidesTransitions: "Between slides",
       interface: "Interface",
       folders: "File folders",
       performance: "Performance",

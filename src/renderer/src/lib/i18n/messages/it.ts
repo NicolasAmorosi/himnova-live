@@ -914,6 +914,8 @@ const it: Messages = {
     slidesFallbackFontDesc: "Per un PowerPoint con un font che questo computer non ha.",
     slidesFallbackFontHelp: "Prima si prova un font con le stesse misure (Calibri → Carlito, Arial → Liberation Sans); se non c'è, si usa questo.",
     slidesFallbackFontSystem: "Quello di sistema",
+    slidesTransitions: "Transizioni delle presentazioni",
+    slidesTransitionsDesc: "Quelle che ogni file porta tra una diapositiva e la successiva. Disattivate, ogni diapositiva entra di colpo; tempi e musica non cambiano.",
     sections: {
       projection: "Proiezione",
       slides: "Diapositive",
@@ -1006,6 +1008,7 @@ const it: Messages = {
       versionsBundled: "Incluse in Himnova Live",
       slidesCache: "Cache delle diapositive",
       slidesText: "Testo",
+      slidesTransitions: "Tra una diapositiva e l'altra",
       interface: "Interfaccia",
       folders: "Cartelle dei file",
       performance: "Prestazioni",

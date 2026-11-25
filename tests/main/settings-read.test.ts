@@ -35,22 +35,27 @@ test("a scalar this build has no value for reads as its default", () => {
   store("stage.warnMs", 123);
   store("projection.transition.style", "zoom");
   store("media.volume", 3);
+  store("slides.transitions", "no");
   const read = new SettingsRepo(opened.db).getAll();
   expect(read["ui.locale"]).toBe(DEFAULT_SETTINGS["ui.locale"]);
   expect(read["stage.warnMs"]).toBe(DEFAULT_SETTINGS["stage.warnMs"]);
   expect(read["projection.transition.style"]).toBe(DEFAULT_SETTINGS["projection.transition.style"]);
   expect(read["media.volume"]).toBe(DEFAULT_SETTINGS["media.volume"]);
+  // On by default: an install that updates sees the files' transitions as before (owner, 2026-11-25).
+  expect(read["slides.transitions"]).toBe(true);
 });
 
 test("a valid value is read as stored, and a structure is left as it is", () => {
   store("ui.locale", "it");
   store("media.volume", 0.4);
+  store("slides.transitions", false);
   // A folder list is the operator's own: not dropped whole because one entry is off.
   const folders = { video: ["/a"], image: [], audio: [], presentation: [], extra: [] };
   store("library.linkedFolders", folders);
   const read = new SettingsRepo(opened.db).getAll();
   expect(read["ui.locale"]).toBe("it");
   expect(read["media.volume"]).toBe(0.4);
+  expect(read["slides.transitions"]).toBe(false);
   expect(read["library.linkedFolders"]).toEqual(folders);
 });
 

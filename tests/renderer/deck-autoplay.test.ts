@@ -18,8 +18,10 @@ import {
 import { toAudioTrackPush } from "@renderer/effects/projection-sync";
 import { toggleAudioTrackPause } from "@renderer/lib/actions/media";
 import { useAudioStore } from "@renderer/stores/audio.store";
+import { useSettingsStore } from "@renderer/stores/settings.store";
 import { buildCumulativeMs, useProjectionStore, type LiveDeck } from "@renderer/stores/projection.store";
 import type { SlideTransition } from "@shared/types/transition";
+import { DEFAULT_SETTINGS } from "@shared/types/settings";
 
 function deck(assetId: number, advanceAfterMs: number, transition: SlideTransition | null = null): LiveDeck {
   const slides = [1, 2, 3].map((index) => ({
@@ -62,6 +64,7 @@ beforeEach(() => {
 afterEach(() => {
   stop();
   vi.useRealTimers();
+  useSettingsStore.setState({ settings: DEFAULT_SETTINGS });
 });
 
 test("each deck sent live starts its own clock", () => {
@@ -311,3 +314,57 @@ test("the music row pauses the music the slides finished before, and plays the d
   expect(slideOnAir()).toBe(1);
   expect(deckTrack().paused).toBe(false);
 });
+
+/** What the room sees of a deck's clock: each slide change, or its end, at its moment, and whether it came in drawn
+ *  with its transition. */
+function timeline(): { events: [ms: number, slide: number | "finished", drawn: boolean][]; stop: () => void } {
+  const start = Date.now();
+  const events: [number, number | "finished", boolean][] = [];
+  const stop = useProjectionStore.subscribe(
+    (st) => (st.autoplay === "finished" ? "finished" : st.base?.kind === "deck" ? st.base.slideIndex : 0),
+    (at) => events.push([Date.now() - start, at, useProjectionStore.getState().slideEntry !== null]),
+  );
+  return { events, stop };
+}
+
+test.each([
+  { label: "on", drawn: true },
+  { label: "off", drawn: false },
+])(
+  "with the presentations' transitions $label, a detached deck keeps the same clock: only how each slide comes in changes",
+  ({ drawn }) => {
+    // Owner, 2026-11-25: off, a slide cuts in where its transition would have started, and its transition still counts.
+    // Dropping it from the chain ran a deck taken by hand ahead of its music by every transition.
+    useSettingsStore.setState({ settings: { ...DEFAULT_SETTINGS, "slides.transitions": drawn } });
+    const FADE = { style: "crossfade" as const, durationMs: 1000 };
+    const BARS = { style: "random-bars-vertical" as const, durationMs: 500 };
+    const times: [number | null, SlideTransition][] = [[3000, FADE], [2000, BARS], [null, FADE], [2500, BARS], [1500, FADE]];
+    const base = deck(14, 0);
+    const slides = times.map(([advanceAfterMs, transition], i) => ({ ...base.slides[0]!, index: i + 1, advanceAfterMs, transition }));
+    const live = withMusic({ ...base, slides, cumulativeMs: buildCumulativeMs(slides) });
+    // The music's boundaries are the same whatever is drawn: slide 3 has no time of its own.
+    expect(live.cumulativeMs).toEqual([0, 0, 3000, 5500, 5500, 8500, 11000]);
+    sendLive(live);
+    // Taken by hand at once: from here on the deck runs on its own chain, beside its music.
+    notifyManualNavigation();
+    const { events, stop: unsubscribe } = timeline();
+    vi.advanceTimersByTime(6000);
+    // Slide 3 waits for the operator; forward onto 4, then a step back onto it at 9.5 s.
+    useProjectionStore.getState().setSlideIndex(4);
+    notifyManualNavigation();
+    vi.advanceTimersByTime(3500);
+    useProjectionStore.getState().setSlideIndex(4);
+    notifyManualNavigation();
+    vi.advanceTimersByTime(6000);
+    unsubscribe();
+    expect(events).toEqual([
+      [3000, 2, drawn],
+      [5500, 3, drawn],
+      [6000, 4, drawn],
+      [9000, 5, drawn],
+      [9500, 4, false], // back is a cut either way, and waits its time alone
+      [12000, 5, drawn],
+      [14500, "finished", drawn],
+    ]);
+  },
+);

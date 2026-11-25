@@ -83,11 +83,12 @@ function isFrozenByCover(state: Pick<ProjectionStoreState, "overlay" | "liveDeck
 
 /** The slide on air's time on the wall clock: its «After» plus the transition it came in with, which PowerPoint plays
  *  before that time starts. A slide reached by a cut (a step back, a GO LIVE past slide 1) waits its time alone; the
- *  synced boundaries (`cumulativeMs`) are the music's and always count it. */
-function advanceMsFor(state: Pick<ProjectionStoreState, "slideEntry">, deck: LiveDeck, slideIndex: number): number | null {
+ *  synced boundaries (`cumulativeMs`) are the music's and always count it. `slideEntryMs`, not `slideEntry`: with the
+ *  presentations' transitions off the slide cuts in, and its transition still counts, or the chain ran ahead. */
+function advanceMsFor(state: Pick<ProjectionStoreState, "slideEntryMs">, deck: LiveDeck, slideIndex: number): number | null {
   const after = deck.slides[slideIndex - 1]?.advanceAfterMs;
   if (after == null) return null;
-  return Math.max(SLIDES_MIN_ADVANCE_MS, after + (state.slideEntry?.durationMs ?? 0));
+  return Math.max(SLIDES_MIN_ADVANCE_MS, after + state.slideEntryMs);
 }
 
 /** Last slide whose boundary is at or before `timeMs`. */

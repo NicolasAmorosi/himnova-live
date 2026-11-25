@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useI18n } from "@renderer/lib/i18n/i18n-provider";
-import { Button, FieldGroup, FieldRow, Select } from "@renderer/components/ui";
+import { Button, FieldGroup, FieldRow, Select, Switch } from "@renderer/components/ui";
 import { ConfirmModal } from "@renderer/components/shared/modal";
 import { useSettingsStore } from "@renderer/stores/settings.store";
 import { useProjectionStore } from "@renderer/stores/projection.store";
@@ -20,6 +20,7 @@ import type { DeckCacheStats } from "@shared/types/deck";
 export function SlidesSection({ active }: { active: boolean }) {
   const { t, locale } = useI18n();
   const fallbackFont = useSettingsStore((s) => s.settings["slides.fallbackFont"]);
+  const transitions = useSettingsStore((s) => s.settings["slides.transitions"]);
   const updateSettings = useSettingsStore((s) => s.update);
   const liveDeckAssetId = useProjectionStore((s) => (s.base?.kind === "deck" ? s.base.assetId : null));
 
@@ -67,6 +68,16 @@ export function SlidesSection({ active }: { active: boolean }) {
               ...SLIDE_FALLBACK_FONTS.map((font) => ({ label: font, value: font })),
             ]}
             value={fallbackFont ?? ""}
+          />
+        </FieldRow>
+      </FieldGroup>
+
+      {/* Read at each change of slide (`setSlideIndex`): the slide on screen stays as it is. */}
+      <FieldGroup title={t("settings.groups.slidesTransitions")}>
+        <FieldRow description={t("settings.slidesTransitionsDesc")} label={t("settings.slidesTransitions")}>
+          <Switch
+            checked={transitions}
+            onChange={(e) => void updateSettings({ "slides.transitions": e.target.checked })}
           />
         </FieldRow>
       </FieldGroup>

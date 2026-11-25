@@ -11,7 +11,7 @@
  * is a negative: the busiest writer in the store (`setMediaStatus`, ~4 Hz per
  * playing element) must not produce a new output object.
  */
-import { beforeEach, describe, expect, test } from "vitest";
+import { afterEach, beforeEach, describe, expect, test } from "vitest";
 import {
   buildCumulativeMs,
   selectOutput,
@@ -21,6 +21,7 @@ import {
   type ProjectionStoreState,
 } from "@renderer/stores/projection.store";
 import { resolveSong } from "@renderer/stores/song.store";
+import { useSettingsStore } from "@renderer/stores/settings.store";
 import { songBackgroundVideo } from "@renderer/lib/song-output";
 import { parseLyrics } from "@shared/song-text";
 import { DEFAULT_SONG_THEME, type Song, type SongTheme } from "@shared/types/song";
@@ -668,6 +669,42 @@ describe("a slide's own way in", () => {
     useProjectionStore.getState().setSlideIndex(2);
     useProjectionStore.getState().setBase({ kind: "deck", assetId: 9, slideIndex: 2 });
     expect(enter()).toBeNull();
+    expect(useProjectionStore.getState().slideEntryMs).toBe(0);
+  });
+
+  describe("with the presentations' transitions off (owner, 2026-11-25)", () => {
+    const transitions = (on: boolean) =>
+      useSettingsStore.setState((state) => ({ settings: { ...state.settings, "slides.transitions": on } }));
+    afterEach(() => transitions(true));
+
+    test("moving forward is a cut, and the transition it skipped still counts on the deck's clock", () => {
+      transitions(false);
+      useProjectionStore.getState().setSlideIndex(2);
+      expect(enter()).toBeNull();
+      expect(useProjectionStore.getState().slideEntryMs).toBe(BARS.durationMs);
+      useProjectionStore.getState().setSlideIndex(1);
+      expect(useProjectionStore.getState().slideEntryMs).toBe(0);
+      // On, the same step draws the file's own and counts the same.
+      transitions(true);
+      useProjectionStore.getState().setSlideIndex(2);
+      expect(enter()).toMatchObject(BARS);
+      expect(useProjectionStore.getState().slideEntryMs).toBe(BARS.durationMs);
+    });
+
+    test("switched with a slide up, that slide never enters again: it applies from the next one", () => {
+      // Came in with its bars: turning it off leaves the same output, the same move.
+      useProjectionStore.getState().setSlideIndex(2);
+      const drawn = output();
+      transitions(false);
+      expect(output()).toEqual(drawn);
+      // Came in cut: turning it on does not play its bars now (through black, the slide would dip).
+      useProjectionStore.getState().setSlideIndex(1);
+      useProjectionStore.getState().setSlideIndex(2);
+      const cut = output();
+      transitions(true);
+      expect(output()).toEqual(cut);
+      expect(enter()).toBeNull();
+    });
   });
 });
 

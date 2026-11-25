@@ -572,6 +572,99 @@ test("a song assigned to a deck plays under it, and NEGRO pauses the song and th
   await expect(preview.getByRole("button", { name: "Asignar audio" })).toBeVisible();
 });
 
+/** A slide as the projector showed it: when it first came up (the music's time then, `null` without music) and the
+ *  most slides on the stage at once while it was up (two during a fade, one when it cuts in). */
+type ShownSlide = { slide: number | null; at: number | null; most: number };
+
+/** The deck on air, read in the projector itself until it leaves (`slide: null`, at the music's last time seen). */
+function untilDeckLeaves(projector: Page): Promise<ShownSlide[]> {
+  return projector.evaluate(
+    async ([selector, number]) => {
+      const shown: { slide: number | null; at: number | null; most: number }[] = [];
+      let music: number | null = null;
+      const start = performance.now();
+      while (performance.now() - start < 20_000) {
+        const slides = [...document.querySelectorAll<HTMLElement>(selector)];
+        const last = slides.at(-1);
+        const url = last instanceof HTMLImageElement ? last.src : (last?.dataset["slideModel"] ?? "");
+        const slide = Number(new RegExp(number).exec(url)?.[1]) || null;
+        music = document.querySelector("audio")?.currentTime ?? music;
+        const current = shown.at(-1);
+        if (slide !== (current?.slide ?? null)) {
+          shown.push({ slide, at: music, most: slides.length });
+          if (slide === null) break;
+        } else if (current) {
+          current.most = Math.max(current.most, slides.length);
+        }
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      }
+      return shown;
+    },
+    [SLIDE_SELECTOR, SLIDE_NUMBER.source] as const,
+  );
+}
+
+test("with the presentations' transitions off, a slide cuts in and the deck still ends with its music", async ({ app }) => {
+  // Owner, 2026-11-25: off in Ajustes ▸ Diapositivas, a slide cuts in where its transition would have started, and the
+  // deck's clock is the same as with them on. Taken by hand, a deck runs on its own chain beside its music: dropping
+  // the transitions from that chain ran it ahead of the song.
+  test.setTimeout(120_000);
+  await app.addMedia("ppt", "hymn.pptx");
+  await app.previewFile("Presentaciones", "hymn");
+  await expect(slideTile(app, 3)).toBeVisible({ timeout: 90_000 });
+  const preview = app.previewColumn();
+  await app.answerOpenDialog(fixture("song.mp3"));
+  await preview.getByRole("button", { name: "Asignar audio" }).click();
+  await expect(preview.getByRole("button", { name: "Opciones del audio" })).toBeVisible();
+
+  /** EN VIVO, a step forward by hand as soon as the music runs (onto slide 2 and its half-second fade), and the deck
+   *  read until it leaves: the slides are done at ~6 s, the 8 s song decides the end. */
+  const play = async (): Promise<ShownSlide[]> => {
+    await app.goLive();
+    const projector = await app.projector();
+    const shown = untilDeckLeaves(projector);
+    await expect
+      .poll(async () => (await audioStates(projector))[0]?.currentTime ?? 0, { intervals: [20] })
+      .toBeGreaterThan(0.3);
+    await app.control.locator("body").press("ArrowRight");
+    return shown;
+  };
+  const onTime = (shown: ShownSlide[]) => {
+    expect(shown.map((s) => s.slide)).toEqual([1, 2, 3, null]);
+    // Slide 3 after slide 2's own two seconds plus the fade it came in with, drawn or not.
+    const third = shown[2]!.at! - shown[1]!.at!;
+    expect(third).toBeGreaterThan(2.5 - 0.3);
+    expect(third).toBeLessThan(2.5 + 0.3);
+    // Off with its song, not with its last slide.
+    expect(shown[3]!.at).toBeGreaterThan(7.7);
+    return third;
+  };
+
+  // On, as installed: the measure sees the fades (two slides on the stage), so «one» below means a cut.
+  const on = await play();
+  const withFades = onTime(on);
+  expect(on[1]!.most).toBe(2);
+  expect(on[2]!.most).toBe(2);
+
+  await app.control.getByRole("button", { name: "Configuración" }).click();
+  const settings = app.control.getByRole("dialog", { name: "Configuración" });
+  await settings.getByRole("tab", { name: "Diapositivas" }).click();
+  const transitions = settings.getByRole("switch", { name: "Transiciones de las presentaciones" });
+  await expect(transitions).toBeChecked();
+  await transitions.click();
+  await expect(transitions).not.toBeChecked();
+  await settings.getByRole("button", { name: "Volver" }).click();
+  await expect(settings).toBeHidden();
+
+  await app.previewFile("Presentaciones", "hymn");
+  await expect(slideTile(app, 3)).toBeVisible({ timeout: 30_000 });
+  await app.pastAutoPreviewHold();
+  const off = await play();
+  const cut = onTime(off);
+  expect(off.slice(0, 3).map((s) => s.most)).toEqual([1, 1, 1]);
+  expect(Math.abs(cut - withFades)).toBeLessThan(0.3);
+});
+
 test("a deck that cannot be converted says so and can be retried", async ({ app }) => {
   const broken = path.join(app.profile, "roto.pdf");
   fs.writeFileSync(broken, "%PDF-1.4\nthis is not a pdf\n");
