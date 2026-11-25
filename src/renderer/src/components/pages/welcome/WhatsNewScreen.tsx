@@ -71,6 +71,10 @@ const WHATS_NEW: Record<
       "scheduleFolder",
     ],
   },
+  "2.15": {
+    steps: [],
+    also: ["slideTransitions", "streamTab", "projectorScreen", "previewLevel", "pathRow", "linuxOutput"],
+  },
 };
 const DONE_STEP = { icon: "circleCheck", id: "done" } as const;
 
