@@ -459,9 +459,13 @@ test("a projector that cuts the edges gets a smaller, centred picture and a test
   const projector = await verseLive(app);
   expect(await projectorPicture(projector)).toEqual({ width: 100, height: 100, left: 0, top: 0 });
   const settings = await screensSettings(app);
+  // The card's own «Resolución» row: in pixels, and once fitted, what the picture takes (owner, 2026-11-25).
+  const resolution = settings.getByRole("group", { name: "Resolución", exact: true });
+  await expect(resolution).toHaveAccessibleDescription(/^\d+x\d+( · [^·]+)?$/);
   const fitGroup = settings.getByRole("group", { name: "Tamaño de la imagen" });
   await fitGroup.getByRole("slider", { name: "Tamaño de la imagen" }).fill("90");
   await expect(fitGroup).toContainText("90%");
+  await expect(resolution).toHaveAccessibleDescription(/ · la imagen ocupa \d+x\d+$/);
   await expect.poll(() => projectorPicture(projector)).toEqual({ width: 90, height: 90, left: 50, top: 50 });
   // Laid out at that size: the verse is still whole inside it.
   await expect(projector.getByText(JUAN_3_16, { exact: false })).toBeVisible();
@@ -493,6 +497,29 @@ test("a projector that cuts the edges gets a smaller, centred picture and a test
   const again = await relaunch(app);
   const reopened = await verseLive(again);
   await expect.poll(() => projectorPicture(reopened)).toEqual({ width: 90, height: 90, left: 50, top: 50 });
+});
+
+// The owner looked for the projector's resolution in Proyección (2026-11-25): it names the screen, said as Pantallas
+// says it, and takes the operator there.
+test("Proyección says which screen the projector is on, as Pantallas lists it, and its button goes there", async ({ app }) => {
+  await app.control.getByRole("button", { name: "Configuración" }).click();
+  const settings = app.control.getByRole("dialog", { name: "Configuración" });
+  await settings.getByRole("tab", { name: "Proyección" }).click();
+  const row = settings.getByRole("group", { name: "Pantalla", exact: true });
+  const said = await settings.locator(`[id="${await row.getAttribute("aria-describedby")}"]`).innerText();
+  await row.getByRole("button", { name: "Ir a Pantallas" }).click();
+  await expect(settings.getByRole("tab", { name: "Pantallas" })).toHaveAttribute("aria-selected", "true");
+  if ((await app.invoke<unknown[]>("displays:list")).length < 2) {
+    // On one screen the projector is the operator's own movable window: no projector screen to name.
+    expect(said).toBe("Todavía no hay un proyector conectado");
+    return;
+  }
+  const { row: listed } = await projectorScreenRow(settings);
+  // Pantallas says it in two lines: the number and name on the row, the resolution on the grey line under it.
+  const text = async (id: string | null) => (id ? await settings.locator(`[id="${id}"]`).innerText() : "");
+  const name = await text(await listed.getAttribute("aria-labelledby"));
+  const resolution = await text(await listed.getAttribute("aria-describedby"));
+  expect([name, resolution].filter(Boolean).join(" · ")).toBe(said);
 });
 
 test("the test pattern opens the projector when it is closed, and goes off when the control window dies", async ({ app }) => {

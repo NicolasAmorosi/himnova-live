@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { useT } from "@renderer/lib/i18n/i18n-provider";
+import { screenLabel } from "@renderer/lib/screen-label";
 import { Button, FieldGroup, FieldRow } from "@renderer/components/ui";
 import { useBibleStore } from "@renderer/stores/bible.store";
 import { useDisplayStore } from "@renderer/stores/display.store";
@@ -43,8 +44,8 @@ export function DoneStep({ go }: { go: (step: WelcomeStepId) => void }) {
       step: "screens",
       label: t("welcome.steps.screens"),
       value: [
-        projector && !projector.operator ? projector.label : t("welcome.done.noProjector"),
-        ...(stage ? [t(s["stage.mirror"] ? "welcome.done.mirror" : "welcome.done.stage", { name: stage.label })] : []),
+        projector && !projector.operator ? screenLabel(projector, t) : t("welcome.done.noProjector"),
+        ...(stage ? [t(s["stage.mirror"] ? "welcome.done.mirror" : "welcome.done.stage", { name: screenLabel(stage, t) })] : []),
       ].join(" · "),
     },
     {

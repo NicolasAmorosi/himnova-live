@@ -917,6 +917,8 @@ const es = {
     slidesFallbackFontDesc: "Para un PowerPoint con una fuente que esta PC no tiene.",
     slidesFallbackFontHelp: "Antes se prueba una con las mismas medidas (Calibri → Carlito, Arial → Liberation Sans); si no hay, se usa esta.",
     slidesFallbackFontSystem: "La del sistema",
+    slidesTransitions: "Transiciones de las presentaciones",
+    slidesTransitionsDesc: "Las que trae cada archivo entre una diapositiva y la siguiente. Apagadas, cada diapositiva entra de golpe; los tiempos y la música no cambian.",
     sections: {
       projection: "Proyección",
       slides: "Diapositivas",
@@ -927,6 +929,7 @@ const es = {
       about: "Acerca de",
       screens: "Pantallas",
       sound: "Sonido",
+      stream: "Transmisión",
     },
     /** Settings ▸ Screens (`sections/screens-section.tsx`). */
     screens: {
@@ -968,6 +971,11 @@ const es = {
       phrasesDesc: "Una por línea. Aparecen en el panel «Escenario» para mostrarlas con un clic.",
       phrasesReset: "Usar las de fábrica",
       fitTitle: "Ajuste del proyector",
+      resolution: "Resolución",
+      looksLike: "se ve como {size}",
+      pictureTakes: "la imagen ocupa {size}",
+      projectorScreen: "Pantalla",
+      goToScreens: "Ir a Pantallas",
       fitDesc: "Para un proyector o una TV que corta los bordes de la imagen. Se guarda para la pantalla {screen}.",
       fitSize: "Tamaño de la imagen",
       fitSizeDesc: "Achicala hasta ver entero el borde blanco del patrón. Cambia solo el proyector: no los monitores, ni el NDI, ni el escenario.",
@@ -1004,12 +1012,14 @@ const es = {
     groups: {
       logo: "Logo",
       liveContent: "Contenido en vivo",
+      projector: "Proyector",
       transition: "Transición",
       versions: "Agregar una versión",
       versionsInstalled: "Versiones instaladas",
       versionsBundled: "Incluidas con Himnova Live",
       slidesCache: "Caché de diapositivas",
       slidesText: "Texto",
+      slidesTransitions: "Paso entre diapositivas",
       interface: "Interfaz",
       folders: "Carpetas de archivos",
       performance: "Rendimiento",
@@ -1123,7 +1133,7 @@ const es = {
       languageLabel: "Idioma de {name}",
       languageFailed: "No se pudo cambiar el idioma",
     },
-    /** Settings ▸ Projection ▸ «Salida NDI®» (`ndi-output-group.tsx`). */
+    /** Settings ▸ Streaming ▸ «Salida NDI®» (`ndi-output-group.tsx`). */
     ndi: {
       groupDesc: "La proyección como fuente de video en la red, para OBS, vMix u otra app.",
       enabled: "Enviar por NDI®",
@@ -1588,6 +1598,12 @@ const es = {
         crashRecovery: "Si la app se cierra de golpe, al volver la fila que estaba al aire queda en PREVIEW y los editores ofrecen recuperar lo que estabas editando.",
         hymnMusic: "La música de un himno al aire sigue sonando aunque saques el pendrive.",
         scheduleFolder: "El «+» del programa abre en la carpeta de donde agregaste la última vez, también al volver a abrir la app.",
+        slideTransitions: "Si no querés las transiciones que traen las presentaciones, se apagan en Configuración ▸ Diapositivas: cada diapositiva entra de golpe, y los tiempos y la música siguen igual.",
+        streamTab: "El NDI® tiene su propia pestaña, Configuración ▸ Transmisión.",
+        projectorScreen: "Configuración ▸ Proyección dice en qué pantalla está el proyector, y «Ajuste del proyector» muestra su resolución y cuánto ocupa la imagen achicada.",
+        previewLevel: "Si PREVIEW suena por otra salida que EN VIVO (unos auriculares, por ejemplo), su volumen queda como lo dejaste de un ítem al otro. Por la misma salida sigue empezando en silencio.",
+        pathRow: "La burbuja con la ruta del archivo aparece en toda la fila del programa, no solo sobre el nombre.",
+        linuxOutput: "En Linux, el menú de salidas de sonido nombra la del sistema, y el aviso de PREVIEW y EN VIVO por la misma salida ya funciona.",
       },
     },
   },

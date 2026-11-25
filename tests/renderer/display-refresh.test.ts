@@ -18,7 +18,7 @@ import { DEFAULT_SETTINGS, type SettingsMap } from "@shared/types/settings";
 
 const LAPTOP: DisplayInfo = {
   id: 1,
-  label: "Built-in",
+  name: "Built-in",
   operator: true,
   bounds: { x: 0, y: 0, width: 1470, height: 956 },
   scaleFactor: 2,
@@ -26,7 +26,7 @@ const LAPTOP: DisplayInfo = {
 };
 const PROJECTOR: DisplayInfo = {
   id: 2,
-  label: "Proyector",
+  name: "Proyector",
   operator: false,
   bounds: { x: 1470, y: 0, width: 1920, height: 1080 },
   scaleFactor: 1,
@@ -104,7 +104,7 @@ test("moving the projector to another screen clears «Pantalla desconectada»: t
 });
 
 test("a role main found again under a new id reaches the control window on the next screen change", async () => {
-  const STAGE: DisplayInfo = { ...PROJECTOR, id: 3, label: "Escenario", bounds: { ...PROJECTOR.bounds, x: -1920 } };
+  const STAGE: DisplayInfo = { ...PROJECTOR, id: 3, name: "Escenario", bounds: { ...PROJECTOR.bounds, x: -1920 } };
   const settings = { ...DEFAULT_SETTINGS, "projection.displayId": PROJECTOR.id, "stage.displayId": STAGE.id };
   useSettingsStore.setState({ settings });
   screens = [LAPTOP, PROJECTOR, STAGE];

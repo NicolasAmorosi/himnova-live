@@ -1,9 +1,11 @@
 import { useT } from "@renderer/lib/i18n/i18n-provider";
 import { Button, FieldGroup, FieldRow, Icon, Select, Switch } from "@renderer/components/ui";
 import { LogoGroup } from "@renderer/components/shared/settings-groups/logo-group";
-import { NdiOutputGroup } from "@renderer/components/shared/settings-groups/ndi-output-group";
 import { transitionDurationOptions, transitionStyleOptions } from "@renderer/lib/transition";
 import { useSettingsStore } from "@renderer/stores/settings.store";
+import { useDisplayStore } from "@renderer/stores/display.store";
+import { useUiStore } from "@renderer/stores/ui.store";
+import { screenLabel } from "@renderer/lib/screen-label";
 import { useProjectionStore } from "@renderer/stores/projection.store";
 import { clearLive } from "@renderer/lib/actions/playback";
 import type { TransitionStyle } from "@shared/types/transition";
@@ -14,8 +16,33 @@ import {
   type VideoEndAction,
 } from "@shared/types/projection";
 
-/** Everything about what the projector shows: NDI, the fallback logo, and
- *  clearing whatever is currently live. Which screen is Settings ▸ Screens'. */
+/** Which screen the projector is on, read only: choosing it, its fit and its resolution are Settings ▸ Screens',
+ *  where the button goes. Whoever looks for «the projector» here finds it (owner, 2026-11-25). */
+function ProjectorScreenGroup() {
+  const t = useT();
+  const displays = useDisplayStore((s) => s.displays);
+  const projectorId = useDisplayStore((s) => s.displayId);
+  const openSettings = useUiStore((s) => s.openSettings);
+  const index = displays.findIndex((d) => d.id === projectorId);
+  const projector = displays[index];
+  return (
+    <FieldGroup title={t("settings.groups.projector")}>
+      <FieldRow
+        description={
+          projector && !projector.operator ? `${index + 1} · ${screenLabel(projector, t)}` : t("welcome.done.noProjector")
+        }
+        label={t("settings.screens.projectorScreen")}
+      >
+        <Button onClick={() => openSettings("screens")} variant="outline">
+          <Icon name="columns" /> {t("settings.screens.goToScreens")}
+        </Button>
+      </FieldRow>
+    </FieldGroup>
+  );
+}
+
+/** Everything about what the projector shows: the fallback logo, what happens live and at an end, the transition.
+ *  Which screen is Settings ▸ Screens'; the NDI® output, Settings ▸ Streaming's. */
 export function ProjectionSection() {
   const t = useT();
   const base = useProjectionStore((s) => s.base);
@@ -30,7 +57,7 @@ export function ProjectionSection() {
 
   return (
     <div className="flex flex-col gap-8">
-      <NdiOutputGroup />
+      <ProjectorScreenGroup />
 
       <LogoGroup />
 

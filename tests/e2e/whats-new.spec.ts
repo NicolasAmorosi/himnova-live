@@ -8,6 +8,7 @@ const SCREEN_ROLES =
   "Si Windows cambia el número de las pantallas al reiniciar, el proyector y el escenario siguen cada uno en la suya.";
 const NEXT_IN_PREVIEW =
   "Al mandar EN VIVO una fila del programa, PREVIEW ya muestra la de abajo. Si preferís PREVIEW vacía, se apaga en Configuración ▸ Proyección.";
+const STREAM_TAB = "El NDI® tiene su propia pestaña, Configuración ▸ Transmisión.";
 
 // The suite skips it on every launch (`--no-whats-new`); here it runs as it does for a church.
 test.use({ chromiumArgs: ["--whats-new"] });
@@ -114,7 +115,7 @@ test("a profile that saw 2.10 is told only what came after: what goes live leave
   await expect(shown).toBeHidden();
 });
 
-test("a profile that saw 2.11 is told 2.12's to 2.14's smaller changes, in one summary alone", async ({ app }) => {
+test("a profile that saw 2.11 is told 2.12's to 2.15's smaller changes, in one summary alone", async ({ app }) => {
   await app.invoke("settings:set", { "ui.whatsNewSeen": "2.11" });
   await app.quit();
   const updated = await relaunch(app);
@@ -131,12 +132,13 @@ test("a profile that saw 2.11 is told 2.12's to 2.14's smaller changes, in one s
   await expect(shown.getByText("Elegir una versión «En paralelo» con un versículo al aire la muestra ahí mismo.")).toBeVisible();
   await expect(shown.getByText(LIGHTER_FADER)).toBeVisible();
   await expect(shown.getByText(NEXT_IN_PREVIEW)).toBeVisible();
+  await expect(shown.getByText(STREAM_TAB)).toBeVisible();
   await expect(shown.getByText("Un Enter de más sobre el himno al aire ya no lo vuelve a empezar.")).toHaveCount(0);
   await shown.getByRole("button", { name: "Listo", exact: true }).click();
   await expect(shown).toBeHidden();
 });
 
-test("a profile that saw 2.12 is told 2.12.1's to 2.14's smaller changes", async ({ app }) => {
+test("a profile that saw 2.12 is told 2.12.1's to 2.15's smaller changes", async ({ app }) => {
   await app.invoke("settings:set", { "ui.whatsNewSeen": "2.12" });
   await app.quit();
   const updated = await relaunch(app);
@@ -152,16 +154,16 @@ test("a profile that saw 2.12 is told 2.12.1's to 2.14's smaller changes", async
   await expect(shown).toBeHidden();
 });
 
-test("a profile that saw 2.13 is told only 2.14's smaller changes, «En esta versión»", async ({ app }) => {
-  await app.invoke("settings:set", { "ui.whatsNewSeen": "2.13" });
+test("a profile that saw 2.14 is told only 2.15's smaller changes, «En esta versión»", async ({ app }) => {
+  await app.invoke("settings:set", { "ui.whatsNewSeen": "2.14" });
   await app.quit();
   const updated = await relaunch(app);
   const shown = news(updated);
   await expect(shown).toBeVisible();
-  await expect(shown.getByText("Lo nuevo de la 2.14")).toBeVisible();
+  await expect(shown.getByText("Lo nuevo de la 2.15")).toBeVisible();
   await expect(shown.getByText("En esta versión", { exact: true })).toBeVisible();
-  await expect(shown.getByText(NEXT_IN_PREVIEW)).toBeVisible();
-  await expect(shown.getByText(LIGHTER_FADER)).toHaveCount(0);
+  await expect(shown.getByText(STREAM_TAB)).toBeVisible();
+  await expect(shown.getByText(NEXT_IN_PREVIEW)).toHaveCount(0);
   await shown.getByRole("button", { name: "Listo", exact: true }).click();
   await expect(shown).toBeHidden();
 });
@@ -201,7 +203,7 @@ test.describe("a new profile", () => {
     await settings.getByRole("button", { name: "Ver novedades" }).click();
     await expect(news(again)).toBeVisible();
     await expect(settings).toBeHidden();
-    // The latest (2.14) is a summary alone: its one step is the last, closed by finishing it.
+    // The latest (2.15) is a summary alone: its one step is the last, closed by finishing it.
     await news(again).getByRole("button", { name: "Listo", exact: true }).click();
     await expect(news(again)).toHaveCount(0);
   });

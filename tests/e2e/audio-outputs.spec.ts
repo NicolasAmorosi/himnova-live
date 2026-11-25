@@ -2,12 +2,12 @@
 // projector and every live engine session, PREVIEW's moves this window's elements and PREVIEW's engine, and the NDI®
 // sound is captured from LIVE's output only (D6). Measured where it can be: the projector's elements report their
 // `sinkId`, the NDI sender's own capture of LIVE's output (its `levelDb`) hears a tone only when it really plays
-// there, and on Linux two null sinks are recorded while each bus plays. Unplugging is unit-tested
-// (`tests/renderer/audio-route.test.ts`).
+// there, and on Linux two null sinks are recorded while each bus plays. PREVIEW keeps its level from item to item only
+// on an output of its own (owner, 2026-11-25). Unplugging is unit-tested (`tests/renderer/audio-route.test.ts`).
 import { execFileSync, spawn } from "node:child_process";
 import type { Page } from "@playwright/test";
 import type { MediaAsset } from "../../src/shared/types/media";
-import { ffmpegBinary } from "./support/paths";
+import { ffmpegBinary, fixture } from "./support/paths";
 import { audioStates, expect, test, type WorshipApp } from "./support/app";
 
 type Output = { deviceId: string; label: string; isDefault: boolean };
@@ -25,6 +25,19 @@ function outputsOf(app: WorshipApp): Promise<Output[]> {
       .filter((device) => device.deviceId !== "default" && device.deviceId !== "communications" && device.label !== "")
       .map((device) => ({ deviceId: device.deviceId, label: device.label, isDefault: device.groupId === fallback?.groupId }));
   });
+}
+
+/** The device the app says the system's default is, by LIVE's output menu on the default («Del sistema: <name>»,
+ *  `useAudioOutputPicker`): Chromium's «Default - <label>» on a Mac, the sound server's name for it on Linux (`pactl`),
+ *  null when it cannot tell, and then PREVIEW beside a LIVE on the default starts every item at 0, the safe side. */
+async function defaultTold(app: WorshipApp): Promise<string | null> {
+  const label = async () => (await outputButton(app, "live").getAttribute("aria-label")) ?? "";
+  // The first route is resolved a moment after the window shows.
+  await expect.poll(label, { timeout: 3_000 }).toMatch(/Del sistema: /).catch(() => undefined);
+  const name = await label();
+  const told = /^Salida de EN VIVO: Del sistema: (.+?)(\. |$)/.exec(name)?.[1] ?? null;
+  console.log(`[audio-outputs] LIVE's output: ${JSON.stringify(name)}, the default told: ${JSON.stringify(told)}`);
+  return told;
 }
 
 function outputButton(app: WorshipApp, bus: "live" | "preview") {
@@ -162,7 +175,10 @@ test("LIVE on another output: the projector's elements play there, and so does t
 
 test("PREVIEW on another output: this window's elements play there, the projector's stay on LIVE's", async ({ app }) => {
   await expect.poll(async () => (await outputsOf(app)).length, { timeout: 5_000 }).toBeGreaterThan(0);
-  const output = (await outputsOf(app)).find((candidate) => !candidate.isDefault && !/teams/i.test(candidate.label));
+  const told = await defaultTold(app);
+  const output = (await outputsOf(app)).find(
+    (candidate) => !candidate.isDefault && candidate.label !== told && !/teams/i.test(candidate.label),
+  );
   test.skip(!output, "this computer has no second output");
   await choose(app, "preview", output!.label);
   await expect.poll(() => engineRoute(app) ?? "", { timeout: 5_000 }).toMatch(/PREVIEW (?!default)\S+ \(apart\)/);
@@ -174,10 +190,16 @@ test("PREVIEW on another output: this window's elements play there, the projecto
   await expect.poll(async () => (await sinks(app.control)).filter((sink) => sink === output!.deviceId).length).toBeGreaterThan(0);
   expect((await sinks(app.control)).every((sink) => sink === output!.deviceId)).toBe(true);
 
+  const fader = app.previewColumn().getByRole("slider", { name: "Volumen de PREVIEW" });
+  const level = await fader.inputValue();
   await app.goLive();
   const projector = await app.projector();
   await expect.poll(async () => (await sinks(projector)).length).toBeGreaterThan(0);
   expect((await sinks(projector)).every((sink) => sink === "")).toBe(true);
+  // What went live left PREVIEW empty, and PREVIEW, on an output of its own, kept the level it had (owner, 2026-11-25),
+  // when the app can tell that LIVE's default is another device; when it cannot, back to 0 as before.
+  await expect(app.previewColumn().getByRole("slider", { name: "Posición de clip" })).toHaveCount(0);
+  await expect(fader).toHaveValue(told === null ? "0" : level);
 });
 
 test("an output the engine cannot open is not used: LIVE stays whole on the default and its strip says why", async ({ app }) => {
@@ -303,6 +325,11 @@ function recordPeak(sink: string, seconds: number): Promise<number> {
   });
 }
 
+const scheduleSection = (app: WorshipApp) =>
+  app.control.locator("section").filter({ has: app.control.getByRole("heading", { name: "Programa", exact: true }) });
+const scheduleRow = (app: WorshipApp, text: string) =>
+  scheduleSection(app).getByRole("list").first().getByRole("listitem").filter({ hasText: text });
+
 test.describe("Linux: two null sinks, recorded", () => {
   test.skip(process.platform !== "linux", "null sinks are PulseAudio's and PipeWire's");
   const SINKS = { live: "himnova_live", preview: "himnova_preview" } as const;
@@ -377,5 +404,48 @@ test.describe("Linux: two null sinks, recorded", () => {
     [live, preview] = await both("Chromium's .mp4 in PREVIEW");
     expect(live).toBeLessThan(silent);
     expect(preview).toBeGreaterThan(loud);
+  });
+
+  test("PREVIEW on its own output keeps its level from row to row, and drops to 0 the moment it shares LIVE's", async ({ app }) => {
+    test.setTimeout(120_000);
+    const route = () => engineRoute(app) ?? "";
+    await expect.poll(async () => (await outputsOf(app)).map((output) => output.label), { timeout: 10_000 }).toContain(LABELS.preview);
+    await choose(app, "live", LABELS.live);
+    await choose(app, "preview", LABELS.preview);
+    await expect
+      .poll(route, { timeout: 10_000 })
+      .toMatch(new RegExp(`LIVE \\w+/${SINKS.live}, PREVIEW \\w+/${SINKS.preview} \\(apart\\)`));
+    await app.answerOpenDialog(fixture("clip.mp4"), fixture("song.mp3"), fixture("photo.png"));
+    await scheduleSection(app).getByRole("button", { name: "Agregar medios" }).click();
+    await expect(scheduleRow(app, "photo")).toBeVisible();
+
+    const fader = app.previewColumn().getByRole("slider", { name: "Volumen de PREVIEW" });
+    await scheduleRow(app, "clip").click();
+    await expect(app.previewColumn().getByRole("slider", { name: "Posición de clip" })).toBeVisible();
+    await fader.fill("60");
+    // Read back: the fader's scale is logarithmic, the value it settled on is what must stay.
+    const level = await fader.inputValue();
+    expect(Number(level)).toBeGreaterThan(0);
+
+    // Sent live: PREVIEW takes the row under it by itself (`projection.previewNext`), at the level it had.
+    await app.goLive();
+    await expect(app.previewColumn().getByRole("slider", { name: "Posición de song" })).toBeVisible();
+    await expect(fader).toHaveValue(level);
+    console.log(`[audio-outputs] PREVIEW apart, after GO LIVE: fader ${await fader.inputValue()} (was ${level})`);
+
+    // PREVIEW moved to LIVE's output: heard in the room, so silent at once, with no new item.
+    await choose(app, "preview", LABELS.live);
+    await expect.poll(route, { timeout: 10_000 }).toMatch(new RegExp(`LIVE \\w+/${SINKS.live}, PREVIEW \\w+/${SINKS.live}`));
+    expect(route()).not.toContain("(apart)");
+    await expect(fader).toHaveValue("0");
+    await expect(app.previewColumn().getByRole("slider", { name: "Posición de song" })).toBeVisible();
+
+    // Shared, as before: raised by hand it stays up for this item (amber), and the next item starts at 0.
+    await fader.fill("60");
+    await expect(fader).not.toHaveValue("0");
+    await app.pastAutoPreviewHold();
+    await app.goLive();
+    await expect(app.previewColumn().getByRole("slider", { name: "Posición de song" })).toHaveCount(0);
+    await expect(fader).toHaveValue("0");
   });
 });

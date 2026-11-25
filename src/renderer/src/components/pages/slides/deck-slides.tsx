@@ -41,8 +41,8 @@ import type { DeckDTO } from "@shared/types/deck";
  * - the deck: its name, ◀ ▶ through PREVIEW's slides (never on their own —
  *   the deck's timings play only on the projector), the counter, «Auto-avance»
  *   when it has timings, and the ✕ that clears PREVIEW;
- * - its music: play, position and PREVIEW's volume (0 with every new item,
- *   silenced the moment it goes live), and assigning, changing or removing a
+ * - its music: play, position and PREVIEW's volume (0 with every new item
+ *   unless PREVIEW has an output of its own, silenced the moment it goes live), and assigning, changing or removing a
  *   linked file. No «Sin audio» line: a deck without music only offers to
  *   assign one.
  */

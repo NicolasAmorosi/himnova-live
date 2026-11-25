@@ -5,6 +5,7 @@ import { toast } from "@renderer/lib/toast";
 import {
   audioOutputsOf,
   findAudioOutput,
+  previewKeepsLevel,
   resolveBus,
   sameAudioOutput,
   type AudioBusRoute,
@@ -13,6 +14,7 @@ import {
   type EngineNames,
 } from "@renderer/lib/hooks/use-audio-outputs";
 import { useAudioRouteStore } from "@renderer/stores/audio-route.store";
+import { usePreviewStore } from "@renderer/stores/preview.store";
 import { useProjectionStore } from "@renderer/stores/projection.store";
 import { useSettingsStore } from "@renderer/stores/settings.store";
 import type { AudioBus, AudioOutputChoice } from "@shared/types/audio";
@@ -62,6 +64,8 @@ export function startAudioRouteEffects(): () => void {
    *  label of each engine name the last answer gave, to find the one an `audio-out` names. */
   const refused = new Map<string, { gone: boolean }>();
   let labelOf = new Map<string, string>();
+  /** Whether the last route let PREVIEW keep its level: false at launch, as the store's `shared` is true. */
+  let kept = false;
 
   const resolve = async (): Promise<void> => {
     const { settings, loaded } = useSettingsStore.getState();
@@ -69,7 +73,12 @@ export function startAudioRouteEffects(): () => void {
     clearTimeout(retry);
     const mine = ++request;
     const next = { live: settings[OUTPUT_KEY.live], preview: settings[OUTPUT_KEY.preview] };
-    const outputs = audioOutputsOf(await media.enumerateDevices());
+    // Where Chromium does not say which output the system's default is (Linux), the sound server does.
+    const [list, system] = await Promise.all([
+      media.enumerateDevices(),
+      api.audioRoute.systemDefault().catch(() => ({ label: null })),
+    ]);
+    const outputs = audioOutputsOf(list, system.label);
     if (stopped || mine !== request) return;
     // The pickers' list at once, without waiting for the engine below (it can take seconds to name the outputs).
     useAudioRouteStore.setState({ outputs });
@@ -98,6 +107,12 @@ export function startAudioRouteEffects(): () => void {
     // half old, half new would move the NDI® capture twice.
     void api.audioRoute.set({ live: live.out.engineDevice, preview: preview.out.engineDevice, previewApart: !shared });
     useAudioRouteStore.setState({ live, preview, shared });
+    // The two outputs just became one (a picker, a device unplugged, the default moved): PREVIEW goes silent at once
+    // instead of being heard in the room (owner, 2026-11-25). Only on that change: a level raised while they were
+    // already shared is the operator's, and stays amber as before.
+    const keeps = previewKeepsLevel({ live, preview, shared, outputs });
+    if (kept && !keeps && usePreviewStore.getState().volume > 0) usePreviewStore.getState().setVolume(0);
+    kept = keeps;
     useProjectionStore.getState().setLiveAudioOut(live.out);
     for (const [bus, route] of [["live", live], ["preview", preview]] as const) {
       announce(bus, settled[bus], route, next[bus]);

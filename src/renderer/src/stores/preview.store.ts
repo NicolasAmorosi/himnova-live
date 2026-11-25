@@ -1,6 +1,8 @@
 import { create } from "zustand";
 import type { AssetKind } from "@shared/constants";
 import type { ProgramItemDTO } from "@shared/types/program";
+import { previewKeepsLevel } from "@renderer/lib/hooks/use-audio-outputs";
+import { useAudioRouteStore } from "@renderer/stores/audio-route.store";
 
 /**
  * What the operator is *looking at*, which in the EasyWorship two-stage flow is
@@ -58,7 +60,11 @@ type PreviewStoreState = {
   durationSeconds: number;
   /** 0..1, what PREVIEW sounds at: its video, its audio, a deck's music
    *  (owner, 2026-11-05: «todo como en vivo pero con el volumen a 0»). Back to
-   *  0 with every new target, so nothing ever sounds there by surprise. */
+   *  0 with every new target, so nothing ever sounds there by surprise, unless
+   *  PREVIEW plays through another device than LIVE: then it keeps the level
+   *  the operator left (owner, 2026-11-25, `previewKeepsLevel`), for the
+   *  session only, and drops to 0 the moment the two outputs become one
+   *  (`effects/audio-route.ts`). Nothing plays by itself either way. */
   volume: number;
 
   clear: () => void;
@@ -70,6 +76,9 @@ type PreviewStoreState = {
   setVolume: (volume: number) => void;
 };
 
+/** What a new target (or none) leaves PREVIEW's volume at. */
+const nextVolume = (volume: number): number => (previewKeepsLevel(useAudioRouteStore.getState()) ? volume : 0);
+
 export const usePreviewStore = create<PreviewStoreState>((set) => ({
   slideIndex: 1,
   target: null,
@@ -78,12 +87,27 @@ export const usePreviewStore = create<PreviewStoreState>((set) => ({
   durationSeconds: 0,
   volume: 0,
 
-  clear: () => set({ target: null, slideIndex: 1, positionSeconds: 0, playing: false, durationSeconds: 0, volume: 0 }),
+  clear: () =>
+    set((s) => ({
+      target: null,
+      slideIndex: 1,
+      positionSeconds: 0,
+      playing: false,
+      durationSeconds: 0,
+      volume: nextVolume(s.volume),
+    })),
   setSlideIndex: (slideIndex) => set({ slideIndex: Math.max(1, slideIndex) }),
   // A new target always starts at its first slide/verse and its own beginning,
   // paused — never autoplay on a fresh selection.
   setTarget: (target) =>
-    set({ target, slideIndex: 1, positionSeconds: 0, playing: false, durationSeconds: 0, volume: 0 }),
+    set((s) => ({
+      target,
+      slideIndex: 1,
+      positionSeconds: 0,
+      playing: false,
+      durationSeconds: 0,
+      volume: nextVolume(s.volume),
+    })),
   setPositionSeconds: (seconds) => set({ positionSeconds: Math.max(0, seconds) }),
   setPlaying: (playing) => set({ playing }),
   setDurationSeconds: (seconds) => set({ durationSeconds: Math.max(0, seconds) }),

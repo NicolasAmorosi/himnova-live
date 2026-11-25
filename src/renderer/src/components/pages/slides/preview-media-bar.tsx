@@ -19,7 +19,8 @@ type PreviewMediaBarProps = { asset: MediaAsset };
  * 2026-11-05 (owner: «todo como en vivo pero con el volumen a 0; si le suben el
  * volumen se escucha y problema de ellos»): a video in the monitor above, an
  * audio file through PREVIEW's engine, both at PREVIEW's own volume, back to 0
- * with every new item and silenced the moment it goes live
+ * with every new item (kept when PREVIEW has an output of its own,
+ * `previewKeepsLevel`) and silenced the moment it goes live
  * (`stopPreviewPlayback`). Nothing ever autoplays.
  */
 export function PreviewMediaBar({ asset }: PreviewMediaBarProps) {
@@ -49,8 +50,8 @@ export function PreviewMediaBar({ asset }: PreviewMediaBarProps) {
         onRestart={duration ? () => seekPreview(0) : undefined}
         onSeek={duration ? seekPreview : undefined}
         onTogglePause={togglePreviewPlayback}
-        // Like EN VIVO's row, at PREVIEW's own level: 0 with every new item,
-        // heard only once raised (owner, 2026-11-05).
+        // Like EN VIVO's row, at PREVIEW's own level: 0 with every new item
+        // unless PREVIEW has an output of its own, heard only once raised.
         onVolumeChange={setVolume}
         paused={!playing}
         volume={volume}

@@ -39,7 +39,11 @@ Leaving BLACK/LOGO is `setOverlay('none')` — there is nothing to "restore", be
 ### A slide's own way in rides in the output, with its own identity
 
 `setSlideIndex` records the transition of the slide it moves to (`slideEntry`) only when the index
-grows; any move back, and any new scene (`setBase`, `setLiveDeck`), records `null`. `selectOutput`
+grows; any move back, and any new scene (`setBase`, `setLiveDeck`), records `null`. With «Transiciones de las
+presentaciones» off (`slides.transitions`, read right there so the slide on screen never enters again) it
+records `null` going forward too, while `slideEntryMs` keeps the transition's duration for the deck's clock
+(`deck-autoplay`'s detached chain): the slide cuts in where its transition would have started, on the same
+schedule. `selectOutput`
 hands it to the projector as the `slide` variant's `enter`, with `seq` = `slideVideoEpoch` — the
 counter that already advances with every change of slide and nothing else. `OutputView` animates
 when `enter.seq` is one it has not seen and the epoch did not change (a new scene plays the scene

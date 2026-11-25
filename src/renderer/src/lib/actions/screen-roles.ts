@@ -1,6 +1,7 @@
 import { api } from "@renderer/lib/api";
 import { t } from "@renderer/lib/i18n/i18n-provider";
 import { toast } from "@renderer/lib/toast";
+import { screenLabel } from "@renderer/lib/screen-label";
 import { useDisplayStore } from "@renderer/stores/display.store";
 import { useSettingsStore } from "@renderer/stores/settings.store";
 import { projectorDisplayFor } from "@shared/display-roles";
@@ -23,7 +24,10 @@ export function screenRole(
   return id === projectorId ? "projector" : id === stageId ? stage : "none";
 }
 
-const nameOf = (id: number): string => useDisplayStore.getState().displays.find((d) => d.id === id)?.label ?? String(id);
+const nameOf = (id: number): string => {
+  const display = useDisplayStore.getState().displays.find((d) => d.id === id);
+  return display ? screenLabel(display, t) : String(id);
+};
 
 /**
  * Gives `id` a role, and the roles exclude each other (owner, 2026-11-13): the stage and the copy of the projector

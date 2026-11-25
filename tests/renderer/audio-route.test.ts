@@ -11,9 +11,10 @@ import type { AudioRoute, EngineOutputNames } from "@shared/types/audio";
 const h = vi.hoisted(() => ({
   match: vi.fn<(outputs: { deviceId: string; label: string }[]) => Promise<EngineOutputNames>>(),
   set: vi.fn<(route: AudioRoute) => Promise<void>>(() => Promise.resolve()),
+  systemDefault: vi.fn<() => Promise<{ label: string | null }>>(),
   listeners: new Map<string, ((payload: never) => void)[]>(),
 }));
-vi.mock("@renderer/lib/api", () => ({ api: { audioRoute: { matchOutputs: h.match, set: h.set } } }));
+vi.mock("@renderer/lib/api", () => ({ api: { audioRoute: { matchOutputs: h.match, set: h.set, systemDefault: h.systemDefault } } }));
 vi.mock("@renderer/lib/ipc", () => ({
   onIpc: (event: string, listener: (payload: never) => void) => {
     const list = h.listeners.get(event) ?? [];
@@ -34,6 +35,8 @@ const { useAudioRouteStore } = await import("@renderer/stores/audio-route.store"
 const { useProjectionStore } = await import("@renderer/stores/projection.store");
 const { useSettingsStore } = await import("@renderer/stores/settings.store");
 const { useToastStore } = await import("@renderer/stores/toast.store");
+const { usePreviewStore } = await import("@renderer/stores/preview.store");
+const { DEFAULT_ROUTE, audioOutputsOf, previewKeepsLevel } = await import("@renderer/lib/hooks/use-audio-outputs");
 
 const SCARLETT = "pulse/alsa_output.usb-Focusrite_Scarlett_2i2";
 const device = (deviceId: string, label: string, groupId: string) =>
@@ -52,12 +55,14 @@ let stop: () => void = () => undefined;
 
 beforeEach(() => {
   h.set.mockImplementation(() => Promise.resolve());
+  h.systemDefault.mockResolvedValue({ label: null });
   h.match.mockImplementation((outputs) => Promise.resolve(outputs.map((o) => (o.label === "Scarlett 2i2" ? SCARLETT : null))));
   useSettingsStore.setState({
     loaded: true,
     settings: { ...DEFAULT_SETTINGS, "ui.locale": "es", "audio.output.live": { label: "Scarlett 2i2", deviceId: "b2" } },
   });
   useToastStore.setState({ toasts: [] });
+  usePreviewStore.setState({ target: null, volume: 0 });
 });
 
 afterEach(() => stop());
@@ -286,4 +291,155 @@ test("the pickers list the outputs the route read, once per device plugged in or
   } finally {
     enumerate.mockRestore();
   }
+});
+
+/** PREVIEW's level between items (owner, 2026-11-25): kept only while PREVIEW plays through another device than LIVE. */
+const chosenRoute = (deviceId: string) => ({ ...DEFAULT_ROUTE, device: { deviceId, label: deviceId, groupId: `g-${deviceId}` } });
+const SPEAKERS = [{ deviceId: "a1", label: "Altavoces", groupId: "g-speakers" }];
+const KNOWN = { devices: SPEAKERS, defaultDeviceId: "a1", defaultGroupId: "g-speakers" };
+const UNKNOWN = { devices: SPEAKERS, defaultDeviceId: null, defaultGroupId: null };
+const ROUTES = {
+  shared: { live: DEFAULT_ROUTE, preview: DEFAULT_ROUTE, shared: true, outputs: KNOWN },
+  apart: { live: chosenRoute("b2"), preview: DEFAULT_ROUTE, shared: false, outputs: KNOWN },
+  "both chosen, apart": { live: chosenRoute("b2"), preview: chosenRoute("c3"), shared: false, outputs: UNKNOWN },
+  "default told by its device only": {
+    live: chosenRoute("b2"),
+    preview: DEFAULT_ROUTE,
+    shared: false,
+    outputs: { ...UNKNOWN, defaultGroupId: "g-speakers" },
+  },
+  "default's device in no listed output": {
+    live: chosenRoute("b2"),
+    preview: DEFAULT_ROUTE,
+    shared: false,
+    outputs: { ...UNKNOWN, defaultGroupId: "g-elsewhere" },
+  },
+  // `sameAudioOutput` says «apart» here (the NDI® capture keeps `previewApart`), but nobody knows where the default is.
+  "default unknown": { live: chosenRoute("b2"), preview: DEFAULT_ROUTE, shared: false, outputs: UNKNOWN },
+};
+
+test.each([
+  ["shared", false],
+  ["apart", true],
+  ["both chosen, apart", true],
+  ["default told by its device only", true],
+  ["default's device in no listed output", false],
+  ["default unknown", false],
+] as const)("PREVIEW keeps its level when the route is %s: %s", (route, keeps) => {
+  expect(previewKeepsLevel(ROUTES[route])).toBe(keeps);
+});
+
+test.each([
+  ["shared", "a new target", 0],
+  ["shared", "a clear", 0],
+  ["apart", "a new target", 0.6],
+  ["apart", "a clear", 0.6],
+  ["default unknown", "a new target", 0],
+  ["default unknown", "a clear", 0],
+] as const)("with the route %s, %s leaves PREVIEW's level at %s, and never playing", (route, change, volume) => {
+  const { live, preview, shared, outputs } = ROUTES[route];
+  useAudioRouteStore.setState({ live, preview, shared, outputs });
+  usePreviewStore.setState({ target: { kind: "utility", sceneId: 1 }, volume: 0.6, playing: true });
+  if (change === "a new target") usePreviewStore.getState().setTarget({ kind: "asset", assetId: 7, assetKind: "video" });
+  else usePreviewStore.getState().clear();
+  expect(usePreviewStore.getState().volume).toBe(volume);
+  expect(usePreviewStore.getState().playing).toBe(false);
+});
+
+test("PREVIEW on its own output keeps its level across items, and goes silent the moment both outputs become one", async () => {
+  plugged = [...speakers, scarlett];
+  stop = startAudioRouteEffects();
+  await settle();
+  expect(useAudioRouteStore.getState().shared).toBe(false);
+  usePreviewStore.getState().setVolume(0.6);
+  usePreviewStore.getState().setTarget({ kind: "asset", assetId: 7, assetKind: "video" });
+  expect(usePreviewStore.getState().volume).toBe(0.6);
+
+  // LIVE's Scarlett unplugged: LIVE falls to the default, where PREVIEW plays. Fails if PREVIEW stays up and is heard
+  // in the room until the next item.
+  plugged = [...speakers];
+  devices.dispatchEvent(new Event("devicechange"));
+  await settle();
+  expect(useAudioRouteStore.getState().shared).toBe(true);
+  expect(usePreviewStore.getState().volume).toBe(0);
+});
+
+test("a level raised while both outputs are already one is the operator's: another device coming does not touch it", async () => {
+  plugged = [...speakers];
+  stop = startAudioRouteEffects();
+  await settle();
+  expect(useAudioRouteStore.getState().shared).toBe(true);
+  usePreviewStore.getState().setVolume(0.6);
+  plugged = [...speakers, device("c3", "Auriculares", "g-phones")];
+  devices.dispatchEvent(new Event("devicechange"));
+  await settle();
+  expect(usePreviewStore.getState().volume).toBe(0.6);
+  // And the next item starts at 0, as before.
+  usePreviewStore.getState().setTarget({ kind: "asset", assetId: 7, assetKind: "video" });
+  expect(usePreviewStore.getState().volume).toBe(0);
+});
+
+test("a default nobody can identify is not «apart» for PREVIEW's level, though the NDI® capture stays apart", async () => {
+  // No «default» entry in Chromium's list: neither its entry nor its device can be told.
+  plugged = [device("a1", "Altavoces", "g-speakers"), scarlett];
+  stop = startAudioRouteEffects();
+  await settle();
+  expect(h.set).toHaveBeenLastCalledWith({ live: SCARLETT, preview: null, previewApart: true });
+  usePreviewStore.getState().setVolume(0.6);
+  usePreviewStore.getState().setTarget({ kind: "asset", assetId: 7, assetKind: "video" });
+  expect(usePreviewStore.getState().volume).toBe(0);
+});
+
+/** Linux's Chromium (2026-11-25): its «default» entry is just «Default», in a group of its own. */
+const linuxList = [
+  device("default", "Default", "g-default"),
+  device("a1", "Raptor Lake-P/U/H cAVS Speaker", "g-a1"),
+  device("h3", "Raptor Lake-P/U/H cAVS HDMI / DisplayPort 3 Output (Stereo)", "g-h3"),
+];
+
+test("where Chromium does not say which output the default is, the sound server's name for it does, if one alone has it", () => {
+  expect(audioOutputsOf(linuxList).defaultDeviceId).toBeNull();
+  expect(audioOutputsOf(linuxList, "Raptor Lake-P/U/H cAVS Speaker").defaultDeviceId).toBe("a1");
+  // A name no listed output has (a sink Chromium does not list), or two outputs with that name: still unknown.
+  expect(audioOutputsOf(linuxList, "Easy Effects Sink").defaultDeviceId).toBeNull();
+  const twins = [...linuxList, device("a2", "Raptor Lake-P/U/H cAVS Speaker", "g-a2")];
+  expect(audioOutputsOf(twins, "Raptor Lake-P/U/H cAVS Speaker").defaultDeviceId).toBeNull();
+  // Chromium's own word wins: the Mac's «Default - <label>».
+  expect(audioOutputsOf([...speakers, scarlett], "Scarlett 2i2").defaultDeviceId).toBe("a1");
+});
+
+test("on Linux, PREVIEW on its own output beside LIVE on the default keeps its level, and goes silent once both are one", async () => {
+  h.systemDefault.mockResolvedValue({ label: "Raptor Lake-P/U/H cAVS Speaker" });
+  h.match.mockImplementation((outputs) => Promise.resolve(outputs.map((o) => `pipewire/${o.deviceId}`)));
+  useSettingsStore.setState({
+    settings: {
+      ...useSettingsStore.getState().settings,
+      "audio.output.live": null,
+      "audio.output.preview": { label: "Raptor Lake-P/U/H cAVS HDMI / DisplayPort 3 Output (Stereo)", deviceId: "h3" },
+    },
+  });
+  plugged = linuxList;
+  stop = startAudioRouteEffects();
+  await settle();
+  expect(useAudioRouteStore.getState().outputs.defaultDeviceId).toBe("a1");
+  expect(useAudioRouteStore.getState().shared).toBe(false);
+  usePreviewStore.getState().setVolume(0.6);
+  usePreviewStore.getState().setTarget({ kind: "asset", assetId: 7, assetKind: "video" });
+  expect(usePreviewStore.getState().volume).toBe(0.6);
+
+  // The system's default moved to that same output: PREVIEW is heard in the room now.
+  h.systemDefault.mockResolvedValue({ label: "Raptor Lake-P/U/H cAVS HDMI / DisplayPort 3 Output (Stereo)" });
+  devices.dispatchEvent(new Event("devicechange"));
+  await settle();
+  expect(useAudioRouteStore.getState().shared).toBe(true);
+  expect(usePreviewStore.getState().volume).toBe(0);
+});
+
+test("a sound server that does not answer leaves the default unknown, as before", async () => {
+  h.systemDefault.mockRejectedValue(new Error("no pactl"));
+  plugged = linuxList;
+  stop = startAudioRouteEffects();
+  await settle();
+  expect(useAudioRouteStore.getState().outputs.devices).toHaveLength(2);
+  expect(useAudioRouteStore.getState().outputs.defaultDeviceId).toBeNull();
 });

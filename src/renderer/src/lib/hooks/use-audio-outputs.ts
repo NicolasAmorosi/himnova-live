@@ -11,7 +11,10 @@ export type AudioOutputs = { devices: AudioOutputDevice[]; defaultDeviceId: stri
 /** Chromium's pseudo-entries: they name another device of the list, never one of their own. */
 const PSEUDO_IDS = new Set(["default", "communications"]);
 
-export function audioOutputsOf(list: readonly MediaDeviceInfo[]): AudioOutputs {
+/** `systemDefault`: the name of the device the system's default output is, from the sound server, where Chromium's
+ *  «default» entry does not say it (Linux: just «Default»). Used only when that entry names none, and only when one
+ *  listed output alone has that name. */
+export function audioOutputsOf(list: readonly MediaDeviceInfo[], systemDefault: string | null = null): AudioOutputs {
   const outputs = list.filter((device) => device.kind === "audiooutput");
   const devices = outputs
     .filter((device) => !PSEUDO_IDS.has(device.deviceId) && device.label !== "")
@@ -22,7 +25,9 @@ export function audioOutputsOf(list: readonly MediaDeviceInfo[]): AudioOutputs {
   const real = devices
     .filter((device) => fallback?.label.endsWith(` - ${device.label}`))
     .sort((a, b) => b.label.length - a.label.length)[0];
-  return { devices, defaultDeviceId: real?.deviceId ?? null, defaultGroupId: fallback?.groupId ?? null };
+  const named = devices.filter((device) => device.label === systemDefault);
+  const told = real ?? (named.length === 1 ? named[0] : undefined);
+  return { devices, defaultDeviceId: told?.deviceId ?? null, defaultGroupId: fallback?.groupId ?? null };
 }
 
 /** The chosen device in the list: by its name (what the media engine can match too), its id breaking a tie. */
@@ -83,6 +88,28 @@ export function sameAudioOutput(
   if (device === null) return true;
   if (defaultDeviceId !== null) return device.deviceId === defaultDeviceId;
   return defaultGroupId !== null && device.groupId === defaultGroupId;
+}
+
+/** Whether PREVIEW keeps the level the operator left it at when its target changes (owner, 2026-11-25): only while it
+ *  plays through another device than LIVE. Shared, or a default the app could not identify (no entry, and no listed
+ *  output of its device: `sameAudioOutput` then says «apart», harmless for the NDI® capture but not for a level that
+ *  stays up), and every new item starts at 0. */
+export function previewKeepsLevel({
+  live,
+  preview,
+  shared,
+  outputs,
+}: {
+  live: Pick<AudioBusRoute, "device">;
+  preview: Pick<AudioBusRoute, "device">;
+  shared: boolean;
+  outputs: AudioOutputs;
+}): boolean {
+  if (shared) return false;
+  if (live.device !== null && preview.device !== null) return true;
+  const { devices, defaultDeviceId, defaultGroupId } = outputs;
+  if (defaultDeviceId !== null) return true;
+  return defaultGroupId !== null && devices.some((device) => device.groupId === defaultGroupId);
 }
 
 const SYSTEM_DEFAULT = "";

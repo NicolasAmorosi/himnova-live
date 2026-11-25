@@ -2,7 +2,7 @@ import path from "node:path";
 import type { DeckDTO } from "../../src/shared/types/deck";
 import type { MediaAsset } from "../../src/shared/types/media";
 import { realMissing, realPath } from "../fixtures/real-material";
-import { audioStates, expect, msUntilChange, test } from "./support/app";
+import { audioStates, expect, msUntilChange, test, type WorshipApp } from "./support/app";
 
 /**
  * The decks the app exists for: the church's hymnal, legacy OLE2 `.pps` files
@@ -66,7 +66,7 @@ test("hymn 522 finds its song, keeps its timings and advances with the music", a
 // Counting the transitions, half the sung hymnal's last slides outlast their song, as they do in PowerPoint
 // (2026-11-22): the deck no longer ends with its music, its last slide keeps its own time. Hymn 101's song ends 0.9 s
 // into slide 8, which then has 11.1 s left.
-test("a hymn whose last slide outlasts its song keeps it up for its own time, then ends", async ({ app }) => {
+async function lastSlideOutlastsItsSong(app: WorshipApp): Promise<void> {
   test.setTimeout(240_000);
   const hymn = path.join(HYMNAL, "101.pps");
   test.skip(realMissing(hymn), `no ${hymn}`);
@@ -110,4 +110,21 @@ test("a hymn whose last slide outlasts its song keeps it up for its own time, th
   const tail = performance.now() - ended - coveredMs;
   expect(tail).toBeGreaterThan(9_500);
   expect(tail).toBeLessThan(12_500);
+}
+
+test("a hymn whose last slide outlasts its song keeps it up for its own time, then ends", async ({ app }) => {
+  await lastSlideOutlastsItsSong(app);
+});
+
+// Off, each slide cuts in where its transition would have started and the deck's clock stays the same (owner,
+// 2026-11-25): the same song, the same last slide, the same end.
+test("with the presentations' transitions off, a hymn whose last slide outlasts its song still ends on time", async ({ app }) => {
+  await app.control.getByRole("button", { name: "Configuración" }).click();
+  const settings = app.control.getByRole("dialog", { name: "Configuración" });
+  await settings.getByRole("tab", { name: "Diapositivas" }).click();
+  await settings.getByRole("switch", { name: "Transiciones de las presentaciones" }).click();
+  await expect(settings.getByRole("switch", { name: "Transiciones de las presentaciones" })).not.toBeChecked();
+  await settings.getByRole("button", { name: "Volver" }).click();
+  await expect(settings).toBeHidden();
+  await lastSlideOutlastsItsSong(app);
 });

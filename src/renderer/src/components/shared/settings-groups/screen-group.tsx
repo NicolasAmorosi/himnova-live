@@ -1,6 +1,7 @@
-import { useT } from "@renderer/lib/i18n/i18n-provider";
+import { useT, type Translate } from "@renderer/lib/i18n/i18n-provider";
 import { api } from "@renderer/lib/api";
 import { cn } from "@renderer/lib/utils";
+import { screenLabel, screenResolution } from "@renderer/lib/screen-label";
 import { Badge, Box, Button, Caption, FieldGroup, FieldRow, Icon, Select, Title } from "@renderer/components/ui";
 import { assignScreenRole, screenRole, type ScreenRole } from "@renderer/lib/actions/screen-roles";
 import { ReopenStage } from "@renderer/components/shared/reopen-stage";
@@ -38,7 +39,7 @@ export function DisplayMap({ onPick }: { onPick?: (displayId: number) => void })
           const body = (
             <Box className={cn("flex size-full flex-col items-center justify-center gap-1 p-1", onPick && "hover:bg-hover")}>
               <Title as="h3">{index + 1}</Title>
-              <Caption className="max-w-full truncate px-1">{d.label.split(" · ")[0]}</Caption>
+              <Caption className="max-w-full truncate px-1">{d.name || screenResolution(d, t)}</Caption>
               {badge ? <Badge variant={role === "projector" ? "blue" : "neutral"}>{badge}</Badge> : null}
             </Box>
           );
@@ -50,19 +51,19 @@ export function DisplayMap({ onPick }: { onPick?: (displayId: number) => void })
           };
           return onPick ? (
             <button
-              aria-label={t("welcome.screens.useAsProjector", { name: d.label })}
+              aria-label={t("welcome.screens.useAsProjector", { name: screenLabel(d, t) })}
               aria-pressed={role === "projector"}
               className="focus-ring absolute rounded-md"
               key={d.id}
               onClick={() => onPick(d.id)}
               style={place}
-              title={d.label}
+              title={screenLabel(d, t)}
               type="button"
             >
               {body}
             </button>
           ) : (
-            <div className="absolute" key={d.id} style={place} title={d.label}>
+            <div className="absolute" key={d.id} style={place} title={screenLabel(d, t)}>
               {body}
             </div>
           );
@@ -73,8 +74,8 @@ export function DisplayMap({ onPick }: { onPick?: (displayId: number) => void })
 }
 
 /** Each screen's number on its own wall, for three seconds: the map's numbers. */
-function identifyScreens(displays: readonly DisplayInfo[]): void {
-  void api.displays.identify(displays.map((d, index) => ({ id: d.id, number: index + 1, name: d.label })));
+function identifyScreens(displays: readonly DisplayInfo[], t: Translate): void {
+  void api.displays.identify(displays.map((d, index) => ({ id: d.id, number: index + 1, name: screenLabel(d, t) })));
 }
 
 /** One row per screen: its role, with the roles excluding each other (`assignScreenRole`). */
@@ -97,11 +98,17 @@ function RoleRows() {
             ? []
             : [{ label: d.operator ? t("settings.screens.roles.control") : t("settings.screens.roles.none"), value: "none" as const }]),
         ];
+        // The resolution on the grey line, not after the name: «Built-in Retina Display · 2940x1912 · se ve como
+        // 1470x956» took two lines (owner, 2026-11-25).
+        const resolution = screenResolution(d, t);
+        const description = [d.name ? resolution : null, d.operator ? t("settings.screens.thisComputer") : null]
+          .filter(Boolean)
+          .join(" · ");
         return (
           <FieldRow
-            description={d.operator ? t("settings.screens.thisComputer") : undefined}
+            description={description || undefined}
             key={d.id}
-            label={`${index + 1} · ${d.label}`}
+            label={`${index + 1} · ${d.name || resolution}`}
           >
             <Select
               onChange={(value) => void assignScreenRole(d.id, value as ScreenRole)}
@@ -168,7 +175,7 @@ export function ScreenGroup({ description, onPick }: { description?: string | un
       {displays.length > 1 ? <DisplayMap {...(onPick ? { onPick } : {})} /> : null}
       <RoleRows />
       <FieldRow description={t("settings.screens.identifyDesc")} label={t("settings.screens.identify")}>
-        <Button onClick={() => identifyScreens(displays)} variant="outline">
+        <Button onClick={() => identifyScreens(displays, t)} variant="outline">
           <Icon name="display" /> {t("settings.screens.identify")}
         </Button>
       </FieldRow>

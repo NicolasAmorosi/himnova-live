@@ -11,6 +11,7 @@ import {
 } from "react";
 import { useT } from "@renderer/lib/i18n/i18n-provider";
 import { cn } from "@renderer/lib/utils";
+import { screenResolution } from "@renderer/lib/screen-label";
 import { useTimerNow } from "@renderer/lib/hooks/use-timer-now";
 import { Button, Caption, Icon, IconButton, Input, Readout, Segmented, StatusToken, Title, Tooltip } from "@renderer/components/ui";
 import { ReopenStage } from "@renderer/components/shared/reopen-stage";
@@ -88,7 +89,8 @@ function StatusDot() {
   const shown = useStageStore((s) => s.shown);
   const closed = useStageStore((s) => s.closed);
   const stageId = useSettingsStore((s) => s.settings["stage.displayId"]);
-  const name = useDisplayStore((s) => s.displays.find((d) => d.id === stageId)?.label.split(" · ")[0]);
+  const stage = useDisplayStore((s) => s.displays.find((d) => d.id === stageId));
+  const name = stage && (stage.name || screenResolution(stage, t));
   const label = shown
     ? t("stagePanel.shownOn", { name: name ?? "" })
     : closed

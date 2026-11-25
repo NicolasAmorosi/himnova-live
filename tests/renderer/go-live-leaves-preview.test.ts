@@ -15,6 +15,7 @@ import { advancePreview, previewAsset, previewScheduleItem, previewVerse } from 
 import { removeSelected } from "@renderer/lib/actions/remove-selected";
 import { forgetMediaAsset, getCachedMediaAsset, useMediaAsset } from "@renderer/lib/hooks/use-media-asset";
 import { useAudioStore } from "@renderer/stores/audio.store";
+import { useAudioRouteStore } from "@renderer/stores/audio-route.store";
 import { useBibleStore } from "@renderer/stores/bible.store";
 import { useDisplayStore } from "@renderer/stores/display.store";
 import { usePreviewStore } from "@renderer/stores/preview.store";
@@ -59,6 +60,7 @@ const initialProjection = useProjectionStore.getState();
 const initialProgram = useProgramStore.getState();
 const initialAudio = useAudioStore.getState();
 const initialSettings = useSettingsStore.getState();
+const initialRoute = useAudioRouteStore.getState();
 
 /** The clock the row PREVIEW took on its own is held by (500 ms, RV-1): it moves only when a test says so. */
 let now = 0;
@@ -91,6 +93,7 @@ beforeEach(() => {
   useProgramStore.setState(initialProgram, true);
   useAudioStore.setState(initialAudio, true);
   useSettingsStore.setState(initialSettings, true);
+  useAudioRouteStore.setState(initialRoute, true);
   usePreviewStore.getState().clear();
   useDisplayStore.setState({ openIfNeeded: async () => {} });
 });
@@ -607,4 +610,33 @@ test("Delete or Backspace leaves the row PREVIEW took on its own; picked by hand
   previewScheduleItem(1);
   removeSelected();
   expect(useProgramStore.getState().items.map((i) => i.id)).toEqual([10, 12]);
+});
+
+/** PREVIEW on another device than LIVE, the system's default known (owner, 2026-11-25). */
+const previewApart = () =>
+  useAudioRouteStore.setState({
+    live: { ...initialRoute.live, device: { deviceId: "b2", label: "Scarlett 2i2", groupId: "g-scarlett" } },
+    shared: false,
+    outputs: { devices: [], defaultDeviceId: "a1", defaultGroupId: "g-speakers" },
+  });
+
+test.each([
+  ["on its own output keeps", true, 0.6],
+  ["sharing LIVE's output goes back to", false, 0],
+] as const)("PREVIEW %s its level after GO LIVE: on the next row and emptied alike", async (_, apart, volume) => {
+  if (apart) previewApart();
+  useProgramStore.setState({ items: [row(10, 1), row(11, 2)] });
+  previewScheduleItem(0);
+  usePreviewStore.getState().setVolume(0.6);
+  await goLive();
+  // The row under it, by itself (`dropSentPreview` → `setTarget`), paused.
+  expect(useProgramStore.getState().selectedIndex).toBe(1);
+  expect(usePreviewStore.getState()).toMatchObject({ target: { kind: "scheduleItem" }, volume, playing: false });
+
+  // A library file sent live leaves PREVIEW empty (`clear`).
+  previewAsset(5, "image");
+  usePreviewStore.getState().setVolume(0.6);
+  later();
+  await goLive();
+  expect(usePreviewStore.getState()).toMatchObject({ target: null, volume, playing: false });
 });

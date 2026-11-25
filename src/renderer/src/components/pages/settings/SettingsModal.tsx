@@ -11,6 +11,7 @@ import { BackupsSection } from "./sections/backups-section";
 import { ScreensSection } from "./sections/screens-section";
 import { SoundSection } from "./sections/sound-section";
 import { AboutSection } from "./sections/about-section";
+import { NdiOutputGroup } from "@renderer/components/shared/settings-groups/ndi-output-group";
 import { useUiStore, type SettingsSection } from "@renderer/stores/ui.store";
 
 const SECTION_ID_BASE = "settings";
@@ -20,6 +21,8 @@ const SECTION_ID_BASE = "settings";
 const SECTION_PAGES: Record<SettingsSection, (active: boolean) => ReactNode> = {
   projection: () => <ProjectionSection />,
   screens: () => <ScreensSection />,
+  // The NDI® output, its own tab since 2026-11-25 (owner): the welcome's «Transmisión» step, with every control.
+  stream: () => <NdiOutputGroup />,
   sound: () => <SoundSection />,
   // `active` is not about painting: the panel does that. The cache figure is read at mount, and a section that stays
   // mounted would keep showing the number from the first visit after a conversion or a purge.
@@ -64,6 +67,7 @@ export function SettingsModal() {
   const sections: readonly TabItem<SettingsSection>[] = [
     { icon: "display", label: t("settings.sections.projection"), value: "projection" },
     { icon: "columns", label: t("settings.sections.screens"), value: "screens" },
+    { icon: "broadcast", label: t("settings.sections.stream"), value: "stream" },
     { icon: "volume", label: t("settings.sections.sound"), value: "sound" },
     { icon: "ppt", label: t("settings.sections.slides"), value: "slides" },
     { icon: "bible", label: t("settings.sections.bible"), value: "bible" },

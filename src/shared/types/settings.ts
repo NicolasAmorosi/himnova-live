@@ -196,6 +196,10 @@ export type SettingsMap = {
    *  system's own sans-serif. One for every face, serif or not (owner,
    *  2026-10-28). */
   "slides.fallbackFont": SlideFallbackFont | null;
+  /** Whether a deck moving from one slide to the next plays the file's own transition (owner, 2026-11-25). Off, the
+   *  slide cuts in at the moment its transition would have started, and the deck's timing stays the same: only how
+   *  it is drawn changes. A deck's entry and a song's slides keep their own transitions. */
+  "slides.transitions": boolean;
   /** Folders the operator has linked per asset kind, so a resource tab can
    *  offer "this folder's files" as an alternative to the added-to-library
    *  list. Files inside are registered like any other asset (so preview/
@@ -352,6 +356,7 @@ export const DEFAULT_SETTINGS: SettingsMap = {
   "projection.fit": {},
   "projection.transition.durationMs": 300,
   "slides.fallbackFont": null,
+  "slides.transitions": true,
   "monitors.liveVideoMotion": true,
   "library.linkedFolders": { video: [], image: [], audio: [], ppt: [] },
   "library.activeView": { video: "recent", image: "recent", audio: "recent", ppt: "recent" },
@@ -519,6 +524,7 @@ export const SETTINGS_VALIDATORS: Record<keyof SettingsMap, (value: unknown) => 
     isRecord(v) && Object.keys(v).length <= PROJECTOR_FIT_MAX_SCREENS && Object.entries(v).every(isProjectorFitEntry),
   "projection.transition.durationMs": isNumberIn(0, TRANSITION_MAX_DURATION_MS),
   "slides.fallbackFont": isNullOr(isOneOf(SLIDE_FALLBACK_FONTS)),
+  "slides.transitions": isBoolean,
   "monitors.liveVideoMotion": isBoolean,
   "library.linkedFolders": isRecordOfKinds(isStringArray),
   "library.activeView": isRecordOfKinds(isString),

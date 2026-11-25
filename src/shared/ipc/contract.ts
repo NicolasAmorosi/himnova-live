@@ -141,6 +141,9 @@ export type IpcContract = {
   /** A window's `setSinkId` failed (`useAudioSink`): its elements stay where they were while the engine moved, so the
    *  control window sends that bus to the default whole (`audio-sink-failed`). */
   "audioRoute:sinkFailed": { req: { sinkId: string }; res: void };
+  /** The name of the device the system's default output is, where Chromium does not say it (Linux: `pactl`); null
+   *  elsewhere or when it cannot be told (`systemDefaultOutputLabel`). */
+  "audioRoute:systemDefault": { req: void; res: { label: string | null } };
 
   /** `kind: "all"` combines every `AssetKind`'s extensions into one filter, for
    *  a single file dialog that accepts any supported media at once — the

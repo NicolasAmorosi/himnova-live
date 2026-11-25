@@ -31,7 +31,7 @@ import { plateOutputFor } from "@renderer/lib/plate-output";
 import { footerAt, songBackgroundUrl, songBackgroundVideo, songOutputFor } from "@renderer/lib/song-output";
 import { linesAt, translationAt, type SongPosition } from "@shared/song-jump";
 import type { ResolvedSong, SongLanguage, SongTheme } from "@shared/types/song";
-import { defaultMediaVolume } from "@renderer/stores/settings.store";
+import { defaultMediaVolume, useSettingsStore } from "@renderer/stores/settings.store";
 import { busVolume, DEFAULT_AUDIO_OUT, type AudioOut } from "@shared/types/audio";
 
 /** The deck currently loaded for projection — slide urls are durable, DB-backed
@@ -101,12 +101,17 @@ export type ProjectionStoreState = {
    *  mount-time seek `VideoUnderlay.startAtSeconds` is, written by
    *  `freezeLivePositions()`. */
   slideVideoStartAt: number;
-  /** The transition the live slide entered with: its own, when the deck
+  /** How the live slide is DRAWN coming in: its own transition, when the deck
    *  moved forward onto it; `null` after a move back and at the start of a
    *  scene, which keeps the scene's own fade (decided by the owner,
-   *  2026-10-26). Its identity in the output is `slideVideoEpoch`, which
-   *  advances with every change of slide and nothing else. */
+   *  2026-10-26), and with «Transiciones de las presentaciones» off
+   *  (`slides.transitions`). Its identity in the output is `slideVideoEpoch`, which
+   *  advances with every change of slide and nothing else. The clock reads `slideEntryMs`, never this. */
   slideEntry: SlideTransition | null;
+  /** How long the live slide's way in COUNTS on the deck's clock: its transition's duration when the deck moved
+   *  forward onto it, 0 otherwise, whether or not it was drawn (`slideEntry`). A cut lands where the transition would
+   *  have started and the schedule stays the same, or a deck that went detached runs ahead of its music (2026-11-25). */
+  slideEntryMs: number;
 
   liveDeck: LiveDeck | null;
   autoplay: AutoplayState;
@@ -422,6 +427,7 @@ export const useProjectionStore = create<ProjectionStoreState>()(
     slideVideoDefault: defaultMediaVolume(),
     slideVideoStartAt: 0,
     slideEntry: null,
+    slideEntryMs: 0,
 
     liveDeck: null,
     autoplay: "off",
@@ -449,6 +455,7 @@ export const useProjectionStore = create<ProjectionStoreState>()(
           videoPaused: false,
           videoVolume: defaultMediaVolume(),
           slideEntry: null,
+          slideEntryMs: 0,
           ...freshSlideVideo(state.slideVideoEpoch),
         };
         return { ...next, mediaErrors: errorsAfter(state, next) };
@@ -580,6 +587,7 @@ export const useProjectionStore = create<ProjectionStoreState>()(
           autoplayMode: "synced",
           soundtrackEpoch: state.soundtrackEpoch + 1,
           slideEntry: null,
+          slideEntryMs: 0,
           ...slideVideo,
           mediaErrors: errorsAfter(state, slideVideo),
         };
@@ -599,6 +607,10 @@ export const useProjectionStore = create<ProjectionStoreState>()(
       // fresh identity is simply never used.
       // Forward onto a slide plays that slide's own way in, as the file says;
       // back is a cut — correcting a mistake mid-service must be instant.
+      // Read here and not in `selectOutput`: turned on or off with a slide up, it applies from the next one, and the
+      // slide on screen never enters again (through black, it would dip).
+      const entry = next > base.slideIndex ? (liveDeck.slides[next - 1]?.transition ?? null) : null;
+      const drawn = useSettingsStore.getState().settings["slides.transitions"];
       set((state) => {
         const slideVideo = freshSlideVideo(state.slideVideoEpoch);
         const errors = errorsAfter(state, slideVideo);
@@ -612,7 +624,8 @@ export const useProjectionStore = create<ProjectionStoreState>()(
         const slideFailed = leaving !== undefined && errors[scene]?.url === (leaving.modelUrl ?? leaving.url);
         return {
           base: { ...base, slideIndex: next },
-          slideEntry: next > base.slideIndex ? (liveDeck.slides[next - 1]?.transition ?? null) : null,
+          slideEntry: drawn ? entry : null,
+          slideEntryMs: entry?.durationMs ?? 0,
           ...slideVideo,
           mediaErrors: slideFailed ? withoutErrors(errors, [scene]) : errors,
         };
