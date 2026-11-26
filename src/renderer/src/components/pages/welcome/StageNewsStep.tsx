@@ -2,9 +2,10 @@ import { useEffect, useState } from "react";
 import { useI18n } from "@renderer/lib/i18n/i18n-provider";
 import { Box, Button, Caption, Icon, IconTile, Segmented, Title, type IconName } from "@renderer/components/ui";
 import { StageView } from "@renderer/components/shared/stage-view";
-import { stageHour12, TEXT_SCALE } from "@renderer/lib/stage-output";
+import { stageHour12, stageWords, TEXT_SCALE } from "@renderer/lib/stage-output";
 import { useSettingsStore } from "@renderer/stores/settings.store";
 import { useUiStore } from "@renderer/stores/ui.store";
+import { stageLyricRows } from "@shared/stage";
 import type { StageOutput } from "@shared/types/projection";
 import type { StageLayout, StageMessage } from "@shared/types/stage";
 import { StepLayout } from "./StepLayout";
@@ -96,9 +97,11 @@ function StageDemo() {
   const message: StageMessage | null =
     shown < 0 ? null : { text: phrases[MESSAGES[shown]!.phrase] ?? "", urgent: false, seq: loop * MESSAGES.length + shown };
 
+  // The musicians read the verses as words, as the stage draws them (`stageOutputFor`).
+  const words = layout === "musicians";
   const stage: StageOutput = {
-    current,
-    next,
+    current: words ? stageWords(current) : current,
+    next: words ? stageWords(next) : next,
     videoStill: { posterUrl: null, videoUrl: null },
     videoMotion: false,
     countdown: {
@@ -110,6 +113,9 @@ function StageDemo() {
     layout,
     hour12: stageHour12(clockFormat, uiLocale),
     textScale: TEXT_SCALE[textSize],
+    rows: stageLyricRows(16 / 9, TEXT_SCALE[textSize]),
+    position: current.kind === "bible" ? current.reference : null,
+    words,
   };
 
   return (

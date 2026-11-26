@@ -1584,6 +1584,7 @@ const en: Messages = {
         previewLevel: "When Preview plays on a different output than Live (headphones, for example), its volume stays where you left it from one item to the next. On the same output it still starts muted.",
         pathRow: "The bubble with a file's path shows anywhere on its schedule row, not only over the name.",
         linuxOutput: "On Linux, the sound output menu names the system's output, and the warning about Preview and Live on the same output now works.",
+        stageLyrics: "On the stage screen, the “Musicians” view shows songs and verses as large text: what is being sung on top, what comes next smaller below, and along the bottom the countdown, the time and where you are (“2/12” or the reference). Presentations and videos show larger.",
       },
     },
   },

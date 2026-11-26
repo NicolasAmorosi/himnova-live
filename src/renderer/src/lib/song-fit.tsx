@@ -45,8 +45,10 @@ function songSlides(song: ResolvedSong) {
   return song.sections.flatMap((section) => section.slides);
 }
 
-function fitKey(song: ResolvedSong, theme: SongTheme, aspect: number): string {
-  return JSON.stringify([songSlides(song).map((slide) => [slide.lines, slide.translation]), theme, aspect.toFixed(4)]);
+/** `chords`: measured with them drawn, as only the musicians' screen draws them. */
+function fitKey(song: ResolvedSong, theme: SongTheme, aspect: number, chords: boolean): string {
+  const slides = songSlides(song).map((slide) => [slide.lines, slide.translation, chords ? slide.chords : null]);
+  return JSON.stringify([slides, theme, aspect.toFixed(4)]);
 }
 
 /** The song's size, and the slides (their lines joined by `\n`) that do not
@@ -71,9 +73,9 @@ function fits(stage: HTMLElement, block: HTMLElement): boolean {
 
 /** The largest size in `[min, max]` at which every pair fits, or `min`. One
  *  layout per probe: every size is written, then every block is read. */
-function search(pairs: readonly { block: HTMLElement; stage: HTMLElement }[], max: number, min: number): number {
+function search(pairs: readonly { block: HTMLElement; stage: HTMLElement; scale: number }[], max: number, min: number): number {
   const fitsAll = (cqw: number) => {
-    for (const { block } of pairs) block.style.fontSize = `${cqw}cqw`;
+    for (const { block, scale } of pairs) block.style.fontSize = `${cqw * scale}cqw`;
     return pairs.every(({ block, stage }) => fits(stage, block));
   };
   if (fitsAll(max)) return max;
@@ -88,14 +90,14 @@ function search(pairs: readonly { block: HTMLElement; stage: HTMLElement }[], ma
   return Math.floor(low * 100) / 100;
 }
 
-async function measure(song: ResolvedSong, theme: SongTheme, aspect: number): Promise<SongFit> {
+async function measure(song: ResolvedSong, theme: SongTheme, aspect: number, chords: boolean): Promise<SongFit> {
   const max = theme.text.sizeCqw;
   const min = Math.min(theme.minSizeCqw, max);
   // A chorus sung four times is measured once — with its translation, when
   // the song shows both: the one size has to fit the two languages.
   const slides = [
     ...new Map(
-      songSlides(song).map((slide) => [JSON.stringify([slide.lines, slide.translation]), slide]),
+      songSlides(song).map((slide) => [JSON.stringify([slide.lines, slide.translation, chords ? slide.chords : null]), slide]),
     ).values(),
   ];
   if (slides.length === 0) return { sizeCqw: max, overflowing: [] };
@@ -122,7 +124,15 @@ async function measure(song: ResolvedSong, theme: SongTheme, aspect: number): Pr
             }}
           >
             <SongScene
-              content={{ backgroundUrl: null, footer: null, lines: slide.lines, sizeCqw: max, theme, translation: slide.translation ?? null }}
+              content={{
+                backgroundUrl: null,
+                chords: chords ? slide.chords : undefined,
+                footer: null,
+                lines: slide.lines,
+                sizeCqw: max,
+                theme,
+                translation: slide.translation ?? null,
+              }}
             />
           </div>
         )),
@@ -134,11 +144,11 @@ async function measure(song: ResolvedSong, theme: SongTheme, aspect: number): Pr
     await document.fonts.ready;
     const pairs = [...host.querySelectorAll<HTMLElement>("[data-song-stage]")].flatMap((stage) => {
       const block = stage.querySelector<HTMLElement>("[data-song-block]");
-      return block ? [{ block, stage }] : [];
+      return block ? [{ block, stage, scale: Number(block.dataset["songScale"] ?? 1) }] : [];
     });
     const sizeCqw = search(pairs, max, min);
     // At the floor, some slide may still not fit: name it.
-    if (sizeCqw <= min) for (const { block } of pairs) block.style.fontSize = `${min}cqw`;
+    if (sizeCqw <= min) for (const { block, scale } of pairs) block.style.fontSize = `${min * scale}cqw`;
     const overflowing =
       sizeCqw > min
         ? []
@@ -156,13 +166,13 @@ async function measure(song: ResolvedSong, theme: SongTheme, aspect: number): Pr
 /** The song's one size for `theme` at `aspect`, in `cqw`: the largest at or
  *  below the theme's at which all of its slides fit, never below its floor.
  *  Cached, and a second ask while one is measuring joins it. */
-export function fitSongSize(song: ResolvedSong, theme: SongTheme, aspect: number): Promise<SongFit> {
-  const key = fitKey(song, theme, aspect);
+export function fitSongSize(song: ResolvedSong, theme: SongTheme, aspect: number, chords = false): Promise<SongFit> {
+  const key = fitKey(song, theme, aspect, chords);
   const known = sizes.get(key);
   if (known !== undefined) return Promise.resolve(known);
   let pending = inFlight.get(key);
   if (!pending) {
-    pending = measure(song, theme, aspect)
+    pending = measure(song, theme, aspect, chords)
       .then((size) => {
         remember(key, size);
         return size;
@@ -173,13 +183,18 @@ export function fitSongSize(song: ResolvedSong, theme: SongTheme, aspect: number
   return pending;
 }
 
+/** `fitSongSize`'s answer when it is already known, without waiting. */
+export function knownSongFit(song: ResolvedSong, theme: SongTheme, aspect: number, chords = false): SongFit | undefined {
+  return sizes.get(fitKey(song, theme, aspect, chords));
+}
+
 /** `fitSongSize` as a hook: `null` until measured (a frame or two the first
  *  time, nothing after). */
 export function useSongFit(song: ResolvedSong | null, theme: SongTheme | null): SongFit | null {
   const displays = useDisplayStore((s) => s.displays);
   const displayId = useDisplayStore((s) => s.displayId);
   const aspect = measureAspect(displays, displayId);
-  const key = useMemo(() => (song && theme ? fitKey(song, theme, aspect) : null), [song, theme, aspect]);
+  const key = useMemo(() => (song && theme ? fitKey(song, theme, aspect, false) : null), [song, theme, aspect]);
   const [measured, setMeasured] = useState<{ key: string; fit: SongFit } | null>(null);
   const cached = key === null ? undefined : sizes.get(key);
 

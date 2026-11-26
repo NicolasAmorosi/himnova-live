@@ -75,6 +75,7 @@ const WHATS_NEW: Record<
     steps: [],
     also: ["slideTransitions", "streamTab", "projectorScreen", "previewLevel", "pathRow", "linuxOutput"],
   },
+  "2.16": { steps: [], also: ["stageLyrics"] },
 };
 const DONE_STEP = { icon: "circleCheck", id: "done" } as const;
 

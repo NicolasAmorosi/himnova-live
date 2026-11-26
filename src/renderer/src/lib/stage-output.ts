@@ -2,7 +2,8 @@ import { selectOutput, type ProjectionStoreState } from "@renderer/stores/projec
 import { slideAt, stepSong, type SongPosition } from "@shared/song-jump";
 import { passageReference, type BibleVerseDTO } from "@shared/types/bible";
 import type { ProjectionOutput, StageOutput } from "@shared/types/projection";
-import { resolveStageLayout, stageThresholds } from "@shared/stage";
+import { STAGE_BIBLE_STYLE, STAGE_SONG_THEME, resolveStageLayout, stageLyricRows, stageThresholds } from "@shared/stage";
+import type { ResolvedSong } from "@shared/types/song";
 import type { SettingsMap } from "@shared/types/settings";
 import type { CountdownClock, StageClockFormat, StageMessage, StageTextSize } from "@shared/types/stage";
 
@@ -25,7 +26,15 @@ export type StageControls = {
     | "stage.alertMs"
     | "ui.locale"
   >;
+  /** What the musicians' words need from the caller; absent, a 16:9 screen and nothing measured yet. */
+  lyrics?: StageLyricsFit;
 };
+
+/** The stage screen's proportion, and the live song's one size for each of the musicians' rows, measured for them
+ *  (`fitSongSize` of `stageSong` with `STAGE_SONG_THEME`, at `stageLyricRows`); `null` until it is. */
+export type StageLyricsFit = { screenAspect: number; songSizes: { current: number; next: number } | null };
+
+const NO_LYRICS_FIT: StageLyricsFit = { screenAspect: 16 / 9, songSizes: null };
 
 /** «Auto» is the language's: 12 hours in English. */
 export const stageHour12 = (clockFormat: StageClockFormat, locale: string): boolean =>
@@ -43,6 +52,50 @@ function onStage(state: ProjectionStoreState): ProjectionOutput {
   const output = selectOutput(state);
   const own = output.kind === "bible" ? { ...output, parallel: null } : output;
   return { ...own, plates: [], transition: { epoch: state.sceneEpoch, style: "crossfade", durationMs: STAGE_FADE_MS } };
+}
+
+/** The live song as the musicians read it, its words in one language: what the stage's size is measured on. */
+export function stageSong(song: ResolvedSong): ResolvedSong {
+  const words = <T extends { translation?: string[] }>({ translation: _translation, ...slide }: T) => slide;
+  return {
+    ...song,
+    slides: song.slides.map(words),
+    sections: song.sections.map((section) => ({ ...section, slides: section.slides.map(words) })),
+  };
+}
+
+/** A song or a verse as the musicians read it: the words alone, white on black, a song at the size measured for its
+ *  row (its video background, its translation and its footer stay on the projector). Anything else is the
+ *  projector's picture. */
+export function stageWords(output: ProjectionOutput, songSizeCqw: number = STAGE_SONG_THEME.minSizeCqw): ProjectionOutput {
+  switch (output.kind) {
+    case "song": {
+      const { songVideo: _video, ...song } = output;
+      return { ...song, theme: STAGE_SONG_THEME, sizeCqw: songSizeCqw, translation: null, footer: null, backgroundUrl: null };
+    }
+    case "bible":
+      return { ...output, style: STAGE_BIBLE_STYLE, backgroundUrl: null };
+    default:
+      return output;
+  }
+}
+
+/** «2/12»: the slide in a song's order or a deck; a verse's reference. Under BLACK or LOGO too: the band is still
+ *  there. */
+function stagePosition(state: ProjectionStoreState): string | null {
+  const { base } = state;
+  switch (base?.kind) {
+    case "deck": {
+      const total = state.liveDeck?.slides.length ?? 0;
+      return total > 0 ? `${base.slideIndex}/${total}` : null;
+    }
+    case "song":
+      return `${base.slideIndex}/${base.song.slides.length}`;
+    case "bible":
+      return base.reference;
+    default:
+      return null;
+  }
 }
 
 /** What the projector would show with nothing covering it: what comes next. */
@@ -122,16 +175,26 @@ export function stageOutputFor(
       );
   // Hidden lyrics are the one cover the band does not get, and without a word (owner, 2026-11-13).
   const shown = base?.kind === "song" && base.lyricsHidden ? { ...state, base: { ...base, lyricsHidden: false } } : state;
+  // A copy of the projector is exactly its picture: plates, both versions of a verse, its own transition.
+  const current = layout === "projector" ? selectOutput(state) : withStageChords(onStage(shown), base?.kind === "song" ? base : null);
+  const next = withStageChords(nextOutput(state, bible), base?.kind === "song" ? stepSong(base.song, base, 1) : null);
+  const lyrics = controls.lyrics ?? NO_LYRICS_FIT;
+  const sizes = lyrics.songSizes ?? { current: STAGE_SONG_THEME.minSizeCqw, next: STAGE_SONG_THEME.minSizeCqw };
+  const textScale = TEXT_SCALE[settings["stage.textSize"]];
+  // Only the musicians read words; the preacher's small frame is the projector's picture.
+  const words = layout === "musicians";
   return {
-    // A copy of the projector is exactly its picture: plates, both versions of a verse, its own transition.
-    current: layout === "projector" ? selectOutput(state) : withStageChords(onStage(shown), base?.kind === "song" ? base : null),
-    next: withStageChords(nextOutput(state, bible), base?.kind === "song" ? stepSong(base.song, base, 1) : null),
+    current: words ? stageWords(current, sizes.current) : current,
+    next: words && next ? stageWords(next, sizes.next) : next,
     videoStill: { posterUrl, videoUrl: base?.kind === "video" ? base.url : null },
     videoMotion: settings["stage.videoMotion"],
     countdown,
     message: controls.message,
     layout,
     hour12: stageHour12(clockFormat, settings["ui.locale"]),
-    textScale: TEXT_SCALE[settings["stage.textSize"]],
+    textScale,
+    rows: stageLyricRows(lyrics.screenAspect, textScale),
+    words: words && (base?.kind === "song" || base?.kind === "bible"),
+    position: stagePosition(state),
   };
 }

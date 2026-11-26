@@ -3,7 +3,7 @@
  * key is a version that has one, oldest first; the control window gives each key its steps (`WhatsNewScreen`), and
  * a key without them does not compile. A version with nothing to show adds no key: the last one stays the latest.
  */
-export const WHATS_NEW_KEYS = ["2.10", "2.11", "2.12", "2.12.1", "2.13", "2.14", "2.15"] as const;
+export const WHATS_NEW_KEYS = ["2.10", "2.11", "2.12", "2.12.1", "2.13", "2.14", "2.15", "2.16"] as const;
 export type WhatsNewKey = (typeof WHATS_NEW_KEYS)[number];
 
 export const LATEST_WHATS_NEW: WhatsNewKey = WHATS_NEW_KEYS[WHATS_NEW_KEYS.length - 1]!;

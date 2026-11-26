@@ -317,8 +317,8 @@ always did.
   installed (`parallelVersionFor`); deleting that version resets the setting in main, like the default version.
 - **A new choice reaches the NEXT verse**; PREVIEW shows it at once and the verse already live keeps what it went out
   with (a `ponytail:` in `setParallelVersion` names the in-place upgrade).
-- **The musicians' screen shows the verse in its own version only** (`stage-output.ts`): two columns in its frames
-  would be too small to read.
+- **The musicians' screen shows the verse in its own version only** (`stage-output.ts`): it reads it as words
+  (`stageWords`, `STAGE_BIBLE_STYLE`), and a second column would halve them.
 
 ## Songs
 

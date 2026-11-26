@@ -1604,6 +1604,7 @@ const es = {
         previewLevel: "Si PREVIEW suena por otra salida que EN VIVO (unos auriculares, por ejemplo), su volumen queda como lo dejaste de un ítem al otro. Por la misma salida sigue empezando en silencio.",
         pathRow: "La burbuja con la ruta del archivo aparece en toda la fila del programa, no solo sobre el nombre.",
         linuxOutput: "En Linux, el menú de salidas de sonido nombra la del sistema, y el aviso de PREVIEW y EN VIVO por la misma salida ya funciona.",
+        stageLyrics: "En el escenario, la vista «Músicos» muestra las canciones y los versículos como letra grande: arriba lo que se canta, abajo y más chico lo que sigue, y al pie la cuenta, la hora y en qué parte van («2/12» o la cita). Las presentaciones y los videos se ven más grandes.",
       },
     },
   },

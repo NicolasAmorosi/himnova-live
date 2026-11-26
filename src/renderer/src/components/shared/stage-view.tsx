@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 
 import { cn } from "@renderer/lib/utils";
 import { useTimerNow } from "@renderer/lib/hooks/use-timer-now";
 import { OutputView } from "@renderer/components/shared/output-view";
-import { countdownTone, formatCountdown, type CountdownTone } from "@shared/stage";
+import { countdownTone, formatCountdown, STAGE_LYRICS, type CountdownTone } from "@shared/stage";
 import { formatWallClock } from "@shared/timer";
 import type { MediaStatus, ProjectionOutput, StageOutput } from "@shared/types/projection";
 import type { StageCountdown, StageMessage } from "@shared/types/stage";
@@ -215,33 +215,97 @@ function MessageBand({ message }: { message: StageMessage | null }) {
 /** A line `cqw` high whatever it holds: the time, the count or nothing take the same room, so nothing around moves. */
 const line = (cqw: number): CSSProperties => ({ height: `calc(${cqw}cqw * var(--stage-scale))` });
 
-/** What is live (large) and what comes next, which needs no caption (owner, 2026-11-14). With a countdown, the
- *  count takes the time's place and the time goes small over what comes next (owner, 2026-11-13): in «Auto» a verse
- *  projected mid-sermon brings this view, and the pastor still reads the count from the pulpit. Every line keeps its
- *  height through that change. */
-function Musicians({ media, paced, stage }: { media: StageMedia | undefined; paced: boolean; stage: StageOutput | null }) {
-  const countdown = stage?.countdown ?? null;
-  const hour12 = stage?.hour12 ?? false;
+const GAP = `${STAGE_LYRICS.gapCqw}cqw`;
+
+/** The largest box of `aspect` the cell holds, centred: a row of words keeps the proportion its song was measured at,
+ *  so a message band taking room shrinks the words and never cuts them. Its own `container-type: size`, so its
+ *  `cqh` is its own and never the view's. */
+function Fitted({ aspect, children, className }: { aspect: number; children?: ReactNode; className?: string }) {
   return (
-    <div className="grid h-full grid-cols-[3fr_2fr] items-center gap-[2cqw] p-[2cqw]">
-      <Frame>{stage ? <LiveOutput media={media} output={stage.current} paced={paced} videoStill={stage.videoStill} /> : null}</Frame>
-      <aside className="flex min-w-0 flex-col gap-[1.5cqw]">
-        <div style={line(7)}>
-          <Swap className="h-full items-center justify-items-start" swapKey={countdown ? "countdown" : "clock"}>
-            {countdown ? <Countdown countdown={countdown} cqw={7} /> : <Clock cqw={7} hour12={hour12} />}
-          </Swap>
+    <div className={cn("relative grid min-h-0 min-w-0 place-items-center [container-type:size]", className)}>
+      <div className="relative overflow-hidden" style={{ aspectRatio: aspect, width: `min(100cqw, ${aspect * 100}cqh)` }}>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+/** What is live, as large as it fits, and under a hairline what comes next, smaller: the words of a song or a verse,
+ *  white on black and edge to edge (owner, 2026-11-26, after a photo of another church's stage screen). Under
+ *  BLACK or LOGO the live row shows what the projector shows, and what comes next stays (owner, 2026-11-13). */
+function Words({ media, paced, stage }: { media: StageMedia | undefined; paced: boolean; stage: StageOutput }) {
+  const share = STAGE_LYRICS.currentShare;
+  return (
+    <div className="grid h-full" style={{ gridTemplateRows: `${share}fr ${1 - share}fr`, rowGap: GAP }}>
+      <Fitted aspect={stage.rows.current}>
+        <LiveOutput media={media} output={stage.current} paced={paced} videoStill={stage.videoStill} />
+      </Fitted>
+      <Fitted aspect={stage.rows.next} className="border-t-[length:max(0.08cqw,0.5px)] border-white/25">
+        {stage.next ? <OutputView mode="monitor" output={stage.next} videoStill={stage.videoStill} /> : null}
+      </Fitted>
+    </div>
+  );
+}
+
+/** A presentation, a video, an image: the projector's picture, large, and what comes next beside it. */
+function Pictures({ media, paced, stage }: { media: StageMedia | undefined; paced: boolean; stage: StageOutput | null }) {
+  return (
+    <div className="grid h-full grid-cols-[7fr_3fr]" style={{ columnGap: GAP }}>
+      <Fitted aspect={16 / 9}>
+        <div className="wa-stage-frame size-full overflow-hidden bg-black">
+          {stage ? <LiveOutput media={media} output={stage.current} paced={paced} videoStill={stage.videoStill} /> : null}
         </div>
-        <div className="flex items-center justify-end" style={line(2.6)}>
-          <Swap swapKey={countdown ? "clock" : "none"}>
-            {countdown ? (
-              <span className="text-white/80">
-                <Clock cqw={2.6} hour12={hour12} />
-              </span>
-            ) : null}
-          </Swap>
+      </Fitted>
+      <Fitted aspect={16 / 9}>
+        <div className="wa-stage-frame size-full overflow-hidden bg-black">
+          {stage?.next ? <OutputView mode="monitor" output={stage.next} videoStill={stage.videoStill} /> : null}
         </div>
-        <Frame>{stage?.next ? <OutputView mode="monitor" output={stage.next} videoStill={stage.videoStill} /> : null}</Frame>
-      </aside>
+      </Fitted>
+    </div>
+  );
+}
+
+/** «2/12», or a verse's reference: as large as the time, smaller when it is long, so it never runs into it. */
+function Position({ text }: { text: string | null }) {
+  if (!text) return <span />;
+  const cqw = STAGE_LYRICS.stripCqw;
+  return (
+    <span
+      className="min-w-0 justify-self-end truncate leading-none font-semibold tabular-nums text-white/80"
+      style={{ fontSize: `min(calc(${cqw}cqw * var(--stage-scale)), ${66 / text.length}cqw)` }}
+    >
+      {text}
+    </span>
+  );
+}
+
+/** The strip at the foot: the count (when there is one) on the left, the time in the middle, where we are on the
+ *  right. Each keeps its place whatever the others hold. */
+function Strip({ stage }: { stage: StageOutput | null }) {
+  const countdown = stage?.countdown ?? null;
+  const cqw = STAGE_LYRICS.stripCqw;
+  return (
+    <div className="grid shrink-0 grid-cols-[1fr_auto_1fr] items-center gap-[2cqw]" style={line(cqw)}>
+      <Swap className="h-full min-w-0 items-center justify-items-start" swapKey={countdown ? "countdown" : "none"}>
+        {countdown ? <Countdown countdown={countdown} cqw={cqw} /> : null}
+      </Swap>
+      <Clock cqw={cqw} hour12={stage?.hour12 ?? false} />
+      <Position text={stage?.position ?? null} />
+    </div>
+  );
+}
+
+/** The musicians' view: words for a song or a verse (`Words`), the projector's picture for anything else
+ *  (`Pictures`), over the strip. In «Auto» a verse projected mid-sermon brings it, and the pastor still reads the
+ *  count from the pulpit, in the strip. */
+function Musicians({ media, paced, stage }: { media: StageMedia | undefined; paced: boolean; stage: StageOutput | null }) {
+  const words = stage !== null && stage.words;
+  return (
+    <div className="flex h-full flex-col" style={{ gap: GAP, padding: `${STAGE_LYRICS.padCqw}cqw` }}>
+      <Swap className="min-h-0 flex-1 grid-rows-[minmax(0,1fr)]" swapKey={words ? "words" : "pictures"}>
+        {words ? <Words media={media} paced={paced} stage={stage} /> : <Pictures media={media} paced={paced} stage={stage} />}
+      </Swap>
+      <Strip stage={stage} />
     </div>
   );
 }

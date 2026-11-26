@@ -10,6 +10,7 @@ import { stageOutputFor, type StageBibleCursor, type StageControls } from "@rend
 import { DEFAULT_SETTINGS } from "@shared/types/settings";
 import { parseLyrics } from "@shared/song-text";
 import { DEFAULT_SONG_THEME } from "@shared/types/song";
+import { STAGE_BIBLE_STYLE, STAGE_LYRICS, STAGE_SONG_THEME, stageLyricRows } from "@shared/stage";
 import { DEFAULT_SCENE_STYLE } from "@shared/types/scene-style";
 import { DEFAULT_TIMER_FORMAT } from "@shared/types/timer";
 import type { UtilityScene } from "@shared/types/utility";
@@ -170,6 +171,53 @@ describe("the stage display", () => {
     expect(stage().videoMotion).toBe(true);
     const still = { ...NO_CONTROLS, settings: { ...DEFAULT_SETTINGS, "stage.videoMotion": false } };
     expect(stage(NO_CURSOR, null, still).videoMotion).toBe(false);
+  });
+
+  test("the musicians read a song as words: the stage's theme, the size measured for each row, one language", () => {
+    liveSong(2);
+    const lyrics = { screenAspect: 16 / 9, songSizes: { current: 7.5, next: 5 } };
+    const { current, next, position } = stage(NO_CURSOR, null, { ...NO_CONTROLS, lyrics });
+    expect(current).toMatchObject({ kind: "song", lines: ["dos"], theme: STAGE_SONG_THEME, sizeCqw: 7.5, translation: null, footer: null });
+    expect(current).not.toHaveProperty("songVideo");
+    expect(next).toMatchObject({ kind: "song", lines: ["coro"], theme: STAGE_SONG_THEME, sizeCqw: 5 });
+    // The order is v1 (two slides), c1, v1: five in all.
+    expect(position).toBe("2/5");
+    // The preacher's small frame stays the projector's picture.
+    const preacher = { ...NO_CONTROLS, lyrics, settings: { ...DEFAULT_SETTINGS, "stage.layout": "preacher" as const } };
+    expect(stage(NO_CURSOR, null, preacher)).toMatchObject({
+      current: { kind: "song", theme: DEFAULT_SONG_THEME, sizeCqw: 4.2 },
+      words: false,
+    });
+    // Words, covered too: BLACK over the last slide (nothing next) must not turn the view into pictures.
+    expect(stage().words).toBe(true);
+    liveSong(5);
+    useProjectionStore.getState().setOverlay("black");
+    expect(stage()).toMatchObject({ current: { kind: "black" }, next: null, words: true });
+  });
+
+  test("a verse reads as words with its reference in the strip; a deck stays a picture, with its slide in the strip", () => {
+    useProjectionStore.getState().setBase({ kind: "bible", text: "dieciséis", reference: "Juan 3:16", versionLabel: null });
+    const cursor = { verses: [verse(16, "dieciséis"), verse(17, "diecisiete")], currentVerseIndex: 0 };
+    const verses = stage(cursor);
+    expect(verses).toMatchObject({ current: { kind: "bible", style: STAGE_BIBLE_STYLE }, next: { style: STAGE_BIBLE_STYLE } });
+    expect(verses.position).toBe("Juan 3:16");
+    liveDeck(24, 7);
+    expect(stage()).toMatchObject({ current: { kind: "slide", index: 7 }, position: "7/24", words: false });
+    useProjectionStore.getState().setOverlay("black");
+    expect(stage().position).toBe("7/24");
+  });
+
+  test("the two rows and the strip fill the screen's height, whatever its proportion and text size", () => {
+    for (const aspect of [16 / 9, 16 / 10, 4 / 3]) {
+      for (const scale of [0.8, 1, 1.25]) {
+        const { current, next } = stageLyricRows(aspect, scale);
+        const width = 100 - 2 * STAGE_LYRICS.padCqw;
+        const used = width / current + width / next + STAGE_LYRICS.stripCqw * scale + 2 * STAGE_LYRICS.padCqw + 2 * STAGE_LYRICS.gapCqw;
+        expect(used).toBeCloseTo(100 / aspect, 6);
+        expect(next).toBeGreaterThan(current);
+      }
+    }
+    expect(stage().rows).toEqual(stageLyricRows(16 / 9, 1));
   });
 
   test("chords off in Settings ▸ Screens: the stage shows the words alone", () => {

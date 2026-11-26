@@ -86,7 +86,7 @@ test("a song's chords show on the stage screen, over its words, and never on the
   await stage.screenshot({ path: process.env["STAGE_SHOT"] ?? test.info().outputPath("stage.png") });
 });
 
-test("a song's video background moves on the stage screen; with Settings' videos off it is its still", async ({
+test("a song's video background: the musicians read words over black, «Proyector» plays it, and Settings' off decodes nothing", async ({
   app: first,
 }) => {
   const [clip] = await first.addMedia("video", "clip.mp4");
@@ -119,7 +119,12 @@ test("a song's video background moves on the stage screen; with Settings' videos
   await app.goLive();
   await expect(stage.getByText("uno", { exact: true })).toBeVisible();
   await expect(stage.getByText("coro", { exact: true })).toBeVisible();
-  // It plays under the live slide (owner, 2026-11-14); the next one is a still.
+  // The musicians read the words over black (owner, 2026-11-26): the theme's video stays on the projector.
+  await expect.poll(async () => (await videoStates(stage)).length).toBe(0);
+  // «Proyector» is the projector's picture: it plays there (owner, 2026-11-14).
+  await app.control.getByRole("region", { name: "Escenario" }).getByRole("heading", { name: "Escenario" }).click();
+  await app.control.getByRole("dialog", { name: "Escenario" }).getByRole("button", { name: "Proyector", exact: true }).click();
+  await expect(layout(stage)).toHaveAttribute("data-layout", "projector");
   await expect.poll(async () => (await videoStates(stage)).some((v) => !v.paused && v.currentTime > 0.5)).toBe(true);
   // Off, the stage decodes nothing.
   await stageVideos(app, false);
@@ -298,7 +303,7 @@ test("a Functions countdown on the air shows on the stage in the stage's style; 
   await expect(stage.getByRole("timer")).toHaveCount(0);
 });
 
-test("the bar and the card share one head, the count in the time's place for the musicians, and a pinned card", async ({
+test("the bar and the card share one head, the count beside the time for the musicians, and a pinned card", async ({
   app,
 }) => {
   const bar = app.control.getByRole("region", { name: "Escenario" });
@@ -315,7 +320,7 @@ test("the bar and the card share one head, the count in the time's place for the
   await expect(card).toBeVisible();
   await card.getByRole("button", { name: "Iniciar la cuenta" }).click();
 
-  // The musicians' view with a count: the count where the time was, the time small over what comes next.
+  // The musicians' view with a count: the count on the left of the strip, the time in its middle.
   await card.getByRole("button", { name: "Músicos", exact: true }).click();
   await expect(layout(stage)).toHaveAttribute("data-layout", "musicians");
   await expect(stage.getByRole("timer")).toHaveText(/^(30:00|29:5\d)$/);
