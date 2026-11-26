@@ -1585,7 +1585,7 @@ const pt: Messages = {
         previewLevel: "Se o Preview toca numa saída diferente da do Ao vivo (fones de ouvido, por exemplo), o volume dele fica como você deixou de um item para o outro. Na mesma saída ele continua começando sem som.",
         pathRow: "O balão com o caminho do arquivo aparece em toda a linha do roteiro, não só sobre o nome.",
         linuxOutput: "No Linux, o menu de saídas de som mostra qual é a do sistema, e o aviso de Preview e Ao vivo na mesma saída agora funciona.",
-        stageLyrics: "No palco, a visualização «Músicos» mostra as músicas e os versículos como letra grande: em cima o que se canta, embaixo e menor o que vem depois, e no rodapé a contagem, a hora e em que parte estão («2/12» ou a referência). As apresentações e os vídeos aparecem maiores.",
+        stageLyrics: "No palco, a visualização “Músicos” mostra as músicas e os versículos como letra grande: em cima o que se canta, embaixo e menor o que vem depois, e no rodapé a contagem, a hora e em que parte estão (“2/12” ou a referência). As apresentações e os vídeos aparecem maiores.",
       },
     },
   },
