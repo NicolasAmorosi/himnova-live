@@ -495,9 +495,16 @@ projector and the stage are now, and opening or closing the projector; its secon
 stage panel's monitor (sized at that screen's own proportion). Everything inside is in units of its own box
 (`container-type: size`, so `cqh` is safe there: no `OutputView` above it) and it sets `data-theme="dark"` on
 itself, so the panel's monitor in the light theme still shows the stage's colours; its frames' edge and corners
-are in its own units too (`.wa-stage-frame`), so the monitor draws hairlines. Three views: «Musicians» (what the
-projector shows, the time, what follows, with no caption over it (owner, 2026-11-14); with a countdown, the count
-takes the time's place and the time goes small over what follows, every line a fixed height so nothing moves),
+are in its own units too (`.wa-stage-frame`), so the monitor draws hairlines. Three views: «Musicians» (owner,
+2026-11-26, after a photo of another church's stage screen: the whole rectangle is used. A song or a verse is WORDS,
+white on black: what is live as large as it fits, a hairline, what follows smaller, no caption, and the theme's
+background, video, translation and footer stay on the projector. Anything else (a deck, the hymnal's pictures, a
+video) is the projector's picture, large, with what follows beside it. Under both, a strip at a fixed height: the
+count on the left when there is one, the time in the middle, «2/12» or the verse's reference on the right. A song is
+drawn at ONE size per row, measured in the control window (`stage-sync.ts`: `fitSongSize` of `stageSong` with
+`STAGE_SONG_THEME` at the rows' proportions, `stageLyricRows` in `shared/stage.ts`, with its chords drawn when they
+are on) and carried in the output; each row is a box of that proportion inside its cell, so a message band shrinks the
+words and never cuts them. `StageOutput.words` keeps this view while a song or a verse is under BLACK or LOGO),
 «Pastor» (the countdown as large as fits, the time, and what the projector shows, always) and «Proyector» (a copy of
 the projector, nothing else); the message is a band at the foot of the first two. The count is the panel's
 countdown or, without one, a Functions countdown or stopwatch that is live (owner, 2026-11-14), in the stage's

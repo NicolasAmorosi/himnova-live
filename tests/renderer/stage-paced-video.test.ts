@@ -30,6 +30,9 @@ const STAGE: StageOutput = {
   layout: "musicians",
   hour12: false,
   textScale: 1,
+  rows: { current: 3.7, next: 5.5 },
+  position: null,
+  words: false,
 };
 const MEDIA = { video: null, slideVideo: null };
 

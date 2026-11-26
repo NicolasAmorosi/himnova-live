@@ -121,6 +121,8 @@ export function SongScene({
         <div
           className="max-h-full min-h-0 w-full overflow-hidden"
           data-song-block=""
+          // What the measurer multiplies each probe by, so it measures the chords as they are drawn.
+          data-song-scale={chorded ? CHORDED_SCALE : 1}
           style={{
             ...sceneTextCss(theme.text),
             fontSize: `${chorded ? sizeCqw * CHORDED_SCALE : sizeCqw}cqw`,

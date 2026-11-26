@@ -519,6 +519,15 @@ export type StageOutput = {
   message: StageMessage | null;
   /** Already resolved: «Auto» never reaches the stage. */
   layout: StageLayout;
+  /** The musicians' two rows of words, as width / height (`stageLyricRows`): the proportions the live song was
+   *  measured at, which the rows keep whatever room is left them (a message band takes some). */
+  rows: { current: number; next: number };
+  /** The musicians read words: a song or a verse is live, under BLACK or LOGO too, so covering its last slide never
+   *  turns the view into pictures and back. */
+  words: boolean;
+  /** Where the musicians are, in the strip: «2/12» in a song's order or a deck, a verse's reference; `null` for
+   *  anything else. */
+  position: string | null;
   hour12: boolean;
   /** The size of everything the stage writes itself (time, countdown, message), from Settings ▸ Screens. */
   textScale: number;
