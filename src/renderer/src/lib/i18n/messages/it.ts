@@ -1588,6 +1588,7 @@ const it: Messages = {
         previewLevel: "Se l'Anteprima suona su un'uscita diversa da quella in onda (delle cuffie, per esempio), il suo volume resta come l'hai lasciato da un elemento all'altro. Sulla stessa uscita parte ancora in silenzio.",
         pathRow: "Il fumetto con il percorso del file compare su tutta la riga della scaletta, non solo sopra il nome.",
         linuxOutput: "Su Linux, il menu delle uscite audio indica quella di sistema, e l'avviso di Anteprima e In onda sulla stessa uscita ora funziona.",
+        stageLyrics: "Sul palco, la vista «Musicisti» mostra i canti e i versetti come testo grande: sopra ciò che si canta, sotto e più piccolo ciò che segue, e in basso il conto alla rovescia, l'ora e a che punto si è («2/12» o il riferimento). Le presentazioni e i video si vedono più grandi.",
       },
     },
   },
